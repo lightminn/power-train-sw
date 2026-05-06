@@ -1,0 +1,40 @@
+# Python caches / build
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+venv/
+.venv/
+env/
+*_env/
+zetin_env/
+
+# JAX / CUDA caches
+.jax_cache/
+.cache/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# Claude Code local-only settings (CLAUDE.md is committed)
+.claude/settings.local.json
+
+# SLURM / run logs (서버에서 생성됨, 결과 파일만 커밋)
+SLURM.*.out
+SLURM.*.err
+run_*.out
+run_*.err
+logs/
+
+# 임시 산출물
+*.tmp
+*.bak
