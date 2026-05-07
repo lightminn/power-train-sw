@@ -1,0 +1,31 @@
+# Jetson Orin Nano 전용 (ARM64, JetPack 6). nvidia-container-runtime 은 JetPack 에 기본 포함.
+# 사용 예 (젯슨에서):
+#   docker compose -f docker/docker-compose.jetson.yml up -d --build
+#   docker compose -f docker/docker-compose.jetson.yml exec powertrain bash
+
+services:
+  powertrain:
+    build:
+      context: .
+      dockerfile: Dockerfile.jetson
+    image: powertrain-sw:jetson
+    container_name: powertrain_jetson
+
+    network_mode: host
+    runtime: nvidia      # JetPack 의 nvidia-container-runtime — CUDA/TensorRT 노출
+
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - QT_X11_NO_MITSHM=1
+
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /dev:/dev
+      - ../:/workspace:rw
+
+    cap_add:
+      - SYS_RAWIO
+
+    stdin_open: true
+    tty: true
+    command: bash

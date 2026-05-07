@@ -1,0 +1,38 @@
+# 기본 (x86_64, CPU/Intel iGPU). NVIDIA GPU 가 있으면 docker-compose.gpu.yml 오버레이 사용.
+# 사용 예:
+#   docker compose -f docker/docker-compose.yml up -d --build
+#   docker compose -f docker/docker-compose.yml exec powertrain bash
+
+services:
+  powertrain:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: powertrain-sw:dev
+    container_name: powertrain_dev
+
+    # 호스트 네트워크: robot_*.py 의 TCP 직결, ROS2 DDS 멀티캐스트(향후) 모두 호스트에서 동작
+    network_mode: host
+
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - QT_X11_NO_MITSHM=1
+      # 향후 ROS2 도입 시 활용. 현재 raw python 에는 영향 없음.
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-10}
+
+    volumes:
+      # X11 GUI (cv2.imshow, OpenCV 창)
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # /dev 전체 마운트: ODrive USB · DualSense · V4L 카메라 hot-plug 대응
+      # (privileged: true 보다 권한 좁힘)
+      - /dev:/dev
+      # 코드 동기화 — 호스트의 저장소 루트를 /workspace 로 마운트
+      - ../:/workspace:rw
+
+    # ODrive USB 직접 제어용 (libusb)
+    cap_add:
+      - SYS_RAWIO
+
+    stdin_open: true
+    tty: true
+    command: bash
