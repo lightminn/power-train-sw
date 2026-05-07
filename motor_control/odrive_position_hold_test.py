@@ -5,7 +5,7 @@ from odrive.enums import *
 GEAR_RATIO = 5.0
 
 drv = odrive.find_any()
-ax = drv.axis0
+ax = drv.axis1
 
 print(f"vbus: {drv.vbus_voltage:.2f}V, brake_armed: {drv.brake_resistor_armed}")
 print(

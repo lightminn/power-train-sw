@@ -11,7 +11,7 @@ def connect():
 
 
 def dump_errors(drv):
-    a = drv.axis0
+    a = drv.axis1
     print(f"  axis.error:       {a.error}")
     print(f"  motor.error:      {a.motor.error}")
     print(f"  encoder.error:    {a.encoder.error}")
@@ -19,7 +19,7 @@ def dump_errors(drv):
 
 
 my_drive = connect()
-axis = my_drive.axis0
+axis = my_drive.axis1
 
 print(f"펌웨어: {my_drive.fw_version_major}.{my_drive.fw_version_minor}.{my_drive.fw_version_revision}")
 print(f"하드웨어: v{my_drive.hw_version_major}.{my_drive.hw_version_minor} variant {my_drive.hw_version_variant}")
@@ -50,7 +50,7 @@ if axis.encoder.config.mode != EncoderMode.HALL:
     my_drive.save_configuration()
     time.sleep(5)
     my_drive = connect()
-    axis = my_drive.axis0
+    axis = my_drive.axis1
     print(
         f"재부팅 완료 — mode: {axis.encoder.config.mode}, cpr: {axis.encoder.config.cpr}")
 else:
