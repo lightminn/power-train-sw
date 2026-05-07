@@ -79,12 +79,11 @@ safe_set(my_drive.config, 'dc_max_negative_current', -8.0)
 safe_set(my_drive.config, 'dc_bus_overvoltage_trip_level', 56.0)
 safe_set(my_drive.config, 'dc_bus_undervoltage_trip_level', 8.0)
 
-# 부팅 자동 실행 비활성 (axis0 + axis1)
-for ax_n in (my_drive.axis0, my_drive.axis1):
-    ax_n.config.startup_motor_calibration = False
-    ax_n.config.startup_encoder_index_search = False
-    ax_n.config.startup_encoder_offset_calibration = False
-    ax_n.config.startup_closed_loop_control = False
+# 부팅 자동 실행 비활성 (axis1)
+my_drive.axis1.config.startup_motor_calibration = False
+my_drive.axis1.config.startup_encoder_index_search = False
+my_drive.axis1.config.startup_encoder_offset_calibration = False
+my_drive.axis1.config.startup_closed_loop_control = False
 
 if need_save:
     print("\n핵심 설정 갱신 → 저장 후 재부팅")
