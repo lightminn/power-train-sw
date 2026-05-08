@@ -4,6 +4,7 @@
 Jetson 컨테이너 안에서 실행. 호스트(노트북)에서는 scripts/recv_stream.sh 로 수신.
 """
 import argparse
+import subprocess
 import sys
 import time
 
@@ -11,22 +12,27 @@ import cv2
 from ultralytics import YOLO
 
 
-def build_gst_pipeline(host: str, port: int, width: int, height: int, fps: int) -> str:
-    """H.264 인코딩 + UDP RTP 송신 pipeline.
+def build_gst_command(host: str, port: int, width: int, height: int,
+                      fps: int) -> list[str]:
+    """gst-launch argv — fdsrc 로 raw BGR frame 받아 H.264 RTP 송신.
 
-    Jetson NVENC(`nvv4l2h264enc`)는 dustynv 컨테이너의 GStreamer 1.20+ 와 NVIDIA
-    L4T plugin (1.14 ABI) 사이 element registration 호환 이슈로 동작 불가. 일단
-    소프트웨어 인코더 `openh264enc` 사용. 720p/30fps 정도는 ARM A78AE 6코어에서 OK.
+    cv2.VideoWriter 의 GStreamer 백엔드는 dustynv 컨테이너의 opencv-python(pip)
+    빌드에 미포함이라 subprocess + gst-launch 우회. NVENC(`nvv4l2h264enc`) 또한
+    L4T plugin ABI 1.14 vs 컨테이너 GStreamer 1.20+ 불일치로 사용 불가, 소프트웨어
+    `openh264enc` 사용 (ARM A78AE 6코어에서 720p/30fps OK).
     """
-    return (
-        f"appsrc ! "
-        f"video/x-raw,format=BGR,width={width},height={height},framerate={fps}/1 ! "
-        f"videoconvert ! video/x-raw,format=I420 ! "
-        f"openh264enc bitrate=4000000 ! "
-        f"h264parse config-interval=1 ! "
-        f"rtph264pay pt=96 config-interval=1 ! "
-        f"udpsink host={host} port={port} sync=false async=false"
-    )
+    return [
+        "gst-launch-1.0", "-q",
+        "fdsrc", "fd=0", "do-timestamp=true",
+        "!", f"video/x-raw,format=BGR,width={width},height={height},"
+              f"framerate={fps}/1",
+        "!", "videoconvert", "!", "video/x-raw,format=I420",
+        "!", "openh264enc", "bitrate=4000000",
+        "!", "h264parse", "config-interval=1",
+        "!", "rtph264pay", "pt=96", "config-interval=1",
+        "!", "udpsink", f"host={host}", f"port={port}",
+             "sync=false", "async=false",
+    ]
 
 
 def parse_args() -> argparse.Namespace:
@@ -72,12 +78,14 @@ def open_camera(dev: str, w: int, h: int, fps: int) -> cv2.VideoCapture:
     return cap
 
 
-def open_writer(host: str, port: int, w: int, h: int, fps: int) -> cv2.VideoWriter:
-    pipeline = build_gst_pipeline(host, port, w, h, fps)
-    out = cv2.VideoWriter(pipeline, cv2.CAP_GSTREAMER, 0, fps, (w, h))
-    if not out.isOpened():
-        sys.exit("ERROR: GStreamer pipeline 열기 실패")
-    return out
+def open_writer(host: str, port: int, w: int, h: int,
+                fps: int) -> subprocess.Popen:
+    cmd = build_gst_command(host, port, w, h, fps)
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL)
+    if proc.poll() is not None:
+        sys.exit(f"ERROR: gst-launch 즉시 종료 (rc={proc.returncode})")
+    return proc
 
 
 def main() -> None:
@@ -87,7 +95,8 @@ def main() -> None:
     model = YOLO(model_path)
 
     cap = open_camera(args.camera, args.width, args.height, args.fps)
-    out = open_writer(args.host, args.port, args.width, args.height, args.fps)
+    out_proc = open_writer(args.host, args.port,
+                           args.width, args.height, args.fps)
 
     inf_window: list[float] = []
     e2e_window: list[float] = []
@@ -103,7 +112,11 @@ def main() -> None:
                 break
             results = model.predict(frame, conf=args.conf, verbose=False)
             annotated = results[0].plot()
-            out.write(annotated)
+            try:
+                out_proc.stdin.write(annotated.tobytes())
+            except BrokenPipeError:
+                print("gst-launch 파이프 끊김", file=sys.stderr)
+                break
             t1 = time.time()
             dt = max(t1 - t0, 1e-6)
             inf_window.append(float(results[0].speed.get("inference", 0.0)))
@@ -128,7 +141,15 @@ def main() -> None:
               f"size={args.width}x{args.height} "
               f"frames={frame_idx} elapsed={elapsed:.1f}s avg_fps={avg:.1f}")
         cap.release()
-        out.release()
+        try:
+            out_proc.stdin.close()
+        except (BrokenPipeError, OSError):
+            pass
+        try:
+            out_proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            out_proc.terminate()
+            out_proc.wait(timeout=5)
 
 
 if __name__ == "__main__":
