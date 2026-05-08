@@ -4,6 +4,7 @@
 Jetson 컨테이너 안에서 실행. 호스트(노트북)에서는 scripts/recv_stream.sh 로 수신.
 """
 import argparse
+import os
 import subprocess
 import sys
 import time
@@ -57,14 +58,31 @@ def parse_args() -> argparse.Namespace:
 
 
 def resolve_model(path: str, backend: str, imgsz: tuple[int, int]) -> str:
-    """backend=trt 인 경우 .engine 이 없으면 export 수행. .engine 경로 반환."""
+    """backend=trt 인 경우 입력 사이즈별 .engine 캐시 (없으면 export). 경로 반환.
+
+    ultralytics 의 model.export() 는 자체 캐싱 안 함 — 매번 호출하면 매번 빌드 (5-10분).
+    여기서 입력 사이즈를 파일명에 박아 캐시.
+    """
     if backend == "pt":
         return path
     if path.endswith(".engine"):
         return path
+    # imgsz=(H, W) 를 파일명에 반영. ultralytics 가 32 multiple 로 올림하니
+    # 표시도 그 기준으로.
+    h32 = ((imgsz[0] + 31) // 32) * 32
+    w32 = ((imgsz[1] + 31) // 32) * 32
+    base_name = os.path.splitext(path)[0]
+    cached = f"{base_name}_{h32}x{w32}_fp16.engine"
+    if os.path.exists(cached):
+        print(f"[info] reusing cached engine: {cached}")
+        return cached
     print(f"[info] exporting TensorRT engine from {path} (FP16, imgsz={imgsz})...")
     base = YOLO(path)
     engine = base.export(format="engine", half=True, imgsz=imgsz)
+    # ultralytics 가 만든 기본 yolov8n.engine 을 사이즈별 이름으로 rename.
+    if engine != cached and os.path.exists(engine):
+        os.rename(engine, cached)
+        engine = cached
     print(f"[info] engine: {engine}")
     return engine
 
