@@ -1,38 +1,30 @@
 # Power Train SW — Jetson Orin Nano 배포용 (ARM64, JetPack 6 / L4T R36.x)
 #
-# 베이스: NVIDIA L4T PyTorch (CUDA · cuDNN · TensorRT · ARM PyTorch 포함)
-# OpenVINO 는 Intel 전용이므로 제외 — 젯슨에선 PyTorch+CUDA 또는 TensorRT 경로 사용
-# (yolo_openvino_detection.py 는 젯슨에서 그대로 안 돌아감 — TensorRT 변환 필요)
+# 베이스: dustynv/ultralytics — l4t-pytorch + ultralytics + OpenCV(CUDA) + TensorRT
+#   * https://github.com/dusty-nv/jetson-containers
+# OpenVINO 는 Intel 전용이므로 제외. 젯슨에선 PyTorch+CUDA / TensorRT 경로 사용.
 
-FROM nvcr.io/nvidia/l4t-pytorch:r36.2.0-pth2.2-py3
+FROM dustynv/ultralytics:r36.4.0
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
+# ODrive USB, DualSense (SDL2/joystick), 카메라(V4L2), GStreamer 도구만 추가.
+# 베이스에 이미 설치된 것: PyTorch, ultralytics, opencv(CUDA), TensorRT, GStreamer 코어.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libusb-1.0-0 \
         libsdl2-2.0-0 \
-        libgl1 \
-        libglib2.0-0 \
         v4l-utils \
         joystick \
-        gstreamer1.0-tools \
-        gstreamer1.0-plugins-base \
-        gstreamer1.0-plugins-good \
-        gstreamer1.0-plugins-bad \
         usbutils \
         udev \
     && rm -rf /var/lib/apt/lists/*
 
-# l4t-pytorch 베이스에 PyTorch 가 이미 있으므로 ultralytics 만 추가하면 자동으로 GPU 사용
+# 모터 트랙용 — 비전과 무관하지만 컨테이너 일관성을 위해 보존.
 RUN pip3 install --no-cache-dir \
         odrive \
-        pygame \
-        opencv-python \
-        ultralytics \
-        numpy \
-        matplotlib
+        pygame
 
 WORKDIR /workspace
 CMD ["bash"]
