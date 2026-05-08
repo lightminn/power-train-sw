@@ -12,15 +12,19 @@ from ultralytics import YOLO
 
 
 def build_gst_pipeline(host: str, port: int, width: int, height: int, fps: int) -> str:
-    """Jetson NVENC H.264 인코딩 + UDP RTP 송신 pipeline."""
+    """H.264 인코딩 + UDP RTP 송신 pipeline.
+
+    Jetson NVENC(`nvv4l2h264enc`)는 dustynv 컨테이너의 GStreamer 1.20+ 와 NVIDIA
+    L4T plugin (1.14 ABI) 사이 element registration 호환 이슈로 동작 불가. 일단
+    소프트웨어 인코더 `openh264enc` 사용. 720p/30fps 정도는 ARM A78AE 6코어에서 OK.
+    """
     return (
         f"appsrc ! "
         f"video/x-raw,format=BGR,width={width},height={height},framerate={fps}/1 ! "
         f"videoconvert ! video/x-raw,format=I420 ! "
-        f"nvvidconv ! "
-        f"nvv4l2h264enc maxperf-enable=1 bitrate=4000000 "
-        f"insert-sps-pps=1 idrinterval=15 ! "
-        f"h264parse ! rtph264pay pt=96 config-interval=1 ! "
+        f"openh264enc bitrate=4000000 ! "
+        f"h264parse config-interval=1 ! "
+        f"rtph264pay pt=96 config-interval=1 ! "
         f"udpsink host={host} port={port} sync=false async=false"
     )
 
