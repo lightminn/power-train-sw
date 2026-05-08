@@ -22,7 +22,7 @@ def build_gst_command(host: str, port: int, width: int, height: int,
     `openh264enc` 사용 (ARM A78AE 6코어에서 720p/30fps OK).
     """
     return [
-        "gst-launch-1.0", "-q",
+        "gst-launch-1.0",
         "fdsrc", "fd=0", "do-timestamp=true",
         "!", f"video/x-raw,format=BGR,width={width},height={height},"
               f"framerate={fps}/1",
@@ -81,8 +81,10 @@ def open_camera(dev: str, w: int, h: int, fps: int) -> cv2.VideoCapture:
 def open_writer(host: str, port: int, w: int, h: int,
                 fps: int) -> subprocess.Popen:
     cmd = build_gst_command(host, port, w, h, fps)
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL)
+    print("[gst-launch]", " ".join(cmd), file=sys.stderr)
+    # stderr 는 부모 콘솔로 그대로 노출 (디버깅), bufsize=0 으로 즉시 flush.
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, bufsize=0)
+    time.sleep(0.3)
     if proc.poll() is not None:
         sys.exit(f"ERROR: gst-launch 즉시 종료 (rc={proc.returncode})")
     return proc
