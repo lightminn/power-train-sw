@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #   별도로 git source 설치 또는 Python 3.10 컨테이너 사용 필요.
 RUN pip3 install --no-cache-dir \
         --index-url https://pypi.org/simple \
+        "numpy<2" \
         pygame \
         opencv-python \
         ultralytics

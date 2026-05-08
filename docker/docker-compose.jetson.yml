@@ -26,6 +26,9 @@ services:
     cap_add:
       - SYS_RAWIO
 
+    # V4L2 (/dev/video*), USB device cgroup 등 Jetson HW 직접 접근을 위해 privileged.
+    privileged: true
+
     stdin_open: true
     tty: true
     command: bash
