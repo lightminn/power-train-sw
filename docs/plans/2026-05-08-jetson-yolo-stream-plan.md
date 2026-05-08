@@ -604,3 +604,49 @@ python3 motor_control/yolo_cuda_stream.py --backend trt --host <노트북-IP>
 | `cv2.cuda.getCudaEnabledDeviceCount()` 가 0 | 베이스 이미지의 OpenCV가 의외로 CPU build | 무시 가능 (ultralytics는 자체적으로 CUDA 사용). 결과 표에서 OpenCV CUDA 가속은 별도 항목 X |
 | TRT export 실패 | 입력 사이즈가 너무 큼 | imgsz를 32 배수로 (640, 1280 등 OK; 1280x720 OK) |
 | 카메라 못 열림 | `/dev/video0` 외 디바이스 (예: video2) | `v4l2-ctl --list-devices` 확인 후 `--camera /dev/videoN` |
+
+---
+
+## 측정 결과 (실측, 2026-05-09)
+
+측정 환경: Jetson Orin Nano 8GB Super 모드 (25W), JetPack 6.2.2 / L4T R36.5.0,
+컨테이너 베이스 `dustynv/l4t-pytorch:r36.4.0` (※ spec 의 dustynv/ultralytics 는
+실제 미존재), YOLOv8n conf=0.4, USB 카메라 Microsoft LifeCam Studio,
+인코더 OpenH264 (소프트웨어).
+
+| 백엔드 | 해상도 | avg_fps | infer (ms) | end-to-end (ms) |
+|---|---|---|---|---|
+| PyTorch FP32 | 640×480 | 23.6 | 23.4 | 36.9 |
+| PyTorch FP32 | 1280×720 | 12.7 | 25–30 | 51–106 |
+| TensorRT FP16 | 640×480 | **27.6** | **9.9** | 33.3 |
+| TensorRT FP16 | 1280×720 | 15.9 | 22.5 | 50–76 |
+
+핵심 관찰:
+- TensorRT FP16 가 PyTorch FP32 대비 **추론 약 2.4× 단축** (640×480, 23.4ms → 9.9ms).
+- 640×480 + TRT 에서 **avg_fps 27.6 (≈ 30fps cap)** — 인코딩 병목 도달.
+- e2e 33ms ≈ 1/30s — OpenH264 (소프트웨어) 인코딩이 30fps cap 의 주된 병목.
+  추론은 더 빠를 수 있지만 인코딩이 못 따라감.
+- 1280×720 PT 가 12.7fps 로 최저 — frame size + 추론 + 인코딩 다 부담.
+- 1920×1080 측정 생략 (Microsoft LifeCam Studio 720p 가 최대).
+
+## 진행 중 발견된 이슈 + 영구 fix (commit 이력 참조)
+
+| # | 이슈 | 원인 | 해결 |
+|---|---|---|---|
+| 1 | Jetson 에 docker engine 없음 | JetPack 6 기본은 nvidia-container-toolkit 만 포함 | `apt install docker.io docker-compose-v2` + `nvidia-ctk runtime configure --runtime=docker` |
+| 2 | `dustynv/ultralytics:r36.4.0` 이미지 없음 | spec 추측 잘못 (Docker Hub 미존재) | `dustynv/l4t-pytorch:r36.4.0` 베이스 + ultralytics pip 설치 |
+| 3 | `pip install odrive` 실패 | Python 3.11+ 에 wheel 미배포 | 일단 odrive 제거 (이번 plan vision 중심). 모터 트랙 작업 시 별도 처리 |
+| 4 | `pip` 인덱스 DNS 미해상 | dustynv 베이스가 jetson.webredirect.org 강제 | `--index-url https://pypi.org/simple` |
+| 5 | NumPy 1.x ↔ 2.x 호환 경고 | torch 가 numpy 1.x 로 컴파일됐는데 deps 가 2.x 끌어옴 | `numpy<2` 핀 |
+| 6 | `/dev/video0: Operation not permitted` | cgroup device 차단 | compose 에 `privileged: true` |
+| 7 | `nvv4l2h264enc` (NVENC) 미인식 | L4T plugin (1.14 ABI) ↔ 컨테이너 GStreamer (1.20+) element 호환 X | 소프트웨어 `openh264enc` 으로 우회 |
+| 8 | `cv2.VideoWriter` GStreamer 백엔드 X | dustynv 의 opencv-python wheel 빌드에 GStreamer 미포함 | `subprocess.Popen(gst-launch ...)` + raw BGR `frame.tobytes()` 를 stdin 으로 |
+| 9 | `videoconvert: invalid video buffer` | fdsrc 출력은 byte stream — caps 만으론 video buffer 인정 X | `rawvideoparse format=bgr width=W height=H framerate=F/1` 추가 |
+| 10 | TRT engine 매 실행 재 빌드 (5–10분) | ultralytics `model.export()` 자체 캐시 X | 입력 사이즈를 파일명 (`yolov8n_HxW_fp16.engine`) 에 인코딩, 존재 시 reuse |
+
+## 향후 작업
+
+- **NVENC 활성화**: jetson-containers 빌드 시스템으로 ultralytics 컨테이너 직접 빌드, 또는 GStreamer 1.14 베이스 이미지 사용. 인코딩 병목 해소 시 1280×720 도 30fps 기대.
+- **ODrive 통합**: Python 3.10 컨테이너 별도 또는 odrive git source 설치. spec 의 비목표 였으니 별도 plan.
+- **객체 추종 통합**: 본 plan 의 `yolo_cuda_stream.py` + 기존 `odrive_yolo_object_tracking.py` 구조 결합.
+- **양자화 (INT8)**: TRT export 시 `int8=True` + 캘리브레이션 데이터 — 추론 추가 1.5–2× 가속 기대.
