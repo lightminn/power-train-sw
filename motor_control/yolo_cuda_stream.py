@@ -24,8 +24,10 @@ def build_gst_command(host: str, port: int, width: int, height: int,
     return [
         "gst-launch-1.0",
         "fdsrc", "fd=0", "do-timestamp=true",
-        "!", f"video/x-raw,format=BGR,width={width},height={height},"
-              f"framerate={fps}/1",
+        "!", "rawvideoparse",
+             "format=bgr",
+             f"width={width}", f"height={height}",
+             f"framerate={fps}/1",
         "!", "videoconvert", "!", "video/x-raw,format=I420",
         "!", "openh264enc", "bitrate=4000000",
         "!", "h264parse", "config-interval=1",
