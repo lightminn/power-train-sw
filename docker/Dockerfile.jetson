@@ -27,8 +27,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # PyTorch + CUDA 는 베이스에. 나머지는 pip 로 추가.
+# 주의: odrive PyPI 패키지는 Python 3.11+ 에 wheel 미배포 — 모터 트랙 작업 시
+# 별도로 git source 설치 또는 Python 3.10 컨테이너 사용 필요.
 RUN pip3 install --no-cache-dir \
-        odrive \
         pygame \
         opencv-python \
         ultralytics
