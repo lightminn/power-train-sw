@@ -28,6 +28,15 @@ from yolo_cuda_stream import (
     resolve_model,
 )
 
+# fw-v0.5.6 의 odrive.enums 는 plain Enum (IntEnum 아님). fibre serializer 가
+# `int(value)` 로 wire serialize 시 plain Enum 은 coerce 실패 →
+# 미리 `.value` 로 int 만 뽑아두고 wire I/O 에 사용.
+AXIS_IDLE = AxisState.IDLE.value
+AXIS_CLOSED_LOOP = AxisState.CLOSED_LOOP_CONTROL.value
+AXIS_FULL_CALIB = AxisState.FULL_CALIBRATION_SEQUENCE.value
+CTRL_POSITION = ControlMode.POSITION_CONTROL.value
+INPUT_POS_FILTER = InputMode.POS_FILTER.value
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
@@ -87,8 +96,8 @@ def setup_axis(ax, input_filter_hz: float) -> float:
         ax.motor.error = 0
         ax.encoder.error = 0
         ax.controller.error = 0
-        ax.requested_state = AxisState.FULL_CALIBRATION_SEQUENCE
-        while ax.current_state != AxisState.IDLE:
+        ax.requested_state = AXIS_FULL_CALIB
+        while ax.current_state != AXIS_IDLE:
             time.sleep(0.1)
         if not (ax.motor.is_calibrated and ax.encoder.is_ready):
             sys.exit(f"[odrive] calibration failed. axis={ax.error:#x} "
@@ -109,14 +118,14 @@ def setup_axis(ax, input_filter_hz: float) -> float:
     ax.controller.config.vel_gain = 0.04
     ax.controller.config.vel_integrator_gain = 0.0
 
-    ax.controller.config.control_mode = ControlMode.POSITION_CONTROL
-    ax.controller.config.input_mode = InputMode.POS_FILTER
+    ax.controller.config.control_mode = CTRL_POSITION
+    ax.controller.config.input_mode = INPUT_POS_FILTER
     ax.controller.config.input_filter_bandwidth = input_filter_hz
 
     print("[odrive] entering CLOSED_LOOP_CONTROL...")
-    ax.requested_state = AxisState.CLOSED_LOOP_CONTROL
+    ax.requested_state = AXIS_CLOSED_LOOP
     time.sleep(0.5)
-    if ax.current_state != AxisState.CLOSED_LOOP_CONTROL:
+    if ax.current_state != AXIS_CLOSED_LOOP:
         sys.exit(f"[odrive] closed-loop entry failed. motor={ax.motor.error:#x}")
 
     origin = ax.encoder.pos_estimate
@@ -131,7 +140,8 @@ def main() -> None:
     # vision setup
     model_path = resolve_model(
         args.model, args.backend, imgsz=(args.height, args.width))
-    model = YOLO(model_path)
+    # task="detect" 명시 — .engine 파일명에서 ultralytics 가 task 추정 못 해서 경고.
+    model = YOLO(model_path, task="detect")
     target_id = coco_class_id(model, args.target)
     print(f"[vision] target='{args.target}' (class id {target_id})")
 
@@ -198,7 +208,7 @@ def main() -> None:
                 print(f"[odrive] tripped: axis={ax.error:#x} "
                       f"motor={ax.motor.error:#x}", file=sys.stderr)
                 break
-            if ax is not None and ax.current_state != AxisState.CLOSED_LOOP_CONTROL:
+            if ax is not None and ax.current_state != AXIS_CLOSED_LOOP:
                 print(f"[odrive] left closed-loop: state={ax.current_state}",
                       file=sys.stderr)
                 break
@@ -244,7 +254,7 @@ def main() -> None:
                 time.sleep(2)
             except Exception as e:
                 print(f"[odrive] origin return error: {e}", file=sys.stderr)
-            ax.requested_state = AxisState.IDLE
+            ax.requested_state = AXIS_IDLE
 
         cap.release()
         if out_proc is not None:
