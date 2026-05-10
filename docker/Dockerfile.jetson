@@ -38,5 +38,13 @@ RUN pip3 install --no-cache-dir \
         opencv-python \
         ultralytics
 
+# odrive — PyPI 에 Python 3.11+ wheel 미배포 (5/8 plan 에서 미뤄둔 부분).
+# git source 에서 tools 서브디렉터리 직접 설치. fw-v0.5.6 펌웨어 매칭.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git build-essential \
+    && pip3 install --no-cache-dir --index-url https://pypi.org/simple \
+        "git+https://github.com/odriverobotics/ODrive@fw-v0.5.6#subdirectory=tools" \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /workspace
 CMD ["bash"]

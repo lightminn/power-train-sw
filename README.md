@@ -166,6 +166,7 @@ cpr이 30으로 낮아 게인을 보수적으로 잡고 vel-estimate 필터 band
 | `setup_yolo_env.sh` | `yolo_env` 콘다 환경 + PyTorch(CUDA) · ultralytics(YOLOv8) · OpenVINO · OpenCV · ODrive 설치 |
 | `yolo_openvino_detection.py` | OpenVINO YOLOv8n 카메라 검출(V4L2, 1280×720) + 임의 카메라 파라미터로 3D 좌표 변환. 모터 명령 없음 |
 | `yolo_cuda_stream.py` | YOLOv8 (PyTorch CUDA / TensorRT FP16) 검출 + GStreamer H.264 RTP UDP 송신. 모터 명령 없음. Jetson 컨테이너 안에서 실행, 호스트 측 수신은 `scripts/recv_stream.sh`. TRT 백엔드는 입력 사이즈별 `.engine` 캐시 자동 생성 (`yolov8n_HxW_fp16.engine`) |
+| `yolo_odrive_jetson.py` | 위 검출 흐름 + axis1 추종 (HALL 트랙). `--stream` 옵션으로 영상 송신 동시 동작. Jetson 단일 노드 운영. 안전 한계 `MAX_TURNS=2.0` 기본, Ctrl-C 시 IDLE 안전 종료 |
 
 #### DualSense 직결 텔레옵
 

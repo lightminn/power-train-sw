@@ -54,6 +54,9 @@ gain / current limits diverge — see README "트랙 A / 트랙 B"):
 - **Vision-only** (no motor command):
   `yolo_openvino_detection.py` (x86, OpenVINO),
   `yolo_cuda_stream.py` (Jetson, PyTorch-CUDA / TensorRT FP16, GStreamer UDP H.264 sender — paired with `scripts/recv_stream.sh` on the laptop)
+- **Vision + control** (single Jetson node, HALL track):
+  `yolo_odrive_jetson.py` (vision detection → axis1 tracking, optional `--stream`
+  re-uses GStreamer pipeline from `yolo_cuda_stream.py`)
 - **Networked teleop** (1:1 pairs):
   `laptop/laptop_client_*.py` ↔ `pi/pi_server_*.py` (TCP `:9000`, newline-delimited
   `%.4f\n` velocity); `laptop_client_video.py` adds GStreamer JPEG video at `:5000`
