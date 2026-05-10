@@ -1,5 +1,8 @@
 # Vision + 모터제어 통합 Implementation Plan
 
+> **상태: 완료 (2026-05-10 검증)** — Task 1–8 모두 통과, Phase B/C/D 무부하 동작 정상.
+> 측정 결과 + 발견 이슈 표는 본 문서 끝.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 5/8 plan 의 `yolo_cuda_stream.py` 의 검출 흐름과 기존
@@ -380,10 +383,10 @@ git push origin main
 
 ## 검증 기준 (spec 대조)
 
-- [ ] (Task 5) Phase A — `import odrive` + `odrive.find_any()` 성공, axis1 status 정상
-- [ ] (Task 6) Phase B — 통합 스크립트가 카메라 → 검출 → 모터 명령 30Hz 폐루프
-- [ ] (Task 6) Phase C — 객체 좌우 이동 시 axis1 추종, MAX_TURNS 도달 정지, Ctrl-C IDLE
-- [ ] (Task 7) Phase D (옵션) — 영상 스트리밍 + 추종 동시 동작
+- [x] (Task 5) Phase A — `import odrive` + `odrive.find_any()` 성공, axis1 status 정상
+- [x] (Task 6) Phase B — 통합 스크립트가 카메라 → 검출 → 모터 명령 30Hz 폐루프
+- [x] (Task 6) Phase C — 객체 좌우 이동 시 axis1 추종, MAX_TURNS 도달 정지, Ctrl-C IDLE
+- [x] (Task 7) Phase D — 영상 스트리밍 + 추종 동시 동작 (avg_fps 28.3 유지)
 
 ## 잠재 이슈 + 대응
 
@@ -405,3 +408,38 @@ git push origin main
 - 노트북 → Jetson 제어 채널 (TCP) — 비상정지 / 모드 전환
 - NVENC 활성화 (5/8 plan 의 `nvv4l2h264enc` 병목 해소)
 - INT8 양자화 (TRT export `int8=True` + 캘리브레이션)
+
+---
+
+## 측정 결과 (실측, 2026-05-10)
+
+측정 환경: Jetson Orin Nano 8GB Super 모드 (25W), JetPack 6.2.2,
+컨테이너 `dustynv/l4t-pytorch:r36.4.0` + odrive (git fw-v0.5.6, libfibre LFS pull),
+YOLOv8n TRT FP16 (`yolov8n_480x640_fp16.engine`, 5/8 캐시 재사용),
+USB 카메라 Microsoft LifeCam Studio, ODrive v3.6 + 14극 BLDC + TLE5012B 16384 CPR,
+vbus 11.96V (※ 무부하 검증 한정).
+
+| Phase | 모드 | avg_fps | infer (ms) | 비고 |
+|---|---|---|---|---|
+| B/C | 추종 only (스트리밍 OFF) | ≈ 30 | ≈ 9.8 | (5/8 의 yolo_cuda_stream.py 640×480 TRT 결과 27.6 fps + 모터 명령 추가, 32.7 → 30.x 안정 |
+| D | 추종 + 스트리밍 (`--stream`) | **28.3** | **9.8** | 300 frame 평균. 객체 좌우 이동 시 `tgt` ±0.97 → ±0.16 변동, 모터 추종 정상 |
+
+핵심 관찰:
+- 추론 9.8ms 는 5/8 plan 측정 (9.9ms) 과 동일 — 추종 컨트롤러 추가에도 비전 경로
+  변화 없음.
+- `--stream` 켜도 fps 28.3 유지 — 인코딩 (openh264, 소프트웨어) 이 30fps cap 의
+  주된 병목인 건 5/8 와 동일하지만, 모터 명령이 인코딩 cap 안에 충분히 들어감.
+- 객체 좌우 이동에 `tgt` 부호 변화 정상 (`-0.97` → `+0.76` → `+0.16` → `-0.76`),
+  `MAX_TURNS=2.0` 안전 한계 안에서 saturation.
+- Ctrl-C / `--bench-frames` 종료 시 `returning to origin + IDLE` 정상 시퀀스,
+  ODrive 트립 없음.
+
+## 진행 중 발견된 이슈 + 영구 fix
+
+| # | 이슈 | 원인 | 해결 (commit) |
+|---|---|---|---|
+| 1 | `pip install git+...ODrive` 시 `libfibre-linux-aarch64.so is too small` | ODrive 저장소가 prebuilt fibre `.so` 를 git LFS 보관, pip 의 `git+...` URL 은 LFS 객체 fetch 안 함 | `git-lfs` apt 설치 + 직접 clone + `git lfs pull` 후 로컬 경로 pip install (`21f82f9`) |
+| 2 | `ax.controller.config.control_mode = ControlMode.POSITION_CONTROL` 시 `TypeError: int() ... not 'ControlMode'` | fw-v0.5.6 의 `odrive.enums.{AxisState,ControlMode,InputMode}` 가 plain Enum (IntEnum 아님). fibre serializer 가 `int(value)` 호출 시 plain Enum coerce 실패 | 모듈 상단에서 `.value` 로 int 추출해 `AXIS_IDLE` / `AXIS_CLOSED_LOOP` / `CTRL_POSITION` 등 상수로 두고 wire I/O 에 사용 (`68389ee`) |
+| 3 | spec 가정 트랙 (HALL D6374) 과 실제 hw (14극 BLDC + TLE5012B 16384 CPR) 불일치 | 5/8 plan 의 odrive.PyPI wheel 부재 노트가 HALL 가정으로 이어졌으나, 실제 보드/모터는 엔코더 트랙 (READme `pi_server_velocity.py` 가정과 동일) | `init_odrive.py` 신규 — `pole_pairs=7` / `cpr=16384` / 게인 NVM 저장 + auto-startup. 통합 스크립트는 NVM 게인 사용으로 하드코딩 게인 제거 (`f3454fd`) |
+| 4 | 폐루프 진입 직후 모터가 이전 `input_pos` 값으로 점프 (runaway 위험) | `requested_state = CLOSED_LOOP_CONTROL` 직후 보드 내부 `input_pos` 가 이전 명령 값 그대로 — origin 위치와 다르면 즉시 그쪽으로 가속 | `setup_axis()` 에서 `input_pos = origin` 을 **폐루프 진입 전** 에 박아둠. 안전상 결정적 fix (`f3454fd`) |
+| 5 | `Loading yolov8n_480x640_fp16.engine for TensorRT inference... WARNING ⚠ Unable to automatically guess model task` | `.engine` 파일명에서 ultralytics 가 task 추정 실패 | `YOLO(path, task="detect")` 명시 (`68389ee`) |

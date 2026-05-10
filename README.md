@@ -166,7 +166,8 @@ cpr이 30으로 낮아 게인을 보수적으로 잡고 vel-estimate 필터 band
 | `setup_yolo_env.sh` | `yolo_env` 콘다 환경 + PyTorch(CUDA) · ultralytics(YOLOv8) · OpenVINO · OpenCV · ODrive 설치 |
 | `yolo_openvino_detection.py` | OpenVINO YOLOv8n 카메라 검출(V4L2, 1280×720) + 임의 카메라 파라미터로 3D 좌표 변환. 모터 명령 없음 |
 | `yolo_cuda_stream.py` | YOLOv8 (PyTorch CUDA / TensorRT FP16) 검출 + GStreamer H.264 RTP UDP 송신. 모터 명령 없음. Jetson 컨테이너 안에서 실행, 호스트 측 수신은 `scripts/recv_stream.sh`. TRT 백엔드는 입력 사이즈별 `.engine` 캐시 자동 생성 (`yolov8n_HxW_fp16.engine`) |
-| `yolo_odrive_jetson.py` | 위 검출 흐름 + axis1 추종 (HALL 트랙). `--stream` 옵션으로 영상 송신 동시 동작. Jetson 단일 노드 운영. 안전 한계 `MAX_TURNS=2.0` 기본, Ctrl-C 시 IDLE 안전 종료 |
+| `yolo_odrive_jetson.py` | 위 검출 흐름 + axis1 추종 (엔코더 트랙, NVM 게인 사용). `--stream` 옵션으로 영상 송신 동시 동작. Jetson 단일 노드 운영. 폐루프 진입 전 `input_pos = origin` 박아 jump 방지, `MAX_TURNS=2.0` 기본 안전 한계, Ctrl-C 시 원점 복귀 + IDLE |
+| `init_odrive.py` | **1회 실행** ODrive NVM 셋업: `pole_pairs=7` (14극) / `cpr=16384` (TLE5012B) / 게인 (`pos_gain=1.0`, `vel_gain=0.02`, `vel_limit=10`, `input_filter_bandwidth=2.0`, `INPUT_MODE_POS_FILTER`) / `pre_calibrated=True` / `startup_closed_loop_control=True` 저장 + `save_configuration()` + `reboot()`. 이후 `yolo_odrive_jetson.py` 가 NVM 값 그대로 사용 |
 
 #### DualSense 직결 텔레옵
 

@@ -50,13 +50,18 @@ gain / current limits diverge — see README "트랙 A / 트랙 B"):
   `odrive_velocity_hold_test.py`
 - **Encoder track** (external incremental encoder, full calibration each run):
   `odrive_dualsense_test.py`, `odrive_dualsense_vel_test.py`,
-  `yolo_odrive_motor_test.py`, `odrive_yolo_object_tracking.py`
+  `yolo_odrive_motor_test.py`, `odrive_yolo_object_tracking.py`;
+  `init_odrive.py` is a **one-shot** NVM init for 14-pole BLDC + TLE5012B
+  (16384 CPR) — sets gains, marks `pre_calibrated=True`, enables
+  `startup_closed_loop_control`, then `save_configuration()` + `reboot()`
 - **Vision-only** (no motor command):
   `yolo_openvino_detection.py` (x86, OpenVINO),
   `yolo_cuda_stream.py` (Jetson, PyTorch-CUDA / TensorRT FP16, GStreamer UDP H.264 sender — paired with `scripts/recv_stream.sh` on the laptop)
-- **Vision + control** (single Jetson node, HALL track):
+- **Vision + control** (single Jetson node, encoder track):
   `yolo_odrive_jetson.py` (vision detection → axis1 tracking, optional `--stream`
-  re-uses GStreamer pipeline from `yolo_cuda_stream.py`)
+  re-uses GStreamer pipeline from `yolo_cuda_stream.py`). Relies on NVM gains set
+  by `init_odrive.py`; sets `input_pos = origin` *before* closed-loop entry to
+  prevent runaway from stale `input_pos`
 - **Networked teleop** (1:1 pairs):
   `laptop/laptop_client_*.py` ↔ `pi/pi_server_*.py` (TCP `:9000`, newline-delimited
   `%.4f\n` velocity); `laptop_client_video.py` adds GStreamer JPEG video at `:5000`

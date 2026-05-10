@@ -1,10 +1,15 @@
 # Vision + 모터제어 통합 (Jetson 단일 노드)
 
 날짜: 2026-05-10
+**상태: 완료 (2026-05-10 검증)** — 측정 결과 + 발견 이슈 이력은
+[`../plans/2026-05-10-vision-motor-integration-plan.md`](../plans/2026-05-10-vision-motor-integration-plan.md) 끝부분.
 선행: [`./2026-05-08-jetson-yolo-stream-design.md`](./2026-05-08-jetson-yolo-stream-design.md) (완료)
 대상 기기: Jetson Orin Nano 8GB Super 모드, JetPack 6.2.2 / L4T R36.5.0
 컨테이너: `docker/Dockerfile.jetson` (베이스 `dustynv/l4t-pytorch:r36.4.0`)
-모터: D6374 150 KV + 내장 HALL, NVM 캘리 완료 가정 (HALL 트랙)
+모터: ~~D6374 150 KV + 내장 HALL (HALL 트랙)~~ → **검증 시 실제 hw**: 14극 BLDC
++ TLE5012B 16384 CPR + 2.0 Ω 브레이크 저항 (**엔코더 트랙**, README 의
+`pi_server_velocity.py` 가정과 동일). NVM 캘리 + auto-startup 은 신규
+`motor_control/init_odrive.py` 로 1회 진행.
 
 ## 목표
 
@@ -60,7 +65,7 @@
 | 항목 | 선택 | 이유 |
 |---|---|---|
 | 운영 위치 | Jetson 단일 | Pi 거치면 USB→TCP→Pi→USB 추가 hop. 통합 검증엔 단일 노드가 단순 |
-| ODrive 트랙 | HALL (D6374, NVM 캘리됨) | 5/8 plan 시점 이미 캘리되어 있음. 매 실행 풀 캘리하는 인코더 트랙은 통합 검증에 부담 |
+| ODrive 트랙 | ~~HALL (D6374)~~ → **엔코더 (14극 BLDC + TLE5012B)** | 검증 시 실제 hw 가 엔코더 트랙. `init_odrive.py` 로 NVM 게인 + `pre_calibrated=True` + `startup_closed_loop_control=True` 1회 저장 → 매 실행 풀 캘리 부담 없음 |
 | ODrive 환경 | **odrive git source 설치 in 현재 컨테이너** (1차) | 5/8 plan 의 PyPI wheel 부재 우회. 별도 Python 3.10 컨테이너 분리는 IPC 추가 필요해 후순위 |
 | 추론 백엔드 | TensorRT FP16 | 5/8 plan 측정: 640×480 에서 추론 9.9ms, FP32 대비 2.4× 단축 |
 | 입력 해상도 | 640×480 (기본) | 5/8 측정 27.6 fps — 추종 루프 30 Hz 충분. 720p 는 옵션 |
