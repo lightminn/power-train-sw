@@ -1,5 +1,8 @@
 # Jetson Orin Nano YOLO 검출 + 실시간 영상 스트리밍 Implementation Plan
 
+> **상태: 완료 (2026-05-09 검증)** — Task 1–11 모두 완료, Task 12 (컨테이너 종료) 는 사용자 재량.
+> 후속 단계 (vision + 모터제어 통합) 은 [`./2026-05-10-vision-motor-integration-plan.md`](./2026-05-10-vision-motor-integration-plan.md) 로 분리.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Jetson Orin Nano에서 USB 카메라 영상을 받아 CUDA YOLOv8n으로 검출, 검출 박스가 오버레이된 H.264 영상을 노트북에 UDP RTP로 실시간 송신. PyTorch FP32 vs TensorRT FP16 성능 비교.
@@ -646,7 +649,8 @@ python3 motor_control/yolo_cuda_stream.py --backend trt --host <노트북-IP>
 
 ## 향후 작업
 
-- **NVENC 활성화**: jetson-containers 빌드 시스템으로 ultralytics 컨테이너 직접 빌드, 또는 GStreamer 1.14 베이스 이미지 사용. 인코딩 병목 해소 시 1280×720 도 30fps 기대.
-- **ODrive 통합**: Python 3.10 컨테이너 별도 또는 odrive git source 설치. spec 의 비목표 였으니 별도 plan.
-- **객체 추종 통합**: 본 plan 의 `yolo_cuda_stream.py` + 기존 `odrive_yolo_object_tracking.py` 구조 결합.
-- **양자화 (INT8)**: TRT export 시 `int8=True` + 캘리브레이션 데이터 — 추론 추가 1.5–2× 가속 기대.
+- **vision + 모터제어 통합 (다음 마일스톤)**: ODrive 환경 + 객체 추종 + (선택) DualSense 텔레옵을 묶어 Jetson 단일 노드 운영으로 진입. 별도 spec/plan 으로 분리:
+  - 설계: [`../specs/2026-05-10-vision-motor-integration-design.md`](../specs/2026-05-10-vision-motor-integration-design.md)
+  - 구현: [`./2026-05-10-vision-motor-integration-plan.md`](./2026-05-10-vision-motor-integration-plan.md)
+- **NVENC 활성화** (저순위): jetson-containers 빌드 시스템으로 ultralytics 컨테이너 직접 빌드, 또는 GStreamer 1.14 베이스 이미지 사용. 인코딩 병목 해소 시 1280×720 도 30fps 기대.
+- **양자화 (INT8)** (저순위): TRT export 시 `int8=True` + 캘리브레이션 데이터 — 추론 추가 1.5–2× 가속 기대.

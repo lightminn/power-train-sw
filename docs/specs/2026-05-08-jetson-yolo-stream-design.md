@@ -1,6 +1,13 @@
 # Jetson Orin Nano YOLO 검출 + 실시간 영상 스트리밍
 
 날짜: 2026-05-08
+**상태: 완료 (2026-05-09 검증)** — 측정 결과 + 이슈 fix 이력은
+[`../plans/2026-05-08-jetson-yolo-stream-plan.md`](../plans/2026-05-08-jetson-yolo-stream-plan.md) 끝부분.
+
+후속 단계 (vision + 모터제어 통합) 는 별도 spec/plan 으로 분리:
+- [`./2026-05-10-vision-motor-integration-design.md`](./2026-05-10-vision-motor-integration-design.md)
+- [`../plans/2026-05-10-vision-motor-integration-plan.md`](../plans/2026-05-10-vision-motor-integration-plan.md)
+
 대상 기기: Jetson Orin Nano 8GB Developer Kit (Super 모드, JetPack 6.2.2 / L4T R36.5.0)
 호스트: x86_64 Arch (개발/노트북, 영상 수신)
 
@@ -159,10 +166,10 @@ gst-launch-1.0 -v udpsrc port=5000 \
 
 ## 후속 작업 (이번 plan 외)
 
-- 객체 추종 통합 (`odrive_yolo_object_tracking.py` 흐름)
-- DualSense 텔레옵 통합
-- 노트북에서 검출 박스만 받기 (메타데이터 별도 채널, 영상은 raw로)
-- 다른 모델 비교: YOLOv8s/m, RT-DETR
+- **객체 추종 통합** — 별도 spec: `docs/specs/2026-05-10-vision-motor-integration-design.md` 에서 다룸. 본 spec 의 `yolo_cuda_stream.py` 흐름을 기존 `odrive_yolo_object_tracking.py` 와 결합 + Jetson 단일 노드로 운영.
+- **DualSense 텔레옵 통합** — 위 통합 plan 의 후순위 phase.
+- 노트북에서 검출 박스만 받기 (메타데이터 별도 채널, 영상은 raw로) — 미정.
+- 다른 모델 비교: YOLOv8s/m, RT-DETR — 미정.
 
 ## 변경 파일 목록
 
