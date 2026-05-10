@@ -84,18 +84,12 @@ def coco_class_id(model: YOLO, name: str) -> int:
 
 
 def setup_axis(ax, input_filter_hz: float) -> float:
-    """폐루프 진입 + 게인 세팅. 원점 turns 반환.
-
-    캘리 풀려있으면 FULL_CALIBRATION_SEQUENCE — odrive_yolo_object_tracking.py 와 동일.
-    """
+    """폐루프 진입 + 게인 세팅. 원점 turns 반환."""
     if ax.motor.is_calibrated and ax.encoder.is_ready:
         print("[odrive] axis1 already calibrated — skipping")
     else:
         print("[odrive] running FULL_CALIBRATION_SEQUENCE...")
-        ax.error = 0
-        ax.motor.error = 0
-        ax.encoder.error = 0
-        ax.controller.error = 0
+        ax.clear_errors()
         ax.requested_state = AXIS_FULL_CALIB
         while ax.current_state != AXIS_IDLE:
             time.sleep(0.1)
@@ -104,32 +98,25 @@ def setup_axis(ax, input_filter_hz: float) -> float:
                      f"motor={ax.motor.error:#x} enc={ax.encoder.error:#x}")
         print("[odrive] calibration OK")
 
-    # error clear
-    ax.error = 0
-    ax.motor.error = 0
-    ax.encoder.error = 0
-    ax.controller.error = 0
+    # 기존 에러 초기화 (v0.5.6 권장 방식)
+    ax.clear_errors()
 
-    # 비전 추적용 게인 (odrive_yolo_object_tracking.py 와 동일)
-    ax.motor.config.current_lim = 15.0
-    ax.controller.config.vel_limit = 5.0
-    ax.encoder.config.bandwidth = 50
-    ax.controller.config.pos_gain = 2.0
-    ax.controller.config.vel_gain = 0.04
-    ax.controller.config.vel_integrator_gain = 0.0
-
+    # 🚨 하드코딩된 쓰레기 게인 설정 코드들 전부 삭제됨! (보드 내부 저장값 사용)
     ax.controller.config.control_mode = CTRL_POSITION
     ax.controller.config.input_mode = INPUT_POS_FILTER
     ax.controller.config.input_filter_bandwidth = input_filter_hz
 
+    # 🚨 [가장 중요한 수정] 모터에 힘을 넣기 '전'에, 현재 위치를 목표 위치로 일치시킴!
+    origin = ax.encoder.pos_estimate
+    ax.controller.input_pos = origin
+
     print("[odrive] entering CLOSED_LOOP_CONTROL...")
     ax.requested_state = AXIS_CLOSED_LOOP
     time.sleep(0.5)
+
     if ax.current_state != AXIS_CLOSED_LOOP:
         sys.exit(f"[odrive] closed-loop entry failed. motor={ax.motor.error:#x}")
 
-    origin = ax.encoder.pos_estimate
-    ax.controller.input_pos = origin
     print(f"[odrive] closed-loop OK. origin={origin:.3f} turns")
     return origin
 
