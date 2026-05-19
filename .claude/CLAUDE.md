@@ -82,7 +82,9 @@ cameras + USB devices are accessible from the container. Vision/streaming entry
 point is `motor_control/vision/yolo_cuda_stream.py`; the laptop runs
 `scripts/recv_stream.sh <port>` to display the decoded stream. Background and
 verification log: `docs/specs/2026-05-08-jetson-yolo-stream-design.md`,
-`docs/plans/2026-05-08-jetson-yolo-stream-plan.md`.
+`docs/plans/2026-05-08-jetson-yolo-stream-plan.md`. Hardware reinventory + folder
+reorg (5/20): `docs/specs/2026-05-20-motor-control-reorg-design.md`,
+`docs/plans/2026-05-20-motor-control-reorg-plan.md`.
 
 ## Robot Specification (shared across both tracks)
 

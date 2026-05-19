@@ -58,7 +58,7 @@ fibre serializer 가 wire I/O 시 `int(value)` 호출하는데 plain Enum 은 co
 `TypeError: int() argument ... not 'ControlMode'`. → 모듈 상단에서 `.value` 로 int 추출해
 `AXIS_IDLE` / `AXIS_CLOSED_LOOP` / `CTRL_POSITION` 상수로 두고 wire I/O 에 사용. (`68389ee`)
 
-기존 `motor_control/odrive_yolo_object_tracking.py` 가 같은 패턴 (`ControlMode.POSITION_CONTROL`)
+기존 `motor_control/drive/x2212_test/odrive_yolo_object_tracking.py` 가 같은 패턴 (`ControlMode.POSITION_CONTROL`)
 으로 안 깨졌던 건 거기 동작 환경의 ODrive lib 가 newer (0.6.x, IntEnum) 라서.
 
 ### 3. 폐루프 진입 직전 `input_pos = origin` 박는 게 안전상 결정적
@@ -127,14 +127,17 @@ Defence_Robot/
 │   └── pi/pi_server_{basic,velocity,position,video}.py   # Pi 측 서버 (별 hw 라인)
 ├── parameter_calc/                 # 14차원 형상 파라미터 최적화 (별 트랙, 손 안 댐)
 ├── scripts/
-│   └── recv_stream.sh              # 노트북 측 GStreamer UDP H.264 수신 헬퍼
+│   ├── recv_stream.sh              # 노트북 측 GStreamer UDP H.264 수신 헬퍼
+│   └── can_setup.sh                # Jetson can0 1 Mbps 셋업 (mttcan + devmem)
 └── docs/
     ├── specs/
     │   ├── 2026-05-08-jetson-yolo-stream-design.md     # 비전 단독 [완료]
-    │   └── 2026-05-10-vision-motor-integration-design.md  # 통합 [완료]
+    │   ├── 2026-05-10-vision-motor-integration-design.md  # 통합 [완료]
+    │   └── 2026-05-20-motor-control-reorg-design.md    # hw 폴더 재구성 [완료]
     └── plans/
         ├── 2026-05-08-jetson-yolo-stream-plan.md          # [완료, 측정 결과 + 이슈 표]
-        └── 2026-05-10-vision-motor-integration-plan.md    # [완료, 측정 결과 + 이슈 표]
+        ├── 2026-05-10-vision-motor-integration-plan.md    # [완료, 측정 결과 + 이슈 표]
+        └── 2026-05-20-motor-control-reorg-plan.md         # [완료]
 ```
 
 ---
