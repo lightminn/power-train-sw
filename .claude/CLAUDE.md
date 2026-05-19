@@ -21,8 +21,13 @@ Defence_Robot/
 │   ├── python_gpu/       GPU port (JAX/CUDA 12.x) — v3
 │   ├── python_gpu_triangle/  GPU variant restricted to triangle mode — v4
 │   └── scripts/          run_gpu.sh, run_gpu_triangle.sh
-├── motor_control/        ODrive + DualSense + YOLO control scripts
-│   ├── *.py              Self-contained host-side scripts (HALL / encoder tracks)
+├── motor_control/        ODrive · AK 조향 · YOLO · US100 센서 · 텔레옵
+│   ├── drive/            구동 모터
+│   │   ├── x2212_test/   SunnySky X2212-13 + TLE5012B (ODrive USB · CAN)
+│   │   └── bl70200/      BL70200 + 내장 HALL ×3 (실전, ODrive USB)
+│   ├── steering/         AK40/AK45 조향 (CAN, 동일 API)
+│   ├── vision/           모터 명령 없는 검출·스트리밍
+│   ├── sensors/          US100 거리 (UART /dev/ttyTHS1)
 │   ├── laptop/           Laptop-side TCP teleop clients (DualSense → robot)
 │   └── pi/               Raspberry-Pi-side servers (paired 1:1 with laptop/)
 ├── docker/               Container definitions (x86 dev + Jetson Orin Nano deploy)
@@ -40,35 +45,33 @@ Detailed simulation pipeline, 14-parameter space, objective weights, GPU acceler
 
 ## Working in `motor_control/`
 
-Self-contained Python scripts; no shared package structure. Two hardware tracks
-share the directory and **must not be mixed on the same ODrive** (calibration /
-gain / current limits diverge — see README "트랙 A / 트랙 B"):
+Self-contained Python scripts; no shared package structure. Three motor hardware
+lines, isolated by subfolder. **Never mix tracks on the same ODrive** (calibration
+/ gain / current limits diverge).
 
-- **HALL track** (D6374 + built-in hall, NVM-stored calibration):
-  `odrive_calibration.py`, `odrive_diff_drive_test.py`, `odrive_basic_test.py`,
-  `odrive_closed_loop_test.py`, `odrive_position_hold_test.py`,
-  `odrive_velocity_hold_test.py`
-- **Encoder track** (external incremental encoder, full calibration each run):
-  `odrive_dualsense_test.py`, `odrive_dualsense_vel_test.py`,
-  `yolo_odrive_motor_test.py`, `odrive_yolo_object_tracking.py`;
-  `init_odrive.py` is a **one-shot** NVM init for 14-pole BLDC + TLE5012B
-  (16384 CPR) — sets gains, marks `pre_calibrated=True`, enables
-  `startup_closed_loop_control`, then `save_configuration()` + `reboot()`
-- **Vision-only** (no motor command):
-  `yolo_openvino_detection.py` (x86, OpenVINO),
-  `yolo_cuda_stream.py` (Jetson, PyTorch-CUDA / TensorRT FP16, GStreamer UDP H.264 sender — paired with `scripts/recv_stream.sh` on the laptop)
-- **Vision + control** (single Jetson node, encoder track):
-  `yolo_odrive_jetson.py` (vision detection → axis1 tracking, optional `--stream`
-  re-uses GStreamer pipeline from `yolo_cuda_stream.py`). Relies on NVM gains set
-  by `init_odrive.py`; sets `input_pos = origin` *before* closed-loop entry to
-  prevent runaway from stale `input_pos`
-- **Networked teleop** (1:1 pairs):
-  `laptop/laptop_client_*.py` ↔ `pi/pi_server_*.py` (TCP `:9000`, newline-delimited
-  `%.4f\n` velocity); `laptop_client_video.py` adds GStreamer JPEG video at `:5000`
-- **Setup**: `setup_yolo_env.sh` (conda fallback when not using Docker)
+- **drive/bl70200/** (BL70200 + 내장 HALL ×3, 실전 구동): `odrive_calibration.py`,
+  `odrive_diff_drive_test.py`, `odrive_basic_test.py`, `odrive_closed_loop_test.py`,
+  `odrive_position_hold_test.py`, `odrive_velocity_hold_test.py` — HALL 모드,
+  `pp=5, cpr=30, HIGH_CURRENT`, NVM 저장 후 재사용.
+- **drive/x2212_test/** (SunnySky X2212-13 + TLE5012B, 테스트·PoC):
+  `init_odrive.py` (USB 1회 NVM 셋업, pp=7 cpr=16384), `odrive_can_setup.py` /
+  `odrive_can_drive.py` (CAN), `odrive_dualsense_*.py` (텔레옵), `yolo_odrive_jetson.py`
+  (Jetson 비전 추종, USB), `yolo_odrive_motor_test.py` · `odrive_yolo_object_tracking.py`
+  (x86 OpenVINO 추종, 참조).
+- **steering/** (AK40-10 → AK45, CAN socketcan can0): `ak_control.py` (메인 라이브러리),
+  `calibrate_ak.py` (기어비 1회성), `status_ak.py` (CAN RX 디버깅), `run_ak.py`
+  (TMotorCANControl 데모). 사전 준비: `bash scripts/can_setup.sh`.
+- **vision/** (모터 명령 없음): `yolo_openvino_detection.py` (x86 OpenVINO),
+  `yolo_cuda_stream.py` (Jetson CUDA/TRT + GStreamer UDP H.264 송신 — 수신은
+  `scripts/recv_stream.sh`), `setup_yolo_env.sh` (x86 conda, Docker 권장).
+- **sensors/** (UART `/dev/ttyTHS1`): `us100_basic.py` (US100 0x55 기본),
+  `us100_robust.py` (Jetson UART TX 떨림 버그 우회 — 0xFF prefix).
+- **Networked teleop** (1:1 pairs): `laptop/laptop_client_*.py` ↔ `pi/pi_server_*.py`
+  (TCP `:9000`, newline-delimited `%.4f\n` velocity); `laptop_client_video.py` adds
+  GStreamer JPEG video at `:5000`.
 
-All scripts use `axis1`. Hardware: ODrive controllers driving D6374 150 KV motors
-(4.95 Nm peak × 5:1 gearbox = 21 Nm at the wheel).
+ODrive 펌웨어 v0.5.x (CAN 트랙 fw-v0.5.6 검증), all scripts use `axis1`. Jetson CAN
+트랙 입력 전 `input_pos = origin` 설정으로 폐루프 진입 시 모터 점프 방지.
 
 ## Jetson Orin Nano deployment
 
@@ -76,7 +79,7 @@ All scripts use `axis1`. Hardware: ODrive controllers driving D6374 150 KV motor
 `dustynv/l4t-pytorch:r36.4.0` (CUDA + cuDNN + TensorRT + ARM PyTorch). Compose
 file mounts `/dev`, NVENC GStreamer plugin, and runs `privileged: true` so V4L2
 cameras + USB devices are accessible from the container. Vision/streaming entry
-point is `motor_control/yolo_cuda_stream.py`; the laptop runs
+point is `motor_control/vision/yolo_cuda_stream.py`; the laptop runs
 `scripts/recv_stream.sh <port>` to display the decoded stream. Background and
 verification log: `docs/specs/2026-05-08-jetson-yolo-stream-design.md`,
 `docs/plans/2026-05-08-jetson-yolo-stream-plan.md`.
@@ -86,4 +89,6 @@ verification log: `docs/specs/2026-05-08-jetson-yolo-stream-design.md`,
 - 6 wheels, rocker-bogie suspension
 - Wheel radius: 100 mm
 - Total mass: 30 kg
-- Drive motor: D6374 150 KV via 5:1 gearbox (≈ 21 Nm at wheel, peak)
+- Drive motor (test): SunnySky X2212-13 + TLE5012B 16384 CPR encoder
+- Drive motor (real): BL70200 + internal HALL ×3 (pp=5, cpr=30)
+- Steering: CubeMars AK40-10 (test) / AK45 (real), CAN bus, identical API

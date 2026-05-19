@@ -12,18 +12,18 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # ODrive USB, DualSense (SDL2/joystick), 카메라(V4L2), GStreamer 도구.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libusb-1.0-0 \
-        libsdl2-2.0-0 \
-        libgl1 \
-        libglib2.0-0 \
-        v4l-utils \
-        joystick \
-        gstreamer1.0-tools \
-        gstreamer1.0-plugins-base \
-        gstreamer1.0-plugins-good \
-        gstreamer1.0-plugins-bad \
-        usbutils \
-        udev \
+    libusb-1.0-0 \
+    libsdl2-2.0-0 \
+    libgl1 \
+    libglib2.0-0 \
+    v4l-utils \
+    joystick \
+    gstreamer1.0-tools \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    usbutils \
+    udev \
     && rm -rf /var/lib/apt/lists/*
 
 # PyTorch + CUDA 는 베이스에. 나머지는 pip 로 추가.
@@ -32,22 +32,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 주의 2: odrive PyPI 패키지는 Python 3.11+ 에 wheel 미배포 — 모터 트랙 작업 시
 #   별도로 git source 설치 또는 Python 3.10 컨테이너 사용 필요.
 RUN pip3 install --no-cache-dir \
-        --index-url https://pypi.org/simple \
-        "numpy<2" \
-        pygame \
-        opencv-python \
-        ultralytics
+    --index-url https://pypi.org/simple \
+    "numpy<2" \
+    pygame \
+    opencv-python \
+    ultralytics \
+    python-can
+
 
 # odrive — PyPI 에 Python 3.11+ wheel 미배포 (5/8 plan 에서 미뤄둔 부분).
 # git source 에서 tools 서브디렉터리 직접 설치. fw-v0.5.6 펌웨어 매칭.
 # 주의: ODrive 저장소가 prebuilt libfibre .so 를 git LFS 로 보관 — pip 의
 # git+... URL 은 LFS fetch 안 함. 직접 clone + lfs pull 후 로컬 경로에서 pip install.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        git git-lfs build-essential \
+    git git-lfs build-essential \
     && rm -rf /var/lib/apt/lists/* \
     && git lfs install --system \
     && git clone --depth 1 --branch fw-v0.5.6 \
-        https://github.com/odriverobotics/ODrive /opt/ODrive \
+    https://github.com/odriverobotics/ODrive /opt/ODrive \
     && (cd /opt/ODrive && git lfs pull) \
     && pip3 install --no-cache-dir --index-url https://pypi.org/simple /opt/ODrive/tools \
     && rm -rf /opt/ODrive

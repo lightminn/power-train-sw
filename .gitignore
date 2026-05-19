@@ -38,3 +38,11 @@ logs/
 # 임시 산출물
 *.tmp
 *.bak
+
+# YOLO 모델 산출물 (재export 가능 — 운영 머신에 보관)
+yolov8n.pt
+yolov8n*.onnx
+yolov8n*_*.engine
+
+# Kate editor swap
+.*.kate-swp

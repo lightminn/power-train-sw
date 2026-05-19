@@ -13,6 +13,7 @@
 import argparse
 import sys
 import time
+from pathlib import Path
 
 import cv2
 from ultralytics import YOLO
@@ -20,7 +21,8 @@ from ultralytics import YOLO
 import odrive
 from odrive.enums import AxisState, ControlMode, InputMode
 
-# yolo_cuda_stream 의 헬퍼 재사용 — 같은 디렉터리.
+# vision/ 의 helper 재사용 — 폴더 분리 후 sys.path 동적 추가.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "vision"))
 from yolo_cuda_stream import (
     build_gst_command,
     open_camera,
