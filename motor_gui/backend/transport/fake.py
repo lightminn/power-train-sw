@@ -41,7 +41,6 @@ class FakeTransport(Transport):
         self._target = 0.0
         self._ak_pos = 0.0
         self._ak_target = 0.0
-        self._pos_offset = 0.0
         self._tun = {
             "pos_gain": 20.0,
             "vel_gain": 0.16,
@@ -72,7 +71,7 @@ class FakeTransport(Transport):
         iq = (self._vel - prev_vel) / self.DT * 0.01 + self._vel * 0.02
         return {
             "t_mono": time.monotonic(),
-            "odrive.pos": self._pos - self._pos_offset,
+            "odrive.pos": self._pos,
             "odrive.vel": self._vel,
             "odrive.iq_meas": iq,
             "odrive.iq_set": self._target if self._mode == "torque" else iq,
@@ -107,13 +106,15 @@ class FakeTransport(Transport):
                 if self._mode == "position":
                     self._target = self._pos
             elif op == "set_origin":
-                self._pos_offset = self._pos
-                self._target = self._pos
+                # 순정 set_linear_count(0) 모사: 절대 위치를 직접 0 으로.
+                self._pos = 0.0
+                self._vel = 0.0
+                self._target = 0.0
             elif op == "set_input":
                 if "vel" in args:
                     self._target = float(args["vel"])
                 elif "pos" in args:
-                    self._target = float(args["pos"]) + self._pos_offset
+                    self._target = float(args["pos"])
                 elif "torque" in args:
                     self._target = float(args["torque"])
             elif op in ("set_gain", "set_limit"):
@@ -140,7 +141,7 @@ class FakeTransport(Transport):
                 "ak": ["set_input", "set_origin", "estop"],
             },
             "limits": {
-                "odrive": {"vel": 200.0, "torque": 10.0, "pos": 100.0},
+                "odrive": {"vel": 200.0, "torque": 10.0, "pos": 100000.0},
                 "ak": {"pos_deg": 360.0},
             },
             "control_modes": {"odrive": ODRIVE_CONTROL_MODES},

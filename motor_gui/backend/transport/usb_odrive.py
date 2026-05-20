@@ -12,6 +12,11 @@ _ODRIVE_SIGNALS = [
     "odrive.ctrl_err", "odrive.vel_integrator",
 ]
 
+# TRAP 순항속도는 vel_limit 에 강제 결합(set_limit 에서 동기) → 별도 노출 안 함.
+# trap_vel_limit > vel_limit 이면 궤적이 속도루프보다 앞서 달려 위치오차가
+# 누적되고(windup), vel_limit 을 풀면 그 오차가 한 번에 방출돼 폭주/저전압을 유발.
+_USB_TUNABLES = [t for t in ODRIVE_TUNABLES_USB if t["key"] != "trap_vel_limit"]
+
 
 class UsbOdriveBackend(Transport):
     """ODrive USB (odrive lib, axis1, fw-v0.5.6). NVM 저장 지원."""
@@ -24,7 +29,6 @@ class UsbOdriveBackend(Transport):
         self._drv = None
         self._ax = None
         self._fet_therm = None      # fw 별 위치 달라 connect 에서 resolve
-        self._pos_offset = 0.0   # set_origin 소프트웨어 영점
         self._enums: dict = {}
 
     def connect(self) -> None:
@@ -39,10 +43,14 @@ class UsbOdriveBackend(Transport):
         # 일부 빌드=axis.motor.fet_thermistor). connect 시 1회 resolve.
         self._fet_therm = (getattr(self._ax, "fet_thermistor", None)
                            or getattr(self._ax.motor, "fet_thermistor", None))
-        self._pos_offset = 0.0
         # 토크(current) 모드에서도 vel_limit 존중 보장 (무부하 runaway 방지).
         try:
             self._ax.controller.config.enable_current_mode_vel_limit = True
+        except Exception:
+            pass
+        # TRAP 순항속도 = vel_limit 초기 동기 (windup 방지). 이후 set_limit 에서 유지.
+        try:
+            self._ax.trap_traj.config.vel_limit = self._ax.controller.config.vel_limit
         except Exception:
             pass
         # fw-v0.5.6 plain Enum → wire I/O 용 int 상수 (0.6.x IntEnum 도 .value 동작)
@@ -64,7 +72,7 @@ class UsbOdriveBackend(Transport):
         m = ax.motor.current_control
         return {
             "t_mono": time.monotonic(),
-            "odrive.pos": float(ax.encoder.pos_estimate) - self._pos_offset,
+            "odrive.pos": float(ax.encoder.pos_estimate),
             "odrive.vel": float(ax.encoder.vel_estimate),
             "odrive.iq_meas": float(m.Iq_measured),
             "odrive.iq_set": float(m.Iq_setpoint),
@@ -100,7 +108,7 @@ class UsbOdriveBackend(Transport):
                     ax.controller.input_pos = ax.encoder.pos_estimate  # 현재 위치 hold
             elif op == "set_input":
                 if "pos" in args:
-                    ax.controller.input_pos = float(args["pos"]) + self._pos_offset
+                    ax.controller.input_pos = float(args["pos"])
                 elif "vel" in args:
                     ax.controller.input_vel = float(args["vel"])
                 elif "torque" in args:
@@ -110,15 +118,27 @@ class UsbOdriveBackend(Transport):
                           "input_filter_bandwidth"):
                     if k in args:
                         setattr(ax.controller.config, k, float(args[k]))
-                trap_map = {"trap_vel_limit": "vel_limit",
-                            "trap_accel_limit": "accel_limit",
+                # trap_vel_limit 는 무시(vel_limit 에 결합) — set_limit 에서만 설정.
+                trap_map = {"trap_accel_limit": "accel_limit",
                             "trap_decel_limit": "decel_limit"}
                 for k, attr in trap_map.items():
                     if k in args:
                         setattr(ax.trap_traj.config, attr, float(args[k]))
             elif op == "set_limit":
                 if "vel_limit" in args:
-                    ax.controller.config.vel_limit = float(args["vel_limit"])
+                    vl = float(args["vel_limit"])
+                    ax.trap_traj.config.vel_limit = vl   # TRAP 순항속도 = 사용자 속도 knob
+                    # 하드 캡(controller.vel_limit)은 두 제약을 동시에 만족해야 함:
+                    #  · trap 순항 이상 (작으면 windup → 캡 풀 때 폭주)
+                    #  · 현재 속도 아래로 내리면 overspeed 트립(CONTROLLER_FAILED)
+                    # → max() 로 설정. 올리면 즉시 반영, 내려도 트립 없이 궤적이 감속.
+                    cur_speed = abs(float(ax.encoder.vel_estimate))
+                    ax.controller.config.vel_limit = max(vl, cur_speed * 1.3)
+                    # TRAP 진행 중이면 input_pos 재발행 → 새 순항속도로 궤적 재계획
+                    # (가속한계 지켜 부드럽게 변속. 재계획 없으면 옛 속도로 끝까지 감.)
+                    if (int(ax.controller.config.input_mode) == self._enums["TRAP_TRAJ"]
+                            and int(ax.current_state) == self._enums["CLOSED_LOOP"]):
+                        ax.controller.input_pos = float(ax.controller.input_pos)
                 if "current_lim" in args:
                     ax.motor.config.current_lim = float(args["current_lim"])
             elif op == "set_state":
@@ -136,9 +156,15 @@ class UsbOdriveBackend(Transport):
                 except Exception:
                     pass
             elif op == "set_origin":
-                # 소프트웨어 영점: 현재 절대 위치를 0 으로 기록만, 모터 명령 변화 없음.
-                self._pos_offset = float(ax.encoder.pos_estimate)
-                ax.controller.input_pos = ax.encoder.pos_estimate  # 현재 위치 hold
+                # 순정 영점: IDLE 디스암 → set_linear_count(0) → input_pos=0 → 재무장.
+                # 컨트롤러 setpoint 까지 0 으로 같이 리셋되어 옛 setpoint 로 튀지 않음.
+                was_closed = int(ax.current_state) == self._enums["CLOSED_LOOP"]
+                ax.requested_state = self._enums["IDLE"]
+                time.sleep(0.2)
+                ax.encoder.set_linear_count(0)
+                ax.controller.input_pos = 0.0
+                if was_closed:
+                    ax.requested_state = self._enums["CLOSED_LOOP"]
             elif op == "save_nvm":
                 self._drv.save_configuration()
             return {"ok": True, "target": "odrive", "op": op, "detail": "ok"}
@@ -154,10 +180,10 @@ class UsbOdriveBackend(Transport):
                                     "set_limit", "set_state", "calibrate",
                                     "clear_errors", "save_nvm", "set_origin",
                                     "estop"]},
-            "limits": {"odrive": {"vel": 200.0, "torque": 10.0, "pos": 100.0}},
+            "limits": {"odrive": {"vel": 200.0, "torque": 10.0, "pos": 100000.0}},
             "control_modes": {"odrive": ODRIVE_CONTROL_MODES},
             "inputs": {"odrive": ODRIVE_INPUTS},
-            "tunables": {"odrive": ODRIVE_TUNABLES_USB},
+            "tunables": {"odrive": _USB_TUNABLES},
             "signal_meta": SIGNAL_META,
             "notes": ["USB 트랙 — ODrive 단독, NVM 저장 가능"],
         }

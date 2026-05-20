@@ -103,6 +103,6 @@ DEFAULT_TUNABLES = {
     "vel_limit": 5.0,
     "current_lim": 10.0,
     "trap_vel_limit": 20.0,
-    "trap_accel_limit": 20.0,
+    "trap_accel_limit": 15.0,
     "trap_decel_limit": 20.0,
 }
