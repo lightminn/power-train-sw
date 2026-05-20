@@ -99,6 +99,11 @@ class FakeTransport(Transport):
         if target == "odrive":
             if op == "set_mode":
                 self._mode = args.get("control_mode", self._mode)
+                if self._mode == "position":
+                    self._target = self._pos
+            elif op == "set_origin":
+                self._pos = 0.0
+                self._target = 0.0
             elif op == "set_input":
                 if "vel" in args:
                     self._target = float(args["vel"])
@@ -126,7 +131,7 @@ class FakeTransport(Transport):
             "commands": {
                 "odrive": ["set_mode", "set_input", "set_gain", "set_limit",
                            "set_state", "calibrate", "clear_errors",
-                           "save_nvm", "estop"],
+                           "save_nvm", "set_origin", "estop"],
                 "ak": ["set_input", "set_origin", "estop"],
             },
             "limits": {

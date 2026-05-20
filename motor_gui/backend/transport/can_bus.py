@@ -31,6 +31,7 @@ C_GET_BUS_VI = 0x017
 C_CLEAR_ERR = 0x018
 C_SET_POS_GAIN = 0x01A
 C_SET_VEL_GAINS = 0x01B
+C_SET_LINEAR_COUNT = 0x019
 
 AXIS_IDLE = 1
 AXIS_CLOSED_LOOP = 8
@@ -145,7 +146,7 @@ class CanBackend(Transport):
 
     def _apply_odrive(self, op: str, args: dict) -> dict:
         known = {"estop", "set_mode", "set_input", "set_gain", "set_limit",
-                 "set_state", "calibrate", "clear_errors"}
+                 "set_state", "calibrate", "clear_errors", "set_origin"}
         if op not in known:
             return {"ok": False, "target": "odrive", "op": op,
                     "detail": "unsupported op"}
@@ -154,6 +155,9 @@ class CanBackend(Transport):
         elif op == "set_mode":
             mode = args["control_mode"]
             self._send(C_SET_CTRL_MODE, struct.pack("<ii", CTRL[mode], IN_MODE[mode]))
+            if mode == "position":
+                cur = float(self._state.get("odrive.pos", 0.0))
+                self._send(C_SET_INPUT_POS, struct.pack("<fhh", cur, 0, 0))
         elif op == "set_input":
             if "pos" in args:
                 self._send(C_SET_INPUT_POS, struct.pack("<fhh", float(args["pos"]), 0, 0))
@@ -195,6 +199,9 @@ class CanBackend(Transport):
             self._send(C_SET_STATE, struct.pack("<I", AXIS_FULL_CALIB))
         elif op == "clear_errors":
             self._send(C_CLEAR_ERR)
+        elif op == "set_origin":
+            self._send(C_SET_LINEAR_COUNT, struct.pack("<i", 0))
+            self._send(C_SET_INPUT_POS, struct.pack("<fhh", 0.0, 0, 0))
         return {"ok": True, "target": "odrive", "op": op, "detail": "sent"}
 
     def _apply_ak(self, op: str, args: dict) -> dict:
@@ -220,7 +227,8 @@ class CanBackend(Transport):
             "signals": _ODRIVE_SIGNALS + _AK_SIGNALS,
             "commands": {
                 "odrive": ["set_mode", "set_input", "set_gain", "set_limit",
-                           "set_state", "calibrate", "clear_errors", "estop"],
+                           "set_state", "calibrate", "clear_errors",
+                           "set_origin", "estop"],
                 "ak": ["set_input", "set_origin", "estop"],
             },
             "limits": {"odrive": {"vel": 20.0, "torque": 10.0, "pos": 100.0},

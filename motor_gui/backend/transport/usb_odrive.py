@@ -92,6 +92,9 @@ class UsbOdriveBackend(Transport):
                 im = args.get("input_mode", self._DEFAULT_INPUT_MODE[cm])
                 if im in self._enums:
                     ax.controller.config.input_mode = self._enums[im]
+                if cm == "POSITION":
+                    # 모드 전환 시 현재 위치 hold (stale input_pos 로 fling 방지)
+                    ax.controller.input_pos = ax.encoder.pos_estimate
             elif op == "set_input":
                 if "pos" in args:
                     ax.controller.input_pos = float(args["pos"])
@@ -123,6 +126,10 @@ class UsbOdriveBackend(Transport):
                     self._drv.clear_errors()
                 except Exception:
                     pass
+            elif op == "set_origin":
+                # 현재 물리 위치를 0 으로 재정의 (모터·plot 영점 일치)
+                ax.encoder.set_linear_count(0)
+                ax.controller.input_pos = 0.0
             elif op == "save_nvm":
                 self._drv.save_configuration()
             return {"ok": True, "target": "odrive", "op": op, "detail": "ok"}
@@ -136,7 +143,8 @@ class UsbOdriveBackend(Transport):
             "signals": _ODRIVE_SIGNALS,
             "commands": {"odrive": ["set_mode", "set_input", "set_gain",
                                     "set_limit", "set_state", "calibrate",
-                                    "clear_errors", "save_nvm", "estop"]},
+                                    "clear_errors", "save_nvm", "set_origin",
+                                    "estop"]},
             "limits": {"odrive": {"vel": 20.0, "torque": 10.0, "pos": 100.0}},
             "control_modes": {"odrive": ODRIVE_CONTROL_MODES},
             "inputs": {"odrive": ODRIVE_INPUTS},
