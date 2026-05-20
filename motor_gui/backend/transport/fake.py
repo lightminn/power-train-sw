@@ -27,7 +27,7 @@ class FakeTransport(Transport):
     _VEL_ALPHA = 0.05    # velocity 모드 1차 수렴 계수
     _POS_KP = 2.0        # position 모드 P-gain
     _TRQ_GAIN = 0.1      # torque → vel 적분 계수
-    _VEL_LIMIT = 20.0    # vel 클램프 (capabilities limits.odrive.vel 와 일치)
+    _VEL_LIMIT = 200.0   # vel 클램프 (capabilities limits.odrive.vel 와 일치)
     _AK_ALPHA = 0.05     # AK 위치 1차 수렴 계수
     _AK_SPEED_SCALE = 10.0
 
@@ -136,7 +136,7 @@ class FakeTransport(Transport):
                 "ak": ["set_input", "set_origin", "estop"],
             },
             "limits": {
-                "odrive": {"vel": 20.0, "torque": 10.0, "pos": 100.0},
+                "odrive": {"vel": 200.0, "torque": 10.0, "pos": 100.0},
                 "ak": {"pos_deg": 360.0},
             },
             "control_modes": {"odrive": ODRIVE_CONTROL_MODES},

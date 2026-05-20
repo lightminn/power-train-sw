@@ -235,7 +235,7 @@ class CanBackend(Transport):
                            "set_origin", "estop"],
                 "ak": ["set_input", "set_origin", "estop"],
             },
-            "limits": {"odrive": {"vel": 20.0, "torque": 10.0, "pos": 100.0},
+            "limits": {"odrive": {"vel": 200.0, "torque": 10.0, "pos": 100.0},
                        "ak": {"pos_deg": 360.0}},
             "control_modes": {"odrive": ODRIVE_CONTROL_MODES},
             "inputs": {"odrive": ODRIVE_INPUTS},

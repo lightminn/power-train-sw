@@ -147,7 +147,7 @@ class UsbOdriveBackend(Transport):
                                     "set_limit", "set_state", "calibrate",
                                     "clear_errors", "save_nvm", "set_origin",
                                     "estop"]},
-            "limits": {"odrive": {"vel": 20.0, "torque": 10.0, "pos": 100.0}},
+            "limits": {"odrive": {"vel": 200.0, "torque": 10.0, "pos": 100.0}},
             "control_modes": {"odrive": ODRIVE_CONTROL_MODES},
             "inputs": {"odrive": ODRIVE_INPUTS},
             "tunables": {"odrive": ODRIVE_TUNABLES_USB},
