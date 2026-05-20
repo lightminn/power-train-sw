@@ -34,11 +34,12 @@ async function postCommand(envelope) {
 
 function el(tag, cls) { const e = document.createElement(tag); if (cls) e.className = cls; return e; }
 
-function rowNumber(label, onSet, step) {
+function rowNumber(label, onSet, step, initial) {
   const row = el("div", "row");
   const lab = el("label"); lab.textContent = label; row.appendChild(lab);
   const inp = document.createElement("input");
   inp.type = "number"; inp.step = step || "0.1";
+  if (initial !== undefined && initial !== null) inp.value = initial;
   inp.addEventListener("change", () => { const v = parseFloat(inp.value); if (!isNaN(v)) onSet(v); });
   row.appendChild(inp);
   return { row, inp, lab };
@@ -60,7 +61,7 @@ function rowButton(label, onClick) {
 }
 function subhead(text) { const d = el("div", "subhead"); d.textContent = text; return d; }
 
-function controlPanel(device, caps) {
+function controlPanel(device, caps, tunVals) {
   const ops = (caps.commands && caps.commands[device]) || [];
   const wrap = el("div", "panel");
   const h = el("h3"); h.textContent = device; wrap.appendChild(h);
@@ -103,10 +104,11 @@ function controlPanel(device, caps) {
 
   const tunables = caps.tunables && caps.tunables[device];
   if (tunables && tunables.length) {
-    wrap.appendChild(subhead("튜닝 (입력 후 Enter)"));
+    wrap.appendChild(subhead("튜닝 (현재값 prefill, 입력 후 Enter)"));
+    const tv = (tunVals && tunVals[device]) || {};
     tunables.forEach((t) => {
       wrap.appendChild(rowNumber(t.label, (v) =>
-        postCommand({ target: device, op: t.op, args: { [t.key]: v } }), "0.001").row);
+        postCommand({ target: device, op: t.op, args: { [t.key]: v } }), "0.001", tv[t.key]).row);
     });
   }
 
@@ -173,8 +175,16 @@ function renderLoop() {
 async function main() {
   caps = await (await fetch("/api/capabilities")).json();
   document.getElementById("track").textContent = `[${caps.track}]`;
+  let tunVals = {};
+  try {
+    const flat = await (await fetch("/api/tunables")).json();
+    // 백엔드는 odrive 기준 flat dict 반환 → device 별 맵으로 래핑 (현재는 odrive 만)
+    tunVals = { odrive: flat };
+  } catch (e) {
+    logMsg("튜닝 현재값 조회 실패", "err");
+  }
   const controls = document.getElementById("controls");
-  caps.devices.forEach((d) => controls.appendChild(controlPanel(d, caps)));
+  caps.devices.forEach((d) => controls.appendChild(controlPanel(d, caps, tunVals)));
   document.getElementById("estop").addEventListener("click", () => {
     logMsg("E-STOP 발동", "err");
     postCommand({ target: caps.devices[0], op: "estop", args: {} });
