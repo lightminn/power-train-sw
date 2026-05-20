@@ -32,7 +32,6 @@ C_CLEAR_ERR = 0x018
 C_SET_POS_GAIN = 0x01A
 C_SET_VEL_GAINS = 0x01B
 C_SET_LINEAR_COUNT = 0x019
-C_START_ANTICOGGING = 0x010
 
 AXIS_IDLE = 1
 AXIS_CLOSED_LOOP = 8
@@ -149,8 +148,7 @@ class CanBackend(Transport):
 
     def _apply_odrive(self, op: str, args: dict) -> dict:
         known = {"estop", "set_mode", "set_input", "set_gain", "set_limit",
-                 "set_state", "calibrate", "clear_errors", "set_origin",
-                 "anticogging"}
+                 "set_state", "calibrate", "clear_errors", "set_origin"}
         if op not in known:
             return {"ok": False, "target": "odrive", "op": op,
                     "detail": "unsupported op"}
@@ -208,8 +206,6 @@ class CanBackend(Transport):
             cur = float(self._state.get("odrive.pos", 0.0))
             self._pos_offset = cur
             self._send(C_SET_INPUT_POS, struct.pack("<fhh", cur, 0, 0))  # 현재 위치 hold
-        elif op == "anticogging":
-            self._send(C_START_ANTICOGGING)
         return {"ok": True, "target": "odrive", "op": op, "detail": "sent"}
 
     def _apply_ak(self, op: str, args: dict) -> dict:
@@ -236,7 +232,7 @@ class CanBackend(Transport):
             "commands": {
                 "odrive": ["set_mode", "set_input", "set_gain", "set_limit",
                            "set_state", "calibrate", "clear_errors",
-                           "set_origin", "anticogging", "estop"],
+                           "set_origin", "estop"],
                 "ak": ["set_input", "set_origin", "estop"],
             },
             "limits": {"odrive": {"vel": 20.0, "torque": 10.0, "pos": 100.0},
