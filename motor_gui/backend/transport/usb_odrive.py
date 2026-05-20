@@ -17,6 +17,13 @@ class UsbOdriveBackend(Transport):
 
     name = "usb"
 
+    # control_mode → 안전 기본 input_mode (jump 방지). args["input_mode"] 로 override.
+    _DEFAULT_INPUT_MODE = {
+        "POSITION": "POS_FILTER",
+        "VELOCITY": "VEL_RAMP",
+        "TORQUE": "PASSTHROUGH",
+    }
+
     def __init__(self, axis_num: int = 1, timeout: float = 15.0) -> None:
         self._timeout = timeout
         self._axis_num = axis_num
@@ -75,6 +82,9 @@ class UsbOdriveBackend(Transport):
                 cm = {"position": "POSITION", "velocity": "VELOCITY",
                       "torque": "TORQUE"}[args["control_mode"]]
                 ax.controller.config.control_mode = self._enums[cm]
+                im = args.get("input_mode", self._DEFAULT_INPUT_MODE[cm])
+                if im in self._enums:
+                    ax.controller.config.input_mode = self._enums[im]
             elif op == "set_input":
                 if "pos" in args:
                     ax.controller.input_pos = float(args["pos"])
@@ -83,7 +93,8 @@ class UsbOdriveBackend(Transport):
                 elif "torque" in args:
                     ax.controller.input_torque = float(args["torque"])
             elif op == "set_gain":
-                for k in ("pos_gain", "vel_gain", "vel_integrator_gain"):
+                for k in ("pos_gain", "vel_gain", "vel_integrator_gain",
+                          "input_filter_bandwidth"):
                     if k in args:
                         setattr(ax.controller.config, k, float(args[k]))
             elif op == "set_limit":
@@ -101,6 +112,10 @@ class UsbOdriveBackend(Transport):
                 ax.requested_state = self._enums["FULL_CALIB"]
             elif op == "clear_errors":
                 ax.clear_errors()
+                try:
+                    self._drv.clear_errors()
+                except Exception:
+                    pass
             elif op == "save_nvm":
                 self._drv.save_configuration()
             return {"ok": True, "target": "odrive", "op": op, "detail": "ok"}
