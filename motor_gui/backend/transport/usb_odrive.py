@@ -31,6 +31,7 @@ class UsbOdriveBackend(Transport):
         self._ax = None
         self._fet_therm = None      # fw 별 위치 달라 connect 에서 resolve
         self._enums: dict = {}
+        self._vel_limit = 5.0       # 사용자가 의도한 속도(=TRAP 순항). 캡과 구분.
 
     def connect(self) -> None:
         import odrive
@@ -49,11 +50,6 @@ class UsbOdriveBackend(Transport):
             self._ax.controller.config.enable_current_mode_vel_limit = True
         except Exception:
             pass
-        # TRAP 순항속도 = vel_limit 초기 동기 (windup 방지). 이후 set_limit 에서 유지.
-        try:
-            self._ax.trap_traj.config.vel_limit = self._ax.controller.config.vel_limit
-        except Exception:
-            pass
         # fw-v0.5.6 plain Enum → wire I/O 용 int 상수 (0.6.x IntEnum 도 .value 동작)
         self._enums = {
             "IDLE": AxisState.IDLE.value,
@@ -67,6 +63,26 @@ class UsbOdriveBackend(Transport):
             "VEL_RAMP": InputMode.VEL_RAMP.value,
             "TRAP_TRAJ": InputMode.TRAP_TRAJ.value,
         }
+        self._vel_limit = float(self._ax.controller.config.vel_limit)
+        self._sync_vel_limit()
+
+    def _sync_vel_limit(self) -> None:
+        """현재 모드에 맞춰 controller.vel_limit(하드 캡) 설정.
+
+        TRAP: 순항=self._vel_limit, 하드캡=순항×1.3. 캡에 헤드룸을 둬야 위치오차
+        보정 여력이 남아 gap 누적/방출 스파이크가 안 생긴다(피드포워드가 캡을
+        다 먹으면 gap 이 쌓였다가 캡 해제 시 한 번에 튐). 단 현재 속도 아래로는
+        안 내림(overspeed=CONTROLLER_FAILED 트립 방지).
+        그 외(velocity/POS_FILTER): vel_limit 이 곧 속도 캡 → 그대로.
+        """
+        ax = self._ax
+        in_trap = int(ax.controller.config.input_mode) == self._enums["TRAP_TRAJ"]
+        ax.trap_traj.config.vel_limit = self._vel_limit
+        if in_trap:
+            cur = abs(float(ax.encoder.vel_estimate))
+            ax.controller.config.vel_limit = max(self._vel_limit * 1.3, cur * 1.3)
+        else:
+            ax.controller.config.vel_limit = self._vel_limit
 
     def sample(self) -> dict:
         ax, drv = self._ax, self._drv
@@ -107,6 +123,7 @@ class UsbOdriveBackend(Transport):
                 im = args.get("input_mode", im_def)
                 if im in self._enums:
                     ax.controller.config.input_mode = self._enums[im]
+                self._sync_vel_limit()  # 모드별 캡 재적용(TRAP=헤드룸 / 그외=정확)
                 if cm == "POSITION":
                     ax.controller.input_pos = ax.encoder.pos_estimate  # 현재 위치 hold
             elif op == "set_input":
@@ -129,14 +146,8 @@ class UsbOdriveBackend(Transport):
                         setattr(ax.trap_traj.config, attr, float(args[k]))
             elif op == "set_limit":
                 if "vel_limit" in args:
-                    vl = float(args["vel_limit"])
-                    ax.trap_traj.config.vel_limit = vl   # TRAP 순항속도 = 사용자 속도 knob
-                    # 하드 캡(controller.vel_limit)은 두 제약을 동시에 만족해야 함:
-                    #  · trap 순항 이상 (작으면 windup → 캡 풀 때 폭주)
-                    #  · 현재 속도 아래로 내리면 overspeed 트립(CONTROLLER_FAILED)
-                    # → max() 로 설정. 올리면 즉시 반영, 내려도 트립 없이 궤적이 감속.
-                    cur_speed = abs(float(ax.encoder.vel_estimate))
-                    ax.controller.config.vel_limit = max(vl, cur_speed * 1.3)
+                    self._vel_limit = float(args["vel_limit"])
+                    self._sync_vel_limit()  # 모드별 캡(TRAP=헤드룸) + 순항속도 적용
                     # TRAP 진행 중이면 input_pos 재발행 → 새 순항속도로 궤적 재계획
                     # (가속한계 지켜 부드럽게 변속. 재계획 없으면 옛 속도로 끝까지 감.)
                     if (int(ax.controller.config.input_mode) == self._enums["TRAP_TRAJ"]
@@ -199,7 +210,7 @@ class UsbOdriveBackend(Transport):
             "pos_gain": float(c.pos_gain),
             "vel_gain": float(c.vel_gain),
             "vel_integrator_gain": float(c.vel_integrator_gain),
-            "vel_limit": float(c.vel_limit),
+            "vel_limit": float(self._vel_limit),  # 사용자 의도값(캡은 TRAP 시 헤드룸 포함)
             "current_lim": float(self._ax.motor.config.current_lim),
         }
         try:
