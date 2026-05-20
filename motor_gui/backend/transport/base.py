@@ -47,7 +47,9 @@ class Transport(ABC):
 # 신호 → 범례 라벨/단위
 SIGNAL_META = {
     "odrive.pos": {"label": "위치", "unit": "turn"},
+    "odrive.pos_setpoint": {"label": "위치 명령", "unit": "turn"},
     "odrive.vel": {"label": "속도", "unit": "rev/s"},
+    "odrive.vel_setpoint": {"label": "속도 명령", "unit": "rev/s"},
     "odrive.iq_meas": {"label": "Iq 측정 (전류≈토크)", "unit": "A"},
     "odrive.iq_set": {"label": "Iq 목표", "unit": "A"},
     "odrive.temp_fet": {"label": "FET 온도", "unit": "℃"},

@@ -6,7 +6,8 @@ from .base import (Transport, TransportError, SIGNAL_META, ODRIVE_CONTROL_MODES,
                    ODRIVE_INPUTS, ODRIVE_TUNABLES_USB)
 
 _ODRIVE_SIGNALS = [
-    "odrive.pos", "odrive.vel", "odrive.iq_meas", "odrive.iq_set",
+    "odrive.pos", "odrive.pos_setpoint", "odrive.vel", "odrive.vel_setpoint",
+    "odrive.iq_meas", "odrive.iq_set",
     "odrive.temp_fet", "odrive.vbus", "odrive.ibus", "odrive.state",
     "odrive.axis_err", "odrive.motor_err", "odrive.enc_err",
     "odrive.ctrl_err", "odrive.vel_integrator",
@@ -73,7 +74,9 @@ class UsbOdriveBackend(Transport):
         return {
             "t_mono": time.monotonic(),
             "odrive.pos": float(ax.encoder.pos_estimate),
+            "odrive.pos_setpoint": float(ax.controller.pos_setpoint),
             "odrive.vel": float(ax.encoder.vel_estimate),
+            "odrive.vel_setpoint": float(ax.controller.vel_setpoint),
             "odrive.iq_meas": float(m.Iq_measured),
             "odrive.iq_set": float(m.Iq_setpoint),
             "odrive.temp_fet": (float(self._fet_therm.temperature)

@@ -6,7 +6,8 @@ from .base import (Transport, SIGNAL_META, ODRIVE_CONTROL_MODES, ODRIVE_INPUTS,
                    ODRIVE_TUNABLES_USB)
 
 _ODRIVE_SIGNALS = [
-    "odrive.pos", "odrive.vel", "odrive.iq_meas", "odrive.iq_set",
+    "odrive.pos", "odrive.pos_setpoint", "odrive.vel", "odrive.vel_setpoint",
+    "odrive.iq_meas", "odrive.iq_set",
     "odrive.temp_fet", "odrive.vbus", "odrive.ibus", "odrive.state",
     "odrive.axis_err", "odrive.motor_err", "odrive.enc_err",
     "odrive.ctrl_err", "odrive.vel_integrator",
@@ -72,7 +73,9 @@ class FakeTransport(Transport):
         return {
             "t_mono": time.monotonic(),
             "odrive.pos": self._pos,
+            "odrive.pos_setpoint": self._target if self._mode == "position" else self._pos,
             "odrive.vel": self._vel,
+            "odrive.vel_setpoint": self._target if self._mode == "velocity" else self._vel,
             "odrive.iq_meas": iq,
             "odrive.iq_set": self._target if self._mode == "torque" else iq,
             "odrive.temp_fet": 30.0 + abs(self._vel),
