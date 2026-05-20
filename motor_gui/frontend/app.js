@@ -48,7 +48,7 @@ function decodeErr(key, value) {
 }
 
 function logMsg(text, cls) {
-  const log = document.getElementById("log");
+  const log = document.getElementById("logbody");
   if (!log) return;
   const line = document.createElement("div");
   line.className = "logline" + (cls ? " " + cls : "");
@@ -103,6 +103,13 @@ function rowButton(label, onClick) {
   return row;
 }
 function subhead(text) { const d = el("div", "subhead"); d.textContent = text; return d; }
+
+function logPanel() {
+  const wrap = el("div", "panel logpanel");
+  const h = el("h3"); h.textContent = "로그"; wrap.appendChild(h);
+  const body = el("div"); body.id = "logbody"; wrap.appendChild(body);
+  return wrap;
+}
 
 function recordingPanel() {
   const wrap = el("div", "panel");
@@ -266,6 +273,7 @@ async function main() {
   const controls = document.getElementById("controls");
   controls.appendChild(recordingPanel());
   caps.devices.forEach((d) => controls.appendChild(controlPanel(d, caps, tunVals)));
+  controls.appendChild(logPanel());
   document.getElementById("estop").addEventListener("click", () => {
     logMsg("E-STOP 발동", "err");
     postCommand({ target: caps.devices[0], op: "estop", args: {} });

@@ -1,4 +1,8 @@
 // uPlot 패널 묶음. signal_meta 로 범례 라벨+단위 표시.
+function plotWidth() {
+  const cols = 3, gap = 16, pad = 32;
+  return Math.max(260, Math.floor((window.innerWidth - pad - gap * (cols - 1)) / cols));
+}
 const WINDOW_SEC = 20;
 const MAX_PTS = WINDOW_SEC * 100; // 100 Hz
 const COLORS = ["#4fc3f7", "#ffb74d", "#81c784", "#e57373", "#ba68c8"];
@@ -13,7 +17,7 @@ function makePanel(title, sigKeys, meta) {
   const data = [[]];
   sigKeys.forEach(() => data.push([]));
   const opts = {
-    title, width: 820, height: 200,
+    title, width: plotWidth(), height: 200,
     scales: { x: { time: false } },
     series: [{ label: "t [s]" }].concat(
       sigKeys.map((k, i) => ({ label: seriesLabel(k, meta), stroke: COLORS[i % COLORS.length] }))),
@@ -33,6 +37,7 @@ function makePanel(title, sigKeys, meta) {
       while (data[0].length > MAX_PTS) data.forEach((arr) => arr.shift());
     },
     redraw() { u.setData(data); },
+    resize() { u.setSize({ width: plotWidth(), height: 200 }); },
   };
 }
 
@@ -48,6 +53,11 @@ function buildPanels(signals, meta) {
     panels.push(makePanel("ODrive 온도/버스", ["odrive.temp_fet", "odrive.vbus", "odrive.ibus"].filter(has), meta));
   if (has("ak.pos_deg"))
     panels.push(makePanel("AK 조향", ["ak.pos_deg", "ak.speed", "ak.current", "ak.temp"].filter(has), meta));
+  let _t;
+  window.addEventListener("resize", () => {
+    clearTimeout(_t);
+    _t = setTimeout(() => panels.forEach((p) => p.resize()), 150);
+  });
   return panels;
 }
 
