@@ -139,11 +139,13 @@ function controlPanel(device, caps, tunVals) {
   const ops = (caps.commands && caps.commands[device]) || [];
   const wrap = el("div", "panel");
   const h = el("h3"); h.textContent = device; wrap.appendChild(h);
+  const grid = el("div", "pgrid");
+  wrap.appendChild(grid);
 
   if (ops.includes("set_state")) {
-    wrap.appendChild(rowButton("폐루프 진입", () =>
+    grid.appendChild(rowButton("폐루프 진입", () =>
       postCommand({ target: device, op: "set_state", args: { state: "closed_loop" } })));
-    wrap.appendChild(rowButton("IDLE", () =>
+    grid.appendChild(rowButton("IDLE", () =>
       postCommand({ target: device, op: "set_state", args: { state: "idle" } })));
   }
 
@@ -164,11 +166,11 @@ function controlPanel(device, caps, tunVals) {
       postCommand({ target: device, op: "set_mode", args: { control_mode: m } });
       applyMode(m);
     });
-    wrap.appendChild(ms.row);
-    wrap.appendChild(tgt.row);
+    grid.appendChild(ms.row);
+    grid.appendChild(tgt.row);
     applyMode(curMode);
     if (ops.includes("set_origin")) {
-      wrap.appendChild(rowButton("영점 설정 (현재 위치를 0)", () => {
+      grid.appendChild(rowButton("영점 설정 (현재 위치를 0)", () => {
         postCommand({ target: device, op: "set_origin", args: {} });
         logMsg(`${device}: 현재 위치를 0 으로 재정의`);
       }));
@@ -176,18 +178,18 @@ function controlPanel(device, caps, tunVals) {
   } else if (ops.includes("set_input")) {
     const r = rowNumber("목표 위치 [°]", (v) =>
       postCommand({ target: device, op: "set_input", args: { pos_deg: v } }));
-    wrap.appendChild(r.row);
+    grid.appendChild(r.row);
     if (ops.includes("set_origin"))
-      wrap.appendChild(rowButton("원점 설정", () =>
+      grid.appendChild(rowButton("원점 설정", () =>
         postCommand({ target: device, op: "set_origin", args: {} })));
   }
 
   const tunables = caps.tunables && caps.tunables[device];
   if (tunables && tunables.length) {
-    wrap.appendChild(subhead("튜닝 (현재값 prefill, 입력 후 Enter)"));
+    grid.appendChild(subhead("튜닝 (현재값 prefill, 입력 후 Enter)"));
     const tv = (tunVals && tunVals[device]) || {};
     tunables.forEach((t) => {
-      wrap.appendChild(rowNumber(t.label, (v) =>
+      grid.appendChild(rowNumber(t.label, (v) =>
         postCommand({ target: device, op: t.op, args: { [t.key]: v } }), "0.001", tv[t.key]).row);
     });
   }
@@ -197,9 +199,9 @@ function controlPanel(device, caps, tunVals) {
   if (ops.includes("save_nvm")) actions.push(["NVM 저장", "save_nvm"]);
   if (ops.includes("clear_errors")) actions.push(["에러 클리어", "clear_errors"]);
   if (actions.length) {
-    wrap.appendChild(subhead("동작"));
+    grid.appendChild(subhead("동작"));
     actions.forEach(([label, op]) =>
-      wrap.appendChild(rowButton(label, () => postCommand({ target: device, op, args: {} }))));
+      grid.appendChild(rowButton(label, () => postCommand({ target: device, op, args: {} }))));
   }
   return wrap;
 }
