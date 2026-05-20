@@ -1,3 +1,4 @@
+import pytest
 import time
 
 from motor_gui.backend.transport.fake import FakeTransport
@@ -51,9 +52,41 @@ def test_estop_fast_path_zeros_velocity():
     w.start()
     try:
         w.submit({"target": "odrive", "op": "set_input", "args": {"vel": 10.0}})
-        time.sleep(0.1)
+        time.sleep(0.2)
+        assert w.latest()["odrive.vel"] > 1.0   # 가속 확인 (estop 전)
         w.estop()
         time.sleep(0.4)
         assert abs(w.latest()["odrive.vel"]) < 1.0
     finally:
         w.stop()
+
+
+def test_double_start_raises():
+    w = _make()
+    w.start()
+    try:
+        with pytest.raises(RuntimeError):
+            w.start()
+    finally:
+        w.stop()
+
+
+def test_submit_before_start_returns_not_running():
+    w = _make()
+    ack = w.submit({"target": "odrive", "op": "estop", "args": {}})
+    assert ack["ok"] is False
+    assert "not running" in ack["detail"]
+
+
+def test_drain_rejects_queued_commands_during_estop():
+    # Critical 회귀: estop 활성 틱에서 큐에 남은 비-estop 명령은 거부되어야 함.
+    import threading
+    w = _make()
+    done = threading.Event()
+    box: dict = {}
+    w._cmd_q.put(({"target": "odrive", "op": "set_input",
+                   "args": {"vel": 15.0}}, done, box))
+    w._drain_commands(estopped=True)
+    assert done.is_set()
+    assert box["ack"]["ok"] is False
+    assert "estop" in box["ack"]["detail"]

@@ -1,19 +1,27 @@
 from __future__ import annotations
 
 import collections
+import logging
 import queue
 import threading
 import time
+from collections.abc import Callable
 
 from .commands import normalize, CommandError
 from .transport.base import Transport
+
+_log = logging.getLogger(__name__)
+
+_STOP_JOIN_TIMEOUT = 2.0   # stop() 스레드 join 대기 (초)
+_SUBMIT_TIMEOUT = 2.0      # submit() ack 대기 (초)
 
 
 class HardwareWorker:
     """Transport 를 단독 소유하는 100 Hz 샘플링/명령 스레드.
 
-    웹 레이어는 submit()/estop()/latest()/history()/subscribe()/capabilities()
-    만 사용한다. Transport 접근은 전부 이 스레드 안에서만 일어나 동시접근이 없다.
+    웹 레이어는 submit()/estop()/latest()/history()/capabilities()/
+    subscribe()/unsubscribe() 만 사용한다. Transport 접근은 전부 이 스레드
+    안에서만 일어나 동시접근이 없다 (접근법 A, 향후 C 프로세스격리 seam 유지).
     """
 
     def __init__(self, transport: Transport, rate_hz: float = 100.0,
@@ -26,12 +34,14 @@ class HardwareWorker:
         self._estop = threading.Event()
         self._running = threading.Event()
         self._thread: threading.Thread | None = None
-        self._subscribers: list = []
+        self._subscribers: list[Callable[[dict], None]] = []
         self._sub_lock = threading.Lock()
         self._caps = transport.capabilities()
 
     # ── lifecycle ─────────────────────────────────
     def start(self) -> None:
+        if self._running.is_set():
+            raise RuntimeError("HardwareWorker is already running")
         self._t.connect()
         self._caps = self._t.capabilities()
         self._running.set()
@@ -41,7 +51,10 @@ class HardwareWorker:
     def stop(self) -> None:
         self._running.clear()
         if self._thread:
-            self._thread.join(timeout=2.0)
+            self._thread.join(timeout=_STOP_JOIN_TIMEOUT)
+            if self._thread.is_alive():
+                _log.warning("worker thread did not exit cleanly; "
+                             "close() may race with sample()")
         try:
             self._t.close()
         except Exception:
@@ -58,7 +71,10 @@ class HardwareWorker:
         return self._caps
 
     def submit(self, cmd: dict) -> dict:
-        """동기 명령. 정규화 실패는 즉시 에러 ack. 그 외는 워커가 적용 후 ack."""
+        """동기 명령. 워커 미기동/정규화 실패는 즉시 에러 ack. 그 외는 적용 후 ack."""
+        if not self._running.is_set():
+            return {"ok": False, "target": cmd.get("target"),
+                    "op": cmd.get("op"), "detail": "worker not running"}
         try:
             norm = normalize(cmd, self._caps)
         except CommandError as e:
@@ -67,21 +83,21 @@ class HardwareWorker:
         done = threading.Event()
         box: dict = {}
         self._cmd_q.put((norm, done, box))
-        if not done.wait(timeout=2.0):
+        if not done.wait(timeout=_SUBMIT_TIMEOUT):
             return {"ok": False, "target": norm["target"], "op": norm["op"],
                     "detail": "command timeout"}
         return box["ack"]
 
     def estop(self) -> None:
-        """최우선 정지 — 다음 루프 톱에서 즉시 적용."""
+        """최우선 정지 — 다음 루프 톱에서 즉시 적용, 같은 틱 큐 명령은 거부."""
         self._estop.set()
 
-    def subscribe(self, callback) -> None:
+    def subscribe(self, callback: Callable[[dict], None]) -> None:
         """callback(sample: dict) 등록 (스레드에서 호출됨, 가볍게 유지)."""
         with self._sub_lock:
             self._subscribers.append(callback)
 
-    def unsubscribe(self, callback) -> None:
+    def unsubscribe(self, callback: Callable[[dict], None]) -> None:
         with self._sub_lock:
             if callback in self._subscribers:
                 self._subscribers.remove(callback)
@@ -91,13 +107,18 @@ class HardwareWorker:
         while self._running.is_set():
             t0 = time.monotonic()
 
-            if self._estop.is_set():
+            estopped = self._estop.is_set()
+            if estopped:
                 self._estop.clear()
+                errs = []
                 for dev in self._caps.get("devices", []):
                     try:
                         self._t.apply({"target": dev, "op": "estop", "args": {}})
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        errs.append(str(e))
+                if errs:
+                    self._ring.append({"t_mono": time.monotonic(),
+                                       "error": f"estop failed: {errs}"})
 
             try:
                 s = self._t.sample()
@@ -113,18 +134,23 @@ class HardwareWorker:
                 except Exception:
                     pass
 
-            self._drain_commands()
+            self._drain_commands(estopped=estopped)
 
             elapsed = time.monotonic() - t0
             if elapsed < self._dt:
                 time.sleep(self._dt - elapsed)
 
-    def _drain_commands(self) -> None:
+    def _drain_commands(self, estopped: bool = False) -> None:
         while True:
             try:
                 norm, done, box = self._cmd_q.get_nowait()
             except queue.Empty:
                 return
+            if estopped and norm.get("op") != "estop":
+                box["ack"] = {"ok": False, "target": norm["target"],
+                              "op": norm["op"], "detail": "rejected: estop active"}
+                done.set()
+                continue
             try:
                 box["ack"] = self._t.apply(norm)
             except Exception as e:
