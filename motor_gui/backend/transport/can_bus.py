@@ -58,6 +58,9 @@ class CanBackend(Transport):
         self._bus = None
         self._ak = None
         self._state = {k: 0.0 for k in _ODRIVE_SIGNALS}
+        # CAN Set_Limits/Set_Vel_Gains 는 페어 프레임 → 부분 업데이트 병합용 캐시
+        self._last_limits: dict = {}
+        self._last_vel_gains: dict = {}
 
     def connect(self) -> None:
         import can
@@ -91,7 +94,7 @@ class CanBackend(Transport):
             if msg is None:
                 break
             self._decode_odrive(msg)
-        self._ak.poll(timeout=0.003)
+        self._ak.poll(timeout=0.005)
         s = {"t_mono": time.monotonic()}
         s.update(self._state)
         s.update({
@@ -140,6 +143,11 @@ class CanBackend(Transport):
             return {"ok": False, "target": target, "op": op, "detail": str(e)}
 
     def _apply_odrive(self, op: str, args: dict) -> dict:
+        known = {"estop", "set_mode", "set_input", "set_gain", "set_limit",
+                 "set_state", "calibrate", "clear_errors"}
+        if op not in known:
+            return {"ok": False, "target": "odrive", "op": op,
+                    "detail": "unsupported op"}
         if op == "estop":
             self._send(C_ESTOP)
         elif op == "set_mode":
@@ -156,23 +164,43 @@ class CanBackend(Transport):
             if "pos_gain" in args:
                 self._send(C_SET_POS_GAIN, struct.pack("<f", float(args["pos_gain"])))
             if "vel_gain" in args or "vel_integrator_gain" in args:
+                merged = dict(self._last_vel_gains)
+                for k in ("vel_gain", "vel_integrator_gain"):
+                    if k in args:
+                        merged[k] = float(args[k])
+                if "vel_gain" not in merged or "vel_integrator_gain" not in merged:
+                    return {"ok": False, "target": "odrive", "op": op,
+                            "detail": "CAN set_gain(vel) needs both vel_gain & "
+                                      "vel_integrator_gain on first set"}
                 self._send(C_SET_VEL_GAINS, struct.pack("<ff",
-                           float(args.get("vel_gain", 0.0)),
-                           float(args.get("vel_integrator_gain", 0.0))))
+                           merged["vel_gain"], merged["vel_integrator_gain"]))
+                self._last_vel_gains = merged
         elif op == "set_limit":
+            merged = dict(self._last_limits)
+            for k in ("vel_limit", "current_lim"):
+                if k in args:
+                    merged[k] = float(args[k])
+            if "vel_limit" not in merged or "current_lim" not in merged:
+                return {"ok": False, "target": "odrive", "op": op,
+                        "detail": "CAN set_limit needs both vel_limit & "
+                                  "current_lim on first set"}
             self._send(C_SET_LIMITS, struct.pack("<ff",
-                       float(args.get("vel_limit", 0.0)),
-                       float(args.get("current_lim", 0.0))))
+                       merged["vel_limit"], merged["current_lim"]))
+            self._last_limits = merged
         elif op == "set_state":
             st = AXIS_CLOSED_LOOP if args.get("state") == "closed_loop" else AXIS_IDLE
-            self._send(C_SET_STATE, struct.pack("<i", st))
+            self._send(C_SET_STATE, struct.pack("<I", st))
         elif op == "calibrate":
-            self._send(C_SET_STATE, struct.pack("<i", AXIS_FULL_CALIB))
+            self._send(C_SET_STATE, struct.pack("<I", AXIS_FULL_CALIB))
         elif op == "clear_errors":
             self._send(C_CLEAR_ERR)
         return {"ok": True, "target": "odrive", "op": op, "detail": "sent"}
 
     def _apply_ak(self, op: str, args: dict) -> dict:
+        known = {"estop", "set_input", "set_origin"}
+        if op not in known:
+            return {"ok": False, "target": "ak", "op": op,
+                    "detail": "unsupported op"}
         if op == "estop":
             self._ak.stop()
         elif op == "set_input":
@@ -202,7 +230,7 @@ class CanBackend(Transport):
     def close(self) -> None:
         try:
             if self._bus is not None:
-                self._send(C_SET_STATE, struct.pack("<i", AXIS_IDLE))
+                self._send(C_SET_STATE, struct.pack("<I", AXIS_IDLE))
                 if self._ak is not None:
                     self._ak.stop()
                 self._bus.shutdown()
