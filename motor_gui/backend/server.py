@@ -64,8 +64,13 @@ def create_app(track: str = "fake") -> FastAPI:
 
     @app.post("/api/record/start")
     def record_start(body: dict) -> dict:
-        return recorder.start(body.get("path", "telemetry.csv"),
-                              body.get("fmt", "csv"))
+        path = body.get("path")
+        if not path:
+            from pathlib import Path as _P
+            import time as _t
+            logdir = _P(__file__).resolve().parents[2] / "logs"
+            path = str(logdir / f"motor_{track}_{_t.strftime('%Y%m%d_%H%M%S')}.csv")
+        return recorder.start(path, body.get("fmt", "csv"))
 
     @app.post("/api/record/stop")
     def record_stop() -> dict:

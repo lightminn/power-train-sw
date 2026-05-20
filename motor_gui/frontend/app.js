@@ -104,6 +104,37 @@ function rowButton(label, onClick) {
 }
 function subhead(text) { const d = el("div", "subhead"); d.textContent = text; return d; }
 
+function recordingPanel() {
+  const wrap = el("div", "panel");
+  const h = el("h3"); h.textContent = "로깅 (CSV)"; wrap.appendChild(h);
+  const startBtn = document.createElement("button");
+  startBtn.textContent = "● 로깅 시작";
+  const stopBtn = document.createElement("button");
+  stopBtn.textContent = "■ 로깅 종료";
+  stopBtn.disabled = true;
+  const setState = (rec) => { startBtn.disabled = rec; stopBtn.disabled = !rec; };
+  startBtn.addEventListener("click", async () => {
+    try {
+      const ack = await (await fetch("/api/record/start", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fmt: "csv" }),
+      })).json();
+      if (ack.ok) { setState(true); logMsg("로깅 시작 — " + ack.detail); }
+      else logMsg("로깅 시작 실패: " + ack.detail, "err");
+    } catch (e) { logMsg("로깅 시작 오류: " + e, "err"); }
+  });
+  stopBtn.addEventListener("click", async () => {
+    try {
+      const ack = await (await fetch("/api/record/stop", { method: "POST" })).json();
+      setState(false); logMsg("로깅 종료 — " + ack.detail);
+    } catch (e) { logMsg("로깅 종료 오류: " + e, "err"); }
+  });
+  const row = el("div", "row");
+  row.appendChild(startBtn); row.appendChild(stopBtn);
+  wrap.appendChild(row);
+  return wrap;
+}
+
 function controlPanel(device, caps, tunVals) {
   const ops = (caps.commands && caps.commands[device]) || [];
   const wrap = el("div", "panel");
@@ -233,6 +264,7 @@ async function main() {
     logMsg("튜닝 현재값 조회 실패", "err");
   }
   const controls = document.getElementById("controls");
+  controls.appendChild(recordingPanel());
   caps.devices.forEach((d) => controls.appendChild(controlPanel(d, caps, tunVals)));
   document.getElementById("estop").addEventListener("click", () => {
     logMsg("E-STOP 발동", "err");
