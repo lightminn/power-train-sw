@@ -29,6 +29,7 @@ class UsbOdriveBackend(Transport):
         self._axis_num = axis_num
         self._drv = None
         self._ax = None
+        self._fet_therm = None      # fw 별 위치 달라 connect 에서 resolve
         self._enums: dict = {}
 
     def connect(self) -> None:
@@ -39,6 +40,10 @@ class UsbOdriveBackend(Transport):
             raise TransportError("ODrive USB not found")
         self._drv = drv
         self._ax = drv.axis1 if self._axis_num == 1 else drv.axis0
+        # FET 서미스터 위치가 fw 별로 다름 (0.5.1=axis.fet_thermistor,
+        # 일부 빌드=axis.motor.fet_thermistor). connect 시 1회 resolve.
+        self._fet_therm = (getattr(self._ax, "fet_thermistor", None)
+                           or getattr(self._ax.motor, "fet_thermistor", None))
         # fw-v0.5.6 plain Enum → wire I/O 용 int 상수 (0.6.x IntEnum 도 .value 동작)
         self._enums = {
             "IDLE": AxisState.IDLE.value,
@@ -61,7 +66,8 @@ class UsbOdriveBackend(Transport):
             "odrive.vel": float(ax.encoder.vel_estimate),
             "odrive.iq_meas": float(m.Iq_measured),
             "odrive.iq_set": float(m.Iq_setpoint),
-            "odrive.temp_fet": float(ax.motor.fet_thermistor.temperature),
+            "odrive.temp_fet": (float(self._fet_therm.temperature)
+                                if self._fet_therm is not None else 0.0),
             "odrive.vbus": float(drv.vbus_voltage),
             "odrive.ibus": float(getattr(drv, "ibus", 0.0)),
             "odrive.state": int(ax.current_state),
