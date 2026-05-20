@@ -4,6 +4,49 @@ let caps = null;
 let lastState = null;
 const lastErrs = {};
 
+// fw 0.5.x ODrive 에러 비트 → 이름 (axis/motor/encoder/controller)
+const ERROR_BITS = {
+  "odrive.axis_err": {
+    0x1: "INVALID_STATE", 0x2: "DC_BUS_UNDER_VOLTAGE", 0x4: "DC_BUS_OVER_VOLTAGE",
+    0x8: "CURRENT_MEASUREMENT_TIMEOUT", 0x10: "BRAKE_RESISTOR_DISARMED",
+    0x20: "MOTOR_DISARMED", 0x40: "MOTOR_FAILED", 0x80: "SENSORLESS_ESTIMATOR_FAILED",
+    0x100: "ENCODER_FAILED", 0x200: "CONTROLLER_FAILED", 0x400: "POS_CTRL_DURING_SENSORLESS",
+    0x800: "WATCHDOG_TIMER_EXPIRED", 0x1000: "MIN_ENDSTOP_PRESSED",
+    0x2000: "MAX_ENDSTOP_PRESSED", 0x4000: "ESTOP_REQUESTED", 0x20000: "OVER_TEMP",
+    0x40000: "UNKNOWN_POSITION",
+  },
+  "odrive.motor_err": {
+    0x1: "PHASE_RESISTANCE_OUT_OF_RANGE", 0x2: "PHASE_INDUCTANCE_OUT_OF_RANGE",
+    0x8: "DRV_FAULT", 0x10: "CONTROL_DEADLINE_MISSED", 0x80: "MODULATION_MAGNITUDE",
+    0x400: "CURRENT_SENSE_SATURATION", 0x1000: "CURRENT_LIMIT_VIOLATION",
+    0x10000: "MODULATION_IS_NAN", 0x20000: "MOTOR_THERMISTOR_OVER_TEMP",
+    0x40000: "FET_THERMISTOR_OVER_TEMP", 0x100000: "TIMER_UPDATE_MISSED",
+  },
+  "odrive.enc_err": {
+    0x1: "UNSTABLE_GAIN", 0x2: "CPR_POLEPAIRS_MISMATCH", 0x4: "NO_RESPONSE",
+    0x8: "UNSUPPORTED_ENCODER_MODE", 0x10: "ILLEGAL_HALL_STATE",
+    0x20: "INDEX_NOT_FOUND_YET", 0x40: "ABS_SPI_TIMEOUT", 0x80: "ABS_SPI_COM_FAIL",
+    0x100: "ABS_SPI_NOT_READY",
+  },
+  "odrive.ctrl_err": {
+    0x1: "OVERSPEED", 0x2: "INVALID_INPUT_MODE", 0x4: "UNSTABLE_GAIN",
+    0x8: "INVALID_MIRROR_AXIS", 0x10: "INVALID_LOAD_ENCODER", 0x20: "INVALID_ESTIMATE",
+    0x40: "INVALID_CIRCULAR_RANGE", 0x80: "SPINOUT_DETECTED",
+  },
+};
+
+function decodeErr(key, value) {
+  const v = value | 0;
+  if (v === 0) return "0x0";
+  const map = ERROR_BITS[key] || {};
+  const names = [];
+  for (const bit in map) {
+    if (v & Number(bit)) names.push(map[bit]);
+  }
+  const hex = "0x" + (v >>> 0).toString(16);
+  return names.length ? `${hex} (${names.join(" | ")})` : hex;
+}
+
 function logMsg(text, cls) {
   const log = document.getElementById("log");
   if (!log) return;
@@ -142,8 +185,8 @@ function monitorSample(s) {
     const v = s[k] | 0;
     const prev = lastErrs[k] || 0;
     if (v !== prev) {
-      if (v !== 0) logMsg(`${k} = 0x${v.toString(16)}`, "err");
-      else logMsg(`${k} 해제`);
+      if (v !== 0) logMsg(`${k.replace("odrive.", "")} = ${decodeErr(k, v)}`, "err");
+      else logMsg(`${k.replace("odrive.", "")} 해제`);
       lastErrs[k] = v;
     }
   });
