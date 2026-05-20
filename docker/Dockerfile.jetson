@@ -37,7 +37,9 @@ RUN pip3 install --no-cache-dir \
     pygame \
     opencv-python \
     ultralytics \
-    python-can
+    python-can \
+    fastapi \
+    "uvicorn[standard]"
 
 
 # odrive — PyPI 에 Python 3.11+ wheel 미배포 (5/8 plan 에서 미뤄둔 부분).
