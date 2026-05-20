@@ -22,6 +22,12 @@ function controlPanel(device, caps) {
   wrap.className = "panel";
   wrap.innerHTML = `<h3>${device}</h3>`;
 
+  if (ops.includes("set_state")) {
+    wrap.appendChild(rowButton("폐루프 진입", () =>
+      postCommand({ target: device, op: "set_state", args: { state: "closed_loop" } })));
+    wrap.appendChild(rowButton("IDLE", () =>
+      postCommand({ target: device, op: "set_state", args: { state: "idle" } })));
+  }
   if (ops.includes("set_mode")) {
     wrap.appendChild(rowSelect("control_mode", ["position", "velocity", "torque"],
       (v) => postCommand({ target: device, op: "set_mode", args: { control_mode: v } })));
