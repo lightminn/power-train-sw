@@ -93,6 +93,12 @@ function controlPanel(device, caps, tunVals) {
     wrap.appendChild(ms.row);
     wrap.appendChild(tgt.row);
     applyMode(curMode);
+    if (ops.includes("set_origin")) {
+      wrap.appendChild(rowButton("영점 설정 (현재 위치를 0)", () => {
+        postCommand({ target: device, op: "set_origin", args: {} });
+        logMsg(`${device}: 현재 위치를 0 으로 재정의`);
+      }));
+    }
   } else if (ops.includes("set_input")) {
     const r = rowNumber("목표 위치 [°]", (v) =>
       postCommand({ target: device, op: "set_input", args: { pos_deg: v } }));
