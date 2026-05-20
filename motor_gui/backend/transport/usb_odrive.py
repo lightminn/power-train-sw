@@ -47,6 +47,11 @@ class UsbOdriveBackend(Transport):
         self._fet_therm = (getattr(self._ax, "fet_thermistor", None)
                            or getattr(self._ax.motor, "fet_thermistor", None))
         self._pos_offset = 0.0
+        # 토크(current) 모드에서도 vel_limit 존중 보장 (무부하 runaway 방지).
+        try:
+            self._ax.controller.config.enable_current_mode_vel_limit = True
+        except Exception:
+            pass
         # fw-v0.5.6 plain Enum → wire I/O 용 int 상수 (0.6.x IntEnum 도 .value 동작)
         self._enums = {
             "IDLE": AxisState.IDLE.value,
