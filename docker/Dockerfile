@@ -44,6 +44,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #   ultralytics     : YOLOv8 (PyTorch 함께 설치 — CPU 기본, NVIDIA 있으면 자동 GPU)
 #   openvino        : Intel x86/iGPU 가속 (yolo_openvino_detection)
 #   numpy/matplotlib: 일반 도구
+#   python-can      : CAN 트랙 (motor_gui CanBackend, steering/ak_control)
+#   fastapi/uvicorn : motor_gui 웹 백엔드 (WebSocket 텔레메트리 + REST 제어)
+#   httpx, pytest   : motor_gui 테스트 (FastAPI TestClient + 단위/통합)
 RUN pip3 install --no-cache-dir \
         odrive \
         pygame \
@@ -51,7 +54,12 @@ RUN pip3 install --no-cache-dir \
         ultralytics \
         openvino \
         numpy \
-        matplotlib
+        matplotlib \
+        python-can \
+        fastapi \
+        "uvicorn[standard]" \
+        httpx \
+        pytest
 
 WORKDIR /workspace
 CMD ["bash"]
