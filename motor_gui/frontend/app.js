@@ -120,12 +120,17 @@ function controlPanel(device, caps, tunVals) {
 
   const actions = [];
   if (ops.includes("calibrate")) actions.push(["캘리브레이션", "calibrate"]);
+  if (ops.includes("anticogging")) actions.push(["anticogging 캘리 (코깅 보상)", "anticogging"]);
   if (ops.includes("save_nvm")) actions.push(["NVM 저장", "save_nvm"]);
   if (ops.includes("clear_errors")) actions.push(["에러 클리어", "clear_errors"]);
   if (actions.length) {
     wrap.appendChild(subhead("동작"));
     actions.forEach(([label, op]) =>
-      wrap.appendChild(rowButton(label, () => postCommand({ target: device, op, args: {} }))));
+      wrap.appendChild(rowButton(label, () => {
+        postCommand({ target: device, op, args: {} });
+        if (op === "anticogging")
+          logMsg(`${device}: anticogging 캘리 시작 — 폐루프 position 상태에서 모터가 천천히 스윕합니다`);
+      })));
   }
   return wrap;
 }
