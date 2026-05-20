@@ -60,6 +60,7 @@ class CanBackend(Transport):
         self._bus = None
         self._ak = None
         self._state = {k: 0.0 for k in _ODRIVE_SIGNALS}
+        self._pos_offset = 0.0
         # CAN Set_Limits/Set_Vel_Gains 는 페어 프레임 → 부분 업데이트 병합용 캐시
         self._last_limits: dict = {}
         self._last_vel_gains: dict = {}
@@ -99,6 +100,7 @@ class CanBackend(Transport):
         self._ak.poll(timeout=0.005)
         s = {"t_mono": time.monotonic()}
         s.update(self._state)
+        s["odrive.pos"] = float(self._state.get("odrive.pos", 0.0)) - self._pos_offset
         s.update({
             "ak.pos_deg": self._ak.pos_out_deg,
             "ak.speed": float(self._ak.spd_erpm),
@@ -160,7 +162,8 @@ class CanBackend(Transport):
                 self._send(C_SET_INPUT_POS, struct.pack("<fhh", cur, 0, 0))
         elif op == "set_input":
             if "pos" in args:
-                self._send(C_SET_INPUT_POS, struct.pack("<fhh", float(args["pos"]), 0, 0))
+                self._send(C_SET_INPUT_POS,
+                           struct.pack("<fhh", float(args["pos"]) + self._pos_offset, 0, 0))
             elif "vel" in args:
                 self._send(C_SET_INPUT_VEL, struct.pack("<ff", float(args["vel"]), 0.0))
             elif "torque" in args:
@@ -200,8 +203,9 @@ class CanBackend(Transport):
         elif op == "clear_errors":
             self._send(C_CLEAR_ERR)
         elif op == "set_origin":
-            self._send(C_SET_LINEAR_COUNT, struct.pack("<i", 0))
-            self._send(C_SET_INPUT_POS, struct.pack("<fhh", 0.0, 0, 0))
+            cur = float(self._state.get("odrive.pos", 0.0))
+            self._pos_offset = cur
+            self._send(C_SET_INPUT_POS, struct.pack("<fhh", cur, 0, 0))  # 현재 위치 hold
         return {"ok": True, "target": "odrive", "op": op, "detail": "sent"}
 
     def _apply_ak(self, op: str, args: dict) -> dict:

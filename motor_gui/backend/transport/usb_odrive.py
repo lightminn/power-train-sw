@@ -31,6 +31,7 @@ class UsbOdriveBackend(Transport):
         self._drv = None
         self._ax = None
         self._fet_therm = None      # fw 별 위치 달라 connect 에서 resolve
+        self._pos_offset = 0.0   # set_origin 소프트웨어 영점
         self._enums: dict = {}
 
     def connect(self) -> None:
@@ -45,6 +46,7 @@ class UsbOdriveBackend(Transport):
         # 일부 빌드=axis.motor.fet_thermistor). connect 시 1회 resolve.
         self._fet_therm = (getattr(self._ax, "fet_thermistor", None)
                            or getattr(self._ax.motor, "fet_thermistor", None))
+        self._pos_offset = 0.0
         # fw-v0.5.6 plain Enum → wire I/O 용 int 상수 (0.6.x IntEnum 도 .value 동작)
         self._enums = {
             "IDLE": AxisState.IDLE.value,
@@ -63,7 +65,7 @@ class UsbOdriveBackend(Transport):
         m = ax.motor.current_control
         return {
             "t_mono": time.monotonic(),
-            "odrive.pos": float(ax.encoder.pos_estimate),
+            "odrive.pos": float(ax.encoder.pos_estimate) - self._pos_offset,
             "odrive.vel": float(ax.encoder.vel_estimate),
             "odrive.iq_meas": float(m.Iq_measured),
             "odrive.iq_set": float(m.Iq_setpoint),
@@ -97,7 +99,7 @@ class UsbOdriveBackend(Transport):
                     ax.controller.input_pos = ax.encoder.pos_estimate
             elif op == "set_input":
                 if "pos" in args:
-                    ax.controller.input_pos = float(args["pos"])
+                    ax.controller.input_pos = float(args["pos"]) + self._pos_offset
                 elif "vel" in args:
                     ax.controller.input_vel = float(args["vel"])
                 elif "torque" in args:
@@ -127,9 +129,9 @@ class UsbOdriveBackend(Transport):
                 except Exception:
                     pass
             elif op == "set_origin":
-                # 현재 물리 위치를 0 으로 재정의 (모터·plot 영점 일치)
-                ax.encoder.set_linear_count(0)
-                ax.controller.input_pos = 0.0
+                # 소프트웨어 영점: 현재 절대 위치를 0 으로 기록만, 모터 명령 변화 없음.
+                self._pos_offset = float(ax.encoder.pos_estimate)
+                ax.controller.input_pos = ax.encoder.pos_estimate  # 현재 위치 hold
             elif op == "save_nvm":
                 self._drv.save_configuration()
             return {"ok": True, "target": "odrive", "op": op, "detail": "ok"}
