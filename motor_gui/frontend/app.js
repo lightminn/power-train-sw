@@ -104,6 +104,31 @@ function rowButton(label, onClick) {
 }
 function subhead(text) { const d = el("div", "subhead"); d.textContent = text; return d; }
 
+function motorInfoPanel(caps) {
+  const info = caps.motor_info && caps.motor_info.odrive;
+  if (!info) return null;
+  const wrap = el("div", "panel");
+  const h = el("h3"); h.textContent = "모터 정보 (캘리브레이션 결과)"; wrap.appendChild(h);
+  const fmt = {
+    phase_resistance: ["상 저항 R", "Ω", 4],
+    phase_inductance: ["상 인덕턴스 L", "H", 7],
+    torque_constant: ["토크 상수 Kt", "Nm/A", 4],
+    pole_pairs: ["극쌍수", "", 0],
+    current_lim: ["전류 한계", "A", 1],
+  };
+  Object.keys(fmt).forEach((k) => {
+    if (!(k in info)) return;
+    const [label, unit, dp] = fmt[k];
+    const row = el("div", "row");
+    const lab = el("label"); lab.textContent = label; lab.style.width = "120px";
+    const val = el("span");
+    const num = Number(info[k]);
+    val.textContent = (dp ? num.toFixed(dp) : String(num)) + (unit ? " " + unit : "");
+    row.appendChild(lab); row.appendChild(val); wrap.appendChild(row);
+  });
+  return wrap;
+}
+
 function recordingPanel() {
   const wrap = el("div", "panel");
   const h = el("h3"); h.textContent = "로깅 (CSV)"; wrap.appendChild(h);
@@ -267,6 +292,8 @@ async function main() {
   }
   const controls = document.getElementById("controls");
   controls.appendChild(recordingPanel());
+  const mi = motorInfoPanel(caps);
+  if (mi) controls.appendChild(mi);
   caps.devices.forEach((d) => controls.appendChild(controlPanel(d, caps, tunVals)));
   document.getElementById("estop").addEventListener("click", () => {
     logMsg("E-STOP 발동", "err");

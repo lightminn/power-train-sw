@@ -54,7 +54,10 @@ function buildPanels(signals, meta) {
     panels.push(makePanel("ODrive 위치/속도 (실선=실제, 명령=setpoint)",
       ["odrive.pos", "odrive.pos_setpoint", "odrive.vel", "odrive.vel_setpoint"].filter(has), meta));
   if (has("odrive.iq_meas"))
-    panels.push(makePanel("ODrive 전류(≈토크)", ["odrive.iq_meas", "odrive.iq_set"].filter(has), meta));
+    panels.push(makePanel("ODrive 전류 (Iq=토크축, Id=자속축)",
+      ["odrive.iq_meas", "odrive.iq_set", "odrive.id_meas", "odrive.id_set"].filter(has), meta));
+  if (has("odrive.torque_est"))
+    panels.push(makePanel("ODrive 추정 토크 (Iq×Kt)", ["odrive.torque_est"].filter(has), meta));
   if (has("odrive.temp_fet") || has("odrive.vbus"))
     panels.push(makePanel("ODrive 온도/버스", ["odrive.temp_fet", "odrive.vbus", "odrive.ibus"].filter(has), meta));
   if (has("ak.pos_deg"))

@@ -7,7 +7,8 @@ from .base import (Transport, TransportError, SIGNAL_META, ODRIVE_CONTROL_MODES,
 
 _ODRIVE_SIGNALS = [
     "odrive.pos", "odrive.pos_setpoint", "odrive.vel", "odrive.vel_setpoint",
-    "odrive.iq_meas", "odrive.iq_set",
+    "odrive.iq_meas", "odrive.iq_set", "odrive.id_meas", "odrive.id_set",
+    "odrive.torque_est",
     "odrive.temp_fet", "odrive.vbus", "odrive.ibus", "odrive.state",
     "odrive.axis_err", "odrive.motor_err", "odrive.enc_err",
     "odrive.ctrl_err", "odrive.vel_integrator",
@@ -32,6 +33,8 @@ class UsbOdriveBackend(Transport):
         self._fet_therm = None      # fw 별 위치 달라 connect 에서 resolve
         self._enums: dict = {}
         self._vel_limit = 5.0       # 사용자가 의도한 속도(=TRAP 순항). 캡과 구분.
+        self._torque_const = 0.0    # Iq→토크 환산 (motor.config.torque_constant)
+        self._motor_info: dict = {}  # 정적 모터 파라미터 (capabilities 노출)
 
     def connect(self) -> None:
         import odrive
@@ -65,6 +68,16 @@ class UsbOdriveBackend(Transport):
         }
         self._vel_limit = float(self._ax.controller.config.vel_limit)
         self._sync_vel_limit()
+        # 정적 모터 파라미터 (캘리브레이션 결과) — 1회 읽어 토크 환산/표시에 사용.
+        mc = self._ax.motor.config
+        self._torque_const = float(getattr(mc, "torque_constant", 0.0))
+        self._motor_info = {
+            "phase_resistance": float(getattr(mc, "phase_resistance", 0.0)),
+            "phase_inductance": float(getattr(mc, "phase_inductance", 0.0)),
+            "torque_constant": self._torque_const,
+            "pole_pairs": int(getattr(mc, "pole_pairs", 0)),
+            "current_lim": float(getattr(mc, "current_lim", 0.0)),
+        }
 
     def _sync_vel_limit(self) -> None:
         """현재 모드에 맞춰 controller.vel_limit(하드 캡) 설정.
@@ -87,14 +100,18 @@ class UsbOdriveBackend(Transport):
     def sample(self) -> dict:
         ax, drv = self._ax, self._drv
         m = ax.motor.current_control
+        iq_meas = float(m.Iq_measured)
         return {
             "t_mono": time.monotonic(),
             "odrive.pos": float(ax.encoder.pos_estimate),
             "odrive.pos_setpoint": float(ax.controller.pos_setpoint),
             "odrive.vel": float(ax.encoder.vel_estimate),
             "odrive.vel_setpoint": float(ax.controller.vel_setpoint),
-            "odrive.iq_meas": float(m.Iq_measured),
+            "odrive.iq_meas": iq_meas,
             "odrive.iq_set": float(m.Iq_setpoint),
+            "odrive.id_meas": float(m.Id_measured),
+            "odrive.id_set": float(m.Id_setpoint),
+            "odrive.torque_est": iq_meas * self._torque_const,  # τ = Iq × Kt [Nm]
             "odrive.temp_fet": (float(self._fet_therm.temperature)
                                 if self._fet_therm is not None else 0.0),
             "odrive.vbus": float(drv.vbus_voltage),
@@ -199,6 +216,7 @@ class UsbOdriveBackend(Transport):
             "inputs": {"odrive": ODRIVE_INPUTS},
             "tunables": {"odrive": _USB_TUNABLES},
             "signal_meta": SIGNAL_META,
+            "motor_info": {"odrive": self._motor_info},
             "notes": ["USB 트랙 — ODrive 단독, NVM 저장 가능"],
         }
 

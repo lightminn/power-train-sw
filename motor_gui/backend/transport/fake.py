@@ -7,11 +7,13 @@ from .base import (Transport, SIGNAL_META, ODRIVE_CONTROL_MODES, ODRIVE_INPUTS,
 
 _ODRIVE_SIGNALS = [
     "odrive.pos", "odrive.pos_setpoint", "odrive.vel", "odrive.vel_setpoint",
-    "odrive.iq_meas", "odrive.iq_set",
+    "odrive.iq_meas", "odrive.iq_set", "odrive.id_meas", "odrive.id_set",
+    "odrive.torque_est",
     "odrive.temp_fet", "odrive.vbus", "odrive.ibus", "odrive.state",
     "odrive.axis_err", "odrive.motor_err", "odrive.enc_err",
     "odrive.ctrl_err", "odrive.vel_integrator",
 ]
+_TORQUE_CONST = 0.04   # 시뮬 Kt [Nm/A]
 _AK_SIGNALS = ["ak.pos_deg", "ak.speed", "ak.current", "ak.temp", "ak.fault"]
 
 
@@ -78,6 +80,9 @@ class FakeTransport(Transport):
             "odrive.vel_setpoint": self._target if self._mode == "velocity" else self._vel,
             "odrive.iq_meas": iq,
             "odrive.iq_set": self._target if self._mode == "torque" else iq,
+            "odrive.id_meas": 0.0,   # FOC: 자속축 전류는 0 부근
+            "odrive.id_set": 0.0,
+            "odrive.torque_est": iq * _TORQUE_CONST,
             "odrive.temp_fet": 30.0 + abs(self._vel),
             "odrive.vbus": 24.0,
             "odrive.ibus": iq * 0.5,
@@ -151,6 +156,10 @@ class FakeTransport(Transport):
             "inputs": {"odrive": ODRIVE_INPUTS},
             "tunables": {"odrive": ODRIVE_TUNABLES_USB},
             "signal_meta": SIGNAL_META,
+            "motor_info": {"odrive": {
+                "phase_resistance": 0.083, "phase_inductance": 1.54e-05,
+                "torque_constant": _TORQUE_CONST, "pole_pairs": 7, "current_lim": 10.0,
+            }},
             "notes": ["fake track — 시뮬 모터, 하드웨어 미연결"],
         }
 
