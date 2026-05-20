@@ -35,3 +35,49 @@ class Transport(ABC):
     @abstractmethod
     def close(self) -> None:
         """안전 정지 + 자원 해제."""
+
+
+# ── 프론트 데이터-드리븐 UI 메타 (capabilities 에 포함) ────────────────
+
+# 신호 → 범례 라벨/단위
+SIGNAL_META = {
+    "odrive.pos": {"label": "위치", "unit": "turn"},
+    "odrive.vel": {"label": "속도", "unit": "rev/s"},
+    "odrive.iq_meas": {"label": "Iq 측정 (전류≈토크)", "unit": "A"},
+    "odrive.iq_set": {"label": "Iq 목표", "unit": "A"},
+    "odrive.temp_fet": {"label": "FET 온도", "unit": "℃"},
+    "odrive.vbus": {"label": "버스 전압", "unit": "V"},
+    "odrive.ibus": {"label": "버스 전류", "unit": "A"},
+    "odrive.state": {"label": "상태(8=폐루프)", "unit": ""},
+    "odrive.vel_integrator": {"label": "속도 적분 토크", "unit": ""},
+    "odrive.axis_err": {"label": "axis 에러", "unit": "hex"},
+    "odrive.motor_err": {"label": "motor 에러", "unit": "hex"},
+    "odrive.enc_err": {"label": "encoder 에러", "unit": "hex"},
+    "odrive.ctrl_err": {"label": "controller 에러", "unit": "hex"},
+    "ak.pos_deg": {"label": "AK 위치", "unit": "°"},
+    "ak.speed": {"label": "AK 속도", "unit": "ERPM"},
+    "ak.current": {"label": "AK 전류 (≈토크)", "unit": "A"},
+    "ak.temp": {"label": "AK 온도", "unit": "℃"},
+    "ak.fault": {"label": "AK fault", "unit": ""},
+}
+
+# ODrive 제어 모드 → 목표값 입력 필드
+ODRIVE_CONTROL_MODES = ["position", "velocity", "torque"]
+ODRIVE_INPUTS = {
+    "position": {"key": "pos", "label": "목표 위치", "unit": "turn"},
+    "velocity": {"key": "vel", "label": "목표 속도", "unit": "rev/s"},
+    "torque": {"key": "torque", "label": "목표 토크", "unit": "Nm"},
+}
+
+# 튜닝 가능 파라미터 (ODrive 캐스케이드 컨트롤러: 위치 P / 속도 PI + 한계)
+ODRIVE_TUNABLES_USB = [
+    {"op": "set_gain", "key": "pos_gain", "label": "위치 게인 P"},
+    {"op": "set_gain", "key": "vel_gain", "label": "속도 게인 P"},
+    {"op": "set_gain", "key": "vel_integrator_gain", "label": "속도 적분 게인 I"},
+    {"op": "set_gain", "key": "input_filter_bandwidth", "label": "입력 필터 BW [Hz]"},
+    {"op": "set_limit", "key": "vel_limit", "label": "속도 한계 [rev/s]"},
+    {"op": "set_limit", "key": "current_lim", "label": "전류 한계 [A]"},
+]
+# CAN 은 input_filter_bandwidth 미지원 (CANSimple 명령 없음)
+ODRIVE_TUNABLES_CAN = [t for t in ODRIVE_TUNABLES_USB
+                       if t["key"] != "input_filter_bandwidth"]

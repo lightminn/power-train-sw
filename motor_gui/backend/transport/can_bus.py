@@ -5,7 +5,8 @@ import sys
 import time
 from pathlib import Path
 
-from .base import Transport, TransportError
+from .base import (Transport, TransportError, SIGNAL_META, ODRIVE_CONTROL_MODES,
+                   ODRIVE_INPUTS, ODRIVE_TUNABLES_CAN)
 
 # steering/ak_control.py 의 AK40 클래스 재사용 (hw 로직 단일 소스)
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "motor_control" / "steering"))
@@ -224,6 +225,10 @@ class CanBackend(Transport):
             },
             "limits": {"odrive": {"vel": 20.0, "torque": 10.0, "pos": 100.0},
                        "ak": {"pos_deg": 360.0}},
+            "control_modes": {"odrive": ODRIVE_CONTROL_MODES},
+            "inputs": {"odrive": ODRIVE_INPUTS},
+            "tunables": {"odrive": ODRIVE_TUNABLES_CAN},
+            "signal_meta": SIGNAL_META,
             "notes": ["CAN 트랙 — ODrive+AK 동시. NVM 저장 불가 (USB 전용)"],
         }
 

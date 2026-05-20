@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import time
 
-from .base import Transport, TransportError
+from .base import (Transport, TransportError, SIGNAL_META, ODRIVE_CONTROL_MODES,
+                   ODRIVE_INPUTS, ODRIVE_TUNABLES_USB)
 
 _ODRIVE_SIGNALS = [
     "odrive.pos", "odrive.vel", "odrive.iq_meas", "odrive.iq_set",
@@ -137,6 +138,10 @@ class UsbOdriveBackend(Transport):
                                     "set_limit", "set_state", "calibrate",
                                     "clear_errors", "save_nvm", "estop"]},
             "limits": {"odrive": {"vel": 20.0, "torque": 10.0, "pos": 100.0}},
+            "control_modes": {"odrive": ODRIVE_CONTROL_MODES},
+            "inputs": {"odrive": ODRIVE_INPUTS},
+            "tunables": {"odrive": ODRIVE_TUNABLES_USB},
+            "signal_meta": SIGNAL_META,
             "notes": ["USB 트랙 — ODrive 단독, NVM 저장 가능"],
         }
 
