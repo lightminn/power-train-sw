@@ -67,9 +67,10 @@ SIGNAL_META = {
 }
 
 # ODrive 제어 모드 → 목표값 입력 필드
-ODRIVE_CONTROL_MODES = ["position", "velocity", "torque"]
+ODRIVE_CONTROL_MODES = ["position", "position_traj", "velocity", "torque"]
 ODRIVE_INPUTS = {
     "position": {"key": "pos", "label": "목표 위치", "unit": "turn"},
+    "position_traj": {"key": "pos", "label": "목표 위치(사다리꼴)", "unit": "turn"},
     "velocity": {"key": "vel", "label": "목표 속도", "unit": "rev/s"},
     "torque": {"key": "torque", "label": "목표 토크", "unit": "Nm"},
 }
@@ -80,6 +81,9 @@ ODRIVE_TUNABLES_USB = [
     {"op": "set_gain", "key": "vel_gain", "label": "속도 게인 P"},
     {"op": "set_gain", "key": "vel_integrator_gain", "label": "속도 적분 게인 I"},
     {"op": "set_gain", "key": "input_filter_bandwidth", "label": "입력 필터 BW [Hz]"},
+    {"op": "set_gain", "key": "trap_vel_limit", "label": "TRAP 속도한계 [rev/s]"},
+    {"op": "set_gain", "key": "trap_accel_limit", "label": "TRAP 가속한계 [rev/s²]"},
+    {"op": "set_gain", "key": "trap_decel_limit", "label": "TRAP 감속한계 [rev/s²]"},
     {"op": "set_limit", "key": "vel_limit", "label": "속도 한계 [rev/s]"},
     {"op": "set_limit", "key": "current_lim", "label": "전류 한계 [A]"},
 ]
@@ -98,4 +102,7 @@ DEFAULT_TUNABLES = {
     "input_filter_bandwidth": 50.0,
     "vel_limit": 5.0,
     "current_lim": 10.0,
+    "trap_vel_limit": 20.0,
+    "trap_accel_limit": 20.0,
+    "trap_decel_limit": 20.0,
 }

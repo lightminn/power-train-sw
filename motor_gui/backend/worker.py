@@ -112,7 +112,8 @@ class HardwareWorker:
         """odrive_can_setup.py 검증 baseline 을 startup 시 적용 (표시값=실제값 보장).
         IDLE 에서 config 쓰기는 안전. 실패는 무시 (예: 장치 미연결)."""
         gain_keys = ("pos_gain", "vel_gain", "vel_integrator_gain",
-                     "input_filter_bandwidth")
+                     "input_filter_bandwidth", "trap_vel_limit",
+                     "trap_accel_limit", "trap_decel_limit")
         gargs = {k: v for k, v in DEFAULT_TUNABLES.items() if k in gain_keys}
         largs = {k: v for k, v in DEFAULT_TUNABLES.items()
                  if k in ("vel_limit", "current_lim")}

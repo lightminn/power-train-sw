@@ -32,15 +32,17 @@ C_CLEAR_ERR = 0x018
 C_SET_POS_GAIN = 0x01A
 C_SET_VEL_GAINS = 0x01B
 C_SET_LINEAR_COUNT = 0x019
+C_SET_TRAJ_VEL_LIMIT = 0x011
+C_SET_TRAJ_ACCEL_LIMITS = 0x012
 
 AXIS_IDLE = 1
 AXIS_CLOSED_LOOP = 8
 AXIS_FULL_CALIB = 3
 
 # ODrive ControlMode / InputMode (fw-v0.5.6 정수값)
-CTRL = {"position": 3, "velocity": 2, "torque": 1}
-# control_mode → 안전 기본 InputMode (POS_FILTER=3 / VEL_RAMP=2 / PASSTHROUGH=1) — jump 방지
-IN_MODE = {"position": 3, "velocity": 2, "torque": 1}
+CTRL = {"position": 3, "position_traj": 3, "velocity": 2, "torque": 1}
+# control_mode → 안전 기본 InputMode (POS_FILTER=3 / TRAP_TRAJ=5 / VEL_RAMP=2 / PASSTHROUGH=1) — jump 방지
+IN_MODE = {"position": 3, "position_traj": 5, "velocity": 2, "torque": 1}
 
 _ODRIVE_SIGNALS = [
     "odrive.pos", "odrive.vel", "odrive.iq_meas", "odrive.iq_set",
@@ -64,6 +66,7 @@ class CanBackend(Transport):
         # CAN Set_Limits/Set_Vel_Gains 는 페어 프레임 → 부분 업데이트 병합용 캐시
         self._last_limits: dict = {}
         self._last_vel_gains: dict = {}
+        self._last_trap: dict = {}
 
     def connect(self) -> None:
         import can
@@ -157,7 +160,7 @@ class CanBackend(Transport):
         elif op == "set_mode":
             mode = args["control_mode"]
             self._send(C_SET_CTRL_MODE, struct.pack("<ii", CTRL[mode], IN_MODE[mode]))
-            if mode == "position":
+            if mode in ("position", "position_traj"):
                 cur = float(self._state.get("odrive.pos", 0.0))
                 self._send(C_SET_INPUT_POS, struct.pack("<fhh", cur, 0, 0))
         elif op == "set_input":
@@ -183,6 +186,17 @@ class CanBackend(Transport):
                 self._send(C_SET_VEL_GAINS, struct.pack("<ff",
                            merged["vel_gain"], merged["vel_integrator_gain"]))
                 self._last_vel_gains = merged
+            if "trap_vel_limit" in args:
+                self._send(C_SET_TRAJ_VEL_LIMIT,
+                           struct.pack("<f", float(args["trap_vel_limit"])))
+            if "trap_accel_limit" in args or "trap_decel_limit" in args:
+                for k in ("trap_accel_limit", "trap_decel_limit"):
+                    if k in args:
+                        self._last_trap[k] = float(args[k])
+                if "trap_accel_limit" in self._last_trap and "trap_decel_limit" in self._last_trap:
+                    self._send(C_SET_TRAJ_ACCEL_LIMITS, struct.pack("<ff",
+                               self._last_trap["trap_accel_limit"],
+                               self._last_trap["trap_decel_limit"]))
         elif op == "set_limit":
             merged = dict(self._last_limits)
             for k in ("vel_limit", "current_lim"):
@@ -248,6 +262,7 @@ class CanBackend(Transport):
         out = {}
         out.update(self._last_vel_gains)
         out.update(self._last_limits)
+        out.update(self._last_trap)
         return out
 
     def close(self) -> None:

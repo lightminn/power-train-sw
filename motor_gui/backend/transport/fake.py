@@ -49,6 +49,9 @@ class FakeTransport(Transport):
             "input_filter_bandwidth": 2.0,
             "vel_limit": 10.0,
             "current_lim": 10.0,
+            "trap_vel_limit": 20.0,
+            "trap_accel_limit": 20.0,
+            "trap_decel_limit": 20.0,
         }
 
     def connect(self) -> None:
@@ -99,7 +102,8 @@ class FakeTransport(Transport):
             return self._ack(target, op, "estopped")
         if target == "odrive":
             if op == "set_mode":
-                self._mode = args.get("control_mode", self._mode)
+                m = args.get("control_mode", self._mode)
+                self._mode = "position" if m in ("position", "position_traj") else m
                 if self._mode == "position":
                     self._target = self._pos
             elif op == "set_origin":

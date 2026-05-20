@@ -18,13 +18,6 @@ class UsbOdriveBackend(Transport):
 
     name = "usb"
 
-    # control_mode → 안전 기본 input_mode (jump 방지). args["input_mode"] 로 override.
-    _DEFAULT_INPUT_MODE = {
-        "POSITION": "POS_FILTER",
-        "VELOCITY": "VEL_RAMP",
-        "TORQUE": "PASSTHROUGH",
-    }
-
     def __init__(self, axis_num: int = 1, timeout: float = 15.0) -> None:
         self._timeout = timeout
         self._axis_num = axis_num
@@ -63,6 +56,7 @@ class UsbOdriveBackend(Transport):
             "PASSTHROUGH": InputMode.PASSTHROUGH.value,
             "POS_FILTER": InputMode.POS_FILTER.value,
             "VEL_RAMP": InputMode.VEL_RAMP.value,
+            "TRAP_TRAJ": InputMode.TRAP_TRAJ.value,
         }
 
     def sample(self) -> dict:
@@ -93,15 +87,17 @@ class UsbOdriveBackend(Transport):
             if op == "estop":
                 ax.requested_state = self._enums["IDLE"]
             elif op == "set_mode":
-                cm = {"position": "POSITION", "velocity": "VELOCITY",
-                      "torque": "TORQUE"}[args["control_mode"]]
+                mode = args["control_mode"]
+                cm = {"position": "POSITION", "position_traj": "POSITION",
+                      "velocity": "VELOCITY", "torque": "TORQUE"}[mode]
+                im_def = {"position": "POS_FILTER", "position_traj": "TRAP_TRAJ",
+                          "velocity": "VEL_RAMP", "torque": "PASSTHROUGH"}[mode]
                 ax.controller.config.control_mode = self._enums[cm]
-                im = args.get("input_mode", self._DEFAULT_INPUT_MODE[cm])
+                im = args.get("input_mode", im_def)
                 if im in self._enums:
                     ax.controller.config.input_mode = self._enums[im]
                 if cm == "POSITION":
-                    # 모드 전환 시 현재 위치 hold (stale input_pos 로 fling 방지)
-                    ax.controller.input_pos = ax.encoder.pos_estimate
+                    ax.controller.input_pos = ax.encoder.pos_estimate  # 현재 위치 hold
             elif op == "set_input":
                 if "pos" in args:
                     ax.controller.input_pos = float(args["pos"]) + self._pos_offset
@@ -114,6 +110,12 @@ class UsbOdriveBackend(Transport):
                           "input_filter_bandwidth"):
                     if k in args:
                         setattr(ax.controller.config, k, float(args[k]))
+                trap_map = {"trap_vel_limit": "vel_limit",
+                            "trap_accel_limit": "accel_limit",
+                            "trap_decel_limit": "decel_limit"}
+                for k, attr in trap_map.items():
+                    if k in args:
+                        setattr(ax.trap_traj.config, attr, float(args[k]))
             elif op == "set_limit":
                 if "vel_limit" in args:
                     ax.controller.config.vel_limit = float(args["vel_limit"])
@@ -173,6 +175,13 @@ class UsbOdriveBackend(Transport):
         }
         try:
             out["input_filter_bandwidth"] = float(c.input_filter_bandwidth)
+        except Exception:
+            pass
+        try:
+            tc = self._ax.trap_traj.config
+            out["trap_vel_limit"] = float(tc.vel_limit)
+            out["trap_accel_limit"] = float(tc.accel_limit)
+            out["trap_decel_limit"] = float(tc.decel_limit)
         except Exception:
             pass
         return out
