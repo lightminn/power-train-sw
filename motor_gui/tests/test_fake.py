@@ -1,5 +1,3 @@
-import math
-
 from motor_gui.backend.transport.fake import FakeTransport
 
 
@@ -37,7 +35,7 @@ def test_velocity_command_drives_velocity_up():
         s = t.sample()
         last_vel = s["odrive.vel"]
     assert last_vel > 1.0             # 0 → 목표(5)로 상승
-    assert abs(s["odrive.iq_meas"]) >= 0.0
+    assert s["odrive.iq_meas"] > 0.0
 
 
 def test_estop_zeros_commands():
@@ -49,3 +47,17 @@ def test_estop_zeros_commands():
     for _ in range(300):
         s = t.sample()
     assert abs(s["odrive.vel"]) < 0.5
+
+
+def test_estop_brakes_in_position_mode():
+    t = FakeTransport()
+    t.connect()
+    t.apply({"target": "odrive", "op": "set_mode",
+             "args": {"control_mode": "position"}})
+    t.apply({"target": "odrive", "op": "set_input", "args": {"pos": 10.0}})
+    for _ in range(100):
+        t.sample()
+    t.apply({"target": "odrive", "op": "estop", "args": {}})
+    for _ in range(100):
+        s = t.sample()
+    assert abs(s["odrive.vel"]) < 0.5     # position 루프에 덮이지 않고 제동됨

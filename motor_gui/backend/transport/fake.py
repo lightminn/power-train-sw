@@ -17,37 +17,46 @@ class FakeTransport(Transport):
     """하드웨어 없는 시뮬 모터. odrive+ak 슈퍼셋을 노출해 모든 UI 요소를 구동.
 
     단순 1차 모델: velocity 모드면 vel 가 목표로 1차 수렴, position 모드면 pos 가
-    목표로 수렴, torque 모드면 vel 에 토크를 적분. iq_meas 는 가속도에 비례.
+    목표로 수렴, torque 모드면 vel 에 토크를 적분(±_VEL_LIMIT 클램프). iq_meas 는
+    가속도 + 속도 항으로 근사.
     """
 
     name = "fake"
-    DT = 0.01  # 가정 틱 (100 Hz)
+    DT = 0.01            # 가정 틱 (100 Hz)
+    _VEL_ALPHA = 0.05    # velocity 모드 1차 수렴 계수
+    _POS_KP = 2.0        # position 모드 P-gain
+    _TRQ_GAIN = 0.1      # torque → vel 적분 계수
+    _VEL_LIMIT = 20.0    # vel 클램프 (capabilities limits.odrive.vel 와 일치)
+    _AK_ALPHA = 0.05     # AK 위치 1차 수렴 계수
+    _AK_SPEED_SCALE = 10.0
 
     def __init__(self) -> None:
+        self._reset()
+
+    def _reset(self) -> None:
         self._pos = 0.0
         self._vel = 0.0
         self._mode = "velocity"
         self._target = 0.0
         self._ak_pos = 0.0
         self._ak_target = 0.0
-        self._last_iq = 0.0
 
     def connect(self) -> None:
-        self._pos = self._vel = self._target = 0.0
+        self._reset()
 
     def sample(self) -> dict:
         prev_vel = self._vel
         if self._mode == "velocity":
-            self._vel += (self._target - self._vel) * 0.05
+            self._vel += (self._target - self._vel) * self._VEL_ALPHA
         elif self._mode == "position":
             err = self._target - self._pos
-            self._vel = err * 2.0
+            self._vel = err * self._POS_KP
         elif self._mode == "torque":
-            self._vel += self._target * 0.1
+            self._vel += self._target * self._TRQ_GAIN
+            self._vel = max(-self._VEL_LIMIT, min(self._VEL_LIMIT, self._vel))
         self._pos += self._vel * self.DT
-        self._ak_pos += (self._ak_target - self._ak_pos) * 0.05
+        self._ak_pos += (self._ak_target - self._ak_pos) * self._AK_ALPHA
         iq = (self._vel - prev_vel) / self.DT * 0.01 + self._vel * 0.02
-        self._last_iq = iq
         return {
             "t_mono": time.monotonic(),
             "odrive.pos": self._pos,
@@ -64,7 +73,7 @@ class FakeTransport(Transport):
             "odrive.ctrl_err": 0,
             "odrive.vel_integrator": self._vel * 0.01,
             "ak.pos_deg": self._ak_pos,
-            "ak.speed": (self._ak_target - self._ak_pos) * 10.0,
+            "ak.speed": (self._ak_target - self._ak_pos) * self._AK_SPEED_SCALE,
             "ak.current": 0.0,
             "ak.temp": 28.0,
             "ak.fault": 0,
@@ -73,6 +82,7 @@ class FakeTransport(Transport):
     def apply(self, cmd: dict) -> dict:
         target, op, args = cmd["target"], cmd["op"], cmd.get("args", {})
         if op == "estop":
+            self._mode = "velocity"   # position 루프 중단 → 실제 제동
             self._target = 0.0
             self._vel = 0.0
             self._ak_target = self._ak_pos
