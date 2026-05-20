@@ -88,8 +88,9 @@ ODRIVE_TUNABLES_CAN = [t for t in ODRIVE_TUNABLES_USB
                        if t["key"] != "input_filter_bandwidth"]
 
 # X2212-13 + TLE5012B 실측 게인 스윕 최적값 (docs/motor-gui-tuning-guide.md 참고).
-# vel_gain>0.05 면 트립, vel_integrator_gain 은 한계진동(움찔) 유발 → 0,
-# 잔차(코깅)는 anticogging 캘리로 제거. 다른 모터로 교체 시 가이드대로 재튜닝.
+# vel_gain>0.05 면 트립, vel_integrator_gain 은 한계진동(움찔) 유발 → 0.
+# 잔차(~0.08turn)는 코깅 — fw0.5.1 anticogging 이 불안정(모션 brick)해 미사용, 실용 한계로 수용.
+# 다른 모터로 교체 시 docs/motor-gui-tuning-guide.md 절차대로 재튜닝.
 DEFAULT_TUNABLES = {
     "pos_gain": 8.0,
     "vel_gain": 0.015,

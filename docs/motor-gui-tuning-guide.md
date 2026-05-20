@@ -98,7 +98,7 @@ docker compose -f docker/docker-compose.jetson.yml exec -T powertrain \
 | --- | --- | --- |
 | 트립(0x…)이 vel_gain 올릴 때 발생 | 속도 루프 불안정 한계 | vel_gain 을 트립값 아래로 (보수적으로 ~70%) |
 | 수 초 주기로 앞뒤 움찔(p2p 큼) | vel_integrator_gain 와인드업 한계진동 | vel_integrator_gain ↓ (0 까지) |
-| 잔차가 pos_gain 올려도 안 줄거나 커짐 | **코깅 detent** (P-droop 아님) | **anticogging 캘리** |
+| 잔차가 pos_gain 올려도 안 줄거나 커짐 | **코깅 detent** (P-droop 아님) | fw0.5.1 anticogging 은 불안정(아래 ⚠) — 실용상 잔차 수용 |
 | 잔차가 pos_gain 올리면 줄어듦 | 단순 P-droop | pos_gain ↑ (hunting 직전까지) |
 | 위치 명령이 느릿느릿 도달 | input_filter_bandwidth 너무 낮음 | bw ↑ (50~75) |
 
@@ -115,7 +115,14 @@ docker compose -f docker/docker-compose.jetson.yml exec -T powertrain \
   - `pos_gain` 8→60 올려도 잔차 0.077→0.18 로 **오히려 증가 = 코깅 detent** (anticogging 필요).
   - `input_filter_bandwidth` 2.0(odrive_can_setup 의 비전추종용)은 점대점에 너무 느림 → 50~75.
 - **확정 baseline (`DEFAULT_TUNABLES`)**: pos_gain=8, vel_gain=0.015, vel_integrator_gain=0,
-  input_filter_bandwidth=50, vel_limit=5, current_lim=10. 잔차는 anticogging 으로 제거.
+  input_filter_bandwidth=50, vel_limit=5, current_lim=10. 잔차 ~0.08turn 은 실용 한계로 수용.
+
+> ⚠️ **anticogging 캘리는 이 fw(0.5.1)에서 쓰지 말 것.** `start_anticogging_calibration` 이
+> 불완전하게 끝나며 `controller.config.anticogging.anticogging_enabled=True` + 무효 맵 상태로
+> 남아 **폐루프 모션이 완전히 막힘**(명령 줘도 모터 안 움직임, 에러는 안 뜸). GUI 에서 기능 제거함.
+> **사고 시 복구**: ODrive 연결 → `axis.controller.config.anticogging.anticogging_enabled=False`,
+> `pre_calibrated=False` → `save_configuration()` → `reboot()` → IDLE 대기 후 폐루프 재진입하면
+> 정상 복구. (코깅 보상이 꼭 필요하면 fw 업그레이드 + 신중한 별도 검증 후 재시도.)
 
 ### BL70200 + 내장 HALL ×3 (실전 구동 모터)
 - 아직 motor_gui 로 튜닝 안 함. HALL(pp=5,cpr=30)이라 X2212 와 게인 스케일이 완전히 다름.
