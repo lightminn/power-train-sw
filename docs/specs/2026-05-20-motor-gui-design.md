@@ -97,7 +97,7 @@ Transport 동시접근 0. 웹 레이어(asyncio)는 큐 2개(`sample_bus`, `comm
 ### 모듈 구조
 
 ```
-motor_control/gui/
+motor_gui/                    # 최상위 — hw 트랙(motor_control/)과 별개의 통합 도구
 ├── backend/
 │   ├── transport/
 │   │   ├── base.py          # Transport ABC + 신호 네임스페이스 규약
@@ -114,6 +114,9 @@ motor_control/gui/
 │   └── plots.js              # uPlot 패널 (pos/vel/iq/temp/vbus ...)
 └── README.md                 # 실행법
 ```
+
+> `can_bus.py` 는 `motor_control/steering/ak_control.py` 의 `AK` 클래스를 import 재사용
+> (sys.path 또는 패키지 경로 처리). hw 제어 로직은 `motor_control/` 에 단일 소스로 유지.
 
 ### 인터페이스 계약
 
@@ -144,7 +147,7 @@ class Transport(ABC):
 - `WS /ws/telemetry` — sample_bus fan-out (~100 Hz, 브라우저가 못 따라가면 coalesce)
 - `POST /api/command` — envelope submit → ack
 - `POST /api/record/start` (path, fmt) / `POST /api/record/stop`
-- 런처: `python -m motor_control.gui.backend.server --track usb|can|fake [--port 8000]`
+- 런처: `python -m motor_gui.backend.server --track usb|can|fake [--port 8000]`
 
 ---
 
