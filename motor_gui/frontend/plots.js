@@ -25,7 +25,7 @@ function makePanel(title, sigKeys) {
     keys: sigKeys,
     push(t, sample) {
       data[0].push(t);
-      sigKeys.forEach((k, i) => data[i + 1].push(sample[k]));
+      sigKeys.forEach((k, i) => data[i + 1].push(sample[k] ?? null));
       while (data[0].length > MAX_PTS) data.forEach((arr) => arr.shift());
     },
     redraw() { u.setData(data); },

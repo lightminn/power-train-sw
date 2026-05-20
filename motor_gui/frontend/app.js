@@ -2,15 +2,22 @@ let panels = [];
 let t0 = null;
 
 async function postCommand(envelope) {
-  const r = await fetch("/api/command", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(envelope),
-  });
-  return r.json();
+  try {
+    const r = await fetch("/api/command", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(envelope),
+    });
+    const ack = await r.json();
+    if (!ack.ok) console.warn("command rejected:", ack);
+    return ack;
+  } catch (e) {
+    console.error("command send failed:", e);
+    return { ok: false, detail: String(e) };
+  }
 }
 
 function controlPanel(device, caps) {
-  const ops = caps.commands[device];
+  const ops = (caps.commands && caps.commands[device]) || [];
   const wrap = document.createElement("div");
   wrap.className = "panel";
   wrap.innerHTML = `<h3>${device}</h3>`;
@@ -71,6 +78,7 @@ function el(tag, cls) { const e = document.createElement(tag); e.className = cls
 function connectWS() {
   const ws = new WebSocket(`ws://${location.host}/ws/telemetry`);
   ws.onopen = () => (document.getElementById("status").textContent = "● live");
+  ws.onerror = (e) => console.error("WS error", e);
   ws.onclose = () => {
     document.getElementById("status").textContent = "○ reconnecting…";
     setTimeout(connectWS, 1000);
