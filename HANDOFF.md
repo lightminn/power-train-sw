@@ -115,7 +115,7 @@ Defence_Robot/
 │   │       └── odrive_*.py (6개)         # HALL 모드 (pp=5, cpr=30)
 │   ├── steering/                   # AK40/AK45 조향 (CAN, 동일 API)
 │   │   ├── ak_control.py                 # 메인 — AK 클래스 + CANSession
-│   │   ├── calibrate_ak.py / status_ak.py / run_ak.py
+│   │   └── calibrate_ak.py / status_ak.py
 │   ├── vision/                     # 비전 단독 (모터 명령 없음)
 │   │   ├── yolo_cuda_stream.py           # **5/8 결과물** — Jetson CUDA/TRT + UDP H.264
 │   │   ├── yolo_openvino_detection.py    # x86 OpenVINO 참조

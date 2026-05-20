@@ -58,9 +58,9 @@ lines, isolated by subfolder. **Never mix tracks on the same ODrive** (calibrati
   `odrive_can_drive.py` (CAN), `odrive_dualsense_*.py` (텔레옵), `yolo_odrive_jetson.py`
   (Jetson 비전 추종, USB), `yolo_odrive_motor_test.py` · `odrive_yolo_object_tracking.py`
   (x86 OpenVINO 추종, 참조).
-- **steering/** (AK40-10 → AK45, CAN socketcan can0): `ak_control.py` (메인 라이브러리),
-  `calibrate_ak.py` (기어비 1회성), `status_ak.py` (CAN RX 디버깅), `run_ak.py`
-  (TMotorCANControl 데모). 사전 준비: `bash scripts/can_setup.sh`.
+- **steering/** (AK40-10 → AK45, CAN socketcan can0): `ak_control.py` (메인 라이브러리 —
+  python-can socketcan 직접 제어), `calibrate_ak.py` (기어비 1회성), `status_ak.py`
+  (CAN RX 디버깅). 사전 준비: `bash scripts/can_setup.sh`.
 - **vision/** (모터 명령 없음): `yolo_openvino_detection.py` (x86 OpenVINO),
   `yolo_cuda_stream.py` (Jetson CUDA/TRT + GStreamer UDP H.264 송신 — 수신은
   `scripts/recv_stream.sh`), `setup_yolo_env.sh` (x86 conda, Docker 권장).
