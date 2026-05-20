@@ -87,13 +87,14 @@ ODRIVE_TUNABLES_USB = [
 ODRIVE_TUNABLES_CAN = [t for t in ODRIVE_TUNABLES_USB
                        if t["key"] != "input_filter_bandwidth"]
 
-# odrive_can_setup.py 검증 baseline (X2212 테스트 모터 최적 튜닝).
-# prefill 기본값 + worker startup 시 적용 (망가진 live 값 → 최적 복원).
+# X2212-13 + TLE5012B 실측 게인 스윕 최적값 (docs/motor-gui-tuning-guide.md 참고).
+# vel_gain>0.05 면 트립, vel_integrator_gain 은 한계진동(움찔) 유발 → 0,
+# 잔차(코깅)는 anticogging 캘리로 제거. 다른 모터로 교체 시 가이드대로 재튜닝.
 DEFAULT_TUNABLES = {
-    "pos_gain": 2.0,
+    "pos_gain": 8.0,
     "vel_gain": 0.015,
-    "vel_integrator_gain": 0.25,
-    "input_filter_bandwidth": 2.0,
+    "vel_integrator_gain": 0.0,
+    "input_filter_bandwidth": 50.0,
     "vel_limit": 5.0,
     "current_lim": 10.0,
 }

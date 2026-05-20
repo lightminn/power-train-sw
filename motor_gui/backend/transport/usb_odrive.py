@@ -132,6 +132,8 @@ class UsbOdriveBackend(Transport):
                 # 소프트웨어 영점: 현재 절대 위치를 0 으로 기록만, 모터 명령 변화 없음.
                 self._pos_offset = float(ax.encoder.pos_estimate)
                 ax.controller.input_pos = ax.encoder.pos_estimate  # 현재 위치 hold
+            elif op == "anticogging":
+                self._ax.controller.start_anticogging_calibration()
             elif op == "save_nvm":
                 self._drv.save_configuration()
             return {"ok": True, "target": "odrive", "op": op, "detail": "ok"}
@@ -146,7 +148,7 @@ class UsbOdriveBackend(Transport):
             "commands": {"odrive": ["set_mode", "set_input", "set_gain",
                                     "set_limit", "set_state", "calibrate",
                                     "clear_errors", "save_nvm", "set_origin",
-                                    "estop"]},
+                                    "anticogging", "estop"]},
             "limits": {"odrive": {"vel": 20.0, "torque": 10.0, "pos": 100.0}},
             "control_modes": {"odrive": ODRIVE_CONTROL_MODES},
             "inputs": {"odrive": ODRIVE_INPUTS},
