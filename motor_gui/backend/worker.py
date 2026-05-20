@@ -37,6 +37,7 @@ class HardwareWorker:
         self._subscribers: list[Callable[[dict], None]] = []
         self._sub_lock = threading.Lock()
         self._caps = transport.capabilities()
+        self._tunables: dict = {}
 
     # ── lifecycle ─────────────────────────────────
     def start(self) -> None:
@@ -44,6 +45,10 @@ class HardwareWorker:
             raise RuntimeError("HardwareWorker is already running")
         self._t.connect()
         self._caps = self._t.capabilities()
+        try:
+            self._tunables = self._t.read_tunables()
+        except Exception:
+            self._tunables = {}
         self._running.set()
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
@@ -69,6 +74,9 @@ class HardwareWorker:
 
     def capabilities(self) -> dict:
         return self._caps
+
+    def tunables(self) -> dict:
+        return self._tunables
 
     def submit(self, cmd: dict) -> dict:
         """동기 명령. 워커 미기동/정규화 실패는 즉시 에러 ack. 그 외는 적용 후 ack."""

@@ -36,6 +36,11 @@ class Transport(ABC):
     def close(self) -> None:
         """안전 정지 + 자원 해제."""
 
+    def read_tunables(self) -> dict:
+        """현재 튜닝 파라미터 값 {key: value}. 미지원/미연결 시 빈 dict.
+        connect() 후 호출됨 (worker.start 에서 1회)."""
+        return {}
+
 
 # ── 프론트 데이터-드리븐 UI 메타 (capabilities 에 포함) ────────────────
 

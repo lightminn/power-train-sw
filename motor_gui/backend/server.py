@@ -45,6 +45,10 @@ def create_app(track: str = "fake") -> FastAPI:
     def capabilities() -> dict:
         return worker.capabilities()
 
+    @app.get("/api/tunables")
+    def tunables() -> dict:
+        return worker.tunables()
+
     @app.post("/api/command")
     def command(envelope: dict) -> dict:
         if envelope.get("op") == "estop":

@@ -41,6 +41,14 @@ class FakeTransport(Transport):
         self._target = 0.0
         self._ak_pos = 0.0
         self._ak_target = 0.0
+        self._tun = {
+            "pos_gain": 20.0,
+            "vel_gain": 0.16,
+            "vel_integrator_gain": 0.32,
+            "input_filter_bandwidth": 2.0,
+            "vel_limit": 10.0,
+            "current_lim": 10.0,
+        }
 
     def connect(self) -> None:
         self._reset()
@@ -98,6 +106,10 @@ class FakeTransport(Transport):
                     self._target = float(args["pos"])
                 elif "torque" in args:
                     self._target = float(args["torque"])
+            elif op in ("set_gain", "set_limit"):
+                for k, v in args.items():
+                    if k in self._tun:
+                        self._tun[k] = float(v)
         elif target == "ak":
             if op == "set_input" and "pos_deg" in args:
                 self._ak_target = float(args["pos_deg"])
@@ -127,6 +139,9 @@ class FakeTransport(Transport):
             "signal_meta": SIGNAL_META,
             "notes": ["fake track — 시뮬 모터, 하드웨어 미연결"],
         }
+
+    def read_tunables(self) -> dict:
+        return dict(self._tun)
 
     def close(self) -> None:
         self._target = 0.0

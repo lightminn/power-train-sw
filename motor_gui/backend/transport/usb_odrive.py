@@ -145,6 +145,23 @@ class UsbOdriveBackend(Transport):
             "notes": ["USB 트랙 — ODrive 단독, NVM 저장 가능"],
         }
 
+    def read_tunables(self) -> dict:
+        if self._ax is None:
+            return {}
+        c = self._ax.controller.config
+        out = {
+            "pos_gain": float(c.pos_gain),
+            "vel_gain": float(c.vel_gain),
+            "vel_integrator_gain": float(c.vel_integrator_gain),
+            "vel_limit": float(c.vel_limit),
+            "current_lim": float(self._ax.motor.config.current_lim),
+        }
+        try:
+            out["input_filter_bandwidth"] = float(c.input_filter_bandwidth)
+        except Exception:
+            pass
+        return out
+
     def close(self) -> None:
         if self._ax is not None:
             try:

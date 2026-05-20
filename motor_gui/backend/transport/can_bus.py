@@ -232,6 +232,12 @@ class CanBackend(Transport):
             "notes": ["CAN 트랙 — ODrive+AK 동시. NVM 저장 불가 (USB 전용)"],
         }
 
+    def read_tunables(self) -> dict:
+        out = {}
+        out.update(self._last_vel_gains)
+        out.update(self._last_limits)
+        return out
+
     def close(self) -> None:
         try:
             if self._bus is not None:
