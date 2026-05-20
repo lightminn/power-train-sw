@@ -86,3 +86,14 @@ ODRIVE_TUNABLES_USB = [
 # CAN 은 input_filter_bandwidth 미지원 (CANSimple 명령 없음)
 ODRIVE_TUNABLES_CAN = [t for t in ODRIVE_TUNABLES_USB
                        if t["key"] != "input_filter_bandwidth"]
+
+# odrive_can_setup.py 검증 baseline (X2212 테스트 모터 최적 튜닝).
+# prefill 기본값 + worker startup 시 적용 (망가진 live 값 → 최적 복원).
+DEFAULT_TUNABLES = {
+    "pos_gain": 2.0,
+    "vel_gain": 0.015,
+    "vel_integrator_gain": 0.25,
+    "input_filter_bandwidth": 2.0,
+    "vel_limit": 5.0,
+    "current_lim": 10.0,
+}

@@ -8,7 +8,7 @@ import time
 from collections.abc import Callable
 
 from .commands import normalize, CommandError
-from .transport.base import Transport
+from .transport.base import Transport, DEFAULT_TUNABLES
 
 _log = logging.getLogger(__name__)
 
@@ -45,10 +45,8 @@ class HardwareWorker:
             raise RuntimeError("HardwareWorker is already running")
         self._t.connect()
         self._caps = self._t.capabilities()
-        try:
-            self._tunables = self._t.read_tunables()
-        except Exception:
-            self._tunables = {}
+        self._apply_baseline()
+        self._tunables = dict(DEFAULT_TUNABLES)
         self._running.set()
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
@@ -109,6 +107,22 @@ class HardwareWorker:
         with self._sub_lock:
             if callback in self._subscribers:
                 self._subscribers.remove(callback)
+
+    def _apply_baseline(self) -> None:
+        """odrive_can_setup.py 검증 baseline 을 startup 시 적용 (표시값=실제값 보장).
+        IDLE 에서 config 쓰기는 안전. 실패는 무시 (예: 장치 미연결)."""
+        gain_keys = ("pos_gain", "vel_gain", "vel_integrator_gain",
+                     "input_filter_bandwidth")
+        gargs = {k: v for k, v in DEFAULT_TUNABLES.items() if k in gain_keys}
+        largs = {k: v for k, v in DEFAULT_TUNABLES.items()
+                 if k in ("vel_limit", "current_lim")}
+        try:
+            if gargs:
+                self._t.apply({"target": "odrive", "op": "set_gain", "args": gargs})
+            if largs:
+                self._t.apply({"target": "odrive", "op": "set_limit", "args": largs})
+        except Exception:
+            pass
 
     # ── thread loop ───────────────────────────────
     def _loop(self) -> None:
