@@ -10,6 +10,8 @@
     header { display:flex; align-items:center; gap:1rem; padding:.5rem 1rem; background:#1b1b1b; }
     #estop { background:#c0202a; color:#fff; border:0; font-size:1.1rem;
              font-weight:700; padding:.6rem 1.2rem; border-radius:6px; cursor:pointer; }
+    #reconnect { background:#2a6; color:#fff; border:0; font-size:.95rem;
+                 padding:.5rem 1rem; border-radius:6px; cursor:pointer; }
     #status { font-size:.85rem; opacity:.8; }
     main { display:grid; grid-template-columns: 700px 1fr; gap:1rem; padding:1rem; align-items:start; }
     #left { display:flex; flex-direction:column; gap:1rem; max-height: calc(100vh - 80px); overflow:auto; }
@@ -36,6 +38,7 @@
     <strong>motor_gui</strong>
     <span id="track"></span>
     <span id="status">connecting…</span>
+    <button id="reconnect">↻ 재연결</button>
     <button id="estop">■ E-STOP</button>
   </header>
   <main>

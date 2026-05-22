@@ -90,3 +90,40 @@ def test_drain_rejects_queued_commands_during_estop():
     assert done.is_set()
     assert box["ack"]["ok"] is False
     assert "estop" in box["ack"]["detail"]
+
+
+def test_reconnect_closes_and_reconnects():
+    from motor_gui.backend.transport.fake import FakeTransport
+    from motor_gui.backend.worker import HardwareWorker
+
+    class CountingFake(FakeTransport):
+        def __init__(self):
+            super().__init__()
+            self.connects = 0
+            self.closes = 0
+        def connect(self):
+            self.connects += 1
+            super().connect()
+        def close(self):
+            self.closes += 1
+            super().close()
+
+    t = CountingFake()
+    w = HardwareWorker(t)
+    w.start()
+    try:
+        assert t.connects == 1
+        ack = w.reconnect()
+        assert ack["ok"] is True
+        assert t.connects == 2
+        assert t.closes >= 1
+    finally:
+        w.stop()
+
+
+def test_reconnect_when_not_running():
+    from motor_gui.backend.transport.fake import FakeTransport
+    from motor_gui.backend.worker import HardwareWorker
+    w = HardwareWorker(FakeTransport())
+    ack = w.reconnect()           # 미기동 상태
+    assert ack["ok"] is False

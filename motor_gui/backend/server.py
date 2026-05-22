@@ -66,6 +66,10 @@ def create_app(track: str = "fake") -> FastAPI:
                     "op": "estop", "detail": "estop latched"}
         return worker.submit(envelope)
 
+    @app.post("/api/reconnect")
+    def reconnect() -> dict:
+        return worker.reconnect()
+
     @app.post("/api/record/start")
     def record_start(body: dict) -> dict:
         path = body.get("path")

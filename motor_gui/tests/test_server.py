@@ -55,3 +55,10 @@ def test_make_transport_ak_track_capabilities():
     assert caps["devices"] == ["ak"]
     assert caps["control_modes"]["ak"] == ["position", "velocity", "brake", "duty"]
     assert "set_param" in caps["commands"]["ak"]
+
+
+def test_reconnect_endpoint_ok():
+    with _client() as c:
+        r = c.post("/api/reconnect")
+        assert r.status_code == 200
+        assert r.json()["ok"] is True

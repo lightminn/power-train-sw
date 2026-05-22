@@ -332,6 +332,19 @@ async function main() {
     logMsg("E-STOP 발동", "err");
     postCommand({ target: caps.devices[0], op: "estop", args: {} });
   });
+  const rcBtn = document.getElementById("reconnect");
+  if (rcBtn) rcBtn.addEventListener("click", async () => {
+    rcBtn.disabled = true;
+    logMsg("하드웨어 재연결 시도…");
+    try {
+      const ack = await (await fetch("/api/reconnect", { method: "POST" })).json();
+      if (ack.ok) logMsg("재연결 성공 — " + (ack.detail || ""));
+      else logMsg("재연결 실패: " + (ack.detail || ""), "err");
+    } catch (e) {
+      logMsg("재연결 오류: " + e, "err");
+    }
+    rcBtn.disabled = false;
+  });
   panels = window.MGPlots.buildPanels(caps.signals, caps.signal_meta || {});
   logMsg(`연결: track=${caps.track} devices=${caps.devices.join(",")}`);
   connectWS();

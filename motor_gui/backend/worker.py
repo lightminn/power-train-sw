@@ -14,6 +14,7 @@ _log = logging.getLogger(__name__)
 
 _STOP_JOIN_TIMEOUT = 2.0   # stop() 스레드 join 대기 (초)
 _SUBMIT_TIMEOUT = 2.0      # submit() ack 대기 (초)
+_RECONNECT_TIMEOUT = 20.0  # USB find_any 가 최대 ~15s 걸릴 수 있어 넉넉히
 
 
 class HardwareWorker:
@@ -31,6 +32,7 @@ class HardwareWorker:
         self._ring: collections.deque = collections.deque(maxlen=ring_size)
         self._latest: dict | None = None
         self._cmd_q: queue.Queue = queue.Queue()
+        self._reconnect_q: queue.Queue = queue.Queue()
         self._estop = threading.Event()
         self._running = threading.Event()
         self._thread: threading.Thread | None = None
@@ -98,6 +100,17 @@ class HardwareWorker:
         """최우선 정지 — 다음 루프 톱에서 즉시 적용, 같은 틱 큐 명령은 거부."""
         self._estop.set()
 
+    def reconnect(self) -> dict:
+        """하드웨어 transport 재연결 (close → connect → baseline). 워커 스레드에서 실행."""
+        if not self._running.is_set():
+            return {"ok": False, "detail": "worker not running"}
+        done = threading.Event()
+        box: dict = {}
+        self._reconnect_q.put((done, box))
+        if not done.wait(timeout=_RECONNECT_TIMEOUT):
+            return {"ok": False, "detail": "reconnect timeout"}
+        return box["result"]
+
     def subscribe(self, callback: Callable[[dict], None]) -> None:
         """callback(sample: dict) 등록 (스레드에서 호출됨, 가볍게 유지)."""
         with self._sub_lock:
@@ -107,6 +120,26 @@ class HardwareWorker:
         with self._sub_lock:
             if callback in self._subscribers:
                 self._subscribers.remove(callback)
+
+    def _handle_reconnect(self) -> None:
+        """워커 스레드에서 1건 처리: transport 닫고 다시 연결 + baseline + caps 갱신."""
+        try:
+            done, box = self._reconnect_q.get_nowait()
+        except queue.Empty:
+            return
+        try:
+            try:
+                self._t.close()
+            except Exception:
+                pass
+            self._t.connect()
+            self._caps = self._t.capabilities()
+            self._apply_baseline()
+            box["result"] = {"ok": True, "detail": "reconnected"}
+            self._ring.append({"t_mono": time.monotonic(), "info": "reconnected"})
+        except Exception as e:
+            box["result"] = {"ok": False, "detail": f"reconnect failed: {e}"}
+        done.set()
 
     def _apply_baseline(self) -> None:
         """odrive_can_setup.py 검증 baseline 을 startup 시 적용 (표시값=실제값 보장).
@@ -129,6 +162,8 @@ class HardwareWorker:
     def _loop(self) -> None:
         while self._running.is_set():
             t0 = time.monotonic()
+
+            self._handle_reconnect()
 
             estopped = self._estop.is_set()
             if estopped:
