@@ -45,3 +45,13 @@ def test_record_start_stop(tmp_path):
         assert r1.json()["ok"] is True
         r2 = c.post("/api/record/stop")
         assert r2.json()["ok"] is True
+
+
+def test_make_transport_ak_track_capabilities():
+    from motor_gui.backend.server import _make_transport
+    t = _make_transport("ak")
+    caps = t.capabilities()                     # connect 없이 (정적 조각)
+    assert caps["track"] == "ak"
+    assert caps["devices"] == ["ak"]
+    assert caps["control_modes"]["ak"] == ["position", "velocity", "brake", "duty"]
+    assert "set_param" in caps["commands"]["ak"]

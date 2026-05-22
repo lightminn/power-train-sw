@@ -21,6 +21,10 @@ def _make_transport(track: str):
     if track == "usb":
         from .transport.usb_odrive import UsbOdriveBackend
         return UsbOdriveBackend()
+    if track == "ak":
+        from .transport.can_device import CanTransport
+        from .transport.ak_device import AkDevice
+        return CanTransport([AkDevice()], track="ak")
     if track == "can":
         from .transport.can_bus import CanBackend
         return CanBackend()
@@ -109,7 +113,7 @@ def create_app(track: str = "fake") -> FastAPI:
 def main() -> None:
     import uvicorn
     p = argparse.ArgumentParser(description="motor_gui backend")
-    p.add_argument("--track", choices=["fake", "usb", "can"], default="fake")
+    p.add_argument("--track", choices=["fake", "usb", "can", "ak"], default="fake")
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=8000)
     args = p.parse_args()
