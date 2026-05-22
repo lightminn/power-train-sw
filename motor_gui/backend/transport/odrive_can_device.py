@@ -1,0 +1,150 @@
+from __future__ import annotations
+
+import struct
+import time
+
+from .base import (SIGNAL_META, ODRIVE_INPUTS, ODRIVE_TUNABLES_CAN,
+                   DEFAULT_TUNABLES)
+from .can_device import CanDevice
+
+NODE_ID = 1                              # ODrive axis1 (스크립트 컨벤션)
+
+# ── CANSimple cmd id (fw-v0.5.6), arb = (node_id << 5) | cmd ──
+C_HEARTBEAT = 0x001
+C_ESTOP = 0x002
+C_SET_STATE = 0x007
+C_GET_ENC_EST = 0x009
+C_SET_CTRL_MODE = 0x00B
+C_SET_INPUT_POS = 0x00C
+C_SET_INPUT_VEL = 0x00D
+C_SET_LIMITS = 0x00F
+C_SET_TRAJ_VEL_LIMIT = 0x011
+C_SET_TRAJ_ACCEL_LIMITS = 0x012
+C_GET_IQ = 0x014
+C_GET_TEMP = 0x015
+C_GET_BUS_VI = 0x017
+C_CLEAR_ERR = 0x018
+C_SET_LINEAR_COUNT = 0x019
+C_SET_POS_GAIN = 0x01A
+C_SET_VEL_GAINS = 0x01B
+
+AXIS_IDLE = 1
+AXIS_CLOSED_LOOP = 8
+AXIS_FULL_CALIB = 3
+
+# control_mode → (ControlMode, 기본 InputMode) fw-v0.5.6 정수.
+# torque 모드 제외(CAN 으로 enable_current_mode_vel_limit 설정 불가 → runaway 위험).
+_CTRL = {"position": 3, "position_traj": 3, "velocity": 2}
+_IN_MODE = {"position": 3, "position_traj": 5, "velocity": 2}  # POS_FILTER/TRAP_TRAJ/VEL_RAMP
+_CONTROL_MODES = ["position", "position_traj", "velocity"]
+
+# trap_vel_limit 은 vel_limit 에 결합(헤드룸) → UI 튜너블에서 제거(windup 방지).
+_BASE_TUNABLES = [t for t in ODRIVE_TUNABLES_CAN if t["key"] != "trap_vel_limit"]
+
+_DEFAULT_KT = 0.0084                     # X2212-13 추정(8.27/980KV). UI 에서 편집 가능.
+
+_SIGNALS = [
+    "odrive.pos", "odrive.pos_setpoint", "odrive.vel", "odrive.vel_setpoint",
+    "odrive.iq_meas", "odrive.iq_set", "odrive.torque_est",
+    "odrive.temp_fet", "odrive.vbus", "odrive.ibus",
+    "odrive.state", "odrive.axis_err",
+]
+
+
+class OdriveCanDevice(CanDevice):
+    """ODrive 한 축 CANSimple 제어 (node1=axis1, fw-v0.5.6). 3모드, NVM 저장 불가."""
+
+    name = "odrive"
+
+    def __init__(self, node_id: int = NODE_ID) -> None:
+        self._node = node_id
+        self._bus = None
+        self._state = {k: 0.0 for k in _SIGNALS}
+        self._mode = "position"
+        self._torque_const = _DEFAULT_KT
+        self._vel_limit = float(DEFAULT_TUNABLES["vel_limit"])
+        self._cur_lim = float(DEFAULT_TUNABLES["current_lim"])
+        self._pos_setpoint = 0.0
+        self._vel_setpoint = 0.0
+        # pair-frame 명령(두 값을 한 프레임에) 부분 업데이트 병합용 캐시.
+        self._vel_gains = {"vel_gain": float(DEFAULT_TUNABLES["vel_gain"]),
+                           "vel_integrator_gain": float(DEFAULT_TUNABLES["vel_integrator_gain"])}
+        self._trap = {"trap_accel_limit": float(DEFAULT_TUNABLES["trap_accel_limit"]),
+                      "trap_decel_limit": float(DEFAULT_TUNABLES["trap_decel_limit"])}
+
+    # ── 프레임 송신 헬퍼 ──
+    def _arb(self, cmd: int) -> int:
+        return (self._node << 5) | cmd
+
+    def _send(self, cmd: int, data: bytes = b"") -> None:
+        import can
+        self._bus.send(can.Message(arbitration_id=self._arb(cmd), data=data,
+                                   is_extended_id=False))
+
+    def _request(self, cmd: int) -> None:
+        import can
+        self._bus.send(can.Message(arbitration_id=self._arb(cmd),
+                                   is_remote_frame=True, is_extended_id=False))
+
+    def _send_limits(self) -> None:
+        """Set_Limits(vel_cap, current_lim) 1프레임. TRAP 은 캡에 헤드룸."""
+        if self._mode == "position_traj":
+            cur = abs(float(self._state.get("odrive.vel", 0.0)))
+            cap = max(self._vel_limit * 1.3, cur * 1.3)
+        else:
+            cap = self._vel_limit
+        self._send(C_SET_LIMITS, struct.pack("<ff", cap, self._cur_lim))
+
+    def _sync_vel_limit(self) -> None:
+        """TRAP 순항=vel_limit + 컨트롤러 하드캡(헤드룸) 동기."""
+        self._send(C_SET_TRAJ_VEL_LIMIT, struct.pack("<f", self._vel_limit))
+        self._send_limits()
+
+    def attach(self, bus) -> None:
+        self._bus = bus
+        self._state = {k: 0.0 for k in _SIGNALS}
+        self._mode = "position"
+        self._pos_setpoint = 0.0
+        self._vel_setpoint = 0.0
+        # 기본 게인/한계 push → UI prefill 값과 실제 장치 일치.
+        self._send(C_SET_POS_GAIN, struct.pack("<f", float(DEFAULT_TUNABLES["pos_gain"])))
+        self._send(C_SET_VEL_GAINS, struct.pack("<ff",
+                   self._vel_gains["vel_gain"], self._vel_gains["vel_integrator_gain"]))
+        self._send(C_SET_TRAJ_ACCEL_LIMITS, struct.pack("<ff",
+                   self._trap["trap_accel_limit"], self._trap["trap_decel_limit"]))
+        self._sync_vel_limit()
+
+    def capabilities_fragment(self) -> dict:
+        meta = {k: SIGNAL_META[k] for k in _SIGNALS if k in SIGNAL_META}
+        tunables = []
+        for t in _BASE_TUNABLES:
+            item = dict(t)
+            if t["key"] in DEFAULT_TUNABLES:
+                item["value"] = float(DEFAULT_TUNABLES[t["key"]])  # prefill
+            tunables.append(item)
+        tunables.append({
+            "op": "set_param", "key": "torque_constant",
+            "label": "토크 상수 Kt [Nm/A]", "value": self._torque_const,
+            "help": "Iq→토크 환산용. 기본값은 X2212-13 추정(8.27/KV). "
+                    "USB 트랙 모터정보 readout 값으로 교체 가능.",
+        })
+        return {
+            "devices": ["odrive"],
+            "signals": list(_SIGNALS),
+            "commands": {"odrive": ["set_mode", "set_input", "set_gain",
+                                    "set_limit", "set_state", "calibrate",
+                                    "clear_errors", "set_param", "set_origin",
+                                    "estop"]},
+            "control_modes": {"odrive": list(_CONTROL_MODES)},
+            "inputs": {"odrive": {m: ODRIVE_INPUTS[m] for m in _CONTROL_MODES}},
+            "tunables": {"odrive": tunables},
+            "limits": {"odrive": {"vel": 200.0, "pos": 100000.0}},
+            "signal_meta": meta,
+        }
+
+    def sample(self) -> dict:
+        return dict(self._state)        # Task 2 에서 setpoint/torque_est 보강
+
+    def apply(self, bus, op: str, args: dict) -> dict:
+        return {"ok": False, "target": "odrive", "op": op,
+                "detail": "not implemented"}     # Task 3 에서 구현
