@@ -72,6 +72,9 @@ class OdriveCanDevice(CanDevice):
         self._cur_lim = float(DEFAULT_TUNABLES["current_lim"])
         self._pos_setpoint = 0.0
         self._vel_setpoint = 0.0
+        # CAN 영점은 소프트 오프셋(raw - offset). 절대엔코더에서 Set_Linear_Count(CAN)
+        # 가 인코더를 못 zero 해(HIL 확인) 모놀리식 can_bus.py 방식으로 회귀.
+        self._pos_offset = 0.0
         self._last_poll = 0.0        # RTR 폴링 throttle 타임스탬프
         # pair-frame 명령(두 값을 한 프레임에) 부분 업데이트 병합용 캐시.
         self._vel_gains = {"vel_gain": float(DEFAULT_TUNABLES["vel_gain"]),
@@ -99,6 +102,12 @@ class OdriveCanDevice(CanDevice):
         except (can.CanError, OSError):
             pass
 
+    def _send_input_pos(self, user_pos: float) -> None:
+        """user 좌표(영점 기준) 목표를 raw(=user+offset)로 변환해 Set_Input_Pos 송신.
+        setpoint 오버레이는 user 좌표(_pos_setpoint)로 추적."""
+        self._pos_setpoint = user_pos
+        self._send(C_SET_INPUT_POS, struct.pack("<fhh", user_pos + self._pos_offset, 0, 0))
+
     def _send_limits(self) -> None:
         """Set_Limits(vel_cap, current_lim) 1프레임. TRAP 은 캡에 헤드룸."""
         if self._mode == "position_traj":
@@ -119,6 +128,7 @@ class OdriveCanDevice(CanDevice):
         self._mode = "position"
         self._pos_setpoint = 0.0
         self._vel_setpoint = 0.0
+        self._pos_offset = 0.0
         self._last_poll = 0.0        # 재연결 직후 첫 sample 에서 바로 폴링
         # 기본 게인/한계 push → UI prefill 값과 실제 장치 일치.
         self._send(C_SET_POS_GAIN, struct.pack("<f", float(DEFAULT_TUNABLES["pos_gain"])))
@@ -195,6 +205,7 @@ class OdriveCanDevice(CanDevice):
 
     def sample(self) -> dict:
         s = dict(self._state)
+        s["odrive.pos"] = float(self._state.get("odrive.pos", 0.0)) - self._pos_offset
         s["odrive.pos_setpoint"] = self._pos_setpoint
         s["odrive.vel_setpoint"] = self._vel_setpoint
         s["odrive.torque_est"] = float(self._state.get("odrive.iq_meas", 0.0)) * self._torque_const
@@ -213,15 +224,13 @@ class OdriveCanDevice(CanDevice):
                 self._send(C_SET_CTRL_MODE, struct.pack("<ii", _CTRL[mode], _IN_MODE[mode]))
                 self._sync_vel_limit()
                 if mode in ("position", "position_traj"):
-                    cur = float(self._state.get("odrive.pos", 0.0))
-                    self._pos_setpoint = cur
-                    self._send(C_SET_INPUT_POS, struct.pack("<fhh", cur, 0, 0))  # hold
+                    raw = float(self._state.get("odrive.pos", 0.0))
+                    self._send_input_pos(raw - self._pos_offset)  # 현재 위치 hold(user 좌표)
                 else:
                     self._vel_setpoint = 0.0
             elif op == "set_input":
                 if "pos" in args:
-                    self._pos_setpoint = float(args["pos"])
-                    self._send(C_SET_INPUT_POS, struct.pack("<fhh", self._pos_setpoint, 0, 0))
+                    self._send_input_pos(float(args["pos"]))
                 elif "vel" in args:
                     self._vel_setpoint = float(args["vel"])
                     self._send(C_SET_INPUT_VEL, struct.pack("<ff", self._vel_setpoint, 0.0))
@@ -253,16 +262,15 @@ class OdriveCanDevice(CanDevice):
                     # TRAP 진행 중 캡 변경 시 setpoint 재발행 → 새 순항속도로 재계획.
                     if (self._mode == "position_traj"
                             and int(self._state.get("odrive.state", 0)) == AXIS_CLOSED_LOOP):
-                        self._send(C_SET_INPUT_POS,
-                                   struct.pack("<fhh", self._pos_setpoint, 0, 0))
+                        self._send(C_SET_INPUT_POS, struct.pack(
+                            "<fhh", self._pos_setpoint + self._pos_offset, 0, 0))
                 if "current_lim" in args:
                     self._cur_lim = float(args["current_lim"])
                     self._send_limits()
             elif op == "set_state":
                 if args.get("state") == "closed_loop":
-                    cur = float(self._state.get("odrive.pos", 0.0))
-                    self._pos_setpoint = cur
-                    self._send(C_SET_INPUT_POS, struct.pack("<fhh", cur, 0, 0))  # jump 방지
+                    raw = float(self._state.get("odrive.pos", 0.0))
+                    self._send_input_pos(raw - self._pos_offset)  # jump 방지(현재 위치 hold)
                     self._send(C_SET_STATE, struct.pack("<I", AXIS_CLOSED_LOOP))
                 else:
                     self._send(C_SET_STATE, struct.pack("<I", AXIS_IDLE))
@@ -277,15 +285,11 @@ class OdriveCanDevice(CanDevice):
                     return {"ok": False, "target": "odrive", "op": op,
                             "detail": "no known param key (torque_constant)"}
             elif op == "set_origin":
-                # 순정 영점: IDLE 디스암 → Set_Linear_Count(0) → Input_Pos(0) → 재무장.
-                was_closed = int(self._state.get("odrive.state", 0)) == AXIS_CLOSED_LOOP
-                self._send(C_SET_STATE, struct.pack("<I", AXIS_IDLE))
-                time.sleep(0.2)
-                self._send(C_SET_LINEAR_COUNT, struct.pack("<i", 0))
-                self._pos_setpoint = 0.0
-                self._send(C_SET_INPUT_POS, struct.pack("<fhh", 0.0, 0, 0))
-                if was_closed:
-                    self._send(C_SET_STATE, struct.pack("<I", AXIS_CLOSED_LOOP))
+                # 소프트 영점: 현재 raw 위치를 offset 으로 잡아 user 좌표를 0 으로.
+                # (CAN Set_Linear_Count 가 절대엔코더를 zero 못 함 — HIL 확인.)
+                # 모터는 안 움직임: user 0 = 현재 물리위치 hold.
+                self._pos_offset = float(self._state.get("odrive.pos", 0.0))
+                self._send_input_pos(0.0)
             else:
                 return {"ok": False, "target": "odrive", "op": op,
                         "detail": "unsupported op"}

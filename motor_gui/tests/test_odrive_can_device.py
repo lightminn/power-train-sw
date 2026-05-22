@@ -228,19 +228,34 @@ def test_set_param_torque_constant_updates_torque_est():
     assert abs(s["odrive.torque_est"] - 3.0 * 0.02) < 1e-9
 
 
-def test_set_origin_native_zero_sequence():
+def test_set_origin_software_offset_zeros_reported_pos():
+    # CAN Set_Linear_Count 가 절대엔코더를 zero 못 해 소프트 오프셋 사용.
     d, bus = _mk()
-    d.on_rx(_heartbeat_msg(state=AXIS_CLOSED_LOOP))
+    d.on_rx(_enc_msg(1.92, 0.0))             # raw 위치 1.92
     bus.sent.clear()
     d.apply(bus, "set_origin", {})
-    cmds = [m.arbitration_id & 0x1F for m in bus.sent if not m.is_remote_frame]
-    assert C_SET_LINEAR_COUNT in cmds
-    lc = _last(bus, C_SET_LINEAR_COUNT)
-    assert struct.unpack("<i", lc.data)[0] == 0
-    states = [struct.unpack("<I", m.data)[0] for m in bus.sent
-              if (m.arbitration_id & 0x1F) == C_SET_STATE]
-    assert states[0] == AXIS_IDLE and states[-1] == AXIS_CLOSED_LOOP
-    assert d._pos_setpoint == 0.0
+    # offset = raw → 보고 위치(user)는 0
+    s = d.sample()
+    assert abs(s["odrive.pos"]) < 1e-6
+    assert s["odrive.pos_setpoint"] == 0.0
+    # 모터는 안 움직임: Input_Pos 는 현재 raw(1.92) hold (user 0 + offset)
+    ip = _last(bus, C_SET_INPUT_POS)
+    pos, _v, _t = struct.unpack("<fhh", ip.data)
+    assert abs(pos - 1.92) < 1e-3
+
+
+def test_set_input_pos_applies_offset():
+    d, bus = _mk()
+    d.on_rx(_enc_msg(2.0, 0.0))
+    d.apply(bus, "set_origin", {})           # offset = 2.0
+    bus.sent.clear()
+    d.apply(bus, "set_input", {"pos": 1.0})  # user 1.0 → raw 3.0
+    ip = _last(bus, C_SET_INPUT_POS)
+    raw, _v, _t = struct.unpack("<fhh", ip.data)
+    assert abs(raw - 3.0) < 1e-3
+    assert d._pos_setpoint == 1.0            # 오버레이는 user 좌표
+    # 보고 위치도 user 좌표(raw 2.0 - offset 2.0 = 0)
+    assert abs(d.sample()["odrive.pos"]) < 1e-6
 
 
 def test_set_state_closed_loop_holds_pos():
