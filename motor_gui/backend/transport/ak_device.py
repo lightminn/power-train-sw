@@ -20,7 +20,7 @@ _ERPM_PER_RPM = POLE_PAIRS * GEAR_RATIO   # 출력축 RPM → 전기 ERPM (=140)
 
 
 class AkDevice(CanDevice):
-    """AK40 조향 모터 (확장 CAN ID). 4모드 + 워치독 재전송 + 과전류 자동정지."""
+    """AK40 조향 모터 (확장 CAN ID). 3모드(position/velocity/duty) + 워치독 재전송 + 과전류 자동정지."""
 
     name = "ak"
 
@@ -51,16 +51,12 @@ class AkDevice(CanDevice):
             "signals": list(_AK_SIGNALS),
             "commands": {"ak": ["set_mode", "set_input", "set_param",
                                  "set_origin", "estop"]},
-            "control_modes": {"ak": ["position", "velocity", "current", "brake", "duty"]},
+            "control_modes": {"ak": ["position", "velocity", "duty"]},
             "inputs": {"ak": {
                 "position": {"key": "pos_deg", "label": "목표 위치", "unit": "°",
                              "help": "목표 각도(출력축°)로 이동. 이동 속도·가속은 아래 [속도제한]·[가속] 튜닝값을 따름."},
                 "velocity": {"key": "rpm", "label": "목표 속도(출력축)", "unit": "RPM",
                              "help": "입력 RPM이 곧 목표속도(출력축). 최대 ~43RPM(무부하). ※[속도제한] 튜닝은 velocity엔 미적용."},
-                "current": {"key": "current_a", "label": "목표 전류(토크)", "unit": "A",
-                            "help": "직접 전류(A) 인가 = 토크 제어. 부호로 방향. 무부하 시 가속 주의(개루프)."},
-                "brake": {"key": "brake_cur", "label": "브레이크 전류", "unit": "A",
-                          "help": "지정 전류(A)로 전자 제동·홀딩. 회전에 저항(개루프)."},
                 "duty": {"key": "duty", "label": "듀티", "unit": "",
                          "help": "출력 듀티(-1~1) 직접 인가(개루프). 속도제한 없음 — 주의."},
             }},
@@ -76,10 +72,9 @@ class AkDevice(CanDevice):
                  "value": self._acc / _ERPM_PER_RPM,
                  "help": "position 이동 가속 (출력축 RPM/s²). ※position 모드 전용"},
                 {"op": "set_param", "key": "max_cur_a", "label": "최대전류(자동정지) [A]",
-                 "value": self._maxcur, "help": "이 전류 초과 시 자동 정지 (position/velocity/duty 모드). current/brake 는 전류를 직접 명령하므로 제외"},
+                 "value": self._maxcur, "help": "이 전류 초과 시 자동 정지 (안전, 전 모드)"},
             ]},
-            "limits": {"ak": {"pos_deg": 100000.0, "rpm": 45.0,
-                              "current_a": 20.0, "brake_cur": 20.0, "duty": 1.0}},
+            "limits": {"ak": {"pos_deg": 100000.0, "rpm": 45.0, "duty": 1.0}},
             "signal_meta": meta,
         }
 
@@ -99,7 +94,7 @@ class AkDevice(CanDevice):
     def tick(self, bus) -> None:
         if self._ak is None:
             return
-        if self._mode not in ("current", "brake") and abs(self._ak.cur_a) > self._maxcur:      # 과전류 자동정지
+        if abs(self._ak.cur_a) > self._maxcur:      # 과전류 자동정지
             self._ak.send_rpm_out(0)
             self._active = None
             self._tripped = True
@@ -142,17 +137,15 @@ class AkDevice(CanDevice):
                 elif self._mode == "velocity":
                     self._speed_cmd = 0.0
                     self._active = lambda: a.send_rpm_out(0.0)
-                elif self._mode == "current":
-                    self._active = lambda: a.send_current(0.0)
-                elif self._mode == "brake":
-                    self._active = lambda: a.send_brake(0.0)
-                else:  # duty
+                elif self._mode == "duty":
                     self._active = lambda: a.send_duty(0.0)
+                else:
+                    return {"ok": False, "target": "ak", "op": op,
+                            "detail": f"unsupported mode {self._mode}"}
                 self._fire()
             elif op == "set_input":
                 expected = {"position": "pos_deg", "velocity": "rpm",
-                            "current": "current_a",
-                            "brake": "brake_cur", "duty": "duty"}[self._mode]
+                            "duty": "duty"}[self._mode]
                 if expected not in args:
                     return {"ok": False, "target": "ak", "op": op,
                             "detail": f"'{expected}' 필요 (현재 모드 {self._mode})"}
@@ -165,12 +158,6 @@ class AkDevice(CanDevice):
                     v = float(args["rpm"])
                     self._speed_cmd = v
                     self._active = lambda: a.send_rpm_out(v)
-                elif "current_a" in args:
-                    v = float(args["current_a"])
-                    self._active = lambda: a.send_current(v)
-                elif "brake_cur" in args:
-                    v = float(args["brake_cur"])
-                    self._active = lambda: a.send_brake(v)
                 elif "duty" in args:
                     v = float(args["duty"])
                     self._active = lambda: a.send_duty(v)

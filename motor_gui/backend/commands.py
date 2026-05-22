@@ -26,7 +26,7 @@ def normalize(cmd: dict, caps: dict) -> dict:
 def _clamp(target: str, op: str, args: dict, caps: dict) -> dict:
     limits = caps.get("limits", {}).get(target, {})
     if op == "set_input":
-        for key in ("pos", "vel", "torque", "pos_deg", "rpm", "current_a", "brake_cur", "duty"):
+        for key in ("pos", "vel", "torque", "pos_deg", "rpm", "duty"):
             if key in args and key in limits:
                 hi = abs(float(limits[key]))
                 args[key] = max(-hi, min(hi, float(args[key])))

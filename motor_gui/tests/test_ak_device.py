@@ -29,7 +29,7 @@ def _mk():
 def test_capabilities_fragment_modes_and_commands():
     f = AkDevice().capabilities_fragment()
     assert f["devices"] == ["ak"]
-    assert f["control_modes"]["ak"] == ["position", "velocity", "current", "brake", "duty"]
+    assert f["control_modes"]["ak"] == ["position", "velocity", "duty"]
     assert "set_param" in f["commands"]["ak"]
     assert f["inputs"]["ak"]["velocity"]["key"] == "rpm"
     assert "ak.fault" in f["signals"]
@@ -41,14 +41,6 @@ def test_set_input_velocity_sends_rpm_frame():
     d.apply(bus, "set_input", {"rpm": 30.0})
     # PKT_SET_RPM=3
     assert bus.sent[-1].arbitration_id == (3 << 8) | AK_ID
-
-
-def test_set_input_brake_sends_brake_frame():
-    d, bus = _mk()
-    d.apply(bus, "set_mode", {"control_mode": "brake"})
-    d.apply(bus, "set_input", {"brake_cur": 2.0})
-    assert bus.sent[-1].arbitration_id == (2 << 8) | AK_ID
-    assert bus.sent[-1].data == struct.pack(">i", 2000)
 
 
 def test_on_rx_parses_status_and_sample_converts_speed():
@@ -130,15 +122,6 @@ def test_capabilities_tunables_carry_current_value():
     assert tk["max_cur_a"]["value"] == 5.0
 
 
-def test_current_mode_sends_current_frame():
-    d, bus = _mk()
-    d.apply(bus, "set_mode", {"control_mode": "current"})
-    d.apply(bus, "set_input", {"current_a": 3.0})
-    assert bus.sent[-1].arbitration_id == (1 << 8) | AK_ID   # PKT_SET_CURRENT=1
-    import struct as _s
-    assert bus.sent[-1].data == _s.pack(">i", 3000)          # 3.0A → 3000 mA
-
-
 def test_setpoint_signals_track_commands():
     d, bus = _mk()
     d.apply(bus, "set_mode", {"control_mode": "position"})
@@ -157,17 +140,6 @@ def test_set_origin_zeros_pos_cmd():
     d.apply(bus, "set_input", {"pos_deg": 30.0})
     d.apply(bus, "set_origin", {})
     assert d._pos_cmd == 0.0
-
-
-def test_current_mode_no_overcurrent_trip():
-    d, bus = _mk()
-    d.apply(bus, "set_param", {"max_cur_a": 5.0})
-    d.apply(bus, "set_mode", {"control_mode": "current"})
-    d.apply(bus, "set_input", {"current_a": 8.0})   # > maxcur, 하지만 current 모드라 트립 안 해야
-    d.on_rx(_status_msg(cur_a=8.0))
-    d.tick(bus)
-    assert d._tripped is False
-    assert d._active is not None
 
 
 def test_velocity_mode_still_trips_on_overcurrent():

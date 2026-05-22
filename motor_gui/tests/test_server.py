@@ -53,7 +53,7 @@ def test_make_transport_ak_track_capabilities():
     caps = t.capabilities()                     # connect 없이 (정적 조각)
     assert caps["track"] == "ak"
     assert caps["devices"] == ["ak"]
-    assert caps["control_modes"]["ak"] == ["position", "velocity", "current", "brake", "duty"]
+    assert caps["control_modes"]["ak"] == ["position", "velocity", "duty"]
     assert "set_param" in caps["commands"]["ak"]
 
 

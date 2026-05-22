@@ -19,7 +19,6 @@ NOLOAD_ERPM = int(435 * POLE_PAIRS)    # 6090
 
 # CAN packet IDs
 PKT_SET_DUTY = 0
-PKT_SET_CURRENT = 1
 PKT_SET_BRAKE = 2
 PKT_SET_RPM = 3
 PKT_SET_POS_SPD = 6
@@ -85,11 +84,6 @@ class AK40:
         erpm = int(-out_rpm * GEAR_RATIO * POLE_PAIRS)
         erpm = max(-NOLOAD_ERPM, min(NOLOAD_ERPM, erpm))
         return self._send(PKT_SET_RPM, struct.pack(">i", erpm))
-
-    def send_current(self, current_a):
-        """직접 전류 인가 = 토크 제어 (VESC: mA, 부호로 방향). ±60A 클램프."""
-        cur = max(-60.0, min(60.0, float(current_a)))
-        return self._send(PKT_SET_CURRENT, struct.pack(">i", int(cur * 1000)))
 
     def send_brake(self, current_a):
         """전류 기반 브레이크 (VESC: mA). 0~20A 클램프 (20A=hw 절대 최대)."""
