@@ -76,7 +76,7 @@ class AkDevice(CanDevice):
                  "value": self._acc / _ERPM_PER_RPM,
                  "help": "position 이동 가속 (출력축 RPM/s²). ※position 모드 전용"},
                 {"op": "set_param", "key": "max_cur_a", "label": "최대전류(자동정지) [A]",
-                 "value": self._maxcur, "help": "이 전류 초과 시 자동 정지 (안전, 전 모드)"},
+                 "value": self._maxcur, "help": "이 전류 초과 시 자동 정지 (position/velocity/duty 모드). current/brake 는 전류를 직접 명령하므로 제외"},
             ]},
             "limits": {"ak": {"pos_deg": 100000.0, "rpm": 45.0,
                               "current_a": 20.0, "brake_cur": 20.0, "duty": 1.0}},
@@ -99,7 +99,7 @@ class AkDevice(CanDevice):
     def tick(self, bus) -> None:
         if self._ak is None:
             return
-        if abs(self._ak.cur_a) > self._maxcur:      # 과전류 자동정지
+        if self._mode not in ("current", "brake") and abs(self._ak.cur_a) > self._maxcur:      # 과전류 자동정지
             self._ak.send_rpm_out(0)
             self._active = None
             self._tripped = True
@@ -133,6 +133,8 @@ class AkDevice(CanDevice):
             elif op == "set_mode":
                 self._mode = args["control_mode"]
                 self._tripped = False
+                self._pos_cmd = a.pos_out_deg   # 비활성 모드 오버레이가 실제값을 따라가게(stale 방지)
+                self._speed_cmd = 0.0
                 if self._mode == "position":
                     tgt = a.pos_out_deg
                     self._pos_cmd = tgt

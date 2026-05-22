@@ -157,3 +157,33 @@ def test_set_origin_zeros_pos_cmd():
     d.apply(bus, "set_input", {"pos_deg": 30.0})
     d.apply(bus, "set_origin", {})
     assert d._pos_cmd == 0.0
+
+
+def test_current_mode_no_overcurrent_trip():
+    d, bus = _mk()
+    d.apply(bus, "set_param", {"max_cur_a": 5.0})
+    d.apply(bus, "set_mode", {"control_mode": "current"})
+    d.apply(bus, "set_input", {"current_a": 8.0})   # > maxcur, 하지만 current 모드라 트립 안 해야
+    d.on_rx(_status_msg(cur_a=8.0))
+    d.tick(bus)
+    assert d._tripped is False
+    assert d._active is not None
+
+
+def test_velocity_mode_still_trips_on_overcurrent():
+    d, bus = _mk()
+    d.apply(bus, "set_param", {"max_cur_a": 3.0})
+    d.apply(bus, "set_mode", {"control_mode": "velocity"})
+    d.apply(bus, "set_input", {"rpm": 20.0})
+    d.on_rx(_status_msg(cur_a=5.0))
+    d.tick(bus)
+    assert d._tripped is True
+
+
+def test_mode_switch_resets_stale_speed_cmd():
+    d, bus = _mk()
+    d.apply(bus, "set_mode", {"control_mode": "velocity"})
+    d.apply(bus, "set_input", {"rpm": 20.0})
+    assert d._speed_cmd == 20.0
+    d.apply(bus, "set_mode", {"control_mode": "position"})
+    assert d._speed_cmd == 0.0     # velocity 떠나면 속도 명령 오버레이 0
