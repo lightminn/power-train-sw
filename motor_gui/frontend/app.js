@@ -47,6 +47,18 @@ function decodeErr(key, value) {
   return names.length ? `${hex} (${names.join(" | ")})` : hex;
 }
 
+// VESC/AK mc_fault_code (enum 값 → 이름; 비트필드 아님)
+const AK_FAULT_CODES = {
+  0: "NONE", 1: "OVER_VOLTAGE", 2: "UNDER_VOLTAGE", 3: "DRV", 4: "ABS_OVER_CURRENT",
+  5: "OVER_TEMP_FET", 6: "OVER_TEMP_MOTOR", 7: "GATE_DRIVER_OVER_VOLTAGE",
+  8: "GATE_DRIVER_UNDER_VOLTAGE", 9: "MCU_UNDER_VOLTAGE", 10: "BOOTING_FROM_WATCHDOG_RESET",
+  11: "ENCODER_SPI", 12: "ENCODER_SINCOS_BELOW_MIN", 13: "ENCODER_SINCOS_ABOVE_MAX",
+  14: "FLASH_CORRUPTION", 18: "UNBALANCED_CURRENTS",
+};
+function decodeAkFault(v) {
+  return AK_FAULT_CODES[v] !== undefined ? `${v} (${AK_FAULT_CODES[v]})` : String(v);
+}
+
 function logMsg(text, cls) {
   const log = document.getElementById("log");
   if (!log) return;
@@ -251,8 +263,16 @@ function monitorSample(s) {
   if ("ak.fault" in s) {
     const v = s["ak.fault"] | 0;
     if (v !== (lastErrs["ak.fault"] || 0)) {
-      if (v !== 0) logMsg(`ak.fault = ${v}`, "err");
+      if (v !== 0) logMsg(`ak.fault = ${decodeAkFault(v)}`, "err");
       lastErrs["ak.fault"] = v;
+    }
+  }
+  if ("ak.tripped" in s) {
+    const v = s["ak.tripped"] | 0;
+    if (v !== (lastErrs["ak.tripped"] || 0)) {
+      if (v !== 0) logMsg("AK 과전류 자동정지 — 명령 해제됨 (모드 재설정 필요)", "err");
+      else logMsg("AK 과전류정지 해제");
+      lastErrs["ak.tripped"] = v;
     }
   }
 }
