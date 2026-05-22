@@ -13,7 +13,7 @@ from ak_control import AK40, POLE_PAIRS, GEAR_RATIO  # noqa: E402
 
 AK_ID = 10
 PKT_STATUS_1 = 41
-_AK_SIGNALS = ["ak.pos_deg", "ak.speed", "ak.current", "ak.temp", "ak.fault"]
+_AK_SIGNALS = ["ak.pos_deg", "ak.speed", "ak.current", "ak.temp", "ak.fault", "ak.tripped"]
 _RESEND_HZ = 20.0
 
 
@@ -35,6 +35,8 @@ class AkDevice(CanDevice):
 
     def attach(self, bus) -> None:
         self._ak = AK40(bus, self._mid, name="ak")
+        self._active = None
+        self._tripped = False
 
     def capabilities_fragment(self) -> dict:
         meta = {k: SIGNAL_META[k] for k in _AK_SIGNALS if k in SIGNAL_META}
@@ -68,6 +70,11 @@ class AkDevice(CanDevice):
         if pkt == PKT_STATUS_1 and nid == self._mid and len(msg.data) >= 8:
             self._ak._parse_status(msg.data)
 
+    def _fire(self) -> None:
+        if self._active is not None:
+            self._active()
+            self._last_send = time.monotonic()
+
     def tick(self, bus) -> None:
         if self._ak is None:
             return
@@ -78,8 +85,7 @@ class AkDevice(CanDevice):
             return
         now = time.monotonic()
         if self._active is not None and now - self._last_send >= 1.0 / _RESEND_HZ:
-            self._active()
-            self._last_send = now
+            self._fire()
 
     def sample(self) -> dict:
         a = self._ak
@@ -92,6 +98,7 @@ class AkDevice(CanDevice):
             "ak.current": float(a.cur_a),
             "ak.temp": float(a.temp_c),
             "ak.fault": int(a.fault),
+            "ak.tripped": int(self._tripped),
         }
 
     def apply(self, bus, op: str, args: dict) -> dict:
@@ -112,8 +119,13 @@ class AkDevice(CanDevice):
                     self._active = lambda: a.send_brake(0.0)
                 else:  # duty
                     self._active = lambda: a.send_duty(0.0)
-                self._active()
+                self._fire()
             elif op == "set_input":
+                expected = {"position": "pos_deg", "velocity": "rpm",
+                            "brake": "brake_cur", "duty": "duty"}[self._mode]
+                if expected not in args:
+                    return {"ok": False, "target": "ak", "op": op,
+                            "detail": f"'{expected}' 필요 (현재 모드 {self._mode})"}
                 if "pos_deg" in args:
                     tgt = float(args["pos_deg"])
                     self._active = lambda: a.send_pos_out(tgt, self._spd, self._acc)
@@ -129,7 +141,7 @@ class AkDevice(CanDevice):
                 else:
                     return {"ok": False, "target": "ak", "op": op,
                             "detail": "no known input key"}
-                self._active()
+                self._fire()
             elif op == "set_param":
                 if "spd_erpm" in args:
                     self._spd = float(args["spd_erpm"])

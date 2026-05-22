@@ -69,6 +69,7 @@ SIGNAL_META = {
     "ak.current": {"label": "AK 전류 (≈토크)", "unit": "A"},
     "ak.temp": {"label": "AK 온도", "unit": "℃"},
     "ak.fault": {"label": "AK fault", "unit": ""},
+    "ak.tripped": {"label": "AK 과전류정지", "unit": ""},
 }
 
 # ODrive 제어 모드 → 목표값 입력 필드

@@ -45,6 +45,7 @@ def test_set_input_velocity_sends_rpm_frame():
 
 def test_set_input_brake_sends_brake_frame():
     d, bus = _mk()
+    d.apply(bus, "set_mode", {"control_mode": "brake"})
     d.apply(bus, "set_input", {"brake_cur": 2.0})
     assert bus.sent[-1].arbitration_id == (2 << 8) | AK_ID
     assert bus.sent[-1].data == struct.pack(">i", 2000)
@@ -82,3 +83,32 @@ def test_overcurrent_trips_in_tick():
     # rpm0 정지 프레임 송신 + active 해제
     assert len(bus.sent) > n_before
     assert d._active is None
+
+
+def test_tick_resends_active_when_not_tripped():
+    d, bus = _mk()
+    d.apply(bus, "set_mode", {"control_mode": "velocity"})
+    d.apply(bus, "set_input", {"rpm": 30.0})
+    n_before = len(bus.sent)
+    d._last_send = 0.0                  # 워치독 간격 강제 경과
+    d.tick(bus)
+    assert len(bus.sent) > n_before     # 재전송됨
+    assert d._tripped is False
+
+
+def test_estop_clears_active_and_sends_stop():
+    d, bus = _mk()
+    d.apply(bus, "set_mode", {"control_mode": "velocity"})
+    d.apply(bus, "set_input", {"rpm": 30.0})
+    n_before = len(bus.sent)
+    ack = d.apply(bus, "estop", {})
+    assert ack["ok"] is True
+    assert d._active is None
+    assert len(bus.sent) > n_before     # stop() 가 rpm0 프레임 송신
+
+
+def test_set_input_wrong_mode_key_rejected():
+    d, bus = _mk()
+    d.apply(bus, "set_mode", {"control_mode": "velocity"})
+    ack = d.apply(bus, "set_input", {"brake_cur": 2.0})   # velocity 모드에 brake 키
+    assert ack["ok"] is False
