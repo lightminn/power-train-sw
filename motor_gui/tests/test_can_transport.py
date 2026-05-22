@@ -66,3 +66,14 @@ def test_attach_called_on_connect():
     t = CanTransport([dev], bus=bus)
     t.connect()
     assert dev.attached is bus
+
+
+def test_recv_frame_fans_out_to_all_devices():
+    import can
+    rx = [can.Message(arbitration_id=0x123, data=b"\x00", is_extended_id=False)]
+    dev_a, dev_b = StubDevice(), StubDevice()
+    t = CanTransport([dev_a, dev_b], bus=StubBus(rx=rx))
+    t.connect()
+    t.sample()
+    assert dev_a.rx_count == 1
+    assert dev_b.rx_count == 1

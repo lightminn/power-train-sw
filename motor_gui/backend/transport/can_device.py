@@ -72,7 +72,7 @@ class CanTransport(Transport):
         while time.monotonic() < deadline:
             msg = self._bus.recv(timeout=0.002)
             if msg is None:
-                break
+                continue
             for d in self._devices:
                 d.on_rx(msg)
         for d in self._devices:
