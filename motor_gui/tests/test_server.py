@@ -62,3 +62,15 @@ def test_reconnect_endpoint_ok():
         r = c.post("/api/reconnect")
         assert r.status_code == 200
         assert r.json()["ok"] is True
+
+
+def test_make_transport_odrive_can_track():
+    from motor_gui.backend.server import _make_transport
+    t = _make_transport("odrive_can")
+    caps = t.capabilities()                     # connect 없이 (정적 조각)
+    assert caps["track"] == "can"
+    assert caps["devices"] == ["odrive"]
+    assert caps["control_modes"]["odrive"] == ["position", "position_traj", "velocity"]
+    assert "set_param" in caps["commands"]["odrive"]
+    tk = {t["key"]: t for t in caps["tunables"]["odrive"]}
+    assert "torque_constant" in tk
