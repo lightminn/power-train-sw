@@ -142,8 +142,42 @@ class OdriveCanDevice(CanDevice):
             "signal_meta": meta,
         }
 
+    def request(self, bus) -> None:
+        for c in (C_GET_ENC_EST, C_GET_IQ, C_GET_TEMP, C_GET_BUS_VI):
+            self._request(c)
+
+    def on_rx(self, msg) -> None:
+        if msg.is_extended_id:
+            return
+        if (msg.arbitration_id >> 5) != self._node:
+            return
+        cmd = msg.arbitration_id & 0x1F
+        d = msg.data
+        if cmd == C_HEARTBEAT and len(d) >= 5:
+            self._state["odrive.axis_err"] = struct.unpack("<I", d[:4])[0]
+            self._state["odrive.state"] = d[4]
+        elif cmd == C_GET_ENC_EST and len(d) >= 8:
+            pos, vel = struct.unpack("<ff", d[:8])
+            self._state["odrive.pos"] = pos
+            self._state["odrive.vel"] = vel
+        elif cmd == C_GET_IQ and len(d) >= 8:
+            iq_set, iq_meas = struct.unpack("<ff", d[:8])
+            self._state["odrive.iq_set"] = iq_set
+            self._state["odrive.iq_meas"] = iq_meas
+        elif cmd == C_GET_TEMP and len(d) >= 8:
+            fet, _motor = struct.unpack("<ff", d[:8])
+            self._state["odrive.temp_fet"] = fet
+        elif cmd == C_GET_BUS_VI and len(d) >= 8:
+            vbus, ibus = struct.unpack("<ff", d[:8])
+            self._state["odrive.vbus"] = vbus
+            self._state["odrive.ibus"] = ibus
+
     def sample(self) -> dict:
-        return dict(self._state)        # Task 2 에서 setpoint/torque_est 보강
+        s = dict(self._state)
+        s["odrive.pos_setpoint"] = self._pos_setpoint
+        s["odrive.vel_setpoint"] = self._vel_setpoint
+        s["odrive.torque_est"] = float(self._state.get("odrive.iq_meas", 0.0)) * self._torque_const
+        return s
 
     def apply(self, bus, op: str, args: dict) -> dict:
         return {"ok": False, "target": "odrive", "op": op,
