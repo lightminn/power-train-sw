@@ -36,3 +36,17 @@ def test_send_duty_clamps():
     m = AK40(bus, 10, name="ak")
     m.send_duty(5.0)                                  # 과도 → 0.95 클램프
     assert bus.sent[-1].data == struct.pack(">i", 95000)
+
+
+def test_send_brake_clamps_negative():
+    bus = StubBus()
+    m = AK40(bus, 10, name="ak")
+    m.send_brake(-1.0)                                # 음수 → 0 클램프
+    assert bus.sent[-1].data == struct.pack(">i", 0)
+
+
+def test_send_duty_clamps_negative():
+    bus = StubBus()
+    m = AK40(bus, 10, name="ak")
+    m.send_duty(-5.0)                                 # 과도 음수 → -0.95 클램프
+    assert bus.sent[-1].data == struct.pack(">i", -95000)

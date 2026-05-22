@@ -86,7 +86,7 @@ class AK40:
         return self._send(PKT_SET_RPM, struct.pack(">i", erpm))
 
     def send_brake(self, current_a):
-        """전류 기반 브레이크 (VESC: mA). 0~20A 클램프."""
+        """전류 기반 브레이크 (VESC: mA). 0~20A 클램프 (20A=hw 절대 최대)."""
         cur = max(0.0, min(20.0, float(current_a)))
         return self._send(PKT_SET_BRAKE, struct.pack(">i", int(cur * 1000)))
 
