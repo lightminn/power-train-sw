@@ -109,7 +109,12 @@ class OdriveCanDevice(CanDevice):
         self._send(C_SET_INPUT_POS, struct.pack("<fhh", user_pos + self._pos_offset, 0, 0))
 
     def _send_limits(self) -> None:
-        """Set_Limits(vel_cap, current_lim) 1프레임. TRAP 은 캡에 헤드룸."""
+        """Set_Limits(vel_cap, current_lim) 1프레임. TRAP 은 캡에 헤드룸.
+
+        주의(HIL): position_traj + 극저 vel_limit(예 1.0) + 높은 pos_gain(8.0)에선
+        위치보정 항이 좁은 하드캡(vl×1.3)을 넘겨 overspeed(axis_err 0x200) 트립.
+        TRAP 정밀 저속은 vel_limit ≥ 3 권장(또는 position/POS_FILTER 모드 사용).
+        """
         if self._mode == "position_traj":
             cur = abs(float(self._state.get("odrive.vel", 0.0)))
             cap = max(self._vel_limit * 1.3, cur * 1.3)

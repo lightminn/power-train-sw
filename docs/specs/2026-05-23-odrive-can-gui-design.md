@@ -1,8 +1,30 @@
 # ODrive-CAN GUI 설계 (motor_gui 3단계)
 
 **작성일**: 2026-05-23
-**상태**: 설계 승인 대기
+**상태**: 구현·HIL 완료 (main 병합)
 **관련**: `docs/specs/2026-05-21-ak-can-gui-design.md` (컴포저블 CAN 구조의 원형)
+
+## HIL 검증 결과 (2026-05-23, 실 ODrive·1Mbps)
+
+실하드웨어 검증에서 설계 대비 다음을 발견·수정했다 (구현에 반영됨):
+
+1. **1Mbps 는 CAN 종단저항(120Ω ×2) 필수.** 종단 미흡 시 비트에러로 tx-error 가
+   누적→ERROR-PASSIVE→bus-off, 텔레메트리 프리즈/명령 유실. 종단 정상화 후 tx-error 0
+   안정. (250kbps 는 비트타임 4× 여유라 마진 배선에서도 동작 — 검증용 폴백.)
+2. **호스트 TX 최소화 필수.** 100Hz×4 RTR(=400/s) 폴링이 1M 마진버스에서 bus-off 유발 →
+   `request()` 를 `_POLL_HZ`(15Hz)로 throttle(=54/s), `_request()` 가 CanError/ENOBUFS 흡수,
+   `can_setup.sh` 에 restart-ms 100 + txqueuelen 1000 추가. 다중 모터(10개) 1M 대비.
+3. **CAN `Set_Linear_Count`(0x019)는 절대엔코더(TLE5012B) zero 불가** (raw 로도 확인).
+   네이티브 영점 폐기 → 소프트 오프셋(`_pos_offset`, 모놀리식 can_bus.py 방식) 회귀.
+   set_origin 시 현재 raw 를 offset 으로 잡아 sample 의 pos 에서 차감, set_input pos 엔 가산.
+4. **ODrive 캘리/baud/node 설정은 USB 필요** (CANSimple 로 config-write 불가). 구동은 CAN-only.
+   기본 baud 250000 → 1M 은 USB `odrv0.can.set_baud_rate(1000000)`+`save_configuration()`.
+5. **알려진 한계:** position_traj + 극저 vel_limit(예 1.0) + 높은 pos_gain(8.0) 조합에서
+   위치보정 항이 좁은 하드캡(vl×1.3)을 넘겨 overspeed(axis_err 0x200) 트립. **TRAP 에선
+   vel_limit ≥ 3 권장** (그 이상은 캡 여유 충분, 정상). 정밀 저속은 position(POS_FILTER) 모드 사용.
+
+검증 통과: 폐루프 진입·position·position_traj 사다리꼴·velocity·소프트 영점·setpoint
+오버레이·Kt 편집·하드웨어 재연결·estop, 모두 1M tx-error 0 에서 정상.
 
 ## 목표
 
