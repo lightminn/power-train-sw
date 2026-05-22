@@ -77,3 +77,22 @@ def test_recv_frame_fans_out_to_all_devices():
     t.sample()
     assert dev_a.rx_count == 1
     assert dev_b.rx_count == 1
+
+
+def test_close_nulls_owned_bus_so_reconnect_reopens():
+    # owns_bus=True (bus 주입 안 함). 연결된 척 _bus 를 채워두고 close → None 이어야
+    # 다음 connect() 가 socketcan 을 재오픈한다.
+    t = CanTransport([StubDevice()], bus=None)
+    assert t._owns_bus is True
+    t._bus = StubBus()
+    t.close()
+    assert t._bus is None
+
+
+def test_close_keeps_injected_bus():
+    # 주입 버스(owns_bus=False)는 close 후에도 유지(테스트/외부 소유).
+    bus = StubBus()
+    t = CanTransport([StubDevice()], bus=bus)
+    assert t._owns_bus is False
+    t.close()
+    assert t._bus is bus

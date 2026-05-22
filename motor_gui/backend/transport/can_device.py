@@ -115,3 +115,4 @@ class CanTransport(Transport):
                 self._bus.shutdown()
             except Exception:
                 pass
+            self._bus = None   # reconnect 시 connect() 가 버스를 재오픈하도록
