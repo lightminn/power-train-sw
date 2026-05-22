@@ -180,5 +180,97 @@ class OdriveCanDevice(CanDevice):
         return s
 
     def apply(self, bus, op: str, args: dict) -> dict:
-        return {"ok": False, "target": "odrive", "op": op,
-                "detail": "not implemented"}     # Task 3 에서 구현
+        try:
+            if op == "estop":
+                self._send(C_ESTOP)
+            elif op == "set_mode":
+                mode = args.get("control_mode")
+                if mode not in _CTRL:
+                    return {"ok": False, "target": "odrive", "op": op,
+                            "detail": f"unsupported mode {mode!r}"}
+                self._mode = mode
+                self._send(C_SET_CTRL_MODE, struct.pack("<ii", _CTRL[mode], _IN_MODE[mode]))
+                self._sync_vel_limit()
+                if mode in ("position", "position_traj"):
+                    cur = float(self._state.get("odrive.pos", 0.0))
+                    self._pos_setpoint = cur
+                    self._send(C_SET_INPUT_POS, struct.pack("<fhh", cur, 0, 0))  # hold
+                else:
+                    self._vel_setpoint = 0.0
+            elif op == "set_input":
+                if "pos" in args:
+                    self._pos_setpoint = float(args["pos"])
+                    self._send(C_SET_INPUT_POS, struct.pack("<fhh", self._pos_setpoint, 0, 0))
+                elif "vel" in args:
+                    self._vel_setpoint = float(args["vel"])
+                    self._send(C_SET_INPUT_VEL, struct.pack("<ff", self._vel_setpoint, 0.0))
+                else:
+                    return {"ok": False, "target": "odrive", "op": op,
+                            "detail": "no known input key (pos/vel)"}
+            elif op == "set_gain":
+                if "pos_gain" in args:
+                    self._send(C_SET_POS_GAIN, struct.pack("<f", float(args["pos_gain"])))
+                if "vel_gain" in args or "vel_integrator_gain" in args:
+                    for k in ("vel_gain", "vel_integrator_gain"):
+                        if k in args:
+                            self._vel_gains[k] = float(args[k])
+                    self._send(C_SET_VEL_GAINS, struct.pack("<ff",
+                               self._vel_gains["vel_gain"],
+                               self._vel_gains["vel_integrator_gain"]))
+                if "trap_accel_limit" in args or "trap_decel_limit" in args:
+                    for k in ("trap_accel_limit", "trap_decel_limit"):
+                        if k in args:
+                            self._trap[k] = float(args[k])
+                    self._send(C_SET_TRAJ_ACCEL_LIMITS, struct.pack("<ff",
+                               self._trap["trap_accel_limit"],
+                               self._trap["trap_decel_limit"]))
+                # trap_vel_limit 은 무시(vel_limit 결합) — set_limit 에서만.
+            elif op == "set_limit":
+                if "vel_limit" in args:
+                    self._vel_limit = float(args["vel_limit"])
+                    self._sync_vel_limit()
+                    # TRAP 진행 중 캡 변경 시 setpoint 재발행 → 새 순항속도로 재계획.
+                    if (self._mode == "position_traj"
+                            and int(self._state.get("odrive.state", 0)) == AXIS_CLOSED_LOOP):
+                        self._send(C_SET_INPUT_POS,
+                                   struct.pack("<fhh", self._pos_setpoint, 0, 0))
+                if "current_lim" in args:
+                    self._cur_lim = float(args["current_lim"])
+                    self._send_limits()
+            elif op == "set_state":
+                if args.get("state") == "closed_loop":
+                    cur = float(self._state.get("odrive.pos", 0.0))
+                    self._pos_setpoint = cur
+                    self._send(C_SET_INPUT_POS, struct.pack("<fhh", cur, 0, 0))  # jump 방지
+                    self._send(C_SET_STATE, struct.pack("<I", AXIS_CLOSED_LOOP))
+                else:
+                    self._send(C_SET_STATE, struct.pack("<I", AXIS_IDLE))
+            elif op == "calibrate":
+                self._send(C_SET_STATE, struct.pack("<I", AXIS_FULL_CALIB))
+            elif op == "clear_errors":
+                self._send(C_CLEAR_ERR)
+            elif op == "set_param":
+                if "torque_constant" in args:
+                    self._torque_const = float(args["torque_constant"])
+            elif op == "set_origin":
+                # 순정 영점: IDLE 디스암 → Set_Linear_Count(0) → Input_Pos(0) → 재무장.
+                was_closed = int(self._state.get("odrive.state", 0)) == AXIS_CLOSED_LOOP
+                self._send(C_SET_STATE, struct.pack("<I", AXIS_IDLE))
+                time.sleep(0.2)
+                self._send(C_SET_LINEAR_COUNT, struct.pack("<i", 0))
+                self._pos_setpoint = 0.0
+                self._send(C_SET_INPUT_POS, struct.pack("<fhh", 0.0, 0, 0))
+                if was_closed:
+                    self._send(C_SET_STATE, struct.pack("<I", AXIS_CLOSED_LOOP))
+            else:
+                return {"ok": False, "target": "odrive", "op": op,
+                        "detail": "unsupported op"}
+            return {"ok": True, "target": "odrive", "op": op, "detail": "sent"}
+        except Exception as e:
+            return {"ok": False, "target": "odrive", "op": op, "detail": str(e)}
+
+    def close(self, bus) -> None:
+        try:
+            self._send(C_SET_STATE, struct.pack("<I", AXIS_IDLE))
+        except Exception:
+            pass

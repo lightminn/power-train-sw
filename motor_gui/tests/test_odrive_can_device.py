@@ -135,3 +135,138 @@ def test_sample_includes_tracked_setpoints():
     s = d.sample()
     assert s["odrive.pos_setpoint"] == 3.0
     assert s["odrive.vel_setpoint"] == 4.0
+
+
+def _last(bus, cmd):
+    """해당 cmd 의 마지막 송신 메시지(없으면 None)."""
+    hits = [m for m in bus.sent if (m.arbitration_id & 0x1F) == cmd and not m.is_remote_frame]
+    return hits[-1] if hits else None
+
+
+def test_set_mode_position_sets_ctrl_and_holds_pos():
+    d, bus = _mk()
+    d.on_rx(_enc_msg(1.5, 0.0))
+    bus.sent.clear()
+    ack = d.apply(bus, "set_mode", {"control_mode": "position"})
+    assert ack["ok"] is True
+    cm = _last(bus, C_SET_CTRL_MODE)
+    assert struct.unpack("<ii", cm.data) == (3, 3)        # POSITION / POS_FILTER
+    ip = _last(bus, C_SET_INPUT_POS)
+    pos, _vff, _tff = struct.unpack("<fhh", ip.data)
+    assert abs(pos - 1.5) < 1e-6                          # 현재 위치 hold(점프 방지)
+    assert abs(d._pos_setpoint - 1.5) < 1e-6
+
+
+def test_set_mode_torque_rejected():
+    d, bus = _mk()
+    ack = d.apply(bus, "set_mode", {"control_mode": "torque"})
+    assert ack["ok"] is False
+
+
+def test_set_input_pos_sends_frame_and_tracks_setpoint():
+    d, bus = _mk()
+    d.apply(bus, "set_mode", {"control_mode": "position"})
+    bus.sent.clear()
+    d.apply(bus, "set_input", {"pos": 4.0})
+    ip = _last(bus, C_SET_INPUT_POS)
+    pos, _v, _t = struct.unpack("<fhh", ip.data)
+    assert abs(pos - 4.0) < 1e-6
+    assert abs(d._pos_setpoint - 4.0) < 1e-6
+
+
+def test_set_input_vel_tracks_vel_setpoint():
+    d, bus = _mk()
+    d.apply(bus, "set_mode", {"control_mode": "velocity"})
+    d.apply(bus, "set_input", {"vel": 2.5})
+    iv = _last(bus, C_SET_INPUT_VEL)
+    vel, _tff = struct.unpack("<ff", iv.data)
+    assert abs(vel - 2.5) < 1e-6
+    assert abs(d._vel_setpoint - 2.5) < 1e-6
+
+
+def test_set_input_no_known_key_rejected():
+    d, bus = _mk()
+    ack = d.apply(bus, "set_input", {"bogus": 1.0})
+    assert ack["ok"] is False
+
+
+def test_set_gain_partial_vel_merges_cached_pair():
+    d, bus = _mk()
+    bus.sent.clear()
+    d.apply(bus, "set_gain", {"vel_gain": 0.05})
+    vg = _last(bus, C_SET_VEL_GAINS)
+    g, ig = struct.unpack("<ff", vg.data)
+    assert abs(g - 0.05) < 1e-6
+    assert abs(ig - 0.0) < 1e-6          # DEFAULT_TUNABLES vel_integrator_gain
+
+
+def test_set_limit_velocity_mode_no_headroom():
+    d, bus = _mk()
+    d.apply(bus, "set_mode", {"control_mode": "velocity"})
+    bus.sent.clear()
+    d.apply(bus, "set_limit", {"vel_limit": 10.0})
+    lim = _last(bus, C_SET_LIMITS)
+    cap, cur_lim = struct.unpack("<ff", lim.data)
+    assert abs(cap - 10.0) < 1e-6        # velocity 모드 = 정확한 캡(헤드룸 없음)
+
+
+def test_set_limit_traj_mode_has_headroom():
+    d, bus = _mk()
+    d.apply(bus, "set_mode", {"control_mode": "position_traj"})
+    bus.sent.clear()
+    d.apply(bus, "set_limit", {"vel_limit": 10.0})
+    lim = _last(bus, C_SET_LIMITS)
+    cap, _cur = struct.unpack("<ff", lim.data)
+    assert abs(cap - 13.0) < 1e-6        # max(10*1.3, 0) = 13 (헤드룸)
+
+
+def test_set_param_torque_constant_updates_torque_est():
+    d, bus = _mk()
+    d.on_rx(_iq_msg(0.0, 3.0))
+    d.apply(bus, "set_param", {"torque_constant": 0.02})
+    s = d.sample()
+    assert abs(s["odrive.torque_est"] - 3.0 * 0.02) < 1e-9
+
+
+def test_set_origin_native_zero_sequence():
+    d, bus = _mk()
+    d.on_rx(_heartbeat_msg(state=AXIS_CLOSED_LOOP))
+    bus.sent.clear()
+    d.apply(bus, "set_origin", {})
+    cmds = [m.arbitration_id & 0x1F for m in bus.sent if not m.is_remote_frame]
+    assert C_SET_LINEAR_COUNT in cmds
+    lc = _last(bus, C_SET_LINEAR_COUNT)
+    assert struct.unpack("<i", lc.data)[0] == 0
+    states = [struct.unpack("<I", m.data)[0] for m in bus.sent
+              if (m.arbitration_id & 0x1F) == C_SET_STATE]
+    assert states[0] == AXIS_IDLE and states[-1] == AXIS_CLOSED_LOOP
+    assert d._pos_setpoint == 0.0
+
+
+def test_set_state_closed_loop_holds_pos():
+    d, bus = _mk()
+    d.on_rx(_enc_msg(2.0, 0.0))
+    bus.sent.clear()
+    d.apply(bus, "set_state", {"state": "closed_loop"})
+    ip = _last(bus, C_SET_INPUT_POS)
+    pos, _v, _t = struct.unpack("<fhh", ip.data)
+    assert abs(pos - 2.0) < 1e-6         # 폐루프 진입 전 현재 위치 hold
+    st = _last(bus, C_SET_STATE)
+    assert struct.unpack("<I", st.data)[0] == AXIS_CLOSED_LOOP
+
+
+def test_calibrate_and_clear_and_estop_frames():
+    d, bus = _mk()
+    bus.sent.clear()
+    d.apply(bus, "calibrate", {})
+    assert struct.unpack("<I", _last(bus, C_SET_STATE).data)[0] == AXIS_FULL_CALIB
+    d.apply(bus, "clear_errors", {})
+    assert _last(bus, C_CLEAR_ERR) is not None
+    d.apply(bus, "estop", {})
+    assert _last(bus, C_ESTOP) is not None
+
+
+def test_unknown_op_rejected():
+    d, bus = _mk()
+    ack = d.apply(bus, "frobnicate", {})
+    assert ack["ok"] is False
