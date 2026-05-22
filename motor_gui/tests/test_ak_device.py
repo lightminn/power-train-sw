@@ -53,11 +53,11 @@ def test_set_input_brake_sends_brake_frame():
 
 def test_on_rx_parses_status_and_sample_converts_speed():
     d, bus = _mk()
-    # POLE_PAIRS=14, GEAR_RATIO=10 → out_rpm = spd_erpm / 140
-    d.on_rx(_status_msg(pos_deg=12.0, spd_erpm=1400, cur_a=1.5, temp=42, fault=0))
+    # -1400 erpm → +10 출력RPM (명령 부호 일치)
+    d.on_rx(_status_msg(pos_deg=12.0, spd_erpm=-1400, cur_a=1.5, temp=42, fault=0))
     s = d.sample()
     assert abs(s["ak.pos_deg"] - 12.0) < 0.1
-    assert abs(s["ak.speed"] - 10.0) < 0.2          # 1400 erpm / 140
+    assert abs(s["ak.speed"] - 10.0) < 0.2          # -1400 erpm → +10 출력RPM (명령 부호 일치)
     assert abs(s["ak.current"] - 1.5) < 0.05
     assert s["ak.temp"] == 42
 

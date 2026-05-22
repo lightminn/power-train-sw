@@ -57,7 +57,7 @@ class AkDevice(CanDevice):
                 {"op": "set_param", "key": "acc_erpm_s2", "label": "가속 [ERPM/s²]"},
                 {"op": "set_param", "key": "max_cur_a", "label": "최대전류(자동정지) [A]"},
             ]},
-            "limits": {"ak": {"pos_deg": 100000.0, "rpm": 1000.0,
+            "limits": {"ak": {"pos_deg": 100000.0, "rpm": 45.0,
                               "brake_cur": 20.0, "duty": 1.0}},
             "signal_meta": meta,
         }
@@ -91,7 +91,7 @@ class AkDevice(CanDevice):
         a = self._ak
         if a is None:
             return {k: 0.0 for k in _AK_SIGNALS}
-        out_rpm = a.spd_erpm / (POLE_PAIRS * GEAR_RATIO)
+        out_rpm = -a.spd_erpm / (POLE_PAIRS * GEAR_RATIO)  # send_rpm_out 가 부호 반전 → 명령 부호와 일치시킴
         return {
             "ak.pos_deg": float(a.pos_out_deg),
             "ak.speed": float(out_rpm),
@@ -126,6 +126,7 @@ class AkDevice(CanDevice):
                 if expected not in args:
                     return {"ok": False, "target": "ak", "op": op,
                             "detail": f"'{expected}' 필요 (현재 모드 {self._mode})"}
+                self._tripped = False
                 if "pos_deg" in args:
                     tgt = float(args["pos_deg"])
                     self._active = lambda: a.send_pos_out(tgt, self._spd, self._acc)

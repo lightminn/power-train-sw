@@ -41,3 +41,9 @@ def test_set_limit_floored_at_zero():
 def test_passes_valid_command_through():
     out = normalize({"target": "ak", "op": "estop", "args": {}}, CAPS)
     assert out == {"target": "ak", "op": "estop", "args": {}}
+
+
+def test_ak_rpm_clamped_to_declared_limit():
+    caps = {"commands": {"ak": ["set_input"]}, "limits": {"ak": {"rpm": 45.0}}}
+    out = normalize({"target": "ak", "op": "set_input", "args": {"rpm": 1000.0}}, caps)
+    assert out["args"]["rpm"] == 45.0
