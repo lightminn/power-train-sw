@@ -252,6 +252,9 @@ class OdriveCanDevice(CanDevice):
             elif op == "set_param":
                 if "torque_constant" in args:
                     self._torque_const = float(args["torque_constant"])
+                else:
+                    return {"ok": False, "target": "odrive", "op": op,
+                            "detail": "no known param key (torque_constant)"}
             elif op == "set_origin":
                 # 순정 영점: IDLE 디스암 → Set_Linear_Count(0) → Input_Pos(0) → 재무장.
                 was_closed = int(self._state.get("odrive.state", 0)) == AXIS_CLOSED_LOOP

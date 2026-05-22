@@ -270,3 +270,9 @@ def test_unknown_op_rejected():
     d, bus = _mk()
     ack = d.apply(bus, "frobnicate", {})
     assert ack["ok"] is False
+
+
+def test_set_param_unknown_key_rejected():
+    d, bus = _mk()
+    ack = d.apply(bus, "set_param", {"bogus": 1.0})
+    assert ack["ok"] is False
