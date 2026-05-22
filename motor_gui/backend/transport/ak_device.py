@@ -15,6 +15,7 @@ AK_ID = 10
 PKT_STATUS_1 = 41
 _AK_SIGNALS = ["ak.pos_deg", "ak.speed", "ak.current", "ak.temp", "ak.fault", "ak.tripped"]
 _RESEND_HZ = 20.0
+_ERPM_PER_RPM = POLE_PAIRS * GEAR_RATIO   # 출력축 RPM → 전기 ERPM (=140)
 
 
 class AkDevice(CanDevice):
@@ -47,15 +48,28 @@ class AkDevice(CanDevice):
                                  "set_origin", "estop"]},
             "control_modes": {"ak": ["position", "velocity", "brake", "duty"]},
             "inputs": {"ak": {
-                "position": {"key": "pos_deg", "label": "목표 위치", "unit": "°"},
-                "velocity": {"key": "rpm", "label": "목표 속도(출력축)", "unit": "RPM"},
-                "brake": {"key": "brake_cur", "label": "브레이크 전류", "unit": "A"},
-                "duty": {"key": "duty", "label": "듀티", "unit": ""},
+                "position": {"key": "pos_deg", "label": "목표 위치", "unit": "°",
+                             "help": "목표 각도(출력축°)로 이동. 속도/가속은 아래 튜닝값 적용."},
+                "velocity": {"key": "rpm", "label": "목표 속도(출력축)", "unit": "RPM",
+                             "help": "지정 RPM(출력축)으로 연속 회전. 부호로 방향."},
+                "brake": {"key": "brake_cur", "label": "브레이크 전류", "unit": "A",
+                          "help": "지정 전류(A)로 전자 제동·홀딩. 회전에 저항."},
+                "duty": {"key": "duty", "label": "듀티", "unit": "",
+                         "help": "출력 듀티(-1~1) 직접 인가(개루프). 속도제한 없음 — 주의."},
             }},
             "tunables": {"ak": [
-                {"op": "set_param", "key": "spd_erpm", "label": "속도제한 [ERPM]"},
-                {"op": "set_param", "key": "acc_erpm_s2", "label": "가속 [ERPM/s²]"},
-                {"op": "set_param", "key": "max_cur_a", "label": "최대전류(자동정지) [A]"},
+                {"op": "set_param", "key": "spd_erpm", "label": "속도제한 [ERPM]",
+                 "value": self._spd, "help": "위치이동 순항속도 (전기 RPM)"},
+                {"op": "set_param", "key": "spd_rpm", "label": "속도제한 [RPM]",
+                 "value": self._spd / _ERPM_PER_RPM,
+                 "help": "위치이동 순항속도 (출력축 RPM = ERPM÷140)"},
+                {"op": "set_param", "key": "acc_erpm_s2", "label": "가속 [ERPM/s²]",
+                 "value": self._acc, "help": "위치이동 가속 (전기 RPM/s²)"},
+                {"op": "set_param", "key": "acc_rpm_s2", "label": "가속 [RPM/s²]",
+                 "value": self._acc / _ERPM_PER_RPM,
+                 "help": "위치이동 가속 (출력축 RPM/s²)"},
+                {"op": "set_param", "key": "max_cur_a", "label": "최대전류(자동정지) [A]",
+                 "value": self._maxcur, "help": "이 전류 초과 시 자동 정지 (안전)"},
             ]},
             "limits": {"ak": {"pos_deg": 100000.0, "rpm": 45.0,
                               "brake_cur": 20.0, "duty": 1.0}},
@@ -146,8 +160,12 @@ class AkDevice(CanDevice):
             elif op == "set_param":
                 if "spd_erpm" in args:
                     self._spd = float(args["spd_erpm"])
+                if "spd_rpm" in args:
+                    self._spd = float(args["spd_rpm"]) * _ERPM_PER_RPM
                 if "acc_erpm_s2" in args:
                     self._acc = float(args["acc_erpm_s2"])
+                if "acc_rpm_s2" in args:
+                    self._acc = float(args["acc_rpm_s2"]) * _ERPM_PER_RPM
                 if "max_cur_a" in args:
                     self._maxcur = float(args["max_cur_a"])
             elif op == "set_origin":

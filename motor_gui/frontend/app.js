@@ -89,11 +89,12 @@ async function postCommand(envelope) {
 
 function el(tag, cls) { const e = document.createElement(tag); if (cls) e.className = cls; return e; }
 
-function rowNumber(label, onSet, step, initial) {
+function rowNumber(label, onSet, step, initial, title) {
   const row = el("div", "row");
   const lab = el("label"); lab.textContent = label; row.appendChild(lab);
   const inp = document.createElement("input");
   inp.type = "number"; inp.step = step || "0.1";
+  if (title) { lab.title = title; inp.title = title; }
   if (initial !== undefined && initial !== null) inp.value = initial;
   inp.addEventListener("change", () => { const v = parseFloat(inp.value); if (!isNaN(v)) onSet(v); });
   row.appendChild(inp);
@@ -115,6 +116,12 @@ function rowButton(label, onClick) {
   return row;
 }
 function subhead(text) { const d = el("div", "subhead"); d.textContent = text; return d; }
+function helpLine(text) {
+  const d = el("div");
+  d.textContent = text;
+  d.style.cssText = "grid-column:1/-1; font-size:.72rem; opacity:.6; margin:0 0 .35rem .2rem;";
+  return d;
+}
 
 function motorInfoPanel(caps) {
   const info = caps.motor_info && caps.motor_info.odrive;
@@ -194,10 +201,12 @@ function controlPanel(device, caps, tunVals) {
       const spec = inputs[curMode];
       postCommand({ target: device, op: "set_input", args: { [spec.key]: v } });
     });
+    const modeHelp = helpLine("");
     const applyMode = (m) => {
       curMode = m;
       const spec = inputs[m];
       tgt.lab.textContent = `${spec.label} [${spec.unit}]`;
+      modeHelp.textContent = spec.help || "";
     };
     const ms = rowSelect("제어 모드", modes, (m) => {
       postCommand({ target: device, op: "set_mode", args: { control_mode: m } });
@@ -205,12 +214,14 @@ function controlPanel(device, caps, tunVals) {
     });
     grid.appendChild(ms.row);
     grid.appendChild(tgt.row);
+    grid.appendChild(modeHelp);
     applyMode(curMode);
     if (ops.includes("set_origin")) {
       grid.appendChild(rowButton("영점 설정 (현재 위치를 0)", () => {
         postCommand({ target: device, op: "set_origin", args: {} });
         logMsg(`${device}: 현재 위치를 0 으로 재정의`);
       }));
+      grid.appendChild(helpLine("현재 물리 위치를 0 기준으로 재정의합니다."));
     }
   } else if (ops.includes("set_input")) {
     const r = rowNumber("목표 위치 [°]", (v) =>
@@ -226,8 +237,9 @@ function controlPanel(device, caps, tunVals) {
     grid.appendChild(subhead("튜닝 (현재값 prefill, 입력 후 Enter)"));
     const tv = (tunVals && tunVals[device]) || {};
     tunables.forEach((t) => {
+      const init = (t.value !== undefined && t.value !== null) ? t.value : tv[t.key];
       grid.appendChild(rowNumber(t.label, (v) =>
-        postCommand({ target: device, op: t.op, args: { [t.key]: v } }), "0.001", tv[t.key]).row);
+        postCommand({ target: device, op: t.op, args: { [t.key]: v } }), "0.001", init, t.help).row);
     });
   }
 
@@ -315,6 +327,7 @@ async function main() {
   const mi = motorInfoPanel(caps);
   if (mi) controls.appendChild(mi);
   caps.devices.forEach((d) => controls.appendChild(controlPanel(d, caps, tunVals)));
+  document.getElementById("estop").title = "모든 모터 즉시 정지";
   document.getElementById("estop").addEventListener("click", () => {
     logMsg("E-STOP 발동", "err");
     postCommand({ target: caps.devices[0], op: "estop", args: {} });

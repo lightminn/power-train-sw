@@ -75,10 +75,14 @@ SIGNAL_META = {
 # ODrive 제어 모드 → 목표값 입력 필드
 ODRIVE_CONTROL_MODES = ["position", "position_traj", "velocity", "torque"]
 ODRIVE_INPUTS = {
-    "position": {"key": "pos", "label": "목표 위치", "unit": "turn"},
-    "position_traj": {"key": "pos", "label": "목표 위치(사다리꼴)", "unit": "turn"},
-    "velocity": {"key": "vel", "label": "목표 속도", "unit": "rev/s"},
-    "torque": {"key": "torque", "label": "목표 토크", "unit": "Nm"},
+    "position": {"key": "pos", "label": "목표 위치", "unit": "turn",
+                 "help": "목표 위치(turn)로 이동 (입력 필터)."},
+    "position_traj": {"key": "pos", "label": "목표 위치(사다리꼴)", "unit": "turn",
+                      "help": "가속한계 지켜 목표 위치로 이동 (사다리꼴 프로파일)."},
+    "velocity": {"key": "vel", "label": "목표 속도", "unit": "rev/s",
+                 "help": "목표 속도(rev/s) 유지."},
+    "torque": {"key": "torque", "label": "목표 토크", "unit": "Nm",
+               "help": "목표 토크(Nm) 인가. 속도는 vel_limit 로 제한."},
 }
 
 # 튜닝 가능 파라미터 (ODrive 캐스케이드 컨트롤러: 위치 P / 속도 PI + 한계)

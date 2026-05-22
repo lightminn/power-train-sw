@@ -112,3 +112,19 @@ def test_set_input_wrong_mode_key_rejected():
     d.apply(bus, "set_mode", {"control_mode": "velocity"})
     ack = d.apply(bus, "set_input", {"brake_cur": 2.0})   # velocity 모드에 brake 키
     assert ack["ok"] is False
+
+
+def test_set_param_rpm_units_convert_to_erpm():
+    d, bus = _mk()
+    d.apply(bus, "set_param", {"spd_rpm": 10.0})    # 10 출력RPM × 140 = 1400 erpm
+    assert d._spd == 1400.0
+    d.apply(bus, "set_param", {"acc_rpm_s2": 5.0})
+    assert d._acc == 700.0
+
+
+def test_capabilities_tunables_carry_current_value():
+    f = AkDevice().capabilities_fragment()
+    tk = {t["key"]: t for t in f["tunables"]["ak"]}
+    assert tk["spd_erpm"]["value"] == 1500.0
+    assert abs(tk["spd_rpm"]["value"] - 1500.0 / 140) < 1e-6
+    assert tk["max_cur_a"]["value"] == 5.0
