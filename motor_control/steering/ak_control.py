@@ -85,6 +85,16 @@ class AK40:
         erpm = max(-NOLOAD_ERPM, min(NOLOAD_ERPM, erpm))
         return self._send(PKT_SET_RPM, struct.pack(">i", erpm))
 
+    def send_brake(self, current_a):
+        """전류 기반 브레이크 (VESC: mA). 0~20A 클램프."""
+        cur = max(0.0, min(20.0, float(current_a)))
+        return self._send(PKT_SET_BRAKE, struct.pack(">i", int(cur * 1000)))
+
+    def send_duty(self, duty):
+        """직접 듀티 (-0.95~0.95 클램프, VESC: ×100000)."""
+        d = max(-0.95, min(0.95, float(duty)))
+        return self._send(PKT_SET_DUTY, struct.pack(">i", int(d * 100000)))
+
     def send_pos_out(self, out_deg, spd_erpm=DEFAULT_SPD_ERPM, acc_erpm_s2=DEFAULT_ACC_ERPM_S2):
         """💡 [핵심 수정] 위치 제어는 기어비 곱셈 없이 날것 그대로 쏩니다."""
         spd = max(-32768, min(32767, int(spd_erpm)))
