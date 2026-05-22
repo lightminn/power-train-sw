@@ -70,7 +70,7 @@ def test_set_param_then_position_uses_spd():
     msg = bus.sent[-1]
     assert msg.arbitration_id == (6 << 8) | AK_ID
     pos, spd, acc = struct.unpack(">ihh", msg.data)
-    assert pos == 900000 and spd == 2222 and acc == 3333
+    assert pos == 900000 and spd == 222 and acc == 333   # spd/acc 필드는 erpm÷10 (AK ×10 해석)
 
 
 def test_overcurrent_trips_in_tick():

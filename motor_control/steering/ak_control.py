@@ -96,9 +96,10 @@ class AK40:
         return self._send(PKT_SET_DUTY, struct.pack(">i", int(d * 100000)))
 
     def send_pos_out(self, out_deg, spd_erpm=DEFAULT_SPD_ERPM, acc_erpm_s2=DEFAULT_ACC_ERPM_S2):
-        """💡 [핵심 수정] 위치 제어는 기어비 곱셈 없이 날것 그대로 쏩니다."""
-        spd = max(-32768, min(32767, int(spd_erpm)))
-        acc = max(-32768, min(32767, int(acc_erpm_s2)))
+        """위치 제어(출력축 deg 직결). spd/acc 필드는 AK 펌웨어가 ×10 으로 해석하므로
+        ERPM 값을 ÷10 해서 전송 (실측 확인 — 안 그러면 실제 속도가 10배)."""
+        spd = max(-32768, min(32767, int(spd_erpm / 10)))
+        acc = max(-32768, min(32767, int(acc_erpm_s2 / 10)))
         data = struct.pack(">ihh", int(out_deg * 10000), spd, acc)
         return self._send(PKT_SET_POS_SPD, data)
 

@@ -8,6 +8,13 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
+
+class _NoCacheStatic(StaticFiles):
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return resp
+
 from .worker import HardwareWorker
 from .recorder import Recorder
 
@@ -109,7 +116,7 @@ def create_app(track: str = "fake") -> FastAPI:
             worker.unsubscribe(_on_sample)
 
     if _FRONTEND.exists():
-        app.mount("/", StaticFiles(directory=str(_FRONTEND), html=True),
+        app.mount("/", _NoCacheStatic(directory=str(_FRONTEND), html=True),
                   name="frontend")
     return app
 
