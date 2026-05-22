@@ -49,6 +49,13 @@ class HardwareWorker:
         self._caps = self._t.capabilities()
         self._apply_baseline()
         self._tunables = dict(DEFAULT_TUNABLES)
+        # 이전 사이클의 미처리 요청 제거 (타임아웃으로 큐에 남은 항목 방지)
+        for q in (self._reconnect_q, self._cmd_q):
+            while not q.empty():
+                try:
+                    q.get_nowait()
+                except queue.Empty:
+                    break
         self._running.set()
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
