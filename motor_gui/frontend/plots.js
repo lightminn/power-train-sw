@@ -3,6 +3,12 @@ const WINDOW_SEC = 20;
 const MAX_PTS = WINDOW_SEC * 100; // 100 Hz
 const COLORS = ["#4fc3f7", "#ffb74d", "#81c784", "#e57373", "#ba68c8"];
 
+// 명령(점선) → 실제(실선) 매핑: 같은 색으로 짝지어 오버레이
+const CMD_OF = {
+  "odrive.pos_setpoint": "odrive.pos", "odrive.vel_setpoint": "odrive.vel",
+  "ak.pos_cmd": "ak.pos_deg", "ak.speed_cmd": "ak.speed",
+};
+
 function seriesLabel(key, meta) {
   const m = meta[key];
   if (!m) return key;
@@ -12,15 +18,14 @@ function seriesLabel(key, meta) {
 function makePanel(title, sigKeys, meta) {
   const data = [[]];
   sigKeys.forEach(() => data.push([]));
-  // actual 과 그 _setpoint 는 같은 색, setpoint 는 점선으로 짝지어 표시.
   const baseColor = {};
   let ci = 0;
   const series = [{ label: "t [s]" }].concat(sigKeys.map((k) => {
-    const isSet = k.endsWith("_setpoint");
-    const base = isSet ? k.slice(0, -9) : k; // "_setpoint".length === 9
+    const cmd = k in CMD_OF;
+    const base = cmd ? CMD_OF[k] : k;       // 명령 시리즈는 실제와 같은 색
     if (!(base in baseColor)) baseColor[base] = COLORS[ci++ % COLORS.length];
     const s = { label: seriesLabel(k, meta), stroke: baseColor[base] };
-    if (isSet) s.dash = [6, 4];
+    if (cmd) s.dash = [6, 4];               // 명령은 점선
     return s;
   }));
   const opts = {
@@ -61,7 +66,13 @@ function buildPanels(signals, meta) {
   if (has("odrive.temp_fet") || has("odrive.vbus"))
     panels.push(makePanel("ODrive 온도/버스", ["odrive.temp_fet", "odrive.vbus", "odrive.ibus"].filter(has), meta));
   if (has("ak.pos_deg"))
-    panels.push(makePanel("AK 조향", ["ak.pos_deg", "ak.speed", "ak.current", "ak.temp"].filter(has), meta));
+    panels.push(makePanel("AK 위치 (실선=실제, 점선=명령)",
+      ["ak.pos_deg", "ak.pos_cmd"].filter(has), meta));
+  if (has("ak.speed"))
+    panels.push(makePanel("AK 속도 (실선=실제, 점선=명령)",
+      ["ak.speed", "ak.speed_cmd"].filter(has), meta));
+  if (has("ak.current") || has("ak.temp"))
+    panels.push(makePanel("AK 전류/온도", ["ak.current", "ak.temp"].filter(has), meta));
   return panels;
 }
 

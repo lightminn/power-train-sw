@@ -13,7 +13,8 @@ from ak_control import AK40, POLE_PAIRS, GEAR_RATIO  # noqa: E402
 
 AK_ID = 10
 PKT_STATUS_1 = 41
-_AK_SIGNALS = ["ak.pos_deg", "ak.speed", "ak.current", "ak.temp", "ak.fault", "ak.tripped"]
+_AK_SIGNALS = ["ak.pos_deg", "ak.speed", "ak.current", "ak.temp", "ak.fault", "ak.tripped",
+               "ak.pos_cmd", "ak.speed_cmd"]
 _RESEND_HZ = 20.0
 _ERPM_PER_RPM = POLE_PAIRS * GEAR_RATIO   # 출력축 RPM → 전기 ERPM (=140)
 
@@ -33,11 +34,15 @@ class AkDevice(CanDevice):
         self._maxcur = 5.0
         self._last_send = 0.0
         self._tripped = False
+        self._pos_cmd = 0.0
+        self._speed_cmd = 0.0
 
     def attach(self, bus) -> None:
         self._ak = AK40(bus, self._mid, name="ak")
         self._active = None
         self._tripped = False
+        self._pos_cmd = 0.0
+        self._speed_cmd = 0.0
 
     def capabilities_fragment(self) -> dict:
         meta = {k: SIGNAL_META[k] for k in _AK_SIGNALS if k in SIGNAL_META}
@@ -46,12 +51,14 @@ class AkDevice(CanDevice):
             "signals": list(_AK_SIGNALS),
             "commands": {"ak": ["set_mode", "set_input", "set_param",
                                  "set_origin", "estop"]},
-            "control_modes": {"ak": ["position", "velocity", "brake", "duty"]},
+            "control_modes": {"ak": ["position", "velocity", "current", "brake", "duty"]},
             "inputs": {"ak": {
                 "position": {"key": "pos_deg", "label": "목표 위치", "unit": "°",
                              "help": "목표 각도(출력축°)로 이동. 이동 속도·가속은 아래 [속도제한]·[가속] 튜닝값을 따름."},
                 "velocity": {"key": "rpm", "label": "목표 속도(출력축)", "unit": "RPM",
                              "help": "입력 RPM이 곧 목표속도(출력축). 최대 ~43RPM(무부하). ※[속도제한] 튜닝은 velocity엔 미적용."},
+                "current": {"key": "current_a", "label": "목표 전류(토크)", "unit": "A",
+                            "help": "직접 전류(A) 인가 = 토크 제어. 부호로 방향. 무부하 시 가속 주의(개루프)."},
                 "brake": {"key": "brake_cur", "label": "브레이크 전류", "unit": "A",
                           "help": "지정 전류(A)로 전자 제동·홀딩. 회전에 저항(개루프)."},
                 "duty": {"key": "duty", "label": "듀티", "unit": "",
@@ -72,7 +79,7 @@ class AkDevice(CanDevice):
                  "value": self._maxcur, "help": "이 전류 초과 시 자동 정지 (안전, 전 모드)"},
             ]},
             "limits": {"ak": {"pos_deg": 100000.0, "rpm": 45.0,
-                              "brake_cur": 20.0, "duty": 1.0}},
+                              "current_a": 20.0, "brake_cur": 20.0, "duty": 1.0}},
             "signal_meta": meta,
         }
 
@@ -113,6 +120,8 @@ class AkDevice(CanDevice):
             "ak.temp": float(a.temp_c),
             "ak.fault": int(a.fault),
             "ak.tripped": int(self._tripped),
+            "ak.pos_cmd": float(self._pos_cmd),
+            "ak.speed_cmd": float(self._speed_cmd),
         }
 
     def apply(self, bus, op: str, args: dict) -> dict:
@@ -126,9 +135,13 @@ class AkDevice(CanDevice):
                 self._tripped = False
                 if self._mode == "position":
                     tgt = a.pos_out_deg
+                    self._pos_cmd = tgt
                     self._active = lambda: a.send_pos_out(tgt, self._spd, self._acc)
                 elif self._mode == "velocity":
+                    self._speed_cmd = 0.0
                     self._active = lambda: a.send_rpm_out(0.0)
+                elif self._mode == "current":
+                    self._active = lambda: a.send_current(0.0)
                 elif self._mode == "brake":
                     self._active = lambda: a.send_brake(0.0)
                 else:  # duty
@@ -136,6 +149,7 @@ class AkDevice(CanDevice):
                 self._fire()
             elif op == "set_input":
                 expected = {"position": "pos_deg", "velocity": "rpm",
+                            "current": "current_a",
                             "brake": "brake_cur", "duty": "duty"}[self._mode]
                 if expected not in args:
                     return {"ok": False, "target": "ak", "op": op,
@@ -143,10 +157,15 @@ class AkDevice(CanDevice):
                 self._tripped = False
                 if "pos_deg" in args:
                     tgt = float(args["pos_deg"])
+                    self._pos_cmd = tgt
                     self._active = lambda: a.send_pos_out(tgt, self._spd, self._acc)
                 elif "rpm" in args:
                     v = float(args["rpm"])
+                    self._speed_cmd = v
                     self._active = lambda: a.send_rpm_out(v)
+                elif "current_a" in args:
+                    v = float(args["current_a"])
+                    self._active = lambda: a.send_current(v)
                 elif "brake_cur" in args:
                     v = float(args["brake_cur"])
                     self._active = lambda: a.send_brake(v)
@@ -170,6 +189,10 @@ class AkDevice(CanDevice):
                     self._maxcur = float(args["max_cur_a"])
             elif op == "set_origin":
                 a.set_origin_here()
+                self._pos_cmd = 0.0
+                if self._mode == "position":
+                    self._active = lambda: a.send_pos_out(0.0, self._spd, self._acc)
+                    self._fire()
             else:
                 return {"ok": False, "target": "ak", "op": op,
                         "detail": "unsupported op"}

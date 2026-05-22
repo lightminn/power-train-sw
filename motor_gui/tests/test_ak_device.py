@@ -29,7 +29,7 @@ def _mk():
 def test_capabilities_fragment_modes_and_commands():
     f = AkDevice().capabilities_fragment()
     assert f["devices"] == ["ak"]
-    assert f["control_modes"]["ak"] == ["position", "velocity", "brake", "duty"]
+    assert f["control_modes"]["ak"] == ["position", "velocity", "current", "brake", "duty"]
     assert "set_param" in f["commands"]["ak"]
     assert f["inputs"]["ak"]["velocity"]["key"] == "rpm"
     assert "ak.fault" in f["signals"]
@@ -128,3 +128,32 @@ def test_capabilities_tunables_carry_current_value():
     assert tk["spd_erpm"]["value"] == 1500.0
     assert abs(tk["spd_rpm"]["value"] - 1500.0 / 140) < 1e-6
     assert tk["max_cur_a"]["value"] == 5.0
+
+
+def test_current_mode_sends_current_frame():
+    d, bus = _mk()
+    d.apply(bus, "set_mode", {"control_mode": "current"})
+    d.apply(bus, "set_input", {"current_a": 3.0})
+    assert bus.sent[-1].arbitration_id == (1 << 8) | AK_ID   # PKT_SET_CURRENT=1
+    import struct as _s
+    assert bus.sent[-1].data == _s.pack(">i", 3000)          # 3.0A → 3000 mA
+
+
+def test_setpoint_signals_track_commands():
+    d, bus = _mk()
+    d.apply(bus, "set_mode", {"control_mode": "position"})
+    d.apply(bus, "set_input", {"pos_deg": 45.0})
+    s = d.sample()
+    assert abs(s["ak.pos_cmd"] - 45.0) < 1e-6
+    d.apply(bus, "set_mode", {"control_mode": "velocity"})
+    d.apply(bus, "set_input", {"rpm": 12.0})
+    s = d.sample()
+    assert abs(s["ak.speed_cmd"] - 12.0) < 1e-6
+
+
+def test_set_origin_zeros_pos_cmd():
+    d, bus = _mk()
+    d.apply(bus, "set_mode", {"control_mode": "position"})
+    d.apply(bus, "set_input", {"pos_deg": 30.0})
+    d.apply(bus, "set_origin", {})
+    assert d._pos_cmd == 0.0

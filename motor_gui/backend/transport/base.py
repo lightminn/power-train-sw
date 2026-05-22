@@ -70,6 +70,8 @@ SIGNAL_META = {
     "ak.temp": {"label": "AK 온도", "unit": "℃"},
     "ak.fault": {"label": "AK fault", "unit": ""},
     "ak.tripped": {"label": "AK 과전류정지", "unit": ""},
+    "ak.pos_cmd": {"label": "AK 위치 명령", "unit": "°"},
+    "ak.speed_cmd": {"label": "AK 속도 명령", "unit": "RPM"},
 }
 
 # ODrive 제어 모드 → 목표값 입력 필드
