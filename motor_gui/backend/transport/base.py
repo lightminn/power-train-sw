@@ -65,7 +65,7 @@ SIGNAL_META = {
     "odrive.enc_err": {"label": "encoder 에러", "unit": "hex"},
     "odrive.ctrl_err": {"label": "controller 에러", "unit": "hex"},
     "ak.pos_deg": {"label": "AK 위치", "unit": "°"},
-    "ak.speed": {"label": "AK 속도", "unit": "ERPM"},
+    "ak.speed": {"label": "AK 속도(출력축)", "unit": "RPM"},
     "ak.current": {"label": "AK 전류 (≈토크)", "unit": "A"},
     "ak.temp": {"label": "AK 온도", "unit": "℃"},
     "ak.fault": {"label": "AK fault", "unit": ""},
