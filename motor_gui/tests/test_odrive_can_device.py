@@ -276,3 +276,24 @@ def test_set_param_unknown_key_rejected():
     d, bus = _mk()
     ack = d.apply(bus, "set_param", {"bogus": 1.0})
     assert ack["ok"] is False
+
+
+def test_request_throttled_to_poll_rate():
+    d, bus = _mk()
+    bus.sent.clear()
+    d.request(bus)                       # 첫 호출: 폴링 발생 (4 RTR)
+    n1 = len([m for m in bus.sent if m.is_remote_frame])
+    d.request(bus)                       # 즉시 재호출: throttle 로 추가 폴링 없음
+    n2 = len([m for m in bus.sent if m.is_remote_frame])
+    assert n1 == 4
+    assert n2 == 4
+
+
+def test_request_swallows_send_error():
+    class RaisingBus:
+        def send(self, msg, timeout=None):
+            raise can.CanError("ENOBUFS")
+    d = OdriveCanDevice()
+    d._bus = RaisingBus()
+    d._last_poll = 0.0
+    d.request(d._bus)                    # CanError 를 삼키고 예외 전파 안 해야 함 (텔레메트리 보호)

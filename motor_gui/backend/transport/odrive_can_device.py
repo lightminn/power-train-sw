@@ -43,6 +43,12 @@ _BASE_TUNABLES = [t for t in ODRIVE_TUNABLES_CAN if t["key"] != "trap_vel_limit"
 
 _DEFAULT_KT = 0.0084                     # X2212-13 추정(8.27/980KV). UI 에서 편집 가능.
 
+# RTR 폴링 빈도. 워커는 100Hz 로 돌지만 RTR 4개를 매 사이클(=400 frame/s) 쏘면
+# 1Mbps 마진 버스에서 ODrive ACK 누락 창에 tx-error 가 빠르게 쌓여 bus-off 가 난다
+# (HIL 확인). 증명된 드라이브 스크립트처럼 저빈도로만 폴링해 호스트 TX 를 줄인다.
+_POLL_HZ = 15.0
+_POLL_PERIOD = 1.0 / _POLL_HZ
+
 _SIGNALS = [
     "odrive.pos", "odrive.pos_setpoint", "odrive.vel", "odrive.vel_setpoint",
     "odrive.iq_meas", "odrive.iq_set", "odrive.torque_est",
@@ -66,6 +72,7 @@ class OdriveCanDevice(CanDevice):
         self._cur_lim = float(DEFAULT_TUNABLES["current_lim"])
         self._pos_setpoint = 0.0
         self._vel_setpoint = 0.0
+        self._last_poll = 0.0        # RTR 폴링 throttle 타임스탬프
         # pair-frame 명령(두 값을 한 프레임에) 부분 업데이트 병합용 캐시.
         self._vel_gains = {"vel_gain": float(DEFAULT_TUNABLES["vel_gain"]),
                            "vel_integrator_gain": float(DEFAULT_TUNABLES["vel_integrator_gain"])}
@@ -82,9 +89,15 @@ class OdriveCanDevice(CanDevice):
                                    is_extended_id=False))
 
     def _request(self, cmd: int) -> None:
+        # 텔레메트리 RTR 은 전송 실패(ENOBUFS/일시 bus-off)를 삼킨다 — 한 폴링이
+        # 빠져도 다음 주기에 재시도. 예외가 sample() 을 죽여 recv-drain 을 건너뛰면
+        # 텔레메트리 전체가 멎으므로(HIL 확인) 반드시 흡수. bus-off 는 restart-ms 가 복구.
         import can
-        self._bus.send(can.Message(arbitration_id=self._arb(cmd),
-                                   is_remote_frame=True, is_extended_id=False))
+        try:
+            self._bus.send(can.Message(arbitration_id=self._arb(cmd),
+                                       is_remote_frame=True, is_extended_id=False))
+        except (can.CanError, OSError):
+            pass
 
     def _send_limits(self) -> None:
         """Set_Limits(vel_cap, current_lim) 1프레임. TRAP 은 캡에 헤드룸."""
@@ -106,6 +119,7 @@ class OdriveCanDevice(CanDevice):
         self._mode = "position"
         self._pos_setpoint = 0.0
         self._vel_setpoint = 0.0
+        self._last_poll = 0.0        # 재연결 직후 첫 sample 에서 바로 폴링
         # 기본 게인/한계 push → UI prefill 값과 실제 장치 일치.
         self._send(C_SET_POS_GAIN, struct.pack("<f", float(DEFAULT_TUNABLES["pos_gain"])))
         self._send(C_SET_VEL_GAINS, struct.pack("<ff",
@@ -143,6 +157,13 @@ class OdriveCanDevice(CanDevice):
         }
 
     def request(self, bus) -> None:
+        # 워커 100Hz 마다가 아니라 _POLL_HZ(~15Hz)로만 RTR 송신 → 호스트 TX 격감
+        # (1Mbps bus-off 방지). 비폴링 사이클엔 recv-drain 만 돌아 heartbeat·지연
+        # 응답을 계속 수신하므로 명령 반응성은 100Hz 유지.
+        now = time.monotonic()
+        if now - self._last_poll < _POLL_PERIOD:
+            return
+        self._last_poll = now
         for c in (C_GET_ENC_EST, C_GET_IQ, C_GET_TEMP, C_GET_BUS_VI):
             self._request(c)
 
