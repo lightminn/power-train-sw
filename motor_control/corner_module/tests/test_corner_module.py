@@ -1,6 +1,9 @@
+import pytest
 from corner_module.config import CornerConfig, clamp
 from corner_module.fake import FakeSteer, FakeDrive
 from corner_module.corner_module import CornerModule
+from corner_module.drive_odrive_can import DriveOdriveCan
+from corner_module.actuator import DriveActuator
 
 
 def test_default_config_values():
@@ -185,3 +188,14 @@ def test_steer_gate_holds_drive_until_settled():
         cm.tick()
     assert cm.state()["steer"]["actual_deg"] > 35.0
     assert cm.state()["drive"]["target_vel"] == 4.0  # 게이트 해제
+
+
+def test_odrive_can_is_drive_actuator():
+    d = DriveOdriveCan()
+    assert isinstance(d, DriveActuator)
+
+
+def test_odrive_can_connect_not_implemented():
+    d = DriveOdriveCan()
+    with pytest.raises(NotImplementedError):
+        d.connect()
