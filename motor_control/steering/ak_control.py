@@ -9,13 +9,27 @@ import time
 import math
 
 # ============================================================
-# 데이터시트 상수 (AK40-10)
+# 모터 모델별 프로파일 (데이터시트 상수)
+#   - AK40-10: 현재 보유한 테스트 모터 (10:1 감속)
+#   - AK45-36: 실전 예정 모터 (36:1 감속, peak 24Nm / rated 8Nm, KV80,
+#              peak current 65A, backlash 12 arcmin, back-drive 0.8Nm)
+# 실모터 전환 시 ACTIVE_MOTOR 만 "AK45-36" 으로 바꾼다.
+# (pole_pairs 는 AK 동일 계열로 14 가정 — AK45-36 실측 시 재확인)
 # ============================================================
-GEAR_RATIO = 10.0        # 10:1 감속
-POLE_PAIRS = 14
+MOTOR_PROFILES = {
+    "AK40-10": {"gear_ratio": 10.0, "pole_pairs": 14, "max_cur_a": 5.0},
+    # max_cur_a 는 트립 한계로, peak 65A 대비 보수값. HIL 에서 정상 홀딩 전류 확인 후 튜닝 필요.
+    "AK45-36": {"gear_ratio": 36.0, "pole_pairs": 14, "max_cur_a": 30.0},
+}
+ACTIVE_MOTOR = "AK40-10"   # 현재 보유 테스트 모터. 실모터 도착 시 "AK45-36"
 
-RATED_ERPM = int(370 * POLE_PAIRS)   # 5180
-NOLOAD_ERPM = int(435 * POLE_PAIRS)    # 6090
+_profile = MOTOR_PROFILES[ACTIVE_MOTOR]
+GEAR_RATIO = _profile["gear_ratio"]
+POLE_PAIRS = _profile["pole_pairs"]
+DEFAULT_MAX_CUR_A = _profile["max_cur_a"]
+
+RATED_ERPM = int(370 * POLE_PAIRS)   # 5180 (pole_pairs=14 기준)
+NOLOAD_ERPM = int(435 * POLE_PAIRS)    # 6090 (pole_pairs=14 기준)
 
 # CAN packet IDs
 PKT_SET_DUTY = 0
@@ -24,7 +38,6 @@ PKT_SET_RPM = 3
 PKT_SET_POS_SPD = 6
 PKT_STATUS_1 = 41
 
-DEFAULT_MAX_CUR_A = 5.0
 DEFAULT_SPD_ERPM = 1500
 DEFAULT_ACC_ERPM_S2 = 6000
 

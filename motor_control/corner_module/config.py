@@ -17,4 +17,4 @@ class CornerConfig:
     steer_gate: bool = False        # 협조 로직 on/off (기본 OFF)
     gate_deg: float = 10.0          # 협조 감속 시작 조향오차
     stale_ms: float = 200.0         # AK status 미수신 stale 임계
-    steer_current_limit_a: float = 5.0  # 조향 모터 과전류 트립 한계 (A)
+    steer_current_limit_a: float = 5.0  # 조향 과전류 트립 (A): AK40-10 테스트=5.0, AK45-36 실전≈30 (HIL 튜닝, peak 65A)

@@ -58,7 +58,7 @@ lines, isolated by subfolder. **Never mix tracks on the same ODrive** (calibrati
   `odrive_can_drive.py` (CAN), `odrive_dualsense_*.py` (텔레옵), `yolo_odrive_jetson.py`
   (Jetson 비전 추종, USB), `yolo_odrive_motor_test.py` · `odrive_yolo_object_tracking.py`
   (x86 OpenVINO 추종, 참조).
-- **steering/** (AK40-10 → AK45, CAN socketcan can0): `ak_control.py` (메인 라이브러리 —
+- **steering/** (AK40-10 테스트 → AK45-36 실전, CAN socketcan can0): `ak_control.py` (메인 라이브러리 —
   python-can socketcan 직접 제어), `calibrate_ak.py` (기어비 1회성), `status_ak.py`
   (CAN RX 디버깅). 사전 준비: `bash scripts/can_setup.sh`.
 - **vision/** (모터 명령 없음): `yolo_openvino_detection.py` (x86 OpenVINO),
@@ -93,4 +93,4 @@ reorg (5/20): `docs/specs/2026-05-20-motor-control-reorg-design.md`,
 - Total mass: 30 kg
 - Drive motor (test): SunnySky X2212-13 + TLE5012B 16384 CPR encoder
 - Drive motor (real): BL70200 + internal HALL ×3 (pp=5, cpr=30)
-- Steering: CubeMars AK40-10 (test) / AK45 (real), CAN bus, identical API
+- Steering: CubeMars AK40-10 (test, 10:1) / AK45-36 (real, 36:1; peak 24 Nm, rated 8 Nm, KV80, peak current 65 A, backlash 12 arcmin, back-drive 0.8 Nm), CAN bus, identical API. 모터 프로파일은 `ak_control.py`의 `MOTOR_PROFILES`/`ACTIVE_MOTOR`로 전환
