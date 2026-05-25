@@ -63,18 +63,49 @@ class CornerModule:
         self.drive.disarm()
         self.mode = "IDLE"
 
+    def estop(self) -> None:
+        self.steer.estop()
+        self.drive.estop()
+        self._drive_target = 0.0
+        self.mode = "FAULT"
+
     def close(self) -> None:
         self.steer.close()
         self.drive.close()
         self.mode = "DISCONNECTED"
 
     def tick(self) -> None:
-        # Task 4 에서 안전·협조 로직을 채운다. 지금은 ARMED 일 때 목표만 push.
         if self.mode != "ARMED":
             self.steer.tick()
             self.drive.tick()
             return
+
+        st = self.steer.state()
+
+        # 1) 조향 fault/전류 트립
+        if st["fault"] != 0:
+            logger.error("조향 fault=%s → estop", st["fault"])
+            self.estop()
+            return
+        # 2) CAN stale
+        if st.get("stale"):
+            logger.error("조향 status stale → estop")
+            self.estop()
+            return
+
+        # 3) 워치독: 입력 타임아웃 시 구동 0
+        drive_cmd = self._drive_target
+        if self._last_set_ms is not None and (self._now_ms() - self._last_set_ms) > self.cfg.watchdog_ms:
+            drive_cmd = 0.0
+
+        # 4) 협조 로직(옵션): 조향 따라오기 전 구동 자제
+        if self.cfg.steer_gate:
+            err = abs(self._steer_target - st["actual_deg"])
+            if err > self.cfg.gate_deg:
+                drive_cmd = 0.0
+
+        # 5) 목표 push
         self.steer.set_angle(self._steer_target)
-        self.drive.set_velocity(self._drive_target)
+        self.drive.set_velocity(drive_cmd)
         self.steer.tick()
         self.drive.tick()

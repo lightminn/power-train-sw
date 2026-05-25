@@ -104,3 +104,84 @@ def test_set_ignored_when_not_armed():
     cm.set(30.0, 3.0)
     # IDLE 에서는 목표가 반영되지 않아야
     assert cm.state()["steer"]["target_deg"] == 0.0
+
+
+class FakeClock:
+    def __init__(self):
+        self.t = 0.0
+
+    def __call__(self):
+        return self.t
+
+    def advance(self, sec):
+        self.t += sec
+
+
+def test_watchdog_zeros_drive_on_timeout():
+    clk = FakeClock()
+    cm = _make_cm(cfg=CornerConfig(watchdog_ms=300.0), clock=clk)
+    cm.connect()
+    cm.arm()
+    cm.set(10.0, 3.0)
+    clk.advance(0.1)  # 100ms < 300ms
+    cm.tick()
+    assert cm.state()["drive"]["target_vel"] == 3.0
+    clk.advance(0.5)  # 총 600ms > 300ms
+    cm.tick()
+    assert cm.state()["drive"]["target_vel"] == 0.0
+
+
+def test_estop_stops_both_and_faults():
+    cm = _make_cm()
+    cm.connect()
+    cm.arm()
+    cm.set(30.0, 3.0)
+    cm.tick()
+    cm.estop()
+    assert cm.mode == "FAULT"
+    assert cm.state()["drive"]["target_vel"] == 0.0
+
+
+def test_steer_fault_triggers_estop():
+    s = FakeSteer()
+    cm = _make_cm(steer=s)
+    cm.connect()
+    cm.arm()
+    cm.set(10.0, 2.0)
+    s.fault = 5
+    cm.tick()
+    assert cm.mode == "FAULT"
+
+
+def test_steer_stale_triggers_estop():
+    s = FakeSteer()
+    cm = _make_cm(steer=s)
+    cm.connect()
+    cm.arm()
+    cm.set(10.0, 2.0)
+    s.stale_flag = True
+    cm.tick()
+    assert cm.mode == "FAULT"
+
+
+def test_corner_state_schema():
+    cm = _make_cm()
+    cm.connect()
+    st = cm.state()
+    assert set(st.keys()) == {"mode", "steer", "drive", "faults"}
+
+
+def test_steer_gate_holds_drive_until_settled():
+    clk = FakeClock()
+    cfg = CornerConfig(steer_gate=True, gate_deg=10.0, watchdog_ms=100000.0)
+    cm = _make_cm(steer=FakeSteer(start_deg=0.0), cfg=cfg, clock=clk)
+    cm.connect()
+    cm.arm()
+    cm.set(40.0, 4.0)
+    cm.tick()  # 조향오차 40 > 10 → 구동 게이트
+    assert cm.state()["drive"]["target_vel"] == 0.0
+    for _ in range(30):  # 조향 수렴
+        cm.set(40.0, 4.0)
+        cm.tick()
+    assert cm.state()["steer"]["actual_deg"] > 35.0
+    assert cm.state()["drive"]["target_vel"] == 4.0  # 게이트 해제
