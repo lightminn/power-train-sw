@@ -36,7 +36,10 @@ class SteerAk40(SteerActuator):
         self._ak = AK40(self._bus, self._motor_id, name="steer")
 
     def arm(self) -> None:
-        self._ak.poll(timeout=0.05)
+        # poll 성공 시 수신시각 기록 → arm 직후 state()가 stale 로 오판해
+        # CornerModule.tick() 첫 호출에서 estop 되는 것을 방지.
+        if self._ak.poll(timeout=0.1):
+            self._last_rx_ms = time.monotonic() * 1000.0
         self._target_deg = self._ak.pos_out_deg
 
     def disarm(self) -> None:
