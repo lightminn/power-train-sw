@@ -76,8 +76,6 @@ class CornerModule:
 
     def tick(self) -> None:
         if self.mode != "ARMED":
-            self.steer.tick()
-            self.drive.tick()
             return
 
         st = self.steer.state()
@@ -90,6 +88,11 @@ class CornerModule:
         # 2) CAN stale
         if st.get("stale"):
             logger.error("조향 status stale → estop")
+            self.estop()
+            return
+        # 조향 과전류 트립
+        if abs(st["cur_a"]) > self.cfg.steer_current_limit_a:
+            logger.error("조향 과전류 %.1fA > %.1fA → estop", st["cur_a"], self.cfg.steer_current_limit_a)
             self.estop()
             return
 
@@ -109,3 +112,11 @@ class CornerModule:
         self.drive.set_velocity(drive_cmd)
         self.steer.tick()
         self.drive.tick()
+
+    def run(self, hz: float = None) -> None:
+        """편의 제어 루프. 외부 루프가 tick() 을 직접 호출해도 된다."""
+        rate = hz or self.cfg.loop_hz
+        period = 1.0 / rate
+        while True:
+            self.tick()
+            time.sleep(period)

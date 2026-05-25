@@ -227,3 +227,14 @@ def test_map_input_reverse_drive():
     cfg = CornerConfig(drive_vel_limit=5.0)
     steer, drive = map_input(left_x=0.0, rt=0.0, lt=1.0, cfg=cfg)
     assert drive == -5.0
+
+
+def test_steer_overcurrent_triggers_estop():
+    s = FakeSteer()
+    cm = _make_cm(steer=s, cfg=CornerConfig(steer_current_limit_a=10.0))
+    cm.connect()
+    cm.arm()
+    cm.set(10.0, 2.0)
+    s.cur_a = 15.0  # 한계(10A) 초과
+    cm.tick()
+    assert cm.mode == "FAULT"
