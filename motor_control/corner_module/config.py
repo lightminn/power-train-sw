@@ -16,5 +16,5 @@ class CornerConfig:
     loop_hz: float = 50.0           # 제어 루프 주기
     steer_gate: bool = False        # 협조 로직 on/off (기본 OFF)
     gate_deg: float = 10.0          # 협조 감속 시작 조향오차
-    stale_ms: float = 200.0         # AK status 미수신 stale 임계
+    stale_ms: float = 500.0         # AK status 미수신 stale 임계 (텔레옵 루프 지터 여유; HIL 튜닝)
     steer_current_limit_a: float = 5.0  # 조향 과전류 트립 (A): AK40-10 테스트=5.0, AK45-36 실전≈30 (HIL 튜닝, peak 65A)

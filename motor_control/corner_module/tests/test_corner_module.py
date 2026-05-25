@@ -16,7 +16,7 @@ def test_default_config_values():
     assert c.loop_hz == 50.0
     assert c.steer_gate is False
     assert c.gate_deg == 10.0
-    assert c.stale_ms == 200.0
+    assert c.stale_ms == 500.0
 
 
 def test_clamp_bounds():
