@@ -90,7 +90,7 @@ reorg (5/20): `docs/specs/2026-05-20-motor-control-reorg-design.md`,
 
 - 6 wheels, rocker-bogie suspension
 - Wheel radius: 100 mm
-- Total mass: 30 kg
+- Total mass: ~86 kg (설계 추정; 여유 포함 최대 100 kg, Notion 기준)
 - Drive motor (test): SunnySky X2212-13 + TLE5012B 16384 CPR encoder
 - Drive motor (real): BL70200 + internal HALL ×3 (pp=5, cpr=30)
 - Steering: CubeMars AK40-10 (test, 10:1) / AK45-36 (real, 36:1; peak 24 Nm, rated 8 Nm, KV80, peak current 65 A, backlash 12 arcmin, back-drive 0.8 Nm), CAN bus, identical API. 모터 프로파일은 `ak_control.py`의 `MOTOR_PROFILES`/`ACTIVE_MOTOR`로 전환
