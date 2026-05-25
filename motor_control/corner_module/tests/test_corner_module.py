@@ -4,6 +4,7 @@ from corner_module.fake import FakeSteer, FakeDrive
 from corner_module.corner_module import CornerModule
 from corner_module.drive_odrive_can import DriveOdriveCan
 from corner_module.actuator import DriveActuator
+from corner_module.teleop_dualsense import map_input
 
 
 def test_default_config_values():
@@ -199,3 +200,30 @@ def test_odrive_can_connect_not_implemented():
     d = DriveOdriveCan()
     with pytest.raises(NotImplementedError):
         d.connect()
+
+
+def test_map_input_neutral_is_zero():
+    cfg = CornerConfig(steer_max_deg=45.0, drive_vel_limit=5.0)
+    steer, drive = map_input(left_x=0.0, rt=0.0, lt=0.0, cfg=cfg)
+    assert steer == 0.0
+    assert drive == 0.0
+
+
+def test_map_input_deadzone():
+    cfg = CornerConfig()
+    steer, drive = map_input(left_x=0.03, rt=0.02, lt=0.0, cfg=cfg, deadzone=0.05)
+    assert steer == 0.0
+    assert drive == 0.0
+
+
+def test_map_input_full_steer_and_drive():
+    cfg = CornerConfig(steer_max_deg=45.0, drive_vel_limit=5.0)
+    steer, drive = map_input(left_x=1.0, rt=1.0, lt=0.0, cfg=cfg)
+    assert steer == 45.0
+    assert drive == 5.0
+
+
+def test_map_input_reverse_drive():
+    cfg = CornerConfig(drive_vel_limit=5.0)
+    steer, drive = map_input(left_x=0.0, rt=0.0, lt=1.0, cfg=cfg)
+    assert drive == -5.0
