@@ -31,6 +31,7 @@ Defence_Robot/
 │   ├── corner_module/    코너 모듈 패키지 (조향+구동 협조 제어 + DualSense 텔레옵)
 │   ├── laptop/           Laptop-side TCP teleop clients (DualSense → robot)
 │   └── pi/               Raspberry-Pi-side servers (paired 1:1 with laptop/)
+├── motor_gui/            웹 진단 GUI (FastAPI + 트랜스포트 추상화, AK/ODrive CAN·USB)
 ├── docker/               Container definitions (x86 dev + Jetson Orin Nano deploy)
 ├── scripts/              Host-side helpers (e.g. recv_stream.sh — UDP H.264 receiver)
 └── docs/
@@ -79,6 +80,16 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
 
 ODrive 펌웨어 v0.5.x (CAN 트랙 fw-v0.5.6 검증), all scripts use `axis1`. Jetson CAN
 트랙 입력 전 `input_pos = origin` 설정으로 폐루프 진입 시 모터 점프 방지.
+
+## Working in `motor_gui/`
+
+브라우저 기반 모터 진단·튜닝 GUI. `python3 -m motor_gui.backend.server --track {fake|usb|ak|odrive_can|can}`
+(FastAPI, 브라우저 `http://<host>:8000`, network_mode host → 포트매핑 불필요). 핵심은
+`backend/transport/` 의 `Transport`/`CanDevice` ABC — AK·ODrive 를 컴포저블 디바이스로 묶어
+한 can0 버스에 다중 디바이스 운용 가능. 신규 디바이스는 ABC 구현 후 `worker.py`(100 Hz 샘플)에
+드롭인. CSV/Parquet 레코더(`recorder.py`), 텔레메트리 WebSocket 제공. `motor_control/` 을
+import(예: `ak_control`)하지만 **`motor_control` 이 `motor_gui` 를 import 하면 안 됨**(역의존 금지).
+테스트 `motor_gui/tests/` (dev 컨테이너 pytest). 코너 모듈 HIL 때 `--track usb`/`--track ak` 로 실하드웨어 검증함.
 
 ## Jetson Orin Nano deployment
 
