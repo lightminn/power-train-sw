@@ -137,7 +137,7 @@ matlab -batch "run('parameter_calc/matlab/ZETIN_JointOptSearch_v3.m')"
 
 | 트랙 | 모터 (테스트 → 실전) | 센서 | 통신 | 폴더 |
 | --- | --- | --- | --- | --- |
-| **구동 (실전)** | BL70200 | 내장 HALL ×3 (pp=5, cpr=30) | ODrive USB | `drive/bl70200/` |
+| **구동 (실전)** | BL70200 | 내장 HALL ×3 (pp=5, cpr=30) | ODrive USB · CAN | `drive/bl70200/` |
 | **구동 (테스트)** | SunnySky X2212-13 | TLE5012B 16384 CPR (외장) | ODrive USB · CAN | `drive/x2212_test/` |
 | **조향** | AK40-10 → AK45-36 (동일 API) | 내장 | CAN (socketcan can0) | `steering/` |
 
@@ -151,6 +151,7 @@ BL70200 트랙의 캘리값 `pp=5, cpr=30` 은 BL70200 hw 와 일치 — 실차 
 
 BL70200 + 내장 HALL ×3. ODrive HALL 모드 사용, NVM 캘리 저장 후 재사용.
 cpr=30 으로 낮아 게인 보수적 + vel-estimate 필터 bandwidth 낮춰 노이즈 억제.
+실전 운영은 **단일 CAN 버스**(Jetson ↔ 구동 ODrive ↔ 조향 AK)를 목표로 하며, USB 는 캘리·튜닝용. CAN 셋업/주행은 `drive/x2212_test/odrive_can_*` 패턴 재사용.
 
 #### 캘리브레이션
 

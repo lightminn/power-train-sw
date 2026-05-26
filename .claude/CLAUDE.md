@@ -24,7 +24,7 @@ Defence_Robot/
 ├── motor_control/        ODrive · AK 조향 · YOLO · US100 센서 · 텔레옵
 │   ├── drive/            구동 모터
 │   │   ├── x2212_test/   SunnySky X2212-13 + TLE5012B (ODrive USB · CAN)
-│   │   └── bl70200/      BL70200 + 내장 HALL ×3 (실전, ODrive USB)
+│   │   └── bl70200/      BL70200 + 내장 HALL ×3 (실전, ODrive USB·CAN)
 │   ├── steering/         AK40/AK45 조향 (CAN, 동일 API)
 │   ├── vision/           모터 명령 없는 검출·스트리밍
 │   ├── sensors/          US100 거리 (UART /dev/ttyTHS1)
