@@ -61,6 +61,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 주의: 이 버전 make install 이 메인 pyrealsense2 .so 와 __init__.py 를 site-packages 에
 #   안 넣는 버그가 있음 → build/Release 에서 직접 복사 + __init__.py 생성으로 보완 (HIL 검증).
 #   (베이스 Python 3.10 / aarch64 고정 가정 — 경로 하드코딩)
+# IMPORT_DEPTH_CAM_FW=OFF: cmake configure 시 펌웨어 바이너리 다운로드를 끔.
+#   (도커 빌드 네트워크에서 SSL connect 실패 + 카메라에 이미 펌웨어 있어 스트리밍엔 불필요)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake pkg-config python3-dev \
     libusb-1.0-0-dev libssl-dev libudev-dev \
@@ -71,6 +73,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     -DFORCE_RSUSB_BACKEND=ON \
     -DBUILD_PYTHON_BINDINGS=ON \
     -DPYTHON_EXECUTABLE=$(which python3) \
+    -DIMPORT_DEPTH_CAM_FW=OFF \
     -DBUILD_EXAMPLES=OFF -DBUILD_GRAPHICAL_EXAMPLES=OFF -DBUILD_UNIT_TESTS=OFF \
     && make -C /tmp/librealsense/build -j4 \
     && make -C /tmp/librealsense/build install \
