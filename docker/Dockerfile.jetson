@@ -56,5 +56,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && pip3 install --no-cache-dir --index-url https://pypi.org/simple /opt/ODrive/tools \
     && rm -rf /opt/ODrive
 
+# Intel RealSense (D435i) — librealsense + pyrealsense2 소스 빌드.
+# 컨테이너라 커널 패치 불가 → FORCE_RSUSB_BACKEND (libusb 유저스페이스 백엔드).
+# 주의: 이 버전 make install 이 메인 pyrealsense2 .so 와 __init__.py 를 site-packages 에
+#   안 넣는 버그가 있음 → build/Release 에서 직접 복사 + __init__.py 생성으로 보완 (HIL 검증).
+#   (베이스 Python 3.10 / aarch64 고정 가정 — 경로 하드코딩)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake pkg-config python3-dev \
+    libusb-1.0-0-dev libssl-dev libudev-dev \
+    && git clone --depth 1 --branch v2.55.1 --recurse-submodules --shallow-submodules \
+    https://github.com/IntelRealSense/librealsense.git /tmp/librealsense \
+    && cmake -S /tmp/librealsense -B /tmp/librealsense/build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DFORCE_RSUSB_BACKEND=ON \
+    -DBUILD_PYTHON_BINDINGS=ON \
+    -DPYTHON_EXECUTABLE=$(which python3) \
+    -DBUILD_EXAMPLES=OFF -DBUILD_GRAPHICAL_EXAMPLES=OFF -DBUILD_UNIT_TESTS=OFF \
+    && make -C /tmp/librealsense/build -j4 \
+    && make -C /tmp/librealsense/build install \
+    && cp -P /tmp/librealsense/build/Release/pyrealsense2.cpython-310-aarch64-linux-gnu.so* \
+    /usr/local/lib/python3.10/dist-packages/pyrealsense2/ \
+    && printf 'from .pyrealsense2 import *\n' \
+    > /usr/local/lib/python3.10/dist-packages/pyrealsense2/__init__.py \
+    && ldconfig \
+    && rm -rf /tmp/librealsense /var/lib/apt/lists/*
+
 WORKDIR /workspace
 CMD ["bash"]
