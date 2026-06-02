@@ -46,8 +46,13 @@ def parse_args() -> argparse.Namespace:
                    help="스트림당 가로 (합성 프레임은 2배)")
     p.add_argument("--height", type=int, default=480)
     p.add_argument("--fps", type=int, default=30)
+    p.add_argument("--mode", choices=["sidebyside", "overlay"],
+                   default="sidebyside",
+                   help="sidebyside=color|depth 가로배치, overlay=depth 를 color 위에 반투명")
     p.add_argument("--align", action="store_true",
-                   help="depth 를 color 시점에 정렬 (CPU 더 씀)")
+                   help="depth 를 color 시점에 정렬 (overlay 는 자동 정렬)")
+    p.add_argument("--alpha", type=float, default=0.5,
+                   help="overlay 투명도 (0=color만, 1=depth만)")
     p.add_argument("--bench-frames", type=int, default=0,
                    help="0=무한, >0=N프레임 후 종료")
     return p.parse_args()
@@ -61,9 +66,10 @@ def main() -> None:
     cfg.enable_stream(rs.stream.depth, a.width, a.height, rs.format.z16, a.fps)
     cfg.enable_stream(rs.stream.color, a.width, a.height, rs.format.bgr8, a.fps)
     pipe.start(cfg)
-    align = rs.align(rs.stream.color) if a.align else None
+    overlay = a.mode == "overlay"
+    align = rs.align(rs.stream.color) if (a.align or overlay) else None
 
-    comp_w = a.width * 2
+    comp_w = a.width if overlay else a.width * 2
     cmd = build_gst_command(a.host, a.port, comp_w, a.height, a.fps)
     print("[gst-launch]", " ".join(cmd), file=sys.stderr)
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, bufsize=0)
@@ -90,17 +96,27 @@ def main() -> None:
             depth_raw = np.asanyarray(depth.get_data())
             depth_cm = cv2.applyColorMap(
                 cv2.convertScaleAbs(depth_raw, alpha=0.03), cv2.COLORMAP_JET)
-
             dist = depth.get_distance(cx, cy)
-            cv2.circle(depth_cm, (cx, cy), 4, (255, 255, 255), 1)
-            cv2.putText(depth_cm, f"center {dist:.2f} m", (10, 28),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-            cv2.putText(color_img, "COLOR", (10, 28),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            cv2.putText(depth_cm, "DEPTH", (a.width - 110, 28),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-            composite = np.hstack((color_img, depth_cm))
+            if overlay:
+                # depth 를 color 위에 반투명 합성 (유효 depth 픽셀만 — 0 은 color 그대로)
+                composite = color_img.copy()
+                mask = depth_raw > 0
+                blended = cv2.addWeighted(color_img, 1.0 - a.alpha,
+                                          depth_cm, a.alpha, 0.0)
+                composite[mask] = blended[mask]
+                cv2.circle(composite, (cx, cy), 4, (255, 255, 255), 2)
+                cv2.putText(composite, f"center {dist:.2f} m", (10, 28),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            else:
+                cv2.circle(depth_cm, (cx, cy), 4, (255, 255, 255), 1)
+                cv2.putText(depth_cm, f"center {dist:.2f} m", (10, 28),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                cv2.putText(color_img, "COLOR", (10, 28),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv2.putText(depth_cm, "DEPTH", (a.width - 110, 28),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                composite = np.hstack((color_img, depth_cm))
             try:
                 proc.stdin.write(composite.tobytes())
             except BrokenPipeError:
