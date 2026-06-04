@@ -6,14 +6,15 @@ NumPy/SciPy(CPU)와 JAX/CUDA(GPU)로 포팅해 동일 물리식을 공유한다.
 
 ## 권위본 (Source of Truth)
 
-- **현재 권위본 = `new_parameter_calc/` 의 v4 면-기준 물리 수정본** (f_opt = 0.2004, HPC A10 GPU 11.7h).
-  `new_parameter_calc/parameter_calc/` 안에 matlab/python/python_gpu/python_gpu_triangle 전체가 들어 있고,
-  이게 최종 결과·도구(validate_mujoco / cross_validate / analyze / plot)를 포함한 완전본이다.
-- 최상위 `python_gpu_triangle/` 는 **초기 v4** (f_opt = 0.2624) — 참조용으로 보존.
+- **현재 권위본 = v4 면-기준 물리 수정본** (f_opt = 0.2004, HPC A10 GPU 11.7h).
+  v4 코드 + 검증/시각화 도구(validate_mujoco / cross_validate / analyze / plot)는 `python_gpu_triangle/` 에,
+  최종 결과 pkl 은 `python/zetin_optimal_params_v4.pkl` 에 있다.
+- 초기 v4 (f_opt = 0.2624) 결과는 `archive/zetin_optimal_params_v4_initial_0p2624.pkl` 에 이력 보존(참조용).
 - `python_gpu/` = v3 (14차원·4지형), `python/` = CPU 포팅, `matlab/` = 원본 레퍼런스.
-- 실행 콘솔 로그·결과 정리: `docs/2026-06-01-param-v4-result-log.md`.
-- v4 물리 변경/모델 배경: `new_parameter_calc/docs/specs/2026-05-18-v4-simulation-changes-summary.md`,
-  차기 시간영역 모델 설계는 `…/2026-05-18-v5-architecture-design.md`.
+- v4 결과 뷰어: `zetin_v4_viewer_opt.html`.
+- 실행 콘솔 로그·결과 정리: `docs/reports/2026-06-01-param-v4-result-log.md`.
+- v4 물리 변경/모델 배경: `docs/specs/2026-05-18-v4-simulation-changes-summary.md`,
+  차기 시간영역 모델 설계는 `docs/specs/2026-05-18-v5-architecture-design.md`.
 
 > `parameter_calc/` 는 개발 서버 검증본을 그대로 옮긴 것. 코드와 결과물(`*.pkl` / `*.mat` /
 > `*.mp4` / `fig*.png`)은 **서버 기준을 신뢰**하고 의도 없이 덮어쓰지 말 것.
@@ -54,8 +55,8 @@ NumPy/SciPy(CPU)와 JAX/CUDA(GPU)로 포팅해 동일 물리식을 공유한다.
 ## 실행
 
 ```bash
-# v4 권위본 (GPU, 서버) — new_parameter_calc 안에서
-cd parameter_calc/new_parameter_calc/parameter_calc/python_gpu_triangle/
+# v4 권위본 (GPU, 서버)
+cd parameter_calc/python_gpu_triangle/
 JAX_PLATFORM_NAME=gpu python ZETIN_JointOptSearch_v4_gpu.py
 
 # 결과 시각화 (지형별 주행 mp4)

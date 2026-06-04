@@ -17,10 +17,11 @@ Defence_Robot/
 ├── parameter_calc/       Geometry optimization (trusted server build)
 │   ├── CLAUDE.md         → detailed docs for this track
 │   ├── matlab/           Original MATLAB reference (functions/, *.m, *.mat)
-│   ├── python/           CPU port (NumPy/SciPy)
+│   ├── python/           CPU port (NumPy/SciPy) + final v4 result pkl (f_opt 0.2004)
 │   ├── python_gpu/       GPU port (JAX/CUDA 12.x) — v3
-│   ├── python_gpu_triangle/  GPU variant restricted to triangle mode — v4
-│   └── scripts/          run_gpu.sh, run_gpu_triangle.sh
+│   ├── python_gpu_triangle/  v4 authoritative (15-dim/7-terrain + validate/cross_validate/analyze/plot tools)
+│   ├── archive/          initial v4 result (f_opt 0.2624) kept for history
+│   └── scripts/          run_gpu.sh, run_gpu_triangle.sh, run_v4_*.sh
 ├── motor_control/        ODrive · AK 조향 · YOLO · US100 센서 · 텔레옵
 │   ├── drive/            구동 모터
 │   │   ├── x2212_test/   SunnySky X2212-13 + TLE5012B (ODrive USB · CAN)
