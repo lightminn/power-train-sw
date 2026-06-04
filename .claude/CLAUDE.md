@@ -26,9 +26,10 @@ Defence_Robot/
 │   │   ├── x2212_test/   SunnySky X2212-13 + TLE5012B (ODrive USB · CAN)
 │   │   └── bl70200/      BL70200 + 내장 HALL ×3 (실전, ODrive USB·CAN)
 │   ├── steering/         AK40/AK45 조향 (CAN, 동일 API)
-│   ├── vision/           모터 명령 없는 검출·스트리밍
+│   ├── vision/           검출·스트리밍 (YOLO + RealSense D435i depth/color)
 │   ├── sensors/          US100 거리 (UART /dev/ttyTHS1)
-│   ├── corner_module/    코너 모듈 패키지 (조향+구동 협조 제어 + DualSense 텔레옵)
+│   ├── safety_us100/     US-100 충돌방지 안전 모듈 (거리→safe/warn/stop, publish-only)
+│   ├── corner_module/    코너 모듈 패키지 (조향+구동 협조 제어 + US-100 게이팅 텔레옵)
 │   ├── laptop/           Laptop-side TCP teleop clients (DualSense → robot)
 │   └── pi/               Raspberry-Pi-side servers (paired 1:1 with laptop/)
 ├── motor_gui/            웹 진단 GUI (FastAPI + 트랜스포트 추상화, AK/ODrive CAN·USB)
@@ -65,14 +66,21 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   (CAN RX 디버깅). 사전 준비: `bash scripts/can_setup.sh`.
 - **vision/** (모터 명령 없음): `yolo_openvino_detection.py` (x86 OpenVINO),
   `yolo_cuda_stream.py` (Jetson CUDA/TRT + GStreamer UDP H.264 송신 — 수신은
-  `scripts/recv_stream.sh`), `setup_yolo_env.sh` (x86 conda, Docker 권장).
+  `scripts/recv_stream.sh`), `realsense_test.py` (RealSense D435i depth+color 점검),
+  `realsense_stream.py` (RealSense color+depth UDP H.264 송신 — sidebyside/overlay),
+  `setup_yolo_env.sh` (x86 conda, Docker 권장).
 - **sensors/** (UART `/dev/ttyTHS1`): `us100_basic.py` (US100 0x55 기본),
   `us100_robust.py` (Jetson UART TX 떨림 버그 우회 — 0xFF prefix).
+- **safety_us100/** (US-100 충돌방지, publish-only): 거리→`safe`/`warn`/`stop` 판정만
+  내보냄(모터 직접 제어 X). `evaluator`/`safety_monitor`/`verdict`/`config`(stop 200/warn 400/
+  hyst 30mm), `us100.py`(실센서), `fake_sensor`+`tests`, `demo.py`. 못 읽으면 fail-safe `stop`.
+  코너 모듈 텔레옵이 물려 `stop` 시 구동 0.
 - **corner_module/** (조향+구동 협조 제어 패키지, 코너 1개 = 로커보기 1/6): `corner_module.py`
   (`CornerModule` — 상태머신·워치독·estop·과전류 트립·폐루프 점프방지), `actuator.py`
   (트랜스포트 무관 `Actuator`/`SteerActuator`/`DriveActuator` ABC), `steer_ak40.py`(AK CAN)·
   `drive_odrive_usb.py`(현재)·`drive_odrive_can.py`(추후 스텁) 드라이버, `fake.py`(무하드웨어
-  테스트 더블), `teleop_dualsense.py` (`python3 -m corner_module.teleop_dualsense`). 단위테스트
+  테스트 더블), `teleop_dualsense.py` (`python3 -m corner_module.teleop_dualsense`;
+  US-100 충돌방지 연동 — `stop` 판정 시 구동 0). 단위테스트
   24 + HIL(조향·구동·통합·텔레옵) 검증. 미래 4WS 애커만 키네마틱스 레이어의 빌딩블록.
 - **Networked teleop** (1:1 pairs): `laptop/laptop_client_*.py` ↔ `pi/pi_server_*.py`
   (TCP `:9000`, newline-delimited `%.4f\n` velocity); `laptop_client_video.py` adds
@@ -96,8 +104,10 @@ import(예: `ak_control`)하지만 **`motor_control` 이 `motor_gui` 를 import 
 `docker/Dockerfile.jetson` + `docker/docker-compose.jetson.yml` build on top of
 `dustynv/l4t-pytorch:r36.4.0` (CUDA + cuDNN + TensorRT + ARM PyTorch). Compose
 file mounts `/dev`, NVENC GStreamer plugin, and runs `privileged: true` so V4L2
-cameras + USB devices are accessible from the container. Vision/streaming entry
-point is `motor_control/vision/yolo_cuda_stream.py`; the laptop runs
+cameras + USB devices are accessible from the container. The image also source-builds
+the **Intel RealSense SDK** (librealsense + pyrealsense2, RSUSB backend) for the D435i
+RGB-D camera. Vision/streaming entry points are `motor_control/vision/yolo_cuda_stream.py`
+and `realsense_stream.py` (color+depth); the laptop runs
 `scripts/recv_stream.sh <port>` to display the decoded stream. Background and
 verification log: `docs/specs/2026-05-08-jetson-yolo-stream-design.md`,
 `docs/plans/2026-05-08-jetson-yolo-stream-plan.md`. Hardware reinventory + folder
@@ -111,4 +121,5 @@ reorg (5/20): `docs/specs/2026-05-20-motor-control-reorg-design.md`,
 - Total mass: ~86 kg (설계 추정; 여유 포함 최대 100 kg, Notion 기준)
 - Drive motor (test): SunnySky X2212-13 + TLE5012B 16384 CPR encoder
 - Drive motor (real): BL70200 + internal HALL ×3 (pp=5, cpr=30)
+- RGB-D camera: Intel RealSense D435i (USB3, depth+color — 메인 비전·거리측정; US-100은 보조 충돌방지)
 - Steering: CubeMars AK40-10 (test, 10:1) / AK45-36 (real, 36:1; peak 24 Nm, rated 8 Nm, KV80, peak current 65 A, backlash 12 arcmin, back-drive 0.8 Nm), CAN bus, identical API. 모터 프로파일은 `ak_control.py`의 `MOTOR_PROFILES`/`ACTIVE_MOTOR`로 전환

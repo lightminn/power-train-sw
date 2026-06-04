@@ -33,6 +33,7 @@ python3 -m corner_module.teleop_dualsense   # 패키지 모듈로 실행(직접 
 □=arm/disarm, ○=estop, 좌스틱 X=조향, RT/LT=전/후진.
 DualSense 축/버튼 매핑(HIL 검증): 좌스틱X=axis0, RT=axis4, LT=axis3, □=btn0, ○=btn2.
 헤드리스(컨테이너)에서는 SDL 더미 드라이버를 main()이 자동 설정.
+US-100 충돌방지(`safety_us100`) 연동: `stop` 판정 시 구동을 0으로 막는다(센서 미연결이면 항상 `stop` → 구동 안 함).
 
 ## 미래 (본 라이브러리 범위 밖)
 - `drive_odrive_can.py` 구현 (CAN-only 전환)
