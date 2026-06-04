@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>ZETIN v4 — Rocker-Bogie 뷰어 (살짝 개선)</title>
+<style>
+  :root{
+    --bg:#0e1420; --panel:#161e2d; --line:#2a3650; --ink:#e6ecf5; --mute:#8a96b0;
+    --acc:#5dd6ff; --acc2:#ffb454; --good:#5be4a7; --bad:#ff6b88;
+    --ang:#c896ff; --bodyDim:#7be59d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);}
+  .wrap{display:grid;grid-template-columns:420px 1fr;gap:0;height:100vh}
+  .sidebar{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:14px}
+  .canvas-area{display:flex;flex-direction:column;overflow:hidden}
+  .stage{flex:1;background:#0a0f18;position:relative;overflow:hidden}
+  .info-bar{background:var(--panel);border-top:1px solid var(--line);padding:8px 14px;display:flex;gap:18px;flex-wrap:wrap;font-size:13px}
+  .info-bar b{color:var(--acc)}
+  h2{font-size:14px;margin:6px 0 10px;color:var(--acc);letter-spacing:.5px;text-transform:uppercase}
+  h3{font-size:12px;margin:14px 0 6px;color:var(--acc2);letter-spacing:.4px;text-transform:uppercase;border-bottom:1px solid var(--line);padding-bottom:3px}
+  .ctl{display:grid;grid-template-columns:88px 1fr 78px 32px;gap:6px;align-items:center;margin:5px 0;font-size:11px}
+  .ctl label{color:var(--mute);font-family:monospace}
+  .ctl input[type=number]{background:#0b121e;color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:3px 5px;font-size:11px;width:100%;font-family:monospace}
+  .ctl input[type=range]{width:100%;accent-color:var(--acc)}
+  .ctl span.u{color:var(--mute);font-size:10px;text-align:left}
+  .toggle{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:12px;color:var(--ink);cursor:pointer}
+  .toggle input{width:16px;height:16px;cursor:pointer}
+  table{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;font-family:monospace}
+  th,td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left}
+  th{color:var(--acc2);font-weight:600;background:#0b121e}
+  td.v{color:var(--good)}
+  td.v.k{color:var(--acc)}
+  button.copy{background:#0b121e;color:var(--acc);border:1px solid var(--line);border-radius:3px;padding:2px 6px;cursor:pointer;font-size:10px}
+  button.copy:hover{background:var(--acc);color:#000}
+  button.copy.ok{background:var(--good);color:#000;border-color:var(--good)}
+  .copy-all{width:100%;margin-top:8px;padding:6px;background:var(--acc);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px}
+  .copy-all:hover{background:#3bbde0}
+  .legend{font-size:10.5px;color:var(--mute);line-height:1.5;margin-top:6px}
+  .note{font-size:10.5px;color:var(--mute);margin:4px 0 8px;padding:4px 6px;background:#0b121e;border-left:2px solid var(--acc2);border-radius:2px}
+  svg{width:100%;height:100%;display:block}
+  .grid line{stroke:#1a2535;stroke-width:.5}
+  .ground{stroke:#3a4a6c;stroke-width:2;stroke-dasharray:6 4}
+  .body-rect{fill:#1a2740;stroke:var(--acc);stroke-width:2}
+  .beam{stroke:var(--acc);stroke-width:5;stroke-linecap:round}
+  .leg{stroke:var(--acc2);stroke-width:4;stroke-linecap:round}
+  .leg.kin{stroke-dasharray:5 4;opacity:.45;stroke-width:2.5}
+  .bogie-leg{stroke:#ff8fb0;stroke-width:4;stroke-linecap:round}
+  .bogie-leg.kin{stroke-dasharray:5 4;opacity:.45;stroke-width:2.5}
+  .pivot{fill:#fff;stroke:#000;stroke-width:1}
+  .pivot.body{fill:var(--bad);stroke:#000}
+  .wheel-tire{fill:#1a1a1a;stroke:#444;stroke-width:1.5}
+  .wheel-rim{fill:#777;stroke:#333;stroke-width:1}
+  .wheel-hub{fill:#222;stroke:#555}
+  .label{fill:var(--mute);font-size:11px;font-family:monospace}
+  .dim{stroke:var(--bad);stroke-width:1;fill:none}
+  .dim-text{fill:var(--bad);font-size:11px;font-family:monospace;font-weight:600}
+  .dim-body{stroke:var(--bodyDim);stroke-width:1;fill:none}
+  .dim-body-text{fill:var(--bodyDim);font-size:11px;font-family:monospace;font-weight:600}
+  .dim-motor{stroke:#ffe066;stroke-width:1;fill:none}
+  .dim-motor-text{fill:#ffe066;font-size:11.5px;font-family:monospace;font-weight:700}
+  .ang-arc{stroke:var(--ang);stroke-width:1.5;fill:none}
+  .ang-text{fill:var(--ang);font-size:11.5px;font-family:monospace;font-weight:700}
+  .hover-target{stroke:#fff;stroke-opacity:0.001;stroke-width:22;cursor:pointer;fill:none;pointer-events:stroke}
+  #tip{position:absolute;background:#0b121e;border:1px solid var(--acc);color:var(--acc);
+       padding:5px 9px;border-radius:4px;font-family:monospace;font-size:12px;
+       pointer-events:none;display:none;z-index:99;font-weight:600;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside class="sidebar">
+    <h2>ZETIN v4 — 살짝 개선판 (j_r↓·T_r↑·S_r1↑)</h2>
+    <div class="note">입력값은 <b>Bracket pivot 기준 실제 링크 치수</b>입니다. kinematic(휠중심) 값은 자동 계산되어 표에 표시됩니다. <b>M1=FRONT(좌)</b>, M3=REAR(우).</div>
+
+    <label class="toggle"><input type="checkbox" id="showKin" checked> Kinematic(휠중심) 라인</label>
+    <label class="toggle"><input type="checkbox" id="showBracket" checked> Bracket 도형</label>
+    <label class="toggle"><input type="checkbox" id="showOuter" checked> 전체 치수 (L/H/WB)</label>
+    <label class="toggle"><input type="checkbox" id="showMotor" checked> 모터 간 거리 (M1-M2, M2-M3)</label>
+    <label class="toggle"><input type="checkbox" id="showAngle" checked> 각도 (th_r1, th_r2, beta_b)</label>
+    <label class="toggle"><input type="checkbox" id="showBodyDim"> Body 세부 치수</label>
+
+    <h3>Body / Pivot 위치</h3>
+    <div id="grpBody"></div>
+
+    <h3>Rocker (frame, bracket-기준)</h3>
+    <div id="grpRocker"></div>
+
+    <h3>Bogie (triangle, bracket-기준)</h3>
+    <div id="grpBogie"></div>
+
+    <h3>Wheel-Fork Bracket (mm)</h3>
+    <div id="grpBracket"></div>
+    <div class="legend">도면 기준: 외폭 115/내폭 105, top 80×102, side 135×58, Ø8 pivot, M14 axle. 휠 Ø200 고정.</div>
+
+    <h3>치수표 (copy)</h3>
+    <table id="paramTable"></table>
+    <button class="copy-all" onclick="copyAll()">전체 복사 (CSV)</button>
+  </aside>
+
+  <div class="canvas-area">
+    <div class="stage">
+      <svg id="svg" viewBox="0 0 1400 800" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="tip"></div>
+    </div>
+    <div class="info-bar">
+      <span>전체 길이: <b id="totLen">—</b> mm</span>
+      <span>전체 높이: <b id="totHt">—</b> mm</span>
+      <span>휠베이스(F-R): <b id="wb">—</b> mm</span>
+      <span>차체 바닥↔ground: <b id="grd">—</b> mm</span>
+      <span style="color:var(--mute)">|  사이드뷰 (← forward, M1=front=좌측)</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const PARAMS = [
+  ['pivot_x',  'pivot_x',  0, 1, 0.01, 0.55, '0~1', 'Body'],
+  ['pivot_y',  'pivot_y',  0, 1, 0.01, 0.65, '0~1', 'Body'],
+  ['T_r',      'T_r',      0.20, 0.50, 0.001, 0.27, 'm', 'Rocker'],
+  ['S_r1',     'S_r1',     0.10, 0.45, 0.001, 0.255, 'm', 'Rocker'],
+  ['S_r2',     'S_r2',     0.10, 0.65, 0.001, 0.209, 'm', 'Rocker'],
+  ['th_r1',    'th_r1',    0, 90, 0.1, 40.0, 'deg', 'Rocker'],
+  ['th_r2',    'th_r2',    0, 90, 0.1, 62.0, 'deg', 'Rocker'],
+  ['j_r',      'j_r',      0.20, 0.80, 0.005, 0.45, '—', 'Rocker'],
+  ['L_b1',     'L_b1',     0.10, 0.40, 0.001, 0.22, 'm', 'Bogie'],
+  ['L_b2',     'L_b2',     0.10, 0.40, 0.001, 0.22, 'm', 'Bogie'],
+  ['beta_b',   'beta_b',   30, 170, 0.5, 127.56, 'deg', 'Bogie'],
+  ['brk_v',    'pivot→axle V', 50, 200, 1, 135, 'mm', 'Bracket'],
+  ['brk_h',    'pivot→axle H', -50, 50, 1, 0,   'mm', 'Bracket'],
+  ['brk_w',    '외폭',         80, 160, 1, 115, 'mm', 'Bracket'],
+  ['brk_t',    'top plate t',  2, 15, 0.5, 5,   'mm', 'Bracket'],
+];
+const GROUPS = {Body:'grpBody', Rocker:'grpRocker', Bogie:'grpBogie', Bracket:'grpBracket'};
+const BODY_W = 0.500, BODY_H = 0.300, R_W = 0.100;
+
+PARAMS.forEach(p => {
+  const [id, lbl, mn, mx, st, dv, u, grp] = p;
+  const div = document.createElement('div');
+  div.className = 'ctl';
+  div.innerHTML = `
+    <label>${lbl}</label>
+    <input type="range"  id="r_${id}" min="${mn}" max="${mx}" step="${st}" value="${dv}">
+    <input type="number" id="n_${id}" min="${mn}" max="${mx}" step="${st}" value="${dv}">
+    <span class="u">${u}</span>`;
+  document.getElementById(GROUPS[grp]).appendChild(div);
+  const r = document.getElementById('r_'+id);
+  const n = document.getElementById('n_'+id);
+  r.addEventListener('input', () => { n.value = r.value; render(); });
+  n.addEventListener('input', () => { r.value = n.value; render(); });
+});
+['showKin','showBracket','showOuter','showMotor','showAngle','showBodyDim'].forEach(id =>
+  document.getElementById(id).addEventListener('change', render));
+
+const $ = id => document.getElementById(id);
+const D2R = Math.PI/180, R2D = 180/Math.PI;
+
+function getP(){
+  const p = {};
+  PARAMS.forEach(P => p[P[0]] = parseFloat($('n_'+P[0]).value));
+  ['showKin','showBracket','showOuter','showMotor','showAngle','showBodyDim']
+    .forEach(id => p[id] = $(id).checked);
+  return p;
+}
+
+function compute(p){
+  const body = {
+    left:   -p.pivot_x * BODY_W,
+    right:  (1-p.pivot_x) * BODY_W,
+    bottom: -p.pivot_y * BODY_H,
+    top:    (1-p.pivot_y) * BODY_H,
+  };
+  const Lf = (1-p.j_r)*p.T_r, Lr = p.j_r*p.T_r;
+  const beam_front = {x:Lf, y:0};
+  const beam_rear  = {x:-Lr, y:0};
+  const front_bp = {
+    x: beam_front.x + p.S_r1*Math.sin(p.th_r1*D2R),
+    y: beam_front.y - p.S_r1*Math.cos(p.th_r1*D2R),
+  };
+  const bogie_piv = {
+    x: beam_rear.x - p.S_r2*Math.sin(p.th_r2*D2R),
+    y: beam_rear.y - p.S_r2*Math.cos(p.th_r2*D2R),
+  };
+  const bb = p.beta_b*D2R;
+  const mid_bp  = {x: bogie_piv.x + p.L_b1*Math.sin(bb/2), y: bogie_piv.y - p.L_b1*Math.cos(bb/2)};
+  const rear_bp = {x: bogie_piv.x - p.L_b2*Math.sin(bb/2), y: bogie_piv.y - p.L_b2*Math.cos(bb/2)};
+
+  const ox = p.brk_h/1000, oy = p.brk_v/1000;
+  const wcOf = bp => ({x: bp.x - ox, y: bp.y - oy});
+  const front_wc = wcOf(front_bp);
+  const mid_wc   = wcOf(mid_bp);
+  const rear_wc  = wcOf(rear_bp);
+
+  function fromAnchor(a, t){ const dx=t.x-a.x, dy=a.y-t.y; return {L:Math.hypot(dx,dy), th:Math.atan2(dx,dy)*R2D}; }
+  const kin = {};
+  kin.front = fromAnchor(beam_front, front_wc);
+  kin.rear  = fromAnchor(beam_rear, bogie_piv);
+  const a1 = fromAnchor(bogie_piv, mid_wc);
+  const a2 = fromAnchor(bogie_piv, rear_wc);
+  kin.Lb1=a1.L; kin.Lb2=a2.L; kin.beta=a1.th - a2.th;
+
+  const ground_y = Math.min(front_wc.y, mid_wc.y, rear_wc.y) - R_W;
+  const xMin = Math.min(front_wc.x, mid_wc.x, rear_wc.x, body.left)  - R_W*0.3;
+  const xMax = Math.max(front_wc.x, mid_wc.x, rear_wc.x, body.right) + R_W*0.3;
+  return {
+    body, beam_front, beam_rear, front_bp, mid_bp, rear_bp, bogie_piv,
+    front_wc, mid_wc, rear_wc, kin,
+    ground_y,
+    total_height: body.top - ground_y,
+    total_length: xMax - xMin,
+    wheelbase: front_wc.x - rear_wc.x,
+    body_bottom_to_ground: body.bottom - ground_y,
+    pivot_to_ground: 0 - ground_y,
+    d_m1m2: Math.hypot(front_wc.x - mid_wc.x,  front_wc.y - mid_wc.y),
+    d_m2m3: Math.hypot(mid_wc.x - rear_wc.x,   mid_wc.y - rear_wc.y),
+    xMin, xMax
+  };
+}
+
+const NS='http://www.w3.org/2000/svg';
+function el(tag, attrs={}, parent=null){
+  const e = document.createElementNS(NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  if(parent) parent.appendChild(e);
+  return e;
+}
+
+let pinned = null;
+const tip = $('tip');
+function attachHover(target, text){
+  target.addEventListener('mousemove', e=>{
+    if(pinned) return;
+    tip.textContent = text;
+    tip.style.display='block';
+    const rect = $('svg').parentElement.getBoundingClientRect();
+    tip.style.left = (e.clientX - rect.left + 12)+'px';
+    tip.style.top  = (e.clientY - rect.top  + 12)+'px';
+  });
+  target.addEventListener('mouseleave', ()=> { if(!pinned) tip.style.display='none'; });
+  target.addEventListener('click', e=>{
+    e.stopPropagation();
+    pinned = text;
+    tip.textContent = text + '  (click 외부 해제)';
+    tip.style.display='block';
+    const rect = $('svg').parentElement.getBoundingClientRect();
+    tip.style.left = (e.clientX - rect.left + 12)+'px';
+    tip.style.top  = (e.clientY - rect.top  + 12)+'px';
+  });
+}
+document.addEventListener('click', ()=>{ pinned=null; tip.style.display='none'; });
+
+function render(){
+  const p = getP();
+  const g = compute(p);
+  const svg = $('svg'); svg.innerHTML = '';
+
+  const W=1400, H=800, pad=110;
+  const xRange = (g.xMax - g.xMin)*1.18;
+  const yRange = (g.body.top - g.ground_y)*1.40;
+  const scale = Math.min((W-2*pad)/xRange, (H-2*pad)/yRange);
+  const cx = (g.xMin + g.xMax)/2, cy = (g.body.top + g.ground_y)/2;
+  // MIRROR x: world +x (forward) → screen LEFT → M1 on left
+  const tx = x => W/2 - (x-cx)*scale;
+  const ty = y => H/2 - (y-cy)*scale;
+  const s  = v => v*scale;
+
+  const grid = el('g',{class:'grid'},svg);
+  for(let i=0;i<=20;i++){
+    el('line',{x1:i*W/20,y1:0,x2:i*W/20,y2:H},grid);
+    el('line',{x1:0,y1:i*H/20,x2:W,y2:i*H/20},grid);
+  }
+
+  el('line',{x1:0,y1:ty(g.ground_y),x2:W,y2:ty(g.ground_y),class:'ground'},svg);
+  el('text',{x:10,y:ty(g.ground_y)-5,class:'label'},svg).textContent='ground';
+
+  el('rect',{x:tx(g.body.right), y:ty(g.body.top),
+             width:s(g.body.right-g.body.left), height:s(g.body.top-g.body.bottom),
+             class:'body-rect'},svg);
+  el('text',{x:tx((g.body.left+g.body.right)/2), y:ty((g.body.top+g.body.bottom)/2),
+             class:'label','text-anchor':'middle'},svg).textContent='BODY 500×300';
+
+  // beam
+  el('line',{x1:tx(g.beam_rear.x),y1:ty(g.beam_rear.y),x2:tx(g.beam_front.x),y2:ty(g.beam_front.y),class:'beam'},svg);
+  const beamHover = el('line',{x1:tx(g.beam_rear.x),y1:ty(g.beam_rear.y),x2:tx(g.beam_front.x),y2:ty(g.beam_front.y),class:'hover-target'},svg);
+  attachHover(beamHover, `T_r (beam) = ${(p.T_r*1000).toFixed(1)} mm`);
+
+  el('circle',{cx:tx(g.beam_front.x),cy:ty(g.beam_front.y),r:4,class:'pivot'},svg);
+  el('circle',{cx:tx(g.beam_rear.x), cy:ty(g.beam_rear.y), r:4,class:'pivot'},svg);
+
+  if(p.showKin){
+    el('line',{x1:tx(g.beam_front.x),y1:ty(g.beam_front.y),x2:tx(g.front_wc.x),y2:ty(g.front_wc.y),class:'leg kin'},svg);
+    el('line',{x1:tx(g.bogie_piv.x), y1:ty(g.bogie_piv.y), x2:tx(g.mid_wc.x), y2:ty(g.mid_wc.y), class:'bogie-leg kin'},svg);
+    el('line',{x1:tx(g.bogie_piv.x), y1:ty(g.bogie_piv.y), x2:tx(g.rear_wc.x),y2:ty(g.rear_wc.y),class:'bogie-leg kin'},svg);
+  }
+
+  function drawLink(a, b, klass, label){
+    el('line',{x1:tx(a.x),y1:ty(a.y),x2:tx(b.x),y2:ty(b.y),class:klass},svg);
+    const hv = el('line',{x1:tx(a.x),y1:ty(a.y),x2:tx(b.x),y2:ty(b.y),class:'hover-target'},svg);
+    attachHover(hv, label);
+  }
+  drawLink(g.beam_front, g.front_bp, 'leg',       `S_r1 = ${(p.S_r1*1000).toFixed(1)} mm  (kin: ${(g.kin.front.L*1000).toFixed(1)} mm)`);
+  drawLink(g.beam_rear,  g.bogie_piv,'leg',       `S_r2 = ${(p.S_r2*1000).toFixed(1)} mm`);
+  drawLink(g.bogie_piv,  g.mid_bp,   'bogie-leg', `L_b1 = ${(p.L_b1*1000).toFixed(1)} mm  (kin: ${(g.kin.Lb1*1000).toFixed(1)} mm)`);
+  drawLink(g.bogie_piv,  g.rear_bp,  'bogie-leg', `L_b2 = ${(p.L_b2*1000).toFixed(1)} mm  (kin: ${(g.kin.Lb2*1000).toFixed(1)} mm)`);
+
+  el('circle',{cx:tx(g.bogie_piv.x),cy:ty(g.bogie_piv.y),r:5,class:'pivot'},svg);
+  el('text',{x:tx(g.bogie_piv.x)+8,y:ty(g.bogie_piv.y)-6,class:'label'},svg).textContent='bogie-pivot';
+
+  function drawWB(wc, bp, label){
+    if(p.showBracket){
+      const top_w = p.brk_w/1000*0.7, top_t = p.brk_t/1000;
+      el('rect',{x:tx(bp.x+top_w/2),y:ty(bp.y+top_t/2),width:s(top_w),height:s(top_t),
+                 fill:'#222',stroke:'#888','stroke-width':1.2},svg);
+      el('line',{x1:tx(bp.x-top_w*0.35),y1:ty(bp.y-top_t/2),x2:tx(wc.x-R_W*0.15),y2:ty(wc.y),stroke:'#888','stroke-width':3},svg);
+      el('line',{x1:tx(bp.x+top_w*0.35),y1:ty(bp.y-top_t/2),x2:tx(wc.x+R_W*0.15),y2:ty(wc.y),stroke:'#888','stroke-width':3},svg);
+    }
+    el('circle',{cx:tx(wc.x),cy:ty(wc.y),r:s(R_W),class:'wheel-tire'},svg);
+    el('circle',{cx:tx(wc.x),cy:ty(wc.y),r:s(R_W*0.65),class:'wheel-rim'},svg);
+    el('circle',{cx:tx(wc.x),cy:ty(wc.y),r:s(R_W*0.18),class:'wheel-hub'},svg);
+    for(let k=0;k<3;k++){
+      const a=k*Math.PI/3;
+      el('line',{x1:tx(wc.x)+s(R_W*0.15)*Math.cos(a),y1:ty(wc.y)+s(R_W*0.15)*Math.sin(a),
+                 x2:tx(wc.x)+s(R_W*0.6)*Math.cos(a), y2:ty(wc.y)+s(R_W*0.6)*Math.sin(a),
+                 stroke:'#555','stroke-width':1.5},svg);
+    }
+    el('circle',{cx:tx(bp.x),cy:ty(bp.y),r:4,class:'pivot'},svg);
+    el('circle',{cx:tx(wc.x),cy:ty(wc.y),r:2,fill:'#fff'},svg);
+    el('text',{x:tx(bp.x)+6,y:ty(bp.y)-6,class:'label','font-size':10},svg).textContent=label;
+  }
+  // Now world +x renders on LEFT of screen, so front_wc(largest +x) is leftmost = M1
+  drawWB(g.front_wc, g.front_bp, 'M1 (FRONT)');
+  drawWB(g.mid_wc,   g.mid_bp,   'M2 (MID)');
+  drawWB(g.rear_wc,  g.rear_bp,  'M3 (REAR)');
+
+  el('circle',{cx:tx(0),cy:ty(0),r:6,class:'pivot body'},svg);
+  el('text',{x:tx(0)+9,y:ty(0)-9,class:'label',fill:'#ff6b88'},svg)
+    .textContent=`pivot (${p.pivot_x.toFixed(2)}, ${p.pivot_y.toFixed(2)})`;
+
+  if(p.showMotor){
+    function motorDim(a, b, label){
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const len = Math.hypot(dx,dy);
+      const nx = -dy/len, ny = dx/len;
+      const off = 28/scale;
+      const a2 = {x:a.x + nx*off, y:a.y + ny*off};
+      const b2 = {x:b.x + nx*off, y:b.y + ny*off};
+      el('line',{x1:tx(a.x),y1:ty(a.y),x2:tx(a2.x),y2:ty(a2.y),class:'dim-motor','stroke-dasharray':'3 3'},svg);
+      el('line',{x1:tx(b.x),y1:ty(b.y),x2:tx(b2.x),y2:ty(b2.y),class:'dim-motor','stroke-dasharray':'3 3'},svg);
+      el('line',{x1:tx(a2.x),y1:ty(a2.y),x2:tx(b2.x),y2:ty(b2.y),class:'dim-motor'},svg);
+      const mx = (a2.x+b2.x)/2, my = (a2.y+b2.y)/2;
+      const ang = Math.atan2(ty(b2.y)-ty(a2.y), tx(b2.x)-tx(a2.x))*R2D;
+      const ta = (Math.abs(ang)>90) ? ang+180 : ang;
+      el('text',{x:tx(mx),y:ty(my)-4,class:'dim-motor-text','text-anchor':'middle',
+                 transform:`rotate(${ta.toFixed(1)} ${tx(mx)} ${ty(my)-4})`},svg)
+        .textContent = `${label} = ${(len*1000).toFixed(1)} mm`;
+    }
+    motorDim(g.front_wc, g.mid_wc, 'M1-M2');
+    motorDim(g.mid_wc,   g.rear_wc,'M2-M3');
+  }
+
+  if(p.showAngle){
+    function screenAng(c, e){ return Math.atan2(ty(e.y)-ty(c.y), tx(e.x)-tx(c.x))*R2D; }
+    function angleArc(center, refAng, sweep, rPx, label){
+      const cx = tx(center.x), cy = ty(center.y);
+      const a0 = refAng*D2R, a1 = (refAng+sweep)*D2R;
+      const x0 = cx + rPx*Math.cos(a0), y0 = cy + rPx*Math.sin(a0);
+      const x1 = cx + rPx*Math.cos(a1), y1 = cy + rPx*Math.sin(a1);
+      const large = Math.abs(sweep)>180?1:0;
+      const sw = sweep>0?1:0;
+      el('path',{d:`M ${x0} ${y0} A ${rPx} ${rPx} 0 ${large} ${sw} ${x1} ${y1}`,class:'ang-arc'},svg);
+      const am = (a0+a1)/2;
+      const lr = rPx+14;
+      el('text',{x:cx+lr*Math.cos(am),y:cy+lr*Math.sin(am)+4,class:'ang-text','text-anchor':'middle'},svg)
+        .textContent=label;
+    }
+    {
+      const refAng = 90;
+      const linkAng = screenAng(g.beam_front, g.front_bp);
+      let sweep = linkAng - refAng;
+      if(sweep>180)sweep-=360; if(sweep<-180)sweep+=360;
+      angleArc(g.beam_front, refAng, sweep, 38, `th_r1=${p.th_r1.toFixed(1)}°`);
+    }
+    {
+      const refAng = 90;
+      const linkAng = screenAng(g.beam_rear, g.bogie_piv);
+      let sweep = linkAng - refAng;
+      if(sweep>180)sweep-=360; if(sweep<-180)sweep+=360;
+      angleArc(g.beam_rear, refAng, sweep, 38, `th_r2=${p.th_r2.toFixed(1)}°`);
+    }
+    {
+      const a1 = screenAng(g.bogie_piv, g.mid_bp);
+      const a2 = screenAng(g.bogie_piv, g.rear_bp);
+      let sweep = a1 - a2;
+      if(sweep>180)sweep-=360; if(sweep<-180)sweep+=360;
+      angleArc(g.bogie_piv, a2, sweep, 50, `β_b=${p.beta_b.toFixed(1)}°`);
+    }
+  }
+
+  if(p.showOuter){
+    const yD = ty(g.ground_y) + 38;
+    el('line',{x1:tx(g.xMin),y1:yD,x2:tx(g.xMax),y2:yD,class:'dim'},svg);
+    el('line',{x1:tx(g.xMin),y1:yD-5,x2:tx(g.xMin),y2:yD+5,class:'dim'},svg);
+    el('line',{x1:tx(g.xMax),y1:yD-5,x2:tx(g.xMax),y2:yD+5,class:'dim'},svg);
+    el('text',{x:(tx(g.xMin)+tx(g.xMax))/2,y:yD-4,class:'dim-text','text-anchor':'middle'},svg)
+      .textContent=`L = ${(g.total_length*1000).toFixed(0)} mm`;
+    const xD = Math.max(tx(g.xMin), tx(g.xMax)) + 42;
+    el('line',{x1:xD,y1:ty(g.body.top),x2:xD,y2:ty(g.ground_y),class:'dim'},svg);
+    el('line',{x1:xD-5,y1:ty(g.body.top),x2:xD+5,y2:ty(g.body.top),class:'dim'},svg);
+    el('line',{x1:xD-5,y1:ty(g.ground_y),x2:xD+5,y2:ty(g.ground_y),class:'dim'},svg);
+    el('text',{x:xD+4,y:(ty(g.body.top)+ty(g.ground_y))/2,class:'dim-text'},svg)
+      .textContent=`H = ${(g.total_height*1000).toFixed(0)} mm`;
+    const yW = ty(g.ground_y) - 16;
+    el('line',{x1:tx(g.rear_wc.x),y1:yW,x2:tx(g.front_wc.x),y2:yW,class:'dim'},svg);
+    el('text',{x:(tx(g.rear_wc.x)+tx(g.front_wc.x))/2,y:yW-4,class:'dim-text','text-anchor':'middle'},svg)
+      .textContent=`WB = ${(g.wheelbase*1000).toFixed(0)} mm`;
+  }
+
+  if(p.showBodyDim){
+    const bd = g.body;
+    const yTop = ty(bd.top) - 24;
+    el('line',{x1:tx(bd.left),y1:yTop,x2:tx(bd.right),y2:yTop,class:'dim-body'},svg);
+    el('line',{x1:tx(bd.left),y1:yTop-5,x2:tx(bd.left),y2:yTop+5,class:'dim-body'},svg);
+    el('line',{x1:tx(bd.right),y1:yTop-5,x2:tx(bd.right),y2:yTop+5,class:'dim-body'},svg);
+    el('text',{x:(tx(bd.left)+tx(bd.right))/2,y:yTop-4,class:'dim-body-text','text-anchor':'middle'},svg)
+      .textContent=`Body W = ${(BODY_W*1000).toFixed(0)} mm`;
+    const xLeft = Math.min(tx(bd.left),tx(bd.right)) - 26;
+    el('line',{x1:xLeft,y1:ty(bd.top),x2:xLeft,y2:ty(bd.bottom),class:'dim-body'},svg);
+    el('line',{x1:xLeft-5,y1:ty(bd.top),x2:xLeft+5,y2:ty(bd.top),class:'dim-body'},svg);
+    el('line',{x1:xLeft-5,y1:ty(bd.bottom),x2:xLeft+5,y2:ty(bd.bottom),class:'dim-body'},svg);
+    el('text',{x:xLeft-4,y:(ty(bd.top)+ty(bd.bottom))/2,class:'dim-body-text','text-anchor':'end'},svg)
+      .textContent=`Body H = ${(BODY_H*1000).toFixed(0)} mm`;
+    const yPiv = ty(0) + 18;
+    el('line',{x1:tx(bd.left),y1:yPiv,x2:tx(0),y2:yPiv,class:'dim-body'},svg);
+    el('text',{x:(tx(bd.left)+tx(0))/2,y:yPiv-3,class:'dim-body-text','text-anchor':'middle'},svg)
+      .textContent=`px = ${(p.pivot_x*BODY_W*1000).toFixed(0)} mm`;
+    const xPiv = tx(0) + 18;
+    el('line',{x1:xPiv,y1:ty(bd.bottom),x2:xPiv,y2:ty(0),class:'dim-body'},svg);
+    el('text',{x:xPiv+4,y:(ty(bd.bottom)+ty(0))/2,class:'dim-body-text'},svg)
+      .textContent=`py = ${(p.pivot_y*BODY_H*1000).toFixed(0)} mm`;
+    const xBG = Math.max(tx(bd.left),tx(bd.right)) + 22;
+    el('line',{x1:xBG,y1:ty(bd.bottom),x2:xBG,y2:ty(g.ground_y),class:'dim-body'},svg);
+    el('text',{x:xBG+4,y:(ty(bd.bottom)+ty(g.ground_y))/2,class:'dim-body-text'},svg)
+      .textContent=`body↔grnd = ${(g.body_bottom_to_ground*1000).toFixed(0)} mm`;
+    const xPG = Math.max(tx(bd.left),tx(bd.right)) + 110;
+    el('line',{x1:xPG,y1:ty(0),x2:xPG,y2:ty(g.ground_y),class:'dim-body'},svg);
+    el('text',{x:xPG+4,y:(ty(0)+ty(g.ground_y))/2,class:'dim-body-text'},svg)
+      .textContent=`pivot↔grnd = ${(g.pivot_to_ground*1000).toFixed(0)} mm`;
+  }
+
+  $('totLen').textContent = (g.total_length*1000).toFixed(1);
+  $('totHt').textContent  = (g.total_height*1000).toFixed(1);
+  $('wb').textContent     = (g.wheelbase*1000).toFixed(1);
+  $('grd').textContent    = (g.body_bottom_to_ground*1000).toFixed(1);
+
+  buildTable(p, g);
+}
+
+function buildTable(p, g){
+  const rows = [
+    ['카테고리','파라미터','입력 (bracket)','파생 (kinematic)','단위'],
+    ['Body','BODY (W×H 고정)','500 × 300','—','mm'],
+    ['Body','pivot_x',                p.pivot_x.toFixed(3),               p.pivot_x.toFixed(3),              '—'],
+    ['Body','pivot_y',                p.pivot_y.toFixed(3),               p.pivot_y.toFixed(3),              '—'],
+    ['Rocker','T_r',                  p.T_r.toFixed(4),                   p.T_r.toFixed(4),                  'm'],
+    ['Rocker','S_r1',                 p.S_r1.toFixed(4),                  g.kin.front.L.toFixed(4),          'm'],
+    ['Rocker','S_r2',                 p.S_r2.toFixed(4),                  p.S_r2.toFixed(4),                 'm'],
+    ['Rocker','th_r1',                p.th_r1.toFixed(2),                 g.kin.front.th.toFixed(2),         'deg'],
+    ['Rocker','th_r2',                p.th_r2.toFixed(2),                 p.th_r2.toFixed(2),                'deg'],
+    ['Rocker','j_r',                  p.j_r.toFixed(3),                   p.j_r.toFixed(3),                  '—'],
+    ['Bogie','L_b1',                  p.L_b1.toFixed(4),                  g.kin.Lb1.toFixed(4),              'm'],
+    ['Bogie','L_b2',                  p.L_b2.toFixed(4),                  g.kin.Lb2.toFixed(4),              'm'],
+    ['Bogie','beta_b',                p.beta_b.toFixed(2),                g.kin.beta.toFixed(2),             'deg'],
+    ['Bracket','pivot→axle V',        p.brk_v.toFixed(1),                 '—',                                'mm'],
+    ['Bracket','pivot→axle H',        p.brk_h.toFixed(1),                 '—',                                'mm'],
+    ['파생','M1-M2 거리',             (g.d_m1m2*1000).toFixed(1),         (g.d_m1m2*1000).toFixed(1),        'mm'],
+    ['파생','M2-M3 거리',             (g.d_m2m3*1000).toFixed(1),         (g.d_m2m3*1000).toFixed(1),        'mm'],
+    ['파생','전체 길이',              (g.total_length*1000).toFixed(1),   (g.total_length*1000).toFixed(1),  'mm'],
+    ['파생','전체 높이',              (g.total_height*1000).toFixed(1),   (g.total_height*1000).toFixed(1),  'mm'],
+    ['파생','휠베이스',               (g.wheelbase*1000).toFixed(1),      (g.wheelbase*1000).toFixed(1),     'mm'],
+    ['파생','차체 바닥 ↔ ground',     (g.body_bottom_to_ground*1000).toFixed(1), (g.body_bottom_to_ground*1000).toFixed(1), 'mm'],
+    ['파생','pivot ↔ ground',         (g.pivot_to_ground*1000).toFixed(1),(g.pivot_to_ground*1000).toFixed(1),'mm'],
+  ];
+  let html = '<thead><tr>'+rows[0].map(h=>`<th>${h}</th>`).join('')+'<th></th></tr></thead><tbody>';
+  for(let i=1;i<rows.length;i++){
+    const r = rows[i];
+    html += `<tr><td>${r[0]}</td><td>${r[1]}</td><td class="v">${r[2]}</td><td class="v k">${r[3]}</td><td>${r[4]}</td>
+      <td><button class="copy" data-v="${r[2]}">⧉</button></td></tr>`;
+  }
+  html += '</tbody>';
+  $('paramTable').innerHTML = html;
+  $('paramTable').querySelectorAll('button.copy').forEach(b=>{
+    b.onclick=()=>{
+      navigator.clipboard.writeText(b.dataset.v);
+      b.classList.add('ok'); b.textContent='✓';
+      setTimeout(()=>{b.classList.remove('ok'); b.textContent='⧉';},900);
+    };
+  });
+}
+
+function copyAll(){
+  const rows=[...document.querySelectorAll('#paramTable tbody tr')].map(tr=>
+    [...tr.children].slice(0,5).map(td=>td.textContent.trim()).join(','));
+  const csv='카테고리,파라미터,입력(bracket),파생(kinematic),단위\n'+rows.join('\n');
+  navigator.clipboard.writeText(csv);
+  const btn=document.querySelector('.copy-all');
+  const old=btn.textContent;
+  btn.textContent='✓ 복사됨';
+  setTimeout(()=>btn.textContent=old,1100);
+}
+
+render();
+</script>
+</body>
+</html>

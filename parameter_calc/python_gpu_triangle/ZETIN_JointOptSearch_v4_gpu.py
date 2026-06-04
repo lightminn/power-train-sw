@@ -5,6 +5,8 @@ Rocker x Bogie 전체 파라미터 최적 탐색 — 삼각형/사각형 동시 
 v3 대비 변경사항:
   - x[0] (rocker_mode): 1=triangle, 2=frame  (기존: 2로 고정 → 이제 자유 탐색)
   - x[1] (bogie_mode):  1=triangle, 2=frame  (기존: 2로 고정 → 이제 자유 탐색)
+  - x[14] (brk_v): 브래킷 피벗 → 휠 축 수직 오프셋 (m). 탐색 범위 0.345~0.375.
+                   링크 끝점 = 브래킷 피벗으로 해석되며, 휠 축은 그 아래 brk_v.
   - 4가지 모드 조합 (frame-frame, frame-tri, tri-frame, tri-tri) 동시 탐색
   - JAX lax.switch가 모든 모드 분기를 단일 컴파일로 처리
 
@@ -30,10 +32,10 @@ import jax.numpy as jnp
 print(f'JAX devices: {jax.devices()}')
 print(f'JAX default backend: {jax.default_backend()}')
 
-# python_gpu/functions/ 공유 사용 (코드 중복 없이)
+# python_gpu_triangle/functions/ 로컬 사용 (v4 전용 fork — v3 동결 유지).
+# v3 결과(zetin_optimal_params_v3.pkl) 재현은 ../python_gpu/ 디렉토리에서 수행할 것.
 script_dir = os.path.dirname(os.path.abspath(__file__))
-gpu_dir = os.path.join(script_dir, '..', 'python_gpu')
-sys.path.insert(0, gpu_dir)
+sys.path.insert(0, script_dir)
 
 from functions.gen_terrain import gen_terrain
 from functions.calc_envelope_jax import calc_envelope_gpu
@@ -51,21 +53,46 @@ np.random.seed(2026)
 # ═══════════════════════════════════════
 # [SECTION 1] 공통 파라미터 (v3과 동일)
 # ═══════════════════════════════════════
+# Phase 2 모터 변경: D6374+외부5:1 → BL70200 8" 인휠 BLDC (내장 1:5 hub motor).
+# 48V 시스템: 휠 측 정격 22Nm / 피크 39Nm / 무부하 240 RPM (= 25.1 rad/s = 2.51 m/s linear).
+# 0.5 km/h(0.14 m/s) 이하 지속운전 부적합. m_wheel 4.5kg = 모터 포함 휠 단위.
 p0 = {
-    'R_w': 0.100, 'h_body': 0.300, 'mass': 30, 'g': 9.81,
-    'obs_h': 0.150, 'mu': 0.70, 'gear_ratio': 5, 'eta_gear': 0.85,
-    'motor_tau_peak': 4.95, 'motor_tau_cont': 2.75, 'Kt': 0.055,
-    'm_wheel': 3.5, 'm_rocker_link': 1.5, 'm_bogie_link': 0.8,
-    'I_rocker_add': 0, 'I_bogie_add': 0, 'e_restitution': 0.3,
-    'v_robot': 0.8, 'v_max_flat': 2.0, 'step_thresh': 5.0,
-    'phi_r0': 0, 'delta_pb': 0, 'CG_offset': 0,
+    'R_w': 0.100, 'h_body': 0.300, 'mass': 50, 'g': 9.81,
+    'obs_h': 0.150, 'mu': 0.70,
+    # 인휠 모터: 외부 기어 없음 (내장 1:5는 사양 토크값에 이미 포함).
+    'gear_ratio': 1.0, 'eta_gear': 1.0,
+    'motor_tau_peak': 39.0,    # 휠 측 피크 (Nm)
+    'motor_tau_cont': 22.0,    # 휠 측 정격 (Nm)
+    'omega_no_load_rpm': 240.0,# 휠 측 무부하 RPM @ 48V (= 25.1 rad/s)
+    'V_bus': 48.0,             # 배터리 전압
+    'v_min_advisable': 0.14,   # 0.5 km/h, 이하 지속운전 부적합
+    # Phase 3+ (B-2): 배터리 전류 한계. 모터 정격 9A × 6 = 54A 이론치, 보수적 30A.
+    'Kt_eff': 22.0 / 9.0,      # 휠 측 τ/I (Nm/A) — BL70200 정격 22Nm @ 9A
+    'battery_max_current': 30.0,
+    'n_wheel_total': 6,
+    'm_wheel': 4.5,            # 휠+모터 일체 단위 (이전 3.5kg 휠만)
+    'm_rocker_link': 2.5,      # 본체 50kg에 맞춰 링크 질량도 상향 (이전 1.5)
+    'm_bogie_link': 1.5,       # 이전 0.8
+    # 링크 외 추가 관성 (브래킷, 케이블, 마운트 등 추정 — 실측 시 갱신).
+    'I_rocker_add': 0.15, 'I_bogie_add': 0.08,
+    'e_restitution': 0.3,
+    # Phase 1: 사다리꼴 속도 프로파일 — 가속/감속 한계 명시.
+    'v_robot': 0.8, 'v_max': 0.8, 'a_lim': 1.5, 'v_max_flat': 2.0,
+    'step_thresh': 5.0,
+    'phi_r0': 0, 'delta_pb': 0,
+    # Phase 1: 비대칭 CG — 배터리/모터/탑재물이 전방으로 50mm 편위 가정.
+    # h_body=300mm, mass=50kg: 본체 중심 0.18m 위 가정.
+    'CG_offset': 0.050,
+    # Phase 3+ Tier C-2: 휠 접촉 패치 폭 (m). BL70200 8" 70mm 폭 타이어 기준.
+    # 단단한 노면 ~3cm, 부드러운 노면 ~5cm. 보수적 3cm.
+    'patch_width': 0.030,
 }
 p0['h_CG'] = p0['h_body'] * 0.55
 
 # ═══════════════════════════════════════
 # [SECTION 2] 목적함수 설계 상수 (v3과 동일)
 # ═══════════════════════════════════════
-TAU_REF = 1.85
+TAU_REF = 15.0   # 휠 측 Nm — 신규 모터(BL70200) 정격 22Nm의 ~68% 기준. (이전 1.85 모터측)
 IMBAL_REF = 10
 SN_REF = 35
 WBOT_MIN = 0.400
@@ -73,11 +100,68 @@ WBOT_MAX = 0.700
 FAIL_MAX = 0.10
 LIFTOFF_MAX = 0.02
 TOI_WARN = 0.20
-P0_HEIGHT_MAX = 0.500
+P0_HEIGHT_MAX = 0.900  # brk_v(≤0.375m) 추가로 P0 평지높이 상한 확대
+# Phase 2 인휠 모터 변경: 휠 측 직접 토크 기준. gear_ratio=1, eta=1이므로 휠=모터.
+TAU_MOTOR_SAT = p0['motor_tau_peak']  # 39 Nm (BL70200 휠 측 피크)
 
-W = {'tau': 0.25, 'imbal': 0.20, 'stab': 0.30, 'sn': 0.15, 'fail': 0.10}
-W_terrain = {'stairs': 0.55, 'wood': 0.20, 'rough': 0.15, 'step': 0.10}
-N_PTS = 160
+# v4 Phase 3+ 재분배 — 'cont'(연속토크), 'batt'(배터리), 'stuck'(시스템견인) 추가.
+# 합 1.0 유지. 에너지는 보고용 (objective 미포함).
+W = {'tau': 0.12, 'imbal': 0.08, 'stab': 0.18, 'sn': 0.06, 'fail': 0.10,
+     'sat': 0.12, 'slip': 0.12,
+     'cont': 0.10,   # 연속 정격 토크 (열적 한계)
+     'batt': 0.06,   # 배터리 전류 한계
+     'stuck': 0.06}  # 시스템 견인력 부족
+# v4 Phase 2 확장: 경사 슬로프 2종 추가, 기존 항목에서 5%씩 가져와 10% 할당.
+W_terrain = {'stairs': 0.45, 'wood': 0.12, 'rough': 0.13, 'step': 0.10,
+             'curved_ramp': 0.10, 'incline_15': 0.05, 'incline_30': 0.05}
+# v4 Phase 2c+2d: 지형별 정상 마찰계수 — 실제 표면 특성 반영.
+MU_TERRAIN = {
+    'flat': 0.70, 'step': 0.65, 'stairs': 0.60, 'real_stairs': 0.60,
+    'wood_block': 0.70, 'rough': 0.55, 'curved_ramp': 0.65,
+    'incline_15': 0.65, 'incline_30': 0.60,  # 경사 표면 (다소 보수적)
+}
+N_PTS = int(os.environ.get('N_PTS', 100))  # Phase 3+ 가속: 160→100 (envelope는 dense 8000-grid 그대로, 평가 포인트만 축소)
+# Phase 3+ Tier C-1: 적응적 샘플링 — 단차 모서리 근처 밀도 증가.
+EDGE_BOOST = 3.0  # 1.0=균등, 3.0이면 edge 4x 밀도
+
+
+def adaptive_xa(x_t, y_t_env, xs, xe, n_pts=N_PTS, edge_boost=EDGE_BOOST):
+    """terrain gradient 따라 샘플 밀도 biased — 인버스 CDF 방식.
+
+    JAX shape 안정성을 위해 n_pts는 고정. 분포만 변경.
+
+    Args:
+        x_t: terrain x 그리드 (dense, N≈8000)
+        y_t_env: 팽창 envelope y
+        xs, xe: 샘플 구간 [xs, xe]
+        n_pts: 출력 샘플 수 (고정)
+        edge_boost: 그라디언트 피크 부근 밀도 배율 (1.0=균등)
+
+    Returns:
+        xa: n_pts 위치 배열, 단차 부근 더 조밀
+    """
+    mask = (x_t >= xs) & (x_t <= xe)
+    if np.sum(mask) < 10:
+        return np.linspace(xs, xe, n_pts)
+    xt_sub = x_t[mask]
+    yt_sub = y_t_env[mask]
+
+    grad = np.abs(np.gradient(yt_sub, xt_sub))
+    grad_max = grad.max()
+    if grad_max < 1e-3:  # 평지 — 균등 분포
+        return np.linspace(xs, xe, n_pts)
+
+    grad_norm = grad / (grad_max + 1e-9)
+    density = 1.0 + edge_boost * grad_norm  # ∈ [1, 1+edge_boost]
+
+    # CDF
+    cdf = np.cumsum(density)
+    cdf = cdf / cdf[-1]
+    # 인버스 CDF: 균등 u → density-warped x
+    u = np.linspace(0.0, 1.0, n_pts)
+    xa = np.interp(u, cdf, xt_sub)
+    return xa.astype(np.float64)
+
 
 print('=== ZETIN GPU 가속 최적화 v4 (삼각형+사각형 동시 탐색) ===')
 print(f'JAX backend: {jax.default_backend()}')
@@ -127,6 +211,8 @@ def decode_x(x, p0):
         p['S_r2'] = (h_rocker_front + h_bogie_drop) / np.cos(p['th_r2'])
     else:
         return None
+
+    p['brk_v'] = x[14]
     return p
 
 
@@ -162,10 +248,12 @@ def get_a_eff(p):
 
 
 def calc_P0_height_flat(p):
+    # 링크 끝점(브래킷 피벗)이 평지 위 R_w + brk_v 높이에 위치하고, P0는 그 위로 링크 만큼 더 올라감.
+    base = p['R_w'] + p.get('brk_v', 0.0)
     mode = p.get('rocker_mode', 'linear').lower()
-    if mode == 'triangle': return max(p['R_w'] + p['L_r2'] * np.sin(p['alpha_r'] / 2), p['R_w'])
-    elif mode == 'frame': return max(p['R_w'] + p['S_r2'] * np.cos(p['th_r2']), p['R_w'])
-    return p['R_w']
+    if mode == 'triangle': return max(base + p['L_r2'] * np.sin(p['alpha_r'] / 2), base)
+    elif mode == 'frame': return max(base + p['S_r2'] * np.cos(p['th_r2']), base)
+    return base
 
 
 # ═══════════════════════════════════════
@@ -209,12 +297,39 @@ for _rm, _bm in _mode_combos:
     _wp = _make_warmup_p(_rm, _bm)
     _wp_arr = pack_params_auto(_wp)
     _flat_x, _flat_y = gen_terrain('flat', _wp)
-    _flat_env = calc_envelope_gpu(_flat_x, _flat_y, _wp['R_w'])
+    _flat_env = calc_envelope_gpu(_flat_x, _flat_y, _wp['R_w'], patch_width=_wp.get('patch_width', 0.030))
     _warmup_xa = np.linspace(_flat_x[0] + 0.3, _flat_x[-1] - 0.3, N_PTS)
     _R_w = kin_sim_gpu(_warmup_xa, _flat_x, _flat_env, _wp_arr, _wp)
     print(f'  {_rm}-{_bm}: 실패율 {_R_w["fail_rate"]*100:.1f}%')
 
 print(f'JAX 워밍업 완료! ({time.time()-_t_warmup:.1f}초)\n')
+
+
+# ═══════════════════════════════════════
+# 지형 / Envelope 사전 계산 캐시
+# 지형(gen_terrain)은 p0['obs_h']에만, envelope(calc_envelope_gpu)는 p0['R_w']·patch_width에만
+# 의존한다 — 이 셋은 모두 탐색 변수와 무관한 상수다(decode_x는 기하 파라미터만 바꾼다).
+# 따라서 objective 매 호출마다 재계산하던 8지형 × 8000점 O(N²) envelope를 1회만 계산해 캐시한다.
+# 수만 번의 DE 평가에서 큰 절감이며, 결과는 완전히 동일하다.
+# ═══════════════════════════════════════
+_ALL_TERRAINS = ['flat', 'real_stairs', 'wood_block', 'rough', 'step',
+                 'curved_ramp', 'incline_15', 'incline_30']
+
+
+def _build_terrain_cache(p_ref):
+    cache = {}
+    pw = p_ref.get('patch_width', 0.030)
+    for _t in _ALL_TERRAINS:
+        _xt, _yt_raw = gen_terrain(_t, p_ref)
+        _yt_env = calc_envelope_gpu(_xt, _yt_raw, p_ref['R_w'], patch_width=pw)
+        cache[_t] = (_xt, _yt_raw, _yt_env)
+    return cache
+
+
+print('지형/Envelope 캐시 생성 중 (8지형, 1회)...')
+_t_cache = time.time()
+TERRAIN_CACHE = _build_terrain_cache(p0)
+print(f'지형 캐시 완료! ({time.time()-_t_cache:.1f}초)\n')
 
 
 # ═══════════════════════════════════════
@@ -245,49 +360,80 @@ def objective(x):
 
     p_arr = pack_params_auto(p)
 
-    # 평지 테스트 (GPU)
+    # 평지 테스트 (GPU) — 캐시된 지형/envelope 사용 (상수 의존이므로 1회 계산분 재사용)
     try:
-        flat_x, flat_y_raw = gen_terrain('flat', p)
-        flat_y_env = calc_envelope_gpu(flat_x, flat_y_raw, p['R_w'])
+        flat_x, flat_y_raw, flat_y_env = TERRAIN_CACHE['flat']
         test_R = kin_sim_gpu(np.array([0.0]), flat_x, flat_y_env, p_arr, p)
         if not test_R['ok'][0]:
             return 60
     except Exception:
         return 60
 
-    # 4종 지형 평가 (GPU 가속)
-    terrains = ['real_stairs', 'wood_block', 'rough', 'step']
-    t_weights = np.array([W_terrain['stairs'], W_terrain['wood'], W_terrain['rough'], W_terrain['step']])
+    # 7종 지형 평가 (GPU 가속) — v4에서 curved_ramp, incline_15/30 추가
+    terrains = ['real_stairs', 'wood_block', 'rough', 'step', 'curved_ramp',
+                'incline_15', 'incline_30']
+    t_weights = np.array([W_terrain['stairs'], W_terrain['wood'], W_terrain['rough'],
+                          W_terrain['step'], W_terrain['curved_ramp'],
+                          W_terrain['incline_15'], W_terrain['incline_30']])
+    n_terr = len(terrains)
 
-    tau_vals = np.zeros(4)
-    sn_vals = np.zeros(4)
-    imbal_vals = np.zeros(4)
-    fail_pts = np.zeros(4)
-    total_pts = np.zeros(4)
-    toi_min_all = np.ones(4)
-    liftoff_all = np.zeros(4)
+    tau_vals = np.zeros(n_terr)
+    tau_peak_motor_all = np.zeros(n_terr)  # Phase 1: 절대 피크 모터 토크 (포화 판정용)
+    sat_speed_aware_all = np.zeros(n_terr) # Phase 2d: 속도 인식 포화율 (peak)
+    sat_viol_all = np.zeros(n_terr)        # Phase 2d: τ>τ_avail 포인트 비율
+    sn_vals = np.zeros(n_terr)
+    imbal_vals = np.zeros(n_terr)
+    fail_pts = np.zeros(n_terr)
+    total_pts = np.zeros(n_terr)
+    toi_min_all = np.ones(n_terr)
+    liftoff_all = np.zeros(n_terr)
+    slip_viol_all = np.zeros(n_terr)  # Phase 2c: 슬립 위반율
+    slip_peak_all = np.zeros(n_terr)  # Phase 2c: 슬립 피크
+    # Phase 3+
+    tau_rms_all = np.zeros(n_terr)        # A-1: 휠 RMS 토크 worst
+    cont_viol_all = np.zeros(n_terr)      # A-1: 연속 한계 초과율
+    stuck_rate_all = np.zeros(n_terr)     # B-1: 시스템 견인 부족
+    batt_peak_all = np.zeros(n_terr)      # B-2: 배터리 전류 피크
+    batt_viol_all = np.zeros(n_terr)      # B-2: 배터리 전류 초과율
+    energy_Wh_all = np.zeros(n_terr)      # A-2: 지형당 에너지 (보고용)
 
     p['liftoff_max'] = LIFTOFF_MAX
 
     for ti, t in enumerate(terrains):
         try:
-            x_t, y_t_raw = gen_terrain(t, p)
-            y_t_env = calc_envelope_gpu(x_t, y_t_raw, p['R_w'])
+            x_t, y_t_raw, y_t_env = TERRAIN_CACHE[t]  # 캐시 재사용 (상수 의존)
 
             b_eff_v = get_b_eff(p); a_eff_v = get_a_eff(p); cb = get_cb_fwd(p)
             xs = x_t[0] + b_eff_v + 0.05
             xe = x_t[-1] - (a_eff_v + cb) - 0.05
             if xs >= xe: return 12
-            xa = np.linspace(xs, xe, N_PTS)
+            # Phase 3+ C-1: 적응적 샘플링 — 단차 모서리 밀도 ↑
+            xa = adaptive_xa(x_t, y_t_env, xs, xe, n_pts=N_PTS, edge_boost=EDGE_BOOST)
 
             R = kin_sim_gpu(xa, x_t, y_t_env, p_arr, p)
             fail_pts[ti] = np.sum(~R['ok'])
             total_pts[ti] = len(xa)
 
-            D = calc_dynamics_gpu(R, xa, x_t, y_t_env, p)
-            tau_vals[ti] = D['stair_torque_peak']
+            # Phase 2c: 지형별 μ 적용 (calc_dynamics에서 p['mu']로 읽힘)
+            p_t = dict(p)
+            p_t['mu'] = MU_TERRAIN.get(t, p.get('mu', 0.65))
 
-            S = calc_stability_gpu(R, xa, x_t, y_t_raw, y_t_env, p)
+            D = calc_dynamics_gpu(R, xa, x_t, y_t_env, p_t)
+            tau_vals[ti] = D['stair_torque_peak']
+            tau_peak_motor_all[ti] = D['stair_torque_max']        # Phase 1: 절대 피크
+            sat_speed_aware_all[ti] = D['sat_peak_speed_aware']   # Phase 2d
+            sat_viol_all[ti] = D['sat_violation_rate']            # Phase 2d
+            slip_viol_all[ti] = D['slip_violation_rate']          # Phase 2c
+            slip_peak_all[ti] = D['slip_peak']                    # Phase 2c
+            # Phase 3+
+            tau_rms_all[ti] = D['tau_rms_worst']
+            cont_viol_all[ti] = D['cont_violation_rate']
+            stuck_rate_all[ti] = D['system_stuck_rate']
+            batt_peak_all[ti] = D['battery_current_peak']
+            batt_viol_all[ti] = D['battery_violation_rate']
+            energy_Wh_all[ti] = D['energy_Wh']
+
+            S = calc_stability_gpu(R, xa, x_t, y_t_raw, y_t_env, p_t)
             toi_min_all[ti] = S['min_TOI']
             liftoff_all[ti] = S['liftoff_ratio']
 
@@ -331,14 +477,51 @@ def objective(x):
     sn_norm = 1 / (1 + max(np.sum(t_weights * sn_vals), 0) / SN_REF)
     fail_norm = fail_rate_total * 10
 
+    # Phase 1+2d: 모터 포화 페널티 — 속도 인식 τ_avail 기준.
+    # Phase 1은 고정 τ_peak=4.95 사용했으나, Phase 2d는 ω(v)에 따른 가용 토크와 비교.
+    # 가중평균 + 절대 worst를 모두 반영. 위반 비율도 반영.
+    sat_peak_weighted = float(np.sum(t_weights * sat_speed_aware_all))
+    sat_peak_worst = float(np.max(sat_speed_aware_all))
+    sat_ratio_weighted = max(0.0, sat_peak_weighted - 1.0)  # 1.0 = τ_avail 한계
+    sat_ratio_worst = max(0.0, sat_peak_worst - 1.0)
+    sat_viol_weighted = float(np.sum(t_weights * sat_viol_all))
+    sat_norm = min(2.0 * sat_ratio_weighted + 1.0 * sat_ratio_worst + 3.0 * sat_viol_weighted, 3.0)
+
+    # Phase 2c: 슬립 페널티 — 위반율(slip>1)의 가중 합 + 피크 over-1 비례.
+    slip_viol_weighted = float(np.sum(t_weights * slip_viol_all))
+    slip_peak_worst = float(np.max(slip_peak_all))
+    slip_overshoot = max(0.0, slip_peak_worst - 1.0)
+    slip_norm = min(slip_viol_weighted * 10.0 + slip_overshoot * 0.5, 3.0)
+
+    # Phase 3+ A-1: 연속 토크 페널티 (RMS vs 22Nm 정격).
+    tau_rms_worst_global = float(np.max(tau_rms_all))
+    cont_violation_weighted = float(np.sum(t_weights * cont_viol_all))
+    cont_overshoot = max(0.0, tau_rms_worst_global / p0['motor_tau_cont'] - 1.0)
+    cont_norm = min(2.0 * cont_overshoot + 3.0 * cont_violation_weighted, 3.0)
+
+    # Phase 3+ B-1: 시스템 견인력 부족 (stuck) 페널티.
+    stuck_weighted = float(np.sum(t_weights * stuck_rate_all))
+    stuck_norm = min(stuck_weighted * 10.0, 3.0)
+
+    # Phase 3+ B-2: 배터리 전류 한계 페널티.
+    batt_peak_global = float(np.max(batt_peak_all))
+    batt_viol_weighted = float(np.sum(t_weights * batt_viol_all))
+    batt_overshoot = max(0.0, batt_peak_global / p0['battery_max_current'] - 1.0)
+    batt_norm = min(1.5 * batt_overshoot + 3.0 * batt_viol_weighted, 3.0)
+
     f = (W['tau'] * tau_norm + W['imbal'] * imbal_norm
-         + W['stab'] * stab_penalty + W['sn'] * sn_norm + W['fail'] * fail_norm)
+         + W['stab'] * stab_penalty + W['sn'] * sn_norm
+         + W['fail'] * fail_norm + W['sat'] * sat_norm
+         + W['slip'] * slip_norm
+         + W['cont'] * cont_norm
+         + W['stuck'] * stuck_norm
+         + W['batt'] * batt_norm)
     return max(f, 0)
 
 
 # ═══════════════════════════════════════
 # [SECTION 3] 탐색 공간
-# v4 변경사항: x[0], x[1] 범위를 [1,2]로 개방
+# v4 변경사항: x[0], x[1] 범위를 [1,2]로 개방, x[14]에 brk_v 추가
 #
 # x[0] = rocker_mode: 1=triangle, 2=frame
 # x[1] = bogie_mode:  1=triangle, 2=frame
@@ -352,21 +535,31 @@ def objective(x):
 #           → frame bogie:     T_b,  S_b1, S_b2×5mm
 #   x[11:14]→ triangle bogie:  (unused)
 #           → frame bogie:     th_b1(deg), th_b2(deg), j_b
+#   x[14]   → brk_v (m): 브래킷 피벗 → 휠 축 수직 오프셋
 # ═══════════════════════════════════════
-lb = [1, 1, 0.20, 0.15, 60,  0,  0,  0.30, 0.15, 0.15, 60,  0,  0,  0.30]
-ub = [2, 2, 0.45, 0.35, 160, 35, 35, 0.70, 0.35, 0.35, 160, 40, 40, 0.70]
+lb = [1, 1, 0.20, 0.15, 60,  0,  0,  0.30, 0.15, 0.15, 60,  0,  0,  0.30, 0.345]
+ub = [2, 2, 0.45, 0.35, 160, 35, 35, 0.70, 0.35, 0.35, 160, 40, 40, 0.70, 0.375]
 bounds = list(zip(lb, ub))
 
 # ═══════════════════════════════════════
 # [SECTION 7] 최적화 실행
 # ═══════════════════════════════════════
-print('differential_evolution 실행 중 (삼각형+사각형 동시 탐색, maxiter=2000)...\n')
+# 환경 변수로 단축 실행(스모크 테스트) 가능.
+#   DE_MAXITER=200 DE_POPSIZE=15 python ZETIN_JointOptSearch_v4_gpu.py
+de_maxiter = int(os.environ.get('DE_MAXITER', 2000))
+de_popsize = int(os.environ.get('DE_POPSIZE', 30))
+# Phase 3+ 가속: 멀티프로세스 워커. DE 평가는 독립적이라 CPU 코어 병렬 가능.
+# 단, GPU JAX는 multiprocess.fork에 안전하지 않음 — workers > 1 시 자동으로 CPU JAX 강제 권장.
+de_workers = int(os.environ.get('DE_WORKERS', 1))
+de_tol = float(os.environ.get('DE_TOL', 1e-4))
+
+print(f'differential_evolution 실행 중 (삼각형+사각형 동시 탐색, maxiter={de_maxiter}, popsize={de_popsize}, workers={de_workers}, tol={de_tol:.0e}, N_PTS={N_PTS})...\n')
 tic = time.time()
 
 result = differential_evolution(
     objective, bounds,
-    maxiter=2000, popsize=30, tol=1e-4, seed=2026,
-    disp=True, workers=1,
+    maxiter=de_maxiter, popsize=de_popsize, tol=de_tol, seed=2026,
+    disp=True, workers=de_workers,
     polish=False,  # x[0], x[1]이 이산 파라미터이므로 L-BFGS-B 폴리싱 비활성화
 )
 
@@ -403,7 +596,14 @@ elif p_opt['bogie_mode'] == 'frame':
     print(f'  T_b={p_opt["T_b"]*1000:.1f}mm  S_b1={p_opt["S_b1"]*1000:.1f}mm  S_b2={p_opt["S_b2"]*1000:.1f}mm')
     print(f'  th_b1={np.rad2deg(p_opt["th_b1"]):.1f}deg  th_b2={np.rad2deg(p_opt["th_b2"]):.1f}deg  j_b={p_opt["j_b"]:.2f}')
 
+print(f'Bracket    : brk_v={p_opt["brk_v"]*1000:.1f}mm (pivot→axle V)')
 print(f'P0 평지높이 : {calc_P0_height_flat(p_opt)*1000:.1f}mm')
+print(f'CG 오프셋  : {p_opt["CG_offset"]*1000:.1f}mm (전방)  h_CG={p_opt["h_CG"]*1000:.1f}mm')
+print(f'속도 프로파일: v_max={p_opt["v_max"]:.2f}m/s  a_lim={p_opt["a_lim"]:.2f}m/s²')
+print(f'모터 한계  : 피크 {TAU_MOTOR_SAT:.2f}Nm × gear {p_opt["gear_ratio"]}:1 × η{p_opt["eta_gear"]:.2f}'
+      f' = 휠 {TAU_MOTOR_SAT * p_opt["gear_ratio"] * p_opt["eta_gear"]:.1f}Nm')
+print(f'모터 정격  : 연속 {p_opt["motor_tau_cont"]:.1f}Nm  Kt_eff={p_opt["Kt_eff"]:.2f}Nm/A')
+print(f'배터리     : 한계 {p_opt["battery_max_current"]:.0f}A @ {p_opt["V_bus"]:.0f}V')
 print(f'목적함수 값 : {f_opt:.4f}')
 print('=' * 60)
 
