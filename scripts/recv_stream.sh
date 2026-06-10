@@ -4,8 +4,10 @@
 
 PORT="${1:-5000}"
 
+# rtpjitterbuffer: 무선 간헐 지연/순서뒤바뀜을 150ms 버퍼로 흡수 (고정 지연 +150ms)
 exec gst-launch-1.0 -v \
     udpsrc port="$PORT" \
         caps='application/x-rtp,encoding-name=H264,payload=96' \
+    ! rtpjitterbuffer latency=150 \
     ! rtph264depay ! avdec_h264 ! videoconvert \
     ! autovideosink sync=false
