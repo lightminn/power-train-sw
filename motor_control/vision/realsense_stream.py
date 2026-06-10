@@ -31,7 +31,11 @@ def build_gst_command(host: str, port: int, width: int, height: int,
              f"framerate={fps}/1",
         "!", "videoconvert", "!", "video/x-raw,format=I420",
         # gop-size=30: 키프레임 1초 간격 — 무선 burst 손실 후 화질 1초 내 복구
+        # complexity=low: 복잡한 장면에서 인코더가 CPU 를 독식해 검출 루프까지
+        #   굶기는 것 방지 (ARM 6코어 공유). scene-change-detection=false: 갑작스런
+        #   IDR 대형 프레임 burst 억제 (약한 무선 업링크 보호).
         "!", "openh264enc", "bitrate=4000000", "gop-size=30",
+             "complexity=low", "scene-change-detection=false",
         "!", "h264parse", "config-interval=1",
         "!", "rtph264pay", "pt=96", "config-interval=1",
         "!", "udpsink", f"host={host}", f"port={port}",
