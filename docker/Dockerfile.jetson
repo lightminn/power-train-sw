@@ -84,5 +84,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ldconfig \
     && rm -rf /tmp/librealsense /var/lib/apt/lists/*
 
+# x264enc (gstreamer1.0-plugins-ugly) — SW 인코딩 화질·지연 개선용.
+# Orin Nano 는 NVENC 하드웨어가 없어 (Orin NX/AGX 만 탑재) SW 인코딩이 유일한
+# 경로고, x264 zerolatency 가 openh264 보다 동급 비트레이트에서 낫다.
+# 주의: 위 librealsense 레이어(빌드 30~45분) 캐시를 깨지 않도록 맨 뒤 별도 레이어.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gstreamer1.0-plugins-ugly \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /workspace
 CMD ["bash"]

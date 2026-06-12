@@ -65,11 +65,15 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
 - **steering/** (AK40-10 테스트 → AK45-36 실전, CAN socketcan can0): `ak_control.py` (메인 라이브러리 —
   python-can socketcan 직접 제어), `calibrate_ak.py` (기어비 1회성), `status_ak.py`
   (CAN RX 디버깅). 사전 준비: `bash scripts/can_setup.sh`.
-- **vision/** (모터 명령 없음): `yolo_openvino_detection.py` (x86 OpenVINO),
-  `yolo_cuda_stream.py` (Jetson CUDA/TRT + GStreamer UDP H.264 송신 — 수신은
-  `scripts/recv_stream.sh`), `realsense_test.py` (RealSense D435i depth+color 점검),
-  `realsense_stream.py` (RealSense color+depth UDP H.264 송신 — sidebyside/overlay),
-  `setup_yolo_env.sh` (x86 conda, Docker 권장).
+- **vision/** (모터 명령 없음): `gst_stream.py` (공용 송신 파이프라인 — H.264
+  SW 인코딩(x264/openh264, **Orin Nano 는 NVENC 없음**) + SRT listener),
+  `yolo_depth_3d.py` (YOLO+depth 3D 좌표 — color 영상 SRT + 좌표 UDP JSON 분리
+  송신, 수신·합성은 `scripts/recv_yolo3d.py`), `yolo_cuda_stream.py` (Jetson
+  CUDA/TRT USB 카메라 송신 — 수신은 `scripts/recv_stream.sh`),
+  `realsense_test.py` (RealSense D435i depth+color 점검), `realsense_stream.py`
+  (color+depth 진단 송신 — sidebyside/overlay, 원격주행용 아님),
+  `yolo_openvino_detection.py` (x86 OpenVINO), `setup_yolo_env.sh` (x86 conda,
+  Docker 권장).
 - **sensors/** (UART `/dev/ttyTHS1`): `us100_basic.py` (US100 0x55 기본),
   `us100_robust.py` (Jetson UART TX 떨림 버그 우회 — 0xFF prefix).
 - **safety_us100/** (US-100 충돌방지, publish-only): 거리→`safe`/`warn`/`stop` 판정만

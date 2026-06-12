@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""RealSense D435i color + depth → GStreamer UDP H.264 송신 (Jetson → 노트북).
+"""RealSense D435i color + depth → GStreamer H.264/SRT 송신 (Jetson → 노트북).
 
 color(좌) | depth 컬러맵(우) 를 가로로 이어 붙여 한 프레임으로 송신한다.
 depth 패널에는 화면 중앙 거리(m)를 오버레이한다.
 
-Jetson 컨테이너 안에서 실행하고, 노트북에서는 다음으로 수신:
-    scripts/recv_stream.sh [PORT]    (기본 5000)
+depth 점검 전용 진단 도구다 — depth JET 컬러맵은 고주파라 H.264 압축 효율이
+최악이고 sidebyside 는 픽셀도 2배여서, 원격주행/상시 모니터링 영상으로는
+쓰지 말 것 (그 용도는 yolo_depth_3d.py 의 color 단독 + 좌표 분리 채널).
 
-송신 파이프라인은 yolo_cuda_stream.py 와 동일 (NVENC 불가 → openh264enc 소프트웨어).
+Jetson 컨테이너 안에서 실행하고, 노트북에서는 다음으로 수신:
+    scripts/recv_stream.sh [PORT] [JETSON_HOST]    (기본 5000 jetson-orin.local)
+
+송신은 SRT listener — 노트북이 접속해 오므로 수신측 IP 가 필요 없다.
+파이프라인 상세·인코더 선택은 gst_stream.py 참고.
 """
 import argparse
 import subprocess
@@ -18,35 +23,15 @@ import cv2
 import numpy as np
 import pyrealsense2 as rs
 
-
-def build_gst_command(host: str, port: int, width: int, height: int,
-                      fps: int) -> list:
-    """fdsrc 로 raw BGR 프레임 받아 H.264 RTP 로 UDP 송신 (yolo_cuda_stream 동일)."""
-    return [
-        "gst-launch-1.0",
-        "fdsrc", "fd=0", "do-timestamp=true",
-        "!", "rawvideoparse",
-             "format=bgr",
-             f"width={width}", f"height={height}",
-             f"framerate={fps}/1",
-        "!", "videoconvert", "!", "video/x-raw,format=I420",
-        # gop-size=30: 키프레임 1초 간격 — 무선 burst 손실 후 화질 1초 내 복구
-        # complexity=low: 복잡한 장면에서 인코더가 CPU 를 독식해 검출 루프까지
-        #   굶기는 것 방지 (ARM 6코어 공유). scene-change-detection=false: 갑작스런
-        #   IDR 대형 프레임 burst 억제 (약한 무선 업링크 보호).
-        "!", "openh264enc", "bitrate=4000000", "gop-size=30",
-             "complexity=low", "scene-change-detection=false",
-        "!", "h264parse", "config-interval=1",
-        "!", "rtph264pay", "pt=96", "config-interval=1",
-        "!", "udpsink", f"host={host}", f"port={port}",
-             "sync=false", "async=false",
-    ]
+# 같은 폴더의 공용 송신 파이프라인 (스크립트 직접 실행 시 sys.path[0] = vision/)
+from gst_stream import ENCODERS, build_gst_command
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--host", required=True, help="수신 노트북 IP")
     p.add_argument("--port", type=int, default=5000)
+    p.add_argument("--encoder", choices=ENCODERS, default="x264",
+                   help="x264 권장 (plugins-ugly 필요). 구이미지는 openh264")
     p.add_argument("--width", type=int, default=640,
                    help="스트림당 가로 (합성 프레임은 2배)")
     p.add_argument("--height", type=int, default=480)
@@ -75,7 +60,7 @@ def main() -> None:
     align = rs.align(rs.stream.color) if (a.align or overlay) else None
 
     comp_w = a.width if overlay else a.width * 2
-    cmd = build_gst_command(a.host, a.port, comp_w, a.height, a.fps)
+    cmd = build_gst_command(a.port, comp_w, a.height, a.fps, encoder=a.encoder)
     print("[gst-launch]", " ".join(cmd), file=sys.stderr)
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, bufsize=0)
     time.sleep(0.3)

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""USB 카메라 → YOLOv8 (CUDA / TensorRT) → GStreamer UDP H.264 송신.
+"""USB 카메라 → YOLOv8 (CUDA / TensorRT) → GStreamer H.264/SRT 송신.
 
 Jetson 컨테이너 안에서 실행. 호스트(노트북)에서는 scripts/recv_stream.sh 로 수신.
+송신은 SRT listener 라 수신측 IP 불필요. 인코더는 SW 전용 — Orin Nano 에는
+NVENC 하드웨어가 없다 (상세: gst_stream.py).
 """
 import argparse
 import os
@@ -12,30 +14,8 @@ import time
 import cv2
 from ultralytics import YOLO
 
-
-def build_gst_command(host: str, port: int, width: int, height: int,
-                      fps: int) -> list[str]:
-    """gst-launch argv — fdsrc 로 raw BGR frame 받아 H.264 RTP 송신.
-
-    cv2.VideoWriter 의 GStreamer 백엔드는 dustynv 컨테이너의 opencv-python(pip)
-    빌드에 미포함이라 subprocess + gst-launch 우회. NVENC(`nvv4l2h264enc`) 또한
-    L4T plugin ABI 1.14 vs 컨테이너 GStreamer 1.20+ 불일치로 사용 불가, 소프트웨어
-    `openh264enc` 사용 (ARM A78AE 6코어에서 720p/30fps OK).
-    """
-    return [
-        "gst-launch-1.0",
-        "fdsrc", "fd=0", "do-timestamp=true",
-        "!", "rawvideoparse",
-             "format=bgr",
-             f"width={width}", f"height={height}",
-             f"framerate={fps}/1",
-        "!", "videoconvert", "!", "video/x-raw,format=I420",
-        "!", "openh264enc", "bitrate=4000000",
-        "!", "h264parse", "config-interval=1",
-        "!", "rtph264pay", "pt=96", "config-interval=1",
-        "!", "udpsink", f"host={host}", f"port={port}",
-             "sync=false", "async=false",
-    ]
+# 같은 폴더의 공용 송신 파이프라인 (스크립트 직접 실행 시 sys.path[0] = vision/)
+from gst_stream import ENCODERS, build_gst_command
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,8 +29,9 @@ def parse_args() -> argparse.Namespace:
                    help="ultralytics model: .pt or .engine path")
     p.add_argument("--backend", choices=["pt", "trt"], default="pt",
                    help="pt = PyTorch CUDA, trt = TensorRT FP16")
-    p.add_argument("--host", required=True, help="receiver IP (노트북)")
     p.add_argument("--port", type=int, default=5000)
+    p.add_argument("--encoder", choices=ENCODERS, default="x264",
+                   help="x264 권장 (plugins-ugly 필요). 구이미지는 openh264")
     p.add_argument("--conf", type=float, default=0.4)
     p.add_argument("--bench-frames", type=int, default=0,
                    help="0=무한, >0=N프레임 후 종료 (벤치 모드)")
@@ -98,9 +79,9 @@ def open_camera(dev: str, w: int, h: int, fps: int) -> cv2.VideoCapture:
     return cap
 
 
-def open_writer(host: str, port: int, w: int, h: int,
-                fps: int) -> subprocess.Popen:
-    cmd = build_gst_command(host, port, w, h, fps)
+def open_writer(port: int, w: int, h: int, fps: int,
+                encoder: str) -> subprocess.Popen:
+    cmd = build_gst_command(port, w, h, fps, encoder=encoder)
     print("[gst-launch]", " ".join(cmd), file=sys.stderr)
     # stderr 는 부모 콘솔로 그대로 노출 (디버깅), bufsize=0 으로 즉시 flush.
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, bufsize=0)
@@ -117,8 +98,8 @@ def main() -> None:
     model = YOLO(model_path)
 
     cap = open_camera(args.camera, args.width, args.height, args.fps)
-    out_proc = open_writer(args.host, args.port,
-                           args.width, args.height, args.fps)
+    out_proc = open_writer(args.port, args.width, args.height, args.fps,
+                           args.encoder)
 
     inf_window: list[float] = []
     e2e_window: list[float] = []
