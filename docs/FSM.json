@@ -1,0 +1,2875 @@
+{
+  "version": "30.2.1",
+  "pages": [
+    {
+      "id": "N2zsz3wuwzhgNM_mYrlh",
+      "name": "[극한]구간1_험지극복",
+      "cells": [
+        {
+          "id": "1",
+          "type": "layer"
+        },
+        {
+          "id": "s1_start",
+          "type": "node",
+          "parent": "1",
+          "label": "START"
+        },
+        {
+          "id": "s1_d1",
+          "type": "node",
+          "parent": "1",
+          "label": "구간 진입 신호 수신?"
+        },
+        {
+          "id": "s1_e1",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_start",
+          "target": "s1_d1"
+        },
+        {
+          "id": "s1_wait",
+          "type": "node",
+          "parent": "1",
+          "label": "대기"
+        },
+        {
+          "id": "s1_e2",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d1",
+          "target": "s1_wait",
+          "label": "N"
+        },
+        {
+          "id": "s1_e3",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_wait",
+          "target": "s1_d1"
+        },
+        {
+          "id": "s1_nav",
+          "type": "node",
+          "parent": "1",
+          "label": "NAVIGATE\nLiDAR 경로 추종"
+        },
+        {
+          "id": "s1_e4",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d1",
+          "target": "s1_nav",
+          "label": "Y"
+        },
+        {
+          "id": "s1_e5",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_nav",
+          "target": "s1_terrain"
+        },
+        {
+          "id": "s1_terrain",
+          "type": "node",
+          "parent": "1",
+          "label": "TERRAIN_MODE\n지형별 파라미터 전환"
+        },
+        {
+          "id": "s1_d3",
+          "type": "node",
+          "parent": "1",
+          "label": "YOLO_Detec\n지형 분류?",
+          "html": "YOLO_Detec<br>지형 분류?"
+        },
+        {
+          "id": "s1_e8",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_terrain",
+          "target": "s1_d3"
+        },
+        {
+          "id": "s1_gravel",
+          "type": "node",
+          "parent": "1",
+          "label": "GRAVEL\nIMU pitch/roll 피드백\n속도 적응 제어",
+          "html": "GRAVEL<br>IMU pitch/roll 피드백<br>속도 적응 제어"
+        },
+        {
+          "id": "s1_e9",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d3",
+          "target": "s1_gravel",
+          "label": "자갈"
+        },
+        {
+          "id": "s1_rubble",
+          "type": "node",
+          "parent": "1",
+          "label": "RUBBLE\nIMU pitch/roll 피드백\n속도 적응 제어",
+          "html": "RUBBLE<br>IMU pitch/roll 피드백<br>속도 적응 제어"
+        },
+        {
+          "id": "s1_e10",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d3",
+          "target": "s1_rubble",
+          "label": "파쇄석"
+        },
+        {
+          "id": "s1_wood",
+          "type": "node",
+          "parent": "1",
+          "label": "WOODBLOCK\nIMU pitch/roll 피드백\n속도 적응 제어"
+        },
+        {
+          "id": "s1_e11",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d3",
+          "target": "s1_wood",
+          "label": "나무블록"
+        },
+        {
+          "id": "s1_d4",
+          "type": "node",
+          "parent": "1",
+          "label": "velocity=0 &&\n 전류 과부하?",
+          "html": "velocity=0 &amp;&amp;<div>&nbsp;전류 과부하?</div>"
+        },
+        {
+          "id": "s1_e12",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_gravel",
+          "target": "s1_d4"
+        },
+        {
+          "id": "s1_e13",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_rubble",
+          "target": "s1_d4"
+        },
+        {
+          "id": "s1_e14",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_wood",
+          "target": "s1_d4"
+        },
+        {
+          "id": "s1_stuck",
+          "type": "node",
+          "parent": "1",
+          "label": "STUCK\n후진 + 방향 보정\nretry_cnt++"
+        },
+        {
+          "id": "s1_e15",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d4",
+          "target": "s1_stuck",
+          "label": "Y"
+        },
+        {
+          "id": "s1_d5",
+          "type": "node",
+          "parent": "1",
+          "label": "retry_cnt > 3?"
+        },
+        {
+          "id": "s1_e16",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_stuck",
+          "target": "s1_d5"
+        },
+        {
+          "id": "s1_give",
+          "type": "node",
+          "parent": "1",
+          "label": "구간 포기"
+        },
+        {
+          "id": "s1_e17",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d5",
+          "target": "s1_give",
+          "label": "Y"
+        },
+        {
+          "id": "s1_e18",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d5",
+          "target": "s1_terrain",
+          "label": "N"
+        },
+        {
+          "id": "s1_d6",
+          "type": "node",
+          "parent": "1",
+          "label": "3구간 모두 통과?"
+        },
+        {
+          "id": "s1_e19",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d4",
+          "target": "s1_d6",
+          "label": "N"
+        },
+        {
+          "id": "s1_e20",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d6",
+          "target": "s1_terrain",
+          "label": "N"
+        },
+        {
+          "id": "s1_done",
+          "type": "node",
+          "parent": "1",
+          "label": "DONE_1"
+        },
+        {
+          "id": "s1_e21",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d6",
+          "target": "s1_done",
+          "label": "Y"
+        },
+        {
+          "id": "6TbZx1nfAgXagO3cN4Ou-2",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "9WKNTlj6AIqZ6E6QYskB-1",
+          "type": "node",
+          "parent": "1"
+        }
+      ]
+    },
+    {
+      "id": "hRteZ_b9edMvSZkJw9Ih",
+      "name": "[극한]구간2_장애물극복",
+      "cells": [
+        {
+          "id": "1",
+          "type": "layer"
+        },
+        {
+          "id": "8HUleRNbM8UqRvSLvun0-2",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "s2_start",
+          "type": "node",
+          "parent": "1",
+          "label": "START"
+        },
+        {
+          "id": "s2_app",
+          "type": "node",
+          "parent": "1",
+          "label": "APPROACH\nDepth+YOLO 장애물 감지"
+        },
+        {
+          "id": "s2_e1",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_start",
+          "target": "s2_app"
+        },
+        {
+          "id": "s2_d1",
+          "type": "node",
+          "parent": "1",
+          "label": "장애물 유형?"
+        },
+        {
+          "id": "s2_e2",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_app",
+          "target": "s2_d1"
+        },
+        {
+          "id": "s2_fwd",
+          "type": "node",
+          "parent": "1",
+          "label": "전진 유지"
+        },
+        {
+          "id": "s2_e2b",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d1",
+          "target": "s2_fwd",
+          "label": "미감지"
+        },
+        {
+          "id": "s2_e2c",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_fwd",
+          "target": "s2_app"
+        },
+        {
+          "id": "s2_stair",
+          "type": "node",
+          "parent": "1",
+          "label": "STAIR_CLIMB\n로커보키 개별 토크 조절\n로봇팔 무게 중심 조절\n전진 speed 0.15 m/s",
+          "html": "STAIR_CLIMB<br>로커보키 개별 토크 조절<div>로봇팔 무게 중심 조절<br>전진 speed 0.15 m/s</div>"
+        },
+        {
+          "id": "s2_e3",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d1",
+          "target": "s2_stair",
+          "label": "계단"
+        },
+        {
+          "id": "s2_d2",
+          "type": "node",
+          "parent": "1",
+          "label": "IMU pitch > 20°?"
+        },
+        {
+          "id": "s2_e4",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_stair",
+          "target": "s2_d2"
+        },
+        {
+          "id": "s2_e5",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d2",
+          "target": "s2_stair",
+          "label": "N"
+        },
+        {
+          "id": "s2_desc",
+          "type": "node",
+          "parent": "1",
+          "label": "DESCEND\n하강 모드\n로봇팔 무게중심 조절\n로커보키 개별 토크 조절",
+          "html": "DESCEND<br>하강 모드<div>로봇팔 무게중심 조절</div><div><span style=\"\">로커보키 개별 토크 조절</span></div>"
+        },
+        {
+          "id": "s2_e6",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d2",
+          "target": "s2_desc",
+          "label": "Y"
+        },
+        {
+          "id": "s2_d3",
+          "type": "node",
+          "parent": "1",
+          "label": "회피 경로 존재?"
+        },
+        {
+          "id": "s2_e7",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d1",
+          "target": "s2_d3",
+          "label": "더미/벽돌"
+        },
+        {
+          "id": "s2_avoid",
+          "type": "node",
+          "parent": "1",
+          "label": "AVOID\n경로 재계획 우회"
+        },
+        {
+          "id": "s2_e8",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d3",
+          "target": "s2_avoid",
+          "label": "Y"
+        },
+        {
+          "id": "s2_push",
+          "type": "node",
+          "parent": "1",
+          "label": "PUSH\n전진 밀기\n토크 ≥ 임계 확인"
+        },
+        {
+          "id": "s2_e9",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d3",
+          "target": "s2_push",
+          "label": "N"
+        },
+        {
+          "id": "s2_d4",
+          "type": "node",
+          "parent": "1",
+          "label": "velocity=0 && \n전류 과부하?",
+          "html": "velocity=0 &amp;&amp; <br>전류 과부하?"
+        },
+        {
+          "id": "s2_e10",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_avoid",
+          "target": "s2_d4"
+        },
+        {
+          "id": "s2_e11",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_push",
+          "target": "s2_d4"
+        },
+        {
+          "id": "s2_e11b",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_desc",
+          "target": "s2_d4"
+        },
+        {
+          "id": "s2_stuck",
+          "type": "node",
+          "parent": "1",
+          "label": "STUCK\nretry_cnt++",
+          "html": "STUCK<br>retry_cnt++"
+        },
+        {
+          "id": "s2_e12",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d4",
+          "target": "s2_stuck",
+          "label": "Y"
+        },
+        {
+          "id": "s2_d5",
+          "type": "node",
+          "parent": "1",
+          "label": "retry_cnt > 3?"
+        },
+        {
+          "id": "s2_e13",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_stuck",
+          "target": "s2_d5"
+        },
+        {
+          "id": "s2_give",
+          "type": "node",
+          "parent": "1",
+          "label": "구간 포기"
+        },
+        {
+          "id": "s2_e14",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d5",
+          "target": "s2_give",
+          "label": "Y"
+        },
+        {
+          "id": "s2_e15",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d5",
+          "target": "s2_app",
+          "label": "N"
+        },
+        {
+          "id": "s2_d6",
+          "type": "node",
+          "parent": "1",
+          "label": "3종 장애물 모두 통과?"
+        },
+        {
+          "id": "s2_e16",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d4",
+          "target": "s2_d6",
+          "label": "N"
+        },
+        {
+          "id": "s2_e17",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d6",
+          "target": "s2_app",
+          "label": "N"
+        },
+        {
+          "id": "s2_timeout",
+          "type": "node",
+          "parent": "1",
+          "label": "TIMEOUT\n10min 초과 → 포기"
+        },
+        {
+          "id": "s2_e18",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d6",
+          "target": "s2_timeout"
+        },
+        {
+          "id": "s2_done",
+          "type": "node",
+          "parent": "1",
+          "label": "DONE_2"
+        },
+        {
+          "id": "s2_e19",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d6",
+          "target": "s2_done",
+          "label": "Y"
+        },
+        {
+          "id": "k-nxVJWFHMlU_bbzIBPR-1",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "uJ4UTktEyRnE4nVN7Kxy-1",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "8HUleRNbM8UqRvSLvun0-3",
+          "type": "node",
+          "parent": "1",
+          "label": "IMU pitch > 90°?",
+          "html": "<div>IMU pitch &gt; 90°?</div>"
+        },
+        {
+          "id": "8HUleRNbM8UqRvSLvun0-6",
+          "type": "edge",
+          "parent": "1",
+          "source": "8HUleRNbM8UqRvSLvun0-3",
+          "label": "Y"
+        },
+        {
+          "id": "8HUleRNbM8UqRvSLvun0-12",
+          "type": "edge",
+          "parent": "1",
+          "source": "8HUleRNbM8UqRvSLvun0-8",
+          "target": "8HUleRNbM8UqRvSLvun0-9"
+        },
+        {
+          "id": "8HUleRNbM8UqRvSLvun0-8",
+          "type": "node",
+          "parent": "1",
+          "label": "FELLOVER\n로봇팔 리프트 모드\nretry_cnt++",
+          "html": "FELLOVER<div>로봇팔 리프트 모드<br>retry_cnt++</div>"
+        },
+        {
+          "id": "8HUleRNbM8UqRvSLvun0-9",
+          "type": "node",
+          "parent": "1",
+          "label": "retry_cnt > 3?"
+        },
+        {
+          "id": "8HUleRNbM8UqRvSLvun0-10",
+          "type": "node",
+          "parent": "1",
+          "label": "구간 포기"
+        },
+        {
+          "id": "8HUleRNbM8UqRvSLvun0-11",
+          "type": "edge",
+          "parent": "1",
+          "source": "8HUleRNbM8UqRvSLvun0-9",
+          "target": "8HUleRNbM8UqRvSLvun0-10",
+          "label": "Y"
+        }
+      ]
+    },
+    {
+      "id": "oI7qXBCkdbsOKw7dXNXI",
+      "name": "[극한]구간3_화재진압지원",
+      "cells": [
+        {
+          "id": "1",
+          "type": "layer"
+        },
+        {
+          "id": "wsYo0YhR6qkIFfJk9y-C-2",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "s3_start",
+          "type": "node",
+          "parent": "1",
+          "label": "START"
+        },
+        {
+          "id": "s3_nav",
+          "type": "node",
+          "parent": "1",
+          "label": "SMOKE_NAV\nLiDAR만으로 주행\n(카메라 연막 무시)"
+        },
+        {
+          "id": "s3_e1",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_start",
+          "target": "s3_nav"
+        },
+        {
+          "id": "s3_d1",
+          "type": "node",
+          "parent": "1",
+          "label": "LiDAR: 목표 지점 도달?"
+        },
+        {
+          "id": "s3_e2",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_nav",
+          "target": "s3_d1"
+        },
+        {
+          "id": "s3_e3",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d1",
+          "target": "s3_nav",
+          "label": "N"
+        },
+        {
+          "id": "s3_sub1_label",
+          "type": "node",
+          "parent": "1",
+          "label": "[서브루틴: ARM_PRESS_BTN]"
+        },
+        {
+          "id": "s3_dbt",
+          "type": "node",
+          "parent": "1",
+          "label": "DETECT_BTN\n손목캠 YOLO\n색상 확인 (파/초/노)"
+        },
+        {
+          "id": "s3_e4",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d1",
+          "target": "s3_dbt",
+          "label": "Y"
+        },
+        {
+          "id": "s3_d2",
+          "type": "node",
+          "parent": "1",
+          "label": "bbox conf ≥ 0.7?"
+        },
+        {
+          "id": "s3_e5",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_dbt",
+          "target": "s3_d2"
+        },
+        {
+          "id": "s3_e6",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d2",
+          "target": "s3_dbt",
+          "label": "N"
+        },
+        {
+          "id": "s3_abt",
+          "type": "node",
+          "parent": "1",
+          "label": "ALIGN_BTN\nbbox 중심 → 로봇 정렬\n거리 30~40cm 정지"
+        },
+        {
+          "id": "s3_e7",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d2",
+          "target": "s3_abt",
+          "label": "Y"
+        },
+        {
+          "id": "s3_ik1",
+          "type": "node",
+          "parent": "1",
+          "label": "IK_SOLVE\nsolvePnP → 3D 좌표\n역기구학 풀기",
+          "html": "IK_SOLVE<div>solvePnP → 3D 좌표<br>역기구학 풀기</div>"
+        },
+        {
+          "id": "s3_e8",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_abt",
+          "target": "s3_ik1"
+        },
+        {
+          "id": "s3_d3",
+          "type": "node",
+          "parent": "1",
+          "label": "IK 해 존재?"
+        },
+        {
+          "id": "s3_e9",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_ik1",
+          "target": "s3_d3"
+        },
+        {
+          "id": "s3_e10",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d3",
+          "target": "s3_abt",
+          "label": "N → 재정렬"
+        },
+        {
+          "id": "s3_exec",
+          "type": "node",
+          "parent": "1",
+          "label": "EXECUTE\n엔드이펙터 전진\n힘센서 or timeout 2s",
+          "html": "EXECUTE<div>엔드이펙터 전진<br>힘센서 or timeout 2s</div>"
+        },
+        {
+          "id": "s3_e11",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d3",
+          "target": "s3_exec",
+          "label": "Y"
+        },
+        {
+          "id": "s3_d4",
+          "type": "node",
+          "parent": "1",
+          "label": "환풍 후드 작동 확인?"
+        },
+        {
+          "id": "s3_e12",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_exec",
+          "target": "s3_d4"
+        },
+        {
+          "id": "s3_e13",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d4",
+          "target": "s3_exec",
+          "label": "N → 재시도"
+        },
+        {
+          "id": "s3_ret1",
+          "type": "node",
+          "parent": "1",
+          "label": "RETRACT\n안전 자세 복귀"
+        },
+        {
+          "id": "s3_e14",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d4",
+          "target": "s3_ret1",
+          "label": "Y"
+        },
+        {
+          "id": "s3_scan",
+          "type": "node",
+          "parent": "1",
+          "label": "SCAN_FIRE\n360° 회전 스캔\nLED 화로 YOLO 카운트"
+        },
+        {
+          "id": "s3_e15",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_ret1",
+          "target": "s3_scan"
+        },
+        {
+          "id": "s3_d5",
+          "type": "node",
+          "parent": "1",
+          "label": "스캔 완료 (360°)?"
+        },
+        {
+          "id": "s3_e16",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_scan",
+          "target": "s3_d5"
+        },
+        {
+          "id": "s3_e17",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d5",
+          "target": "s3_scan",
+          "label": "N"
+        },
+        {
+          "id": "s3_rep",
+          "type": "node",
+          "parent": "1",
+          "label": "REPORT_FIRE\nfire_cnt 무선 전송"
+        },
+        {
+          "id": "s3_e18",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d5",
+          "target": "s3_rep",
+          "label": "Y"
+        },
+        {
+          "id": "s3_nav2",
+          "type": "node",
+          "parent": "1",
+          "label": "NAV_TO_DOOR\n문 앞으로 이동"
+        },
+        {
+          "id": "s3_e19",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_rep",
+          "target": "s3_nav2"
+        },
+        {
+          "id": "s3_dh",
+          "type": "node",
+          "parent": "1",
+          "label": "DETECT_HANDLE\n손목캠 YOLO + Depth\n손잡이 500mm 높이 확인"
+        },
+        {
+          "id": "s3_d6",
+          "type": "node",
+          "parent": "1",
+          "label": "손잡이 인식?"
+        },
+        {
+          "id": "s3_e21",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_dh",
+          "target": "s3_d6"
+        },
+        {
+          "id": "s3_e22",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d6",
+          "target": "s3_dh",
+          "label": "N"
+        },
+        {
+          "id": "s3_ad",
+          "type": "node",
+          "parent": "1",
+          "label": "ALIGN_DOOR\n문 정면 정렬\n거리 25~30cm 정지"
+        },
+        {
+          "id": "s3_e23",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d6",
+          "target": "s3_ad",
+          "label": "Y"
+        },
+        {
+          "id": "s3_ik2",
+          "type": "node",
+          "parent": "1",
+          "label": "IK_SOLVE\n손잡이 3D 좌표 → IK\n파지 포인트 계산",
+          "html": "IK_SOLVE<br>손잡이 3D 좌표 → IK<br>파지 포인트 계산"
+        },
+        {
+          "id": "s3_e24",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_ad",
+          "target": "s3_ik2"
+        },
+        {
+          "id": "s3_gh",
+          "type": "node",
+          "parent": "1",
+          "label": "GRASP_HANDLE\n그리퍼 닫기\n파지 전류 ≥ 임계?",
+          "html": "GRASP_HANDLE<br>그리퍼 닫기<br>파지 전류 ≥ 임계?"
+        },
+        {
+          "id": "s3_e25",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_ik2",
+          "target": "s3_gh"
+        },
+        {
+          "id": "s3_d7",
+          "type": "node",
+          "parent": "1",
+          "label": "파지 성공?"
+        },
+        {
+          "id": "s3_e26",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_gh",
+          "target": "s3_d7"
+        },
+        {
+          "id": "s3_e27",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d7",
+          "target": "s3_gh",
+          "label": "N → 재시도"
+        },
+        {
+          "id": "s3_pd",
+          "type": "node",
+          "parent": "1",
+          "label": "PULL_DOWN\n하향 회전 (레버 내림)\ntimeout 3s or 힘 해제",
+          "html": "PULL_DOWN<br>하향 회전 (레버 내림)<br>timeout 3s or 힘 해제"
+        },
+        {
+          "id": "s3_e28",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d7",
+          "target": "s3_pd",
+          "label": "Y"
+        },
+        {
+          "id": "s3_psh",
+          "type": "node",
+          "parent": "1",
+          "label": "PUSH_DOOR\n팔 RETRACT + 차체 전진\nLiDAR: 문 열림 확인"
+        },
+        {
+          "id": "s3_e29",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_pd",
+          "target": "s3_psh"
+        },
+        {
+          "id": "s3_d8",
+          "type": "node",
+          "parent": "1",
+          "label": "LiDAR 전방 공간 확보?"
+        },
+        {
+          "id": "s3_e30",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_psh",
+          "target": "s3_d8"
+        },
+        {
+          "id": "s3_e31",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d8",
+          "target": "s3_psh",
+          "label": "N"
+        },
+        {
+          "id": "s3_d9",
+          "type": "node",
+          "parent": "1",
+          "label": "버튼+화재+문 모두 완료?"
+        },
+        {
+          "id": "s3_e32",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d8",
+          "target": "s3_d9",
+          "label": "Y"
+        },
+        {
+          "id": "s3_e33",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d9",
+          "target": "s3_nav",
+          "label": "N → 재시도"
+        },
+        {
+          "id": "s3_done",
+          "type": "node",
+          "parent": "1",
+          "label": "DONE_3"
+        },
+        {
+          "id": "s3_e34",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d9",
+          "target": "s3_done",
+          "label": "Y"
+        },
+        {
+          "id": "s3_timeout",
+          "type": "node",
+          "parent": "1",
+          "label": "TIMEOUT\n10min 초과\n수동 개입 요청"
+        },
+        {
+          "id": "s3_e35",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_done",
+          "target": "s3_timeout"
+        },
+        {
+          "id": "U28QO5R-quJfYnyWsHKY-1",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "U28QO5R-quJfYnyWsHKY-2",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "wsYo0YhR6qkIFfJk9y-C-1",
+          "type": "node",
+          "parent": "1",
+          "label": "[논의 사항]\n\n1. 연막 제거 전까지 장거리 카메라 기반 인식은 불가할 것으로 판단함.\n2. 버튼 높이, 위치 고정이므로 SLAM의 사전 정보로 제시?",
+          "html": "[논의 사항]<div><br>1. 연막 제거 전까지 장거리 카메라 기반 인식은 불가할 것으로 판단함.<div>2. 버튼 높이, 위치 고정이므로 SLAM의 사전 정보로 제시?</div></div>"
+        },
+        {
+          "id": "wsYo0YhR6qkIFfJk9y-C-3",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "wsYo0YhR6qkIFfJk9y-C-5",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_nav2",
+          "target": "s3_sub2_label"
+        },
+        {
+          "id": "s3_sub2_label",
+          "type": "node",
+          "parent": "1",
+          "label": "[서브루틴: ARM_OPEN_DOOR]"
+        },
+        {
+          "id": "aIbhSpnQUtXeNH2G0gGd-1",
+          "type": "node",
+          "parent": "1",
+          "label": "[논의 사항]\n\n1.  클래스 분류가 아에 불가할 경우, 시간 제한을 두어서 FSM에서 빠져나와야 함\n2. 혹은 카메라 위치, 각도를 바꾸어서 다시 인식하는 과정이 필요함.",
+          "html": "[논의 사항]<div><br>1.&nbsp;<span style=\"background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));\">&nbsp;클래스 분류가 아에 불가할 경우, 시간 제한을 두어서 FSM에서 빠져나와야 함</span></div><div><span style=\"background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));\">2. 혹은 카메라 위치, 각도를 바꾸어서 다시 인식하는 과정이 필요함.</span></div>"
+        }
+      ]
+    },
+    {
+      "id": "UWjXNnN1EP-jpG0GYTKV",
+      "name": "[극한]구간4_재난구조탐색",
+      "cells": [
+        {
+          "id": "1",
+          "type": "layer"
+        },
+        {
+          "id": "bJkqbWc5j7XC13THupru-1",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "s4_start",
+          "type": "node",
+          "parent": "1",
+          "label": "START"
+        },
+        {
+          "id": "s4_db",
+          "type": "node",
+          "parent": "1",
+          "label": "DETECT_BOX\n손목캠 YOLO: 95×95×95mm\nDepth로 거리 추정"
+        },
+        {
+          "id": "s4_e1",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_start",
+          "target": "s4_db"
+        },
+        {
+          "id": "s4_d1",
+          "type": "node",
+          "parent": "1",
+          "label": "bbox conf ≥ 0.7?"
+        },
+        {
+          "id": "s4_e2",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_db",
+          "target": "s4_d1"
+        },
+        {
+          "id": "s4_e3",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d1",
+          "target": "s4_db",
+          "label": "N"
+        },
+        {
+          "id": "s4_ab",
+          "type": "node",
+          "parent": "1",
+          "label": "ALIGN_BOX\n박스 정면 정렬\n거리 40~50cm 정지"
+        },
+        {
+          "id": "s4_e4",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d1",
+          "target": "s4_ab",
+          "label": "Y"
+        },
+        {
+          "id": "s4_sub_label",
+          "type": "node",
+          "parent": "1",
+          "label": "[서브루틴: ARM_GRASP_BOX]"
+        },
+        {
+          "id": "s4_ik",
+          "type": "node",
+          "parent": "1",
+          "label": "IK_SOLVE\n박스 상단 파지 포인트 계산\n454~754g 하중 고려",
+          "html": "IK_SOLVE<br>박스 상단 파지 포인트 계산<br>454~754g 하중 고려"
+        },
+        {
+          "id": "s4_e5",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_ab",
+          "target": "s4_ik"
+        },
+        {
+          "id": "s4_d2",
+          "type": "node",
+          "parent": "1",
+          "label": "IK 해 존재?"
+        },
+        {
+          "id": "s4_e6",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_ik",
+          "target": "s4_d2"
+        },
+        {
+          "id": "s4_e7",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d2",
+          "target": "s4_ab",
+          "label": "N → 재정렬"
+        },
+        {
+          "id": "s4_dsc",
+          "type": "node",
+          "parent": "1",
+          "label": "DESCEND\n엔드이펙터 하강\nspeed 0.02 m/s (저속)",
+          "html": "DESCEND<br>엔드이펙터 하강<br>speed 0.02 m/s (저속)"
+        },
+        {
+          "id": "s4_e8",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d2",
+          "target": "s4_dsc",
+          "label": "Y"
+        },
+        {
+          "id": "s4_cg",
+          "type": "node",
+          "parent": "1",
+          "label": "CLOSE_GRIPPER\n그리퍼 닫기\n전류 ≥ 임계 → 파지 판정",
+          "html": "CLOSE_GRIPPER<div>그리퍼 닫기<br>전류 ≥ 임계 → 파지 판정</div>"
+        },
+        {
+          "id": "s4_e9",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_dsc",
+          "target": "s4_cg"
+        },
+        {
+          "id": "s4_d3",
+          "type": "node",
+          "parent": "1",
+          "label": "파지 성공?"
+        },
+        {
+          "id": "s4_e10",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_cg",
+          "target": "s4_d3"
+        },
+        {
+          "id": "s4_e11",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d3",
+          "target": "s4_cg",
+          "label": "N → 재시도"
+        },
+        {
+          "id": "s4_lift",
+          "type": "node",
+          "parent": "1",
+          "label": "LIFT\n수직 리프트\n운반 자세 고정"
+        },
+        {
+          "id": "s4_e12",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d3",
+          "target": "s4_lift",
+          "label": "Y"
+        },
+        {
+          "id": "s4_carry",
+          "type": "node",
+          "parent": "1",
+          "label": "CARRY_MODE\n팔 락킹 + 파지 전류 감시\n그리퍼 전류 주기 체크"
+        },
+        {
+          "id": "s4_e13",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_lift",
+          "target": "s4_carry"
+        },
+        {
+          "id": "s4_d4",
+          "type": "node",
+          "parent": "1",
+          "label": "전류 급감 (DROP)?"
+        },
+        {
+          "id": "s4_e14",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_carry",
+          "target": "s4_d4"
+        },
+        {
+          "id": "s4_drop",
+          "type": "node",
+          "parent": "1",
+          "label": "DROP! −2점\n→ 재파지 시도"
+        },
+        {
+          "id": "s4_e15",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d4",
+          "target": "s4_drop",
+          "label": "Y"
+        },
+        {
+          "id": "s4_e16",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_drop",
+          "target": "s4_ab"
+        },
+        {
+          "id": "s4_exp",
+          "type": "node",
+          "parent": "1",
+          "label": "EXPLORE_ROOM\n방 번호 인식 후 진입\nroom_idx: 1 → 2 → 3"
+        },
+        {
+          "id": "s4_e17",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d4",
+          "target": "s4_exp",
+          "label": "N"
+        },
+        {
+          "id": "s4_dp",
+          "type": "node",
+          "parent": "1",
+          "label": "DETECT_PERSON\nYOLO: 마네킹 유무\n색상: 파랑=생존 빨강=사망"
+        },
+        {
+          "id": "s4_e18",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_exp",
+          "target": "s4_dp"
+        },
+        {
+          "id": "s4_d5",
+          "type": "node",
+          "parent": "1",
+          "label": "room_idx == 3 완료?"
+        },
+        {
+          "id": "s4_e19",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_dp",
+          "target": "s4_d5"
+        },
+        {
+          "id": "s4_e20",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d5",
+          "target": "s4_exp",
+          "label": "N → 다음 방"
+        },
+        {
+          "id": "s4_rep",
+          "type": "node",
+          "parent": "1",
+          "label": "REPORT_DATA\n방번호+유무+생사 전송\n수신 ACK 확인"
+        },
+        {
+          "id": "s4_e21",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d5",
+          "target": "s4_rep",
+          "label": "Y"
+        },
+        {
+          "id": "s4_d6",
+          "type": "node",
+          "parent": "1",
+          "label": "ACK 수신?"
+        },
+        {
+          "id": "s4_e22",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_rep",
+          "target": "s4_d6"
+        },
+        {
+          "id": "s4_e23",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d6",
+          "target": "s4_rep",
+          "label": "N → 재전송"
+        },
+        {
+          "id": "s4_fin",
+          "type": "node",
+          "parent": "1",
+          "label": "NAV_FINISH\nFINISH 라인까지 파지 유지 주행"
+        },
+        {
+          "id": "s4_e24",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d6",
+          "target": "s4_fin",
+          "label": "Y"
+        },
+        {
+          "id": "s4_d7",
+          "type": "node",
+          "parent": "1",
+          "label": "FINISH 도달?"
+        },
+        {
+          "id": "s4_e25",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_fin",
+          "target": "s4_d7"
+        },
+        {
+          "id": "s4_e26",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d7",
+          "target": "s4_fin",
+          "label": "N"
+        },
+        {
+          "id": "s4_done",
+          "type": "node",
+          "parent": "1",
+          "label": "DONE_4"
+        },
+        {
+          "id": "s4_e27",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d7",
+          "target": "s4_done",
+          "label": "Y"
+        },
+        {
+          "id": "_TQwEaf7X0z53h22WdHt-3",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "_TQwEaf7X0z53h22WdHt-4",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "6nagdq7J1e-mW4IXGViW-1",
+          "type": "node",
+          "parent": "1",
+          "label": "[논의 사항]\n\n1.  클래스 분류가 아에 불가할 경우, 시간 제한을 두어서 FSM에서 빠져나와야 함\n2. 혹은 카메라 위치, 각도를 바꾸어서 다시 인식하는 과정이 필요함.",
+          "html": "[논의 사항]<div><br>1.&nbsp;<span style=\"background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));\">&nbsp;클래스 분류가 아에 불가할 경우, 시간 제한을 두어서 FSM에서 빠져나와야 함</span></div><div><span style=\"background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));\">2. 혹은 카메라 위치, 각도를 바꾸어서 다시 인식하는 과정이 필요함.</span></div>"
+        }
+      ]
+    },
+    {
+      "id": "-4XFUjEvDP8JOC9anLeH",
+      "name": "[국방]구간1_봄_정찰수행",
+      "cells": [
+        {
+          "id": "1",
+          "type": "layer"
+        },
+        {
+          "id": "s1_start",
+          "type": "node",
+          "parent": "1",
+          "label": "START"
+        },
+        {
+          "id": "s1_nav",
+          "type": "node",
+          "parent": "1",
+          "label": "SMOKE_NAV\nLiDAR 경로 추종\n(카메라 연막 무시)"
+        },
+        {
+          "id": "s1_e1",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_start",
+          "target": "s1_nav"
+        },
+        {
+          "id": "s1_d1",
+          "type": "node",
+          "parent": "1",
+          "label": "스모그 구간 통과?\n(아치형 W1.8m H2.2m)"
+        },
+        {
+          "id": "s1_e2",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_nav",
+          "target": "s1_d1"
+        },
+        {
+          "id": "s1_e3",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d1",
+          "target": "s1_nav",
+          "label": "N"
+        },
+        {
+          "id": "s1_nav2",
+          "type": "node",
+          "parent": "1",
+          "label": "NAV_TO_IFF1\n피아식별 1 지점으로 이동"
+        },
+        {
+          "id": "s1_e4",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d1",
+          "target": "s1_nav2",
+          "label": "Y"
+        },
+        {
+          "id": "s1_iff1",
+          "type": "node",
+          "parent": "1",
+          "label": "DETECT_IFF1\nYOLO: 마네킹 군복 인식\n우리군(녹색) / 적군(적색)"
+        },
+        {
+          "id": "s1_e5",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_nav2",
+          "target": "s1_iff1"
+        },
+        {
+          "id": "s1_d2",
+          "type": "node",
+          "parent": "1",
+          "label": "군복 클래스\n분류 성공?"
+        },
+        {
+          "id": "s1_e6",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_iff1",
+          "target": "s1_d2"
+        },
+        {
+          "id": "s1_e7",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d2",
+          "target": "s1_iff1",
+          "label": "N → 재시도"
+        },
+        {
+          "id": "s1_led1",
+          "type": "node",
+          "parent": "1",
+          "label": "TRIGGER_LED1\n분류 결과 → LED 점등\n우리군=녹색 / 적군=적색"
+        },
+        {
+          "id": "s1_e8",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d2",
+          "target": "s1_led1",
+          "label": "Y"
+        },
+        {
+          "id": "s1_nav3",
+          "type": "node",
+          "parent": "1",
+          "label": "NAV_TO_IFF2\n피아식별 2 지점으로 이동"
+        },
+        {
+          "id": "s1_e9",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_led1",
+          "target": "s1_nav3"
+        },
+        {
+          "id": "s1_iff2",
+          "type": "node",
+          "parent": "1",
+          "label": "DETECT_IFF2\nYOLO: 마네킹 군복 인식\n우리군(녹색) / 적군(적색)"
+        },
+        {
+          "id": "s1_e10",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_nav3",
+          "target": "s1_iff2"
+        },
+        {
+          "id": "s1_d3",
+          "type": "node",
+          "parent": "1",
+          "label": "군복 클래스\n분류 성공?"
+        },
+        {
+          "id": "s1_e11",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_iff2",
+          "target": "s1_d3"
+        },
+        {
+          "id": "s1_e12",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d3",
+          "target": "s1_iff2",
+          "label": "N → 재시도"
+        },
+        {
+          "id": "s1_led2",
+          "type": "node",
+          "parent": "1",
+          "label": "TRIGGER_LED2\n분류 결과 → LED 점등"
+        },
+        {
+          "id": "s1_e13",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d3",
+          "target": "s1_led2",
+          "label": "Y"
+        },
+        {
+          "id": "s1_d4",
+          "type": "node",
+          "parent": "1",
+          "label": "elapsed > 20min?"
+        },
+        {
+          "id": "s1_e14",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_led2",
+          "target": "s1_d4"
+        },
+        {
+          "id": "s1_timeout",
+          "type": "node",
+          "parent": "1",
+          "label": "TIMEOUT\n구간 포기"
+        },
+        {
+          "id": "s1_e15",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d4",
+          "target": "s1_timeout",
+          "label": "Y"
+        },
+        {
+          "id": "s1_fin",
+          "type": "node",
+          "parent": "1",
+          "label": "NAV_FINISH\n완주"
+        },
+        {
+          "id": "s1_e16",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_d4",
+          "target": "s1_fin",
+          "label": "N"
+        },
+        {
+          "id": "s1_done",
+          "type": "node",
+          "parent": "1",
+          "label": "DONE_1"
+        },
+        {
+          "id": "s1_e17",
+          "type": "edge",
+          "parent": "1",
+          "source": "s1_fin",
+          "target": "s1_done"
+        },
+        {
+          "id": "s1_note",
+          "type": "node",
+          "parent": "1",
+          "label": "[감점 기준]\n트랙 이탈 1회 −1점\n최대 5회 적용"
+        },
+        {
+          "id": "jgaAN8DmGrs7HBCE5dt1-2",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "J6heK7-p2nv5cl0nQwFk-1",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "Ee29d5gZTNfon7frZqTI-1",
+          "type": "node",
+          "parent": "1",
+          "label": "[논의 사항]\n\n1. 연막 제거 전까지 장거리 카메라 기반 인식은 불가할 것으로 판단함.\n2. 버튼 높이, 위치 고정이므로 SLAM의 사전 정보로 제시?\n3. 사실 전체 개방형 맵이기 때문에 라이다가 무용지물 일 것 같음.",
+          "html": "[논의 사항]<div><br>1. 연막 제거 전까지 장거리 카메라 기반 인식은 불가할 것으로 판단함.<div>2. 버튼 높이, 위치 고정이므로 SLAM의 사전 정보로 제시?</div></div><div>3. 사실 전체 개방형 맵이기 때문에 라이다가 무용지물 일 것 같음.</div>"
+        },
+        {
+          "id": "IR-7iTIS3npRKOJQdaMl-1",
+          "type": "node",
+          "parent": "1",
+          "label": "[논의 사항]\n\n1.  클래스 분류가 아에 불가할 경우, 시간 제한을 두어서 FSM에서 빠져나와야 함\n2. 혹은 카메라 위치, 각도를 바꾸어서 다시 인식하는 과정이 필요함.",
+          "html": "[논의 사항]<div><br>1.&nbsp;<span style=\"background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));\">&nbsp;클래스 분류가 아에 불가할 경우, 시간 제한을 두어서 FSM에서 빠져나와야 함</span></div><div><span style=\"background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));\">2. 혹은 카메라 위치, 각도를 바꾸어서 다시 인식하는 과정이 필요함.</span></div>"
+        }
+      ]
+    },
+    {
+      "id": "jzxUNtUwqcvILJkXmLBA",
+      "name": "[국방]구간2_여름_구호물자운반",
+      "cells": [
+        {
+          "id": "1",
+          "type": "layer"
+        },
+        {
+          "id": "kf4YJy79JFHdh2zjBDCS-1",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "s2_start",
+          "type": "node",
+          "parent": "1",
+          "label": "START"
+        },
+        {
+          "id": "s2_db",
+          "type": "node",
+          "parent": "1",
+          "label": "DETECT_BOX\nYOLO: 95×95×95mm 구호물자\nDepth로 거리 추정"
+        },
+        {
+          "id": "s2_e1",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_start",
+          "target": "s2_db"
+        },
+        {
+          "id": "s2_d1",
+          "type": "node",
+          "parent": "1",
+          "label": "bbox conf ≥ 0.7?"
+        },
+        {
+          "id": "s2_e2",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_db",
+          "target": "s2_d1"
+        },
+        {
+          "id": "s2_e3",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d1",
+          "target": "s2_db",
+          "label": "N"
+        },
+        {
+          "id": "s2_ab",
+          "type": "node",
+          "parent": "1",
+          "label": "ALIGN_BOX\n박스 정면 정렬\n거리 40~50cm 정지"
+        },
+        {
+          "id": "s2_e4",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d1",
+          "target": "s2_ab",
+          "label": "Y"
+        },
+        {
+          "id": "s2_sub_label",
+          "type": "node",
+          "parent": "1",
+          "label": "[서브루틴: ARM_GRASP_BOX]"
+        },
+        {
+          "id": "s2_ik",
+          "type": "node",
+          "parent": "1",
+          "label": "IK_SOLVE\n박스 상단 파지 포인트 계산\n454~754g 하중 고려",
+          "html": "IK_SOLVE<br>박스 상단 파지 포인트 계산<br>454~754g 하중 고려"
+        },
+        {
+          "id": "s2_e5",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_ab",
+          "target": "s2_ik"
+        },
+        {
+          "id": "s2_d2",
+          "type": "node",
+          "parent": "1",
+          "label": "IK 해 존재?"
+        },
+        {
+          "id": "s2_e6",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_ik",
+          "target": "s2_d2"
+        },
+        {
+          "id": "s2_e7",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d2",
+          "target": "s2_ab",
+          "label": "N → 재정렬"
+        },
+        {
+          "id": "s2_grasp",
+          "type": "node",
+          "parent": "1",
+          "label": "DESCEND + CLOSE_GRIPPER\n저속 하강 (0.02 m/s)\n전류 ≥ 임계 → 파지 판정",
+          "html": "DESCEND + CLOSE_GRIPPER<br>저속 하강 (0.02 m/s)<br>전류 ≥ 임계 → 파지 판정"
+        },
+        {
+          "id": "s2_e8",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d2",
+          "target": "s2_grasp",
+          "label": "Y"
+        },
+        {
+          "id": "s2_d3",
+          "type": "node",
+          "parent": "1",
+          "label": "파지 성공?\n(전류 ≥ 임계)"
+        },
+        {
+          "id": "s2_e9",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_grasp",
+          "target": "s2_d3"
+        },
+        {
+          "id": "s2_e10",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d3",
+          "target": "s2_grasp",
+          "label": "N → 재시도"
+        },
+        {
+          "id": "s2_lift",
+          "type": "node",
+          "parent": "1",
+          "label": "LIFT + CARRY_POSE\n수직 리프트 → 운반 자세 고정\n그리퍼 전류 감시 시작",
+          "html": "LIFT + CARRY_POSE<br>수직 리프트 → 운반 자세 고정<br>그리퍼 전류 감시 시작"
+        },
+        {
+          "id": "s2_e11",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d3",
+          "target": "s2_lift",
+          "label": "Y"
+        },
+        {
+          "id": "s2_carry",
+          "type": "node",
+          "parent": "1",
+          "label": "CARRY_MODE\n파지 유지 주행\n그리퍼 전류 주기 체크"
+        },
+        {
+          "id": "s2_e12",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_lift",
+          "target": "s2_carry"
+        },
+        {
+          "id": "s2_d4",
+          "type": "node",
+          "parent": "1",
+          "label": "전류 급감 (DROP)?"
+        },
+        {
+          "id": "s2_e13",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_carry",
+          "target": "s2_d4"
+        },
+        {
+          "id": "s2_drop",
+          "type": "node",
+          "parent": "1",
+          "label": "DROP! −2점\n→ 재파지 시도"
+        },
+        {
+          "id": "s2_e14",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d4",
+          "target": "s2_drop",
+          "label": "Y"
+        },
+        {
+          "id": "s2_e15",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_drop",
+          "target": "s2_ab"
+        },
+        {
+          "id": "s2_d5",
+          "type": "node",
+          "parent": "1",
+          "label": "신호등 감지?"
+        },
+        {
+          "id": "s2_e16",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d4",
+          "target": "s2_d5",
+          "label": "N"
+        },
+        {
+          "id": "s2_d6",
+          "type": "node",
+          "parent": "1",
+          "label": "빨간불 점등?"
+        },
+        {
+          "id": "s2_e17",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d5",
+          "target": "s2_d6",
+          "label": "Y"
+        },
+        {
+          "id": "s2_stop",
+          "type": "node",
+          "parent": "1",
+          "label": "STOP\n완전 정지 대기"
+        },
+        {
+          "id": "s2_e18",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d6",
+          "target": "s2_stop",
+          "label": "Y"
+        },
+        {
+          "id": "s2_d7",
+          "type": "node",
+          "parent": "1",
+          "label": "초록불 점등?"
+        },
+        {
+          "id": "s2_e19",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_stop",
+          "target": "s2_d7"
+        },
+        {
+          "id": "s2_e20",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d7",
+          "target": "s2_stop",
+          "label": "N"
+        },
+        {
+          "id": "s2_e21",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d7",
+          "target": "s2_d8",
+          "label": "Y → 재주행"
+        },
+        {
+          "id": "s2_d8",
+          "type": "node",
+          "parent": "1",
+          "label": "현재 지형?"
+        },
+        {
+          "id": "s2_sand",
+          "type": "node",
+          "parent": "1",
+          "label": "SAND_MODE\n속도 ↓ (0.15 m/s)\n슬립 방지 토크 제어"
+        },
+        {
+          "id": "s2_e23",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d8",
+          "target": "s2_sand",
+          "label": "사구"
+        },
+        {
+          "id": "s2_gravel",
+          "type": "node",
+          "parent": "1",
+          "label": "GRAVEL_MODE\n속도 0.2 m/s\nIMU roll 감시"
+        },
+        {
+          "id": "s2_e24",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d8",
+          "target": "s2_gravel",
+          "label": "자갈"
+        },
+        {
+          "id": "s2_water",
+          "type": "node",
+          "parent": "1",
+          "label": "WATER_MODE\n속도 ↓ (0.1 m/s)\n수심 5~12cm 주의"
+        },
+        {
+          "id": "s2_e25",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d8",
+          "target": "s2_water",
+          "label": "수중"
+        },
+        {
+          "id": "s2_d9",
+          "type": "node",
+          "parent": "1",
+          "label": "velocity=0 &&\n 전류 과부하?",
+          "html": "velocity=0 &amp;&amp;<div>&nbsp;전류 과부하?</div>"
+        },
+        {
+          "id": "s2_e26",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_sand",
+          "target": "s2_d9"
+        },
+        {
+          "id": "s2_e27",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_gravel",
+          "target": "s2_d9"
+        },
+        {
+          "id": "s2_e28",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_water",
+          "target": "s2_d9"
+        },
+        {
+          "id": "HOKtT-e-vh4WzHc-9e2b-1",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_stuck",
+          "target": "MJqsPM3dpF0xV_ltNTIv-1"
+        },
+        {
+          "id": "s2_stuck",
+          "type": "node",
+          "parent": "1",
+          "label": "STUCK\n후진 + 방향 보정\nretry_cnt++"
+        },
+        {
+          "id": "s2_e29",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d9",
+          "target": "s2_stuck",
+          "label": "Y"
+        },
+        {
+          "id": "s2_e30",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d9",
+          "target": "s2_carry",
+          "label": "N → 한번 더 체크"
+        },
+        {
+          "id": "s2_d10",
+          "type": "node",
+          "parent": "1",
+          "label": "도착지점 진입?\n(구호물자 인정 조건)"
+        },
+        {
+          "id": "s2_e31",
+          "type": "edge",
+          "parent": "1",
+          "source": "MJqsPM3dpF0xV_ltNTIv-1",
+          "label": "N "
+        },
+        {
+          "id": "s2_e32",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d9",
+          "target": "s2_d10",
+          "label": "N → 계속"
+        },
+        {
+          "id": "s2_done",
+          "type": "node",
+          "parent": "1",
+          "label": "DONE_2"
+        },
+        {
+          "id": "s2_e33",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d10",
+          "target": "s2_done",
+          "label": "Y"
+        },
+        {
+          "id": "s2_note",
+          "type": "node",
+          "parent": "1",
+          "label": "[감점 기준]\n구호물자 낙하 1회 −2점 (최대 5회)\n트랙 이탈 1회 −1점 (최대 5회)"
+        },
+        {
+          "id": "uqSdnMMfiVaPo55koT---1",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "uqSdnMMfiVaPo55koT---2",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "uqSdnMMfiVaPo55koT---3",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "kf4YJy79JFHdh2zjBDCS-3",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d5",
+          "target": "s2_d4",
+          "label": "N → 재시도"
+        },
+        {
+          "id": "kf4YJy79JFHdh2zjBDCS-4",
+          "type": "edge",
+          "parent": "1",
+          "source": "s2_d6",
+          "target": "s2_d7",
+          "label": "N"
+        },
+        {
+          "id": "MJqsPM3dpF0xV_ltNTIv-1",
+          "type": "node",
+          "parent": "1",
+          "label": "retry_cnt > 3?"
+        },
+        {
+          "id": "MJqsPM3dpF0xV_ltNTIv-2",
+          "type": "node",
+          "parent": "1",
+          "label": "구간 포기"
+        },
+        {
+          "id": "MJqsPM3dpF0xV_ltNTIv-3",
+          "type": "edge",
+          "parent": "1",
+          "source": "MJqsPM3dpF0xV_ltNTIv-1",
+          "target": "MJqsPM3dpF0xV_ltNTIv-2",
+          "label": "Y"
+        }
+      ]
+    },
+    {
+      "id": "olfABtSIpeu2PeeE1jmF",
+      "name": "[국방]구간3_가을_장애물식별",
+      "cells": [
+        {
+          "id": "1",
+          "type": "layer"
+        },
+        {
+          "id": "s3_start",
+          "type": "node",
+          "parent": "1",
+          "label": "START"
+        },
+        {
+          "id": "s3_init",
+          "type": "node",
+          "parent": "1",
+          "label": "INIT (초기 설정)\nmarker_cnt = 0\ntarget_cnt = 5",
+          "html": "INIT (초기 설정)<br>marker_cnt = 0<br>target_cnt = 5"
+        },
+        {
+          "id": "s3_e1",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_start",
+          "target": "s3_init"
+        },
+        {
+          "id": "s3_nav",
+          "type": "node",
+          "parent": "1",
+          "label": "NAVIGATE\n트랙 주행 (9.7m)\n전방 비전마커 탐색"
+        },
+        {
+          "id": "s3_e2",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_init",
+          "target": "s3_nav"
+        },
+        {
+          "id": "s3_d1",
+          "type": "node",
+          "parent": "1",
+          "label": "비전마커 감지?\n(20×20cm 하드보드지)"
+        },
+        {
+          "id": "s3_e3",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_nav",
+          "target": "s3_d1"
+        },
+        {
+          "id": "s3_e4",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d1",
+          "target": "s3_nav",
+          "label": "N"
+        },
+        {
+          "id": "s3_stop",
+          "type": "node",
+          "parent": "1",
+          "label": "STOP_IDENTIFY\n마커 앞에서 정지\n카메라 최적 거리 확보"
+        },
+        {
+          "id": "s3_e5",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d1",
+          "target": "s3_stop",
+          "label": "Y"
+        },
+        {
+          "id": "s3_d2",
+          "type": "node",
+          "parent": "1",
+          "label": "마커 분류 성공?\n(YOLO conf ≥ 0.7)"
+        },
+        {
+          "id": "s3_e6",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_stop",
+          "target": "s3_d2"
+        },
+        {
+          "id": "s3_e7",
+          "type": "edge",
+          "parent": "1",
+          "target": "s3_stop",
+          "label": "N"
+        },
+        {
+          "id": "s3_cnt",
+          "type": "node",
+          "parent": "1",
+          "label": "marker_cnt++\n결과 기록 (마커 ID 저장)"
+        },
+        {
+          "id": "s3_e9",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d2",
+          "target": "s3_cnt",
+          "label": "Y"
+        },
+        {
+          "id": "s3_d3",
+          "type": "node",
+          "parent": "1",
+          "label": "marker_cnt == 5?"
+        },
+        {
+          "id": "s3_e10",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_cnt",
+          "target": "s3_d3"
+        },
+        {
+          "id": "s3_e11",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d3",
+          "target": "s3_nav",
+          "label": "N → 다음 마커"
+        },
+        {
+          "id": "s3_d4",
+          "type": "node",
+          "parent": "1",
+          "label": "elapsed > 20min?"
+        },
+        {
+          "id": "s3_e12",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d3",
+          "target": "s3_d4",
+          "label": "Y → 완주"
+        },
+        {
+          "id": "s3_timeout",
+          "type": "node",
+          "parent": "1",
+          "label": "TIMEOUT\n현재 점수로 마감"
+        },
+        {
+          "id": "s3_e13",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d4",
+          "target": "s3_timeout",
+          "label": "Y"
+        },
+        {
+          "id": "s3_fin",
+          "type": "node",
+          "parent": "1",
+          "label": "NAV_FINISH\n완주 (완주 점수 획득)"
+        },
+        {
+          "id": "s3_e14",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_d4",
+          "target": "s3_fin",
+          "label": "N"
+        },
+        {
+          "id": "s3_done",
+          "type": "node",
+          "parent": "1",
+          "label": "DONE_3"
+        },
+        {
+          "id": "s3_e15",
+          "type": "edge",
+          "parent": "1",
+          "source": "s3_fin",
+          "target": "s3_done"
+        },
+        {
+          "id": "s3_note",
+          "type": "node",
+          "parent": "1",
+          "label": "[감점 기준]\n물체 식별 실패 1회 −1점 (최대 5회)\n트랙 이탈 1회 −1점 (최대 5회)"
+        },
+        {
+          "id": "4v_JIhv4eICLxM9VMjyZ-1",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "4v_JIhv4eICLxM9VMjyZ-2",
+          "type": "node",
+          "parent": "1"
+        }
+      ]
+    },
+    {
+      "id": "r6D8mmlJ43X2T9ByNC7Z",
+      "name": "[국방]구간4_겨울_경로확보",
+      "cells": [
+        {
+          "id": "1",
+          "type": "layer"
+        },
+        {
+          "id": "s4_start",
+          "type": "node",
+          "parent": "1",
+          "label": "START"
+        },
+        {
+          "id": "s4_nav1",
+          "type": "node",
+          "parent": "1",
+          "label": "NAV_TO_ICE\n빙판길 구간 진입\n(빙판길 약 2.9m)"
+        },
+        {
+          "id": "s4_e1",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_start",
+          "target": "s4_nav1"
+        },
+        {
+          "id": "s4_ice",
+          "type": "node",
+          "parent": "1",
+          "label": "ICE_MODE\n속도 ↓ (0.1 m/s)\nIMU 슬립 감지 활성화\n(스티로폼 공 + WD-40)"
+        },
+        {
+          "id": "s4_e2",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_nav1",
+          "target": "s4_ice"
+        },
+        {
+          "id": "s4_d1",
+          "type": "node",
+          "parent": "1",
+          "label": "IMU 슬립 감지?\n(wheel vel vs body vel)"
+        },
+        {
+          "id": "s4_e3",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_ice",
+          "target": "s4_d1"
+        },
+        {
+          "id": "s4_slip",
+          "type": "node",
+          "parent": "1",
+          "label": "SLIP_CTRL\n속도 추가 감소\n토크 조절 복구"
+        },
+        {
+          "id": "s4_e4",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d1",
+          "target": "s4_slip",
+          "label": "Y"
+        },
+        {
+          "id": "s4_e5",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_slip",
+          "target": "s4_d1"
+        },
+        {
+          "id": "s4_d2",
+          "type": "node",
+          "parent": "1",
+          "label": "빙판길 구간 통과?"
+        },
+        {
+          "id": "s4_e6",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d1",
+          "target": "s4_d2",
+          "label": "N"
+        },
+        {
+          "id": "s4_e7",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d2",
+          "target": "s4_ice",
+          "label": "N → 계속"
+        },
+        {
+          "id": "s4_nav2",
+          "type": "node",
+          "parent": "1",
+          "label": "NAV_TO_SNOW\n제설 구간 진입\n(제설 구간 약 6m)"
+        },
+        {
+          "id": "s4_e8",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d2",
+          "target": "s4_nav2",
+          "label": "Y"
+        },
+        {
+          "id": "s4_d3",
+          "type": "node",
+          "parent": "1",
+          "label": "전방 제설 물체 감지?\n(스티로폼 공 20~50mm)"
+        },
+        {
+          "id": "s4_e9",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_nav2",
+          "target": "s4_d3"
+        },
+        {
+          "id": "s4_snow",
+          "type": "node",
+          "parent": "1",
+          "label": "SNOW_CLEAR\n제설 작업 진행",
+          "html": "SNOW_CLEAR<br>제설 작업 진행"
+        },
+        {
+          "id": "s4_e10",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d3",
+          "target": "s4_snow",
+          "label": "Y"
+        },
+        {
+          "id": "s4_e11",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_snow",
+          "target": "s4_d3"
+        },
+        {
+          "id": "s4_d4",
+          "type": "node",
+          "parent": "1",
+          "label": "제설 구간 경로 확보?"
+        },
+        {
+          "id": "s4_e12",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d3",
+          "target": "s4_d4",
+          "label": "N"
+        },
+        {
+          "id": "s4_e13",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d4",
+          "target": "s4_nav2",
+          "label": "N → 재시도"
+        },
+        {
+          "id": "s4_d5",
+          "type": "node",
+          "parent": "1",
+          "label": "elapsed > 20min?"
+        },
+        {
+          "id": "s4_e14",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d4",
+          "target": "s4_d5",
+          "label": "Y"
+        },
+        {
+          "id": "s4_timeout",
+          "type": "node",
+          "parent": "1",
+          "label": "TIMEOUT\n구간 포기"
+        },
+        {
+          "id": "s4_e15",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d5",
+          "target": "s4_timeout",
+          "label": "Y"
+        },
+        {
+          "id": "s4_fin",
+          "type": "node",
+          "parent": "1",
+          "label": "NAV_FINISH\n완주"
+        },
+        {
+          "id": "s4_e16",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_d5",
+          "target": "s4_fin",
+          "label": "N"
+        },
+        {
+          "id": "s4_done",
+          "type": "node",
+          "parent": "1",
+          "label": "DONE_4"
+        },
+        {
+          "id": "s4_e17",
+          "type": "edge",
+          "parent": "1",
+          "source": "s4_fin",
+          "target": "s4_done"
+        },
+        {
+          "id": "s4_note",
+          "type": "node",
+          "parent": "1",
+          "label": "[감점 기준]\n트랙 이탈 1회 −2점 (최대 5회)"
+        },
+        {
+          "id": "drx_Tluj__Cr2GqivxCg-1",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "drx_Tluj__Cr2GqivxCg-2",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "re1_OaeMkvJIkYiKYxmf-1",
+          "type": "node",
+          "parent": "1",
+          "label": "[논의 사항]\n\n1.  재설 작업을 어떻게 진행할 것인지,\n치우며 지나갈 것인지, 그냥 밡고 지나갈지 (가능하나..?)",
+          "html": "[논의 사항]<div><br>1.&nbsp;<span style=\"background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));\">&nbsp;재설 작업을 어떻게 진행할 것인지,</span></div><div><span style=\"background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));\">치우며 지나갈 것인지, 그냥 밡고 지나갈지 (가능하나..?)</span></div>"
+        }
+      ]
+    },
+    {
+      "id": "ibvUGbeW0MV5weQoT3Hs",
+      "name": "[국방]구간5_정찰동행_추종",
+      "cells": [
+        {
+          "id": "1",
+          "type": "layer"
+        },
+        {
+          "id": "s5_start",
+          "type": "node",
+          "parent": "1",
+          "label": "START"
+        },
+        {
+          "id": "s5_sel",
+          "type": "node",
+          "parent": "1",
+          "label": "[선도봇 사양]\n로봇개(GO2): 1.0 m/s\nUGV(RoboMaster EP): 0.8 m/s"
+        },
+        {
+          "id": "s5_init",
+          "type": "node",
+          "parent": "1",
+          "label": "TRACK_INIT\n선도봇 탐지 (LiDAR/카메라)\n초기 간격 2m±0.5m 확보"
+        },
+        {
+          "id": "s5_e1",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_start",
+          "target": "s5_init"
+        },
+        {
+          "id": "s5_d0",
+          "type": "node",
+          "parent": "1",
+          "label": "선도봇 탐지?"
+        },
+        {
+          "id": "s5_e1b",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_init",
+          "target": "s5_d0"
+        },
+        {
+          "id": "s5_e1c",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_d0",
+          "target": "s5_init",
+          "label": "N"
+        },
+        {
+          "id": "s5_follow",
+          "type": "node",
+          "parent": "1",
+          "label": "FOLLOW\n간격 PID: target=2.0m\nerr = dist − 2.0\n|err| ≤ 0.5m 유지"
+        },
+        {
+          "id": "s5_e2",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_d0",
+          "target": "s5_follow",
+          "label": "Y"
+        },
+        {
+          "id": "s5_d1",
+          "type": "node",
+          "parent": "1",
+          "label": "|err| > 0.5m?\n(접촉 위험 포함)"
+        },
+        {
+          "id": "s5_e3",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_follow",
+          "target": "s5_d1"
+        },
+        {
+          "id": "s5_pen",
+          "type": "node",
+          "parent": "1",
+          "label": "감점 −2점\nerr_cnt++\nPID 급보정"
+        },
+        {
+          "id": "s5_e4",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_d1",
+          "target": "s5_pen",
+          "label": "Y"
+        },
+        {
+          "id": "s5_e5",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_pen",
+          "target": "s5_follow"
+        },
+        {
+          "id": "s5_d2",
+          "type": "node",
+          "parent": "1",
+          "label": "선도봇 탐지?"
+        },
+        {
+          "id": "s5_e6",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_d1",
+          "target": "s5_d2",
+          "label": "N (|err|정상)"
+        },
+        {
+          "id": "s5_occ",
+          "type": "node",
+          "parent": "1",
+          "label": "OCCLUDED\n가림막 진입 (180×120cm)\n직전 속도/방향 유지"
+        },
+        {
+          "id": "s5_e7",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_d2",
+          "target": "s5_occ",
+          "label": "N"
+        },
+        {
+          "id": "s5_reacq",
+          "type": "node",
+          "parent": "1",
+          "label": "RE_ACQUIRE\n저속 전진 0.3m/s\nLiDAR 재탐지 대기"
+        },
+        {
+          "id": "s5_e8",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_occ",
+          "target": "s5_reacq"
+        },
+        {
+          "id": "s5_d3",
+          "type": "node",
+          "parent": "1",
+          "label": "재탐지 성공?"
+        },
+        {
+          "id": "s5_e9",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_reacq",
+          "target": "s5_d3"
+        },
+        {
+          "id": "s5_e10",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_d3",
+          "target": "s5_reacq",
+          "label": "N"
+        },
+        {
+          "id": "s5_e11",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_d3",
+          "target": "s5_follow",
+          "label": "Y → 재추종"
+        },
+        {
+          "id": "s5_d4",
+          "type": "node",
+          "parent": "1",
+          "label": "FINISH 도달?"
+        },
+        {
+          "id": "s5_e12",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_d2",
+          "target": "s5_d4",
+          "label": "Y"
+        },
+        {
+          "id": "s5_e13",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_d4",
+          "target": "s5_follow",
+          "label": "N → 계속"
+        },
+        {
+          "id": "s5_done",
+          "type": "node",
+          "parent": "1",
+          "label": "DONE_5"
+        },
+        {
+          "id": "s5_e14",
+          "type": "edge",
+          "parent": "1",
+          "source": "s5_d4",
+          "target": "s5_done",
+          "label": "Y"
+        },
+        {
+          "id": "s5_note",
+          "type": "node",
+          "parent": "1",
+          "label": "[감점 기준]\n트랙 이탈 or 선도봇 접촉 1회 −2점 (최대 5회)"
+        },
+        {
+          "id": "sg0UU8p7kHlThKZJQtFg-1",
+          "type": "node",
+          "parent": "1"
+        },
+        {
+          "id": "sg0UU8p7kHlThKZJQtFg-2",
+          "type": "node",
+          "parent": "1"
+        }
+      ]
+    }
+  ]
+}
