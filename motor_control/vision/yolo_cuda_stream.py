@@ -25,8 +25,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--width", type=int, default=1280)
     p.add_argument("--height", type=int, default=720)
     p.add_argument("--fps", type=int, default=30)
-    p.add_argument("--model", default="yolov8n.pt",
-                   help="ultralytics model: .pt or .engine path")
+    p.add_argument("--model", default="yolo26n.pt",
+                   help="ultralytics model: .pt or .engine path (팀 결정: YOLO26)")
     p.add_argument("--backend", choices=["pt", "trt"], default="pt",
                    help="pt = PyTorch CUDA, trt = TensorRT FP16")
     p.add_argument("--port", type=int, default=5000)

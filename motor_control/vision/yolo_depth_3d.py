@@ -46,8 +46,9 @@ from gst_stream import ENCODERS, build_gst_command
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--model", default="yolov8n.pt",
-                   help="ultralytics 모델: .pt 또는 .engine")
+    p.add_argument("--model", default="yolo26n.pt",
+                   help="ultralytics 모델: .pt 또는 .engine (팀 결정: YOLO26). "
+                        "커스텀 학습 모델이면 그 .pt 경로 지정")
     p.add_argument("--backend", choices=["pt", "trt"], default="pt",
                    help="pt = PyTorch CUDA, trt = TensorRT FP16")
     p.add_argument("--conf", type=float, default=0.4)
