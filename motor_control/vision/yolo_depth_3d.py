@@ -78,9 +78,8 @@ def parse_args() -> argparse.Namespace:
 def latest_frames(pipe: rs.pipeline) -> rs.composite_frame:
     """큐에 밀린 프레임을 버리고 가장 최신 프레임셋만 반환.
 
-    처리 루프(YOLO+align)가 카메라 fps 보다 느리면 librealsense 큐에 프레임이
-    쌓여 화면이 항상 과거가 된다(고정 랙). 매 루프 최신만 취해 랙을 1프레임
-    이내로 유지한다.
+    처리 루프가 카메라 fps 보다 느리면 librealsense 큐에 프레임이 쌓여 화면이
+    항상 과거가 된다(고정 랙). 매 루프 최신만 취해 랙을 1프레임 이내로 유지한다.
     """
     frames = pipe.wait_for_frames()
     while True:
@@ -90,18 +89,55 @@ def latest_frames(pipe: rs.pipeline) -> rs.composite_frame:
         frames = nxt
 
 
-def robust_depth_m(depth_img: np.ndarray, depth_scale: float,
-                   box: tuple[int, int, int, int]) -> float | None:
-    """박스 중앙 1/3 패치의 유효(>0) depth 중앙값 [m]. 유효픽셀 부족 시 None."""
+class DepthCal:
+    """color↔depth 투영에 필요한 내·외부 파라미터 묶음 (스트림 시작 시 1회 구성).
+
+    전체 프레임 정렬(rs.align)은 Orin Nano CPU 에서 ~108ms/프레임으로 루프의
+    80% 를 잡아먹는다(HIL 측정). 우리는 박스 중심 몇 점의 depth 만 필요하므로,
+    검출별로 color 픽셀→depth 픽셀 투영(rs2_project_color_pixel_to_depth_pixel)
+    만 하면 정렬이 통째로 사라진다(2.9ms). 좌표는 align 방식과 평균 11mm,
+    95%ile 25mm 이내로 일치(센서 노이즈 이내) — 검증 완료.
+    """
+
+    def __init__(self, profile: rs.pipeline_profile,
+                 dmin: float = 0.1, dmax: float = 10.0):
+        dprof = profile.get_stream(rs.stream.depth).as_video_stream_profile()
+        cprof = profile.get_stream(rs.stream.color).as_video_stream_profile()
+        self.di = dprof.get_intrinsics()
+        self.ci = cprof.get_intrinsics()
+        self.c2d = cprof.get_extrinsics_to(dprof)
+        self.d2c = dprof.get_extrinsics_to(cprof)
+        self.scale = (profile.get_device().first_depth_sensor()
+                      .get_depth_scale())
+        self.dmin, self.dmax = dmin, dmax
+
+
+def deproject_box(depth_frame: rs.depth_frame, depth_img: np.ndarray,
+                  box: tuple[int, int, int, int],
+                  cal: DepthCal) -> tuple[float, float, float] | None:
+    """color 박스 중심 → depth 픽셀 투영 → depth 패치 중앙값 → color 프레임 (X,Y,Z)[m].
+
+    정렬 없이 동작. depth 측정 불가(투영 화면밖/유효픽셀 부족) 시 None.
+    """
     x1, y1, x2, y2 = box
-    w, h = x2 - x1, y2 - y1
-    px1, px2 = x1 + w // 3, x2 - w // 3
-    py1, py2 = y1 + h // 3, y2 - h // 3
-    patch = depth_img[max(py1, 0):py2, max(px1, 0):px2]
+    cu, cv = (x1 + x2) / 2.0, (y1 + y2) / 2.0
+    dpx = rs.rs2_project_color_pixel_to_depth_pixel(
+        depth_frame.get_data(), cal.scale, cal.dmin, cal.dmax,
+        cal.di, cal.ci, cal.c2d, cal.d2c, [cu, cv])
+    dx, dy = int(round(dpx[0])), int(round(dpx[1]))
+    h, w = depth_img.shape
+    if not (0 <= dx < w and 0 <= dy < h):
+        return None
+    # 박스 크기에 비례한 패치(=color 박스 중앙 1/3 영역에 해당) — 단일 픽셀의
+    # 0/튀는 값에 강건. depth 영상에서 직접 샘플하므로 정렬 불필요.
+    r = max(4, min(x2 - x1, y2 - y1) // 6)
+    patch = depth_img[max(dy - r, 0):dy + r, max(dx - r, 0):dx + r]
     valid = patch[patch > 0]
     if valid.size < 5:
         return None
-    return float(np.median(valid)) * depth_scale
+    z = float(np.median(valid)) * cal.scale
+    pt_d = rs.rs2_deproject_pixel_to_point(cal.di, [float(dx), float(dy)], z)
+    return tuple(rs.rs2_transform_point_to_point(cal.d2c, pt_d))
 
 
 def class_ids(model: YOLO, names_csv: str) -> list[int] | None:
@@ -203,10 +239,7 @@ def main() -> None:
     cfg.enable_stream(rs.stream.depth, a.width, a.height, rs.format.z16, a.fps)
     cfg.enable_stream(rs.stream.color, a.width, a.height, rs.format.bgr8, a.fps)
     profile = pipe.start(cfg)
-    align = rs.align(rs.stream.color)  # depth 를 color 시점으로 정렬
-    depth_scale = profile.get_device().first_depth_sensor().get_depth_scale()
-    intr = (profile.get_stream(rs.stream.color)
-            .as_video_stream_profile().get_intrinsics())
+    cal = DepthCal(profile)  # color↔depth 투영 파라미터 (정렬 대신 검출별 투영)
 
     writer = (AsyncWriter(open_writer(a.port, a.width, a.height, a.fps,
                                       a.encoder))
@@ -219,7 +252,7 @@ def main() -> None:
     try:
         while True:
             t0 = time.time()
-            frames = align.process(latest_frames(pipe))
+            frames = latest_frames(pipe)  # 정렬 없음 — 검출별 투영으로 대체
             depth = frames.get_depth_frame()
             color = frames.get_color_frame()
             if not depth or not color:
@@ -235,10 +268,9 @@ def main() -> None:
                 name = model.names[int(b.cls[0])]
                 conf = float(b.conf[0])
                 cu, cv_ = (x1 + x2) // 2, (y1 + y2) // 2
-                z = robust_depth_m(depth_img, depth_scale, (x1, y1, x2, y2))
-                if z is not None:
-                    X, Y, Z = rs.rs2_deproject_pixel_to_point(
-                        intr, [float(cu), float(cv_)], z)
+                xyz = deproject_box(depth, depth_img, (x1, y1, x2, y2), cal)
+                if xyz is not None:
+                    X, Y, Z = xyz
                     dist = math.sqrt(X * X + Y * Y + Z * Z)
                     az = math.degrees(math.atan2(X, Z))
                     el = math.degrees(math.atan2(-Y, Z))

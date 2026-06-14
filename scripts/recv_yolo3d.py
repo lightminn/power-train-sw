@@ -44,8 +44,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--coord-port", type=int, default=5001,
                    help="좌표 JSON UDP 수신 포트")
     p.add_argument("--width", type=int, default=640,
-                   help="표시 해상도 (다르면 videoscale 로 강제)")
+                   help="송신 영상 해상도 (송신측과 일치해야 함)")
     p.add_argument("--height", type=int, default=480)
+    p.add_argument("--scale", type=float, default=1.8,
+                   help="표시 창 확대 배율 (영상은 640x480, 창만 키움). "
+                        "창 모서리를 끌어 자유 조절 가능")
     p.add_argument("--latency", type=int, default=120,
                    help="SRT 재전송 지연 예산 (ms)")
     p.add_argument("--stall-timeout", type=float, default=4.0,
@@ -194,6 +197,13 @@ def main() -> None:
     win = "yolo_depth_3d (SRT)"
     total = 0
     quit_req = False
+
+    if not a.headless:
+        # WINDOW_NORMAL: 창을 자유 리사이즈 가능 + OpenGL 로 내용 스케일.
+        # 640x480 1:1 로 띄우면 고해상도 모니터에서 손톱만 하게 보이므로
+        # 기본 배율만큼 키워 연다 (영상 원본은 그대로, 창만 확대).
+        cv2.namedWindow(win, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(win, int(a.width * a.scale), int(a.height * a.scale))
 
     while not quit_req:  # 영상 연결이 끊기면 재접속 (좌표 수신은 계속 유지)
         cmd = build_recv_command(a.host, a.port, a.width, a.height, a.latency)
