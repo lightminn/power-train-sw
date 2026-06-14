@@ -59,6 +59,20 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def resolve_ipv4(host: str) -> str:
+    """host 를 IPv4 로 강제 해석. 실패하면 원본 그대로.
+
+    `jetson-orin.local` 같은 mDNS 이름은 IPv6 link-local(fe80::…)로 먼저
+    풀리는데, gst SRT URI 는 scope id(%wlan0)를 못 실어 접속이 무한 실패한다
+    (HIL 에서 확인). getaddrinfo 로 A 레코드만 뽑아 이 함정을 피한다.
+    """
+    try:
+        infos = socket.getaddrinfo(host, None, socket.AF_INET)
+        return infos[0][4][0]
+    except (socket.gaierror, IndexError):
+        return host
+
+
 def build_recv_command(host: str, port: int, w: int, h: int,
                        latency: int) -> list:
     """SRT → H.264 디코드 → raw BGR 를 stdout 으로 출력하는 gst argv.
@@ -67,6 +81,7 @@ def build_recv_command(host: str, port: int, w: int, h: int,
     stdout 바이트 파싱이 깨지지 않게 한다 (박스 좌표는 패킷의 w/h 로 스케일).
     avdec max-threads=1: 멀티스레드 디코딩의 프레임 개수 고정지연 회피.
     """
+    host = resolve_ipv4(host)
     return [
         "gst-launch-1.0", "-q",
         "srtsrc", f"uri=srt://{host}:{port}?mode=caller&latency={latency}",

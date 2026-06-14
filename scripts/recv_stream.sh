@@ -6,6 +6,11 @@
 PORT="${1:-5000}"
 HOST="${2:-jetson-orin.local}"
 
+# mDNS 이름(.local)은 IPv6 link-local(fe80::…)로 먼저 풀리는데 gst SRT URI 는
+#   scope id 를 못 실어 접속이 무한 실패한다 (HIL 확인). A 레코드(IPv4)만 강제.
+IPV4="$(getent ahostsv4 "$HOST" 2>/dev/null | awk 'NR==1{print $1}')"
+[ -n "$IPV4" ] && HOST="$IPV4"
+
 # SRT caller: 송신측(로봇)이 listener 라 노트북이 접속해 들어간다 — 수신기를
 #   껐다 켜도 송신은 살아 있다. latency=120: ARQ 재전송 지연 예산(ms) —
 #   순수 UDP RTP 와 달리 패킷 손실을 재전송으로 복구 (혼잡 WiFi 대비).
