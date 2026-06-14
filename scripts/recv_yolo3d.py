@@ -43,8 +43,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--port", type=int, default=5000, help="영상 SRT 포트")
     p.add_argument("--coord-port", type=int, default=5001,
                    help="좌표 JSON UDP 수신 포트")
-    p.add_argument("--width", type=int, default=640,
-                   help="송신 영상 해상도 (송신측과 일치해야 함)")
+    p.add_argument("--width", type=int, default=848,
+                   help="송신 영상 해상도 (송신측과 일치해야 함). 848x480=16:9, "
+                        "4:3 이면 640")
     p.add_argument("--height", type=int, default=480)
     p.add_argument("--scale", type=float, default=1.8,
                    help="표시 창 확대 배율 (영상은 640x480, 창만 키움). "

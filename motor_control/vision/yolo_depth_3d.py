@@ -53,7 +53,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--conf", type=float, default=0.4)
     p.add_argument("--classes", default="",
                    help="검출 클래스 이름 필터, 쉼표구분 (예: bottle,person). 빈값=전체")
-    p.add_argument("--width", type=int, default=640)
+    # 848x480 = 16:9 + D435i 깊이 모듈 네이티브 해상도(깊이 품질↑), 30fps 무손실.
+    # 4:3 이 필요하면 --width 640 --height 480.
+    p.add_argument("--width", type=int, default=848)
     p.add_argument("--height", type=int, default=480)
     p.add_argument("--fps", type=int, default=30)
     p.add_argument("--host", default=None,
