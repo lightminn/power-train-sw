@@ -26,7 +26,7 @@ ENCODERS = ("x264", "openh264")
 
 def build_gst_command(port: int, width: int, height: int, fps: int,
                       encoder: str = "x264", bitrate_kbps: int = 3000,
-                      latency_ms: int = 120) -> list:
+                      latency_ms: int = 60) -> list:
     """gst-launch argv — stdin 의 raw BGR 프레임을 H.264/MPEG-TS/SRT 로 송신.
 
     수신 (노트북): scripts/recv_stream.sh <port> <jetson-host>

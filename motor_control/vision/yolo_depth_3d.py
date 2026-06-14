@@ -66,6 +66,10 @@ def parse_args() -> argparse.Namespace:
                    help="좌표 JSON UDP 대상 포트")
     p.add_argument("--encoder", choices=ENCODERS, default="x264",
                    help="x264 권장 (plugins-ugly 필요). 구이미지는 openh264")
+    p.add_argument("--srt-latency", type=int, default=60,
+                   help="SRT 재전송 지연 예산(ms). 낮을수록 저지연·손실복구↓. "
+                        "수신측 --latency 와 max 로 협상되므로 같이 낮춰야 함. "
+                        "원격주행 저지연 30, 혼잡 WiFi 100~120")
     p.add_argument("--draw", action="store_true",
                    help="(디버그) 송신 프레임에 박스/라벨을 굽는다 — 화질 저하, "
                         "recv_yolo3d.py 없이 recv_stream.sh 만으로 확인할 때만")
@@ -158,8 +162,9 @@ def class_ids(model: YOLO, names_csv: str) -> list[int] | None:
 
 
 def open_writer(port: int, w: int, h: int, fps: int,
-                encoder: str) -> subprocess.Popen:
-    cmd = build_gst_command(port, w, h, fps, encoder=encoder)
+                encoder: str, latency_ms: int) -> subprocess.Popen:
+    cmd = build_gst_command(port, w, h, fps, encoder=encoder,
+                            latency_ms=latency_ms)
     print("[gst-launch]", " ".join(cmd), file=sys.stderr)
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, bufsize=0)
     time.sleep(0.3)
@@ -231,6 +236,13 @@ class AsyncWriter(threading.Thread):
             self._proc.terminate()
 
 
+def stamp_tx(img: np.ndarray) -> None:
+    """송신 시각 워터마크(큰 글씨 상단) — 수신 화면 대조로 종단 지연 측정용."""
+    s = f"tx {time.time() % 100:06.2f}"
+    cv2.putText(img, s, (12, 44), cv2.FONT_HERSHEY_SIMPLEX, 1.3, (0, 0, 0), 6)
+    cv2.putText(img, s, (12, 44), cv2.FONT_HERSHEY_SIMPLEX, 1.3, (0, 255, 255), 2)
+
+
 def main() -> None:
     a = parse_args()
 
@@ -245,7 +257,7 @@ def main() -> None:
     cal = DepthCal(profile)  # color↔depth 투영 파라미터 (정렬 대신 검출별 투영)
 
     writer = (AsyncWriter(open_writer(a.port, a.width, a.height, a.fps,
-                                      a.encoder))
+                                      a.encoder, a.srt_latency))
               if a.host else None)
     coords = CoordSender(a.host, a.coord_port) if a.host else None
 
@@ -262,6 +274,18 @@ def main() -> None:
                 continue
             color_img = np.asanyarray(color.get_data())
             depth_img = np.asanyarray(depth.get_data())
+
+            # 저지연 핵심: YOLO(추론 ~24ms) 전에 깨끗한 영상을 먼저 송신해 영상
+            # 지연에서 추론 시간을 뺀다. 좌표는 아래에서 계산해 별도 채널로 보내며
+            # 다음 프레임에 따라붙지만, 수신측이 시간 기반 느슨한 sync 라 문제없다.
+            # (--draw 디버그는 박스를 구워야 하므로 검출 뒤 느린 경로로 송신.)
+            if writer and not a.draw:
+                if not writer.alive:
+                    print("gst-launch 파이프 끊김", file=sys.stderr)
+                    break
+                if a.tx_stamp:
+                    stamp_tx(color_img)
+                writer.submit(color_img.tobytes())
 
             results = model.predict(color_img, conf=a.conf,
                                     classes=cls_filter, verbose=False)
@@ -286,7 +310,7 @@ def main() -> None:
                     dets.append({"cls": name, "conf": round(conf, 3),
                                  "box": [x1, y1, x2, y2], "xyz": None,
                                  "d": None, "az": None, "el": None})
-                if writer and a.draw:  # 디버그 전용 — 기본은 깨끗한 color 송신
+                if a.draw:  # 디버그 전용 — 박스/라벨 굽기 (느린 경로)
                     if dets[-1]["xyz"] is not None:
                         lines = [f"{name} d={dist:.2f}m",
                                  f"X{X:+.2f} Y{Y:+.2f} Z{Z:+.2f}m",
@@ -308,17 +332,12 @@ def main() -> None:
 
             if coords:
                 coords.send(idx, a.width, a.height, dets)
-            if writer:
+            if writer and a.draw:  # 디버그: 박스 구운 영상 송신 (느린 경로)
                 if not writer.alive:
                     print("gst-launch 파이프 끊김", file=sys.stderr)
                     break
                 if a.tx_stamp:
-                    cv2.putText(color_img, f"tx {time.time() % 100:06.2f}",
-                                (10, a.height - 12), cv2.FONT_HERSHEY_SIMPLEX,
-                                0.6, (0, 0, 0), 3)
-                    cv2.putText(color_img, f"tx {time.time() % 100:06.2f}",
-                                (10, a.height - 12), cv2.FONT_HERSHEY_SIMPLEX,
-                                0.6, (0, 255, 255), 1)
+                    stamp_tx(color_img)
                 writer.submit(color_img.tobytes())
 
             fps_win.append(1.0 / max(time.time() - t0, 1e-6))

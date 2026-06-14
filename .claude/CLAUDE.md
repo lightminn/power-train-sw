@@ -66,14 +66,19 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   python-can socketcan 직접 제어), `calibrate_ak.py` (기어비 1회성), `status_ak.py`
   (CAN RX 디버깅). 사전 준비: `bash scripts/can_setup.sh`.
 - **vision/** (모터 명령 없음): `gst_stream.py` (공용 송신 파이프라인 — H.264
-  SW 인코딩(x264/openh264, **Orin Nano 는 NVENC 없음**) + SRT listener),
-  `yolo_depth_3d.py` (YOLO+depth 3D 좌표 — color 영상 SRT + 좌표 UDP JSON 분리
-  송신, 수신·합성은 `scripts/recv_yolo3d.py`), `yolo_cuda_stream.py` (Jetson
-  CUDA/TRT USB 카메라 송신 — 수신은 `scripts/recv_stream.sh`),
-  `realsense_test.py` (RealSense D435i depth+color 점검), `realsense_stream.py`
-  (color+depth 진단 송신 — sidebyside/overlay, 원격주행용 아님),
-  `yolo_openvino_detection.py` (x86 OpenVINO), `setup_yolo_env.sh` (x86 conda,
-  Docker 권장).
+  SW 인코딩(x264/openh264, **Orin Nano 는 NVENC 없음**) + SRT listener,
+  `--srt-latency` 기본 60ms), `yolo_depth_3d.py` (YOLO+depth 3D 좌표 — color
+  영상 SRT + 좌표 UDP JSON 분리 송신, 영상을 YOLO 추론 전에 먼저 송신해 영상
+  지연 최소화, 기본 848x480/YOLO26n/x264), `yolo_cuda_stream.py` (Jetson
+  CUDA/TRT USB 카메라 송신), `realsense_test.py` (RealSense D435i depth+color
+  점검), `realsense_stream.py` (color+depth 진단 송신 — sidebyside/overlay,
+  원격주행용 아님), `yolo_openvino_detection.py` (x86 OpenVINO),
+  `setup_yolo_env.sh` (x86 conda, Docker 권장).
+  - **노트북 수신 2경로**(둘 다 SRT caller, `--srt-latency`/`latency` 송수신
+    같이 맞춤): ① `scripts/recv_stream.sh [PORT] [HOST] [LATENCY]` — 저지연
+    네이티브 gst 뷰어(오버레이 없음), **원격주행용**. ② `scripts/recv_yolo3d.py`
+    — 좌표 박스 오버레이 cv2 뷰어(`--scale`/`--clock`), 표시 지연 더 큼,
+    정밀 접근·좌표 점검용.
 - **sensors/** (UART `/dev/ttyTHS1`): `us100_basic.py` (US100 0x55 기본),
   `us100_robust.py` (Jetson UART TX 떨림 버그 우회 — 0xFF prefix).
 - **safety_us100/** (US-100 충돌방지, publish-only): 거리→`safe`/`warn`/`stop` 판정만

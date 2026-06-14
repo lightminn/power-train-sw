@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""노트북 측: SRT 영상 + UDP 좌표(JSON)를 받아 오버레이 합성 표시.
+"""노트북 측 수신기 ② — 좌표 오버레이 뷰어 (SRT 영상 + UDP 좌표 JSON).
 
-yolo_depth_3d.py 의 수신 짝. 송신측은 깨끗한 color 만 보내고 검출 좌표는
-별도 UDP 채널로 오므로, 여기서 OpenCV 로 박스/라벨을 그린다 — 오버레이가
-압축 손실을 안 타고, 좌표를 데이터로도 쓸 수 있다. 영상이 막혀도 좌표
-패킷(작음)은 살아 있어 연막 구간 등에서 주 정보원이 된다.
+용도: 검출 결과(박스·3D 좌표)를 영상 위에 보며 확인 — 정밀 접근·좌표 점검.
+파이썬/cv2 로 합성하므로 ①번 recv_stream.sh(네이티브)보다 표시 지연이
+~수십 ms 더 크다. 단순 원격주행처럼 저지연이 우선이면 ①번을 쓴다.
+
+송신측은 깨끗한 color 만 보내고 검출 좌표는 별도 UDP 채널로 오므로, 여기서
+OpenCV 로 박스/라벨을 그린다 — 오버레이가 압축 손실을 안 타고, 좌표를
+데이터로도 쓸 수 있다. 영상이 막혀도 좌표 패킷(작음)은 살아 있어 연막
+구간 등에서 주 정보원이 된다.
 
 sync 는 시간 기반 느슨한 동기: 디코드된 최신 프레임 위에 최신 좌표 패킷을
 그린다. H.264 스트림에 frame id 를 싣지 않으므로 프레임 단위 정밀 매칭은
-하지 않는다 — 검출 15~20fps 기준 어긋남은 1~2프레임(≈50~130ms)으로 조종
-용도에 충분하다. 좌표 패킷이 0.7s 이상 늙으면 STALE 경고를 띄운다.
+하지 않는다 — 검출 15~30fps 기준 어긋남은 1~2프레임으로 조종 용도에 충분.
+좌표 패킷이 0.7s 이상 늙으면 STALE 경고를 띄운다.
 
 사용 (노트북, conda base 또는 cv2 있는 환경):
     python3 scripts/recv_yolo3d.py                       # jetson-orin.local 접속
@@ -50,14 +54,18 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--scale", type=float, default=1.8,
                    help="표시 창 확대 배율 (영상은 640x480, 창만 키움). "
                         "창 모서리를 끌어 자유 조절 가능")
-    p.add_argument("--latency", type=int, default=120,
-                   help="SRT 재전송 지연 예산 (ms)")
+    p.add_argument("--latency", type=int, default=60,
+                   help="SRT 재전송 지연 예산 (ms). 송신측 --srt-latency 와 "
+                        "큰 값으로 협상되므로 같이 맞춰야 함")
     p.add_argument("--stall-timeout", type=float, default=4.0,
                    help="이 시간(s) 동안 영상 바이트가 안 오면 gst 를 죽이고 "
                         "재접속 — srtsrc caller 는 접속 실패/링크 사망 시 EOF "
                         "없이 무한 대기하므로 워치독 필수")
     p.add_argument("--headless", action="store_true",
                    help="창 없이 수신 통계만 출력 (자동 테스트용)")
+    p.add_argument("--clock", action="store_true",
+                   help="화면 우상단에 노트북 현재시각 표시 — 영상 속 송신 tx-stamp "
+                        "와 비교해 종단 지연 측정용 (송신측 --tx-stamp 와 함께)")
     p.add_argument("--max-frames", type=int, default=0,
                    help="0=무한, >0=N프레임 후 종료 (테스트용)")
     return p.parse_args()
@@ -232,6 +240,15 @@ def main() -> None:
                               f"coord_age={age:5.2f}s dets={ndet}", flush=True)
                 else:
                     draw_overlay(frame, pkt, age)
+                    if a.clock:
+                        # 노트북 현재시각(송신측 tx-stamp 와 같은 mod100 포맷)을
+                        # 화면 우상단에 굵게 — 영상의 tx 값과 비교해 종단 지연을
+                        # 직접 읽는다. latency = laptop − tx (시계 오프셋 ~0).
+                        ct = f"laptop {time.time() % 100:06.2f}"
+                        cv2.putText(frame, ct, (frame.shape[1] - 360, 44),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0, 0, 0), 6)
+                        cv2.putText(frame, ct, (frame.shape[1] - 360, 44),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 1.1, (255, 0, 255), 2)
                     cv2.imshow(win, frame)
                     if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
                         quit_req = True
