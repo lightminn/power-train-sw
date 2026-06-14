@@ -52,7 +52,7 @@ def parse_args() -> argparse.Namespace:
                         "4:3 이면 640")
     p.add_argument("--height", type=int, default=480)
     p.add_argument("--scale", type=float, default=1.8,
-                   help="표시 창 확대 배율 (영상은 640x480, 창만 키움). "
+                   help="표시 창 확대 배율 (영상 해상도는 그대로, 창만 키움). "
                         "창 모서리를 끌어 자유 조절 가능")
     p.add_argument("--latency", type=int, default=60,
                    help="SRT 재전송 지연 예산 (ms). 송신측 --srt-latency 와 "
@@ -209,7 +209,7 @@ def main() -> None:
 
     if not a.headless:
         # WINDOW_NORMAL: 창을 자유 리사이즈 가능 + OpenGL 로 내용 스케일.
-        # 640x480 1:1 로 띄우면 고해상도 모니터에서 손톱만 하게 보이므로
+        # 영상을 1:1 로 띄우면 고해상도 모니터에서 손톱만 하게 보이므로
         # 기본 배율만큼 키워 연다 (영상 원본은 그대로, 창만 확대).
         cv2.namedWindow(win, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(win, int(a.width * a.scale), int(a.height * a.scale))
@@ -234,7 +234,7 @@ def main() -> None:
                 if a.headless:
                     if n % 30 == 0:
                         fps = n / max(time.time() - t_conn, 1e-6)
-                        ndet = len(pkt["dets"]) if pkt else -1
+                        ndet = len(pkt.get("dets", [])) if pkt else -1
                         # flush: 리다이렉트 시 블록버퍼링으로 로그가 안 보이는 것 방지
                         print(f"[{total:5d}] fps={fps:4.1f} "
                               f"coord_age={age:5.2f}s dets={ndet}", flush=True)

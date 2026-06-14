@@ -35,10 +35,12 @@ Defence_Robot/
 │   └── pi/               Raspberry-Pi-side servers (paired 1:1 with laptop/)
 ├── motor_gui/            웹 진단 GUI (FastAPI + 트랜스포트 추상화, AK/ODrive CAN·USB)
 ├── docker/               Container definitions (x86 dev + Jetson Orin Nano deploy)
-├── scripts/              Host-side helpers (e.g. recv_stream.sh — UDP H.264 receiver)
+├── scripts/              Host-side helpers (recv_stream.sh 저지연 네이티브 뷰어,
+│                         recv_yolo3d.py 좌표 오버레이 뷰어, can_setup.sh)
 └── docs/
     ├── specs/            Per-task design docs (requirements, interfaces)
-    └── plans/            Per-task implementation plans + verification logs
+    ├── plans/            Per-task implementation plans + verification logs
+    └── reports/          진행 보고·결과 로그 (Notion 백업, 파라미터 결과 등)
 ```
 
 Detailed simulation pipeline, parameter space (v4 15-dim / v3 14-dim), objective weights, GPU acceleration strategy, and known GPU bug history live in `parameter_calc/CLAUDE.md`. Read that file before touching anything in `parameter_calc/`. Per-task background for Jetson / streaming work lives under `docs/specs/` and `docs/plans/` — read those before editing the matching scripts.
@@ -83,8 +85,9 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   `us100_robust.py` (Jetson UART TX 떨림 버그 우회 — 0xFF prefix).
 - **safety_us100/** (US-100 충돌방지, publish-only): 거리→`safe`/`warn`/`stop` 판정만
   내보냄(모터 직접 제어 X). `evaluator`/`safety_monitor`/`verdict`/`config`(stop 200/warn 400/
-  hyst 30mm), `us100.py`(실센서), `fake_sensor`+`tests`, `demo.py`. 못 읽으면 fail-safe `stop`.
-  코너 모듈 텔레옵이 물려 `stop` 시 구동 0.
+  hyst 30mm), `us100.py`(실센서), `fake_sensor`+`tests`, `demo.py`,
+  `teleop_odrive_only.py`(US-100 게이팅 ODrive 단독 텔레옵 — 조향 없는 구동만).
+  못 읽으면 fail-safe `stop`. 코너 모듈 텔레옵이 물려 `stop` 시 구동 0.
 - **corner_module/** (조향+구동 협조 제어 패키지, 코너 1개 = 로커보기 1/6): `corner_module.py`
   (`CornerModule` — 상태머신·워치독·estop·과전류 트립·폐루프 점프방지), `actuator.py`
   (트랜스포트 무관 `Actuator`/`SteerActuator`/`DriveActuator` ABC), `steer_ak40.py`(AK CAN)·
