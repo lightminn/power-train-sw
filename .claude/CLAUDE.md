@@ -112,6 +112,15 @@ ODrive 펌웨어 v0.5.x (CAN 트랙 fw-v0.5.6 검증), all scripts use `axis1`. 
 import(예: `ak_control`)하지만 **`motor_control` 이 `motor_gui` 를 import 하면 안 됨**(역의존 금지).
 테스트 `motor_gui/tests/` (dev 컨테이너 pytest). 코너 모듈 HIL 때 `--track usb`/`--track ak` 로 실하드웨어 검증함.
 
+## 테스트·실행 환경 (Jetson 우선)
+
+실제 실행·검증은 **Jetson Orin Nano 에서 직접 돌려보는 것을 우선**한다 (런타임 타깃이
+Jetson). x86 노트북의 dev 컨테이너(`powertrain-sw:dev`, `docker/docker-compose.yml`
+— 무하드웨어 `pytest`: `motor_gui/tests/`·`corner_module`·`safety_us100` 와 fake 드라이버
+개발용)는 **Jetson 에 접근할 수 없을 때의 차선책**이다. 이 x86 이미지는 CPU 전용
+(코드 작성·CPU/OpenVINO 테스트 전용, ~3.3GB) — YOLO GPU 추론은 Jetson `Dockerfile.jetson`
+에서만 한다.
+
 ## Jetson Orin Nano deployment
 
 `docker/Dockerfile.jetson` + `docker/docker-compose.jetson.yml` build on top of

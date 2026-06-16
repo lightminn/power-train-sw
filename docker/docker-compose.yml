@@ -1,4 +1,5 @@
-# 기본 (x86_64, CPU/Intel iGPU). NVIDIA GPU 가 있으면 docker-compose.gpu.yml 오버레이 사용.
+# x86_64 개발용 (코드 작성·테스트·CPU/Intel iGPU/OpenVINO). 이미지는 CPU 전용 torch.
+# 실제 실행·YOLO GPU 추론은 Jetson(docker-compose.jetson.yml)에서 한다.
 # 사용 예:
 #   docker compose -f docker/docker-compose.yml up -d --build
 #   docker compose -f docker/docker-compose.yml exec powertrain bash
