@@ -37,11 +37,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# PyTorch — CPU 전용
+#   이 이미지는 x86 개발용(코드 작성 · motor_gui 테스트 · OpenVINO/CPU YOLO).
+#   실제 YOLO GPU 추론은 Jetson(Dockerfile.jetson, l4t-pytorch)에서만 돈다.
+#   ultralytics 가 기본으로 끌어오는 CUDA PyTorch(nvidia/* + triton, ~3.9GB)를 피하려고
+#   CPU 전용 torch/torchvision 을 먼저 설치한 뒤 ultralytics 를 올린다 → 이미지 ~4GB 절감.
+RUN pip3 install --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/cpu \
+        torch torchvision
+
 # Python 의존성
 #   odrive          : USB ODrive 통신 (motor_control 전 스크립트)
 #   pygame          : DualSense (odrive_dualsense_*, robot_*)
 #   opencv-python   : cv2 (yolo_*, robot_laptop)
-#   ultralytics     : YOLOv8 (PyTorch 함께 설치 — CPU 기본, NVIDIA 있으면 자동 GPU)
+#   ultralytics     : YOLO (위 CPU torch 사용 — x86 은 CPU/OpenVINO, GPU 는 Jetson)
 #   openvino        : Intel x86/iGPU 가속 (yolo_openvino_detection)
 #   numpy/matplotlib: 일반 도구
 #   python-can      : CAN 트랙 (motor_gui CanBackend, steering/ak_control)
