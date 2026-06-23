@@ -24,7 +24,7 @@ python -m pytest corner_module/tests/ -v
 
 ## 텔레옵 실행 (Jetson, 실모터)
 ```bash
-bash scripts/can_setup.sh            # can0 1Mbps 기동 (조향)
+bash scripts/can_setup.sh            # can0 500kbps 기동 (조향)
 # ODrive USB 는 init_odrive.py 로 1회 NVM 셋업 가정
 cd /home/light/Defence_Robot/motor_control
 python3 -m corner_module.teleop_dualsense   # 패키지 모듈로 실행(직접 .py 실행은 import 깨짐)

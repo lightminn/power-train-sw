@@ -75,7 +75,7 @@ SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 
 | 항목 | 내용 |
 | --- | --- |
-| CAN | CAN 트랙·조향 사용 전 `bash scripts/can_setup.sh` (can0 1 Mbps, mttcan + devmem) |
+| CAN | CAN 트랙·조향 사용 전 `bash scripts/can_setup.sh` (can0 500 kbps, mttcan + devmem) |
 | ODrive udev | `/etc/udev/rules.d/91-odrive.rules` 있어야 일반 사용자 권한으로 USB 인식 |
 | Wayland | XWayland 가 떠 있어야 cv2 창 표시 (`echo $XDG_SESSION_TYPE` 확인) |
 | USB 디바이스 | ODrive · DualSense · 카메라는 `/dev` 마운트로 컨테이너에 자동 노출 |
