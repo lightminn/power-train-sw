@@ -1,13 +1,13 @@
 # corner_module — 코너 모듈 컨트롤러
 
-로커보기 코너 1개(조향 AK40 + 구동 ODrive 3.6)의 협조 제어 라이브러리 + DualSense 데모.
+로커보기 코너 1개(조향 AK45-36 + 구동 ODrive 3.6)의 협조 제어 라이브러리 + DualSense 데모.
 설계: `docs/specs/2026-05-25-corner-module-controller-design.md`.
 
 ## 구성
 - `config.py` — CornerConfig(한계·워치독·게이트), clamp
 - `actuator.py` — Actuator/SteerActuator/DriveActuator 인터페이스
 - `corner_module.py` — CornerModule (상태머신·안전·협조)
-- `steer_ak40.py` — AK40(CAN) 조향 드라이버
+- `steer_ak40.py` — AK45-36(CAN) 조향 드라이버 (클래스명은 레거시 AK40)
 - `drive_odrive_usb.py` — ODrive(USB) 구동 드라이버 (현재)
 - `drive_odrive_can.py` — ODrive(CAN) 구동 (미래 CAN-only 전환 슬롯)
 - `fake.py` — 무하드웨어 테스트 더블

@@ -128,7 +128,7 @@ docker compose -f docker/docker-compose.jetson.yml exec -T powertrain \
 - 아직 motor_gui 로 튜닝 안 함. HALL(pp=5,cpr=30)이라 X2212 와 게인 스케일이 완전히 다름.
   교체 시 아래 7장 절차로 재튜닝 필수. (별도 캘리: `motor_control/drive/bl70200/`)
 
-### AK40/AK45 (조향, CAN servo)
+### AK45-36 (조향, CAN servo)
 - ODrive 아님(CubeMars). 별도 프로토콜(`motor_control/steering/ak_control.py`), 본 가이드 범위 밖.
 
 ---

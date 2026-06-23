@@ -1,5 +1,5 @@
 """
-AK40-10 CAN 제어 라이브러리 (Jetson + socketcan) 수정본
+CubeMars AK 시리즈 CAN 제어 라이브러리 (Jetson + socketcan) — 실전 AK45-36 기준
 - 위치 제어는 기어비 곱셈 없이 출력축 각도(out_deg) 직결!
 """
 
@@ -10,10 +10,10 @@ import math
 
 # ============================================================
 # 모터 모델별 프로파일 (데이터시트 상수)
-#   - AK40-10: 현재 보유한 테스트 모터 (10:1 감속)
-#   - AK45-36: 실전 예정 모터 (36:1 감속, peak 24Nm / rated 8Nm, KV80,
+#   - AK45-36: 실전 조향 모터 (현재 ACTIVE; 36:1 감속, peak 24Nm / rated 8Nm, KV80,
 #              peak current 65A, backlash 12 arcmin, back-drive 0.8Nm)
-# 실모터 전환 시 ACTIVE_MOTOR 만 "AK45-36" 으로 바꾼다.
+#   - AK40-10: 레거시 테스트 모터 (10:1 감속)
+# 테스트 모터로 되돌리려면 ACTIVE_MOTOR 만 "AK40-10" 으로 바꾼다.
 # (pole_pairs 는 AK 동일 계열로 14 가정 — AK45-36 실측 시 재확인)
 # ============================================================
 MOTOR_PROFILES = {
@@ -21,7 +21,7 @@ MOTOR_PROFILES = {
     # max_cur_a 는 트립 한계로, peak 65A 대비 보수값. HIL 에서 정상 홀딩 전류 확인 후 튜닝 필요.
     "AK45-36": {"gear_ratio": 36.0, "pole_pairs": 14, "max_cur_a": 30.0},
 }
-ACTIVE_MOTOR = "AK40-10"   # 현재 보유 테스트 모터. 실모터 도착 시 "AK45-36"
+ACTIVE_MOTOR = "AK45-36"   # 실전 조향 모터. 테스트는 "AK40-10" (10:1)
 
 _profile = MOTOR_PROFILES[ACTIVE_MOTOR]
 GEAR_RATIO = _profile["gear_ratio"]
@@ -59,7 +59,7 @@ def calc_pan_tilt_deg(target_x_mm, target_y_mm, target_z_mm,
     return pan_deg, tilt_deg
 
 # ============================================================
-# AK40-10 드라이버
+# AK 시리즈 드라이버 (실전 AK45-36 / 테스트 AK40-10, 동일 프로토콜)
 # ============================================================
 
 

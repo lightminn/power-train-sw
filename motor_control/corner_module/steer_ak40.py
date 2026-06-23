@@ -1,7 +1,8 @@
-"""AK40-10 백엔드 SteerActuator. motor_control/steering/ak_control.py 재사용.
+"""AK45-36 백엔드 SteerActuator (AK 시리즈 공용). motor_control/steering/ak_control.py 재사용.
 
-조향 출력축 각(도)을 그대로 받아 AK40 의 위치 명령으로 전달하고, 매 tick
-status 를 폴링한다. AK40 내장 전류/fault 정보를 state 로 노출한다.
+조향 출력축 각(도)을 그대로 받아 AK 의 위치 명령으로 전달하고, 매 tick
+status 를 폴링한다. 모터 내장 전류/fault 정보를 state 로 노출한다.
+(드라이버 클래스명은 레거시로 AK40 유지 — 프로파일로 AK45-36 동작.)
 """
 import os
 import sys
