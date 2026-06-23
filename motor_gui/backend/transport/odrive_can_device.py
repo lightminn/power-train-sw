@@ -7,7 +7,7 @@ from .base import (SIGNAL_META, ODRIVE_INPUTS, ODRIVE_TUNABLES_CAN,
                    DEFAULT_TUNABLES)
 from .can_device import CanDevice
 
-NODE_ID = 1                              # ODrive axis1 (스크립트 컨벤션)
+NODE_ID = 11                             # ODrive axis1 실전 node (GUI 기본; 웹에서 변경 가능)
 
 # ── CANSimple cmd id (fw-v0.5.6), arb = (node_id << 5) | cmd ──
 C_HEARTBEAT = 0x001
@@ -44,7 +44,7 @@ _BASE_TUNABLES = [t for t in ODRIVE_TUNABLES_CAN if t["key"] != "trap_vel_limit"
 _DEFAULT_KT = 0.0084                     # X2212-13 추정(8.27/980KV). UI 에서 편집 가능.
 
 # RTR 폴링 빈도. 워커는 100Hz 로 돌지만 RTR 4개를 매 사이클(=400 frame/s) 쏘면
-# 1Mbps 마진 버스에서 ODrive ACK 누락 창에 tx-error 가 빠르게 쌓여 bus-off 가 난다
+# 500kbps 버스에서도 ODrive ACK 누락 창에 tx-error 가 쌓여 bus-off 로 갈 수 있다
 # (HIL 확인). 증명된 드라이브 스크립트처럼 저빈도로만 폴링해 호스트 TX 를 줄인다.
 _POLL_HZ = 15.0
 _POLL_PERIOD = 1.0 / _POLL_HZ
@@ -143,6 +143,12 @@ class OdriveCanDevice(CanDevice):
                    self._trap["trap_accel_limit"], self._trap["trap_decel_limit"]))
         self._sync_vel_limit()
 
+    def can_id_spec(self) -> dict | None:
+        return {"id": self._node, "min": 0, "max": 63, "label": "ODrive node ID"}
+
+    def set_can_id(self, new_id: int) -> None:
+        self._node = int(new_id)
+
     def capabilities_fragment(self) -> dict:
         meta = {k: SIGNAL_META[k] for k in _SIGNALS if k in SIGNAL_META}
         tunables = []
@@ -173,7 +179,7 @@ class OdriveCanDevice(CanDevice):
 
     def request(self, bus) -> None:
         # 워커 100Hz 마다가 아니라 _POLL_HZ(~15Hz)로만 RTR 송신 → 호스트 TX 격감
-        # (1Mbps bus-off 방지). 비폴링 사이클엔 recv-drain 만 돌아 heartbeat·지연
+        # (bus-off 방지). 비폴링 사이클엔 recv-drain 만 돌아 heartbeat·지연
         # 응답을 계속 수신하므로 명령 반응성은 100Hz 유지.
         now = time.monotonic()
         if now - self._last_poll < _POLL_PERIOD:

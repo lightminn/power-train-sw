@@ -45,11 +45,11 @@ def test_set_input_velocity_sends_rpm_frame():
 
 def test_on_rx_parses_status_and_sample_converts_speed():
     d, bus = _mk()
-    # -1400 erpm → +10 출력RPM (명령 부호 일치)
-    d.on_rx(_status_msg(pos_deg=12.0, spd_erpm=-1400, cur_a=1.5, temp=42, fault=0))
+    # -5040 erpm → +10 출력RPM (AK45-36: 504 erpm/출력rpm, 명령 부호 일치)
+    d.on_rx(_status_msg(pos_deg=12.0, spd_erpm=-5040, cur_a=1.5, temp=42, fault=0))
     s = d.sample()
     assert abs(s["ak.pos_deg"] - 12.0) < 0.1
-    assert abs(s["ak.speed"] - 10.0) < 0.2          # -1400 erpm → +10 출력RPM (명령 부호 일치)
+    assert abs(s["ak.speed"] - 10.0) < 0.2          # -5040 erpm → +10 출력RPM (AK45-36)
     assert abs(s["ak.current"] - 1.5) < 0.05
     assert s["ak.temp"] == 42
 
@@ -108,18 +108,18 @@ def test_set_input_wrong_mode_key_rejected():
 
 def test_set_param_rpm_units_convert_to_erpm():
     d, bus = _mk()
-    d.apply(bus, "set_param", {"spd_rpm": 10.0})    # 10 출력RPM × 140 = 1400 erpm
-    assert d._spd == 1400.0
+    d.apply(bus, "set_param", {"spd_rpm": 10.0})    # 10 출력RPM × 504 = 5040 erpm (AK45-36)
+    assert d._spd == 5040.0
     d.apply(bus, "set_param", {"acc_rpm_s2": 5.0})
-    assert d._acc == 700.0
+    assert d._acc == 2520.0
 
 
 def test_capabilities_tunables_carry_current_value():
     f = AkDevice().capabilities_fragment()
     tk = {t["key"]: t for t in f["tunables"]["ak"]}
     assert tk["spd_erpm"]["value"] == 1500.0
-    assert abs(tk["spd_rpm"]["value"] - 1500.0 / 140) < 1e-6
-    assert tk["max_cur_a"]["value"] == 5.0
+    assert abs(tk["spd_rpm"]["value"] - 1500.0 / 504) < 1e-6
+    assert tk["max_cur_a"]["value"] == 30.0
 
 
 def test_setpoint_signals_track_commands():

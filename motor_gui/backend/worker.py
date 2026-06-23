@@ -113,9 +113,20 @@ class HardwareWorker:
             return {"ok": False, "detail": "worker not running"}
         done = threading.Event()
         box: dict = {}
-        self._reconnect_q.put((done, box))
+        self._reconnect_q.put((done, box, None))
         if not done.wait(timeout=_RECONNECT_TIMEOUT):
             return {"ok": False, "detail": "reconnect timeout"}
+        return box["result"]
+
+    def set_ids(self, mapping: dict) -> dict:
+        """CAN ID 변경 + 재연결 (워커 스레드에서 set_device_ids → close/connect)."""
+        if not self._running.is_set():
+            return {"ok": False, "detail": "worker not running"}
+        done = threading.Event()
+        box: dict = {}
+        self._reconnect_q.put((done, box, dict(mapping)))
+        if not done.wait(timeout=_RECONNECT_TIMEOUT):
+            return {"ok": False, "detail": "set_ids timeout"}
         return box["result"]
 
     def subscribe(self, callback: Callable[[dict], None]) -> None:
@@ -131,10 +142,12 @@ class HardwareWorker:
     def _handle_reconnect(self) -> None:
         """워커 스레드에서 1건 처리: transport 닫고 다시 연결 + baseline + caps 갱신."""
         try:
-            done, box = self._reconnect_q.get_nowait()
+            done, box, ids = self._reconnect_q.get_nowait()
         except queue.Empty:
             return
         try:
+            if ids:
+                self._t.set_device_ids(ids)
             try:
                 self._t.close()
             except Exception:
@@ -142,7 +155,8 @@ class HardwareWorker:
             self._t.connect()
             self._caps = self._t.capabilities()
             self._apply_baseline()
-            box["result"] = {"ok": True, "detail": "reconnected"}
+            box["result"] = {"ok": True, "detail": "reconnected",
+                             "ids": self._t.device_ids()}
             self._ring.append({"t_mono": time.monotonic(), "info": "reconnected"})
         except Exception as e:
             box["result"] = {"ok": False, "detail": f"reconnect failed: {e}"}

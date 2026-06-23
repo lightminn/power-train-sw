@@ -96,3 +96,30 @@ def test_close_keeps_injected_bus():
     assert t._owns_bus is False
     t.close()
     assert t._bus is bus
+
+
+class StubIdDevice(StubDevice):
+    name = "ida"
+    def __init__(self, cid=5):
+        super().__init__()
+        self._cid = cid
+    def can_id_spec(self):
+        return {"id": self._cid, "min": 1, "max": 10, "label": "ID A"}
+    def set_can_id(self, new_id):
+        self._cid = int(new_id)
+
+
+def test_device_ids_lists_only_id_devices():
+    idd = StubIdDevice(5)
+    t = CanTransport([idd, StubDevice()], bus=StubBus())   # StubDevice 는 ID 없음
+    assert t.device_ids() == {"ida": {"id": 5, "min": 1, "max": 10, "label": "ID A"}}
+    caps = t.capabilities()
+    assert caps["can_ids"]["ida"]["id"] == 5
+
+
+def test_set_device_ids_updates_device():
+    idd = StubIdDevice(5)
+    t = CanTransport([idd, StubDevice()], bus=StubBus())
+    t.set_device_ids({"ida": 8, "stub": 99})   # stub 은 set_can_id no-op (무시)
+    assert idd._cid == 8
+    assert t.device_ids()["ida"]["id"] == 8

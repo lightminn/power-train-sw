@@ -74,3 +74,24 @@ def test_make_transport_odrive_can_track():
     assert "set_param" in caps["commands"]["odrive"]
     tk = {t["key"]: t for t in caps["tunables"]["odrive"]}
     assert "torque_constant" in tk
+
+
+def test_ak_track_default_id_is_1():
+    from motor_gui.backend.server import _make_transport
+    t = _make_transport("ak")
+    assert t.device_ids() == {"ak": {"id": 1, "min": 1, "max": 127, "label": "AK 모터 ID"}}
+    assert t.capabilities()["can_ids"]["ak"]["id"] == 1
+
+
+def test_odrive_can_default_node_is_11():
+    from motor_gui.backend.server import _make_transport
+    t = _make_transport("odrive_can")
+    assert t.device_ids()["odrive"]["id"] == 11
+    assert t.capabilities()["can_ids"]["odrive"]["id"] == 11
+
+
+def test_can_id_endpoint_rejects_empty():
+    with _client() as c:
+        r = c.post("/api/can_id", json={})
+        assert r.status_code == 200
+        assert r.json()["ok"] is False

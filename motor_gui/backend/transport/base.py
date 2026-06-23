@@ -41,6 +41,15 @@ class Transport(ABC):
         connect() 후 호출됨 (worker.start 에서 1회)."""
         return {}
 
+    def device_ids(self) -> dict:
+        """선택 가능한 CAN ID 스펙 {device: {id,min,max,label}}. CAN 트랙만 노출,
+        그 외(USB/Fake)는 빈 dict."""
+        return {}
+
+    def set_device_ids(self, mapping: dict) -> None:
+        """{device: new_id} 적용 (다음 connect/reconnect 에서 반영). 기본 no-op."""
+        return None
+
 
 # ── 프론트 데이터-드리븐 UI 메타 (capabilities 에 포함) ────────────────
 

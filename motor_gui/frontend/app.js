@@ -179,6 +179,50 @@ function recordingPanel() {
   return wrap;
 }
 
+function canIdPanel(caps) {
+  const ids = caps.can_ids;
+  if (!ids || !Object.keys(ids).length) return null;
+  const wrap = el("div", "panel");
+  const h = el("h3"); h.textContent = "CAN ID 선택"; wrap.appendChild(h);
+  const inputs = {};
+  Object.keys(ids).forEach((dev) => {
+    const spec = ids[dev];
+    const r = rowNumber(spec.label || dev, () => {}, "1", spec.id,
+      `${dev} CAN ID (${spec.min}~${spec.max}). 적용 시 해당 ID로 재연결.`);
+    inputs[dev] = r.inp;
+    wrap.appendChild(r.row);
+  });
+  const btn = document.createElement("button");
+  btn.textContent = "적용 (재연결)";
+  btn.addEventListener("click", async () => {
+    const payload = {};
+    Object.keys(inputs).forEach((dev) => {
+      const v = parseInt(inputs[dev].value, 10);
+      if (!isNaN(v)) payload[dev] = v;
+    });
+    btn.disabled = true;
+    logMsg(`CAN ID 적용: ${JSON.stringify(payload)} — 재연결…`);
+    try {
+      const ack = await (await fetch("/api/can_id", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: payload }),
+      })).json();
+      if (ack.ok) {
+        logMsg("CAN ID 변경·재연결 성공 — 새로고침");
+        setTimeout(() => location.reload(), 400);
+      } else {
+        logMsg("CAN ID 변경 실패: " + (ack.detail || ""), "err");
+        btn.disabled = false;
+      }
+    } catch (e) {
+      logMsg("CAN ID 변경 오류: " + e, "err");
+      btn.disabled = false;
+    }
+  });
+  const brow = el("div", "row"); brow.appendChild(btn); wrap.appendChild(brow);
+  return wrap;
+}
+
 function controlPanel(device, caps, tunVals) {
   const ops = (caps.commands && caps.commands[device]) || [];
   const wrap = el("div", "panel");
@@ -324,6 +368,8 @@ async function main() {
   }
   const controls = document.getElementById("controls");
   controls.appendChild(recordingPanel());
+  const cidp = canIdPanel(caps);
+  if (cidp) controls.appendChild(cidp);
   const mi = motorInfoPanel(caps);
   if (mi) controls.appendChild(mi);
   caps.devices.forEach((d) => controls.appendChild(controlPanel(d, caps, tunVals)));

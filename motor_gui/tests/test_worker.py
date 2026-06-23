@@ -127,3 +127,46 @@ def test_reconnect_when_not_running():
     w = HardwareWorker(FakeTransport())
     ack = w.reconnect()           # 미기동 상태
     assert ack["ok"] is False
+
+
+def test_set_ids_applies_then_reconnects():
+    from motor_gui.backend.transport.base import Transport
+    from motor_gui.backend.worker import HardwareWorker
+
+    class IdFake(Transport):
+        name = "idfake"
+        def __init__(self):
+            self.ids = {"ak": 1}
+            self.connects = 0
+        def connect(self): self.connects += 1
+        def sample(self): return {"t_mono": 0.0, "ak.x": 1.0}
+        def apply(self, cmd): return {"ok": True}
+        def capabilities(self):
+            return {"track": "can", "devices": ["ak"], "signals": ["ak.x"],
+                    "commands": {}, "can_ids": {"ak": {"id": self.ids["ak"]}}}
+        def close(self): pass
+        def device_ids(self):
+            return {"ak": {"id": self.ids["ak"], "min": 1, "max": 127, "label": "AK"}}
+        def set_device_ids(self, m):
+            if "ak" in m:
+                self.ids["ak"] = int(m["ak"])
+
+    t = IdFake()
+    w = HardwareWorker(t)
+    w.start()
+    try:
+        res = w.set_ids({"ak": 2})
+        assert res["ok"] is True
+        assert t.ids["ak"] == 2                 # set_device_ids 적용됨
+        assert res["ids"]["ak"]["id"] == 2      # 결과에 새 ID 반영
+        assert t.connects == 2                  # start + 재연결
+    finally:
+        w.stop()
+
+
+def test_set_ids_when_not_running():
+    from motor_gui.backend.transport.fake import FakeTransport
+    from motor_gui.backend.worker import HardwareWorker
+    w = HardwareWorker(FakeTransport())
+    res = w.set_ids({"ak": 2})
+    assert res["ok"] is False

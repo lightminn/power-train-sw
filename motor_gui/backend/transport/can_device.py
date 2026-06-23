@@ -39,6 +39,14 @@ class CanDevice(ABC):
     def close(self, bus) -> None:
         """안전 정지. 기본 no-op."""
 
+    def can_id_spec(self) -> dict | None:
+        """이 디바이스의 CAN ID 스펙 {id,min,max,label}. ID 없으면 None (기본)."""
+        return None
+
+    def set_can_id(self, new_id: int) -> None:
+        """CAN ID 변경 (다음 attach=재연결에서 반영). 기본 no-op."""
+        return None
+
 
 class CanTransport(Transport):
     """can0 버스 1개 + CanDevice 리스트 집계 (Transport 계약 구현)."""
@@ -102,7 +110,23 @@ class CanTransport(Transport):
             for key in ("commands", "control_modes", "inputs", "tunables", "limits"):
                 caps[key].update(f.get(key, {}))
             caps["signal_meta"].update(f.get("signal_meta", {}))
+        caps["can_ids"] = self.device_ids()
         return caps
+
+    def device_ids(self) -> dict:
+        """디바이스별 선택 가능한 CAN ID 스펙 (ID 있는 디바이스만)."""
+        out = {}
+        for d in self._devices:
+            spec = d.can_id_spec()
+            if spec is not None:
+                out[d.name] = spec
+        return out
+
+    def set_device_ids(self, mapping: dict) -> None:
+        """{device: new_id} → 각 디바이스에 반영 (다음 connect 에서 적용)."""
+        for d in self._devices:
+            if d.name in mapping:
+                d.set_can_id(int(mapping[d.name]))
 
     def close(self) -> None:
         for d in self._devices:

@@ -12,8 +12,8 @@ from .base import (Transport, TransportError, SIGNAL_META, ODRIVE_CONTROL_MODES,
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "motor_control" / "steering"))
 from ak_control import AK40 as AK  # noqa: E402
 
-NODE_ID = 1                          # ODrive
-AK_ID = 10                           # AK 조향
+NODE_ID = 11                         # ODrive 실전 node (GUI 기본; 웹에서 변경 가능)
+AK_ID = 1                            # AK45-36 조향 (GUI 기본; 웹에서 변경 가능)
 
 # ODrive CANSimple cmd id (fw-v0.5.6)
 C_HEARTBEAT = 0x001
@@ -61,6 +61,8 @@ class CanBackend(Transport):
         self._channel = channel
         self._bus = None
         self._ak = None
+        self._node = NODE_ID            # ODrive node (웹에서 변경 가능)
+        self._ak_id = AK_ID             # AK 모터 id (웹에서 변경 가능)
         self._state = {k: 0.0 for k in _ODRIVE_SIGNALS}
         self._pos_offset = 0.0
         # CAN Set_Limits/Set_Vel_Gains 는 페어 프레임 → 부분 업데이트 병합용 캐시
@@ -76,17 +78,17 @@ class CanBackend(Transport):
         except OSError as e:
             raise TransportError(
                 f"{self._channel} open 실패 — 'bash scripts/can_setup.sh' 먼저 ({e})")
-        self._ak = AK(self._bus, AK_ID, name="steer")
+        self._ak = AK(self._bus, self._ak_id, name="steer")
 
     def _send(self, cmd_id: int, data: bytes = b"") -> None:
         import can
-        arb = (NODE_ID << 5) | cmd_id
+        arb = (self._node << 5) | cmd_id
         self._bus.send(can.Message(arbitration_id=arb, data=data,
                                    is_extended_id=False))
 
     def _request(self, cmd_id: int) -> None:
         import can
-        arb = (NODE_ID << 5) | cmd_id
+        arb = (self._node << 5) | cmd_id
         self._bus.send(can.Message(arbitration_id=arb, is_remote_frame=True,
                                    is_extended_id=False))
 
@@ -118,7 +120,7 @@ class CanBackend(Transport):
             return
         cmd = msg.arbitration_id & 0x1F
         node = msg.arbitration_id >> 5
-        if node != NODE_ID:
+        if node != self._node:
             return
         d = msg.data
         if cmd == C_HEARTBEAT and len(d) >= 5:
@@ -255,8 +257,19 @@ class CanBackend(Transport):
             "inputs": {"odrive": ODRIVE_INPUTS},
             "tunables": {"odrive": ODRIVE_TUNABLES_CAN},
             "signal_meta": SIGNAL_META,
+            "can_ids": self.device_ids(),
             "notes": ["CAN 트랙 — ODrive+AK 동시. NVM 저장 불가 (USB 전용)"],
         }
+
+    def device_ids(self) -> dict:
+        return {"odrive": {"id": self._node, "min": 0, "max": 63, "label": "ODrive node ID"},
+                "ak": {"id": self._ak_id, "min": 1, "max": 127, "label": "AK 모터 ID"}}
+
+    def set_device_ids(self, mapping: dict) -> None:
+        if "odrive" in mapping:
+            self._node = int(mapping["odrive"])
+        if "ak" in mapping:
+            self._ak_id = int(mapping["ak"])
 
     def read_tunables(self) -> dict:
         out = {}

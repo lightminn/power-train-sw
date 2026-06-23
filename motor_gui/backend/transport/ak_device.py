@@ -11,16 +11,16 @@ from .can_device import CanDevice
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "motor_control" / "steering"))
 from ak_control import AK40, POLE_PAIRS, GEAR_RATIO  # noqa: E402
 
-AK_ID = 10
+AK_ID = 1                                 # 조향 AK45-36 (id 1·2). GUI 기본=1 (웹에서 변경 가능)
 PKT_STATUS_1 = 41
 _AK_SIGNALS = ["ak.pos_deg", "ak.speed", "ak.current", "ak.temp", "ak.fault", "ak.tripped",
                "ak.pos_cmd", "ak.speed_cmd"]
 _RESEND_HZ = 20.0
-_ERPM_PER_RPM = POLE_PAIRS * GEAR_RATIO   # 출력축 RPM → 전기 ERPM (=140)
+_ERPM_PER_RPM = POLE_PAIRS * GEAR_RATIO   # 출력축 RPM → 전기 ERPM (AK45-36: 14×36=504)
 
 
 class AkDevice(CanDevice):
-    """AK40 조향 모터 (확장 CAN ID). 3모드(position/velocity/duty) + 워치독 재전송 + 과전류 자동정지."""
+    """AK45-36 조향 모터 (확장 CAN ID, AK 시리즈 공용). 3모드(position/velocity/duty) + 워치독 재전송 + 과전류 자동정지."""
 
     name = "ak"
 
@@ -31,7 +31,7 @@ class AkDevice(CanDevice):
         self._active = None          # 재전송할 무인자 호출 (워치독)
         self._spd = 1500.0
         self._acc = 6000.0
-        self._maxcur = 5.0
+        self._maxcur = 30.0   # AK45-36 (peak 65A 대비 보수 트립값; 테스트 AK40-10 은 5.0)
         self._last_send = 0.0
         self._tripped = False
         self._pos_cmd = 0.0
@@ -43,6 +43,12 @@ class AkDevice(CanDevice):
         self._tripped = False
         self._pos_cmd = 0.0
         self._speed_cmd = 0.0
+
+    def can_id_spec(self) -> dict | None:
+        return {"id": self._mid, "min": 1, "max": 127, "label": "AK 모터 ID"}
+
+    def set_can_id(self, new_id: int) -> None:
+        self._mid = int(new_id)
 
     def capabilities_fragment(self) -> dict:
         meta = {k: SIGNAL_META[k] for k in _AK_SIGNALS if k in SIGNAL_META}
@@ -56,7 +62,7 @@ class AkDevice(CanDevice):
                 "position": {"key": "pos_deg", "label": "목표 위치", "unit": "°",
                              "help": "목표 각도(출력축°)로 이동. 이동 속도·가속은 아래 [속도제한]·[가속] 튜닝값을 따름."},
                 "velocity": {"key": "rpm", "label": "목표 속도(출력축)", "unit": "RPM",
-                             "help": "입력 RPM이 곧 목표속도(출력축). 최대 ~43RPM(무부하). ※[속도제한] 튜닝은 velocity엔 미적용."},
+                             "help": "입력 RPM이 곧 목표속도(출력축). 최대 ~12RPM(무부하, AK45-36 36:1). ※[속도제한] 튜닝은 velocity엔 미적용."},
                 "duty": {"key": "duty", "label": "듀티", "unit": "",
                          "help": "출력 듀티(-1~1) 직접 인가(개루프). 속도제한 없음 — 주의."},
             }},
@@ -65,7 +71,7 @@ class AkDevice(CanDevice):
                  "value": self._spd, "help": "position 이동 순항속도 (전기 RPM). ※position 모드 전용"},
                 {"op": "set_param", "key": "spd_rpm", "label": "속도제한 [RPM]",
                  "value": self._spd / _ERPM_PER_RPM,
-                 "help": "position 이동 순항속도 (출력축 RPM = ERPM÷140). ※position 모드 전용"},
+                 "help": "position 이동 순항속도 (출력축 RPM = ERPM÷504). ※position 모드 전용"},
                 {"op": "set_param", "key": "acc_erpm_s2", "label": "가속 [ERPM/s²]",
                  "value": self._acc, "help": "position 이동 가속 (전기 RPM/s²). ※position 모드 전용"},
                 {"op": "set_param", "key": "acc_rpm_s2", "label": "가속 [RPM/s²]",
@@ -74,7 +80,7 @@ class AkDevice(CanDevice):
                 {"op": "set_param", "key": "max_cur_a", "label": "최대전류(자동정지) [A]",
                  "value": self._maxcur, "help": "이 전류 초과 시 자동 정지 (안전, 전 모드)"},
             ]},
-            "limits": {"ak": {"pos_deg": 100000.0, "rpm": 45.0, "duty": 1.0}},
+            "limits": {"ak": {"pos_deg": 100000.0, "rpm": 15.0, "duty": 1.0}},
             "signal_meta": meta,
         }
 

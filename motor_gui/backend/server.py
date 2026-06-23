@@ -81,6 +81,13 @@ def create_app(track: str = "fake") -> FastAPI:
     def reconnect() -> dict:
         return worker.reconnect()
 
+    @app.post("/api/can_id")
+    def set_can_id(body: dict) -> dict:
+        ids = (body or {}).get("ids", {})
+        if not isinstance(ids, dict) or not ids:
+            return {"ok": False, "detail": "ids dict 가 필요합니다 (예: {\"ak\": 2})"}
+        return worker.set_ids(ids)
+
     @app.post("/api/record/start")
     def record_start(body: dict) -> dict:
         path = body.get("path")
