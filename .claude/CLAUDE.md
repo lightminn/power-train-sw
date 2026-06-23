@@ -115,11 +115,15 @@ import(예: `ak_control`)하지만 **`motor_control` 이 `motor_gui` 를 import 
 ## 테스트·실행 환경 (Jetson 우선)
 
 실제 실행·검증은 **Jetson Orin Nano 에서 직접 돌려보는 것을 우선**한다 (런타임 타깃이
-Jetson). x86 노트북의 dev 컨테이너(`powertrain-sw:dev`, `docker/docker-compose.yml`
-— 무하드웨어 `pytest`: `motor_gui/tests/`·`corner_module`·`safety_us100` 와 fake 드라이버
-개발용)는 **Jetson 에 접근할 수 없을 때의 차선책**이다. 이 x86 이미지는 CPU 전용
-(코드 작성·CPU/OpenVINO 테스트 전용, ~3.3GB) — YOLO GPU 추론은 Jetson `Dockerfile.jetson`
-에서만 한다.
+Jetson). x86 노트북의 dev 컨테이너(`powertrain-sw:dev`, `docker/docker-compose.yml`)는
+**Jetson 을 쓸 수 없을 때의 차선 환경**이다 — "무하드웨어 전용"이 아니라, 무하드웨어
+`pytest`(`motor_gui/tests/`·`corner_module`·`safety_us100` + fake 드라이버)·코드 작성에
+더해 **ODrive 를 노트북에 USB 직결해 실제 모터를 굴리는 작업까지 포함**한다(compose 가
+`/dev` 마운트 + `SYS_RAWIO` 제공; 단 ODrive USB reset ioctl 때문에 `docker run --privileged`
+로 띄워야 연결됨 — `cap_add` 만으론 I/O 에러). odrive 파이썬 라이브러리는 Jetson 과 동일한
+**git `fw-v0.5.6`(=0.5.6) 소스**로 맞춰 fw 0.5.x 보드·검증 스크립트(axis-level
+`odrv.axis1.clear_errors()` 등)와 호환된다(PyPI 는 0.5.6 미배포). 이 x86 이미지는 **CPU 전용**
+— YOLO GPU 추론은 Jetson `Dockerfile.jetson` 에서만 한다.
 
 ## Jetson Orin Nano deployment
 

@@ -30,7 +30,10 @@ services:
       # 코드 동기화 — 호스트의 저장소 루트를 /workspace 로 마운트
       - ../:/workspace:rw
 
-    # ODrive USB 직접 제어용 (libusb)
+    # ODrive USB 직접 제어용 (libusb). ⚠️ 단 odrivetool / odrive.find_any 는 연결 시
+    # USB reset(USBDEVFS_RESET ioctl)을 호출하는데 SYS_RAWIO 로는 막혀 [Errno 5] I/O Error
+    # → 실 ODrive 연결은 `docker run --privileged -v /dev:/dev powertrain-sw:dev odrivetool`
+    # 로 띄울 것 (compose 기본값은 권한 좁히려 cap_add 유지).
     cap_add:
       - SYS_RAWIO
 

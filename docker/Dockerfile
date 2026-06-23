@@ -47,7 +47,7 @@ RUN pip3 install --no-cache-dir \
         torch torchvision
 
 # Python 의존성
-#   odrive          : USB ODrive 통신 (motor_control 전 스크립트)
+#   (odrive 는 아래 별도 RUN 에서 git source fw-v0.5.6 = 0.5.6 으로 설치 — Jetson 컨테이너와 동일)
 #   pygame          : DualSense (odrive_dualsense_*, robot_*)
 #   opencv-python   : cv2 (yolo_*, robot_laptop)
 #   ultralytics     : YOLO (위 CPU torch 사용 — x86 은 CPU/OpenVINO, GPU 는 Jetson)
@@ -57,7 +57,6 @@ RUN pip3 install --no-cache-dir \
 #   fastapi/uvicorn : motor_gui 웹 백엔드 (WebSocket 텔레메트리 + REST 제어)
 #   httpx, pytest   : motor_gui 테스트 (FastAPI TestClient + 단위/통합)
 RUN pip3 install --no-cache-dir \
-        odrive \
         pygame \
         opencv-python \
         ultralytics \
@@ -69,6 +68,21 @@ RUN pip3 install --no-cache-dir \
         "uvicorn[standard]" \
         httpx \
         pytest
+
+# odrive — Jetson(docker/Dockerfile.jetson)과 동일하게 git source fw-v0.5.6(= 0.5.6) 설치.
+#   PyPI 는 0.5.4 다음 0.6.x 로 점프(0.5.5/0.5.6 미배포)고, 0.6.x 는 fw 0.5.x 와 프로토콜 비호환.
+#   fw 0.5.x 보드 + 검증 스크립트(odrv.clear_errors() 등)를 Jetson 과 동일하게 쓰려면 0.5.6 필요.
+#   ODrive 저장소가 prebuilt libfibre .so 를 git LFS 로 보관 → clone + lfs pull 후 로컬 경로 설치
+#   (멀티아치 .so 포함 → x86/amd64 에서도 동작).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git git-lfs \
+    && rm -rf /var/lib/apt/lists/* \
+    && git lfs install --system \
+    && git clone --depth 1 --branch fw-v0.5.6 \
+        https://github.com/odriverobotics/ODrive /opt/ODrive \
+    && (cd /opt/ODrive && git lfs pull) \
+    && pip3 install --no-cache-dir --index-url https://pypi.org/simple /opt/ODrive/tools \
+    && rm -rf /opt/ODrive
 
 WORKDIR /workspace
 CMD ["bash"]
