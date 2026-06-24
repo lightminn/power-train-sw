@@ -64,7 +64,10 @@ Detailed simulation pipeline, parameter space (v4 15-dim / v3 14-dim), objective
   현재값(AK45-36 / CAN 500 kbps / `axis1` / ODrive node 11 · AK id 1).
 - 구버전은 삭제 대신 상단 ⛔ DEPRECATED 콜아웃 + 정본 링크 후 Archive 로 이동.
 - **초보자 복붙 기준 + 소스코드 분리** (2026-06-25 추가): 문서는 **초보자가 복붙만 따라
-  해도 바로 실행**되도록 자세히 쓴다. 단 **노션엔 풀 파이썬 소스코드를 넣지 않는다** —
+  해도 바로 실행**되도록 자세히 쓴다 (SW 문외한 기준 — **접속(ssh)→호스트(can_setup)→
+  컨테이너 진입(docker exec)→실행**을 빠짐없이, odrivetool 쓰면 **켜는 법(`odrivetool` 실행)도
+  명시**. 각 명령 블록에 **어디서**(노트북/호스트/컨테이너/odrivetool) 치는지 + **✅ 기대 출력**을
+  적고, 쓸데없는 부가설명은 빼서 명령·체크에 집중). 단 **노션엔 풀 파이썬 소스코드를 넣지 않는다** —
   풀 스크립트(.py; python-can·멀티함수·루프 등)는 **레포에 올리고 파일 경로·이름만** 노션에
   적어 필요한 사람이 찾아보게 한다(예: `motor_control/can_ak_odrive_demo.py` + 실행 한 줄).
   노션에 직접 적는 코드는 **odrivetool 인터랙티브에서 한 줄씩 바로 칠 수 있는 형태**
