@@ -100,12 +100,12 @@ SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 | `motor_control/vision/` RealSense RGB-D | [RGB-D 카메라(RealSense D435i) 켜는 법](https://app.notion.com/p/3752d27b08d381619d73d6bc19fc02d2) |
 | `motor_control/vision/` YOLO + Depth 3D 좌표 | [YOLO + Depth 융합 — 검출 물체 3D 좌표 추출](https://app.notion.com/p/37b2d27b08d38147b9aceb16268615a8) |
 | `motor_control/sensors`+`safety_us100/` US-100 거리 + 충돌방지 | [US100 초음파 센서 UART 거리 측정](https://app.notion.com/p/35d2d27b08d380f591b9d6553c6a320d) |
+| `motor_gui/` 웹 진단·튜닝 GUI | [motor_gui — 웹 모터 진단·튜닝 GUI](https://app.notion.com/p/3892d27b08d3811eb174e787808db3c2) |
 | (Firmware) ODrive 펌웨어 플래시 | [ODrive 세팅](https://app.notion.com/p/33a2d27b08d38002b0f7d21fda39e8d2) |
 
 > **구버전(Archive)** — 아래는 위 정본으로 대체됨: [CAN 모터 제어 on Jetson](https://app.notion.com/p/35d2d27b08d38062bf19f53e5f1c78cf)(AK40-10/SN65HVD230) · [YOLO 실습](https://app.notion.com/p/33a2d27b08d380dfb71bd86f0e3e7aeb)(YOLOv8/x86 PoC) · [모터 원격제어 및 영상 스트리밍](https://app.notion.com/p/34f2d27b08d380a89272cc20dfcd0f04)(Pi/gstreamer).
 
-Notion 문서가 아직 없는 기능은 in-repo README 를 참고한다 — `motor_gui/README.md`(웹
-진단 GUI), `safety_us100/README.md`(충돌방지 모듈 코드).
+코드 단위 상세는 레포 in-repo README 도 참고 — `safety_us100/README.md`(충돌방지 모듈 코드).
 
 ---
 
