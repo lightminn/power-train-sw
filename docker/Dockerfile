@@ -64,6 +64,7 @@ RUN pip3 install --no-cache-dir \
         numpy \
         matplotlib \
         python-can \
+        pyserial \
         fastapi \
         "uvicorn[standard]" \
         httpx \

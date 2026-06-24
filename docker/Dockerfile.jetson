@@ -92,5 +92,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gstreamer1.0-plugins-ugly \
     && rm -rf /var/lib/apt/lists/*
 
+# pyserial — US-100 UART 센서(safety_us100). librealsense 캐시(빌드 30~45분) 보존 위해 맨 뒤 별도 레이어.
+RUN pip3 install --no-cache-dir --index-url https://pypi.org/simple pyserial
+
 WORKDIR /workspace
 CMD ["bash"]
