@@ -52,7 +52,7 @@ def test_capabilities_tunables_prefill_values():
     f = OdriveCanDevice().capabilities_fragment()
     tk = {t["key"]: t for t in f["tunables"]["odrive"]}
     assert tk["pos_gain"]["value"] == 8.0
-    assert tk["vel_limit"]["value"] == 5.0
+    assert tk["vel_limit"]["value"] == 50.0
     assert tk["current_lim"]["value"] == 10.0
     assert "trap_vel_limit" not in tk
     assert "input_filter_bandwidth" not in tk

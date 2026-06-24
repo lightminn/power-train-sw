@@ -22,7 +22,7 @@ ax.controller.error = 0
 
 # 검증된 게인
 ax.motor.config.current_lim = 15.0
-ax.controller.config.vel_limit = 5.0
+ax.controller.config.vel_limit = 50.0
 ax.encoder.config.bandwidth = 50
 ax.controller.config.pos_gain = 3.0
 ax.controller.config.vel_gain = 0.04

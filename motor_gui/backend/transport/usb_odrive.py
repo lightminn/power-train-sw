@@ -32,7 +32,7 @@ class UsbOdriveBackend(Transport):
         self._ax = None
         self._fet_therm = None      # fw 별 위치 달라 connect 에서 resolve
         self._enums: dict = {}
-        self._vel_limit = 5.0       # 사용자가 의도한 속도(=TRAP 순항). 캡과 구분.
+        self._vel_limit = 50.0       # 사용자가 의도한 속도(=TRAP 순항). 캡과 구분.
         self._torque_const = 0.0    # Iq→토크 환산 (motor.config.torque_constant)
         self._motor_info: dict = {}  # 정적 모터 파라미터 (capabilities 노출)
 

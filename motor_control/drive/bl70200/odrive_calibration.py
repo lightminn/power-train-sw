@@ -111,7 +111,7 @@ axis.encoder.config.bandwidth = 100.0
 safe_set(axis.encoder.config, 'ignore_illegal_hall_state', False)
 
 # 제어기 게인 (HALL 저해상도 대응)
-axis.controller.config.vel_limit = 10.0
+axis.controller.config.vel_limit = 50.0
 axis.controller.config.vel_integrator_gain = 0.0
 axis.controller.config.vel_gain = 0.05
 axis.controller.config.pos_gain = 0.5

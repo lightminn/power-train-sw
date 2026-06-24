@@ -121,7 +121,7 @@ DEFAULT_TUNABLES = {
     "vel_gain": 0.015,
     "vel_integrator_gain": 0.0,
     "input_filter_bandwidth": 50.0,
-    "vel_limit": 5.0,
+    "vel_limit": 50.0,
     "current_lim": 10.0,
     "trap_vel_limit": 20.0,
     "trap_accel_limit": 15.0,

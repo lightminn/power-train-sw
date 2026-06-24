@@ -3,6 +3,12 @@ const WINDOW_SEC = 20;
 const MAX_PTS = WINDOW_SEC * 100; // 100 Hz
 const COLORS = ["#4fc3f7", "#ffb74d", "#81c784", "#e57373", "#ba68c8"];
 
+// 속도 단위 (rev/s ↔ m/s). 휠 반경 0.1m. localStorage 로 app.js 와 공유.
+const PLOT_VEL_CIRC = 2 * Math.PI * 0.1;   // app.js 의 VEL_CIRC 와 전역 충돌 방지 위해 별도 이름
+const VEL_SIG = new Set(["odrive.vel", "odrive.vel_setpoint"]);
+function plotVelUnit() { return localStorage.getItem("velUnit") || "rev/s"; }
+function plotVelFactor() { return plotVelUnit() === "m/s" ? PLOT_VEL_CIRC : 1; }
+
 // 명령(점선) → 실제(실선) 매핑: 같은 색으로 짝지어 오버레이
 const CMD_OF = {
   "odrive.pos_setpoint": "odrive.pos", "odrive.vel_setpoint": "odrive.vel",
@@ -44,7 +50,12 @@ function makePanel(title, sigKeys, meta) {
   return {
     push(t, sample) {
       data[0].push(t);
-      sigKeys.forEach((k, i) => data[i + 1].push(sample[k] ?? null));
+      const f = plotVelFactor();
+      sigKeys.forEach((k, i) => {
+        let v = sample[k];
+        if (v != null && VEL_SIG.has(k)) v = v * f;   // 속도 신호는 선택 단위로 스케일
+        data[i + 1].push(v ?? null);
+      });
       while (data[0].length > MAX_PTS) data.forEach((arr) => arr.shift());
     },
     redraw() { u.setData(data); },
@@ -53,6 +64,10 @@ function makePanel(title, sigKeys, meta) {
 
 function buildPanels(signals, meta) {
   meta = meta || {};
+  if (plotVelUnit() === "m/s") {           // 속도 신호 범례 단위 m/s 로
+    meta = Object.assign({}, meta);
+    VEL_SIG.forEach((k) => { if (meta[k]) meta[k] = Object.assign({}, meta[k], { unit: "m/s" }); });
+  }
   const has = (k) => signals.includes(k);
   const panels = [];
   if (has("odrive.pos") || has("odrive.vel"))

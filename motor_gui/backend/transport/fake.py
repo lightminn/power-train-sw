@@ -49,7 +49,7 @@ class FakeTransport(Transport):
             "vel_gain": 0.16,
             "vel_integrator_gain": 0.32,
             "input_filter_bandwidth": 2.0,
-            "vel_limit": 10.0,
+            "vel_limit": 50.0,
             "current_lim": 10.0,
             "trap_vel_limit": 20.0,
             "trap_accel_limit": 20.0,

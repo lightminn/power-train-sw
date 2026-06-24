@@ -22,7 +22,7 @@ ax.encoder.error = 0
 ax.controller.error = 0
 
 ax.motor.config.current_lim = 15.0
-ax.controller.config.vel_limit = max(abs(TARGET_VEL) * 1.5, 5.0)
+ax.controller.config.vel_limit = 50.0
 
 # === 노이즈 억제 강화 ===
 ax.encoder.config.bandwidth = 20         # 50 → 20 (vel_estimate 필터 강화)

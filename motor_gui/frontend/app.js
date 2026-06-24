@@ -4,6 +4,14 @@ let caps = null;
 let lastState = null;
 const lastErrs = {};
 
+// 속도 단위 (rev/s ↔ m/s). BL70200 인휠 반경 0.1m → m/s = rev/s × 2πr.
+const WHEEL_R = 0.1;
+const VEL_CIRC = 2 * Math.PI * WHEEL_R;
+function velUnit() { return localStorage.getItem("velUnit") || "rev/s"; }
+function revToDisp(v) { return velUnit() === "m/s" ? v * VEL_CIRC : v; }
+function dispToRev(v) { return velUnit() === "m/s" ? v / VEL_CIRC : v; }
+const VEL_TUN = new Set(["vel_limit", "trap_vel_limit"]);
+
 // fw 0.5.x ODrive 에러 비트 → 이름 (axis/motor/encoder/controller)
 const ERROR_BITS = {
   "odrive.axis_err": {
@@ -243,13 +251,15 @@ function controlPanel(device, caps, tunVals) {
     let curMode = modes[0];
     const tgt = rowNumber("목표값", (v) => {
       const spec = inputs[curMode];
-      postCommand({ target: device, op: "set_input", args: { [spec.key]: v } });
+      const val = spec.unit === "rev/s" ? dispToRev(v) : v;   // 속도 입력은 rev/s 로 환산해 전송
+      postCommand({ target: device, op: "set_input", args: { [spec.key]: val } });
     });
     const modeHelp = helpLine("");
     const applyMode = (m) => {
       curMode = m;
       const spec = inputs[m];
-      tgt.lab.textContent = `${spec.label} [${spec.unit}]`;
+      const u = spec.unit === "rev/s" ? velUnit() : spec.unit;   // 선택 단위로 라벨
+      tgt.lab.textContent = `${spec.label} [${u}]`;
       modeHelp.textContent = spec.help || "";
     };
     const ms = rowSelect("제어 모드", modes, (m) => {
@@ -281,9 +291,13 @@ function controlPanel(device, caps, tunVals) {
     grid.appendChild(subhead("튜닝 (현재값 prefill, 입력 후 Enter)"));
     const tv = (tunVals && tunVals[device]) || {};
     tunables.forEach((t) => {
-      const init = (t.value !== undefined && t.value !== null) ? t.value : tv[t.key];
-      grid.appendChild(rowNumber(t.label, (v) =>
-        postCommand({ target: device, op: t.op, args: { [t.key]: v } }), "0.001", init, t.help).row);
+      const isVel = VEL_TUN.has(t.key);   // 속도 단위 튜너블(vel_limit, trap_vel_limit)
+      const label = isVel ? t.label.replace("rev/s", velUnit()) : t.label;
+      let init = (t.value !== undefined && t.value !== null) ? t.value : tv[t.key];
+      if (isVel && init !== undefined && init !== null) init = revToDisp(init);
+      grid.appendChild(rowNumber(label, (v) =>
+        postCommand({ target: device, op: t.op, args: { [t.key]: isVel ? dispToRev(v) : v } }),
+        "0.001", init, t.help).row);
     });
   }
 
@@ -358,6 +372,11 @@ function renderLoop() {
 async function main() {
   caps = await (await fetch("/api/capabilities")).json();
   document.getElementById("track").textContent = `[${caps.track}]`;
+  const vu = document.getElementById("velunit");
+  if (vu) {
+    vu.value = velUnit();
+    vu.addEventListener("change", () => { localStorage.setItem("velUnit", vu.value); location.reload(); });
+  }
   let tunVals = {};
   try {
     const flat = await (await fetch("/api/tunables")).json();

@@ -21,14 +21,14 @@ ax.controller.error = 0
 
 # 위치 제어용 게인 — 캘리 스크립트의 POS_FILTER 설정 override
 ax.motor.config.current_lim = 15.0
-ax.controller.config.vel_limit = 5.0
+ax.controller.config.vel_limit = 50.0
 
 ax.encoder.config.bandwidth = 50
 ax.controller.config.pos_gain = 3.0
 ax.controller.config.vel_gain = 0.04
 ax.controller.config.vel_integrator_gain = 0.0
 
-ax.trap_traj.config.vel_limit = 5.0
+ax.trap_traj.config.vel_limit = 50.0
 ax.trap_traj.config.accel_limit = 10.0
 ax.trap_traj.config.decel_limit = 10.0
 
