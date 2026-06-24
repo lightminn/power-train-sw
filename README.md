@@ -88,18 +88,21 @@ SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 [극한로봇 파워트레인](https://app.notion.com/p/31d2d27b08d38030832ac73b42ce0c03) 의 💻 Software
 섹션에 정리돼 있다.
 
-| 레포 기능 | Notion 문서 |
+레포 영역과 Notion 문서를 같은 구조로 맞춰 둔다.
+
+| 레포 영역 | Notion 문서 |
 | --- | --- |
-| 파라미터 최적화 (v4) | [로커보기 파라미터 최적화 결과 (v4) + 주행 애니메이션](https://app.notion.com/p/36b2d27b08d3819b9303d1f8554b0425) |
-| 코너 모듈 (조향+구동 통합) | [코너 모듈 컨트롤러 — 조향+구동 통합 제어 API (HIL 검증)](https://app.notion.com/p/36b2d27b08d381818b04c1d194bcade1) |
-| ODrive CAN 제어 | [Odrive CAN 제어](https://app.notion.com/p/3622d27b08d38054a4cafb7d9ca78b02) |
-| Jetson CAN 모터 제어 | [CAN 모터 제어 on Jetson](https://app.notion.com/p/35d2d27b08d38062bf19f53e5f1c78cf) |
-| 원격제어 + 영상 스트리밍 | [모터 원격제어 및 영상 스트리밍](https://app.notion.com/p/34f2d27b08d380a89272cc20dfcd0f04) |
-| 비전 — YOLO | [YOLO 실습](https://app.notion.com/p/33a2d27b08d380dfb71bd86f0e3e7aeb) |
-| 비전 — RealSense RGB-D | [RGB-D 카메라(RealSense D435i) 켜는 법](https://app.notion.com/p/3752d27b08d381619d73d6bc19fc02d2) |
-| 비전 — YOLO + Depth 3D 좌표 | [YOLO + Depth 융합 — 검출 물체 3D 좌표 추출](https://app.notion.com/p/37b2d27b08d38147b9aceb16268615a8) |
-| US-100 거리 + 충돌방지 안전 | [US100 초음파 센서 UART 거리 측정](https://app.notion.com/p/35d2d27b08d380f591b9d6553c6a320d) |
-| (Firmware) ODrive 세팅 · 통신 | [ODrive 세팅](https://app.notion.com/p/33a2d27b08d38002b0f7d21fda39e8d2) · [통신 방식](https://app.notion.com/p/32c2d27b08d380bab5c6ef6da5d0ae91) |
+| `parameter_calc/` 파라미터 최적화 (v4) | [로커보기 파라미터 최적화 결과 (v4) + 주행 애니메이션](https://app.notion.com/p/36b2d27b08d3819b9303d1f8554b0425) |
+| `motor_control/drive/bl70200/` ODrive 구동 셋업 | [ODrive(BL70200) 셋업 — 공장초기화→구동](https://app.notion.com/p/3882d27b08d381fcbe3cd0c829687c3a) |
+| `motor_control/drive`+`steering/` 단일 CAN 버스 (AK45-36 + ODrive) | [AK + ODrive 동시 CAN 제어 (단일 500k 버스)](https://app.notion.com/p/3882d27b08d381efa56bd5fe310e3198) |
+| `motor_control/drive/x2212_test/` ODrive CAN (X2212 모터 테스트) | [Odrive CAN 제어](https://app.notion.com/p/3622d27b08d38054a4cafb7d9ca78b02) |
+| `motor_control/corner_module/` 코너 모듈 (조향+구동 통합) | [코너 모듈 컨트롤러 — 조향+구동 통합 제어 API (HIL 검증)](https://app.notion.com/p/36b2d27b08d381818b04c1d194bcade1) |
+| `motor_control/vision/` RealSense RGB-D | [RGB-D 카메라(RealSense D435i) 켜는 법](https://app.notion.com/p/3752d27b08d381619d73d6bc19fc02d2) |
+| `motor_control/vision/` YOLO + Depth 3D 좌표 | [YOLO + Depth 융합 — 검출 물체 3D 좌표 추출](https://app.notion.com/p/37b2d27b08d38147b9aceb16268615a8) |
+| `motor_control/sensors`+`safety_us100/` US-100 거리 + 충돌방지 | [US100 초음파 센서 UART 거리 측정](https://app.notion.com/p/35d2d27b08d380f591b9d6553c6a320d) |
+| (Firmware) ODrive 펌웨어 플래시 | [ODrive 세팅](https://app.notion.com/p/33a2d27b08d38002b0f7d21fda39e8d2) |
+
+> **구버전(Archive)** — 아래는 위 정본으로 대체됨: [CAN 모터 제어 on Jetson](https://app.notion.com/p/35d2d27b08d38062bf19f53e5f1c78cf)(AK40-10/SN65HVD230) · [YOLO 실습](https://app.notion.com/p/33a2d27b08d380dfb71bd86f0e3e7aeb)(YOLOv8/x86 PoC) · [모터 원격제어 및 영상 스트리밍](https://app.notion.com/p/34f2d27b08d380a89272cc20dfcd0f04)(Pi/gstreamer).
 
 Notion 문서가 아직 없는 기능은 in-repo README 를 참고한다 — `motor_gui/README.md`(웹
 진단 GUI), `safety_us100/README.md`(충돌방지 모듈 코드).
