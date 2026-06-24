@@ -49,6 +49,21 @@ Detailed simulation pipeline, parameter space (v4 15-dim / v3 14-dim), objective
 
 `parameter_calc/` was downloaded from the development server and is the authoritative implementation — its code and any persisted results (`*.pkl`, `*.mat`) should be trusted over historical local copies. Earlier local-only versions were removed during the directory cleanup.
 
+## SW Notion 문서 표준
+
+기능별 사용법은 팀 Notion 허브 `극한로봇 파워트레인 → 💻 Software` 에 정리한다 (repo `README.md`
+의 매핑표가 레포 영역 ↔ Notion 페이지 인덱스 = source-of-truth). 새 SW 페이지는 **`📄 SW 문서
+표준 템플릿`** 페이지를 복제해 작성한다. 표준 구조: 개요 콜아웃 → 목차 → ①환경 → ②핵심개념/
+파라미터 → ③배선(HW 시) → ④설치·사전준비 → ⑤실행 → ⑥트러블슈팅 표 → ⑦검증결과 표 → ⑧코드·참고.
+컨벤션:
+
+- **④설치·⑤실행은 "Jetson 에 SSH 접속 직후(홈 `~`)" 기준**으로, 순서대로 복붙만 하면 목표
+  달성하도록 쓴다 (레포 이동 → 호스트 준비 → 컨테이너 진입까지 포함; 컨테이너 떠 있음·CAN 올라옴
+  같은 중간 상태 가정 금지).
+- 콜아웃 색: 파랑=개요, 빨강=안전/위험, 회색=팁/함정. **함정(footgun)은 ⚠️ 명시.** 수치·모델은
+  현재값(AK45-36 / CAN 500 kbps / `axis1` / ODrive node 11 · AK id 1).
+- 구버전은 삭제 대신 상단 ⛔ DEPRECATED 콜아웃 + 정본 링크 후 Archive 로 이동.
+
 ## Working in `motor_control/`
 
 Mostly self-contained scripts; one shared package (`corner_module/`). Three motor
