@@ -84,7 +84,9 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   `odrive_diff_drive_test.py`, `odrive_basic_test.py`, `odrive_closed_loop_test.py`,
   `odrive_position_hold_test.py`, `odrive_velocity_hold_test.py` — HALL 모드,
   `pp=5, cpr=30, HIGH_CURRENT`, NVM 저장 후 재사용.
-- **drive/x2212_test/** (SunnySky X2212-13 + TLE5012B, 테스트·PoC):
+- **drive/x2212_test/** (SunnySky X2212-13 + TLE5012B, **레거시·deprecated** — BL70200 도착 전
+  임시 엔코더 테스트모터; 엔코더 기반 X2212 제어는 폐기(실전 BL70200=HALL), ODrive CAN 일반
+  실험데이터는 유효 → 「AK + ODrive 동시 CAN」 정본으로 이관):
   `init_odrive.py` (USB 1회 NVM 셋업, pp=7 cpr=16384), `odrive_can_setup.py` /
   `odrive_can_drive.py` (CAN), `odrive_dualsense_*.py` (텔레옵), `yolo_odrive_jetson.py`
   (Jetson 비전 추종, USB), `yolo_odrive_motor_test.py` · `odrive_yolo_object_tracking.py`
