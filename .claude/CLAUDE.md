@@ -63,6 +63,13 @@ Detailed simulation pipeline, parameter space (v4 15-dim / v3 14-dim), objective
 - 콜아웃 색: 파랑=개요, 빨강=안전/위험, 회색=팁/함정. **함정(footgun)은 ⚠️ 명시.** 수치·모델은
   현재값(AK45-36 / CAN 500 kbps / `axis1` / ODrive node 11 · AK id 1).
 - 구버전은 삭제 대신 상단 ⛔ DEPRECATED 콜아웃 + 정본 링크 후 Archive 로 이동.
+- **초보자 복붙 기준 + 소스코드 분리** (2026-06-25 추가): 문서는 **초보자가 복붙만 따라
+  해도 바로 실행**되도록 자세히 쓴다. 단 **노션엔 풀 파이썬 소스코드를 넣지 않는다** —
+  풀 스크립트(.py; python-can·멀티함수·루프 등)는 **레포에 올리고 파일 경로·이름만** 노션에
+  적어 필요한 사람이 찾아보게 한다(예: `motor_control/can_ak_odrive_demo.py` + 실행 한 줄).
+  노션에 직접 적는 코드는 **odrivetool 인터랙티브에서 한 줄씩 바로 칠 수 있는 형태**
+  (`odrv0.axis1.controller.input_vel = 1.0` 식)만 둔다. bash 준비명령(can_setup 등)·
+  프로토콜 표·수치·실행 명령은 노션에 둬도 됨.
 
 ## Working in `motor_control/`
 
