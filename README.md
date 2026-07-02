@@ -96,6 +96,7 @@ SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 | `motor_control/drive/bl70200/` ODrive 구동 셋업 | [ODrive(BL70200) 셋업 — 공장초기화→구동](https://app.notion.com/p/3882d27b08d381fcbe3cd0c829687c3a) |
 | `motor_control/drive`+`steering/` 단일 CAN 버스 8모터 (AK45-36 ×4 + ODrive ×4) | [단일 CAN 버스 8모터 독립제어 — AK45-36 조향 ×4 + ODrive 구동 ×4](https://app.notion.com/p/3882d27b08d381efa56bd5fe310e3198) |
 | `motor_control/corner_module/` 코너 모듈 (조향+구동 통합) | [코너 모듈 컨트롤러 — 조향+구동 통합 제어 API (HIL 검증)](https://app.notion.com/p/36b2d27b08d381818b04c1d194bcade1) |
+| `motor_control/chassis/` 4WS 차체 통합 제어 (ChassisManager, WP3) | [차체 통합 제어 (ChassisManager) — 코너 6개를 하나의 차체로 (4WS)](https://app.notion.com/p/3912d27b08d381e79716e04398e34bd2) |
 | `motor_control/vision/` RealSense RGB-D | [RGB-D 카메라(RealSense D435i) 켜는 법](https://app.notion.com/p/3752d27b08d381619d73d6bc19fc02d2) |
 | `motor_control/vision/` YOLO + Depth 3D 좌표 | [YOLO + Depth 융합 — 검출 물체 3D 좌표 추출](https://app.notion.com/p/37b2d27b08d38147b9aceb16268615a8) |
 | `motor_control/sensors`+`safety_us100/` US-100 거리 + 충돌방지 | [US100 초음파 센서 UART 거리 측정](https://app.notion.com/p/35d2d27b08d380f591b9d6553c6a320d) |
