@@ -94,13 +94,14 @@ SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 | --- | --- |
 | `parameter_calc/` 파라미터 최적화 (v4) | [로커보기 파라미터 최적화 결과 (v4) + 주행 애니메이션](https://app.notion.com/p/36b2d27b08d3819b9303d1f8554b0425) |
 | `motor_control/drive/bl70200/` ODrive 구동 셋업 | [ODrive(BL70200) 셋업 — 공장초기화→구동](https://app.notion.com/p/3882d27b08d381fcbe3cd0c829687c3a) |
-| `motor_control/drive`+`steering/` 단일 CAN 버스 (AK45-36 + ODrive) | [AK + ODrive 동시 CAN 제어 (단일 500k 버스)](https://app.notion.com/p/3882d27b08d381efa56bd5fe310e3198) |
+| `motor_control/drive`+`steering/` 단일 CAN 버스 8모터 (AK45-36 ×4 + ODrive ×4) | [단일 CAN 버스 8모터 독립제어 — AK45-36 조향 ×4 + ODrive 구동 ×4](https://app.notion.com/p/3882d27b08d381efa56bd5fe310e3198) |
 | `motor_control/corner_module/` 코너 모듈 (조향+구동 통합) | [코너 모듈 컨트롤러 — 조향+구동 통합 제어 API (HIL 검증)](https://app.notion.com/p/36b2d27b08d381818b04c1d194bcade1) |
 | `motor_control/vision/` RealSense RGB-D | [RGB-D 카메라(RealSense D435i) 켜는 법](https://app.notion.com/p/3752d27b08d381619d73d6bc19fc02d2) |
 | `motor_control/vision/` YOLO + Depth 3D 좌표 | [YOLO + Depth 융합 — 검출 물체 3D 좌표 추출](https://app.notion.com/p/37b2d27b08d38147b9aceb16268615a8) |
 | `motor_control/sensors`+`safety_us100/` US-100 거리 + 충돌방지 | [US100 초음파 센서 UART 거리 측정](https://app.notion.com/p/35d2d27b08d380f591b9d6553c6a320d) |
 | `motor_gui/` 웹 진단·튜닝 GUI | [motor_gui — 웹 모터 진단·튜닝 GUI](https://app.notion.com/p/3892d27b08d3811eb174e787808db3c2) |
 | (Firmware) ODrive 펌웨어 플래시 | [ODrive 세팅](https://app.notion.com/p/33a2d27b08d38002b0f7d21fda39e8d2) |
+| (네트워크) GL-SFT1200 전용 AP — 노트북↔젯슨 링크 | [무선 라우터(GL-SFT1200) — 노트북↔젯슨 전용망 셋업](https://app.notion.com/p/38e2d27b08d38122942bff3f12534e58) |
 
 > **구버전(Archive)** — 아래는 위 정본으로 대체됨: [CAN 모터 제어 on Jetson](https://app.notion.com/p/35d2d27b08d38062bf19f53e5f1c78cf)(AK40-10/SN65HVD230) · [YOLO 실습](https://app.notion.com/p/33a2d27b08d380dfb71bd86f0e3e7aeb)(YOLOv8/x86 PoC) · [모터 원격제어 및 영상 스트리밍](https://app.notion.com/p/34f2d27b08d380a89272cc20dfcd0f04)(Pi/gstreamer) · [Odrive CAN 제어](https://app.notion.com/p/3622d27b08d38054a4cafb7d9ca78b02)(X2212 엔코더 테스트모터 — BL70200 도입으로 폐기; ODrive CAN 일반은 「AK + ODrive 동시 CAN」 정본).
 
