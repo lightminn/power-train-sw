@@ -4,6 +4,11 @@
 > Notion 「극한로봇 Robot arm」(통합 개발 계획 · 기말 이후 계획서 Ver2 · TF 좌표계 초안 · Phase 1·2 문서).
 > 방침: **로봇팔 팀이 확정한 인터페이스(메시지 5종)에 우리가 맞춘다.**
 > 이 문서는 "무엇을, 어떤 도구로, 어떤 파일에, 어떻게 테스트하는지"까지 내려간 실행 계획이다.
+>
+> **📌 진행 상태 (2026-07-03 갱신)**: WP2(키네마틱스)·WP3(ChassisManager) **완료**(커밋 `99a48a2`·`efc0b59`).
+> 로봇팔 **PR #11 main 머지 완료** → `robot_arm_msgs`·`robot_arm_perception`가 main + 젯슨 양 레포에 반영,
+> **WP4 블로커(메시지 미머지) 해소.** 젯슨 두 레포 GitHub origin/main과 싱크 완료.
+> 남은 1순위 블로커 = **D435i 카메라 독점**(§6-④).
 
 ---
 
@@ -23,7 +28,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 통신 계약 | 커스텀 메시지 5종 `robot_arm_msgs` — **구현체는 main이 아니라 열린 PR #11** |
+| 통신 계약 | 커스텀 메시지 5종 `robot_arm_msgs` — **main에 머지됨(PR #11, 2026-07-03)**. 인식 노드 `robot_arm_perception`도 함께 |
 | 우리가 받는 것 | `/detected_objects`(모든 인식 결과, 30fps), `/arm_status`(팔 상태, `DONE`=재출발 신호) |
 | 우리가 보내는 것 | `/arrival_status`(mission_id+도착상태), `/chassis_mode`(`DRIVING`/`CORNERING`/`ROUGH_TERRAIN`/`MISSION_STOP`/`FOLLOW_LEAD`) |
 | 핸드셰이크 | 정차 → `MISSION_STOP`+`ArrivalStatus` 송신 → 팔 작업 → `DONE` 수신 → 재출발 |
@@ -34,9 +39,10 @@
 
 ---
 
-## 2-1. 젯슨 현황 (2026-07-02 SSH 실측)
+## 2-1. 젯슨 현황 (2026-07-02 실측 / 2026-07-03 싱크 갱신)
 
-로봇팔 팀 환경이 **젯슨에 이미 절반 들어와 있다.** WP4(환경 구축)가 예상보다 가볍다.
+로봇팔 팀 환경이 **젯슨에 이미 들어와 있다.** WP4(환경 구축)가 예상보다 가볍다. **(2026-07-03: 젯슨 두 레포 모두
+GitHub origin/main과 싱크 완료 — `~/power-train-sw` @ `efc0b59`, `~/extreme-robot` @ `0ec4a0a`. 로컬 스크래치는 백업 후 정리.)**
 
 | 항목 | 실측값 | 시사점 |
 |---|---|---|
@@ -45,7 +51,7 @@
 | 우리 컨테이너 | `powertrain_jetson` (**가동 중**, 20.8GB) | 기존 CAN·텔레옵·비전 스택 정상 |
 | 로봇팔 컨테이너 | `ros2_humble` (**7일 전 종료 상태**, 19.5GB) — host 네트워크+privileged, `~/extreme-robot/ros2_ws`→`/root/ros2_ws` 마운트 | 재기동만 하면 ROS2 Humble 사용 가능. privileged라 can0 접근도 가능 |
 | 여분 이미지 | `osrf/ros:humble-desktop` (4.8GB) 이미 pull됨 | 우리 전용 ROS2 컨테이너를 만들 경우 베이스로 바로 사용 가능 (빌드 대기 없음) |
-| 로봇팔 레포 | `~/extreme-robot` 있음. 단 로컬 브랜치 `Depth_LiDAR_Test`(5/25 베이스) — **`robot_arm_msgs`·인식 노드 없음** | ⚠️ **PR #11 브랜치가 아직 젯슨에 안 들어옴** — 메시지 빌드 전에 PR 브랜치 fetch 필요 |
+| 로봇팔 레포 | `~/extreme-robot` = **main @ `0ec4a0a`** (2026-07-03 싱크) — `robot_arm_msgs`·`robot_arm_perception` 있음 | ✅ 메시지 빌드 준비됨 (PR #11 머지분 반영) |
 | 호스트 ROS | 없음 (전부 Docker) | 우리도 Docker 안에서만 ROS2 사용 |
 | 센서 | RealSense·LiDAR USB 미연결, can0 DOWN | 모터·센서 전원 인가 후 작업하는 날에만 올라옴 (정상) |
 | 기타 | 그들 compose에 WSL/X11 잔재 마운트 (`/mnt/wslg`) | 젯슨에선 무해하나 GUI(rviz2) 쓸 때 DISPLAY 설정 손봐야 할 수 있음 |
@@ -118,7 +124,7 @@ ROS2 노드는 그걸 감싸기만 한다 (기존 corner_module 스타일 유지
 - **테스트**: 노드 11 하나로 1바퀴 회전 → 4노드(11/12/15/16) 동시 → estop 시 즉시 IDLE 확인.
 - **완료 기준**: `CornerModule(SteerAk40, DriveOdriveCan)` 조합으로 기존 HIL 테스트 통과.
 
-### WP2. 4WS 키네마틱스 계산기 ★오늘 시작 (노트북, 하드웨어·ROS 불필요)
+### WP2. 4WS 키네마틱스 계산기 — ✅ 완료 (커밋 `99a48a2`)
 
 - **무엇**: "전진속도 v, 회전 곡률 κ(=1/회전반경)" 명령을 **코너 4개의 (조향각, 바퀴속도)**로 바꾸는 순수 수학 모듈.
 - **파일**: `motor_control/chassis/kinematics.py` (신규 패키지 `chassis/`)
@@ -133,10 +139,11 @@ ROS2 노드는 그걸 감싸기만 한다 (기존 corner_module 스타일 유지
 - **테스트** (pytest, `motor_control/chassis/tests/test_kinematics.py`):
   직진→4바퀴 0°·등속 / 좌회전→좌우 대칭·안쪽 각도 큼·바깥 속도 큼 / 조향각 한계 초과 시 속도 자동 제한 / 피벗 모드.
 - **완료 기준**: 테스트 전부 통과 + 손계산 케이스 3개 일치.
+- **완료(2026-07-03)**: 구현은 **(v, ω) 입력** 채택(피벗 v=0까지 한 식으로 통합; κ은 v=0에서 발산). 기하는 설정 표(`default_geometry()`, 잠정 플레이스홀더). **pytest 14 통과.** 상세 = Notion 「4WS 애커만 키네마틱스」.
 
-### WP3. 차체 통합 제어 — `ChassisManager`
+### WP3. 차체 통합 제어 — `ChassisManager` — ✅ 완료 (커밋 `efc0b59`)
 
-- **무엇**: 코너모듈 4개를 하나의 "차체"로 묶는 클래스. `set(v, κ)` 한 줄이면 4코너가 움직인다.
+- **무엇**: 코너모듈 **6개**(조향 4 + 고정 2)를 하나의 "차체"로 묶는 클래스. `set(v, ω)` 한 줄이면 전 코너가 움직인다.
 - **파일**: `motor_control/chassis/chassis_manager.py`
 - **어떻게**:
   - 코너↔모터 매핑 표를 설정으로: 예) 앞좌=AK1+ODrive11, 앞우=AK2+ODrive12, 뒤좌=AK3+ODrive15, 뒤우=AK4+ODrive16
@@ -147,18 +154,15 @@ ROS2 노드는 그걸 감싸기만 한다 (기존 corner_module 스타일 유지
 - **테스트**: ① `fake.py`(가짜 드라이버)로 무하드웨어 pytest — "set(1.0, 0.5) 호출 시 각 코너에 기대값 도달"
   ② HIL: 바퀴 든 상태에서 직진/좌회전/피벗 명령 → 각도·속도 육안+로그 확인.
 - **완료 기준**: 텔레옵을 ChassisManager 경유로 바꿔 4WS 수동주행 성공 (이게 원격주행 업그레이드도 겸함).
+- **완료(2026-07-03)**: 코너 **6개**(조향 4 + 고정 2) 통합 · kinematics 분배 · estop 전파 · US-100 게이팅 · 워치독. ⚠️ **실기 4WS(HIL)는 아직 미구동 — 하드웨어 한계 아니라 안전 판단**(10모터 통합 첫 구동 위험). 실구동에 남은 유일한 코드 = `drive_odrive_can.py` 스텁(=WP1) 채우기. 상세 = Notion 「차체 통합 제어 (ChassisManager)」.
 
 ### WP4. ROS2 환경 가동 + 메시지 왕복 (WP1~3과 병렬 가능) — 젯슨 실측 반영판
 
 - **무엇**: 젯슨에 **이미 있는** ROS2 환경을 살리고, 로봇팔 팀 메시지가 오가는지 확인. (§2-1: 컨테이너·이미지·레포가
   이미 젯슨에 있음 — "구축"이 아니라 "가동+브랜치 갱신"이 실제 작업)
 - **어떻게** (젯슨에서, 순서대로):
-  1. **로봇팔 팀에 PR 머지 요청 (정석)** — 현재 젯슨 체크아웃(`Depth_LiDAR_Test`, 5/25 베이스)엔 `robot_arm_msgs`가 없다.
-     그들이 **PR #11·#10을 main에 머지**해주면 젯슨에서 `git pull`로 끝 (단일 기준 확보).
-     그들이 실기 미검증을 이유로 전체 머지를 미루면 → **`robot_arm_msgs`만 별도 PR로 먼저 머지** 요청
-     (메시지 정의는 인터페이스 계약이라 하드웨어 검증과 무관 — 우리 블로커는 이것만으로 풀림).
-     임시 폴백(머지 대기 중 개발 계속할 때만): `git fetch origin pull/11/head:pr-11 && git switch pr-11`
-     — 그들 로컬 브랜치를 건드리지 않게 새 브랜치로 (미커밋 변경 0 확인됨).
+  1. ✅ **(완료) `robot_arm_msgs` main 머지 + 젯슨 싱크됨** (PR #11 머지, 2026-07-03). 젯슨 `~/extreme-robot`가
+     main @ `0ec4a0a`로 싱크돼 `robot_arm_msgs`·`robot_arm_perception` 존재. → 바로 아래 2번부터 진행.
   2. **그들 컨테이너 재기동**: `docker start ros2_humble` (7일 전 종료 상태. host 네트워크+privileged 확인됨)
   3. **메시지 빌드** (그들 컨테이너 안): `cd /root/ros2_ws && colcon build --packages-select robot_arm_msgs && source install/setup.bash`
   4. **우리 쪽 접근 결정** (§6-⑥ 협의): 단기 = 우리도 `ros2_humble`에 들어가 작업 (이미 privileged → can0 접근 가능,
@@ -258,8 +262,8 @@ ROS2 노드는 그걸 감싸기만 한다 (기존 corner_module 스타일 유지
 
 | 기간 | 마일스톤 | 작업 |
 |---|---|---|
-| ~7/5 (P0) | 쪽지 왕복 | **WP2 시작(오늘)**, WP4, §6 협의 |
-| 7/6~7/12 (P1) | ROS→모터 직결 | WP1, WP3, WP5 (그들 주차계획 "파워트레인 통신 연결 테스트" 주간) |
+| ~7/5 (P0) | 쪽지 왕복 | **WP2·WP3 완료 ✅**, WP4(머지 해소→착수 가능), §6 협의 |
+| 7/6~7/12 (P1) | ROS→모터 직결 | WP1, ~~WP3~~(완료), WP5 (그들 주차계획 "파워트레인 통신 연결 테스트" 주간) |
 | 7/13~7/19 (P2) | 레인 v0 + **설계 문서** | WP6, WP7 착수, 7/19 국방 문서에 아키텍처 반영 |
 | 7/20~7/31 (P3) | 팔 통합 + **국방 서류** | WP8, 신호등 반응, mock 리허설, 7/31 제출 |
 | 8월 (P4) | 실전 기능 + **극한 서류 8/17** | WP7 실트랙 튜닝, WP9, 연막 대응, 자율↔원격 전환 절차 |
