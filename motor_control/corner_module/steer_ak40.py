@@ -14,11 +14,11 @@ from corner_module.actuator import SteerActuator
 
 _STEERING_DIR = os.path.join(os.path.dirname(__file__), "..", "steering")
 sys.path.insert(0, os.path.abspath(_STEERING_DIR))
-from ak_control import AK40  # noqa: E402
+from ak_control import AK40, PKT_STATUS_1  # noqa: E402
 
 
 class SteerAk40(SteerActuator):
-    def __init__(self, motor_id: int = 1, channel: str = "can0", stale_ms: float = 200.0):
+    def __init__(self, motor_id: int = 1, channel: str = "can0", stale_ms: float = 300.0):
         self._motor_id = motor_id
         self._channel = channel
         self._stale_ms = stale_ms
@@ -28,8 +28,13 @@ class SteerAk40(SteerActuator):
         self._last_rx_ms = None
 
     def connect(self) -> None:
+        # 자기 AK 의 STATUS_1(ext arb (41<<8)|id) 만 받는 필터 — 단일 can0 다중모터에서
+        # ODrive RTR 등 타 프레임에 status 가 묻혀 poll 이 굶는(→false stale→estop) 걸 방지.
+        flt = [{"can_id": (PKT_STATUS_1 << 8) | self._motor_id,
+                "can_mask": 0xFFFF, "extended": True}]
         try:
-            self._bus = can.interface.Bus(channel=self._channel, interface="socketcan")
+            self._bus = can.interface.Bus(channel=self._channel, interface="socketcan",
+                                          can_filters=flt)
         except OSError as e:
             raise RuntimeError(
                 f"can0 열기 실패({e}). 먼저 'bash scripts/can_setup.sh' 실행하세요."
