@@ -31,6 +31,7 @@ Defence_Robot/
 │   ├── sensors/          US100 거리 (UART /dev/ttyTHS1)
 │   ├── safety_us100/     US-100 충돌방지 안전 모듈 (거리→safe/warn/stop, publish-only)
 │   ├── corner_module/    코너 모듈 패키지 (조향+구동 협조 제어 + US-100 게이팅 텔레옵)
+│   ├── chassis/          4WS 차체 통합 (애커만 kinematics + ChassisManager, 실기 10모터 HIL 완료)
 │   ├── laptop/           Laptop-side TCP teleop clients (DualSense → robot)
 │   └── pi/               Raspberry-Pi-side servers (paired 1:1 with laptop/)
 ├── motor_gui/            웹 진단 GUI (FastAPI + 트랜스포트 추상화, AK/ODrive CAN·USB)
@@ -61,7 +62,8 @@ Detailed simulation pipeline, parameter space (v4 15-dim / v3 14-dim), objective
   달성하도록 쓴다 (레포 이동 → 호스트 준비 → 컨테이너 진입까지 포함; 컨테이너 떠 있음·CAN 올라옴
   같은 중간 상태 가정 금지).
 - 콜아웃 색: 파랑=개요, 빨강=안전/위험, 회색=팁/함정. **함정(footgun)은 ⚠️ 명시.** 수치·모델은
-  현재값(AK45-36 / CAN 500 kbps / `axis1` / ODrive node 11 · AK id 1).
+  현재값(AK45-36 ×4 = CAN id 1~4 / ODrive 듀얼축 3보드 = node 11/12·13/14·15/16 / CAN 500 kbps /
+  구동 게인 bw30·vel_gain 0.12·vel_int 0.2).
 - 구버전은 삭제 대신 상단 ⛔ DEPRECATED 콜아웃 + 정본 링크 후 Archive 로 이동.
 - **초보자 복붙 기준 + 소스코드 분리** (2026-06-25 추가): 문서는 **초보자가 복붙만 따라
   해도 바로 실행**되도록 자세히 쓴다 (SW 문외한 기준 — **접속(ssh)→호스트(can_setup)→
@@ -76,14 +78,16 @@ Detailed simulation pipeline, parameter space (v4 15-dim / v3 14-dim), objective
 
 ## Working in `motor_control/`
 
-Mostly self-contained scripts; one shared package (`corner_module/`). Three motor
+Mostly self-contained scripts; two shared packages (`corner_module/`, `chassis/`). Three motor
 hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (calibration
 / gain / current limits diverge).
 
-- **drive/bl70200/** (BL70200 + 내장 HALL ×3, 실전 구동): `odrive_calibration.py`,
-  `odrive_diff_drive_test.py`, `odrive_basic_test.py`, `odrive_closed_loop_test.py`,
-  `odrive_position_hold_test.py`, `odrive_velocity_hold_test.py` — HALL 모드,
-  `pp=5, cpr=30, HIGH_CURRENT`, NVM 저장 후 재사용.
+- **drive/bl70200/** (BL70200 + 내장 HALL ×3, 실전 구동 — **실측 `pp=10, cpr=60`**, HIGH_CURRENT):
+  정본 셋업 = `bl70200_setup.py` (`--read`/`--apply`/`--calibrate`/`--node N`, 최적 NVM CFG 한곳 —
+  bw30·vel_gain 0.12·vel_int 0.2·ignore_illegal_hall_state=True·48V UV40), `bl70200_dual_axis.py`
+  (듀얼축 M0+M1 캘리·데모), **CAN 다축 도구**: `can_calibrate_all.py`(node 11~16 일괄 풀캘리 —
+  캘리 RAM-only 라 전원 켤 때마다 필요), `can_drive_test.py`(6축 동시 주행 브링업). 레거시 단축
+  테스트: `odrive_calibration.py`, `odrive_*_test.py`(구스크립트 일부 pp=5 하드코딩 — 그대로 쓰지 말 것).
 - **drive/x2212_test/** (SunnySky X2212-13 + TLE5012B, **레거시·deprecated** — BL70200 도착 전
   임시 엔코더 테스트모터; 엔코더 기반 X2212 제어는 폐기(실전 BL70200=HALL), ODrive CAN 일반
   실험데이터는 유효 → 「AK + ODrive 동시 CAN」 정본으로 이관):
@@ -117,17 +121,26 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   못 읽으면 fail-safe `stop`. 코너 모듈 텔레옵이 물려 `stop` 시 구동 0.
 - **corner_module/** (조향+구동 협조 제어 패키지, 코너 1개 = 로커보기 1/6): `corner_module.py`
   (`CornerModule` — 상태머신·워치독·estop·과전류 트립·폐루프 점프방지), `actuator.py`
-  (트랜스포트 무관 `Actuator`/`SteerActuator`/`DriveActuator` ABC), `steer_ak40.py`(AK CAN)·
-  `drive_odrive_usb.py`(현재)·`drive_odrive_can.py`(추후 스텁) 드라이버, `fake.py`(무하드웨어
-  테스트 더블), `teleop_dualsense.py` (`python3 -m corner_module.teleop_dualsense`;
-  US-100 충돌방지 연동 — `stop` 판정 시 구동 0). 단위테스트
-  24 + HIL(조향·구동·통합·텔레옵) 검증. 미래 4WS 애커만 키네마틱스 레이어의 빌딩블록.
+  (트랜스포트 무관 `Actuator`/`SteerActuator`/`DriveActuator` ABC), `steer_ak40.py`(AK CAN —
+  자기 STATUS_1 만 받는 CAN 필터 + state() stale 자가회복)·`null_steer.py`(고정 바퀴 no-op)·
+  `drive_odrive_usb.py`(USB)·`drive_odrive_can.py`(**CAN 정본, WP1 완료** — CANSimple, 노드별
+  소켓+필터, bus 주입으로 무하드웨어 테스트) 드라이버, `fake.py`(테스트 더블),
+  `teleop_dualsense.py` (`python3 -m corner_module.teleop_dualsense`; US-100 충돌방지 연동 —
+  `stop` 판정 시 구동 0). 단위테스트 34 + HIL(조향·구동·통합·텔레옵) 검증. 4WS 의 빌딩블록.
+- **chassis/** (4WS 차체 통합 패키지, WP2+WP3): `kinematics.py`(차체 (v,ω)→바퀴별 조향각·속도,
+  애커만+조향/속도 자동 클램프), `chassis_manager.py`(`ChassisManager` — 코너 6개 통합,
+  `DEFAULT_WHEEL_MAP` = AK id 1~4 조향 + ODrive node 11~16 구동, estop 전파·US-100 게이팅·차체
+  워치독; `build_real_corners("can0")` 로 실기 코너 생성). 단위테스트 29. **실기 10모터 협조
+  4WS HIL 통과(2026-07-05, 실물 확인)**. ⚠️ HIL 교훈: 바퀴 지령 <0.3 rev/s(HALL 코깅존)면 실물이
+  정지한 채 텔레메트리만 그럴듯함 — 테스트는 v≥0.4 m/s + 실물 육안 확인 필수.
 - **Networked teleop** (1:1 pairs): `laptop/laptop_client_*.py` ↔ `pi/pi_server_*.py`
   (TCP `:9000`, newline-delimited `%.4f\n` velocity); `laptop_client_video.py` adds
   GStreamer JPEG video at `:5000`.
 
-ODrive 펌웨어 v0.5.x (CAN 트랙 fw-v0.5.6 검증), all scripts use `axis1`. Jetson CAN
-트랙 입력 전 `input_pos = origin` 설정으로 폐루프 진입 시 모터 점프 방지.
+ODrive 펌웨어 v0.5.x (CAN 트랙 fw-v0.5.6 검증). 구동은 **듀얼축 보드 3장**(M0=`axis0`+M1=`axis1`
+양축, CAN node 11/12·13/14·15/16) — 단축 레거시 스크립트만 `axis1` 기준. 폐루프 진입 전
+`input_pos = 현재위치`(위치모드) 또는 `input_vel = 0`(속도모드) 설정으로 모터 점프 방지.
+캘리는 RAM-only — 전원 사이클마다 `bl70200/can_calibrate_all.py` 로 재캘리.
 
 ## Working in `motor_gui/`
 
@@ -173,6 +186,6 @@ reorg (5/20): `docs/specs/2026-05-20-motor-control-reorg-design.md`,
 - Wheel radius: 100 mm
 - Total mass: ~86 kg (설계 추정; 여유 포함 최대 100 kg, Notion 기준)
 - Drive motor (test): SunnySky X2212-13 + TLE5012B 16384 CPR encoder
-- Drive motor (real): BL70200 + internal HALL ×3 (pp=5, cpr=30)
+- Drive motor (real): BL70200 + internal HALL ×3 (**pp=10, cpr=60** — 2026-06 실측; 구문서의 pp=5/cpr=30 은 오기) ×6, ODrive v3.6 듀얼축 보드 3장(CAN node 11~16, 500 kbps)
 - RGB-D camera: Intel RealSense D435i (USB3, depth+color — 메인 비전·거리측정; US-100은 보조 충돌방지)
 - Steering: CubeMars **AK45-36** (real/active, 36:1; peak 24 Nm, rated 8 Nm, KV80, peak current 65 A, backlash 12 arcmin, back-drive 0.8 Nm) / AK40-10 (legacy test, 10:1), CAN bus, identical API. 기본 `ACTIVE_MOTOR="AK45-36"` (`ak_control.py`의 `MOTOR_PROFILES`로 전환)
