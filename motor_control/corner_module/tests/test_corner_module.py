@@ -373,3 +373,36 @@ def test_steer_overcurrent_triggers_estop():
     s.cur_a = 15.0  # 한계(10A) 초과
     cm.tick()
     assert cm.mode == "FAULT"
+
+
+# ---------------------------------------------------------------------------
+# SteerAk40.state() — stale 판정 전 버퍼 드레인 자가회복 (WP3 HIL 회귀)
+# ---------------------------------------------------------------------------
+class _StubAk:
+    """poll 결과를 지정하는 AK40 스텁."""
+
+    def __init__(self, poll_result):
+        self._poll_result = poll_result
+        self.pos_out_deg = 5.0
+        self.cur_a = 0.1
+        self.fault = 0
+
+    def poll(self, timeout=0.0):
+        return self._poll_result
+
+
+def test_steer_ak40_state_self_heals_from_buffered_status():
+    # 다코너 순차 arm 뒤 첫 tick: 마지막 poll 은 오래됐지만 status 가 버퍼에
+    # 도착해 있으면 state() 가 드레인해 stale=False 여야(과거 false-estop 회귀).
+    from corner_module.steer_ak40 import SteerAk40
+    s = SteerAk40(motor_id=1)
+    s._ak = _StubAk(poll_result=True)          # 버퍼에 status 있음
+    assert s._last_rx_ms is None               # 마지막 수신기록 없음(stale 조건)
+    assert s.state()["stale"] is False
+
+
+def test_steer_ak40_state_stale_when_no_frames():
+    from corner_module.steer_ak40 import SteerAk40
+    s = SteerAk40(motor_id=1)
+    s._ak = _StubAk(poll_result=False)         # 버퍼에도 아무것도 없음
+    assert s.state()["stale"] is True

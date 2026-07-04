@@ -61,6 +61,14 @@ class SteerAk40(SteerActuator):
             self._last_rx_ms = time.monotonic() * 1000.0
 
     def state(self) -> dict:
+        # stale 판정 전에 커널 버퍼에 쌓인 status 를 논블로킹 드레인해 최신 수신
+        # 시각을 반영한다. CornerModule.tick() 은 steer.tick()(수신 갱신) 전에
+        # state() 로 stale 을 판정하므로, 다코너 순차 arm(코너당 ~0.2s) 뒤 첫
+        # tick 처럼 마지막 poll 이후 stale_ms 가 지난 시점이면 실제 수신과 무관
+        # 하게 트립해 버림 — connect() 의 CAN 필터 덕에 버퍼엔 자기 status(50Hz)
+        # 만 쌓여 있어 timeout=0 드레인으로 즉시 회수된다.
+        if self._ak is not None and self._ak.poll(timeout=0.0):
+            self._last_rx_ms = time.monotonic() * 1000.0
         stale = (
             self._last_rx_ms is None
             or (time.monotonic() * 1000.0 - self._last_rx_ms) > self._stale_ms
