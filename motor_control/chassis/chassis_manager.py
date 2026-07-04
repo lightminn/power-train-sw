@@ -36,6 +36,9 @@ class ChassisConfig:
     corner: CornerConfig = field(default_factory=CornerConfig)
     watchdog_ms: float = 300.0         # chassis.set() 입력 타임아웃
     loop_hz: float = 50.0              # 제어 루프 주기
+    min_drive_turns_per_s: float = 0.0  # 최저 구동속도(turns/s). 0<|명령|<이 값이면
+                                        # 부호 유지하고 이 값으로 끌어올림 → 저속 HALL
+                                        # 코깅존(툭툭 끊김·기동지연 제각각) 회피. 0=off.
 
 
 @dataclass(frozen=True)
@@ -178,9 +181,12 @@ class ChassisManager:
 
         # kinematics → 코너별 분배
         result = solve(self.cfg.geometry, self._v, self._omega)
+        mn = self.cfg.min_drive_turns_per_s
         for w in self.cfg.geometry.wheels:
             wc = result.wheels[w.name]
             drive = wc.drive_turns_per_s if drive_enabled else 0.0
+            if mn > 0.0 and 0.0 < abs(drive) < mn:      # 저속 코깅존 회피(부호 유지)
+                drive = mn if drive > 0.0 else -mn
             self.corners[w.name].set(wc.steer_deg, drive)
 
         # 일괄 tick (각 코너가 자기 fault/과전류/stale/워치독 처리)

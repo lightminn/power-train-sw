@@ -244,3 +244,53 @@ def test_null_steer_is_steer_actuator_and_never_moves():
     assert st["fault"] == 0
     assert st["stale"] is False
     assert set(st.keys()) == {"target_deg", "actual_deg", "cur_a", "fault", "stale"}
+
+
+# ── 최저 구동속도 플로어 (저속 코깅존 회피) ─────────────────────────────────
+
+def _drive_targets(m):
+    st = m.state()
+    return {n: st["corners"][n]["drive"]["target_vel"] for n in WHEEL_NAMES}
+
+
+def test_min_drive_floor_lifts_small_forward_to_min():
+    # v=0.1 m/s → 바퀴 ~0.16 rev/s(<1.0) → 전부 1.0 으로 끌어올림
+    m = _armed_manager(ChassisConfig(min_drive_turns_per_s=1.0))
+    m.set(0.1, 0.0)
+    m.tick()
+    for n, d in _drive_targets(m).items():
+        assert d == pytest.approx(1.0), (n, d)
+
+
+def test_min_drive_floor_preserves_sign_on_reverse():
+    m = _armed_manager(ChassisConfig(min_drive_turns_per_s=1.0))
+    m.set(-0.1, 0.0)                       # 살짝 후진
+    m.tick()
+    for n, d in _drive_targets(m).items():
+        assert d == pytest.approx(-1.0), (n, d)
+
+
+def test_min_drive_floor_keeps_zero_stopped():
+    # 정지(v=ω=0)는 플로어에 안 걸림 — 0 유지
+    m = _armed_manager(ChassisConfig(min_drive_turns_per_s=1.0))
+    m.set(0.0, 0.0)
+    m.tick()
+    assert all(d == 0.0 for d in _drive_targets(m).values())
+
+
+def test_min_drive_floor_off_by_default_keeps_small():
+    # 기본(min=0)은 작은 명령을 그대로 둠(기존/자율주행 무영향)
+    m = _armed_manager(ChassisConfig())
+    m.set(0.1, 0.0)
+    m.tick()
+    assert all(abs(d) < 0.5 for d in _drive_targets(m).values())
+
+
+def test_min_drive_floor_leaves_large_commands_unchanged():
+    cfg = ChassisConfig(min_drive_turns_per_s=1.0)
+    cfg.geometry.drive_limit_mps = 1.5    # 텔레옵처럼 속도상한 올림(0.8 클램프 회피)
+    m = _armed_manager(cfg)
+    m.set(1.2, 0.0)                        # 1.2 m/s ≈ 1.9 rev/s > 1.0 → 플로어 안 걸림
+    m.tick()
+    for n, d in _drive_targets(m).items():
+        assert d > 1.5, (n, d)             # 실제 큰 값(≈1.9), 1.0 으로 안 깎임
