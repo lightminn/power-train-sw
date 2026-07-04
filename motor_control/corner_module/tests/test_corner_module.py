@@ -1,3 +1,6 @@
+import struct
+
+import can
 import pytest
 from corner_module.config import CornerConfig, clamp
 from corner_module.fake import FakeSteer, FakeDrive
@@ -196,10 +199,142 @@ def test_odrive_can_is_drive_actuator():
     assert isinstance(d, DriveActuator)
 
 
-def test_odrive_can_connect_not_implemented():
-    d = DriveOdriveCan()
-    with pytest.raises(NotImplementedError):
-        d.connect()
+# ---------------------------------------------------------------------------
+# DriveOdriveCan — 가짜 socketcan 버스로 프레임/텔레메트리 검증 (무하드웨어)
+# ---------------------------------------------------------------------------
+class _FakeCanBus:
+    """송신을 기록하고 지정한 rx 프레임을 순서대로 돌려주는 가짜 버스."""
+
+    def __init__(self, rx=None):
+        self.sent = []
+        self._rx = list(rx or [])
+        self.shutdown_called = False
+
+    def send(self, msg):
+        self.sent.append(msg)
+
+    def recv(self, timeout=0.0):
+        return self._rx.pop(0) if self._rx else None
+
+    def shutdown(self):
+        self.shutdown_called = True
+
+
+def _sent(bus, node_id, cmd):
+    """bus.sent 에서 (node_id, cmd) arbitration id 프레임만."""
+    arb = (node_id << 5) | cmd
+    return [m for m in bus.sent if m.arbitration_id == arb]
+
+
+def _hb(node, err=0, state=1):
+    return can.Message(arbitration_id=(node << 5) | 0x01,
+                       data=struct.pack("<I", err) + bytes([state, 0, 0, 0]),
+                       is_extended_id=False)
+
+
+def _enc(node, pos, vel):
+    return can.Message(arbitration_id=(node << 5) | 0x09,
+                       data=struct.pack("<ff", pos, vel), is_extended_id=False)
+
+
+def _iq(node, iq_sp, iq_meas):
+    return can.Message(arbitration_id=(node << 5) | 0x14,
+                       data=struct.pack("<ff", iq_sp, iq_meas), is_extended_id=False)
+
+
+def test_can_drive_connect_reuses_injected_bus():
+    bus = _FakeCanBus()
+    d = DriveOdriveCan(node_id=11, bus=bus)
+    d.connect()                       # 주입 버스면 새 소켓 안 엶, 송신 없음
+    assert bus.sent == []
+
+
+def test_can_drive_arm_enters_closed_loop_at_zero_velocity():
+    bus = _FakeCanBus()
+    d = DriveOdriveCan(node_id=12, bus=bus)
+    d.connect()
+    d.arm()
+    mode = _sent(bus, 12, 0x0B)       # Set_Controller_Mode = VELOCITY(2), PASSTHROUGH(1)
+    assert mode and struct.unpack("<ii", bytes(mode[-1].data)) == (2, 1)
+    vel = _sent(bus, 12, 0x0D)        # Set_Input_Vel = 0 (점프 방지)
+    assert vel and struct.unpack("<ff", bytes(vel[-1].data)) == (0.0, 0.0)
+    st = _sent(bus, 12, 0x07)         # Set_Axis_State = CLOSED_LOOP(8)
+    assert st and struct.unpack("<I", bytes(st[-1].data[:4]))[0] == 8
+    assert d.state()["target_vel"] == 0.0
+
+
+def test_can_drive_set_velocity_deferred_until_tick():
+    bus = _FakeCanBus()
+    d = DriveOdriveCan(node_id=11, bus=bus)
+    d.connect()
+    d.set_velocity(3.0)
+    assert _sent(bus, 11, 0x0D) == []          # tick 전엔 전송 안 함
+    assert d.state()["target_vel"] == 3.0
+
+
+def test_can_drive_tick_sends_target_and_rtr_polls():
+    bus = _FakeCanBus()
+    d = DriveOdriveCan(node_id=11, bus=bus)
+    d.connect()
+    d.set_velocity(2.5)
+    d.tick()
+    vel = _sent(bus, 11, 0x0D)
+    assert struct.unpack("<ff", bytes(vel[-1].data))[0] == pytest.approx(2.5)
+    assert any(m.is_remote_frame and m.arbitration_id == (11 << 5) | 0x09 for m in bus.sent)
+    assert any(m.is_remote_frame and m.arbitration_id == (11 << 5) | 0x14 for m in bus.sent)
+
+
+def test_can_drive_state_parses_heartbeat_encoder_iq():
+    node = 13
+    bus = _FakeCanBus(rx=[_hb(node, err=0, state=8), _enc(node, 1.5, 0.98), _iq(node, 0.3, 0.42)])
+    d = DriveOdriveCan(node_id=node, bus=bus, stale_ms=1000.0)
+    d.connect()
+    d.tick()                                   # poll 이 rx 소비
+    st = d.state()
+    assert st["actual_vel"] == pytest.approx(0.98)
+    assert st["cur_a"] == pytest.approx(0.42)
+    assert st["axis_error"] == 0
+    assert st["stale"] is False
+
+
+def test_can_drive_ignores_other_nodes():
+    bus = _FakeCanBus(rx=[_enc(15, 9.9, 9.9)])   # 남의 노드
+    d = DriveOdriveCan(node_id=11, bus=bus, stale_ms=1000.0)
+    d.connect()
+    d.tick()
+    st = d.state()
+    assert st["actual_vel"] == 0.0
+    assert st["stale"] is True
+
+
+def test_can_drive_stale_without_rx():
+    bus = _FakeCanBus()
+    d = DriveOdriveCan(node_id=11, bus=bus)
+    d.connect()
+    d.tick()
+    assert d.state()["stale"] is True
+
+
+def test_can_drive_estop_commands_idle():
+    bus = _FakeCanBus()
+    d = DriveOdriveCan(node_id=14, bus=bus)
+    d.connect()
+    d.set_velocity(4.0)
+    d.estop()
+    vel = _sent(bus, 14, 0x0D)
+    assert struct.unpack("<ff", bytes(vel[-1].data)) == (0.0, 0.0)
+    st = _sent(bus, 14, 0x07)
+    assert struct.unpack("<I", bytes(st[-1].data[:4]))[0] == 1     # IDLE
+    assert d.state()["target_vel"] == 0.0
+
+
+def test_can_drive_close_injected_bus_not_shutdown():
+    bus = _FakeCanBus()
+    d = DriveOdriveCan(node_id=11, bus=bus)
+    d.connect()
+    d.close()
+    assert _sent(bus, 11, 0x07)                # IDLE 전송
+    assert bus.shutdown_called is False        # 주입 버스는 소유 아님
 
 
 def test_map_input_neutral_is_zero():

@@ -46,8 +46,9 @@ class WheelMap:
     drive_node_id: int                 # ODrive 구동 CAN node
 
 
-# ⚠️ 잠정 — 조립 후 실배치 확인해 숫자만 교체. AK id 1~4 조향, ODrive node 구동.
-#    중간 2바퀴는 조향모터 없음(None)·구동 node 는 미확정 placeholder(13/14).
+# AK id 1~4 조향, ODrive node 11~16 구동(전부 셋업·CAN 캘리 완료 2026-07-05).
+# ⚠️ node 번호는 확정이나, 어느 node가 어느 물리 바퀴인지(행↔node 배치)는
+#    조립 배선 확인 후 숫자만 교체. 중간 2바퀴는 조향모터 없음(None, 고정).
 DEFAULT_WHEEL_MAP = [
     WheelMap("front_left",  1,    11),
     WheelMap("front_right", 2,    12),
