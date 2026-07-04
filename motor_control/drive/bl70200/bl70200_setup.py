@@ -18,12 +18,15 @@ import time
 import odrive
 from odrive.enums import *
 
-# 검증된 최적 NVM 설정 (2026-06-25, axis1)
+# 검증된 최적 NVM 설정 (2026-06-25 초기값 / 2026-07-04 vel_gain 재튜닝)
+# vel_gain 0.06→0.12: 자유회전(무부하 연속) 상태 다중 시나리오 스윕으로 재측정.
+# ±1바퀴 제약을 벗어나니 gain을 더 올릴 수 있었고, 정속 리플 ~2×↓·가감속
+# 오버슈트 ~4×↓·방향전환 ~6×↓ 개선(bw30/vg0.12/vi0.20 = 무부하 최적, 실차 부하 시 재확인).
 CFG = dict(
     pole_pairs=10, current_lim=9.0, calibration_current=8.0, resistance_calib_max_voltage=5.0,
     torque_constant=0.353,                          # 역기전력법 실측 (기본 0.04은 placeholder)
     cpr=60, bandwidth=30.0, calib_scan_omega=6.0, calib_scan_distance=150.0,
-    pos_gain=2.0, vel_gain=0.06, vel_integrator_gain=0.2, input_filter_bandwidth=2.0,
+    pos_gain=2.0, vel_gain=0.12, vel_integrator_gain=0.2, input_filter_bandwidth=2.0,
     vel_limit=50.0, vel_ramp_rate=2.0, uv=40.0, ov=56.0, brake=2.0, node=11, baud=500000,
 )
 
