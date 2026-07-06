@@ -137,9 +137,15 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   상향 → 저속 HALL 코깅존 회피); `build_real_corners("can0")` 로 실기 코너 생성),
   **`teleop_dualsense.py`**(`python3 -m chassis.teleop_dualsense [--no-us100]` — DualSense →
   (v,ω) → 10모터 4WS 수동주행; RT/LT=전후진, 좌스틱X=회전, 트리거0+스틱=피벗; 기본 min-rev 1.0·
-  v-max 1.5). 단위테스트 34. **실기 10모터 협조 4WS HIL 통과(2026-07-05, 실물 확인)**. ⚠️ HIL
-  교훈: 바퀴 지령 <0.3 rev/s(HALL 코깅존)면 실물이 정지한 채 텔레메트리만 그럴듯함 — 테스트는
-  v≥0.4 m/s + 실물 육안 확인 필수. ⚠️ 모터 실기 테스트 전 좀비 teleop/제어루프(`docker exec ps|grep
+  v-max 1.5). **무선판**(DualSense→노트북→젯슨→모터): `teleop_server.py`(젯슨,
+  `python3 -m chassis.teleop_server --no-us100`) ↔ `laptop/laptop_client_chassis.py`(노트북 —
+  DualSense **raw 입력**만 TCP:9000 송신, 매핑·속도한계·min_drive·피벗은 전부 서버쪽; □arm/○estop,
+  끊기면 구동0). 프로토콜 `"left_x rt lt sq ci\n"`. ⚠️ 빈/죽은 CAN 버스여도 서버 안 죽게 강건화
+  (`DriveOdriveCan._send` CanError 흡수 + 제어루프 try/except). 단위테스트 34. **실기 10모터 협조
+  4WS HIL 통과(2026-07-05, 실물 확인) + 무선 엔드투엔드 검증(2026-07-06: 유선판과 동일 코드경로 —
+  전진 4축 2.40~2.42 rev/s 균일, 좌회전 애커만 차동 좌1.46<우2.01 실측, arm/estop/끊김 동작)**.
+  ⚠️ HIL 교훈: 바퀴 지령 <0.3 rev/s(HALL 코깅존)면 실물이 정지한 채 텔레메트리만 그럴듯함 —
+  테스트는 v≥0.4 m/s + 실물 육안 확인 필수. ⚠️ 모터 실기 테스트 전 좀비 teleop/제어루프(`docker exec ps|grep
   teleop`) 죽일 것(v=0 계속 명령해 새 테스트와 싸움).
 - **Networked teleop** (1:1 pairs): `laptop/laptop_client_*.py` ↔ `pi/pi_server_*.py`
   (TCP `:9000`, newline-delimited `%.4f\n` velocity); `laptop_client_video.py` adds
