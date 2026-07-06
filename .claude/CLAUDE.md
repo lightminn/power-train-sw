@@ -37,7 +37,7 @@ Defence_Robot/
 ├── motor_gui/            웹 진단 GUI (FastAPI + 트랜스포트 추상화, AK/ODrive CAN·USB)
 ├── docker/               Container definitions (x86 dev + Jetson Orin Nano deploy)
 ├── scripts/              Host-side helpers (recv_stream.sh 저지연 네이티브 뷰어,
-│                         recv_yolo3d.py 좌표 오버레이 뷰어, can_setup.sh)
+│                         recv_yolo3d.py 좌표 오버레이 뷰어, can_setup.sh, can_watchdog.sh)
 └── docs/
     ├── specs/            Per-task design docs (requirements, interfaces)
     ├── plans/            Per-task implementation plans + verification logs
@@ -101,6 +101,12 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   실링키지 부하 시 재확인)·`DEFAULT_ACC_ERPM_S2=20000`), `calibrate_ak.py` (기어비 1회성),
   `status_ak.py` (CAN RX 디버깅). 사전 준비: `bash scripts/can_setup.sh`. ⚠️ can0 가 LOOPBACK
   으로 sticky하게 걸리면(down/up 무효) `ip link set can0 type can loopback off` 명시 필요(버스 무음).
+  ⚠️ **모터 PWM 노이즈 → 젯슨 CAN TX 오염 + mttcan 웻지** (2026-07-07 실측): 구동 폐루프 시
+  젯슨 송신만 채널별로 에러(node16≈11%·11≈7%·15≈1.6%·12≈0.1%, 가산적 — 비절연 트랜시버·
+  상선 커플링) → bus-off 폭풍 반복 → **mttcan 드라이버가 TX 큐를 영구 정지**(berr 0 인데 qdisc
+  백로그 갇힘, 모든 send ENOBUFS = "잘 되다가 아예 안 됨"의 정체). down/up 만이 복구 →
+  **`sudo nohup bash scripts/can_watchdog.sh &`** (호스트, 웻지 감지 ~2s 자동 down/up) 를
+  모터 구동 시 상시 가동할 것. 리셋 순간 코너 stale→FAULT 가능(□ 재무장).
 - **vision/** (모터 명령 없음): `gst_stream.py` (공용 송신 파이프라인 — H.264
   SW 인코딩(x264/openh264, **Orin Nano 는 NVENC 없음**) + SRT listener,
   `--srt-latency` 기본 60ms), `yolo_depth_3d.py` (YOLO+depth 3D 좌표 — color
