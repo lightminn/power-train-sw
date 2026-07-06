@@ -101,10 +101,11 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   실링키지 부하 시 재확인)·`DEFAULT_ACC_ERPM_S2=20000`), `calibrate_ak.py` (기어비 1회성),
   `status_ak.py` (CAN RX 디버깅). 사전 준비: `bash scripts/can_setup.sh`. ⚠️ can0 가 LOOPBACK
   으로 sticky하게 걸리면(down/up 무효) `ip link set can0 type can loopback off` 명시 필요(버스 무음).
-  ⚠️ **모터 PWM 노이즈 → 젯슨 CAN TX 오염 + mttcan 웻지** (2026-07-07 실측): 구동 폐루프 시
-  젯슨 송신만 채널별로 에러(node16≈11%·11≈7%·15≈1.6%·12≈0.1%, 가산적 — 비절연 트랜시버·
-  상선 커플링) → bus-off 폭풍 반복 → **mttcan 드라이버가 TX 큐를 영구 정지**(berr 0 인데 qdisc
-  백로그 갇힘, 모든 send ENOBUFS = "잘 되다가 아예 안 됨"의 정체). down/up 만이 복구 →
+  ⚠️ **모터 PWM 노이즈 → 젯슨 CAN TX 오염 + mttcan 웻지** (2026-07-07 실측): 젯슨 송신만
+  에러, **지배 변수 = 모터 상태 — 정지 폐루프 유지(vel=0, armed 대기) ≈27% ≫ 회전(2rev/s)
+  ≈2%** (가역·재현; 세션 편차는 로터 정지각도 복불복. 채널별 배선·상선 이격·유지전류 가설은
+  실측 기각) → armed 정차 대기 중 bus-off 폭풍 → **mttcan 드라이버가 TX 큐를 영구 정지**(berr
+  0 인데 qdisc 백로그 갇힘, 모든 send ENOBUFS = "잘 되다가 아예 안 됨"의 정체). down/up 만이 복구 →
   **정본 = compose `canwatchdog` 상주 서비스**(`docker-compose.jetson.yml`, 컨테이너 스택과
   함께 자동 기동·`restart: unless-stopped`; 구현 `corner_module/can_watchdog.py` — 프로브+
   tx_packets 정지 2연속 감지 → 순수 ioctl down/up ~2s, 오탐 0 검증). 텔레옵 진입점에도
