@@ -23,12 +23,12 @@ DEFAULT_PORT = 9000
 SEND_HZ = 30
 DEADZONE = 0.03
 
-# DualSense 축/버튼 (HIL 검증 — chassis/·corner_module/ 유선 teleop_dualsense 와 동일)
+# DualSense 축/버튼 — dualsense_axis_finder.py 로 실측(USB/BT·SDL 버전마다 다름, 안 맞으면 재실행)
 LX_AXIS = 0      # 좌스틱 X
-RT_AXIS = 4      # R2 (전진)
-LT_AXIS = 3      # L2 (후진)
-SQ_BTN = 0       # □ arm/disarm
-CI_BTN = 2       # ○ estop
+RT_AXIS = 5      # R2 (전진)
+LT_AXIS = 2      # L2 (후진)
+SQ_BTN = 3       # □ arm/disarm
+CI_BTN = 1       # ○ estop
 
 
 def trig(raw):

@@ -68,10 +68,10 @@ def main():
         while True:
             pygame.event.pump()
 
-            rt = (js.get_axis(4) + 1.0) / 2.0   # 전진
-            lt = (js.get_axis(3) + 1.0) / 2.0   # 후진
-            sq = js.get_button(0)                 # arm/disarm
-            ci = js.get_button(2)                 # estop
+            rt = (js.get_axis(5) + 1.0) / 2.0   # 전진 (R2, dualsense_axis_finder 실측)
+            lt = (js.get_axis(2) + 1.0) / 2.0   # 후진 (L2)
+            sq = js.get_button(3)                 # arm/disarm (□)
+            ci = js.get_button(1)                 # estop (○)
 
             # 버튼 상승엣지
             if sq and not prev_sq:

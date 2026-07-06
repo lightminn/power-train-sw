@@ -5,11 +5,11 @@ corner_module.teleop_dualsense(코너 1개)의 차체 확장판. 조향 AK ×4 +
 ChassisManager 가 4WS 키네마틱스로 10모터에 분배 — 애커만 선회·뒤축 역위상·차동이
 자동으로 나온다. map_chassis_input 은 순수 함수라 단위 테스트한다.
 
-조작 (Linux pygame, DualSense — corner 텔레옵과 동일 축/버튼):
-  RT(R2, axis4) / LT(L2, axis3)  = 전진 / 후진 속도 v
+조작 (DualSense, dualsense_axis_finder.py 실측 — USB/BT·SDL 버전마다 다름, 안 맞으면 재실행):
+  RT(R2, axis5) / LT(L2, axis2)  = 전진 / 후진 속도 v
   좌스틱 X (axis0)               = 회전 ω  (오른쪽=우회전)
-  □(Square, btn0)                = arm / disarm 토글
-  ○(Circle, btn2)                = estop (전 코너 정지)
+  □(Square, btn3)                = arm / disarm 토글
+  ○(Circle, btn1)                = estop (전 코너 정지)
   ▸ 트리거 없이(v=0) 좌스틱만 = **제자리 회전(피벗)**.
 
 ▸ 저속 HALL 코깅존(<~1 rev/s) 회피: `--min-rev`(기본 1.0 turns/s) 로 **최저 구동속도
@@ -105,10 +105,10 @@ def main(argv=None):
         while True:
             pygame.event.pump()
             left_x = js.get_axis(0)
-            rt = (js.get_axis(4) + 1.0) / 2.0
-            lt = (js.get_axis(3) + 1.0) / 2.0
-            sq = js.get_button(0)
-            ci = js.get_button(2)
+            rt = (js.get_axis(5) + 1.0) / 2.0
+            lt = (js.get_axis(2) + 1.0) / 2.0
+            sq = js.get_button(3)
+            ci = js.get_button(1)
 
             if sq and not prev_sq:
                 if armed:

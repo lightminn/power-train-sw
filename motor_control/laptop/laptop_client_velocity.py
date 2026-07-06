@@ -14,9 +14,8 @@ PI_HOST      = '192.168.1.91'   # Pi IP 주소
 COMMAND_PORT = 9000
 MAX_VEL      = 4.0             # rev/s 최대 속도
 
-# DualSense 트리거 축 (Linux pygame 기준)
-# 확인 방법: 스크립트 실행 시 --detect 옵션 사용
-LT_AXIS = 4   # L2
+# DualSense 트리거 축 — dualsense_axis_finder.py 로 실측(USB/BT·SDL 버전마다 다름)
+LT_AXIS = 2   # L2
 RT_AXIS = 5   # R2
 
 SEND_HZ  = 20   # 명령 전송 주기

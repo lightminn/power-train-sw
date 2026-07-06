@@ -1,12 +1,12 @@
 """DualSense 텔레옵 데모: 게임패드 입력 → CornerModule.set().
 map_input 은 순수 함수로 분리해 단위 테스트한다.
 
-축/버튼 (Linux pygame, DualSense — HIL 검증):
+축/버튼 (DualSense, dualsense_axis_finder.py 실측 — USB/BT·SDL 버전마다 다름, 안 맞으면 재실행):
   좌스틱 X  = axis 0
-  RT(R2)    = axis 4
-  LT(L2)    = axis 3
-  □(Square) = button 0
-  ○(Circle) = button 2
+  RT(R2)    = axis 5
+  LT(L2)    = axis 2
+  □(Square) = button 3
+  ○(Circle) = button 1
 
 실행 — 두 경로:
   python3 -m corner_module.teleop_dualsense              # US-100 충돌방지 ON (기본)
@@ -89,10 +89,10 @@ def main(argv=None):
         while True:
             pygame.event.pump()
             left_x = js.get_axis(0)
-            rt = (js.get_axis(4) + 1.0) / 2.0
-            lt = (js.get_axis(3) + 1.0) / 2.0
-            sq = js.get_button(0)
-            ci = js.get_button(2)
+            rt = (js.get_axis(5) + 1.0) / 2.0
+            lt = (js.get_axis(2) + 1.0) / 2.0
+            sq = js.get_button(3)
+            ci = js.get_button(1)
 
             if sq and not prev_sq:
                 if armed:
