@@ -36,8 +36,11 @@ def trig(raw):
     return r if r > DEADZONE else 0.0
 
 
-def connect(host, port, retries=5):
-    for i in range(retries):
+def connect(host, port, retries=0):
+    """retries=0 → 성공할 때까지 무한 재시도 (Ctrl-C 로만 중단)."""
+    i = 0
+    while retries == 0 or i < retries:
+        i += 1
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(3.0)
@@ -50,7 +53,7 @@ def connect(host, port, retries=5):
             print("서버 연결됨: %s:%d" % (host, port))
             return s
         except OSError as e:
-            print("연결 실패 (%d/%d): %s" % (i + 1, retries, e))
+            print("연결 실패 (%d%s): %s" % (i, "/%d" % retries if retries else "", e))
             time.sleep(1.0)
     return None
 
@@ -141,12 +144,13 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        try:
-            sock.send(b"0 0 0 0 0\n")
-            time.sleep(0.1)
-            sock.close()
-        except OSError:
-            pass
+        if sock is not None:                 # 재연결 실패로 None 일 수 있음
+            try:
+                sock.send(b"0 0 0 0 0\n")
+                time.sleep(0.1)
+                sock.close()
+            except OSError:
+                pass
         pygame.quit()
         print("\n종료")
 
