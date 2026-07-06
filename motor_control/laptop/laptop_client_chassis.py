@@ -23,12 +23,12 @@ DEFAULT_PORT = 9000
 SEND_HZ = 30
 DEADZONE = 0.03
 
-# DualSense 축/버튼 (Linux pygame 기준 — 다르면 --detect 로 확인)
+# DualSense 축/버튼 (HIL 검증 — chassis/·corner_module/ 유선 teleop_dualsense 와 동일)
 LX_AXIS = 0      # 좌스틱 X
-LT_AXIS = 4      # L2
-RT_AXIS = 5      # R2
-SQ_BTN = 0       # □
-CI_BTN = 2       # ○
+RT_AXIS = 4      # R2 (전진)
+LT_AXIS = 3      # L2 (후진)
+SQ_BTN = 0       # □ arm/disarm
+CI_BTN = 2       # ○ estop
 
 
 def trig(raw):
