@@ -96,8 +96,11 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   (Jetson 비전 추종, USB), `yolo_odrive_motor_test.py` · `odrive_yolo_object_tracking.py`
   (x86 OpenVINO 추종, 참조).
 - **steering/** (실전 AK45-36 = `ACTIVE_MOTOR` 기본값, 레거시 테스트 AK40-10, CAN socketcan can0): `ak_control.py` (메인 라이브러리 —
-  python-can socketcan 직접 제어), `calibrate_ak.py` (기어비 1회성), `status_ak.py`
-  (CAN RX 디버깅). 사전 준비: `bash scripts/can_setup.sh`.
+  python-can socketcan 직접 제어; **위치제어 슬루 `DEFAULT_SPD_ERPM=4500`**(2026-07 원격조종
+  응답성 상향, 1500→4500 ≈ 출력축 47°/s·45° 0.85s, 정격 5180 이내; 무부하 실측 오버슈트 0,
+  실링키지 부하 시 재확인)·`DEFAULT_ACC_ERPM_S2=20000`), `calibrate_ak.py` (기어비 1회성),
+  `status_ak.py` (CAN RX 디버깅). 사전 준비: `bash scripts/can_setup.sh`. ⚠️ can0 가 LOOPBACK
+  으로 sticky하게 걸리면(down/up 무효) `ip link set can0 type can loopback off` 명시 필요(버스 무음).
 - **vision/** (모터 명령 없음): `gst_stream.py` (공용 송신 파이프라인 — H.264
   SW 인코딩(x264/openh264, **Orin Nano 는 NVENC 없음**) + SRT listener,
   `--srt-latency` 기본 60ms), `yolo_depth_3d.py` (YOLO+depth 3D 좌표 — color
@@ -130,9 +133,14 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
 - **chassis/** (4WS 차체 통합 패키지, WP2+WP3): `kinematics.py`(차체 (v,ω)→바퀴별 조향각·속도,
   애커만+조향/속도 자동 클램프), `chassis_manager.py`(`ChassisManager` — 코너 6개 통합,
   `DEFAULT_WHEEL_MAP` = AK id 1~4 조향 + ODrive node 11~16 구동, estop 전파·US-100 게이팅·차체
-  워치독; `build_real_corners("can0")` 로 실기 코너 생성). 단위테스트 29. **실기 10모터 협조
-  4WS HIL 통과(2026-07-05, 실물 확인)**. ⚠️ HIL 교훈: 바퀴 지령 <0.3 rev/s(HALL 코깅존)면 실물이
-  정지한 채 텔레메트리만 그럴듯함 — 테스트는 v≥0.4 m/s + 실물 육안 확인 필수.
+  워치독, **`min_drive_turns_per_s` 최저 구동속도 플로어**(0=off; 0<|명령|<이 값이면 부호 유지
+  상향 → 저속 HALL 코깅존 회피); `build_real_corners("can0")` 로 실기 코너 생성),
+  **`teleop_dualsense.py`**(`python3 -m chassis.teleop_dualsense [--no-us100]` — DualSense →
+  (v,ω) → 10모터 4WS 수동주행; RT/LT=전후진, 좌스틱X=회전, 트리거0+스틱=피벗; 기본 min-rev 1.0·
+  v-max 1.5). 단위테스트 34. **실기 10모터 협조 4WS HIL 통과(2026-07-05, 실물 확인)**. ⚠️ HIL
+  교훈: 바퀴 지령 <0.3 rev/s(HALL 코깅존)면 실물이 정지한 채 텔레메트리만 그럴듯함 — 테스트는
+  v≥0.4 m/s + 실물 육안 확인 필수. ⚠️ 모터 실기 테스트 전 좀비 teleop/제어루프(`docker exec ps|grep
+  teleop`) 죽일 것(v=0 계속 명령해 새 테스트와 싸움).
 - **Networked teleop** (1:1 pairs): `laptop/laptop_client_*.py` ↔ `pi/pi_server_*.py`
   (TCP `:9000`, newline-delimited `%.4f\n` velocity); `laptop_client_video.py` adds
   GStreamer JPEG video at `:5000`.
