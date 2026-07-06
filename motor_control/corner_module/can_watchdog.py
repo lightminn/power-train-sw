@@ -5,7 +5,15 @@
 qdisc 백로그에 프레임이 갇히고 모든 send 가 ENOBUFS ("잘 되다가 아예 안 됨").
 down/up 만이 복구한다 (2026-07-07 재현·검증, scripts/can_watchdog.sh 의 파이썬판).
 
-텔레옵/제어 프로그램 시작부에 한 줄:
+사용 두 가지 (정본 = ① 컨테이너 상주 서비스):
+
+① 컨테이너 상주 (docker-compose.jetson.yml 의 `canwatchdog` 서비스 — 컨테이너 켜지면
+   자동 가동, restart: unless-stopped):
+
+    python3 -u -m corner_module.can_watchdog          # 포그라운드
+
+② 인프로세스 (텔레옵 진입점에 이미 내장 — ①과 중복 가동해도 무해; 리셋 조건이
+   "2연속 정지"라 상대가 먼저 살리면 그냥 조용함):
 
     from corner_module.can_watchdog import CanWatchdog
     CanWatchdog("can0").start()          # 데몬 스레드 — 프로그램 종료 시 함께 종료
@@ -94,12 +102,15 @@ class CanWatchdog:
 
     # ------------------------------------------------------------------
     def _run(self):
-        try:
-            self._sock = self._open_probe_socket()
-        except OSError as e:
-            print("[can_watchdog] %s 프로브 소켓 실패(%s) — 워치독 비활성"
-                  % (self._channel, e), flush=True)
-            return
+        # can0 이 아직 없거나(부팅 직후, can_setup 전) 사라져도 포기하지 않고 재시도
+        # — 상주 서비스로 쓰일 때의 생존성.
+        while self._sock is None:
+            try:
+                self._sock = self._open_probe_socket()
+            except OSError as e:
+                print("[can_watchdog] %s 프로브 소켓 실패(%s) — 5s 후 재시도"
+                      % (self._channel, e), flush=True)
+                time.sleep(5.0)
         print("[can_watchdog] %s 감시 시작 (주기 %.0fs)"
               % (self._channel, self._period), flush=True)
         fails = 0
@@ -121,5 +132,26 @@ class CanWatchdog:
                     except OSError as e:
                         print("[can_watchdog] 리셋 실패: %s (권한? privileged 필요)"
                               % e, flush=True)
+                    # 인터페이스 재생성(ifindex 변경) 대비 — 프로브 소켓 재오픈
+                    try:
+                        self._sock.close()
+                        self._sock = self._open_probe_socket()
+                    except OSError:
+                        pass                          # 다음 주기 프로브가 다시 걸러냄
                     fails = 0
             last_tx = tx
+
+
+def main(argv=None):
+    """컨테이너 상주 서비스 진입점 — 포그라운드 실행."""
+    import argparse
+
+    p = argparse.ArgumentParser(description="mttcan TX 웻지 자가복구 워치독")
+    p.add_argument("--channel", default="can0")
+    p.add_argument("--period", type=float, default=1.0, help="감시 주기 s (기본 1)")
+    args = p.parse_args(argv)
+    CanWatchdog(args.channel, period_s=args.period)._run()
+
+
+if __name__ == "__main__":
+    main()

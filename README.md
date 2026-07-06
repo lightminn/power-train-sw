@@ -78,7 +78,7 @@ SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 | 항목 | 내용 |
 | --- | --- |
 | CAN | CAN 트랙·조향 사용 전 `bash scripts/can_setup.sh` (can0 500 kbps, mttcan + devmem) |
-| CAN 워치독 | 텔레옵(서버·유선)은 `corner_module/can_watchdog.py` **자동 내장** — PWM 노이즈로 bus-off 반복 후 mttcan TX 웻지(전송 영구정지) 감지·복구 (~2s). 텔레옵 외 장시간 구동 시 호스트판 `sudo nohup bash scripts/can_watchdog.sh &` |
+| CAN 워치독 | **컨테이너 스택에 상주** (`canwatchdog` 서비스, 자동 기동·재부팅 생존) — PWM 노이즈로 bus-off 반복 후 mttcan TX 웻지(전송 영구정지) 감지·복구 (~2s). 텔레옵 진입점에도 내장. 상세: `docs/specs/2026-07-07-can-pwm-noise-tx-wedge.md` |
 | ODrive udev | `/etc/udev/rules.d/91-odrive.rules` 있어야 일반 사용자 권한으로 USB 인식 |
 | Wayland | XWayland 가 떠 있어야 cv2 창 표시 (`echo $XDG_SESSION_TYPE` 확인) |
 | USB 디바이스 | ODrive · DualSense · 카메라는 `/dev` 마운트로 컨테이너에 자동 노출 |
@@ -98,6 +98,7 @@ SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 | `parameter_calc/` 파라미터 최적화 (v4) | [로커보기 파라미터 최적화 결과 (v4) + 주행 애니메이션](https://app.notion.com/p/36b2d27b08d3819b9303d1f8554b0425) |
 | `motor_control/drive/bl70200/` ODrive 구동 셋업 | [ODrive(BL70200) 셋업 — 공장초기화→구동](https://app.notion.com/p/3882d27b08d381fcbe3cd0c829687c3a) |
 | `motor_control/drive`+`steering/` 단일 CAN 버스 10모터 (AK45-36 ×4 + ODrive ×6) | [단일 CAN 버스 다중모터 독립제어 — AK45-36 조향 ×4 + ODrive 구동 ×6](https://app.notion.com/p/3882d27b08d381efa56bd5fe310e3198) |
+| `corner_module/can_watchdog.py`+`docker/` CAN 자동복구 워치독 (PWM 노이즈→TX 웻지) | [CAN 자동복구 워치독 — 모터 PWM 노이즈 → TX 먹통(웻지) 해결](https://app.notion.com/p/3952d27b08d381308d0eeafa8242e509) |
 | `motor_control/corner_module/` 코너 모듈 (조향+구동 통합) | [코너 모듈 컨트롤러 — 조향+구동 통합 제어 API (HIL 검증)](https://app.notion.com/p/36b2d27b08d381818b04c1d194bcade1) |
 | `motor_control/chassis/kinematics.py` 4WS 애커만 키네마틱스 (WP2) | [4WS 애커만 키네마틱스 — 차체 (v, ω) → 바퀴별 조향각·속도](https://app.notion.com/p/3912d27b08d381a0a452fa4afdc61c45) |
 | `motor_control/chassis/` 4WS 차체 통합 제어 (ChassisManager, WP3 — 실기 HIL 완료) | [차체 통합 제어 (ChassisManager) — 코너 6개를 하나의 차체로 (4WS)](https://app.notion.com/p/3912d27b08d381e79716e04398e34bd2) |

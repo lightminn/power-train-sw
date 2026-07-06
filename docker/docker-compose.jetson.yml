@@ -37,3 +37,17 @@ services:
     stdin_open: true
     tty: true
     command: bash
+
+  # can0 TX 웻지 자가복구 워치독 — 컨테이너 스택과 함께 상시 가동 (재부팅 후에도).
+  # 모터 PWM 노이즈로 bus-off 반복 시 mttcan 드라이버가 TX 큐를 영구 정지하는 버그를
+  # ~2s 안에 감지해 can0 down/up 으로 복구한다. 상세: docs/specs/2026-07-07-can-pwm-noise-tx-wedge.md
+  canwatchdog:
+    image: powertrain-sw:jetson          # powertrain 서비스가 빌드한 이미지 재사용
+    container_name: powertrain_canwatchdog
+    network_mode: host                   # can0 은 호스트 netns
+    privileged: true                     # ioctl 로 인터페이스 down/up
+    volumes:
+      - ../:/workspace:rw
+    working_dir: /workspace/motor_control
+    command: python3 -u -m corner_module.can_watchdog
+    restart: unless-stopped
