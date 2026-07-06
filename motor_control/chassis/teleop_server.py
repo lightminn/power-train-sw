@@ -8,6 +8,9 @@
 프로토콜 (클라→서버, newline-delimited): `"left_x rt lt sq ci\n"`
   left_x ∈[-1,1] 좌스틱X · rt/lt ∈[0,1] 트리거 · sq/ci ∈{0,1} □/○ 현재 버튼상태.
   서버가 □ rising→arm 토글, ○ rising→estop. 클라 끊기면 구동 0(+차체 워치독).
+상태 회신 (서버→클라, ~4Hz): `"S <mode> <v> <ω>\n"` (예 `"S ARMED +1.50 -0.00"`) —
+  클라가 상태줄에 표시해 FAULT/disarm 을 조종자가 즉시 알게 함. 옛 클라(수신 안 함)는
+  소켓버퍼가 차면 회신만 중단하고 조종은 계속(하위호환).
 
 구조: 수신 스레드(소켓)가 최신입력만 공유상태에 갱신 → 제어 스레드(50Hz)가 그걸 읽어
 edge판정·map·ChassisManager.tick. ChassisManager 는 제어 스레드만 만짐(스레드 안전).
@@ -22,6 +25,11 @@ import threading
 import time
 
 from chassis.teleop_dualsense import map_chassis_input
+
+
+def make_status_line(mode, v, omega):
+    """서버→클라 상태 회신 한 줄: 'S ARMED +1.50 -0.72\\n'."""
+    return "S %s %+.2f %+.2f\n" % (mode, v, omega)
 
 
 def parse_input_line(text):
@@ -74,7 +82,8 @@ def main(argv=None):
     cm = ChassisManager(corners, cfg, monitor=monitor)
     cm.connect()
 
-    shared = {"lx": 0.0, "rt": 0.0, "lt": 0.0, "sq": 0, "ci": 0, "rx_ms": None}
+    shared = {"lx": 0.0, "rt": 0.0, "lt": 0.0, "sq": 0, "ci": 0, "rx_ms": None,
+              "st_mode": "IDLE", "st_v": 0.0, "st_w": 0.0}   # ← 클라 상태회신용 스냅샷
     lock = threading.Lock()
     running = [True]
 
@@ -88,6 +97,7 @@ def main(argv=None):
             t0 = time.monotonic()
             with lock:
                 lx, rt, lt, sq, ci = shared["lx"], shared["rt"], shared["lt"], shared["sq"], shared["ci"]
+            v_cmd = w_cmd = 0.0
             try:                                       # 버스 에러 등으로 스레드가 죽지 않게 감쌈
                 if sq and not prev_sq:                # □ rising = arm/disarm 토글
                     if armed:
@@ -98,8 +108,8 @@ def main(argv=None):
                     cm.estop(); armed = False
                 prev_sq, prev_ci = sq, ci
                 if armed and cm.mode == "ARMED":
-                    v, omega = map_chassis_input(lx, rt, lt, args.v_max, args.omega_max)
-                    cm.set(v, omega)
+                    v_cmd, w_cmd = map_chassis_input(lx, rt, lt, args.v_max, args.omega_max)
+                    cm.set(v_cmd, w_cmd)
                 cm.tick()
                 if cm.mode == "FAULT":
                     armed = False
@@ -108,6 +118,9 @@ def main(argv=None):
                 if errs % 50 == 1:
                     print("[server] 제어 예외(%d회): %s" % (errs, e), flush=True)
                 time.sleep(0.05)
+            # 상태 스냅샷 (수신 스레드가 클라로 회신 — cm 은 이 스레드만 만짐)
+            with lock:
+                shared["st_mode"], shared["st_v"], shared["st_w"] = cm.mode, v_cmd, w_cmd
             now = time.monotonic()
             if now - last_print > 1.0:
                 st = cm.state()
@@ -132,20 +145,35 @@ def main(argv=None):
         while True:
             conn, addr = server.accept()
             print("[server] 클라이언트 연결: %s" % (addr,), flush=True)
+            conn.settimeout(0.25)                     # recv 를 짧게 끊어 상태회신 주기 확보
             buf = b""
+            last_status = 0.0
+            status_ok = True                          # 옛 클라(수신 안 함) 버퍼 차면 회신만 중단
             try:
                 while True:
-                    data = conn.recv(256)
-                    if not data:
-                        break
-                    buf += data
-                    while b"\n" in buf:
-                        line, buf = buf.split(b"\n", 1)
-                        r = parse_input_line(line.decode(errors="ignore").strip())
-                        if r:
-                            with lock:
-                                shared["lx"], shared["rt"], shared["lt"], shared["sq"], shared["ci"] = r
-                                shared["rx_ms"] = time.monotonic() * 1000.0
+                    try:
+                        data = conn.recv(256)
+                        if not data:
+                            break
+                        buf += data
+                        while b"\n" in buf:
+                            line, buf = buf.split(b"\n", 1)
+                            r = parse_input_line(line.decode(errors="ignore").strip())
+                            if r:
+                                with lock:
+                                    shared["lx"], shared["rt"], shared["lt"], shared["sq"], shared["ci"] = r
+                                    shared["rx_ms"] = time.monotonic() * 1000.0
+                    except socket.timeout:
+                        pass
+                    now = time.monotonic()
+                    if status_ok and now - last_status >= 0.25:   # ~4Hz 상태 회신
+                        with lock:
+                            st_line = make_status_line(shared["st_mode"], shared["st_v"], shared["st_w"])
+                        try:
+                            conn.send(st_line.encode())
+                        except (socket.timeout, OSError):
+                            status_ok = False
+                        last_status = now
             except OSError:
                 pass
             finally:

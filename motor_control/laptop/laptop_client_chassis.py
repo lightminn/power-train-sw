@@ -42,7 +42,11 @@ def connect(host, port, retries=5):
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(3.0)
             s.connect((host, port))
-            s.settimeout(None)
+            # 무음 끊김(WiFi 블립) 을 send 에러로 드러나게 — 자동 재연결 트리거
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            if hasattr(socket, "TCP_USER_TIMEOUT"):
+                s.setsockopt(socket.IPPROTO_TCP, socket.TCP_USER_TIMEOUT, 5000)
+            s.setblocking(False)          # 상태회신(recv) 논블로킹 폴링용
             print("서버 연결됨: %s:%d" % (host, port))
             return s
         except OSError as e:
@@ -91,6 +95,8 @@ def main():
     print("□:arm/disarm · ○:estop · RT/LT:전/후진 · 좌스틱X:회전 · Ctrl-C:종료")
 
     interval = 1.0 / SEND_HZ
+    srv_mode, srv_v, srv_w = "?", "?", "?"      # 서버 상태 회신 ("S mode v ω")
+    last_srv_ts = None
     try:
         while True:
             t0 = time.monotonic()
@@ -102,13 +108,33 @@ def main():
             ci = joy.get_button(CI_BTN)
             try:
                 sock.send(("%.4f %.4f %.4f %d %d\n" % (lx, rt, lt, sq, ci)).encode())
+            except BlockingIOError:
+                pass                              # 송신버퍼 일시 포화 — 이 프레임만 스킵
             except OSError:
                 print("\n서버 연결 끊김 — 재연결...")
                 sock.close()
                 sock = connect(args.host, args.port)
                 if sock is None:
                     break
-            print("\rlx=%+.2f rt=%.2f lt=%.2f □%d ○%d   " % (lx, rt, lt, sq, ci), end="", flush=True)
+                srv_mode, last_srv_ts = "?", None
+                continue
+            # 서버 상태 회신 수신 (논블로킹)
+            try:
+                rx = sock.recv(1024)
+                for ln in rx.decode(errors="ignore").splitlines():
+                    p = ln.split()
+                    if len(p) >= 4 and p[0] == "S":
+                        srv_mode, srv_v, srv_w = p[1], p[2], p[3]
+                        last_srv_ts = time.monotonic()
+            except BlockingIOError:
+                pass
+            except OSError:
+                pass                              # 수신 오류는 send 쪽 재연결 로직에 맡김
+            srv = "%s v=%s ω=%s" % (srv_mode, srv_v, srv_w)
+            if last_srv_ts is not None and time.monotonic() - last_srv_ts > 2.0:
+                srv = "응답없음 %.0fs" % (time.monotonic() - last_srv_ts)
+            print("\rlx=%+.2f rt=%.2f lt=%.2f □%d ○%d | 서버[%s]   "
+                  % (lx, rt, lt, sq, ci, srv), end="", flush=True)
             dt = time.monotonic() - t0
             if interval - dt > 0:
                 time.sleep(interval - dt)

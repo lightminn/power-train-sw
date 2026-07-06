@@ -52,7 +52,13 @@ def test_forward_left_turn_combined():
 
 
 # ── 무선 서버 입력 파싱 (chassis.teleop_server.parse_input_line) ───────────
-from chassis.teleop_server import parse_input_line
+from chassis.teleop_server import parse_input_line, make_status_line
+
+
+def test_status_line_format():
+    # 서버→클라 상태회신 — 클라 파서(공백 split, 'S' 접두)와 계약 일치
+    assert make_status_line("ARMED", 1.5, -0.72) == "S ARMED +1.50 -0.72\n"
+    assert make_status_line("IDLE", 0.0, 0.0) == "S IDLE +0.00 +0.00\n"
 
 
 def test_parse_valid_line():
