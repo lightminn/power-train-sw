@@ -64,6 +64,9 @@ def main(argv=None):
     use_us100 = not args.no_us100
 
     from chassis.chassis_manager import ChassisManager, ChassisConfig, build_real_corners
+    from corner_module.can_watchdog import CanWatchdog
+
+    CanWatchdog(args.channel).start()    # mttcan TX 웻지 자가복구 (데몬 스레드)
 
     monitor = None
     sensor = None

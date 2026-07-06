@@ -49,6 +49,9 @@ def main(argv=None):
     from corner_module.corner_module import CornerModule
     from corner_module.steer_ak40 import SteerAk40
     from corner_module.drive_odrive_usb import DriveOdriveUsb
+    from corner_module.can_watchdog import CanWatchdog
+
+    CanWatchdog("can0").start()          # mttcan TX 웻지 자가복구 (데몬 스레드)
 
     cfg = CornerConfig()
     cm = CornerModule(SteerAk40(motor_id=args.ak_id), DriveOdriveUsb(), cfg)

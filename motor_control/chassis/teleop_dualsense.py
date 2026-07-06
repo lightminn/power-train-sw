@@ -62,6 +62,9 @@ def main(argv=None):
 
     import pygame
     from chassis.chassis_manager import ChassisManager, ChassisConfig, build_real_corners
+    from corner_module.can_watchdog import CanWatchdog
+
+    CanWatchdog(args.channel).start()    # mttcan TX 웻지 자가복구 (데몬 스레드)
 
     # US-100 충돌방지 (옵션) — ChassisManager 가 tick 내부에서 stop 판정 시 구동 게이팅.
     monitor = None

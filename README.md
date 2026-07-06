@@ -78,7 +78,7 @@ SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 | 항목 | 내용 |
 | --- | --- |
 | CAN | CAN 트랙·조향 사용 전 `bash scripts/can_setup.sh` (can0 500 kbps, mttcan + devmem) |
-| CAN 워치독 | 모터 구동(폐루프) 시 `sudo nohup bash scripts/can_watchdog.sh &` — PWM 노이즈로 bus-off 반복 후 mttcan TX 웻지(전송 영구정지) 자동 감지·복구 (~2s) |
+| CAN 워치독 | 텔레옵(서버·유선)은 `corner_module/can_watchdog.py` **자동 내장** — PWM 노이즈로 bus-off 반복 후 mttcan TX 웻지(전송 영구정지) 감지·복구 (~2s). 텔레옵 외 장시간 구동 시 호스트판 `sudo nohup bash scripts/can_watchdog.sh &` |
 | ODrive udev | `/etc/udev/rules.d/91-odrive.rules` 있어야 일반 사용자 권한으로 USB 인식 |
 | Wayland | XWayland 가 떠 있어야 cv2 창 표시 (`echo $XDG_SESSION_TYPE` 확인) |
 | USB 디바이스 | ODrive · DualSense · 카메라는 `/dev` 마운트로 컨테이너에 자동 노출 |

@@ -105,8 +105,11 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   젯슨 송신만 채널별로 에러(node16≈11%·11≈7%·15≈1.6%·12≈0.1%, 가산적 — 비절연 트랜시버·
   상선 커플링) → bus-off 폭풍 반복 → **mttcan 드라이버가 TX 큐를 영구 정지**(berr 0 인데 qdisc
   백로그 갇힘, 모든 send ENOBUFS = "잘 되다가 아예 안 됨"의 정체). down/up 만이 복구 →
-  **`sudo nohup bash scripts/can_watchdog.sh &`** (호스트, 웻지 감지 ~2s 자동 down/up) 를
-  모터 구동 시 상시 가동할 것. 리셋 순간 코너 stale→FAULT 가능(□ 재무장).
+  **`corner_module/can_watchdog.py`(CanWatchdog)가 텔레옵 진입점(chassis.teleop_server ·
+  chassis/corner_module.teleop_dualsense)에 내장돼 자동 가동**(데몬 스레드, 프로브+tx_packets
+  정지 2연속 감지 → 순수 ioctl down/up ~2s, 오탐 없음 검증). 텔레옵 외 스크립트(캘리 등)
+  장시간 구동 시엔 호스트판 `sudo nohup bash scripts/can_watchdog.sh &` 사용. 리셋 순간
+  코너 stale→FAULT 가능(□ 재무장).
 - **vision/** (모터 명령 없음): `gst_stream.py` (공용 송신 파이프라인 — H.264
   SW 인코딩(x264/openh264, **Orin Nano 는 NVENC 없음**) + SRT listener,
   `--srt-latency` 기본 60ms), `yolo_depth_3d.py` (YOLO+depth 3D 좌표 — color
