@@ -79,8 +79,13 @@ class DriveOdriveCan(DriveActuator):
         return (self._node_id << 5) | cmd
 
     def _send(self, cmd: int, data: bytes = b"", rtr: bool = False) -> None:
-        self._bus.send(can.Message(arbitration_id=self._arb(cmd), data=data,
-                                   is_extended_id=False, is_remote_frame=rtr))
+        # 노드가 버스에 없어 ACK 못 받으면 TX 큐가 차 ENOBUFS(CanOperationError) →
+        # 프레임 드롭하고 계속(제어루프가 죽지 않게). 미수신은 state()의 stale 로 드러남.
+        try:
+            self._bus.send(can.Message(arbitration_id=self._arb(cmd), data=data,
+                                       is_extended_id=False, is_remote_frame=rtr))
+        except can.CanError:
+            pass
 
     def _set_axis_state(self, state: int) -> None:
         # 검증된 프레임과 동일하게 8바이트로 패딩(can_drive_test.py)

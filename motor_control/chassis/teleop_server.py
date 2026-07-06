@@ -83,24 +83,31 @@ def main(argv=None):
         armed = False
         period = 1.0 / cfg.loop_hz
         last_print = 0.0
+        errs = 0
         while running[0]:
             t0 = time.monotonic()
             with lock:
                 lx, rt, lt, sq, ci = shared["lx"], shared["rt"], shared["lt"], shared["sq"], shared["ci"]
-            if sq and not prev_sq:                    # □ rising = arm/disarm 토글
-                if armed:
-                    cm.disarm(); armed = False
-                else:
-                    cm.arm(); armed = True
-            if ci and not prev_ci:                    # ○ rising = estop
-                cm.estop(); armed = False
-            prev_sq, prev_ci = sq, ci
-            if armed and cm.mode == "ARMED":
-                v, omega = map_chassis_input(lx, rt, lt, args.v_max, args.omega_max)
-                cm.set(v, omega)
-            cm.tick()
-            if cm.mode == "FAULT":
-                armed = False
+            try:                                       # 버스 에러 등으로 스레드가 죽지 않게 감쌈
+                if sq and not prev_sq:                # □ rising = arm/disarm 토글
+                    if armed:
+                        cm.disarm(); armed = False
+                    else:
+                        cm.arm(); armed = True
+                if ci and not prev_ci:                # ○ rising = estop
+                    cm.estop(); armed = False
+                prev_sq, prev_ci = sq, ci
+                if armed and cm.mode == "ARMED":
+                    v, omega = map_chassis_input(lx, rt, lt, args.v_max, args.omega_max)
+                    cm.set(v, omega)
+                cm.tick()
+                if cm.mode == "FAULT":
+                    armed = False
+            except Exception as e:                     # 제어루프 유지 — 주기적으로만 경고
+                errs += 1
+                if errs % 50 == 1:
+                    print("[server] 제어 예외(%d회): %s" % (errs, e), flush=True)
+                time.sleep(0.05)
             now = time.monotonic()
             if now - last_print > 1.0:
                 st = cm.state()
