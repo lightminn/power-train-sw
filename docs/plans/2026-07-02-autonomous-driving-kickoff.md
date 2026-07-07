@@ -25,6 +25,17 @@
 > 해결**(최악 27.9%→0.0%) + 웻지 워치독 상주(compose `canwatchdog`, 보험). 전말·실험 16종:
 > `docs/specs/2026-07-07-can-pwm-noise-tx-wedge.md`. **수동주행(원격조종) 체인은 이제 안정 —
 > WP4(ROS2) 착수 준비 완료.**
+>
+> **📌 진행 상태 추가 (2026-07-07 오후): WP4·WP5 완료.** ③ **WP4(ROS2 메시지 왕복) ✅** —
+> 분리 아키텍처(우리 `ros2/` 워크스페이스·`powertrain_ros` 컨테이너, robot_arm_msgs 벤더링,
+> 통신은 DDS만). 로봇팔 실물 그래프 상대로 양방향 배달 검증(팔→우리 /detected_objects 수신 ·
+> 우리→팔 /chassis_mode 도달). 계획 `docs/plans/2026-07-07-wp4-ros2-roundtrip.md`. ④ **WP5
+> (chassis_node) ✅ 실기 HIL 통과** — ROS `/cmd_vel`→ChassisManager→10모터: 전진 v=1.0 4축
+> 1.71~1.88 rev/s 균일 · 좌회전 애커만 차동(좌 1.07~1.17<우 1.15~1.18, min_rev 1.0 플로어로 압축) ·
+> cmd_vel 끊김→0.00(워치독) · ~/arm·~/disarm·~/estop 서비스 동작. **자율주행의 실행 하부(ROS가
+> 실제 모터를 굴림)가 성립.** 남은 계약 2건(MISSION_STOP·락 해제 순서)+풀 핸드셰이크는 로봇팔
+> 팀과 합동. **다음 = WP6(오도메트리) 또는 WP8(미션 시퀀서).** ⚠️함정: colcon ament_python
+> stale egg-info(entry point 누락) + scp본이 git pull 막음 → 신규 파일은 커밋·푸시·pull 로 배포.
 
 ---
 
