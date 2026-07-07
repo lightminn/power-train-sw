@@ -43,13 +43,26 @@
 ## 작업
 
 - [x] **4-1. 워크스페이스 스캐폴딩** — `ros2/`(벤더 msgs + `powertrain_ros` 노드),
-  `docker/Dockerfile.ros`, compose `powertrain_ros` 서비스, `sync_check_msgs.sh`.
-- [ ] **4-2. 빌드·그래프 합류** — 컨테이너에서 `colcon build` → `ros2 interface show` 5종 →
-  `ros2 topic echo /arm_status`·`/detected_objects` 로 그들 발행 실수신.
-- [ ] **4-3. 왕복 검증(실물 FSM 상대)** — `bringup` 실행: `/chassis_mode` 발행 → 그들 arm_fsm
-  LOCKED/언락 전이 로그 확인 / `/arrival_status ARRIVED_PICKUP` → IDLE→PERCEIVE 전이 확인 /
-  우리 노드가 `/arm_status` 스트림 수신.
+  `docker/Dockerfile.ros`, compose `powertrain_ros` 서비스, `sync_check_msgs.sh`. (커밋 `99f7bb5`)
+- [x] **4-2. 빌드·그래프 합류** ✅ (2026-07-07) — `powertrain-sw:ros` 빌드(python-can 4.6.1),
+  `colcon build` 2/2, `ros2 interface list` 5종 인식. **그래프 합류: 우리 컨테이너에서 그들
+  실물 노드 8개(`/arm_fsm_node`·`/perception_node`…) 전부 관측** — 분리 컨테이너 간 DDS 합류 확인.
+- [~] **4-3. 왕복 검증(실물 FSM 상대)** — **양방향 배달 ✅**: 팔→우리 `bringup` 이 `/detected_objects`
+  실수신(3Hz, 물체 0=카메라 유휴) · 우리→팔 `/chassis_mode(DRIVING)` 가 그들 ros2_humble 컨테이너에
+  도달(echo 확인). **미완(안전상 팀 협의 후)**: `ARRIVED_PICKUP` 은 실제 팔 구동을 유발하므로
+  단독 발사 보류 → 로봇팔 팀과 합동으로 `ARRIVED_PICKUP→[PERCEIVE…DONE]→재출발` 풀 핸드셰이크
+  1사이클. (`/arm_status` 는 그들 FSM 이 상태전이 때만 발행 → IDLE 정지 중엔 무발행이라 수동관찰 불가)
 - [ ] **4-4. 계약 확정** — 미결 2건 확정, contract.py·이 문서 갱신, 팀 공유.
+
+### 검증 로그 (2026-07-07)
+
+```
+colcon build         : robot_arm_msgs 15.4s + powertrain_ros 1.9s = 2/2
+ros2 node list(우리) : /arm_fsm_node /perception_node /moveit_dynamixel_bridge /stream_node … (그들 8개)
+팔→우리              : ← /detected_objects 6~7프레임/2s (최다 0개 물체)
+우리→팔              : ros2_humble 에서 echo /chassis_mode → mode: DRIVING, frame_id: base_link
+QoS                  : /detected_objects RELIABLE/VOLATILE 양측 일치
+```
 
 ## 범위 밖 (다음)
 

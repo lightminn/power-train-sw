@@ -39,7 +39,8 @@ class BringupNode(Node):
         self.create_timer(1.0 / max(hz, 0.1), self._publish_mode)
 
         self._last_arm_status = None
-        self._det_count = 0
+        self._det_frames = 0                             # 수신 프레임 수(구독 생존 확인)
+        self._det_max_objs = 0
         self.create_timer(2.0, self._log_detections)     # 30fps 스로틀
 
         mode = self.get_parameter("mode").get_parameter_value().string_value
@@ -79,11 +80,16 @@ class BringupNode(Node):
             self._last_arm_status = msg.status
 
     def _on_detections(self, msg: DetectedObjectArray):
-        self._det_count = len(msg.objects)
+        self._det_frames += 1                            # 빈 프레임도 카운트(구독 생존)
+        self._det_max_objs = max(self._det_max_objs, len(msg.objects))
 
     def _log_detections(self):
-        if self._det_count:
-            self.get_logger().info("← /detected_objects 최근 프레임 %d개 물체" % self._det_count)
+        if self._det_frames:
+            self.get_logger().info(
+                "← /detected_objects %d프레임/2s (최다 %d개 물체)"
+                % (self._det_frames, self._det_max_objs))
+            self._det_frames = 0
+            self._det_max_objs = 0
 
 
 def main(argv=None):
