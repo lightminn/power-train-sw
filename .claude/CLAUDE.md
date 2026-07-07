@@ -101,16 +101,15 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   실링키지 부하 시 재확인)·`DEFAULT_ACC_ERPM_S2=20000`), `calibrate_ak.py` (기어비 1회성),
   `status_ak.py` (CAN RX 디버깅). 사전 준비: `bash scripts/can_setup.sh`. ⚠️ can0 가 LOOPBACK
   으로 sticky하게 걸리면(down/up 무효) `ip link set can0 type can loopback off` 명시 필요(버스 무음).
-  ⚠️ **모터 PWM 노이즈 → 젯슨 CAN TX 오염 + mttcan 웻지** (2026-07-07 실측): 젯슨 송신만
-  에러, **지배 변수 = 모터 상태 — 정지 폐루프 유지(vel=0, armed 대기) ≈27% ≫ 회전(2rev/s)
-  ≈2%** (가역·재현; 세션 편차는 로터 정지각도 복불복. 채널별 배선·상선 이격·유지전류 가설은
-  실측 기각) → armed 정차 대기 중 bus-off 폭풍 → **mttcan 드라이버가 TX 큐를 영구 정지**(berr
-  0 인데 qdisc 백로그 갇힘, 모든 send ENOBUFS = "잘 되다가 아예 안 됨"의 정체). down/up 만이 복구 →
-  **정본 = compose `canwatchdog` 상주 서비스**(`docker-compose.jetson.yml`, 컨테이너 스택과
-  함께 자동 기동·`restart: unless-stopped`; 구현 `corner_module/can_watchdog.py` — 프로브+
-  tx_packets 정지 2연속 감지 → 순수 ioctl down/up ~2s, 오탐 0 검증). 텔레옵 진입점에도
-  인프로세스 내장(중복 무해). 호스트판 `scripts/can_watchdog.sh` 는 비상용. 리셋 순간
-  코너 stale→FAULT 가능(□ 재무장). 전말: `docs/specs/2026-07-07-can-pwm-noise-tx-wedge.md`.
+  ⚠️ **모터 PWM 노이즈 → 젯슨 CAN TX 오염 + mttcan 웻지** (2026-07-07 규명 → **절연
+  트랜시버 교체로 종결**): 비절연 트랜시버 시절 젯슨 송신만 에러(정지 폐루프 유지 ≈27% ≫
+  회전 ≈2%; 원인 = SVM 에지 정렬 + 그라운드 도메인 비대칭) → bus-off 폭풍 → **mttcan
+  드라이버 TX 큐 영구 정지**(berr 0 인데 모든 send ENOBUFS, down/up 만이 복구). **절연형
+  트랜시버 장착 후 동일 A/B 에서 노이즈 완전 소멸**(최악 정지 27.9%→0.0%, 폭격
+  74.6%→0.00%/13,205프레임). **웻지 워치독은 보험으로 상주 유지** — compose `canwatchdog`
+  서비스(컨테이너 스택과 자동 기동, 구현 `corner_module/can_watchdog.py`, 감지 ~2s ioctl
+  down/up·오탐 0) + 텔레옵 인프로세스 내장 + 호스트판 `scripts/can_watchdog.sh`(비상용).
+  전말·실험 16종: `docs/specs/2026-07-07-can-pwm-noise-tx-wedge.md`.
 - **vision/** (모터 명령 없음): `gst_stream.py` (공용 송신 파이프라인 — H.264
   SW 인코딩(x264/openh264, **Orin Nano 는 NVENC 없음**) + SRT listener,
   `--srt-latency` 기본 60ms), `yolo_depth_3d.py` (YOLO+depth 3D 좌표 — color
