@@ -19,6 +19,7 @@ setup(
     entry_points={
         "console_scripts": [
             "bringup = powertrain_ros.bringup_node:main",
+            "chassis = powertrain_ros.chassis_node:main",
         ],
     },
 )
