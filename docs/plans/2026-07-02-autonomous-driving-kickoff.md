@@ -15,6 +15,16 @@
 > 사전작업: 구동 6축 게인 재튜닝(vel_gain 0.12, `23ae99d`)+전 보드 NVM 통일+CAN 일괄캘리 도구(`d416e60`).
 > 로봇팔 **PR #11 main 머지 완료** → **WP4 블로커 해소.** 남은 1순위 블로커 = **D435i 카메라 독점**(§6-④).
 > 다음 = **WP4(ROS2 메시지 왕복)** 또는 WP5. 하드웨어 숙제 = node12·16 HALL 접지/필터캡(역방향 피드백 품질).
+>
+> **📌 진행 상태 추가 (2026-07-07 갱신)**: ① **차체 4WS 텔레옵 유선+무선 완료·실기 검증** —
+> `chassis/teleop_dualsense`(유선) + `chassis/teleop_server`↔`laptop/laptop_client_chassis`(무선,
+> 상태회신 `서버[ARMED v..]` 표시·무한 재연결; DualSense 축은 `laptop/dualsense_axis_finder.py` 실측
+> LX0·RT5·LT2·□3·○1). min_drive 플로어 1.0 rev/s(코깅존 회피)·조향 슬루 4500 erpm.
+> ② **CAN "잘 되다 먹통" 완전 규명·종결** — 모터 PWM 노이즈(정지 폐루프 27% ≫ 회전 2%, SVM 에지
+> 정렬+그라운드 도메인 비대칭) → bus-off 폭풍 → mttcan TX 웻지. **절연형 트랜시버 교체로 원천
+> 해결**(최악 27.9%→0.0%) + 웻지 워치독 상주(compose `canwatchdog`, 보험). 전말·실험 16종:
+> `docs/specs/2026-07-07-can-pwm-noise-tx-wedge.md`. **수동주행(원격조종) 체인은 이제 안정 —
+> WP4(ROS2) 착수 준비 완료.**
 
 ---
 
