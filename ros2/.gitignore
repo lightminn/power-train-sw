@@ -1,0 +1,4 @@
+# colcon 빌드 산출물 (컨테이너에서 생성)
+build/
+install/
+log/

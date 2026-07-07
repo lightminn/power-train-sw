@@ -51,3 +51,27 @@ services:
     working_dir: /workspace/motor_control
     command: python3 -u -m corner_module.can_watchdog
     restart: unless-stopped
+
+  # 파워트레인 ROS2 노드 (WP4~) — 로봇팔 ros2_humble 과 분리, DDS 로만 통신.
+  # 공유는 메시지 계약(robot_arm_msgs 벤더링)뿐. net=host 로 같은 DDS 그래프 합류 +
+  # can0 접근(WP5). 빌드·실행은 컨테이너 진입 후:
+  #   docker compose -f docker/docker-compose.jetson.yml up -d powertrain_ros
+  #   docker exec -it powertrain_ros bash
+  #   cd /workspace/ros2 && colcon build && source install/setup.bash
+  #   ros2 run powertrain_ros bringup
+  powertrain_ros:
+    build:
+      context: .
+      dockerfile: Dockerfile.ros
+    image: powertrain-sw:ros
+    container_name: powertrain_ros
+    network_mode: host                   # DDS(로봇팔 그래프 합류) + can0(WP5)
+    privileged: true                     # can0 socketcan (WP5)
+    volumes:
+      - ../:/workspace:rw
+      - /dev:/dev
+    working_dir: /workspace/ros2
+    stdin_open: true
+    tty: true
+    command: bash
+    restart: unless-stopped

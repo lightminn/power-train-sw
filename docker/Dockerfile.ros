@@ -1,0 +1,19 @@
+# 파워트레인 ROS2 노드 전용 이미지 — 로봇팔 팀 컨테이너(ros2_humble)와 분리.
+# 공유하는 것은 메시지 계약(robot_arm_msgs, 벤더링)뿐이고 통신은 DDS 로만 한다.
+#
+# JetPack 6 = Ubuntu 22.04(jammy) → ROS 2 Humble. 공식 ros 이미지(arm64 멀티아치) 사용.
+# 이 노드는 CUDA 불필요(순수 제어) → nvidia 런타임 없이도 동작.
+FROM ros:humble-ros-base
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3-colcon-common-extensions \
+        python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# WP5 구동 연결용 — motor_control(chassis/corner_module)이 python-can 을 씀.
+RUN pip3 install --no-cache-dir python-can
+
+# 워크스페이스 소스는 compose 로 마운트(../ → /workspace). 빌드는 컨테이너 진입 후:
+#   cd /workspace/ros2 && colcon build && source install/setup.bash
+WORKDIR /workspace/ros2
+CMD ["bash"]
