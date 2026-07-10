@@ -9,8 +9,9 @@
 > `/safety_verdict`·`/wheel_states`·latched E-stop 경로는
 > [`WP5.1 HIL 보고서`](../docs/reports/2026-07-10-wp5-control-safety-hil.md)의
 > `NOT RUN` 항목을 통과하기 전까지 실기 완료로 주장하지 않는다. 로컬 관찰 증거는
-> `motor_control` 189 passed, `motor_gui` 91 passed, 격리 read-only ROS 워크스페이스의
-> 3패키지 clean build와 `powertrain_ros` 30/30 passed까지다. Jetson software-only FAKE는 배포
+> 배포 HEAD `c3610c136357a8c881263926ec18bcd7e3432a5d`에서 `motor_control` 189 passed,
+> `motor_gui` 91 passed, 격리 read-only ROS 3패키지 clean build와 `powertrain_ros` 31/31,
+> Jetson 동일 HEAD의 3패키지 build와 `powertrain_ros` 31/31까지 통과했다. software-only FAKE는 별도
 > commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`에서 PASS다. FAKE는 실기 HIL이 아니며
 > 최종 Jetson/10모터/US-100 HIL은 대기 중이다.
 
@@ -320,19 +321,13 @@ ros2 run powertrain_ros chassis --ros-args \
 
 ## 검증 상태
 
-- 로컬 `motor_control` 189 passed와 `motor_gui` 91 passed: commit
-  `e163eed824c2a1381e4763926840d8c881fb55b7`, JUnit
-  `.superpowers/sdd/final-motor-control-e163eed.xml`과
-  `.superpowers/sdd/final-motor-gui-e163eed.xml`. 이후
-  `60a813f555d5d85fd58bed769853ee5995974f80`는 ROS test 파일만 바꿔
-  production Python 범위는 동일하다.
-- 격리 read-only ROS 워크스페이스: commit
-  `60a813f555d5d85fd58bed769853ee5995974f80`, `robot_arm_msgs`·`powertrain_msgs`·
-  `powertrain_ros` 3패키지 clean build, `powertrain_ros` **30/30 passed**. JUnit은
-  `.superpowers/sdd/final-ros-60a813f.xml`이다.
-- 이후 test-only commit `839103dc2ae7d8abe0e2c789849bae58eb1e9287`에서 agent가 관찰한
-  31-test 결과는 추가 참고자료다. 위 root-observed 격리 30/30 JUnit을 대체하지 않는다.
-- Jetson `powertrain_ros` 23 tests: PASS. raw XML은
+- 배포 HEAD `c3610c136357a8c881263926ec18bcd7e3432a5d`에서 root가 직접 관찰한 로컬 결과:
+  `motor_control` **189 passed** (`.superpowers/sdd/final-motor-control-c3610c1.xml`),
+  `motor_gui` **91 passed** (`.superpowers/sdd/final-motor-gui-c3610c1.xml`).
+- 같은 HEAD의 격리 read-only ROS 워크스페이스에서 `robot_arm_msgs`·`powertrain_msgs`·
+  `powertrain_ros` 3패키지 clean build와 `powertrain_ros` **31/31 passed**
+  (`.superpowers/sdd/final-ros-c3610c1.xml`).
+- Jetson도 정확히 같은 HEAD에서 3패키지 build와 `powertrain_ros` **31/31 passed**. raw XML은
   `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml`.
 - Jetson software-only FAKE(commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`): **PASS**.
   startup `ESTOP`; far `ARMED/RUN`; 60초 count 3000, mean/minimum 5 s window 50.000 Hz,

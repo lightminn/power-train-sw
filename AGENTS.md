@@ -14,9 +14,10 @@ below. Preserve the older text as history, but use this section when it conflict
 
 - The original WP5 `/cmd_vel → ChassisManager → 10 motors` HIL remains a valid historical result.
   **WP5.1 Tasks 1–8 software are complete, but final Jetson/10-motor/US-100 HIL is NOT RUN.**
-  Observed local evidence is motor_control 189 passed, motor_gui 91 passed, and a temporary
-  read-only ROS workspace building all 3 packages with 23 powertrain_ros tests passed. Jetson
-  software-only FAKE acceptance passed at deployed commit
+  At deployed HEAD `c3610c136357a8c881263926ec18bcd7e3432a5d`, root-observed evidence is
+  motor_control 189 passed, motor_gui 91 passed, an isolated read-only ROS 3-package clean build
+  with powertrain_ros 31/31, and the Jetson exact-HEAD 3-package build with powertrain_ros 31/31.
+  Jetson software-only FAKE acceptance was observed separately at commit
   `49831bb42058a177ed9c41d72d0273f4f0a8f535`: 3000/60 s, mean and minimum 5 s window
   50.000 Hz, tick p99 0.280 ms, overrun 0, maximum interval 21.453 ms, and publisher-death
   E-stop at 0.753 s, with startup/far/near/latch/reset/separate-arm transitions confirmed.
@@ -48,10 +49,11 @@ below. Preserve the older text as history, but use this section when it conflict
 - After the final WP5.1 HIL, proceed in this order: command-authority spec → L515 lightweight
   color-image + depth-image + IMU pipeline (PointCloud2 optional) → WP6 odometry. WP8 and the
   remaining `MISSION_STOP`, unlock-ordering, and full arm-handshake work remain open in parallel.
-- Provenance: local 189/91 and temporary ROS 23 results were tool-captured at pre-HIL commit
-  `49831bb42058a177ed9c41d72d0273f4f0a8f535` without persisted raw logs. Jetson ROS pytest XML
-  exists at `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml`; the FAKE summary was
-  tool-captured without a file, so final rerun artifacts remain mandatory.
+- Provenance at `c3610c136357a8c881263926ec18bcd7e3432a5d`: local JUnit files are
+  `.superpowers/sdd/final-motor-control-c3610c1.xml`,
+  `.superpowers/sdd/final-motor-gui-c3610c1.xml`, and `.superpowers/sdd/final-ros-c3610c1.xml`;
+  Jetson ROS raw XML is `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml`.
+  The FAKE summary remains the distinct 49831bb observation without a preserved raw log.
 
 ## CURRENT STATE OVERRIDE — 2026-07-10
 

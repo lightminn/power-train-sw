@@ -8,9 +8,10 @@
 > **📌 WP5.1 최신 상태 (2026-07-10): Tasks 1~8 소프트웨어 완료, 최종 실기 HIL 미실행.** 아래
 > 2026-07-07 WP5 `/cmd_vel → 10모터` HIL은 기존 차체 경로의 유효한 이력이다. 이후 추가한
 > 순수 Python 안전 코어·비블로킹 50 Hz 제어·별도 US-100 ROS 노드·`/safety_verdict`·
-> `/wheel_states` 경로의 로컬 관찰 증거는 `motor_control` 189 passed, `motor_gui` 91 passed,
-> 임시 read-only ROS 워크스페이스의 3패키지 build와 `powertrain_ros` 23 tests passed까지다.
-> 배포 commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`에서 Jetson software-only FAKE
+> `/wheel_states` 경로는 배포 HEAD `c3610c136357a8c881263926ec18bcd7e3432a5d`에서
+> `motor_control` 189 passed, `motor_gui` 91 passed, 격리 read-only ROS 3패키지 clean build와
+> `powertrain_ros` 31/31, Jetson 동일 HEAD의 3패키지 build와 `powertrain_ros` 31/31까지 통과했다.
+> 별도 commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`에서 Jetson software-only FAKE
 > acceptance를 통과했다(60초 3000 samples, mean/min-5s 50.000 Hz, tick p99 0.280 ms,
 > overrun 0, max interval 21.453 ms, publisher-death E-stop 0.753 s). Startup `ESTOP`, far
 > `ARMED/RUN`, near `ESTOP`, far-return latch, reset→`IDLE`·no implicit arm, separate arm도
@@ -285,11 +286,12 @@ ROS2 노드는 그걸 감싸기만 한다 (기존 corner_module 스타일 유지
 - **freshness**: 생산 `safety_topic_timeout=0.75 s`, 최초 수신 timeout 1.0초다. 판정 age가
   0.75초를 초과한 다음 50 Hz tick, 명목상 마지막 수신 후 0.75~0.77초에 E-stop한다.
   `safety_required=false`는 BENCH/FAKE 전용이다.
-- **검증 경계**: 로컬 pure-Python suite와 임시 read-only ROS 3패키지 build·
-  `powertrain_ros` 23 tests, Jetson software-only FAKE acceptance는 통과했다. FAKE는 실기
-  HIL이 아니며 새 실기 HIL은 아직 실행하지 않았다. 로컬 189/91/ROS23과 FAKE summary는
-  commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`에서 tool capture만 있고 원시 로그가 없다.
-  Jetson ROS XML은 `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml`에 있다.
+- **검증 경계**: 배포 HEAD `c3610c136357a8c881263926ec18bcd7e3432a5d`에서 로컬
+  pure-Python 189/91, 격리 read-only ROS 3패키지 build·31/31, Jetson 동일 HEAD의 3패키지
+  build·31/31을 통과했다. 로컬 JUnit은 `.superpowers/sdd/final-motor-control-c3610c1.xml`,
+  `.superpowers/sdd/final-motor-gui-c3610c1.xml`, `.superpowers/sdd/final-ros-c3610c1.xml`이고
+  Jetson ROS XML은 `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml`이다.
+  별도 49831bb의 software-only FAKE acceptance도 통과했지만 실기 HIL은 아직 실행하지 않았다.
   HIL 전까지 CAN delta·생산 `stop_mm`을 확정하지 않는다.
 
 ### WP6. 오도메트리 (주행거리·자세 추정)

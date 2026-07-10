@@ -7,7 +7,8 @@
 > WP5 `/cmd_vel → 10모터` HIL은 기존 차체 경로의 역사적 완료 기록이다. 새 비블로킹
 > 50 Hz 제어·US-100 상태/liveness·`/safety_verdict`·`/wheel_states`·latched E-stop 경로는
 > `docs/reports/2026-07-10-wp5-control-safety-hil.md`가 `NOT RUN`인 동안 실기 완료로 보지 않는다.
-> Jetson software-only FAKE는 commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`에서
+> 배포 HEAD `c3610c136357a8c881263926ec18bcd7e3432a5d`의 로컬·Jetson 자동검증은 모두
+> 통과했다. 별도 commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`의 software-only FAKE도
 > 통과했지만 실기 HIL 증거가 아니다.
 
 ## 1. 현재 완료 상태
@@ -19,7 +20,7 @@
 | ODrive | pp=10, cpr=60, bandwidth=30, vel_gain=0.12, vel_int=0.2 |
 | 차체 | WP1~3 및 10모터 4WS 유·무선 텔레옵 실기 HIL 완료 |
 | ROS2 기준선 | WP4 양방향 DDS 전달, 기존 WP5 `/cmd_vel → 10모터` 실기 HIL 완료 |
-| WP5.1 제어·안전 | Tasks 1~8 소프트웨어 완료; 로컬 motor_control 189 passed·motor_gui 91 passed·임시 read-only ROS 3패키지 build·powertrain_ros 23 tests passed; Jetson software-only FAKE PASS; 최종 실기 HIL 미실행 |
+| WP5.1 제어·안전 | Tasks 1~8 소프트웨어 완료; c3610c1 로컬 motor_control 189·motor_gui 91·격리 ROS 3패키지 build 및 31/31·Jetson 동일 HEAD 3패키지 build 및 31/31 PASS; 별도 49831bb software-only FAKE PASS; 최종 실기 HIL 미실행 |
 | 센서 소유권 | L515=파워트레인 RGB/depth/IMU, D435i=로봇팔 전용, US100=독립 안전 |
 | 형상 최적화 | v4 계산 기준 50 kg 확정, 86 kg 재최적화 안 함 |
 
@@ -45,8 +46,14 @@
 - WP5.1 FAKE(commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`): startup `ESTOP`, far
   `ARMED/RUN`, near `ESTOP`, far 뒤 latch, reset→`IDLE` 무암시 arm, 별도 arm, publisher-death
   `ESTOP`을 확인했다. 60초 count 3000, mean/min-5s 50.000 Hz, tick p99 0.280 ms, overrun 0,
-  max interval 21.453 ms, publisher-death delay 0.753 s다. Jetson ROS XML은
-  `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml`; FAKE raw log는 미보존이다.
+  max interval 21.453 ms, publisher-death delay 0.753 s다. FAKE raw log는 미보존이다.
+- 최종 자동검증(commit `c3610c136357a8c881263926ec18bcd7e3432a5d`): 로컬 `motor_control`
+  189 passed와 `motor_gui` 91 passed, 격리 read-only ROS 3패키지 clean build와
+  `powertrain_ros` 31/31, Jetson 동일 HEAD의 3패키지 build와 31/31을 통과했다. 로컬 JUnit은
+  `.superpowers/sdd/final-motor-control-c3610c1.xml`, `.superpowers/sdd/final-motor-gui-c3610c1.xml`,
+  `.superpowers/sdd/final-ros-c3610c1.xml`이며 Jetson raw XML은
+  `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml`이다. 팀원 미추적 vision
+  테스트는 그대로 보존했다.
 
 ## 3. WP5.1 현재 계약
 
