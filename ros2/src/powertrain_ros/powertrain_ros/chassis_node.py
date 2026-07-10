@@ -1,5 +1,6 @@
 """ROS2 adapter for the WP5 10-motor chassis controller."""
 
+import math
 import os
 import sys
 import time
@@ -24,6 +25,28 @@ sys.path.insert(
 )
 
 
+# A no-response US-100 transaction can consume two 0.2 s request paths.
+# Reserve another 0.35 s for timer scheduling and DDS delivery jitter.
+US100_NO_RESPONSE_WORST_CASE_S = 0.4
+SAFETY_TOPIC_SCHEDULING_MARGIN_S = 0.35
+MIN_SAFETY_TOPIC_TIMEOUT_S = (
+    US100_NO_RESPONSE_WORST_CASE_S + SAFETY_TOPIC_SCHEDULING_MARGIN_S
+)
+DEFAULT_SAFETY_TOPIC_TIMEOUT_S = MIN_SAFETY_TOPIC_TIMEOUT_S
+
+
+def validate_safety_topic_timeout(value):
+    timeout_s = float(value)
+    if (
+        not math.isfinite(timeout_s)
+        or timeout_s < MIN_SAFETY_TOPIC_TIMEOUT_S
+    ):
+        raise ValueError(
+            "safety_topic_timeout must be finite and at least 0.75 s"
+        )
+    return timeout_s
+
+
 class ChassisNode(Node):
     def __init__(self):
         super().__init__("chassis_node")
@@ -43,7 +66,10 @@ class ChassisNode(Node):
         self.declare_parameter("cmd_timeout", 0.5)
         self.declare_parameter("mode", contract.MODE_DRIVING)
         self.declare_parameter("safety_required", True)
-        self.declare_parameter("safety_topic_timeout", 0.5)
+        self.declare_parameter(
+            "safety_topic_timeout",
+            DEFAULT_SAFETY_TOPIC_TIMEOUT_S,
+        )
         self.declare_parameter("safety_startup_timeout", 1.0)
 
         fake = bool(self.get_parameter("fake").value)
@@ -54,7 +80,7 @@ class ChassisNode(Node):
         self._safety_required = bool(
             self.get_parameter("safety_required").value
         )
-        self._safety_topic_timeout = float(
+        self._safety_topic_timeout = validate_safety_topic_timeout(
             self.get_parameter("safety_topic_timeout").value
         )
         self._safety_startup_timeout = float(
@@ -141,6 +167,7 @@ class ChassisNode(Node):
         self._started_ms = self._now_ms()
         self._last_safety_ms = None
         self._overrun_count = 0
+        self._seed_initial_safety()
 
         period = 1.0 / self.cm.cfg.loop_hz
         self.create_timer(period, self._tick)
@@ -180,6 +207,14 @@ class ChassisNode(Node):
 
     def _now_ms(self):
         return self.get_clock().now().nanoseconds / 1e6
+
+    def _seed_initial_safety(self):
+        if self._safety_required:
+            self.cm.update_external_safety(
+                "CHECKING",
+                False,
+                "startup",
+            )
 
     def _on_cmd_vel(self, msg: Twist):
         self.cm.set(msg.linear.x, msg.angular.z)
@@ -235,16 +270,19 @@ class ChassisNode(Node):
         duration_ms = (time.monotonic() - started) * 1000.0
         if duration_ms > 1000.0 / self.cm.cfg.loop_hz:
             self._overrun_count += 1
-        msg = WheelStates()
-        fill_wheel_states_message(
-            msg,
-            self.cm.snapshot(),
-            self.get_clock().now().to_msg(),
-            duration_ms,
-            self._overrun_count,
-            WheelState,
-        )
-        self.pub_wheels.publish(msg)
+        try:
+            msg = WheelStates()
+            fill_wheel_states_message(
+                msg,
+                self.cm.snapshot(),
+                self.get_clock().now().to_msg(),
+                duration_ms,
+                self._overrun_count,
+                WheelState,
+            )
+            self.pub_wheels.publish(msg)
+        except Exception as exc:
+            self.get_logger().error("wheel telemetry failed: %s" % exc)
 
     def _header(self):
         header = Header()
@@ -259,15 +297,20 @@ class ChassisNode(Node):
         self.pub_mode.publish(msg)
 
     def _publish_state(self):
-        state = self.cm.state()
-        msg = ChassisMode()
-        msg.header = self._header()
-        msg.mode = "%s v=%.2f w=%.2f" % (
-            state["mode"],
-            state["v"],
-            state["omega"],
-        )
-        self.pub_state.publish(msg)
+        try:
+            state = self.cm.state()
+            msg = ChassisMode()
+            msg.header = self._header()
+            msg.mode = "%s v=%.2f w=%.2f" % (
+                state["mode"],
+                state["v"],
+                state["omega"],
+            )
+            self.pub_state.publish(msg)
+        except Exception as exc:
+            self.get_logger().error(
+                "chassis state publication failed: %s" % exc
+            )
 
     def publish_arrival(self, mission_id: int, status: str):
         msg = ArrivalStatus()
@@ -339,13 +382,19 @@ class ChassisNode(Node):
         if manager is None:
             return
         try:
-            manager.disarm()
+            manager.estop("node_shutdown", "chassis node cleanup")
         except BaseException as exc:
-            self.get_logger().error("disarm during cleanup failed: %s" % exc)
-        try:
-            manager.close()
-        except BaseException as exc:
-            self.get_logger().error("close during cleanup failed: %s" % exc)
+            self.get_logger().error(
+                "E-stop during cleanup failed: %s" % exc
+            )
+        for name, corner in manager.corners.items():
+            try:
+                corner.close()
+            except BaseException as exc:
+                self.get_logger().error(
+                    "corner %s close during cleanup failed: %s"
+                    % (name, exc)
+                )
 
 
 def main(argv=None):

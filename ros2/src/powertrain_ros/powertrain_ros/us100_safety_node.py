@@ -1,3 +1,4 @@
+import math
 import os
 import sys
 
@@ -19,6 +20,22 @@ from safety_us100.safety_monitor import SafetyMonitor  # noqa: E402
 from safety_us100.us100 import Us100Sensor  # noqa: E402
 
 
+MIN_SAMPLE_HZ = 5.0
+MAX_SAMPLE_HZ = 10.0
+
+
+def validate_sample_hz(value):
+    sample_hz = float(value)
+    if (
+        not math.isfinite(sample_hz)
+        or not MIN_SAMPLE_HZ <= sample_hz <= MAX_SAMPLE_HZ
+    ):
+        raise ValueError(
+            "sample_hz must be finite and within 5.0..10.0 Hz"
+        )
+    return sample_hz
+
+
 class Us100SafetyNode(Node):
     def __init__(self):
         super().__init__("us100_safety_node")
@@ -30,6 +47,9 @@ class Us100SafetyNode(Node):
             self.declare_parameter("stop_mm", 200.0)
             self.declare_parameter("fail_stop_count", 3)
 
+            hz = validate_sample_hz(
+                self.get_parameter("sample_hz").value
+            )
             cfg = SafetyConfig(
                 stop_mm=float(self.get_parameter("stop_mm").value),
                 fail_stop_count=int(
@@ -52,7 +72,6 @@ class Us100SafetyNode(Node):
                 "/safety_verdict",
                 safety_qos,
             )
-            hz = max(float(self.get_parameter("sample_hz").value), 0.1)
             self.create_timer(1.0 / hz, self._sample)
         except BaseException:
             try:
