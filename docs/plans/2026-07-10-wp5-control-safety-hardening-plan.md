@@ -1556,6 +1556,10 @@ git commit -m "refactor(safety): unify teleop estop behavior"
 
 ### Task 9: Verify, document, deploy and perform HIL
 
+Tasks 1~8에서는 실물 모터·US-100 HIL을 수행하지 않는다. 순수 Python, 로컬 ROS build,
+FAKE ROS 검증과 전체 코드 리뷰를 먼저 끝낸 뒤, 본 Task에서 Jetson 배포와 실물 HIL을
+한 번에 수행한다.
+
 **Files:**
 - Modify: `docs/plans/2026-07-02-autonomous-driving-kickoff.md`
 - Modify: `docs/reports/2026-07-10-project-and-jetson-state.md`
@@ -1568,15 +1572,21 @@ git commit -m "refactor(safety): unify teleop estop behavior"
 - Consumes all Task 1~8 artifacts.
 - Produces verified repository/Jetson documentation and the go/no-go decision for command authority, L515 and WP6.
 
-- [ ] **Step 1: Run the full local pure-Python regression suite**
+- [ ] **Step 1: Run the supported local automatic regression suites**
 
 ```bash
 docker run --rm -v /home/light/ZETIN/robotics/power-train-sw:/workspace \
   -w /workspace/motor_control powertrain-sw:dev \
-  python3 -m pytest -v
+  python3 -m pytest chassis/tests corner_module/tests safety_us100/tests -v
+
+docker run --rm -v /home/light/ZETIN/robotics/power-train-sw:/workspace \
+  -w /workspace powertrain-sw:dev \
+  python3 -m pytest motor_gui/tests -v
 ```
 
-Expected: all collected tests PASS with zero failures and zero collection errors.
+Expected: both explicitly supported automatic suites PASS with zero failures and zero collection
+errors. Do not run unbounded recursive collection under `motor_control/`; filenames such as
+`odrive_*_test.py` and `realsense_test.py` are real-hardware scripts, not automatic pytest targets.
 
 - [ ] **Step 2: Run full ROS build and tests on Jetson without motors**
 

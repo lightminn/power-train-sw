@@ -41,6 +41,7 @@ logs/
 
 # Isolated feature worktrees (superpowers workflow)
 .worktrees/
+.superpowers/
 
 # YOLO 모델 산출물 (재export 가능 — 운영 머신에 보관)
 yolov8n.pt
