@@ -51,15 +51,27 @@ def reset_wireless_input(state):
 def _wireless_sample_is_neutral(sample):
     lx, rt, lt, sq, ci = sample
     return (
-        abs(lx) <= WIRELESS_NEUTRAL_DEADZONE
-        and abs(rt) <= WIRELESS_NEUTRAL_DEADZONE
-        and abs(lt) <= WIRELESS_NEUTRAL_DEADZONE
+        abs(lx) < WIRELESS_NEUTRAL_DEADZONE
+        and abs(rt) < WIRELESS_NEUTRAL_DEADZONE
+        and abs(lt) < WIRELESS_NEUTRAL_DEADZONE
         and not sq
         and not ci
     )
 
 
-def update_wireless_input(state, sample, now_ms):
+def update_wireless_input(
+    state,
+    sample,
+    now_ms,
+    timeout_ms=WIRELESS_RX_TIMEOUT_MS,
+):
+    last_rx_ms = state.get("rx_ms")
+    if (
+        state.get("neutral_seen", False)
+        and last_rx_ms is not None
+        and now_ms - last_rx_ms > timeout_ms
+    ):
+        reset_wireless_input(state)
     lx, rt, lt, sq, ci = sample
     if not state.get("neutral_seen", False):
         state["rx_ms"] = now_ms
@@ -90,6 +102,14 @@ def wireless_input_active(state, now_ms, timeout_ms=WIRELESS_RX_TIMEOUT_MS):
 
 
 def fresh_wireless_input(state, now_ms, timeout_ms=WIRELESS_RX_TIMEOUT_MS):
+    rx_ms = state.get("rx_ms")
+    if (
+        state.get("neutral_seen", False)
+        and rx_ms is not None
+        and now_ms - rx_ms > timeout_ms
+    ):
+        reset_wireless_input(state)
+        return None
     if not wireless_input_active(state, now_ms, timeout_ms):
         return None
     rx_seq = state.get("rx_seq", 0)
@@ -171,6 +191,39 @@ def shutdown_control_resources(
         )
         return False, [RuntimeError("wireless control thread still running")]
     return True, cleanup_chassis_resources(manager, background, sensor)
+
+
+def shutdown_control_resources_eventually(
+    thread,
+    stop_event,
+    manager,
+    background,
+    sensor,
+    join_timeout_s=1.0,
+):
+    stopped, errors = shutdown_control_resources(
+        thread,
+        stop_event,
+        manager,
+        background,
+        sensor,
+        join_timeout_s=join_timeout_s,
+    )
+    if stopped:
+        return True, errors
+
+    # No shared resource is closed above while the control owner is alive.
+    # The non-daemon owner must eventually exit before one cleanup retry.
+    thread.join()
+    stopped, retry_errors = shutdown_control_resources(
+        thread,
+        stop_event,
+        manager,
+        background,
+        sensor,
+        join_timeout_s=0.0,
+    )
+    return stopped, errors + retry_errors
 
 
 def make_status_line(mode, v, omega):
@@ -353,7 +406,7 @@ def main(argv=None):
                 "control_exception",
                 _safe_exception_detail(exc),
             )
-        shutdown_control_resources(
+        shutdown_control_resources_eventually(
             ctrl,
             stop_event,
             cm,
@@ -432,7 +485,7 @@ def main(argv=None):
             server.close()
         except BaseException:
             pass
-        stopped, errors = shutdown_control_resources(
+        stopped, errors = shutdown_control_resources_eventually(
             ctrl,
             stop_event,
             cm,

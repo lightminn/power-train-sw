@@ -15,6 +15,7 @@ from chassis.teleop_server import (
     reset_wireless_input,
     run_control_thread,
     shutdown_control_resources,
+    shutdown_control_resources_eventually,
     update_wireless_input,
 )
 from corner_module.teleop_dualsense import handle_corner_square
@@ -546,8 +547,18 @@ def test_wireless_silence_does_not_apply_cached_command_or_refresh_watchdog():
         state,
         (0.0, 0.5, 0.0, 0, 0),
         now_ms=500.0,
+    ) is False
+    assert update_wireless_input(
+        state,
+        (0.0, 0.0, 0.0, 0, 0),
+        now_ms=510.0,
     ) is True
-    assert fresh_wireless_input(state, now_ms=500.0) is not None
+    assert update_wireless_input(
+        state,
+        (0.0, 0.5, 0.0, 0, 0),
+        now_ms=520.0,
+    ) is True
+    assert fresh_wireless_input(state, now_ms=520.0) is not None
 
 
 def test_reconnect_held_square_waits_for_release_then_new_press():
@@ -601,6 +612,85 @@ def test_reconnect_motion_input_cannot_open_neutral_gate(held_sample):
         (0.04, 0.04, 0.04, 0, 0),
         now_ms=20.0,
     ) is True
+
+
+def test_same_connection_stale_requires_neutral_before_held_resume():
+    manager = LifecycleDouble("ESTOP")
+    state = {}
+    reset_wireless_input(state)
+
+    assert update_wireless_input(
+        state,
+        (0.0, 0.0, 0.0, 0, 0),
+        now_ms=0.0,
+    ) is True
+    assert fresh_wireless_input(state, now_ms=0.0)[3] == 0
+
+    held = (0.0, 1.0, 0.0, 1, 0)
+    assert update_wireless_input(state, held, now_ms=10.0) is True
+    sample = fresh_wireless_input(state, now_ms=10.0)
+    assert sample == held
+    assert handle_chassis_square(manager) is True
+    assert manager.mode == "IDLE"
+
+    assert fresh_wireless_input(
+        state,
+        now_ms=10.0 + WIRELESS_RX_TIMEOUT_MS + 0.1,
+    ) is None
+    assert state["neutral_seen"] is False
+
+    assert update_wireless_input(
+        state,
+        held,
+        now_ms=400.0,
+    ) is False
+    assert fresh_wireless_input(state, now_ms=400.0) is None
+    assert manager.mode == "IDLE"
+    assert manager.calls == ["reset_estop"]
+
+
+def test_receiver_gap_rejects_held_resume_before_control_poll():
+    state = {}
+    reset_wireless_input(state)
+    assert update_wireless_input(
+        state,
+        (0.0, 0.0, 0.0, 0, 0),
+        now_ms=0.0,
+    ) is True
+    assert update_wireless_input(
+        state,
+        (0.0, 1.0, 0.0, 1, 0),
+        now_ms=10.0,
+    ) is True
+
+    assert update_wireless_input(
+        state,
+        (0.0, 1.0, 0.0, 1, 0),
+        now_ms=10.0 + WIRELESS_RX_TIMEOUT_MS + 0.1,
+    ) is False
+    assert state["neutral_seen"] is False
+    assert fresh_wireless_input(state, now_ms=400.0) is None
+
+
+@pytest.mark.parametrize(
+    "boundary_sample",
+    [
+        (0.05, 0.0, 0.0, 0, 0),
+        (-0.05, 0.0, 0.0, 0, 0),
+        (0.0, 0.05, 0.0, 0, 0),
+        (0.0, 0.0, 0.05, 0, 0),
+    ],
+)
+def test_neutral_gate_rejects_deadzone_boundary(boundary_sample):
+    state = {}
+    reset_wireless_input(state)
+
+    assert update_wireless_input(
+        state,
+        boundary_sample,
+        now_ms=10.0,
+    ) is False
+    assert fresh_wireless_input(state, now_ms=10.0) is None
 
 
 @pytest.mark.parametrize(
@@ -752,6 +842,76 @@ def test_shutdown_keeps_resources_open_until_control_thread_exits():
     assert stopped is True
     assert errors == []
     assert events == ["background_close", "sensor_close", "corner_close"]
+
+
+def test_eventual_shutdown_retries_cleanup_once_after_delayed_exit():
+    entered = threading.Event()
+    release = threading.Event()
+    stop = threading.Event()
+    failure = {}
+    failed = threading.Event()
+    events = []
+    result = []
+
+    class Resource:
+        def __init__(self, name):
+            self.name = name
+
+        def close(self):
+            events.append(self.name)
+            return True
+
+    class Manager:
+        def __init__(self):
+            self.estops = []
+            self.corners = {"corner": Resource("corner")}
+            self.mode = "ARMED"
+
+        def estop(self, source, detail):
+            self.estops.append((source, detail))
+
+    manager = Manager()
+
+    def delayed_step():
+        entered.set()
+        release.wait()
+
+    control = threading.Thread(
+        target=run_control_thread,
+        args=(delayed_step, stop, manager, failure, failed),
+    )
+    control.start()
+    assert entered.wait(0.2)
+
+    def shutdown():
+        result.append(shutdown_control_resources_eventually(
+            control,
+            stop,
+            manager,
+            Resource("background"),
+            Resource("sensor"),
+            join_timeout_s=0.01,
+        ))
+
+    shutdown_thread = threading.Thread(target=shutdown)
+    shutdown_thread.start()
+    assert wait_until(
+        lambda: any(source == "shutdown_timeout"
+                    for source, _ in manager.estops)
+    )
+    assert shutdown_thread.is_alive()
+    assert events == []
+
+    release.set()
+    shutdown_thread.join(0.2)
+    control.join(0.2)
+    assert not shutdown_thread.is_alive()
+    assert not control.is_alive()
+    assert result[0][0] is True
+    assert events == ["background", "sensor", "corner"]
+    assert events.count("background") == 1
+    assert events.count("sensor") == 1
+    assert events.count("corner") == 1
 
 
 def test_unstarted_control_thread_shutdown_cleans_without_join_error():
