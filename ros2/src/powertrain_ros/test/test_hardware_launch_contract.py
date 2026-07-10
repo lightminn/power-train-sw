@@ -37,6 +37,10 @@ def _discover_repo_root(start_path=None):
         candidate = Path(motor_control).expanduser().resolve().parent
         if _has_repo_contract(candidate):
             return candidate
+        raise RuntimeError(
+            f"MOTOR_CONTROL_PATH is not inside a power-train-sw checkout: "
+            f"{candidate}"
+        )
 
     start = Path(start_path or __file__).resolve()
     for candidate in (start, *start.parents):
@@ -97,6 +101,23 @@ def test_repo_root_discovery_uses_motor_control_parent(
     monkeypatch.setenv("MOTOR_CONTROL_PATH", str(repo / "motor_control"))
 
     assert _discover_repo_root(tmp_path / "isolated" / "test.py") == repo
+
+
+def test_repo_root_discovery_rejects_stale_motor_control_path(
+    tmp_path,
+    monkeypatch,
+):
+    repo = tmp_path / "valid-source-repo"
+    _make_repo_contract(repo)
+    monkeypatch.delenv("POWERTRAIN_REPO_ROOT", raising=False)
+    monkeypatch.setenv(
+        "MOTOR_CONTROL_PATH",
+        str(tmp_path / "stale-repo" / "motor_control"),
+    )
+    nested_test = repo / "ros2/src/powertrain_ros/test/test_contract.py"
+
+    with pytest.raises(RuntimeError, match="MOTOR_CONTROL_PATH"):
+        _discover_repo_root(nested_test)
 
 
 def test_repo_root_discovery_falls_back_to_source_ancestors(
