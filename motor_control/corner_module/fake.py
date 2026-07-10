@@ -59,6 +59,8 @@ class FakeDrive(DriveActuator):
         self._armed = False
         self._connected = False
         self.cur_a = 0.0
+        self.stale_flag = False
+        self.axis_error = 0
 
     def connect(self) -> None:
         self._connected = True
@@ -84,6 +86,8 @@ class FakeDrive(DriveActuator):
             "target_vel": self._target,
             "actual_vel": self._actual,
             "cur_a": self.cur_a,
+            "stale": self.stale_flag,
+            "axis_error": self.axis_error,
         }
 
     def estop(self) -> None:

@@ -69,6 +69,14 @@ class CornerModule:
         self._drive_target = 0.0
         self.mode = "FAULT"
 
+    def reset_fault(self) -> bool:
+        if self.mode != "FAULT":
+            return False
+        self._drive_target = 0.0
+        self.drive.set_velocity(0.0)
+        self.mode = "IDLE"
+        return True
+
     def close(self) -> None:
         self.steer.close()
         self.drive.close()
@@ -93,6 +101,16 @@ class CornerModule:
         # 조향 과전류 트립
         if abs(st["cur_a"]) > self.cfg.steer_current_limit_a:
             logger.error("조향 과전류 %.1fA > %.1fA → estop", st["cur_a"], self.cfg.steer_current_limit_a)
+            self.estop()
+            return
+
+        drive_state = self.drive.state()
+        if drive_state.get("stale", False):
+            logger.error("구동 status stale → estop")
+            self.estop()
+            return
+        if drive_state.get("axis_error", 0) != 0:
+            logger.error("구동 axis_error=%s → estop", drive_state["axis_error"])
             self.estop()
             return
 

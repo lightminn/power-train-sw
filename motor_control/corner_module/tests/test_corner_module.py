@@ -62,7 +62,7 @@ def test_fake_steer_state_schema():
 def test_fake_drive_state_schema():
     d = FakeDrive()
     keys = set(d.state().keys())
-    assert keys == {"target_vel", "actual_vel", "cur_a"}
+    assert keys == {"target_vel", "actual_vel", "cur_a", "stale", "axis_error"}
 
 
 def _make_cm(steer=None, drive=None, cfg=None, clock=None):
@@ -169,6 +169,36 @@ def test_steer_stale_triggers_estop():
     s.stale_flag = True
     cm.tick()
     assert cm.mode == "FAULT"
+
+
+def test_drive_stale_triggers_component_fault():
+    d = FakeDrive()
+    cm = _make_cm(drive=d)
+    cm.connect()
+    cm.arm()
+    d.stale_flag = True
+    cm.tick()
+    assert cm.mode == "FAULT"
+
+
+def test_drive_axis_error_triggers_component_fault():
+    d = FakeDrive()
+    cm = _make_cm(drive=d)
+    cm.connect()
+    cm.arm()
+    d.axis_error = 0x10
+    cm.tick()
+    assert cm.mode == "FAULT"
+
+
+def test_reset_fault_only_moves_component_to_idle():
+    cm = _make_cm()
+    cm.connect()
+    cm.arm()
+    cm.estop()
+    assert cm.reset_fault() is True
+    assert cm.mode == "IDLE"
+    assert cm.state()["drive"]["target_vel"] == 0.0
 
 
 def test_corner_state_schema():
