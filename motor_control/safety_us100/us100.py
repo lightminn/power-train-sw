@@ -10,6 +10,13 @@ from safety_us100.verdict import (
 
 
 class Us100Sensor:
+    """US-100 UART adapter with explicit serial-port ownership.
+
+    A ``serial_port`` supplied by the caller remains caller-owned. ``close()``
+    only detaches it. A port created by ``open()`` is sensor-owned and is closed
+    by ``close()``.
+    """
+
     def __init__(
         self,
         port="/dev/ttyTHS1",
@@ -22,12 +29,14 @@ class Us100Sensor:
         self._baud = baud
         self._timeout = timeout
         self._ser = serial_port
+        self._owns_serial_port = False
         self._sleeper = sleeper
         self._response_wait = 0.1
 
     def open(self):
         try:
             self._ser = serial.Serial(self._port, self._baud, timeout=self._timeout)
+            self._owns_serial_port = True
         except serial.SerialException as e:
             raise RuntimeError(
                 f"센서 포트({self._port})를 열 수 없습니다. 연결과 권한을 확인하세요. ({e})"
@@ -63,6 +72,9 @@ class Us100Sensor:
             return SensorReading(NO_RESPONSE, None, "serial_error")
 
     def close(self):
-        if self._ser is not None:
-            self._ser.close()
-            self._ser = None
+        serial_port = self._ser
+        owns_serial_port = self._owns_serial_port
+        self._ser = None
+        self._owns_serial_port = False
+        if serial_port is not None and owns_serial_port:
+            serial_port.close()
