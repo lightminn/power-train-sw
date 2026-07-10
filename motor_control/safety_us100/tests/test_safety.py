@@ -1,150 +1,160 @@
-from safety_us100.verdict import Verdict, SAFE, WARN, STOP
 from safety_us100.config import SafetyConfig
-
-
-def test_level_names():
-    assert SAFE == "safe"
-    assert WARN == "warn"
-    assert STOP == "stop"
-
-
-def test_verdict_holds_level_and_distance():
-    v = Verdict(level=SAFE, distance_mm=500.0)
-    assert v.level == "safe"
-    assert v.distance_mm == 500.0
+from safety_us100.fake_sensor import FakeUs100
+from safety_us100.safety_monitor import SafetyMonitor
+from safety_us100.us100 import Us100Sensor
+from safety_us100.verdict import (
+    CHECKING,
+    INVALID_READING,
+    NO_RESPONSE,
+    VALID,
+    SensorReading,
+)
 
 
 def test_config_default_values():
-    c = SafetyConfig()
-    assert c.warn_mm == 400.0
-    assert c.stop_mm == 200.0
-    assert c.hysteresis_mm == 30.0
-    assert c.fail_stop_count == 3
-    assert c.port == "/dev/ttyTHS1"
-    assert c.baud == 9600
-from safety_us100.evaluator import evaluate
-
-
-def test_far_distance_is_safe():
     cfg = SafetyConfig()
-    assert evaluate(500.0, cfg, prev_level=None) == SAFE
+    assert cfg.stop_mm == 200.0
+    assert cfg.fail_stop_count == 3
+    assert cfg.port == "/dev/ttyTHS1"
+    assert cfg.baud == 9600
 
 
-def test_mid_distance_is_warn():
-    cfg = SafetyConfig()
-    assert evaluate(300.0, cfg, prev_level=None) == WARN
+def test_empty_fake_reports_no_response():
+    reading = FakeUs100([]).read()
+    assert reading == SensorReading(NO_RESPONSE, None, "no_fake_reading")
 
 
-def test_near_distance_is_stop():
-    cfg = SafetyConfig()
-    assert evaluate(150.0, cfg, prev_level=None) == STOP
+def test_initial_verdict_is_checking():
+    mon = SafetyMonitor(
+        FakeUs100([SensorReading(VALID, 500.0, "distance")]),
+        SafetyConfig(),
+    )
+    verdict = mon.verdict()
+    assert verdict.status == CHECKING
+    assert verdict.estop_required is False
 
 
-def test_no_reading_is_stop():
-    cfg = SafetyConfig()
-    assert evaluate(None, cfg, prev_level=None) == STOP
-
-
-def test_escalation_is_immediate():
-    cfg = SafetyConfig()
-    assert evaluate(150.0, cfg, prev_level=SAFE) == STOP
-
-
-def test_hysteresis_holds_stop_near_threshold():
-    cfg = SafetyConfig()
-    assert evaluate(210.0, cfg, prev_level=STOP) == STOP
-
-
-def test_release_from_stop_after_margin():
-    cfg = SafetyConfig()
-    assert evaluate(250.0, cfg, prev_level=STOP) == WARN
-
-
-def test_hysteresis_holds_warn_near_threshold():
-    cfg = SafetyConfig()
-    assert evaluate(410.0, cfg, prev_level=WARN) == WARN
-    assert evaluate(440.0, cfg, prev_level=WARN) == SAFE
-from safety_us100.fake_sensor import FakeUs100
-
-
-def test_fake_returns_readings_in_order():
-    s = FakeUs100([500.0, 300.0, 150.0])
-    assert s.read() == 500.0
-    assert s.read() == 300.0
-    assert s.read() == 150.0
-
-
-def test_fake_repeats_last_after_end():
-    s = FakeUs100([400.0])
-    s.read()
-    assert s.read() == 400.0
-    assert s.read() == 400.0
-
-
-def test_fake_can_return_none():
-    s = FakeUs100([None])
-    assert s.read() is None
-from safety_us100.safety_monitor import SafetyMonitor
-
-
-def test_initial_verdict_is_stop():
-    mon = SafetyMonitor(FakeUs100([500.0]), SafetyConfig())
-    assert mon.verdict().level == STOP
-
-
-def test_far_reading_gives_safe():
-    mon = SafetyMonitor(FakeUs100([500.0]), SafetyConfig())
+def test_far_valid_distance_does_not_request_estop():
+    mon = SafetyMonitor(
+        FakeUs100([SensorReading(VALID, 500.0, "distance")]),
+        SafetyConfig(),
+    )
     mon.tick()
-    assert mon.verdict().level == SAFE
-    assert mon.verdict().distance_mm == 500.0
+    verdict = mon.verdict()
+    assert verdict.status == VALID
+    assert verdict.estop_required is False
 
 
-def test_near_reading_gives_stop():
-    mon = SafetyMonitor(FakeUs100([150.0]), SafetyConfig())
+def test_near_valid_distance_requests_estop():
+    mon = SafetyMonitor(
+        FakeUs100([SensorReading(VALID, 150.0, "distance")]),
+        SafetyConfig(),
+    )
     mon.tick()
-    assert mon.verdict().level == STOP
+    assert mon.verdict().estop_required is True
 
 
-def test_transient_failures_keep_previous():
-    mon = SafetyMonitor(FakeUs100([500.0, None, None, None]), SafetyConfig(fail_stop_count=3))
+def test_distance_at_stop_threshold_does_not_request_estop():
+    cfg = SafetyConfig(stop_mm=200.0)
+    mon = SafetyMonitor(
+        FakeUs100([SensorReading(VALID, 200.0, "distance")]),
+        cfg,
+    )
     mon.tick()
-    assert mon.verdict().level == SAFE
-    mon.tick()
-    assert mon.verdict().level == SAFE
-    mon.tick()
-    assert mon.verdict().level == SAFE
+    assert mon.verdict().estop_required is False
 
 
-def test_persistent_failure_gives_stop():
-    mon = SafetyMonitor(FakeUs100([500.0, None, None, None]), SafetyConfig(fail_stop_count=3))
+def test_invalid_reading_is_normal_when_liveness_responds():
+    mon = SafetyMonitor(
+        FakeUs100([SensorReading(INVALID_READING, None, "temperature_alive")]),
+        SafetyConfig(),
+    )
     mon.tick()
-    mon.tick()
-    mon.tick()
-    mon.tick()
-    assert mon.verdict().level == STOP
-    assert mon.verdict().distance_mm is None
+    verdict = mon.verdict()
+    assert verdict.status == INVALID_READING
+    assert verdict.estop_required is False
 
 
-def test_recovery_to_safe():
-    mon = SafetyMonitor(FakeUs100([150.0, 500.0]), SafetyConfig())
-    mon.tick()
-    assert mon.verdict().level == STOP
-    mon.tick()
-    assert mon.verdict().level == SAFE
+def test_first_two_misses_are_checking_and_third_is_no_response():
+    miss = SensorReading(NO_RESPONSE, None, "liveness_timeout")
+    mon = SafetyMonitor(
+        FakeUs100([miss, miss, miss]),
+        SafetyConfig(fail_stop_count=3),
+    )
+    states = []
+    for _ in range(3):
+        mon.tick()
+        states.append((mon.verdict().status, mon.verdict().estop_required))
+    assert states == [(CHECKING, False), (CHECKING, False), (NO_RESPONSE, True)]
 
 
-def test_no_chatter_with_hysteresis():
-    mon = SafetyMonitor(FakeUs100([150.0, 210.0, 190.0, 210.0]), SafetyConfig())
-    levels = []
+def test_alive_response_resets_consecutive_failures():
+    miss = SensorReading(NO_RESPONSE, None, "timeout")
+    alive = SensorReading(INVALID_READING, None, "temperature_alive")
+    mon = SafetyMonitor(
+        FakeUs100([miss, miss, alive, miss]),
+        SafetyConfig(),
+    )
     for _ in range(4):
         mon.tick()
-        levels.append(mon.verdict().level)
-    assert levels == [STOP, STOP, STOP, STOP]
+    assert mon.verdict().status == CHECKING
+    assert mon.verdict().consecutive_failures == 1
 
 
-def test_verdict_schema():
-    mon = SafetyMonitor(FakeUs100([500.0]), SafetyConfig())
-    mon.tick()
-    v = mon.verdict()
-    assert hasattr(v, "level")
-    assert hasattr(v, "distance_mm")
+class FakeSerial:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.writes = []
+
+    def reset_input_buffer(self):
+        pass
+
+    def write(self, data):
+        self.writes.append(bytes(data))
+
+    def flush(self):
+        pass
+
+    def read(self, size):
+        return self.responses.pop(0) if self.responses else b""
+
+
+def test_sensor_returns_valid_distance_without_liveness_probe():
+    ser = FakeSerial([bytes([0x01, 0xF4])])  # 500 mm
+    sensor = Us100Sensor(serial_port=ser, sleeper=lambda _: None)
+    reading = sensor.read()
+    assert reading == SensorReading(VALID, 500.0, "distance")
+    assert ser.writes == [b"\xff" * 8 + b"\x55"]
+
+
+def test_sensor_marks_out_of_range_distance_response_invalid():
+    ser = FakeSerial([bytes([0x00, 0x00])])
+    sensor = Us100Sensor(serial_port=ser, sleeper=lambda _: None)
+    reading = sensor.read()
+    assert reading == SensorReading(INVALID_READING, None, "out_of_range")
+    assert ser.writes == [b"\xff" * 8 + b"\x55"]
+
+
+def test_sensor_uses_temperature_as_liveness_after_distance_timeout():
+    ser = FakeSerial([b"", bytes([70])])
+    sensor = Us100Sensor(serial_port=ser, sleeper=lambda _: None)
+    reading = sensor.read()
+    assert reading.status == INVALID_READING
+    assert reading.detail == "temperature_alive"
+    assert ser.writes == [
+        b"\xff" * 8 + b"\x55",
+        b"\xff" * 8 + b"\x50",
+    ]
+
+
+def test_sensor_reports_no_response_when_distance_and_liveness_timeout():
+    ser = FakeSerial([b"", b""])
+    sensor = Us100Sensor(serial_port=ser, sleeper=lambda _: None)
+    reading = sensor.read()
+    assert reading.status == NO_RESPONSE
+    assert reading.detail == "liveness_timeout"
+
+
+def test_sensor_reports_no_response_when_port_is_closed():
+    sensor = Us100Sensor(sleeper=lambda _: None)
+    assert sensor.read() == SensorReading(NO_RESPONSE, None, "port_closed")

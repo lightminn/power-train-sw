@@ -1,12 +1,23 @@
 from dataclasses import dataclass
 from typing import Optional
 
-SAFE = "safe"
-WARN = "warn"
-STOP = "stop"
+CHECKING = "CHECKING"
+VALID = "VALID"
+INVALID_READING = "INVALID_READING"
+NO_RESPONSE = "NO_RESPONSE"
+
+
+@dataclass(frozen=True)
+class SensorReading:
+    status: str
+    distance_mm: Optional[float]
+    detail: str = ""
 
 
 @dataclass(frozen=True)
 class Verdict:
-    level: str
+    status: str
     distance_mm: Optional[float]
+    estop_required: bool
+    consecutive_failures: int
+    detail: str = ""

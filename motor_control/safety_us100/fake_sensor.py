@@ -1,3 +1,6 @@
+from safety_us100.verdict import NO_RESPONSE, SensorReading
+
+
 class FakeUs100:
     def __init__(self, readings):
         self._readings = list(readings)
@@ -5,7 +8,7 @@ class FakeUs100:
 
     def read(self):
         if not self._readings:
-            return None
+            return SensorReading(NO_RESPONSE, None, "no_fake_reading")
         if self._index < len(self._readings):
             value = self._readings[self._index]
             self._index += 1

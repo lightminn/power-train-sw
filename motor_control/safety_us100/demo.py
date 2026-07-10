@@ -19,7 +19,10 @@ def main():
             monitor.tick()
             v = monitor.verdict()
             shown = "(없음)" if v.distance_mm is None else f"{int(v.distance_mm)} mm"
-            print(f"거리: {shown}\t판정: {v.level}")
+            print(
+                f"거리: {shown}\t상태: {v.status}\t"
+                f"연속실패: {v.consecutive_failures}\tESTOP: {v.estop_required}"
+            )
             time.sleep(0.1)
     except KeyboardInterrupt:
         pass
