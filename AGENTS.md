@@ -15,8 +15,12 @@ below. Preserve the older text as history, but use this section when it conflict
 - The original WP5 `/cmd_vel → ChassisManager → 10 motors` HIL remains a valid historical result.
   **WP5.1 Tasks 1–8 software are complete, but final Jetson/10-motor/US-100 HIL is NOT RUN.**
   Observed local evidence is motor_control 189 passed, motor_gui 91 passed, and a temporary
-  read-only ROS workspace building all 3 packages with 23 powertrain_ros tests passed. FAKE,
-  Jetson, and HIL remain pending; none of the local results is hardware evidence.
+  read-only ROS workspace building all 3 packages with 23 powertrain_ros tests passed. Jetson
+  software-only FAKE acceptance passed at deployed commit
+  `49831bb42058a177ed9c41d72d0273f4f0a8f535`: 3000/60 s, mean and minimum 5 s window
+  50.000 Hz, tick p99 0.280 ms, overrun 0, maximum interval 21.453 ms, and publisher-death
+  E-stop at 0.753 s, with startup/far/near/latch/reset/separate-arm transitions confirmed.
+  FAKE is not HIL; final hardware HIL remains pending.
 - Current architecture is a pure-Python control/safety core with thin internal ROS nodes:
   `us100_safety_node` isolates blocking UART at 5–10 Hz, while `chassis_node` checks the latest
   `/safety_verdict`, owns the final E-stop decision, runs the 50 Hz chassis loop, and publishes
@@ -30,6 +34,11 @@ below. Preserve the older text as history, but use this section when it conflict
 - E-stop reset returns only to `IDLE`; a separate arm action is mandatory. Production
   `safety_topic_timeout` is 0.75 s (`age > threshold`, then the next 50 Hz tick, nominally
   0.75–0.77 s), startup timeout is 1.0 s, and `safety_required=false` is BENCH/FAKE only.
+- Combined hardware launch always requires an explicit `stop_mm`; there is no production default.
+  Before approval, only a controlled low-speed HIL candidate may use an explicit provisional value.
+  Scenarios 1–8 require all wheels lifted. Scenario 9 is a separately authorized ground-motion
+  phase for the real 50 kg robot and cannot inherit the wheels-up confirmation; its measured,
+  approved `stop_mm` is the only value allowed for production launch.
 - The migrated `safe/warn/stop`, `Verdict.level`, startup/`None`→`stop`, and auto-clearing safety
   gate descriptions are **explicitly superseded historical memory**. Do not use them for current
   code, tests, operations, or documentation. Current authorities are
@@ -39,6 +48,10 @@ below. Preserve the older text as history, but use this section when it conflict
 - After the final WP5.1 HIL, proceed in this order: command-authority spec → L515 lightweight
   color-image + depth-image + IMU pipeline (PointCloud2 optional) → WP6 odometry. WP8 and the
   remaining `MISSION_STOP`, unlock-ordering, and full arm-handshake work remain open in parallel.
+- Provenance: local 189/91 and temporary ROS 23 results were tool-captured at pre-HIL commit
+  `49831bb42058a177ed9c41d72d0273f4f0a8f535` without persisted raw logs. Jetson ROS pytest XML
+  exists at `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml`; the FAKE summary was
+  tool-captured without a file, so final rerun artifacts remain mandatory.
 
 ## CURRENT STATE OVERRIDE — 2026-07-10
 

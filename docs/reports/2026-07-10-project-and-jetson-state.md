@@ -7,6 +7,8 @@
 > WP5 `/cmd_vel → 10모터` HIL은 기존 차체 경로의 역사적 완료 기록이다. 새 비블로킹
 > 50 Hz 제어·US-100 상태/liveness·`/safety_verdict`·`/wheel_states`·latched E-stop 경로는
 > `docs/reports/2026-07-10-wp5-control-safety-hil.md`가 `NOT RUN`인 동안 실기 완료로 보지 않는다.
+> Jetson software-only FAKE는 commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`에서
+> 통과했지만 실기 HIL 증거가 아니다.
 
 ## 1. 현재 완료 상태
 
@@ -17,7 +19,7 @@
 | ODrive | pp=10, cpr=60, bandwidth=30, vel_gain=0.12, vel_int=0.2 |
 | 차체 | WP1~3 및 10모터 4WS 유·무선 텔레옵 실기 HIL 완료 |
 | ROS2 기준선 | WP4 양방향 DDS 전달, 기존 WP5 `/cmd_vel → 10모터` 실기 HIL 완료 |
-| WP5.1 제어·안전 | Tasks 1~8 소프트웨어 완료; 로컬 motor_control 189 passed·motor_gui 91 passed·임시 read-only ROS 3패키지 build·powertrain_ros 23 tests passed; FAKE·Jetson·최종 실기 HIL 미실행 |
+| WP5.1 제어·안전 | Tasks 1~8 소프트웨어 완료; 로컬 motor_control 189 passed·motor_gui 91 passed·임시 read-only ROS 3패키지 build·powertrain_ros 23 tests passed; Jetson software-only FAKE PASS; 최종 실기 HIL 미실행 |
 | 센서 소유권 | L515=파워트레인 RGB/depth/IMU, D435i=로봇팔 전용, US100=독립 안전 |
 | 형상 최적화 | v4 계산 기준 50 kg 확정, 86 kg 재최적화 안 함 |
 
@@ -40,6 +42,11 @@
 - 미추적 vision 테스트는 세 Jetson 컨테이너 모두 `pytest`가 없어 실행하지 못했다.
   코드·수집 결과로 통과를 추정하지 않으며, 팀원 작업을 커밋하기 전 의존성이 있는
   테스트 환경에서 별도 실행해야 한다.
+- WP5.1 FAKE(commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`): startup `ESTOP`, far
+  `ARMED/RUN`, near `ESTOP`, far 뒤 latch, reset→`IDLE` 무암시 arm, 별도 arm, publisher-death
+  `ESTOP`을 확인했다. 60초 count 3000, mean/min-5s 50.000 Hz, tick p99 0.280 ms, overrun 0,
+  max interval 21.453 ms, publisher-death delay 0.753 s다. Jetson ROS XML은
+  `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml`; FAKE raw log는 미보존이다.
 
 ## 3. WP5.1 현재 계약
 
@@ -57,10 +64,13 @@
   1.0초다. `safety_required=false`는 BENCH/FAKE 전용이다.
 - 0x50은 초음파 송신기·수신기 정상까지 증명하지 않는다. `INVALID_READING` 통과는 HIL과
   운영 절차에서 계속 추적할 잔여 위험이다.
+- 결합 실기 launch는 `stop_mm` 명시가 필수이고 생산 기본값이 없다. 승인 전 임시값은 바퀴를
+  든 시나리오 1~8의 통제 HIL 후보에만 쓴다. 50 kg 실차 지상주행 시나리오 9는 별도 사용자
+  허가가 필요하고, 그 제동 실측으로 승인된 값만 생산 launch에 사용한다.
 
 ## 4. 다음 작업
 
-1. WP5.1 Jetson ROS/FAKE 검증과 아홉 최종 실기 HIL 시나리오, 생산 `stop_mm` 실측.
+1. WP5.1 시나리오 1~8 부양 HIL과 별도 승인 시나리오 9 지상 제동 HIL, 생산 `stop_mm` 실측.
 2. HIL 통과 뒤 단일 `/cmd_vel` command authority spec.
 3. L515 경량 color image + depth image + IMU 파이프라인 spec. PointCloud2는 opt-in.
 4. 위 인터페이스 확정 뒤 WP6 오도메트리.

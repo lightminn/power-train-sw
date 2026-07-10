@@ -10,8 +10,12 @@
 > 순수 Python 안전 코어·비블로킹 50 Hz 제어·별도 US-100 ROS 노드·`/safety_verdict`·
 > `/wheel_states` 경로의 로컬 관찰 증거는 `motor_control` 189 passed, `motor_gui` 91 passed,
 > 임시 read-only ROS 워크스페이스의 3패키지 build와 `powertrain_ros` 23 tests passed까지다.
-> FAKE·Jetson·아홉 실기 HIL 시나리오는 아직 실행하지 않았다. 상태·증거는
-> `docs/reports/2026-07-10-wp5-control-safety-hil.md`에 기록한다.
+> 배포 commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`에서 Jetson software-only FAKE
+> acceptance를 통과했다(60초 3000 samples, mean/min-5s 50.000 Hz, tick p99 0.280 ms,
+> overrun 0, max interval 21.453 ms, publisher-death E-stop 0.753 s). Startup `ESTOP`, far
+> `ARMED/RUN`, near `ESTOP`, far-return latch, reset→`IDLE`·no implicit arm, separate arm도
+> 확인했다. FAKE는 실기 HIL이 아니며 아홉 실기 시나리오는 아직 실행하지 않았다.
+> 상태·증거는 HIL 보고서에 기록한다.
 >
 > **WP5.1 HIL 뒤 작업 순서**: command authority spec → L515 경량 color image + depth image +
 > IMU 파이프라인(PointCloud2는 필요할 때만 선택) → WP6 오도메트리. WP8 미션 시퀀서와
@@ -81,6 +85,9 @@
   ⑤ 주행거리 추정 → ⑥ 레인 추종 → ⑦ 미션 흐름 관리 → ⑧ 앞 로봇 추종** 순서.
 - **진행 상황: 기존 WP1~WP5 완료, WP5.1 Tasks 1~8 소프트웨어 완료·최종 HIL 대기.** HIL 뒤
   command authority → L515 경량 파이프라인 → WP6 순서이며, WP8·크로스팀 핸드셰이크는 남아 있다.
+- **실기 실행 게이트**: 결합 launch는 `stop_mm` 명시가 필수이며 기본값이 없다. 시나리오 1~8은
+  바퀴 부양 상태에서 임시값을 명시한 HIL 후보, 시나리오 9는 50 kg 실차의 별도 승인 지상주행
+  단계다. 9번의 통제 저속 제동 실측으로 승인된 값만 생산 launch에 사용한다.
 - 마감 역산: **7/19 설계 확정 → 7/31 국방 서류 → 9/13 국방 본선 → 10/2 극한 본선.**
 - 원격조종 점수 33~40% → 기존 텔레옵·스트리밍은 그대로 1급 유지 (자율 스택과 병행, 건드리지 않음).
 
@@ -279,8 +286,11 @@ ROS2 노드는 그걸 감싸기만 한다 (기존 corner_module 스타일 유지
   0.75초를 초과한 다음 50 Hz tick, 명목상 마지막 수신 후 0.75~0.77초에 E-stop한다.
   `safety_required=false`는 BENCH/FAKE 전용이다.
 - **검증 경계**: 로컬 pure-Python suite와 임시 read-only ROS 3패키지 build·
-  `powertrain_ros` 23 tests는 통과했다. FAKE·Jetson·새 실기 HIL은 아직 실행하지 않았다.
-  HIL 전까지 측정률·tick p99·CAN delta·생산 `stop_mm`을 확정하지 않는다.
+  `powertrain_ros` 23 tests, Jetson software-only FAKE acceptance는 통과했다. FAKE는 실기
+  HIL이 아니며 새 실기 HIL은 아직 실행하지 않았다. 로컬 189/91/ROS23과 FAKE summary는
+  commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`에서 tool capture만 있고 원시 로그가 없다.
+  Jetson ROS XML은 `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml`에 있다.
+  HIL 전까지 CAN delta·생산 `stop_mm`을 확정하지 않는다.
 
 ### WP6. 오도메트리 (주행거리·자세 추정)
 
