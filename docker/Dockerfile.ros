@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # WP5 구동 연결용 — motor_control(chassis/corner_module)이 python-can 을 씀.
-RUN pip3 install --no-cache-dir python-can
+RUN pip3 install --no-cache-dir python-can pyserial
 
 # 워크스페이스 소스는 compose 로 마운트(../ → /workspace). 빌드는 컨테이너 진입 후:
 #   cd /workspace/ros2 && colcon build && source install/setup.bash
