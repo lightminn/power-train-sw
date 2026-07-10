@@ -57,6 +57,51 @@ class FalseyClock(FakeClock):
         return False
 
 
+class StopSignal(BaseException):
+    pass
+
+
+class ArmRaisingCorner:
+    def __init__(self, wrapped, error):
+        self._wrapped = wrapped
+        self.error = error
+
+    @property
+    def mode(self):
+        return self._wrapped.mode
+
+    def __getattr__(self, name):
+        return getattr(self._wrapped, name)
+
+    def arm(self):
+        raise self.error
+
+
+class ResetScriptCorner:
+    def __init__(self, wrapped, outcomes):
+        self._wrapped = wrapped
+        self.outcomes = list(outcomes)
+        self.reset_calls = 0
+
+    @property
+    def mode(self):
+        return self._wrapped.mode
+
+    def __getattr__(self, name):
+        return getattr(self._wrapped, name)
+
+    def reset_fault(self):
+        self.reset_calls += 1
+        outcome = self.outcomes.pop(0) if self.outcomes else None
+        if isinstance(outcome, BaseException):
+            raise outcome
+        if outcome is False:
+            return False
+        if outcome == "stuck":
+            return True
+        return self._wrapped.reset_fault()
+
+
 # ── 매핑·라이프사이클 ────────────────────────────────────────────────────
 
 def test_requires_every_geometry_wheel_mapped():
@@ -100,6 +145,43 @@ def test_arm_only_succeeds_from_idle_and_repeated_arm_is_noop():
     assert m.arm() is False
     assert m.mode == "ARMED"
     assert _drive_targets(m) == targets_before
+
+
+def test_later_corner_arm_failure_rolls_back_all_corners_and_latches_estop():
+    m = ChassisManager(_fake_corners())
+    m.connect()
+    failure = RuntimeError("late arm failed")
+    m.corners["rear_left"] = ArmRaisingCorner(
+        m.corners["rear_left"], failure,
+    )
+
+    assert m.arm() is False
+
+    safety = m.state()["safety"]
+    assert m.mode == "ESTOP"
+    assert safety.estop_latched is True
+    assert safety.first_source == "arm_failure"
+    assert "rear_left" in safety.first_detail
+    assert "late arm failed" in safety.first_detail
+    assert all(c.mode == "FAULT" for c in m.corners.values())
+    assert all(d == 0.0 for d in _drive_targets(m).values())
+
+
+def test_arm_baseexception_rolls_back_before_reraising():
+    m = ChassisManager(_fake_corners())
+    m.connect()
+    failure = StopSignal("arm interrupted")
+    m.corners["rear_left"] = ArmRaisingCorner(
+        m.corners["rear_left"], failure,
+    )
+
+    with pytest.raises(StopSignal) as caught:
+        m.arm()
+
+    assert caught.value is failure
+    assert m.mode == "ESTOP"
+    assert m.state()["safety"].first_source == "arm_failure"
+    assert all(c.mode == "FAULT" for c in m.corners.values())
 
 
 def test_set_ignored_when_not_armed():
@@ -229,6 +311,115 @@ def test_reset_estop_when_not_latched_is_noop():
     assert _drive_targets(m) == targets_before
 
 
+def test_reset_false_while_faulted_reestops_all_and_allows_retry():
+    m = _armed_manager()
+    m.estop("manual", "button")
+    scripted = {
+        name: ResetScriptCorner(
+            corner,
+            [False, None] if name == "front_left" else [None, None],
+        )
+        for name, corner in m.corners.items()
+    }
+    m.corners.update(scripted)
+
+    assert m.reset_estop() is False
+    assert all(corner.reset_calls == 1 for corner in scripted.values())
+    assert m.mode == "ESTOP"
+    assert m.state()["safety"].estop_latched is True
+    assert all(c.mode == "FAULT" for c in m.corners.values())
+
+    assert m.reset_estop() is True
+    assert all(corner.reset_calls == 2 for corner in scripted.values())
+    assert m.mode == "IDLE"
+    assert m.state()["safety"].estop_latched is False
+    assert all(c.mode == "IDLE" for c in m.corners.values())
+
+
+def test_reset_exception_attempts_later_corners_reestops_and_allows_retry():
+    m = _armed_manager()
+    m.estop("manual", "button")
+    failure = RuntimeError("reset failed")
+    scripted = {
+        name: ResetScriptCorner(
+            corner,
+            [failure, None] if name == "front_left" else [None, None],
+        )
+        for name, corner in m.corners.items()
+    }
+    m.corners.update(scripted)
+
+    assert m.reset_estop() is False
+    assert all(corner.reset_calls == 1 for corner in scripted.values())
+    assert m.mode == "ESTOP"
+    assert m.state()["safety"].estop_latched is True
+    assert all(c.mode == "FAULT" for c in m.corners.values())
+
+    assert m.reset_estop() is True
+    assert all(corner.reset_calls == 2 for corner in scripted.values())
+    assert m.mode == "IDLE"
+    assert m.state()["safety"].estop_latched is False
+    assert all(c.mode == "IDLE" for c in m.corners.values())
+
+
+def test_reset_success_without_idle_reestops_all_and_allows_retry():
+    m = _armed_manager()
+    m.estop("manual", "button")
+    scripted = {
+        name: ResetScriptCorner(
+            corner,
+            ["stuck", None] if name == "front_left" else [None, None],
+        )
+        for name, corner in m.corners.items()
+    }
+    m.corners.update(scripted)
+
+    assert m.reset_estop() is False
+    assert all(corner.reset_calls == 1 for corner in scripted.values())
+    assert m.mode == "ESTOP"
+    assert m.state()["safety"].estop_latched is True
+    assert all(c.mode == "FAULT" for c in m.corners.values())
+
+    assert m.reset_estop() is True
+    assert all(corner.reset_calls == 2 for corner in scripted.values())
+    assert m.mode == "IDLE"
+    assert all(c.mode == "IDLE" for c in m.corners.values())
+
+
+def test_reset_baseexception_reestops_all_before_reraising():
+    m = _armed_manager()
+    m.estop("manual", "button")
+    failure = StopSignal("reset interrupted")
+    scripted = {
+        name: ResetScriptCorner(
+            corner,
+            [failure] if name == "front_left" else [None],
+        )
+        for name, corner in m.corners.items()
+    }
+    m.corners.update(scripted)
+
+    with pytest.raises(StopSignal) as caught:
+        m.reset_estop()
+
+    assert caught.value is failure
+    assert all(corner.reset_calls == 1 for corner in scripted.values())
+    assert m.mode == "ESTOP"
+    assert m.state()["safety"].estop_latched is True
+    assert all(c.mode == "FAULT" for c in m.corners.values())
+
+
+def test_reset_false_is_acceptable_for_corner_already_idle():
+    m = _armed_manager()
+    m.estop("manual", "button")
+    m.corners["front_left"].disarm()
+    assert m.corners["front_left"].mode == "IDLE"
+
+    assert m.reset_estop() is True
+    assert m.mode == "IDLE"
+    assert all(c.mode == "IDLE" for c in m.corners.values())
+
+
 def test_first_estop_cause_persists_after_condition_clears():
     m = _armed_manager()
     m.update_external_safety("VALID", True, "too_close")
@@ -331,10 +522,6 @@ def test_estop_continues_after_one_corner_raises():
             assert corner.mode == "FAULT"
 
 
-class StopSignal(BaseException):
-    pass
-
-
 def test_estop_continues_after_corner_raises_baseexception_and_keeps_first():
     corners = _fake_corners()
     m = ChassisManager(corners)
@@ -353,6 +540,49 @@ def test_estop_continues_after_corner_raises_baseexception_and_keeps_first():
     assert m.mode == "ESTOP"
     assert m.state()["last_estop_error"] is first_error
     assert all(c.mode == "FAULT" for c in m.corners.values())
+
+
+def test_estop_diagnostic_keeps_first_error_across_repeated_calls():
+    m = _armed_manager()
+    first_corner = m.corners["front_left"]
+    first_error = RuntimeError("first stop failed")
+    m.corners["front_left"] = RaisingCorner(first_corner, first_error)
+
+    m.estop("manual", "first")
+    assert m.state()["last_estop_error"] is first_error
+
+    m.corners["front_left"] = first_corner
+    m.estop("manual", "repeat succeeded")
+    assert m.state()["last_estop_error"] is first_error
+
+    second_error = RuntimeError("later stop failed")
+    m.corners["front_right"] = RaisingCorner(
+        m.corners["front_right"], second_error,
+    )
+    m.estop("manual", "repeat failed differently")
+    assert m.state()["last_estop_error"] is first_error
+
+
+def test_successful_reset_clears_estop_diagnostic_for_new_episode():
+    m = _armed_manager()
+    first_corner = m.corners["front_left"]
+    first_error = RuntimeError("first episode")
+    m.corners["front_left"] = RaisingCorner(first_corner, first_error)
+    m.estop("manual", "first")
+    assert m.state()["last_estop_error"] is first_error
+
+    m.corners["front_left"] = first_corner
+    first_corner.estop()
+    assert m.reset_estop() is True
+    assert m.state()["last_estop_error"] is None
+    assert m.arm() is True
+
+    second_error = RuntimeError("second episode")
+    m.corners["front_right"] = RaisingCorner(
+        m.corners["front_right"], second_error,
+    )
+    m.estop("manual", "second")
+    assert m.state()["last_estop_error"] is second_error
 
 
 def test_snapshot_has_six_wheels_in_geometry_order():

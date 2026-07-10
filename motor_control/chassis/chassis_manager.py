@@ -133,8 +133,15 @@ class ChassisManager:
     def arm(self) -> bool:
         if self.mode != "IDLE" or self._interlock.snapshot().estop_latched:
             return False
-        for c in self.corners.values():
-            c.arm()
+        for name, c in self.corners.items():
+            try:
+                c.arm()
+            except BaseException as exc:
+                detail = f"{name}: {type(exc).__name__}: {exc}"
+                self.estop("arm_failure", detail)
+                if isinstance(exc, Exception):
+                    return False
+                raise
         self._v = self._omega = 0.0
         self._last_set_ms = self._now_ms()
         self.mode = "ARMED"
@@ -164,16 +171,52 @@ class ChassisManager:
             except BaseException as exc:
                 if first_error is None:
                     first_error = exc
-        self._last_estop_error = first_error
+        if self._last_estop_error is None and first_error is not None:
+            self._last_estop_error = first_error
         self.mode = "ESTOP"
 
     def reset_estop(self) -> bool:
-        if not self._interlock.snapshot().estop_latched:
+        safety = self._interlock.snapshot()
+        if not safety.estop_latched:
             return False
+        if safety.active_estop_sources:
+            return False
+
+        reset_failed = False
+        failure_detail = ""
+        direct_error = None
+        for name, c in self.corners.items():
+            was_idle = c.mode == "IDLE"
+            try:
+                result = c.reset_fault()
+            except BaseException as exc:
+                reset_failed = True
+                if not failure_detail:
+                    failure_detail = f"{name}: {type(exc).__name__}: {exc}"
+                if not isinstance(exc, Exception) and direct_error is None:
+                    direct_error = exc
+                continue
+            if c.mode != "IDLE" or (
+                result is not True and not (result is False and was_idle)
+            ):
+                reset_failed = True
+                if not failure_detail:
+                    failure_detail = (
+                        f"{name}: reset_fault returned {result!r}, "
+                        f"mode={c.mode}"
+                    )
+
+        if reset_failed:
+            self.estop("reset_failure", failure_detail)
+            if direct_error is not None:
+                raise direct_error
+            return False
+
         if not self._interlock.reset_estop():
+            self.estop("reset_failure", "active E-stop condition")
             return False
-        for c in self.corners.values():
-            c.reset_fault()
+
+        self._last_estop_error = None
         self.mode = "IDLE"
         return True
 
