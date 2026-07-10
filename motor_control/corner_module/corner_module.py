@@ -64,10 +64,19 @@ class CornerModule:
         self.mode = "IDLE"
 
     def estop(self) -> None:
-        self.steer.estop()
-        self.drive.estop()
-        self._drive_target = 0.0
-        self.mode = "FAULT"
+        first_error = None
+        try:
+            for actuator in (self.steer, self.drive):
+                try:
+                    actuator.estop()
+                except BaseException as exc:
+                    if first_error is None:
+                        first_error = exc
+        finally:
+            self._drive_target = 0.0
+            self.mode = "FAULT"
+        if first_error is not None:
+            raise first_error
 
     def reset_fault(self) -> bool:
         if self.mode != "FAULT":

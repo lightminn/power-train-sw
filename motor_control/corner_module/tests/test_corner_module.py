@@ -1,4 +1,5 @@
 import struct
+from unittest.mock import Mock
 
 import can
 import pytest
@@ -149,6 +150,27 @@ def test_estop_stops_both_and_faults():
     assert cm.state()["drive"]["target_vel"] == 0.0
 
 
+def test_estop_attempts_both_actuators_and_faults_before_reraising():
+    steer = FakeSteer()
+    drive = FakeDrive()
+    cm = _make_cm(steer=steer, drive=drive)
+    cm.connect()
+    cm.arm()
+    cm.set(30.0, 3.0)
+    stop_error = RuntimeError("steer estop failed")
+    steer.estop = Mock(side_effect=stop_error)
+    drive.estop = Mock(wraps=drive.estop)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        cm.estop()
+
+    assert exc_info.value is stop_error
+    steer.estop.assert_called_once_with()
+    drive.estop.assert_called_once_with()
+    assert cm._drive_target == 0.0
+    assert cm.mode == "FAULT"
+
+
 def test_steer_fault_triggers_estop():
     s = FakeSteer()
     cm = _make_cm(steer=s)
@@ -172,33 +194,63 @@ def test_steer_stale_triggers_estop():
 
 
 def test_drive_stale_triggers_component_fault():
+    steer = FakeSteer()
     d = FakeDrive()
-    cm = _make_cm(drive=d)
+    cm = _make_cm(steer=steer, drive=d)
     cm.connect()
     cm.arm()
+    cm.set(10.0, 2.0)
+    steer.set_angle = Mock(wraps=steer.set_angle)
+    d.set_velocity = Mock(wraps=d.set_velocity)
     d.stale_flag = True
     cm.tick()
     assert cm.mode == "FAULT"
+    steer.set_angle.assert_not_called()
+    d.set_velocity.assert_not_called()
 
 
 def test_drive_axis_error_triggers_component_fault():
+    steer = FakeSteer()
     d = FakeDrive()
-    cm = _make_cm(drive=d)
+    cm = _make_cm(steer=steer, drive=d)
     cm.connect()
     cm.arm()
+    cm.set(10.0, 2.0)
+    steer.set_angle = Mock(wraps=steer.set_angle)
+    d.set_velocity = Mock(wraps=d.set_velocity)
     d.axis_error = 0x10
     cm.tick()
     assert cm.mode == "FAULT"
+    steer.set_angle.assert_not_called()
+    d.set_velocity.assert_not_called()
 
 
 def test_reset_fault_only_moves_component_to_idle():
-    cm = _make_cm()
+    steer = FakeSteer()
+    drive = FakeDrive()
+    cm = _make_cm(steer=steer, drive=drive)
     cm.connect()
     cm.arm()
     cm.estop()
+    steer.arm = Mock(wraps=steer.arm)
+    drive.arm = Mock(wraps=drive.arm)
     assert cm.reset_fault() is True
     assert cm.mode == "IDLE"
     assert cm.state()["drive"]["target_vel"] == 0.0
+    steer.arm.assert_not_called()
+    drive.arm.assert_not_called()
+
+
+def test_reset_fault_returns_false_outside_fault():
+    cm = _make_cm()
+    assert cm.reset_fault() is False
+    assert cm.mode == "DISCONNECTED"
+    cm.connect()
+    assert cm.reset_fault() is False
+    assert cm.mode == "IDLE"
+    cm.arm()
+    assert cm.reset_fault() is False
+    assert cm.mode == "ARMED"
 
 
 def test_corner_state_schema():
