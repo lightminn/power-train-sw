@@ -29,6 +29,56 @@ def map_input(left_x: float, rt: float, lt: float, cfg: CornerConfig,
     return steer_deg, drive_vel
 
 
+def handle_corner_square(corner):
+    """Apply one square-button edge without combining fault reset and arm."""
+    if corner.mode == "FAULT":
+        return bool(corner.reset_fault())
+    if corner.mode == "ARMED":
+        corner.disarm()
+        return True
+    if corner.mode == "IDLE":
+        corner.arm()
+        return corner.mode == "ARMED"
+    return False
+
+
+def cleanup_corner_resources(corner, background, sensor, pygame_module):
+    errors = []
+    if corner is not None:
+        try:
+            corner.estop()
+        except BaseException as exc:
+            errors.append(exc)
+    background_stopped = True
+    if background is not None:
+        try:
+            background_stopped = background.close() is not False
+            if not background_stopped:
+                errors.append(
+                    RuntimeError("US-100 background worker still running")
+                )
+        except BaseException as exc:
+            errors.append(exc)
+            background_stopped = False
+    if sensor is not None and background_stopped:
+        try:
+            sensor.close()
+        except BaseException as exc:
+            errors.append(exc)
+    if corner is not None:
+        for actuator in (corner.steer, corner.drive):
+            try:
+                actuator.close()
+            except BaseException as exc:
+                errors.append(exc)
+        corner.mode = "DISCONNECTED"
+    try:
+        pygame_module.quit()
+    except BaseException as exc:
+        errors.append(exc)
+    return errors
+
+
 def main(argv=None):
     import argparse
     import os
@@ -54,91 +104,105 @@ def main(argv=None):
     CanWatchdog("can0").start()          # mttcan TX 웻지 자가복구 (데몬 스레드)
 
     cfg = CornerConfig()
-    cm = CornerModule(SteerAk40(motor_id=args.ak_id), DriveOdriveUsb(), cfg)
-
-    # US-100 충돌방지 (옵션). --no-us100 이면 센서·게이팅 전부 건너뜀.
-    monitor = None
+    cm = None
+    background = None
     sensor = None
-    if use_us100:
-        from safety_us100.us100 import Us100Sensor
-        from safety_us100.safety_monitor import SafetyMonitor
-        from safety_us100.config import SafetyConfig
-        safety_cfg = SafetyConfig()
-        sensor = Us100Sensor(port=safety_cfg.port, baud=safety_cfg.baud)
-        sensor.open()
-        monitor = SafetyMonitor(sensor, safety_cfg)
+    try:
+        cm = CornerModule(
+            SteerAk40(motor_id=args.ak_id),
+            DriveOdriveUsb(),
+            cfg,
+        )
+        if use_us100:
+            from safety_us100.background_monitor import BackgroundSafetyMonitor
+            from safety_us100.us100 import Us100Sensor
+            from safety_us100.safety_monitor import SafetyMonitor
+            from safety_us100.config import SafetyConfig
+            safety_cfg = SafetyConfig()
+            sensor = Us100Sensor(port=safety_cfg.port, baud=safety_cfg.baud)
+            sensor.open()
+            background = BackgroundSafetyMonitor(
+                SafetyMonitor(sensor, safety_cfg),
+            )
+            background.start()
 
-    pygame.init()
-    pygame.joystick.init()
-    if pygame.joystick.get_count() == 0:
-        print("게임패드 미연결")
-        sys.exit(1)
-    js = pygame.joystick.Joystick(0)
-    js.init()
-
-    cm.connect()
-    armed = False
+        pygame.init()
+        pygame.joystick.init()
+        if pygame.joystick.get_count() == 0:
+            print("게임패드 미연결")
+            raise SystemExit(1)
+        js = pygame.joystick.Joystick(0)
+        js.init()
+        cm.connect()
+    except BaseException:
+        cleanup_corner_resources(cm, background, sensor, pygame)
+        raise
     prev_sq = prev_ci = False
     period = 1.0 / cfg.loop_hz
     last_print = 0.0
+    verdict = None
 
-    print("□: arm/disarm 토글, ○: estop, Ctrl-C: 종료")
+    print("□: fault reset/arm/disarm, ○: estop, Ctrl-C: 종료")
     if use_us100:
-        print("US-100 충돌방지 ON (stop 200mm / warn 400mm)")
+        print("US-100 충돌방지 ON (E-stop 200mm 미만)")
     else:
         print("⚠️ US-100 충돌방지 OFF — 구동 게이팅 없음 (장애물 자동정지 안 함)")
 
     try:
         while True:
-            pygame.event.pump()
-            left_x = js.get_axis(0)
-            rt = (js.get_axis(5) + 1.0) / 2.0
-            lt = (js.get_axis(2) + 1.0) / 2.0
-            sq = js.get_button(3)
-            ci = js.get_button(1)
+            try:
+                pygame.event.pump()
+                left_x = js.get_axis(0)
+                rt = (js.get_axis(5) + 1.0) / 2.0
+                lt = (js.get_axis(2) + 1.0) / 2.0
+                sq = js.get_button(3)
+                ci = js.get_button(1)
 
-            if sq and not prev_sq:
-                if armed:
-                    cm.disarm(); armed = False
-                else:
-                    cm.arm(); armed = True
-            if ci and not prev_ci:
-                cm.estop(); armed = False
-            prev_sq, prev_ci = sq, ci
+                if background is not None:
+                    verdict = background.verdict()
+                    if verdict.estop_required and cm.mode != "FAULT":
+                        cm.estop()
 
-            # 거리 판정 (US-100 사용 시만)
-            verdict = None
-            if monitor is not None:
-                monitor.tick()
-                verdict = monitor.verdict()
+                if sq and not prev_sq:
+                    hazard_active = (
+                        verdict is not None and verdict.estop_required
+                    )
+                    if hazard_active:
+                        print("활성 hazard 중 fault reset 거부")
+                    elif not handle_corner_square(cm):
+                        print("□ 요청 거부 (mode=%s)" % cm.mode)
+                if ci and not prev_ci:
+                    cm.estop()
+                prev_sq, prev_ci = sq, ci
 
-            if armed and cm.mode == "ARMED":
-                if verdict is not None and verdict.level == "stop":
-                    cm.set(0.0, 0.0)   # 장애물 가까움 → 구동 0
-                else:
+                if cm.mode == "ARMED":
                     steer, drive = map_input(left_x, rt, lt, cfg)
+                    if verdict is not None and verdict.status == "CHECKING":
+                        drive = 0.0
                     cm.set(steer, drive)
 
-            cm.tick()
+                cm.tick()
 
-            now = time.monotonic()
-            if now - last_print > 1.0:
-                if verdict is not None:
-                    dist_str = "(없음)" if verdict.distance_mm is None else f"{int(verdict.distance_mm)}mm"
-                    print(f"{cm.state()} | 거리: {dist_str} 판정: {verdict.level}")
-                else:
-                    print(f"{cm.state()} | US-100 OFF")
-                last_print = now
+                now = time.monotonic()
+                if now - last_print > 1.0:
+                    if verdict is not None:
+                        dist_str = "(없음)" if verdict.distance_mm is None else f"{int(verdict.distance_mm)}mm"
+                        print(f"{cm.state()} | 거리: {dist_str} status: {verdict.status} estop: {verdict.estop_required}")
+                    else:
+                        print(f"{cm.state()} | US-100 OFF")
+                    last_print = now
+            except Exception as exc:
+                try:
+                    cm.estop()
+                finally:
+                    print("제어 예외→FAULT: %s" % exc)
 
             time.sleep(period)
 
     except KeyboardInterrupt:
         pass
     finally:
-        cm.disarm()
-        cm.close()
-        if sensor is not None:
-            sensor.close()
+        cleanup_corner_resources(cm, background, sensor, pygame)
         print("종료")
 
 

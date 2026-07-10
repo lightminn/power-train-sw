@@ -7,9 +7,9 @@
 
 프로토콜 (클라→서버, newline-delimited): `"left_x rt lt sq ci\n"`
   left_x ∈[-1,1] 좌스틱X · rt/lt ∈[0,1] 트리거 · sq/ci ∈{0,1} □/○ 현재 버튼상태.
-  서버가 □ rising→arm 토글, ○ rising→estop. 클라 끊기면 구동 0(+차체 워치독).
+  서버가 □ rising→reset/arm/disarm, ○ rising→estop. 클라 끊기면 구동 0(+차체 워치독).
 상태 회신 (서버→클라, ~4Hz): `"S <mode> <v> <ω>\n"` (예 `"S ARMED +1.50 -0.00"`) —
-  클라가 상태줄에 표시해 FAULT/disarm 을 조종자가 즉시 알게 함. 옛 클라(수신 안 함)는
+  클라가 상태줄에 표시해 ESTOP/disarm 을 조종자가 즉시 알게 함. 옛 클라(수신 안 함)는
   소켓버퍼가 차면 회신만 중단하고 조종은 계속(하위호환).
 
 구조: 수신 스레드(소켓)가 최신입력만 공유상태에 갱신 → 제어 스레드(50Hz)가 그걸 읽어
@@ -24,7 +24,11 @@ import socket
 import threading
 import time
 
-from chassis.teleop_dualsense import map_chassis_input
+from chassis.teleop_dualsense import (
+    cleanup_chassis_resources,
+    handle_chassis_square,
+    map_chassis_input,
+)
 
 
 def make_status_line(mode, v, omega):
@@ -68,22 +72,36 @@ def main(argv=None):
 
     CanWatchdog(args.channel).start()    # mttcan TX 웻지 자가복구 (데몬 스레드)
 
-    monitor = None
+    background = None
     sensor = None
-    if use_us100:
-        from safety_us100.us100 import Us100Sensor
-        from safety_us100.safety_monitor import SafetyMonitor
-        from safety_us100.config import SafetyConfig
-        safety_cfg = SafetyConfig()
-        sensor = Us100Sensor(port=safety_cfg.port, baud=safety_cfg.baud)
-        sensor.open()
-        monitor = SafetyMonitor(sensor, safety_cfg)
+    cm = None
+    try:
+        if use_us100:
+            from safety_us100.background_monitor import BackgroundSafetyMonitor
+            from safety_us100.us100 import Us100Sensor
+            from safety_us100.safety_monitor import SafetyMonitor
+            from safety_us100.config import SafetyConfig
+            safety_cfg = SafetyConfig()
+            sensor = Us100Sensor(port=safety_cfg.port, baud=safety_cfg.baud)
+            sensor.open()
+            background = BackgroundSafetyMonitor(
+                SafetyMonitor(sensor, safety_cfg),
+            )
+            background.start()
 
-    corners = build_real_corners(args.channel)
-    cfg = ChassisConfig(min_drive_turns_per_s=args.min_rev)
-    cfg.geometry.drive_limit_mps = max(args.v_max, cfg.geometry.drive_limit_mps)
-    cm = ChassisManager(corners, cfg, monitor=monitor)
-    cm.connect()
+        corners = build_real_corners(args.channel)
+        cfg = ChassisConfig(min_drive_turns_per_s=args.min_rev)
+        cfg.geometry.drive_limit_mps = max(
+            args.v_max,
+            cfg.geometry.drive_limit_mps,
+        )
+        cm = ChassisManager(corners, cfg)
+        cm.connect()
+    except BaseException as exc:
+        if cm is not None and not isinstance(exc, KeyboardInterrupt):
+            cm.estop("control_exception", str(exc))
+        cleanup_chassis_resources(cm, background, sensor)
+        raise
 
     shared = {"lx": 0.0, "rt": 0.0, "lt": 0.0, "sq": 0, "ci": 0, "rx_ms": None,
               "st_mode": "IDLE", "st_v": 0.0, "st_w": 0.0}   # ← 클라 상태회신용 스냅샷
@@ -92,55 +110,78 @@ def main(argv=None):
 
     def control_loop():
         prev_sq = prev_ci = 0
-        armed = False
         period = 1.0 / cfg.loop_hz
         last_print = 0.0
         errs = 0
+        verdict = None
         while running[0]:
             t0 = time.monotonic()
             with lock:
                 lx, rt, lt, sq, ci = shared["lx"], shared["rt"], shared["lt"], shared["sq"], shared["ci"]
             v_cmd = w_cmd = 0.0
             try:                                       # 버스 에러 등으로 스레드가 죽지 않게 감쌈
-                if sq and not prev_sq:                # □ rising = arm/disarm 토글
-                    if armed:
-                        cm.disarm(); armed = False
-                    else:
-                        cm.arm(); armed = True
+                if background is not None:
+                    verdict = background.verdict()
+                    cm.update_external_safety(
+                        verdict.status,
+                        verdict.estop_required,
+                        verdict.detail,
+                    )
+                if sq and not prev_sq:                # □ rising = reset/arm/disarm
+                    if not handle_chassis_square(cm):
+                        print("[server] □ 요청 거부 (mode=%s)" % cm.mode,
+                              flush=True)
                 if ci and not prev_ci:                # ○ rising = estop
-                    cm.estop(); armed = False
+                    cm.estop("manual", "dualsense")
                 prev_sq, prev_ci = sq, ci
-                if armed and cm.mode == "ARMED":
+                if cm.mode == "ARMED":
                     v_cmd, w_cmd = map_chassis_input(lx, rt, lt, args.v_max, args.omega_max)
                     cm.set(v_cmd, w_cmd)
                 cm.tick()
-                if cm.mode == "FAULT":
-                    armed = False
+                # 상태 스냅샷 (수신 스레드가 클라로 회신 — cm 은 이 스레드만 만짐)
+                with lock:
+                    shared["st_mode"], shared["st_v"], shared["st_w"] = cm.mode, v_cmd, w_cmd
+                now = time.monotonic()
+                if now - last_print > 1.0:
+                    st = cm.state()
+                    status = verdict.status if verdict is not None else "DISABLED"
+                    print("[server] mode=%s v=%+.2f ω=%+.2f safety=%s status=%s"
+                          % (st["mode"], st["v"], st["omega"],
+                             st["safety"].state, status), flush=True)
+                    last_print = now
             except Exception as e:                     # 제어루프 유지 — 주기적으로만 경고
+                cm.estop("control_exception", str(e))
                 errs += 1
                 if errs % 50 == 1:
-                    print("[server] 제어 예외(%d회): %s" % (errs, e), flush=True)
-                time.sleep(0.05)
-            # 상태 스냅샷 (수신 스레드가 클라로 회신 — cm 은 이 스레드만 만짐)
-            with lock:
-                shared["st_mode"], shared["st_v"], shared["st_w"] = cm.mode, v_cmd, w_cmd
-            now = time.monotonic()
-            if now - last_print > 1.0:
-                st = cm.state()
-                print("[server] mode=%s v=%+.2f ω=%+.2f verdict=%s"
-                      % (st["mode"], st["v"], st["omega"], st["verdict"]), flush=True)
-                last_print = now
+                    print("[server] 제어 예외→ESTOP(%d회): %s" % (errs, e), flush=True)
+                with lock:
+                    shared["st_mode"], shared["st_v"], shared["st_w"] = cm.mode, 0.0, 0.0
             dt = time.monotonic() - t0
             if period - dt > 0:
                 time.sleep(period - dt)
 
-    ctrl = threading.Thread(target=control_loop, daemon=True)
-    ctrl.start()
-
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(("0.0.0.0", args.port))
-    server.listen(1)
+    ctrl = None
+    server = None
+    try:
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(("0.0.0.0", args.port))
+        server.listen(1)
+        ctrl = threading.Thread(target=control_loop, daemon=True)
+        ctrl.start()
+    except BaseException as exc:
+        running[0] = False
+        if ctrl is not None:
+            ctrl.join(timeout=1.0)
+        if server is not None:
+            try:
+                server.close()
+            except BaseException:
+                pass
+        if not isinstance(exc, KeyboardInterrupt):
+            cm.estop("control_exception", str(exc))
+        cleanup_chassis_resources(cm, background, sensor)
+        raise
     print("=== 차체 4WS 무선 텔레옵 서버 — 포트 %d 대기 (%s) ===" % (args.port,
           "US-100 ON" if use_us100 else "US-100 OFF"), flush=True)
     print("노트북: python3 laptop/laptop_client_chassis.py --host <이 젯슨 IP>", flush=True)
@@ -189,12 +230,16 @@ def main(argv=None):
         print("\n[server] 종료(Ctrl-C)", flush=True)
     finally:
         running[0] = False
-        time.sleep(0.2)
-        cm.disarm()
-        cm.close()
-        if sensor is not None:
-            sensor.close()
-        server.close()
+        if ctrl is not None:
+            ctrl.join(timeout=1.0)
+        try:
+            server.close()
+        except BaseException:
+            pass
+        errors = cleanup_chassis_resources(cm, background, sensor)
+        if errors:
+            print("[server] 정리 예외 %d건: %s" % (len(errors), errors[0]),
+                  flush=True)
         print("[server] IDLE — 종료", flush=True)
 
 
