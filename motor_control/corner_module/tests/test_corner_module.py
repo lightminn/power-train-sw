@@ -208,12 +208,14 @@ class _FakeCanBus:
     def __init__(self, rx=None):
         self.sent = []
         self._rx = list(rx or [])
+        self.recv_timeouts = []
         self.shutdown_called = False
 
     def send(self, msg):
         self.sent.append(msg)
 
     def recv(self, timeout=0.0):
+        self.recv_timeouts.append(timeout)
         return self._rx.pop(0) if self._rx else None
 
     def shutdown(self):
@@ -282,6 +284,27 @@ def test_can_drive_tick_sends_target_and_rtr_polls():
     assert struct.unpack("<ff", bytes(vel[-1].data))[0] == pytest.approx(2.5)
     assert any(m.is_remote_frame and m.arbitration_id == (11 << 5) | 0x09 for m in bus.sent)
     assert any(m.is_remote_frame and m.arbitration_id == (11 << 5) | 0x14 for m in bus.sent)
+
+
+def test_can_drive_periodic_tick_only_uses_nonblocking_recv():
+    node = 11
+    bus = _FakeCanBus(rx=[_enc(node, 0.0, 1.25), _iq(node, 0.2, 0.3)])
+    d = DriveOdriveCan(node_id=node, bus=bus)
+    d.connect()
+    d.tick()
+    assert bus.recv_timeouts
+    assert set(bus.recv_timeouts) == {0.0}
+    assert d.state()["actual_vel"] == pytest.approx(1.25)
+
+
+def test_can_drive_periodic_drain_is_bounded_to_16_frames():
+    node = 11
+    bus = _FakeCanBus(rx=[_enc(node, float(i), float(i)) for i in range(20)])
+    d = DriveOdriveCan(node_id=node, bus=bus)
+    d.connect()
+    d.tick()
+    assert len(bus.recv_timeouts) == 16
+    assert len(bus._rx) == 4
 
 
 def test_can_drive_state_parses_heartbeat_encoder_iq():
@@ -383,12 +406,25 @@ class _StubAk:
 
     def __init__(self, poll_result):
         self._poll_result = poll_result
+        self.poll_timeouts = []
         self.pos_out_deg = 5.0
         self.cur_a = 0.1
         self.fault = 0
 
     def poll(self, timeout=0.0):
+        self.poll_timeouts.append(timeout)
         return self._poll_result
+
+    def send_pos_out(self, deg):
+        self.pos_out_deg = deg
+
+
+def test_steer_periodic_tick_uses_nonblocking_poll():
+    from corner_module.steer_ak40 import SteerAk40
+    s = SteerAk40(motor_id=1)
+    s._ak = _StubAk(poll_result=True)
+    s.tick()
+    assert s._ak.poll_timeouts == [0.0]
 
 
 def test_steer_ak40_state_self_heals_from_buffered_status():

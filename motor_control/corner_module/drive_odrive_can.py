@@ -91,6 +91,34 @@ class DriveOdriveCan(DriveActuator):
         # 검증된 프레임과 동일하게 8바이트로 패딩(can_drive_test.py)
         self._send(_SET_AXIS_STATE, struct.pack("<I", state) + bytes(4))
 
+    def _handle_rx(self, m) -> bool:
+        if m.is_extended_id or m.is_remote_frame:
+            return False
+        if (m.arbitration_id >> 5) != self._node_id:
+            return False
+        cmd = m.arbitration_id & 0x1F
+        if cmd == _HEARTBEAT and len(m.data) >= 5:
+            self._axis_error = struct.unpack("<I", m.data[0:4])[0]
+            self._axis_state = m.data[4]
+        elif cmd == _GET_ENCODER_ESTIMATES and len(m.data) >= 8:
+            self._actual_vel = struct.unpack("<ff", m.data[0:8])[1]
+        elif cmd == _GET_IQ and len(m.data) >= 8:
+            self._cur_a = struct.unpack("<ff", m.data[0:8])[1]
+        else:
+            return False
+        self._last_rx_ms = time.monotonic() * 1000.0
+        return True
+
+    def _drain_available(self, max_frames: int = 16) -> int:
+        handled = 0
+        for _ in range(max_frames):
+            msg = self._bus.recv(timeout=0.0)
+            if msg is None:
+                break
+            if self._handle_rx(msg):
+                handled += 1
+        return handled
+
     def _poll(self, timeout: float) -> None:
         """timeout 초 동안 자기 노드 프레임을 드레인해 텔레메트리 캐시 갱신."""
         deadline = time.monotonic() + timeout
@@ -101,21 +129,7 @@ class DriveOdriveCan(DriveActuator):
             m = self._bus.recv(timeout=remaining)
             if m is None:
                 break
-            if m.is_extended_id or m.is_remote_frame:
-                continue
-            if (m.arbitration_id >> 5) != self._node_id:
-                continue
-            cmd = m.arbitration_id & 0x1F
-            if cmd == _HEARTBEAT and len(m.data) >= 5:
-                self._axis_error = struct.unpack("<I", m.data[0:4])[0]
-                self._axis_state = m.data[4]
-            elif cmd == _GET_ENCODER_ESTIMATES and len(m.data) >= 8:
-                self._actual_vel = struct.unpack("<ff", m.data[0:8])[1]
-            elif cmd == _GET_IQ and len(m.data) >= 8:
-                self._cur_a = struct.unpack("<ff", m.data[0:8])[1]
-            else:
-                continue
-            self._last_rx_ms = time.monotonic() * 1000.0
+            self._handle_rx(m)
 
     # ------------------------------------------------------------------
     # Actuator 인터페이스
@@ -152,10 +166,10 @@ class DriveOdriveCan(DriveActuator):
 
     def tick(self) -> None:
         """제어 루프마다: 목표 속도 전송 + RTR 로 속도/전류 폴링."""
+        self._drain_available()
         self._send(_SET_INPUT_VEL, struct.pack("<ff", self._target_vel, 0.0))
         self._send(_GET_ENCODER_ESTIMATES, rtr=True)
         self._send(_GET_IQ, rtr=True)
-        self._poll(0.004)
 
     def state(self) -> dict:
         """정규화 텔레메트리. CornerModule 계약 키 + CAN 건강(stale/axis_error)."""

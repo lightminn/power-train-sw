@@ -56,7 +56,7 @@ class SteerAk40(SteerActuator):
 
     def tick(self) -> None:
         self._ak.send_pos_out(self._target_deg)
-        got = self._ak.poll(timeout=0.005)
+        got = self._ak.poll(timeout=0.0)
         if got:
             self._last_rx_ms = time.monotonic() * 1000.0
 
