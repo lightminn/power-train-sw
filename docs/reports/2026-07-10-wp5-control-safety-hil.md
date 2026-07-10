@@ -256,7 +256,7 @@ test -d /proc/net/can
 CAN_FILES=$(find /proc/net/can -maxdepth 1 -type f -name 'rcvlist_*' -print)
 test -n "$CAN_FILES"
 CAN_RECEIVERS=$(awk '
-  $1 == "can0" && $2 ~ /^[[:xdigit:]]+$/ && (length($2) == 3 || length($2) == 8) {
+  ($1 == "can0" || $1 == "any") && $2 ~ /^[[:xdigit:]]+$/ && (length($2) == 3 || length($2) == 8) {
     print FILENAME ":" $0
   }
 ' $CAN_FILES)
@@ -363,7 +363,7 @@ fi
 CAN_FILES=$(find /proc/net/can -maxdepth 1 -type f -name 'rcvlist_*' -print)
 test -n "$CAN_FILES"
 POST_CAN_RECEIVERS=$(awk '
-  $1 == "can0" && $2 ~ /^[[:xdigit:]]+$/ && (length($2) == 3 || length($2) == 8) {
+  ($1 == "can0" || $1 == "any") && $2 ~ /^[[:xdigit:]]+$/ && (length($2) == 3 || length($2) == 8) {
     print FILENAME ":" $0
   }
 ' $CAN_FILES)
