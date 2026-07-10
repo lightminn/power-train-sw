@@ -78,9 +78,13 @@ def test_fill_wheel_states_uses_actual_snapshot_values():
 class _RecordingLogger:
     def __init__(self):
         self.errors = []
+        self.infos = []
 
     def error(self, message):
         self.errors.append(message)
+
+    def info(self, message):
+        self.infos.append(message)
 
 
 class _ClosingCorner:
@@ -133,6 +137,7 @@ def _tick_node(manager, publisher=None):
         cm=manager,
         _safety_required=False,
         _overrun_count=0,
+        _wheel_telemetry_failed=False,
         _now_ms=lambda: 0.0,
         get_clock=_clock_double,
         get_logger=lambda: logger,
@@ -141,11 +146,23 @@ def _tick_node(manager, publisher=None):
 
 
 def test_tick_contains_control_and_snapshot_failures_across_calls():
+    valid_snapshot = SimpleNamespace(
+        chassis_mode="ESTOP",
+        stop_state="ESTOP",
+        healthy=True,
+        wheels=(),
+    )
     manager = SimpleNamespace(
         cfg=SimpleNamespace(loop_hz=50.0),
         tick_count=0,
         snapshot_count=0,
         estop_calls=[],
+        snapshot_results=[
+            RuntimeError("snapshot failed"),
+            RuntimeError("snapshot failed"),
+            valid_snapshot,
+            RuntimeError("snapshot failed again"),
+        ],
     )
 
     def tick():
@@ -155,7 +172,10 @@ def test_tick_contains_control_and_snapshot_failures_across_calls():
 
     def snapshot():
         manager.snapshot_count += 1
-        raise RuntimeError("snapshot failed")
+        result = manager.snapshot_results.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
 
     manager.tick = tick
     manager.snapshot = snapshot
@@ -166,11 +186,17 @@ def test_tick_contains_control_and_snapshot_failures_across_calls():
 
     ChassisNode._tick(node)
     ChassisNode._tick(node)
+    ChassisNode._tick(node)
+    ChassisNode._tick(node)
 
-    assert manager.tick_count == 2
-    assert manager.snapshot_count == 2
+    assert manager.tick_count == 4
+    assert manager.snapshot_count == 4
     assert manager.estop_calls == [("control_exception", "tick failed")]
-    assert len(logger.errors) == 2
+    assert logger.errors == [
+        "wheel telemetry failed: snapshot failed",
+        "wheel telemetry failed: snapshot failed again",
+    ]
+    assert logger.infos == ["wheel telemetry recovered"]
 
 
 def test_tick_contains_wheel_message_conversion_failure():
@@ -252,6 +278,7 @@ class _VirtualClock:
 class _SlowNoResponseSerial:
     def __init__(self, clock):
         self.clock = clock
+        self.read_delay_s = None
 
     def reset_input_buffer(self):
         pass
@@ -263,21 +290,26 @@ class _SlowNoResponseSerial:
         pass
 
     def read(self, _expected):
-        self.clock.advance(0.1)
+        self.clock.advance(self.read_delay_s)
         return b""
 
 
 def test_safety_timeout_covers_measured_worst_read_and_margin():
     clock = _VirtualClock()
+    serial_port = _SlowNoResponseSerial(clock)
     sensor = Us100Sensor(
-        serial_port=_SlowNoResponseSerial(clock),
+        serial_port=serial_port,
         sleeper=clock.advance,
+    )
+    serial_port.read_delay_s = sensor._timeout
+    expected_no_response_s = 2 * (
+        sensor._response_wait + sensor._timeout
     )
 
     reading = sensor.read()
 
     assert reading.status == NO_RESPONSE
-    assert clock.elapsed_s == pytest.approx(0.4)
+    assert clock.elapsed_s == pytest.approx(expected_no_response_s)
     assert (
         chassis_node.US100_NO_RESPONSE_WORST_CASE_S
         == clock.elapsed_s

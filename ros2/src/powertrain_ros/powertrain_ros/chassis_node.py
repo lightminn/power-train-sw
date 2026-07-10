@@ -167,6 +167,7 @@ class ChassisNode(Node):
         self._started_ms = self._now_ms()
         self._last_safety_ms = None
         self._overrun_count = 0
+        self._wheel_telemetry_failed = False
         self._seed_initial_safety()
 
         period = 1.0 / self.cm.cfg.loop_hz
@@ -282,7 +283,17 @@ class ChassisNode(Node):
             )
             self.pub_wheels.publish(msg)
         except Exception as exc:
-            self.get_logger().error("wheel telemetry failed: %s" % exc)
+            was_failed = self._wheel_telemetry_failed
+            self._wheel_telemetry_failed = True
+            if not was_failed:
+                self.get_logger().error(
+                    "wheel telemetry failed: %s" % exc
+                )
+        else:
+            was_failed = self._wheel_telemetry_failed
+            self._wheel_telemetry_failed = False
+            if was_failed:
+                self.get_logger().info("wheel telemetry recovered")
 
     def _header(self):
         header = Header()
