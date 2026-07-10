@@ -171,6 +171,30 @@ def test_estop_attempts_both_actuators_and_faults_before_reraising():
     assert cm.mode == "FAULT"
 
 
+def test_estop_reraises_first_baseexception_after_both_stop_failures():
+    class DirectBaseFailure(BaseException):
+        pass
+
+    steer = FakeSteer()
+    drive = FakeDrive()
+    cm = _make_cm(steer=steer, drive=drive)
+    cm.connect()
+    cm.arm()
+    cm.set(30.0, 3.0)
+    first_error = DirectBaseFailure("steer stop failed")
+    steer.estop = Mock(side_effect=first_error)
+    drive.estop = Mock(side_effect=RuntimeError("drive stop failed"))
+
+    with pytest.raises(DirectBaseFailure) as exc_info:
+        cm.estop()
+
+    assert exc_info.value is first_error
+    steer.estop.assert_called_once_with()
+    drive.estop.assert_called_once_with()
+    assert cm._drive_target == 0.0
+    assert cm.mode == "FAULT"
+
+
 def test_steer_fault_triggers_estop():
     s = FakeSteer()
     cm = _make_cm(steer=s)
@@ -202,11 +226,15 @@ def test_drive_stale_triggers_component_fault():
     cm.set(10.0, 2.0)
     steer.set_angle = Mock(wraps=steer.set_angle)
     d.set_velocity = Mock(wraps=d.set_velocity)
+    steer.tick = Mock(wraps=steer.tick)
+    d.tick = Mock(wraps=d.tick)
     d.stale_flag = True
     cm.tick()
     assert cm.mode == "FAULT"
     steer.set_angle.assert_not_called()
     d.set_velocity.assert_not_called()
+    steer.tick.assert_not_called()
+    d.tick.assert_not_called()
 
 
 def test_drive_axis_error_triggers_component_fault():
@@ -218,11 +246,15 @@ def test_drive_axis_error_triggers_component_fault():
     cm.set(10.0, 2.0)
     steer.set_angle = Mock(wraps=steer.set_angle)
     d.set_velocity = Mock(wraps=d.set_velocity)
+    steer.tick = Mock(wraps=steer.tick)
+    d.tick = Mock(wraps=d.tick)
     d.axis_error = 0x10
     cm.tick()
     assert cm.mode == "FAULT"
     steer.set_angle.assert_not_called()
     d.set_velocity.assert_not_called()
+    steer.tick.assert_not_called()
+    d.tick.assert_not_called()
 
 
 def test_reset_fault_only_moves_component_to_idle():
