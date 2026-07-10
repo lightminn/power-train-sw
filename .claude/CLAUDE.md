@@ -9,6 +9,35 @@ ZETIN Defense Robot — a 6-wheeled rocker-bogie suspension robot. Work in this 
 1. **Parameter optimization** (`parameter_calc/`) — multi-criteria optimization that selects the optimal rocker-bogie geometry across terrain types. Current authoritative track is **v4** (`python_gpu_triangle/`): 15-dimensional, 7 terrains (stairs, wood, rough, step, curved ramp, 15°/30° incline), 면-기준 물리 수정본. v3 (`python_gpu/`): 14-dim, 4 terrains.
 2. **Motor control** (`motor_control/`) — runtime control software for the physical robot: ODrive driver scripts, DualSense gamepad teleop, YOLO-based object tracking, and laptop↔robot networking.
 
+## WP5.1 Authority Override (2026-07-10)
+
+This block supersedes conflicting status and safety semantics below while preserving them as
+historical context.
+
+- Existing WP5 `/cmd_vel → ChassisManager → 10 motors` HIL is historical baseline evidence.
+  **WP5.1 Tasks 1–8 software are complete; final Jetson/10-motor/US-100 HIL is NOT RUN.**
+  Observed local evidence is motor_control 189 passed, motor_gui 91 passed, and a temporary
+  read-only ROS workspace building all 3 packages with 23 powertrain_ros tests passed. FAKE,
+  Jetson, and HIL remain pending; none of the local results is hardware evidence.
+- Policy and motor ownership live in the pure-Python `SafetyInterlock` and `ChassisManager`.
+  Thin internal ROS nodes isolate blocking US-100 UART at 5–10 Hz, transport `/safety_verdict`,
+  run the 50 Hz chassis loop, and publish `/wheel_states`. The hardware topology remains one
+  `can0` at 500 kbps, AK45-36 ×4 plus ODrive/BL70200 ×6.
+- US-100 uses `VALID`, `INVALID_READING`, `CHECKING`, and `NO_RESPONSE`. `INVALID_READING` is
+  normal operation: 0x50 confirms MCU/UART liveness only. `CHECKING`, the 0.5 s `/cmd_vel`
+  watchdog, and disconnect are auto-recovering `MOTION_HOLD`; the command watchdog is distinct
+  from safety-topic freshness. Valid near distance or three consecutive distance-and-liveness
+  misses are latched `ESTOP`.
+- Reset returns only to `IDLE`; arm is a separate action. Production safety-topic timeout is
+  0.75 s (`age > threshold`, next 50 Hz tick nominally 0.75–0.77 s), startup timeout is 1.0 s,
+  and `safety_required=false` is BENCH/FAKE only.
+- Any migrated `safe/warn/stop`, `Verdict.level`, startup/`None`→`stop`, or auto-clearing gate text
+  is **superseded historical memory**, not current authority. Use the 2026-07-10 WP5.1 design,
+  implementation plan, and `docs/reports/2026-07-10-wp5-control-safety-hil.md`.
+- After final HIL: command-authority spec → L515 lightweight color-image + depth-image + IMU
+  pipeline (PointCloud2 optional) → WP6. WP8 plus `MISSION_STOP`, unlock ordering, and the full
+  `ARRIVED_* → arm work → DONE → resume` handshake remain open.
+
 ## Current Source of Truth (2026-07-10)
 
 - Read `docs/reports/2026-07-10-project-and-jetson-state.md` and the latest status banner in

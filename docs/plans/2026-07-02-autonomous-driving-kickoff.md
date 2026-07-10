@@ -5,13 +5,26 @@
 > 방침: **로봇팔 팀이 확정한 인터페이스(메시지 5종)에 우리가 맞춘다.**
 > 이 문서는 "무엇을, 어떤 도구로, 어떤 파일에, 어떻게 테스트하는지"까지 내려간 실행 계획이다.
 >
+> **📌 WP5.1 최신 상태 (2026-07-10): Tasks 1~8 소프트웨어 완료, 최종 실기 HIL 미실행.** 아래
+> 2026-07-07 WP5 `/cmd_vel → 10모터` HIL은 기존 차체 경로의 유효한 이력이다. 이후 추가한
+> 순수 Python 안전 코어·비블로킹 50 Hz 제어·별도 US-100 ROS 노드·`/safety_verdict`·
+> `/wheel_states` 경로의 로컬 관찰 증거는 `motor_control` 189 passed, `motor_gui` 91 passed,
+> 임시 read-only ROS 워크스페이스의 3패키지 build와 `powertrain_ros` 23 tests passed까지다.
+> FAKE·Jetson·아홉 실기 HIL 시나리오는 아직 실행하지 않았다. 상태·증거는
+> `docs/reports/2026-07-10-wp5-control-safety-hil.md`에 기록한다.
+>
+> **WP5.1 HIL 뒤 작업 순서**: command authority spec → L515 경량 color image + depth image +
+> IMU 파이프라인(PointCloud2는 필요할 때만 선택) → WP6 오도메트리. WP8 미션 시퀀서와
+> `MISSION_STOP`·락 해제 순서·`ARRIVED_* → 팔 작업 → DONE → 재출발` 합동 1사이클은
+> 별도 미결 작업으로 유지한다.
+>
 > **📌 현재 상태 (2026-07-10 Jetson·GitHub 재확인)**: **WP1~WP5 완료**. WP1(CAN 구동
 > 드라이버)·WP2(키네마틱스)·WP3(ChassisManager)는 10모터 실기 HIL, WP4는 로봇팔 실물
 > ROS 그래프와 양방향 DDS 전달, WP5는 `/cmd_vel → ChassisManager → 10모터` 실기 HIL을 통과했다.
 > **다음 = WP6(오도메트리) 또는 WP8(미션 시퀀서)**. 남은 크로스팀 블로커는
 > `MISSION_STOP`·락 해제 순서 계약과 풀 핸드셰이크 1사이클이다. 센서는
 > **L515=파워트레인 RGB/depth/IMU, D435i=로봇팔 전용, US100=독립 안전**으로 확정했고,
-> 2026-07-10 Jetson USB에서 L515와 D435if 동시 연결을 확인했다.
+> 2026-07-10 Jetson USB에서 L515와 D435i 동시 연결을 확인했다.
 >
 > **아래 배너는 7/5~7/7의 검증 이력이다. 현재 우선순위는 위 상태를 따른다.**
 >
@@ -66,7 +79,8 @@
 - **인식(YOLO)은 로봇팔 팀 전담.** 우리는 결과(신호등·정지선·마커의 이름+3D 위치)를 구독만 한다.
 - 우리가 만드는 것: **① CAN 구동 드라이버 완성 → ② 4바퀴 조향 계산기 → ③ 차체 통합 제어 → ④ ROS2 연결 →
   ⑤ 주행거리 추정 → ⑥ 레인 추종 → ⑦ 미션 흐름 관리 → ⑧ 앞 로봇 추종** 순서.
-- **진행 상황: WP1~WP5 완료. 다음 1순위 = WP6(오도메트리) 또는 WP8(미션 시퀀서).**
+- **진행 상황: 기존 WP1~WP5 완료, WP5.1 Tasks 1~8 소프트웨어 완료·최종 HIL 대기.** HIL 뒤
+  command authority → L515 경량 파이프라인 → WP6 순서이며, WP8·크로스팀 핸드셰이크는 남아 있다.
 - 마감 역산: **7/19 설계 확정 → 7/31 국방 서류 → 9/13 국방 본선 → 10/2 극한 본선.**
 - 원격조종 점수 33~40% → 기존 텔레옵·스트리밍은 그대로 1급 유지 (자율 스택과 병행, 건드리지 않음).
 
@@ -243,13 +257,30 @@ ROS2 노드는 그걸 감싸기만 한다 (기존 corner_module 스타일 유지
   - 발행 `/chassis_mode`(현재 `mode` 파라미터 인텐트)·`/chassis_state`(진단),
     `/arrival_status` 훅 + arm/disarm/estop 서비스.
     `/odom`은 WP6 `odometry_node`가 발행한다.
-- **안전**: `/cmd_vel`이 0.5초 끊기면 자동 정지 (워치독 — 레인 추종 노드가 죽어도 폭주 없음).
+- **기존 WP5 안전 이력**: `/cmd_vel`이 0.5초 끊기면 자동 정지. 이 워치독은 현행
+  WP5.1 용어로 자동복구 `MOTION_HOLD`다.
 - **테스트**: `ros2 topic pub /cmd_vel` 수동 발행 → 실차 4WS 동작 / 발행 중단 → 0.5초 내 정지.
 - **완료 기준**: ROS2 토픽만으로 주행·정지·모드 발행이 된다.
-- **센서 통합 확장 (2026-07-07, WP5 완료분에 추가 예정 — 센서 배치 확정 배너)**: ① `/safety_verdict`(US100)
-  구독 → `stop`이면 **어떤 `/cmd_vel`이 와도 0으로 최종 게이팅**(defense in depth — 명령 주는 lane/mission
-  노드가 죽어도 모터 직전 관문에서 차단). ② 오도메트리(WP6)용 **`/wheel_states`**(바퀴별 속도+조향각) 발행 —
-  `chassis_node`가 CAN 단일소유자라 여기서 냄(WP6이 CAN 별도 폴링 안 하도록).
+
+#### WP5.1 제어·안전 보강 — 소프트웨어 완료, 최종 HIL 대기
+
+- **구조**: `motor_control/`의 순수 Python `SafetyInterlock`·`ChassisManager`가 정책과
+  최종 E-stop, 단일 `can0` 500 kbps의 AK ×4 + ODrive ×6을 소유한다. 얇은 내부 ROS 노드는
+  블로킹 US-100 UART를 별도 5~10 Hz 프로세스로 격리하고, `/safety_verdict` 최신값을 50 Hz
+  `chassis_node`로 전달한다. `chassis_node`는 `/wheel_states`를 50 Hz로 발행한다.
+- **상태**: `CHECKING`은 자동복구 `MOTION_HOLD`; `VALID`는 유효 거리가 `stop_mm` 미만일 때
+  latched `ESTOP`; `INVALID_READING`은 거리 무효지만 0x50 MCU/UART 생존 응답이 있어 정상
+  `RUN`; 거리와 0x50이 모두 연속 3회 실패한 `NO_RESPONSE`는 latched `ESTOP`이다. 0x50은
+  초음파 송수신부 정상까지 증명하지 않는다.
+- **복구**: `/cmd_vel` 0.5초 watchdog과 연결 단절도 자동복구 `MOTION_HOLD`다. 이 명령
+  watchdog은 아래 0.75초 safety-topic freshness와 별개다. `ESTOP`은 위험 해소 후 reset해도
+  `IDLE`까지만 가며, 별도 arm 전에는 회전하지 않는다.
+- **freshness**: 생산 `safety_topic_timeout=0.75 s`, 최초 수신 timeout 1.0초다. 판정 age가
+  0.75초를 초과한 다음 50 Hz tick, 명목상 마지막 수신 후 0.75~0.77초에 E-stop한다.
+  `safety_required=false`는 BENCH/FAKE 전용이다.
+- **검증 경계**: 로컬 pure-Python suite와 임시 read-only ROS 3패키지 build·
+  `powertrain_ros` 23 tests는 통과했다. FAKE·Jetson·새 실기 HIL은 아직 실행하지 않았다.
+  HIL 전까지 측정률·tick p99·CAN delta·생산 `stop_mm`을 확정하지 않는다.
 
 ### WP6. 오도메트리 (주행거리·자세 추정)
 
@@ -315,10 +346,10 @@ ROS2 노드는 그걸 감싸기만 한다 (기존 corner_module 스타일 유지
 4센서 중 US100·D435i는 코드 존재, **L515·IMU는 신규**. L515가 우리 카메라로 확정되며 아래 드라이버가
 WP6(오도메트리)·WP7(레인)의 **공통 선행작업**이 된다 (원래 계획서엔 §6-④·⑤ '협의 항목'이었음).
 
-- **드라이버 노드 `l515_camera`**: 직접 안 짜고 **표준 래퍼 `realsense2_camera`(realsense-ros)** 사용
-  (IMU·color·depth 동기 발행 검증됨). 발행: `/l515/color/image_raw`(레인) · `/l515/depth/color/points`
-  (벽추종·장애물) · `/l515/imu`(`sensor_msgs/Imu`, accel+gyro 합성). 설정: `serial_no`로 L515 지정
-  (D435i와 구분), `unite_imu_method`로 IMU 단일 토픽화, 30fps.
+- **드라이버 노드 `l515_camera`**: 직접 안 짜고 **표준 래퍼 `realsense2_camera`(realsense-ros)** 사용.
+  기본 파이프라인은 color image(레인) + depth image(벽추종·장애물) + IMU이며,
+  `PointCloud2`는 소비자가 반드시 필요할 때만 opt-in한다. 정확한 토픽·동기화·해상도는 WP5.1
+  HIL 뒤 별도 L515 경량 파이프라인 spec에서 확정한다. `serial_no`로 D435i와 구분한다.
 - **좌표계**: REP-103(x=앞·y=왼쪽·z=위), 트리 `odom → base_link → l515_link`(→ 카메라 내부 IMU 프레임).
   `base_link→l515_link`는 마운트 실측 static TF. 대회는 상대측위라 `map` 없음.
 
@@ -334,7 +365,7 @@ US100 ─► /safety_verdict ───────────► chassis_node(g
 ```
 
 **확정 설계 결정 5개** (2026-07-07):
-1. L515 드라이버 = `realsense-ros` 표준 래퍼 (자체 pyrealsense2 아님)
+1. L515 드라이버 = `realsense-ros` 표준 래퍼, color/depth image+IMU 기본(PointCloud2 선택)
 2. 바퀴속도 출처 = `chassis_node`가 `/wheel_states` 발행 (CAN 단일소유자)
 3. 오도메트리 융합 = "바퀴=거리, IMU=회전" 상보필터 (robot_localization EKF 아님)
 4. US100 게이트 위치 = `chassis_node` 최종 게이팅 (defense in depth)
@@ -372,6 +403,9 @@ US100 ─► /safety_verdict ───────────► chassis_node(g
 | 8/18~ (P5) | 리허설 | 국방 5구간·극한 4구간 리허설 ≥3회, 새 기능 금지 |
 
 **의존 관계**: WP2→WP3→WP5, WP1→WP3, WP4→WP5~9. WP2와 WP4는 지금 병렬로 시작 가능.
+
+**2026-07-10 최신 실행 순서**: WP5.1 최종 HIL → command authority spec → L515 경량
+color/depth image+IMU spec(PointCloud2 선택) → WP6. WP8과 크로스팀 핸드셰이크는 계속 미결이다.
 
 ---
 

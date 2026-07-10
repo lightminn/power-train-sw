@@ -7,6 +7,39 @@ Reconciled with repository, Jetson, and Notion state: `2026-07-10T19:34+09:00`
 
 These notes were migrated from Claude Code project memory. Treat them as durable project context unless the user gives newer instructions.
 
+## CURRENT STATE OVERRIDE — 2026-07-10 WP5.1
+
+This WP5.1 override is newer than the 2026-07-10 audit override and every migrated memory entry
+below. Preserve the older text as history, but use this section when it conflicts.
+
+- The original WP5 `/cmd_vel → ChassisManager → 10 motors` HIL remains a valid historical result.
+  **WP5.1 Tasks 1–8 software are complete, but final Jetson/10-motor/US-100 HIL is NOT RUN.**
+  Observed local evidence is motor_control 189 passed, motor_gui 91 passed, and a temporary
+  read-only ROS workspace building all 3 packages with 23 powertrain_ros tests passed. FAKE,
+  Jetson, and HIL remain pending; none of the local results is hardware evidence.
+- Current architecture is a pure-Python control/safety core with thin internal ROS nodes:
+  `us100_safety_node` isolates blocking UART at 5–10 Hz, while `chassis_node` checks the latest
+  `/safety_verdict`, owns the final E-stop decision, runs the 50 Hz chassis loop, and publishes
+  `/wheel_states`. `ChassisManager` alone owns one `can0` at 500 kbps and AK45-36 ×4 plus
+  ODrive/BL70200 ×6.
+- Current US-100 states are `VALID`, `INVALID_READING`, `CHECKING`, and `NO_RESPONSE`.
+  `INVALID_READING` is normal operation because 0x50 proves only MCU/UART liveness, not the
+  ultrasonic transmitter/receiver. `CHECKING`, the 0.5 s `/cmd_vel` watchdog, and connection loss
+  are auto-recovering `MOTION_HOLD`. The command watchdog is distinct from safety-topic freshness.
+  A valid near reading or three consecutive distance-and-liveness misses is a latched `ESTOP`.
+- E-stop reset returns only to `IDLE`; a separate arm action is mandatory. Production
+  `safety_topic_timeout` is 0.75 s (`age > threshold`, then the next 50 Hz tick, nominally
+  0.75–0.77 s), startup timeout is 1.0 s, and `safety_required=false` is BENCH/FAKE only.
+- The migrated `safe/warn/stop`, `Verdict.level`, startup/`None`→`stop`, and auto-clearing safety
+  gate descriptions are **explicitly superseded historical memory**. Do not use them for current
+  code, tests, operations, or documentation. Current authorities are
+  `docs/specs/2026-07-10-wp5-control-safety-hardening-design.md`,
+  `docs/plans/2026-07-10-wp5-control-safety-hardening-plan.md`, and
+  `docs/reports/2026-07-10-wp5-control-safety-hil.md`.
+- After the final WP5.1 HIL, proceed in this order: command-authority spec → L515 lightweight
+  color-image + depth-image + IMU pipeline (PointCloud2 optional) → WP6 odometry. WP8 and the
+  remaining `MISSION_STOP`, unlock-ordering, and full arm-handshake work remain open in parallel.
+
 ## CURRENT STATE OVERRIDE — 2026-07-10
 
 This section is newer than every embedded migrated note below and overrides conflicting historical text.
