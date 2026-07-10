@@ -11,7 +11,45 @@ from launch.substitutions import LaunchConfiguration
 import launch_ros.actions
 
 
-ROOT = Path(__file__).resolve().parents[4]
+REPO_MARKERS = (
+    Path("ros2/src/powertrain_ros/launch/wp5_control.launch.py"),
+    Path("scripts/can_setup.sh"),
+)
+
+
+def _has_repo_contract(root):
+    return all((root / marker).is_file() for marker in REPO_MARKERS)
+
+
+def _discover_repo_root(start_path=None):
+    explicit = os.environ.get("POWERTRAIN_REPO_ROOT")
+    if explicit:
+        candidate = Path(explicit).expanduser().resolve()
+        if _has_repo_contract(candidate):
+            return candidate
+        raise RuntimeError(
+            f"POWERTRAIN_REPO_ROOT is not a power-train-sw checkout: "
+            f"{candidate}"
+        )
+
+    motor_control = os.environ.get("MOTOR_CONTROL_PATH")
+    if motor_control:
+        candidate = Path(motor_control).expanduser().resolve().parent
+        if _has_repo_contract(candidate):
+            return candidate
+
+    start = Path(start_path or __file__).resolve()
+    for candidate in (start, *start.parents):
+        if _has_repo_contract(candidate):
+            return candidate
+
+    raise RuntimeError(
+        "power-train-sw root not found; set POWERTRAIN_REPO_ROOT "
+        "or MOTOR_CONTROL_PATH"
+    )
+
+
+ROOT = _discover_repo_root()
 LAUNCH_FILE = (
     ROOT
     / "ros2"
@@ -28,6 +66,50 @@ def _load_launch_module(module_name):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _make_repo_contract(root):
+    for marker in REPO_MARKERS:
+        path = root / marker
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+
+
+def test_repo_root_discovery_uses_explicit_override(tmp_path, monkeypatch):
+    repo = tmp_path / "explicit-repo"
+    _make_repo_contract(repo)
+    monkeypatch.setenv("POWERTRAIN_REPO_ROOT", str(repo))
+    monkeypatch.setenv(
+        "MOTOR_CONTROL_PATH",
+        str(tmp_path / "different-repo" / "motor_control"),
+    )
+
+    assert _discover_repo_root(tmp_path / "isolated" / "test.py") == repo
+
+
+def test_repo_root_discovery_uses_motor_control_parent(
+    tmp_path,
+    monkeypatch,
+):
+    repo = tmp_path / "motor-repo"
+    _make_repo_contract(repo)
+    monkeypatch.delenv("POWERTRAIN_REPO_ROOT", raising=False)
+    monkeypatch.setenv("MOTOR_CONTROL_PATH", str(repo / "motor_control"))
+
+    assert _discover_repo_root(tmp_path / "isolated" / "test.py") == repo
+
+
+def test_repo_root_discovery_falls_back_to_source_ancestors(
+    tmp_path,
+    monkeypatch,
+):
+    repo = tmp_path / "ancestor-repo"
+    _make_repo_contract(repo)
+    monkeypatch.delenv("POWERTRAIN_REPO_ROOT", raising=False)
+    monkeypatch.delenv("MOTOR_CONTROL_PATH", raising=False)
+    nested_test = repo / "ros2/src/powertrain_ros/test/test_contract.py"
+
+    assert _discover_repo_root(nested_test) == repo
 
 
 def test_hardware_launch_requires_stop_mm_without_default():
