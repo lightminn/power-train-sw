@@ -20,7 +20,7 @@ class SafetySnapshot:
 
 class SafetyInterlock:
     def __init__(self, clock=None):
-        self._clock = clock or time.monotonic
+        self._clock = time.monotonic if clock is None else clock
         self._holds = {}
         self._active_estops = {}
         self._latched = False
