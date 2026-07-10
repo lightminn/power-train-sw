@@ -1,3 +1,14 @@
+<!-- BEGIN CLAUDE_TO_CODEX_CLAUDE_MD -->
+# Migrated Claude Code Instructions
+
+Source: `/home/light/ZETIN/robotics/power-train-sw/parameter_calc/CLAUDE.md`
+Imported: `2026-07-10T02:30:45+09:00`
+Reconciled with `parameter_calc/CLAUDE.md`: `2026-07-10T19:34+09:00`
+
+The following content was migrated from Claude Code's `CLAUDE.md` so Codex loads the same durable project guidance.
+
+---
+
 # parameter_calc — 형상 파라미터 최적화 (상세 문서)
 
 ZETIN 6륜 로커-보기 로봇의 다리 형상(링크 길이·각도)을 여러 지형에서 시뮬레이션해
@@ -65,3 +76,4 @@ cd ../python && python ZETIN_Animation_v3.py
 
 서버 실행은 SLURM 래퍼(`scripts/run_gpu_triangle.sh`) 사용. 로컬 검증은 x86 dev 컨테이너에서
 `jax[cpu]` + scipy 로 가능(테스트·스모크).
+<!-- END CLAUDE_TO_CODEX_CLAUDE_MD -->

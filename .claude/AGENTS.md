@@ -1,3 +1,14 @@
+<!-- BEGIN CLAUDE_TO_CODEX_CLAUDE_MD -->
+# Migrated Claude Code Instructions
+
+Source: `/home/light/ZETIN/robotics/power-train-sw/.claude/CLAUDE.md`
+Imported: `2026-07-10T02:30:45+09:00`
+Reconciled with `.claude/CLAUDE.md` and current project state: `2026-07-10T19:34+09:00`
+
+The following content was migrated from Claude Code's `CLAUDE.md` so Codex loads the same durable project guidance.
+
+---
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working in this repository.
@@ -226,3 +237,4 @@ reorg (5/20): `docs/specs/2026-05-20-motor-control-reorg-design.md`,
 - Drive motor (real): BL70200 + internal HALL ×3 (**pp=10, cpr=60** — 2026-06 실측; 구문서의 pp=5/cpr=30 은 오기) ×6, ODrive v3.6 듀얼축 보드 3장(CAN node 11~16, 500 kbps)
 - Sensors (2026-07-07 확정, 2026-07-10 Jetson USB 실재 확인): **L515=파워트레인 RGB/depth/IMU**, **D435i=로봇팔 인식 전용**, **US-100=독립 충돌 안전**. 파워트레인은 D435i 원본을 직접 점유하지 않고 `/detected_objects`를 구독한다.
 - Steering: CubeMars **AK45-36** (real/active, 36:1; peak 24 Nm, rated 8 Nm, KV80, peak current 65 A, backlash 12 arcmin, back-drive 0.8 Nm) / AK40-10 (legacy test, 10:1), CAN bus, identical API. 기본 `ACTIVE_MOTOR="AK45-36"` (`ak_control.py`의 `MOTOR_PROFILES`로 전환)
+<!-- END CLAUDE_TO_CODEX_CLAUDE_MD -->

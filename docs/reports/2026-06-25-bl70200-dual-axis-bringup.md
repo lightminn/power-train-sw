@@ -3,6 +3,12 @@
 > 작성 2026-06-25 (작업: 2026-06-24 밤~25 새벽). 대상: **다른 Claude 세션이 이 컨텍스트를 그대로 물려받아 이어가기 위한 문서.**
 > 한 줄 요약: **하나의 ODrive v3.6(fw 0.5.1)에 동일한 BL70200 인휠모터 2개(M0=axis0, M1=axis1)를 물려, 각각 캘리브레이션 + 위치모드 독립 제어까지 검증 완료.** 둘 다 정상 동작.
 
+> **후속 정정(2026-07-10):** 이 문서는 6/25 당시 세션 기록이다. 현재 운용 정본은
+> `bl70200_setup.py`의 pp=10/cpr=60/bandwidth=30/**vel_gain=0.12**/vel_int=0.2,
+> `ignore_illegal_hall_state=True`, CAN 500 kbps·node 11~16이다. 듀얼축 3보드 6축 CAN
+> 캘리·동시주행과 10모터 4WS HIL까지 완료했다. 아래 vel_gain=0.06 및 “CAN 미검증”은
+> 당시 값으로만 읽는다.
+
 ---
 
 ## 0. 결론 (TL;DR)
@@ -116,8 +122,11 @@ a0.requested_state = a1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL  # stat
 ## 6. 미해결 / 다음 할 일
 1. **HALL 신뢰성 HW 보강**(권장 1순위): 접지/필터캡/커넥터 — 안 하면 실주행 진동·부하에서 `ILLEGAL_HALL_STATE` 재발 가능. `ignore_illegal_hall_state`는 밴드에이드.
 2. **영구화 선택**: `ignore_illegal_hall_state`를 NVM 저장하려면 save→리부팅→재캘리 1회. (현재 RAM only.)
-3. **레포 정리(미완)**: `motor_control/drive/bl70200/odrive_calibration.py`가 아직 **단일축 + 틀린 pp=5**. 이번 검증값(듀얼축 / pp=10 / calib_scan_omega=6.0 / ignore_illegal_hall_state)으로 갱신 필요. Notion "ODrive(BL70200) 셋업" 페이지도 듀얼축/omega 추가 갱신 필요.
-4. 미래: 4WS 코너모듈에서 이 두 구동축을 조향 AK와 단일 CAN으로 협조 제어(메모리 `corner-module-ackermann` 참고).
+3. **레거시 주의(잔존)**: `motor_control/drive/bl70200/odrive_calibration.py`는 단일축 + pp=5
+   하드코딩이라 실기에 사용하지 않는다. 최신 정본은 `bl70200_setup.py`와
+   `can_calibrate_all.py`다.
+4. **완료**: 두 구동축을 포함한 6축 ODrive와 AK 조향 4축의 단일 CAN 협조 제어 및
+   10모터 4WS HIL 검증 완료.
 
 ---
 

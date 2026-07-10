@@ -4,6 +4,12 @@
 > **작성:** 김광민 (SW · Design/control)
 > **대상:** 회의 공유용 (진행 상황 + 추후 계획 거시 요약)
 
+> **Historical snapshot:** 아래 상태표와 일정은 2026-05-30 당시 기록이다. 현재 정본은
+> `docs/plans/2026-07-02-autonomous-driving-kickoff.md`를 따른다. 2026-07-10 기준 단일 CAN
+> 10모터·4WS 텔레옵·WP4 ROS 왕복·WP5 chassis_node 실기 HIL까지 완료했으며, 센서는
+> L515=파워트레인, D435i=로봇팔 전용으로 분리됐다. v4 최적화 질량은 50 kg로 확정했고
+> 86 kg 재최적화는 하지 않는다.
+
 ---
 
 ## 0. 한 줄 요약

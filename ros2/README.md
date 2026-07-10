@@ -18,8 +18,10 @@ DDS(host net, DOMAIN 0)로만 한다.
 ros2/
 ├── src/
 │   ├── robot_arm_msgs/      벤더링 사본(정본=ksp118). VENDORED.md 참조. ⚠️ 원본 아님
-│   └── powertrain_ros/      우리 노드 (ament_python) — bringup_node(WP4 스켈레톤)
-│                            + contract.py(계약 문자열 단일 출처)
+│   └── powertrain_ros/      우리 노드 (ament_python)
+│                            ├─ bringup_node: WP4 메시지 왕복 진단용
+│                            ├─ chassis_node: WP5 /cmd_vel↔10모터 실기 진입점
+│                            └─ contract.py: 계약 문자열 단일 출처
 └── scripts/
     └── sync_check_msgs.sh   벤더 msg 가 로봇팔 정본과 일치하는지 드리프트 체크
 ```
@@ -42,13 +44,19 @@ cd /workspace/ros2
 colcon build
 source install/setup.bash
 
-# 3) 노드 실행
+# 3-a) 실기 제어(WP5 정본) — 먼저 바퀴 자유·estop·좀비 프로세스 확인
+ros2 run powertrain_ros chassis
+
+# 무하드웨어 배선 검증
+ros2 run powertrain_ros chassis --ros-args -p fake:=true
+
+# 3-b) WP4 메시지 왕복만 진단할 때
 ros2 run powertrain_ros bringup
-#   락 모드로 발행 시:  ros2 run powertrain_ros bringup --ros-args -p mode:=CORNERING
 ```
 
-✅ 기대: `powertrain_ros 브링업 …` 로그 + 로봇팔 FSM 이 떠 있으면 `← /arm_status …`
-수신 로그. `ros2 topic list` 에 `/chassis_mode`·`/arrival_status` 발행 확인.
+✅ 2026-07-07 검증: WP4 양방향 DDS 전달과 WP5 `/cmd_vel → ChassisManager → 10모터`
+실기 HIL 완료. 현재 남은 통합 항목은 `MISSION_STOP`·락 해제 순서 계약 확정과
+`ARRIVED_* → 팔 작업 → DONE → 재출발` 풀 핸드셰이크 1사이클이다.
 
 ## 계약
 
