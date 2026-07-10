@@ -70,7 +70,7 @@ def cleanup_chassis_resources(
     background_stopped = True
     if background is not None:
         try:
-            background_stopped = background.close() is not False
+            background_stopped = background.close() is True
             if not background_stopped:
                 errors.append(
                     RuntimeError("US-100 background worker still running")

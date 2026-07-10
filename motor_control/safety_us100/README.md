@@ -51,13 +51,18 @@ try:
         verdict.detail,
     )
 finally:
-    background.close()              # 작업자를 먼저 중지
-    sensor.close()                  # 센서는 호출자 소유
+    worker_stopped = background.close()
+    if worker_stopped is True:
+        sensor.close()              # 작업자 종료 확인 후만 close
+    else:
+        print("US-100 worker still running; sensor left open")
 ```
 
 비-ROS 텔레옵은 위 배경 작업자를 사용합니다. ROS 실행에서는
 `powertrain_ros/us100_safety_node.py`가 UART를 독점하고 `/safety_verdict`를
 reliable depth 1로 발행합니다.
+레거시 ODrive 텔레옵의 arm은 요청만 보낸 후 성공으로 간주하지 않고,
+수동 버튼 처리의 제한 시간 안에 실제 `CLOSED_LOOP`을 확인합니다.
 
 ## 테스트와 데모
 

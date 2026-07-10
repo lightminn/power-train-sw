@@ -10,6 +10,24 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 
+def confirm_odrive_closed_loop(
+    axis,
+    closed_loop_state,
+    timeout_s=0.5,
+    clock=time.monotonic,
+    sleeper=time.sleep,
+):
+    axis.requested_state = closed_loop_state
+    deadline = clock() + timeout_s
+    while True:
+        if axis.current_state == closed_loop_state:
+            return True
+        remaining = deadline - clock()
+        if remaining <= 0.0:
+            return False
+        sleeper(min(0.01, remaining))
+
+
 def handle_odrive_square(armed, estop_latched, hazard_active, arm, disarm):
     """Apply one square edge; clearing an E-stop never arms in the same edge."""
     if hazard_active:
@@ -21,8 +39,10 @@ def handle_odrive_square(armed, estop_latched, hazard_active, arm, disarm):
     if estop_latched:
         disarm()
         return False, False
-    arm()
-    return True, False
+    if arm():
+        return True, False
+    disarm()
+    return False, True
 
 
 def cleanup_odrive_resources(disarm, background, sensor, pygame_module):
@@ -35,7 +55,7 @@ def cleanup_odrive_resources(disarm, background, sensor, pygame_module):
     background_stopped = True
     if background is not None:
         try:
-            background_stopped = background.close() is not False
+            background_stopped = background.close() is True
             if not background_stopped:
                 errors.append(
                     RuntimeError("US-100 background worker still running")
@@ -80,7 +100,10 @@ def main():
             axis.requested_state = AXIS_STATE_IDLE
 
     def arm():
-        axis.requested_state = AXIS_STATE_CLOSED_LOOP
+        return confirm_odrive_closed_loop(
+            axis,
+            AXIS_STATE_CLOSED_LOOP,
+        )
 
     try:
         # ── ODrive 연결 ──
@@ -160,6 +183,8 @@ def main():
                         print("estop reset — 다음 □에서 arm")
                     elif armed:
                         print("armed")
+                    elif estop_latched:
+                        print("arm 확인 실패→estop")
                     else:
                         print("disarmed")
                 if ci and not prev_ci:

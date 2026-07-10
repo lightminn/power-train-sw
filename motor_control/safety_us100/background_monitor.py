@@ -53,12 +53,13 @@ class BackgroundSafetyMonitor:
         with self._lifecycle_lock:
             if self._closed or self._thread is not None:
                 return
-            self._thread = threading.Thread(
+            thread = threading.Thread(
                 target=self._run,
                 name="us100-monitor",
                 daemon=True,
             )
-            self._thread.start()
+            thread.start()
+            self._thread = thread
 
     def _run(self):
         while not self._stop.is_set():
