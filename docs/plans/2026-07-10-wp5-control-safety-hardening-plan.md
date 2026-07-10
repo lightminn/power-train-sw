@@ -2,7 +2,19 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **실행 상태 (2026-07-11):** Tasks 1~8 소프트웨어·FAKE 검증 완료. Task 9의 Jetson 배포와 최종 실기 HIL은 대기 중이며, 이 문서는 아직 HIL 통과나 실측 지표를 기록하지 않는다.
+> **실행 상태 (2026-07-11):** Tasks 1~8 소프트웨어 완료. commit `49831bb`의 Jetson
+> software-only FAKE는 PASS지만 실기 증거가 아니다. production launch gate는 commit
+> `b715ba7`, workspace-independent 계약시험은 commit `60a813f`에 반영됐다. Task 9의
+> Phase A·B 실기 HIL과 생산 `stop_mm` 승인은 대기 중이다.
+
+> **운영 권한 오버라이드 (2026-07-11):** 결합 launch는 기본값 없는 필수
+> `stop_mm`을 요구한다. HIL 전에는 바퀴를 든 Phase A 시나리오 1~8에서 통제된 저속으로
+> `stop_mm:=200`을 명시할 수 있지만, 이 값과 노드 독립 실행 기본값 `200.0`은 진단/HIL
+> 후보일 뿐 생산 승인이 아니다. Phase A 완료 뒤 바퀴를 내리기 전에 별도 사용자 확인을
+> 받고, 통제 주행로·단계적 저속·spotter·exclusion zone·물리 E-stop을 갖춘 Phase B
+> 시나리오 9에서 50 kg 차체 제동을 실측한다. 생산 명령은 그 결과로 승인된
+> `stop_mm:=<HIL-approved-mm>`을 반드시 명시한다. 아래에 남은 과거 단계 예시와 충돌하면
+> 이 오버라이드와 Task 9의 Phase 구분을 따른다.
 
 **Goal:** 10모터 차체 제어를 실제 50 Hz 비블로킹 루프로 만들고, US-100·모터 고장을 수동 reset형 E-stop으로 통합하며, WP6용 6바퀴 실측 상태를 50 Hz ROS 토픽으로 제공한다.
 
@@ -25,7 +37,10 @@
 - ODrive 정본은 pp=10, cpr=60, bandwidth=30, vel_gain=0.12, vel_integrator_gain=0.2, node 11~16이다.
 - 기존 사용자 소유 untracked 파일 `.claude/settings.json`, `.codex/`, `docs/creativeEngineering/`와 Jetson `motor_control/vision/tests/`를 건드리지 않는다.
 - 테스트는 반드시 RED 실패를 확인한 뒤 최소 구현으로 GREEN을 만든다.
-- 실기 HIL 전에는 사용자에게 바퀴 부양·48V 물리 E-stop·10모터·US-100 준비를 요청한다.
+- Phase A 실기 HIL 전에는 사용자에게 바퀴 부양·48V 물리 E-stop·10모터·US-100 준비를
+  요청한다. Phase B는 바퀴를 내리기 직전에 지상주행 조건과 사용자 승인을 새로 받는다.
+- 결합 실기 launch는 `stop_mm` 생략을 허용하지 않는다. 노드 수준 `200.0` 기본값은
+  진단과 통제된 저속 pre-HIL 후보 전용이며 생산값으로 승인하지 않는다.
 
 ---
 
@@ -1106,6 +1121,11 @@ git commit -m "feat(ros2): add powertrain safety and wheel messages"
 
 ### Task 7: Add US-100 ROS adapter and harden chassis_node
 
+> **구현 증거 오버라이드:** Task 7의 최초 구현 뒤 commit `b715ba7`에서 결합 실기 launch에
+> 기본값 없는 필수 `stop_mm` gate를 추가했고, commit `60a813f`에서 계약시험을 workspace와
+> 무관하게 실행하도록 고쳤다. 아래 최초 구현 서술보다 이 override와 현재 launch 코드가
+> 운영 권한을 가진다.
+
 **Files:**
 - Create: `ros2/src/powertrain_ros/powertrain_ros/message_adapter.py`
 - Create: `ros2/src/powertrain_ros/powertrain_ros/us100_safety_node.py`
@@ -1398,15 +1418,31 @@ Create:
 
 ```python
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
     return LaunchDescription([
-        Node(package="powertrain_ros", executable="us100_safety", output="screen"),
+        DeclareLaunchArgument(
+            "stop_mm",
+            description="HIL-approved US-100 emergency-stop distance (mm)",
+        ),
+        Node(
+            package="powertrain_ros",
+            executable="us100_safety",
+            output="screen",
+            parameters=[{"stop_mm": LaunchConfiguration("stop_mm")}],
+        ),
         Node(package="powertrain_ros", executable="chassis", output="screen"),
     ])
 ```
+
+`DeclareLaunchArgument("stop_mm")`에는 default를 두지 않는다. `LaunchConfiguration`은
+US-100 노드에만 전달하며 chassis 노드에는 전달하지 않는다. 인자를 생략한 결합 launch는
+의도적으로 실패한다. 독립 `us100_safety_node`의 `200.0` 기본값은 진단과 통제된 저속
+HIL용 임시 후보일 뿐 생산 승인값이 아니다.
 
 Add `("share/" + package_name + "/launch", ["launch/wp5_control.launch.py"])` to
 `setup.py` data_files, `<exec_depend>launch_ros</exec_depend>` to package.xml, and the
@@ -1426,6 +1462,10 @@ docker exec powertrain_ros bash -lc \
 ```
 
 Then run the FAKE publisher/service/topic-hz sequence. Expected: arm succeeds with fresh far verdict, `/wheel_states` averages 49~51 Hz, close verdict produces `ESTOP`, far verdict alone does not clear it, reset returns IDLE.
+
+Observed evidence at commit `49831bb`: Jetson software-only FAKE PASS — 60초 count 3000,
+mean/minimum 5초 window 50.000 Hz, tick p99 0.280 ms, overrun 0, maximum interval 21.453 ms,
+publisher-death E-stop 0.753초. 이 결과는 실기 HIL이 아니며 raw FAKE log도 보존되지 않았다.
 
 - [ ] **Step 8: Commit Task 7**
 
@@ -1689,7 +1729,7 @@ arm after reset           → ARMED
 publisher killed          → after age >0.75 s, by next 50 Hz tick (nominal 0.75–0.77 s) ESTOP
 ```
 
-- [ ] **Step 4: Request HIL setup from the user before touching hardware**
+- [ ] **Step 4: Request Phase A HIL setup from the user before touching hardware**
 
 Ask for:
 
@@ -1701,17 +1741,33 @@ Ask for:
 5. 테스트 중 주변 인원에게 구동 고지
 ```
 
-Do not proceed until the user confirms.
+Do not proceed until the user confirms. This approval covers only Phase A scenarios 1~8 with all
+six wheels lifted. It does not authorize lowering the chassis or ground motion.
 
 - [ ] **Step 5: Capture pre-HIL state**
 
 Record `ip -details -statistics link show can0`, zombie process list, node heartbeat presence, and `/wheel_states` baseline. Bring up can0 with the repository script only after confirming loopback is off.
 
-- [ ] **Step 6: Execute the nine HIL scenarios from spec §10.3**
+- [ ] **Step 6: Execute Phase A scenarios 1~8 from spec §10.3 with wheels lifted**
 
 For each scenario record timestamp, expected result, observed result, tick rate, tick p99, CAN counter deltas, safety status, E-stop source and motor visual behavior in `docs/reports/2026-07-10-wp5-control-safety-hil.md`.
 
-- [ ] **Step 7: Determine the production `stop_mm`**
+The pre-HIL candidate command must pass an explicit provisional value and remain at controlled low
+speed. Omitting `stop_mm` must fail:
+
+```bash
+ros2 launch powertrain_ros wp5_control.launch.py stop_mm:=200
+```
+
+`200` here is provisional only, never a production approval.
+
+- [ ] **Step 7: Request separate Phase B approval, execute scenario 9 and determine production `stop_mm`**
+
+After scenarios 1~8, stop and disarm. Before lowering the 50 kg chassis, obtain a new explicit user
+confirmation for a controlled corridor, staged low speeds beginning at the minimum, a spotter,
+an exclusion zone and an immediately accessible physical E-stop. Do not lower the wheels or start
+scenario 9 without every condition. Record the new approval and lowering time separately from
+Phase A.
 
 At controlled low speeds, measure worst sensor interval, processing delay and physical stopping distance. Set:
 
@@ -1719,7 +1775,12 @@ At controlled low speeds, measure worst sensor interval, processing delay and ph
 stop_mm ≥ 최고속도 × (최악 센서주기 + 처리지연) + 실측 제동거리 + 안전여유
 ```
 
-Document the chosen value and test speed. Do not keep 200 mm merely because it was the historical default.
+Document the chosen value and test speed. Do not keep 200 mm merely because it was the historical
+default. Revalidate the chosen value, then use only this production command form:
+
+```bash
+ros2 launch powertrain_ros wp5_control.launch.py stop_mm:=<HIL-approved-mm>
+```
 
 - [ ] **Step 8: Update authority documents**
 

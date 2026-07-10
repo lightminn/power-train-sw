@@ -1,9 +1,18 @@
 # WP5.1 차체 제어·안전 경로 보강 설계
 
 > 작성: 2026-07-10
-> 상태: Tasks 1~8 소프트웨어·FAKE 검증 완료, Task 9 Jetson 배포·최종 실기 HIL 대기
+> 상태: Tasks 1~8 소프트웨어 완료, Jetson software-only FAKE PASS, Task 9 실기 HIL 대기
 > 상위 계획: `docs/plans/2026-07-02-autonomous-driving-kickoff.md` WP5 확장·WP6 선행
 > 구현 원칙: 제어·안전 정책은 ROS 없는 순수 Python, ROS2는 노드 사이 데이터 전달을 맡는 얇은 껍데기
+
+> **운영 권한 오버라이드 (2026-07-11):** 결합 실기 launch는 commit `b715ba7`부터
+> 기본값 없는 필수 `stop_mm` 인자를 요구하고, commit `60a813f`의 workspace-independent
+> 계약시험이 이 게이트를 검증한다. `us100_safety_node`의 독립 실행 기본값 `200.0`은 진단과
+> 통제된 저속 HIL용 임시 후보일 뿐 생산 승인값이 아니다. 실기 HIL은 Phase A 시나리오
+> 1~8을 바퀴 부양 상태에서 먼저 수행하고, 별도 사용자 승인 뒤 Phase B 시나리오 9만
+> 50 kg 차체 지상주행으로 수행한다. 아래의 과거 코드·절차 예시와 충돌하면 이 오버라이드와
+> §10.3을 따른다. commit `49831bb`의 Jetson FAKE PASS는 실기 HIL 증거가 아니며 Phase A와
+> Phase B는 모두 대기 중이다.
 
 ## 1. 목적
 
@@ -218,15 +227,18 @@ HIL에서 빈 공간·가까운 표적·센서 분리 세 조건의 바이트와
 
 ### 7.4 거리 기준
 
-현재 `stop_mm=200`은 1.5 m/s에서 센서 0.1초 지연만으로 약 150 mm를 이동하므로 실제
-제동 여유가 부족할 수 있다. 최종 기준은 다음 조건으로 HIL에서 정한다.
+`us100_safety_node`를 독립 실행할 때의 `stop_mm=200.0` 기본값은 진단과 통제된 저속
+HIL을 위한 임시 후보다. 결합 실기 launch에는 기본값이 없으며, `200.0`을 생산값으로
+승인하지 않는다. 1.5 m/s에서 센서 0.1초 지연만으로 약 150 mm를 이동하므로 실제 제동
+여유가 부족할 수 있다. 최종 기준은 다음 조건으로 Phase B HIL에서 정한다.
 
 ```text
 stop_mm ≥ 최고속도 × (최악 센서주기 + 처리지연) + 실측 제동거리 + 안전여유
 ```
 
-기준을 실측하기 전 자율 HIL은 저속으로 제한한다. 본 작업은 기존 200 mm를 임의로 다른
-값으로 확정하지 않고 파라미터와 측정 절차를 제공한다.
+기준을 실측하기 전 실기 시험은 통제된 저속으로 제한한다. Phase A에서 200 mm 후보를
+사용할 때도 `stop_mm:=200`을 명시해야 한다. 생산 실행은 Phase B에서 실측·승인·재검증한
+값을 `stop_mm:=<HIL-approved-mm>`으로 명시한 경우만 허용한다.
 
 ## 8. ROS 계약
 
@@ -374,14 +386,23 @@ ChassisManager:
 
 ### 10.3 Jetson HIL
 
-사용자에게 다음 준비를 요청한 뒤 실행한다.
+실기 검증은 하나의 최종 HIL batch로 이어서 수행할 수 있지만, 물리 승인 경계는 두
+Phase로 분리한다. Phase A의 바퀴 부양 승인은 Phase B 지상주행 승인으로 승계되지 않는다.
 
-- 로봇 바퀴를 지면에서 띄우고 물리 48V E-stop 확보
-- AK ×4·ODrive ×6 전원 및 단일 can0 500 kbps 연결
-- US-100 `/dev/ttyTHS1` 연결
-- 좀비 teleop/chassis 프로세스 없음 확인
+#### Phase A — 시나리오 1~8, 바퀴 6개 부양
 
-검증 순서:
+사용자에게 바퀴 6개 완전 부양, 접근 가능한 48V 물리 E-stop, AK ×4·ODrive ×6 전원과
+단일 `can0` 500 kbps, US-100 `/dev/ttyTHS1`, 주변 인원 구동 고지를 확인받는다. 좀비
+teleop/chassis 프로세스와 CAN loopback이 없음을 확인한 뒤에만 실행한다. 생산
+`stop_mm`은 아직 없으므로 통제된 저속에서 임시 200 mm 후보를 쓸 경우에도 다음처럼
+명시한다.
+
+```bash
+ros2 launch powertrain_ros wp5_control.launch.py stop_mm:=200
+```
+
+인자를 생략한 결합 launch는 실패해야 한다. `200`은 Phase A 진입을 위한 임시값이며
+생산 승인으로 해석하지 않는다.
 
 1. CAN만으로 60초 50 Hz tick·wheel state rate·bus error 측정
 2. 빈 공간 또는 무반사에서 `INVALID_READING`이고 주행 허용 확인
@@ -391,7 +412,22 @@ ChassisManager:
 6. reset 후 `IDLE`, 별도 arm 후에만 회전 확인
 7. US-100 분리 후 3회 실패로 E-stop 확인
 8. 모터 한 축 fault/stale 주입 후 전체 10모터 정지 확인
-9. 실제 속도별 감지지연·제동거리를 측정해 `stop_mm` 결정
+
+#### Phase B — 시나리오 9, 별도 승인 50 kg 지상주행
+
+시나리오 1~8을 마친 뒤 정지·disarm 상태를 확인한다. 바퀴를 내리기 직전에 통제된
+주행로, 최저 속도부터 올리는 단계적 저속 계획, spotter, exclusion zone, 즉시 접근 가능한
+물리 E-stop을 새로 확인하고 사용자의 명시적 승인을 다시 받아야 한다. 이 확인이 하나라도
+없으면 바퀴를 내리거나 시나리오 9를 시작하지 않는다.
+
+9. 실제 50 kg 차체의 속도별 감지지연·제동거리를 측정하고 안전여유를 더해
+   `stop_mm`을 결정한 뒤 같은 조건에서 재검증한다.
+
+승인 뒤 생산 결합 실행은 다음 형식만 허용한다.
+
+```bash
+ros2 launch powertrain_ros wp5_control.launch.py stop_mm:=<HIL-approved-mm>
+```
 
 ## 11. 완료 기준
 
