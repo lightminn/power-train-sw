@@ -4,8 +4,7 @@
 (`tick()`)가 그 결과를 각 CornerModule 에 분배해 일괄 구동한다. 안전은 차체 레벨에서
 총괄:
   - estop 전파 : 코너 1곳이라도 트립(fault/과전류/stale)하면 6코너 전부 정지.
-  - US-100 게이팅 : `stop` 판정 → 구동 0, 조향은 유지(⚠️ v만 0으로 두면 ω가 남아
-                    피벗이 돼버림 — 그래서 구동 출력만 끊는다).
+  - 안전 interlock : 임시 hold는 구동만 0으로 제어하고, ESTOP은 6코너에 latch한다.
   - 워치독 : `chassis.set()` 이 watchdog_ms 넘게 안 오면 구동 0(조향 유지).
              (코너 워치독은 매 tick 재-set 되어 안 먹으므로 차체가 담당.)
 
@@ -20,6 +19,8 @@ import time
 from dataclasses import dataclass, field
 
 from chassis.kinematics import ChassisGeometry, default_geometry, solve
+from chassis.safety_interlock import RUN, SafetyInterlock
+from chassis.telemetry import ChassisSnapshot, WheelSnapshot
 from corner_module.config import CornerConfig
 from corner_module.corner_module import CornerModule
 from corner_module.null_steer import NullSteer
@@ -98,23 +99,27 @@ def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
 
 
 class ChassisManager:
-    def __init__(self, corners: dict, cfg: ChassisConfig = None,
-                 monitor=None, clock=None):
+    def __init__(self, corners: dict, cfg: ChassisConfig = None, clock=None):
         self.cfg = cfg or ChassisConfig()
         self.corners = corners             # {wheel_name: CornerModule}
-        self.monitor = monitor             # US-100 SafetyMonitor (옵션)
         self.mode = "DISCONNECTED"
         self._v = 0.0
         self._omega = 0.0
         self._last_set_ms = None
-        self._verdict = None
-        self._now = clock or time.monotonic
+        self._now = time.monotonic if clock is None else clock
+        self._interlock = SafetyInterlock(clock=self._now)
+        self._last_estop_error = None
 
         # 매핑 검증: geometry 의 모든 바퀴가 코너로 존재해야 (오배선 조기 발견)
         need = {w.name for w in self.cfg.geometry.wheels}
-        missing = need - set(self.corners)
-        if missing:
-            raise ValueError(f"코너 매핑 누락: {sorted(missing)}")
+        actual = set(self.corners)
+        missing = need - actual
+        unexpected = actual - need
+        if missing or unexpected:
+            raise ValueError(
+                f"코너 매핑 오류: 누락={sorted(missing)}, "
+                f"예상하지 않은 이름={sorted(unexpected)}"
+            )
 
     def _now_ms(self) -> float:
         return self._now() * 1000.0
@@ -125,12 +130,15 @@ class ChassisManager:
             c.connect()
         self.mode = "IDLE"
 
-    def arm(self) -> None:
+    def arm(self) -> bool:
+        if self.mode != "IDLE" or self._interlock.snapshot().estop_latched:
+            return False
         for c in self.corners.values():
             c.arm()
         self._v = self._omega = 0.0
         self._last_set_ms = self._now_ms()
         self.mode = "ARMED"
+        return True
 
     def set(self, v_mps: float, omega_rad_s: float) -> None:
         if self.mode != "ARMED":
@@ -143,13 +151,44 @@ class ChassisManager:
     def disarm(self) -> None:
         for c in self.corners.values():
             c.disarm()
-        self.mode = "IDLE"
+        if self.mode != "ESTOP":
+            self.mode = "IDLE"
 
-    def estop(self) -> None:
-        for c in self.corners.values():
-            c.estop()
+    def estop(self, source="manual", detail="") -> None:
+        self._interlock.trip_estop(source, detail)
         self._v = self._omega = 0.0
-        self.mode = "FAULT"
+        first_error = None
+        for c in self.corners.values():
+            try:
+                c.estop()
+            except BaseException as exc:
+                if first_error is None:
+                    first_error = exc
+        self._last_estop_error = first_error
+        self.mode = "ESTOP"
+
+    def reset_estop(self) -> bool:
+        if not self._interlock.snapshot().estop_latched:
+            return False
+        if not self._interlock.reset_estop():
+            return False
+        for c in self.corners.values():
+            c.reset_fault()
+        self.mode = "IDLE"
+        return True
+
+    def update_external_safety(self, status, estop_required, detail="") -> None:
+        self._interlock.set_motion_hold(
+            "us100_checking", status == "CHECKING", detail,
+        )
+        self._interlock.set_estop_condition(
+            "us100", bool(estop_required), detail,
+        )
+
+    def set_safety_link_stale(self, active, detail="") -> None:
+        self._interlock.set_estop_condition(
+            "safety_topic_stale", bool(active), detail,
+        )
 
     def close(self) -> None:
         for c in self.corners.values():
@@ -158,26 +197,30 @@ class ChassisManager:
 
     # ── 50Hz 루프 ─────────────────────────────────────────────────────
     def tick(self) -> None:
+        timed_out = (
+            self._last_set_ms is not None
+            and self._now_ms() - self._last_set_ms > self.cfg.watchdog_ms
+        )
+        self._interlock.set_motion_hold("cmd_watchdog", timed_out, "set timeout")
+        safety = self._interlock.snapshot()
+        if safety.estop_latched:
+            if self.mode != "ESTOP":
+                self.estop(safety.first_source or "estop", safety.first_detail)
+            return
+
         if self.mode != "ARMED":
             for c in self.corners.values():
                 c.tick()                        # 비무장이어도 코너 통신 서비스
             return
 
         # estop 전파(사전): 이미 트립한 코너가 있으면 전체 정지
-        if any(c.mode == "FAULT" for c in self.corners.values()):
-            self.estop()
+        faulted = [name for name, c in self.corners.items() if c.mode == "FAULT"]
+        if faulted:
+            self.estop("corner_fault", ",".join(faulted))
             return
 
-        # 구동 허용 판정 — 워치독 + US-100 (조향은 항상 명령, 구동만 게이팅)
-        drive_enabled = True
-        if (self._last_set_ms is not None
-                and (self._now_ms() - self._last_set_ms) > self.cfg.watchdog_ms):
-            drive_enabled = False
-        if self.monitor is not None:
-            self.monitor.tick()
-            self._verdict = self.monitor.verdict()
-            if self._verdict is not None and self._verdict.level == "stop":
-                drive_enabled = False
+        # 조향은 항상 명령하고, hold 중에는 구동만 0으로 게이팅한다.
+        drive_enabled = safety.state == RUN
 
         # kinematics → 코너별 분배
         result = solve(self.cfg.geometry, self._v, self._omega)
@@ -194,15 +237,50 @@ class ChassisManager:
             c.tick()
 
         # estop 전파(사후): 이번 tick 에 트립한 코너가 있으면 전체 정지
-        if any(c.mode == "FAULT" for c in self.corners.values()):
-            self.estop()
+        faulted = [name for name, c in self.corners.items() if c.mode == "FAULT"]
+        if faulted:
+            self.estop("corner_fault", ",".join(faulted))
+
+    def snapshot(self) -> ChassisSnapshot:
+        wheels = []
+        for wheel in self.cfg.geometry.wheels:
+            corner_state = self.corners[wheel.name].state()
+            drive_state = corner_state.get("drive", {})
+            steer_state = corner_state.get("steer", {})
+            wheels.append(WheelSnapshot(
+                name=wheel.name,
+                corner_mode=str(corner_state.get("mode", "DISCONNECTED")),
+                drive_turns_per_s=float(drive_state.get("actual_vel", 0.0)),
+                steer_deg=float(steer_state.get("actual_deg", 0.0)),
+                drive_current_a=float(drive_state.get("cur_a", 0.0)),
+                steer_current_a=float(steer_state.get("cur_a", 0.0)),
+                drive_stale=bool(drive_state.get("stale", False)),
+                steer_stale=bool(steer_state.get("stale", False)),
+                drive_axis_error=int(drive_state.get("axis_error", 0)),
+                steer_fault=int(steer_state.get("fault", 0)),
+            ))
+        wheel_tuple = tuple(wheels)
+        healthy = all(
+            not wheel.drive_stale
+            and not wheel.steer_stale
+            and wheel.drive_axis_error == 0
+            and wheel.steer_fault == 0
+            for wheel in wheel_tuple
+        )
+        return ChassisSnapshot(
+            chassis_mode=self.mode,
+            stop_state=self._interlock.snapshot().state,
+            healthy=healthy,
+            wheels=wheel_tuple,
+        )
 
     def state(self) -> dict:
         return {
             "mode": self.mode,
             "v": self._v,
             "omega": self._omega,
-            "verdict": None if self._verdict is None else self._verdict.level,
+            "safety": self._interlock.snapshot(),
+            "last_estop_error": self._last_estop_error,
             "corners": {n: c.state() for n, c in self.corners.items()},
         }
 

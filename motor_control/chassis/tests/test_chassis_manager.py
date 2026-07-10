@@ -1,9 +1,11 @@
 """ChassisManager(WP3) 통합 검증 — 코너 6개를 하나의 차체로 묶어
-kinematics 결과를 각 코너에 분배하고, estop 전파·US-100 게이팅·워치독을 총괄한다.
+kinematics 결과를 각 코너에 분배하고, estop 전파·안전 interlock·워치독을 총괄한다.
 
 전부 fake 드라이버(무하드웨어). 실행:
   motor_control/ 에서  `python -m pytest chassis/tests/test_chassis_manager.py -q`
 """
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from chassis.kinematics import default_geometry, solve
@@ -32,11 +34,10 @@ def _fake_corners(cfg=None):
     return corners
 
 
-def _armed_manager(cfg=None, monitor=None, clock=None):
-    m = ChassisManager(_fake_corners(cfg and cfg.corner), cfg=cfg,
-                       monitor=monitor, clock=clock)
+def _armed_manager(cfg=None, clock=None):
+    m = ChassisManager(_fake_corners(cfg and cfg.corner), cfg=cfg, clock=clock)
     m.connect()
-    m.arm()
+    assert m.arm() is True
     return m
 
 
@@ -51,23 +52,9 @@ class FakeClock:
         self.t += sec
 
 
-class _Verdict:
-    def __init__(self, level):
-        self.level = level
-        self.distance_mm = None
-
-
-class _Monitor:
-    """US-100 SafetyMonitor 스텁 — 고정 판정을 돌려준다."""
-    def __init__(self, level):
-        self._level = level
-        self.ticks = 0
-
-    def tick(self):
-        self.ticks += 1
-
-    def verdict(self):
-        return _Verdict(self._level)
+class FalseyClock(FakeClock):
+    def __bool__(self):
+        return False
 
 
 # ── 매핑·라이프사이클 ────────────────────────────────────────────────────
@@ -79,17 +66,40 @@ def test_requires_every_geometry_wheel_mapped():
         ChassisManager(corners)
 
 
+def test_rejects_unexpected_geometry_wheel_mapping():
+    corners = _fake_corners()
+    corners["bogus_wheel"] = _fake_corners()["front_left"]
+    with pytest.raises(ValueError, match="bogus_wheel"):
+        ChassisManager(corners)
+
+
 def test_lifecycle_modes():
     m = ChassisManager(_fake_corners())
     assert m.mode == "DISCONNECTED"
     m.connect()
     assert m.mode == "IDLE"
-    m.arm()
+    assert m.arm() is True
     assert m.mode == "ARMED"
     m.disarm()
     assert m.mode == "IDLE"
     m.close()
     assert m.mode == "DISCONNECTED"
+
+
+def test_arm_only_succeeds_from_idle_and_repeated_arm_is_noop():
+    m = ChassisManager(_fake_corners())
+    assert m.arm() is False
+    assert m.mode == "DISCONNECTED"
+    assert all(c.mode == "DISCONNECTED" for c in m.corners.values())
+
+    m.connect()
+    assert m.arm() is True
+    m.set(0.4, 0.0)
+    m.tick()
+    targets_before = _drive_targets(m)
+    assert m.arm() is False
+    assert m.mode == "ARMED"
+    assert _drive_targets(m) == targets_before
 
 
 def test_set_ignored_when_not_armed():
@@ -143,45 +153,133 @@ def test_pivot_drives_mid_wheels_opposite():
     assert abs(m.corners["front_left"].state()["steer"]["target_deg"]) > 1e-3
 
 
-# ── US-100 게이팅 (stop → 구동 0, 조향 유지) ──────────────────────────────
+# ── 안전 interlock (hold → 구동 0, ESTOP → 전체 정지) ─────────────────────
 
-def test_us100_stop_zeros_drive_keeps_steer():
-    mon = _Monitor("stop")
-    m = _armed_manager(monitor=mon)
+def test_checking_is_auto_clearing_motion_hold_without_disarm():
+    m = _armed_manager()
     m.set(0.4, 0.4)
+    m.update_external_safety("CHECKING", False, "warming up")
     m.tick()
-    assert mon.ticks > 0
-    for c in m.corners.values():                  # 구동 전부 0
-        assert c.state()["drive"]["target_vel"] == 0.0
-    # 조향은 여전히 명령됨 (선회각 유지)
+    assert m.mode == "ARMED"
+    assert m.snapshot().stop_state == "MOTION_HOLD"
+    assert all(d == 0.0 for d in _drive_targets(m).values())
     assert m.corners["front_left"].state()["steer"]["target_deg"] > 0
-    assert m.mode == "ARMED"                       # 정지지 fault 아님
+
+    m.update_external_safety("VALID", False, "clear")
+    m.tick()
+    assert m.mode == "ARMED"
+    assert m.snapshot().stop_state == "RUN"
+    assert m.corners["front_left"].state()["drive"]["target_vel"] != 0.0
 
 
-def test_us100_safe_allows_drive():
-    m = _armed_manager(monitor=_Monitor("safe"))
+def test_external_estop_latches_after_condition_clears():
+    m = _armed_manager()
+    m.update_external_safety("VALID", True, "too_close")
+    m.tick()
+    assert m.mode == "ESTOP"
+    m.update_external_safety("VALID", False, "clear")
+    assert m.mode == "ESTOP"
+    assert m.reset_estop() is True
+    assert m.mode == "IDLE"
+    assert m.arm() is True
+
+
+def test_arm_rejected_before_estop_reset():
+    m = _armed_manager()
+    m.estop("manual", "button")
+    assert m.arm() is False
+    assert m.mode == "ESTOP"
+    assert all(c.mode == "FAULT" for c in m.corners.values())
+    assert all(d == 0.0 for d in _drive_targets(m).values())
+
+
+def test_active_safety_condition_rejects_reset():
+    m = _armed_manager()
+    m.update_external_safety("NO_RESPONSE", True, "sensor")
+    m.tick()
+    assert m.reset_estop() is False
+    assert m.mode == "ESTOP"
+
+
+def test_safety_link_stale_blocks_reset_until_cleared_and_reset_never_arms():
+    m = _armed_manager()
+    m.set_safety_link_stale(True, "topic timeout")
+    m.tick()
+    assert m.mode == "ESTOP"
+    assert m.reset_estop() is False
+
+    m.set_safety_link_stale(False, "fresh")
+    assert m.reset_estop() is True
+    assert m.mode == "IDLE"
+    assert all(c.mode == "IDLE" for c in m.corners.values())
+    m.tick()
+    assert m.mode == "IDLE"
+    assert m.arm() is True
+
+
+def test_reset_estop_when_not_latched_is_noop():
+    m = _armed_manager()
     m.set(0.4, 0.0)
     m.tick()
-    assert m.corners["front_left"].state()["drive"]["target_vel"] != 0.0
+    targets_before = _drive_targets(m)
+
+    assert m.reset_estop() is False
+    assert m.mode == "ARMED"
+    assert all(c.mode == "ARMED" for c in m.corners.values())
+    assert _drive_targets(m) == targets_before
+
+
+def test_first_estop_cause_persists_after_condition_clears():
+    m = _armed_manager()
+    m.update_external_safety("VALID", True, "too_close")
+    m.tick()
+    m.update_external_safety("VALID", False, "clear")
+    safety = m.state()["safety"]
+    assert safety.first_source == "us100"
+    assert safety.first_detail == "too_close"
+    assert safety.active_estop_sources == ()
+    assert m.snapshot().stop_state == "ESTOP"
+
+
+def test_idle_hazard_becomes_estop_and_rejects_arm():
+    m = ChassisManager(_fake_corners())
+    m.connect()
+    m.set_safety_link_stale(True, "never received")
+    m.tick()
+    assert m.mode == "ESTOP"
+    assert m.arm() is False
 
 
 # ── 워치독 (chassis.set 끊기면 구동 0) ───────────────────────────────────
 
-def test_watchdog_zeros_drive_on_timeout():
+def test_cmd_watchdog_is_motion_hold_not_estop():
     clk = FakeClock()
     cfg = ChassisConfig(watchdog_ms=300.0)
     m = _armed_manager(cfg=cfg, clock=clk)
     m.set(0.4, 0.0)
-    clk.advance(0.1)                               # 100ms < 300ms
+    clk.advance(0.5)
     m.tick()
+    assert m.mode == "ARMED"
+    assert m.snapshot().stop_state == "MOTION_HOLD"
+    assert all(d == 0.0 for d in _drive_targets(m).values())
+
+    m.set(0.4, 0.0)
+    m.tick()
+    assert m.mode == "ARMED"
+    assert m.snapshot().stop_state == "RUN"
     assert m.corners["front_left"].state()["drive"]["target_vel"] != 0.0
-    clk.advance(0.5)                               # 총 600ms > 300ms, set 재호출 없음
+
+
+def test_falsey_injected_clock_drives_watchdog():
+    clk = FalseyClock()
+    m = _armed_manager(cfg=ChassisConfig(watchdog_ms=300.0), clock=clk)
+    m.set(0.4, 0.0)
+    clk.advance(0.5)
     m.tick()
-    for c in m.corners.values():
-        assert c.state()["drive"]["target_vel"] == 0.0
+    assert m.snapshot().stop_state == "MOTION_HOLD"
 
 
-# ── estop 전파 (1곳 트립 → 4코너 전부 정지) ──────────────────────────────
+# ── estop 전파 (1곳 트립 → 6코너 전부 정지) ──────────────────────────────
 
 def test_corner_fault_propagates_to_all():
     m = _armed_manager()
@@ -189,7 +287,7 @@ def test_corner_fault_propagates_to_all():
     m.tick()
     m.corners["front_left"].steer.fault = 5        # 조향 fault 주입
     m.tick()
-    assert m.mode == "FAULT"
+    assert m.mode == "ESTOP"
     for c in m.corners.values():
         assert c.mode == "FAULT"
         assert c.state()["drive"]["target_vel"] == 0.0
@@ -200,15 +298,150 @@ def test_estop_stops_all_corners():
     m.set(0.4, 0.4)
     m.tick()
     m.estop()
-    assert m.mode == "FAULT"
+    assert m.mode == "ESTOP"
     for c in m.corners.values():
         assert c.state()["drive"]["target_vel"] == 0.0
+
+
+class RaisingCorner:
+    def __init__(self, wrapped, error=None):
+        self._wrapped = wrapped
+        self.mode = wrapped.mode
+        self.error = error or RuntimeError("stop failed")
+
+    def __getattr__(self, name):
+        return getattr(self._wrapped, name)
+
+    def estop(self):
+        self.mode = "FAULT"
+        raise self.error
+
+
+def test_estop_continues_after_one_corner_raises():
+    corners = _fake_corners()
+    m = ChassisManager(corners)
+    m.connect()
+    assert m.arm() is True
+    m.corners["front_left"] = RaisingCorner(m.corners["front_left"])
+    m.estop("manual")
+    assert m.mode == "ESTOP"
+    assert isinstance(m.state()["last_estop_error"], RuntimeError)
+    for name, corner in m.corners.items():
+        if name != "front_left":
+            assert corner.mode == "FAULT"
+
+
+class StopSignal(BaseException):
+    pass
+
+
+def test_estop_continues_after_corner_raises_baseexception_and_keeps_first():
+    corners = _fake_corners()
+    m = ChassisManager(corners)
+    m.connect()
+    assert m.arm() is True
+    first_error = StopSignal("first stop failed")
+    m.corners["front_left"] = RaisingCorner(
+        m.corners["front_left"], first_error,
+    )
+    m.corners["front_right"] = RaisingCorner(
+        m.corners["front_right"], RuntimeError("second stop failed"),
+    )
+
+    m.estop("manual")
+
+    assert m.mode == "ESTOP"
+    assert m.state()["last_estop_error"] is first_error
+    assert all(c.mode == "FAULT" for c in m.corners.values())
+
+
+def test_snapshot_has_six_wheels_in_geometry_order():
+    m = _armed_manager()
+    snap = m.snapshot()
+    assert [wheel.name for wheel in snap.wheels] == [
+        "front_left", "front_right", "mid_left",
+        "mid_right", "rear_left", "rear_right",
+    ]
+    assert snap.healthy is True
+
+
+@pytest.mark.parametrize(
+    ("component", "attribute", "value", "snapshot_field"),
+    [
+        ("drive", "stale_flag", True, "drive_stale"),
+        ("steer", "stale_flag", True, "steer_stale"),
+        ("drive", "axis_error", 0x10, "drive_axis_error"),
+        ("steer", "fault", 5, "steer_fault"),
+    ],
+)
+def test_snapshot_reports_stale_and_errors_unhealthy(
+        component, attribute, value, snapshot_field):
+    m = _armed_manager()
+    setattr(getattr(m.corners["front_left"], component), attribute, value)
+    snap = m.snapshot()
+    assert snap.healthy is False
+    assert getattr(snap.wheels[0], snapshot_field) == value
+
+
+def test_snapshot_is_frozen_detached_and_uses_actual_feedback():
+    m = _armed_manager()
+    corner = m.corners["front_left"]
+    corner.drive._target = 8.0
+    corner.drive._actual = 1.25
+    corner.steer._target = 30.0
+    corner.steer._actual = 12.5
+    corner.drive.cur_a = 3.5
+    corner.steer.cur_a = 1.5
+
+    snap = m.snapshot()
+    wheel = snap.wheels[0]
+    assert isinstance(snap.wheels, tuple)
+    assert wheel.drive_turns_per_s == 1.25
+    assert wheel.steer_deg == 12.5
+    assert wheel.drive_current_a == 3.5
+    assert wheel.steer_current_a == 1.5
+
+    corner.drive._actual = 9.0
+    corner.steer._actual = -9.0
+    assert wheel.drive_turns_per_s == 1.25
+    assert wheel.steer_deg == 12.5
+    with pytest.raises(FrozenInstanceError):
+        snap.chassis_mode = "IDLE"
+    with pytest.raises(FrozenInstanceError):
+        wheel.steer_deg = 0.0
+
+
+def test_snapshot_missing_optional_health_keys_uses_safe_defaults():
+    m = _armed_manager()
+    corner = m.corners["front_left"]
+    corner.drive.state = lambda: {"actual_vel": 0.5}
+    corner.steer.state = lambda: {"actual_deg": 2.0}
+    snap = m.snapshot()
+    wheel = snap.wheels[0]
+    assert snap.healthy is True
+    assert wheel.drive_current_a == 0.0
+    assert wheel.steer_current_a == 0.0
+    assert wheel.drive_stale is False
+    assert wheel.steer_stale is False
+    assert wheel.drive_axis_error == 0
+    assert wheel.steer_fault == 0
+
+
+def test_drive_current_alone_does_not_add_python_health_threshold():
+    m = _armed_manager()
+    m.corners["front_left"].drive.cur_a = 999.0
+    snap = m.snapshot()
+    assert snap.healthy is True
+    assert snap.wheels[0].drive_current_a == 999.0
 
 
 def test_state_schema():
     m = _armed_manager()
     st = m.state()
-    assert set(st.keys()) >= {"mode", "v", "omega", "verdict", "corners"}
+    assert set(st.keys()) >= {
+        "mode", "v", "omega", "safety", "last_estop_error", "corners",
+    }
+    assert "verdict" not in st
     assert set(st["corners"].keys()) == WHEEL_NAMES
 
 
