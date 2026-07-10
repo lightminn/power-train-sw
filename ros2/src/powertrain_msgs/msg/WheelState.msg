@@ -1,0 +1,10 @@
+string name
+string corner_mode
+float32 drive_turns_per_s
+float32 steer_deg
+float32 drive_current_a
+float32 steer_current_a
+bool drive_stale
+bool steer_stale
+uint32 drive_axis_error
+uint8 steer_fault
