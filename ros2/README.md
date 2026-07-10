@@ -9,8 +9,8 @@
 > `/safety_verdict`·`/wheel_states`·latched E-stop 경로는
 > [`WP5.1 HIL 보고서`](../docs/reports/2026-07-10-wp5-control-safety-hil.md)의
 > `NOT RUN` 항목을 통과하기 전까지 실기 완료로 주장하지 않는다. 로컬 관찰 증거는
-> `motor_control` 189 passed, `motor_gui` 91 passed, 임시 read-only ROS 워크스페이스의
-> 3패키지 build와 `powertrain_ros` 23 tests passed까지다. Jetson software-only FAKE는 배포
+> `motor_control` 189 passed, `motor_gui` 91 passed, 격리 read-only ROS 워크스페이스의
+> 3패키지 clean build와 `powertrain_ros` 30/30 passed까지다. Jetson software-only FAKE는 배포
 > commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`에서 PASS다. FAKE는 실기 HIL이 아니며
 > 최종 Jetson/10모터/US-100 HIL은 대기 중이다.
 
@@ -64,8 +64,10 @@ US-100 UART
 Jetson에 SSH 접속한 직후 홈 `~`에서 시작한다.
 
 ```bash
+set -eu
 cd ~/power-train-sw
-docker compose -f docker/docker-compose.jetson.yml up -d powertrain_ros
+docker compose -f docker/docker-compose.jetson.yml up -d canwatchdog powertrain_ros
+test "$(docker inspect -f '{{.State.Running}}' powertrain_canwatchdog)" = "true"
 docker exec -it powertrain_ros bash
 ```
 
@@ -92,23 +94,55 @@ colcon test-result --verbose
 - 시나리오 9: 별도 통제 주행로, 단계적 저속, spotter, 배제구역, 물리 E-stop 확보 후
   **바퀴를 내리기 직전 별도 사용자 확인**. 앞 단계의 부양 확인을 승계하지 않는다.
 
-확인 뒤 Jetson 호스트에서 다음 preflight를 순서대로 실행한다.
+확인 뒤 Jetson 호스트에서 다음 host-wide preflight를 순서대로 실행한다. 컨테이너 안의
+`ps` 하나를 호스트 전체 검사로 해석하지 않는다. 아래 검사는 Jetson 호스트 프로세스와 실행
+중인 **모든** 컨테이너의 프로세스를 각각 확인한다.
 
 ```bash
+set -eu
 cd ~/power-train-sw
 git rev-parse HEAD
-docker inspect -f '{{.State.Running}}' powertrain_canwatchdog
-docker exec powertrain_ros sh -lc \
-  "ps -ef | grep -E '[r]os2 .*powertrain_ros|[c]hassis[_.]|[t]eleop'"
+test "$(docker inspect -f '{{.State.Running}}' powertrain_canwatchdog)" = "true"
+
+CONTROL_RE='[r]os2 .*powertrain_ros|[c]hassis([_. /]|$)|[t]eleop|[m]otor_gui|[c]an_drive|[c]alibrat(e|ion|_all)|[o]drive|[a]k_control|[a]k.*(can|motor|drive)'
+
+HOST_CONTROL=$(ps -eo pid=,user=,args= | grep -Ei "$CONTROL_RE" || true)
+CONTAINER_CONTROL=$(
+  for container in $(docker ps --format '{{.Names}}'); do
+    top_output=$(docker top "$container" -eo pid,user,args) || exit 1
+    rows=$(printf '%s\n' "$top_output" | grep -Ei "$CONTROL_RE" || true)
+    if [ -n "$rows" ]; then
+      printf '%s\n' "$rows" | sed "s/^/$container: /"
+    fi
+  done
+  true
+)
+
+if [ -n "$HOST_CONTROL" ] || [ -n "$CONTAINER_CONTROL" ]; then
+  echo "ABORT: unexpected motor-control process before launch" >&2
+  printf '%s\n%s\n' "$HOST_CONTROL" "$CONTAINER_CONTROL" >&2
+  exit 1
+fi
 ```
 
-워치독 출력은 반드시 `true`여야 한다. 마지막 명령에 경쟁 제어자가 나오면 소유자를 확인해
-해당 PID만 정상 종료하고, 같은 조회가 무출력임을 다시 확인한다.
+`powertrain_canwatchdog`는 반드시 running이어야 한다. 워치독은 CAN socket을 열지 않으므로
+아래 수신자 목록에는 나타나지 않는 것이 정상이다. 프로세스가 하나라도 검출되면 launch하지
+말고 소유자·작업 목적을 확인한다. 알 수 없는 팀원 프로세스를 자동 `kill`하지 않는다.
+
+프로세스 감사 뒤 launch 전 CAN receiver가 0개인지 확인한다.
 
 ```bash
-docker exec powertrain_ros kill <identified-PID>
-docker exec powertrain_ros sh -lc \
-  "ps -ef | grep -E '[r]os2 .*powertrain_ros|[c]hassis[_.]|[t]eleop'"
+test -d /proc/net/can
+CAN_FILES=$(find /proc/net/can -maxdepth 1 -type f -name 'rcvlist_*' -print)
+test -n "$CAN_FILES"
+CAN_RECEIVERS=$(grep -H -E \
+  '^[[:space:]]*[[:alnum:]_.:-]+[[:space:]]+[0-9A-Fa-f]{8}[[:space:]]' \
+  $CAN_FILES || true)
+if [ -n "$CAN_RECEIVERS" ]; then
+  echo "ABORT: unexpected CAN receiver before chassis launch" >&2
+  printf '%s\n' "$CAN_RECEIVERS" >&2
+  exit 1
+fi
 ```
 
 그 다음 sticky loopback을 명시적으로 끄고 저장소 스크립트로 CAN을 올린다.
@@ -130,6 +164,60 @@ cd /workspace/ros2
 source install/setup.bash
 ros2 launch powertrain_ros wp5_control.launch.py stop_mm:=<provisional-mm>
 ```
+
+아직 arm하거나 `/cmd_vel`을 보내지 않는다. 별도 SSH 터미널의 Jetson 호스트에서 launch 뒤
+단일 소유권을 다시 확인한다. 허용되는 제어 프로세스는 `powertrain_ros` 컨테이너의 launch
+supervisor 1개와 chassis 실행기 1개뿐이다. `us100_safety`는 CAN을 열지 않는다.
+
+```bash
+set -eu
+cd ~/power-train-sw
+CONTROL_RE='[r]os2 .*powertrain_ros|[c]hassis([_. /]|$)|[t]eleop|[m]otor_gui|[c]an_drive|[c]alibrat(e|ion|_all)|[o]drive|[a]k_control|[a]k.*(can|motor|drive)'
+
+ROS_TOP=$(docker top powertrain_ros -eo pid,user,args)
+LAUNCH_COUNT=$(printf '%s\n' "$ROS_TOP" | grep -Ec \
+  '[r]os2 .*powertrain_ros wp5_control\.launch\.py' || true)
+CHASSIS_COUNT=$(printf '%s\n' "$ROS_TOP" | grep -Ec \
+  '/powertrain_ros/chassis([[:space:]]|$)' || true)
+test "$LAUNCH_COUNT" -eq 1
+test "$CHASSIS_COUNT" -eq 1
+
+HOST_UNEXPECTED=$(ps -eo pid=,user=,args= | grep -Ei "$CONTROL_RE" | grep -Ev \
+  '[r]os2 .*powertrain_ros wp5_control\.launch\.py|/powertrain_ros/chassis([[:space:]]|$)' || true)
+CONTAINER_UNEXPECTED=$(
+  for container in $(docker ps --format '{{.Names}}'); do
+    top_output=$(docker top "$container" -eo pid,user,args) || exit 1
+    rows=$(printf '%s\n' "$top_output" | grep -Ei "$CONTROL_RE" || true)
+    if [ "$container" = "powertrain_ros" ]; then
+      rows=$(printf '%s\n' "$rows" | grep -Ev \
+        '[r]os2 .*powertrain_ros wp5_control\.launch\.py|/powertrain_ros/chassis([[:space:]]|$)' || true)
+    fi
+    if [ -n "$rows" ]; then
+      printf '%s\n' "$rows" | sed "s/^/$container: /"
+    fi
+  done
+  true
+)
+if [ -n "$HOST_UNEXPECTED" ] || [ -n "$CONTAINER_UNEXPECTED" ]; then
+  echo "ABORT: unexpected second motor-control owner after launch" >&2
+  printf '%s\n%s\n' "$HOST_UNEXPECTED" "$CONTAINER_UNEXPECTED" >&2
+  exit 1
+fi
+
+CAN_FILES=$(find /proc/net/can -maxdepth 1 -type f -name 'rcvlist_*' -print)
+test -n "$CAN_FILES"
+POST_CAN_RECEIVERS=$(grep -H -E \
+  '^[[:space:]]*[[:alnum:]_.:-]+[[:space:]]+[0-9A-Fa-f]{8}[[:space:]]' \
+  $CAN_FILES || true)
+test -n "$POST_CAN_RECEIVERS"
+printf '%s\n' "$POST_CAN_RECEIVERS"
+```
+
+chassis 한 프로세스가 10모터용 SocketCAN socket을 여러 개 열므로 receiver 행 수를 소유자
+수로 해석하지 않는다. 핵심은 launch 전 receiver 0개, launch 후 의도한 chassis 1개와 함께
+생긴 receiver 목록이다. 위 post-launch 게이트가 실패하면 arm하지 말고 launch 터미널에서
+`Ctrl-C`로 의도한 launch를 종료한다. 필요하면 물리 E-stop을 누른 뒤 원인을 조사하며, 알 수
+없는 프로세스를 자동 종료하지 않는다.
 
 시나리오 9에서 산정·승인·재검증한 뒤 생산 명령은 다음 형식만 허용한다.
 
@@ -212,11 +300,15 @@ ros2 run powertrain_ros chassis --ros-args \
 
 ## 검증 상태
 
-- 관찰된 로컬 결과: `motor_control` 지원 suite 189 passed, `motor_gui` 91 passed. pre-HIL
-  commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`에서 tool capture했으며 raw log는 없다.
-- 임시 read-only ROS 워크스페이스: `robot_arm_msgs`, `powertrain_msgs`, `powertrain_ros`
-  3패키지 build 완료, `powertrain_ros` 23 tests passed. 같은 commit에서 tool capture했으며
-  raw log는 없다.
+- 로컬 `motor_control` 189 passed와 `motor_gui` 91 passed: commit
+  `e163eed824c2a1381e4763926840d8c881fb55b7`, JUnit
+  `.superpowers/sdd/final-motor-control-e163eed.xml`과
+  `.superpowers/sdd/final-motor-gui-e163eed.xml`. 이후 `60a813f`는 ROS test 파일만 바꿔
+  production Python 범위는 동일하다.
+- 격리 read-only ROS 워크스페이스: commit
+  `60a813f68027c9153e99582d6e21b7bd37f71ece`, `robot_arm_msgs`·`powertrain_msgs`·
+  `powertrain_ros` 3패키지 clean build, `powertrain_ros` **30/30 passed**. JUnit은
+  `.superpowers/sdd/final-ros-60a813f.xml`이다.
 - Jetson `powertrain_ros` 23 tests: PASS. raw XML은
   `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml`.
 - Jetson software-only FAKE(commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`): **PASS**.
