@@ -68,6 +68,7 @@ set -eu
 cd ~/power-train-sw
 docker compose -f docker/docker-compose.jetson.yml up -d canwatchdog powertrain_ros
 test "$(docker inspect -f '{{.State.Running}}' powertrain_canwatchdog)" = "true"
+test "$(docker inspect -f '{{.State.Running}}' powertrain_ros)" = "true"
 docker exec -it powertrain_ros bash
 ```
 
@@ -103,10 +104,12 @@ set -eu
 cd ~/power-train-sw
 git rev-parse HEAD
 test "$(docker inspect -f '{{.State.Running}}' powertrain_canwatchdog)" = "true"
+test "$(docker inspect -f '{{.State.Running}}' powertrain_ros)" = "true"
 
 CONTROL_RE='[r]os2 .*powertrain_ros|[c]hassis([_. /]|$)|[t]eleop|[m]otor_gui|[c]an_drive|[c]alibrat(e|ion|_all)|[o]drive|[a]k_control|[a]k.*(can|motor|drive)'
 
-HOST_CONTROL=$(ps -eo pid=,user=,args= | grep -Ei "$CONTROL_RE" || true)
+PS_SNAPSHOT=$(ps -eo pid=,user=,args=)
+HOST_CONTROL=$(printf '%s\n' "$PS_SNAPSHOT" | grep -Ei "$CONTROL_RE" || true)
 CONTAINER_CONTROL=$(
   for container in $(docker ps --format '{{.Names}}'); do
     top_output=$(docker top "$container" -eo pid,user,args) || exit 1
@@ -125,9 +128,12 @@ if [ -n "$HOST_CONTROL" ] || [ -n "$CONTAINER_CONTROL" ]; then
 fi
 ```
 
-`powertrain_canwatchdog`는 반드시 running이어야 한다. 워치독은 CAN socket을 열지 않으므로
-아래 수신자 목록에는 나타나지 않는 것이 정상이다. 프로세스가 하나라도 검출되면 launch하지
-말고 소유자·작업 목적을 확인한다. 알 수 없는 팀원 프로세스를 자동 `kill`하지 않는다.
+`powertrain_canwatchdog`는 반드시 running이어야 한다. 워치독은 TX wedge probe용
+AF_CAN raw socket을 열고 `can0`에 bind하지만 빈 RX filter를 설정한 **TX-only** 소켓이다.
+따라서 아래 receiver 목록에는 나타나지 않으며, 임의의 다른 TX-only 소켓도 이 목록으로는
+찾을 수 없다. 프로세스/container allowlist는 이 사각지대의 운영상 완화책일 뿐 완전한 증명이
+아니다. 이름을 바꾼 TX-only 소유자가 남을 잔여 위험이 있으므로, 프로세스가 하나라도 검출되면
+launch하지 말고 소유자·작업 목적을 확인한다. 알 수 없는 팀원 프로세스를 자동 `kill`하지 않는다.
 
 프로세스 감사 뒤 launch 전 CAN receiver가 0개인지 확인한다.
 
@@ -135,9 +141,11 @@ fi
 test -d /proc/net/can
 CAN_FILES=$(find /proc/net/can -maxdepth 1 -type f -name 'rcvlist_*' -print)
 test -n "$CAN_FILES"
-CAN_RECEIVERS=$(grep -H -E \
-  '^[[:space:]]*[[:alnum:]_.:-]+[[:space:]]+[0-9A-Fa-f]{8}[[:space:]]' \
-  $CAN_FILES || true)
+CAN_RECEIVERS=$(awk '
+  $1 == "can0" && $2 ~ /^[[:xdigit:]]+$/ && (length($2) == 3 || length($2) == 8) {
+    print FILENAME ":" $0
+  }
+' $CAN_FILES)
 if [ -n "$CAN_RECEIVERS" ]; then
   echo "ABORT: unexpected CAN receiver before chassis launch" >&2
   printf '%s\n' "$CAN_RECEIVERS" >&2
@@ -174,6 +182,7 @@ set -eu
 cd ~/power-train-sw
 CONTROL_RE='[r]os2 .*powertrain_ros|[c]hassis([_. /]|$)|[t]eleop|[m]otor_gui|[c]an_drive|[c]alibrat(e|ion|_all)|[o]drive|[a]k_control|[a]k.*(can|motor|drive)'
 
+PS_SNAPSHOT=$(ps -eo pid=,user=,args=)
 ROS_TOP=$(docker top powertrain_ros -eo pid,user,args)
 LAUNCH_COUNT=$(printf '%s\n' "$ROS_TOP" | grep -Ec \
   '[r]os2 .*powertrain_ros wp5_control\.launch\.py' || true)
@@ -182,7 +191,14 @@ CHASSIS_COUNT=$(printf '%s\n' "$ROS_TOP" | grep -Ec \
 test "$LAUNCH_COUNT" -eq 1
 test "$CHASSIS_COUNT" -eq 1
 
-HOST_UNEXPECTED=$(ps -eo pid=,user=,args= | grep -Ei "$CONTROL_RE" | grep -Ev \
+ROS_CHASSIS_PIDS=$(printf '%s\n' "$ROS_TOP" | awk \
+  '/\/powertrain_ros\/chassis([[:space:]]|$)/ {print $1}' | sort -n -u)
+HOST_CHASSIS_PIDS=$(printf '%s\n' "$PS_SNAPSHOT" | awk \
+  '/\/powertrain_ros\/chassis([[:space:]]|$)/ {print $1}' | sort -n -u)
+test "$(printf '%s\n' "$ROS_CHASSIS_PIDS" | sed '/^$/d' | wc -l)" -eq 1
+test "$HOST_CHASSIS_PIDS" = "$ROS_CHASSIS_PIDS"
+
+HOST_UNEXPECTED=$(printf '%s\n' "$PS_SNAPSHOT" | grep -Ei "$CONTROL_RE" | grep -Ev \
   '[r]os2 .*powertrain_ros wp5_control\.launch\.py|/powertrain_ros/chassis([[:space:]]|$)' || true)
 CONTAINER_UNEXPECTED=$(
   for container in $(docker ps --format '{{.Names}}'); do
@@ -206,16 +222,20 @@ fi
 
 CAN_FILES=$(find /proc/net/can -maxdepth 1 -type f -name 'rcvlist_*' -print)
 test -n "$CAN_FILES"
-POST_CAN_RECEIVERS=$(grep -H -E \
-  '^[[:space:]]*[[:alnum:]_.:-]+[[:space:]]+[0-9A-Fa-f]{8}[[:space:]]' \
-  $CAN_FILES || true)
+POST_CAN_RECEIVERS=$(awk '
+  $1 == "can0" && $2 ~ /^[[:xdigit:]]+$/ && (length($2) == 3 || length($2) == 8) {
+    print FILENAME ":" $0
+  }
+' $CAN_FILES)
 test -n "$POST_CAN_RECEIVERS"
 printf '%s\n' "$POST_CAN_RECEIVERS"
 ```
 
 chassis 한 프로세스가 10모터용 SocketCAN socket을 여러 개 열므로 receiver 행 수를 소유자
-수로 해석하지 않는다. 핵심은 launch 전 receiver 0개, launch 후 의도한 chassis 1개와 함께
-생긴 receiver 목록이다. 위 post-launch 게이트가 실패하면 arm하지 말고 launch 터미널에서
+수로 해석하지 않는다. host `ps` snapshot의 chassis PID 집합이 `docker top powertrain_ros`의
+단 하나인 chassis PID와 정확히 같아야 하므로 native·다른 container 중복도 실패한다. receiver
+목록은 launch 전 예기치 않은 RX socket 부재와 launch 후 의도한 RX socket 출현을 보여줄 뿐,
+TX-only socket 소유권을 증명하지 않는다. 위 post-launch 게이트가 실패하면 arm하지 말고 launch 터미널에서
 `Ctrl-C`로 의도한 launch를 종료한다. 필요하면 물리 E-stop을 누른 뒤 원인을 조사하며, 알 수
 없는 프로세스를 자동 종료하지 않는다.
 
@@ -303,12 +323,15 @@ ros2 run powertrain_ros chassis --ros-args \
 - 로컬 `motor_control` 189 passed와 `motor_gui` 91 passed: commit
   `e163eed824c2a1381e4763926840d8c881fb55b7`, JUnit
   `.superpowers/sdd/final-motor-control-e163eed.xml`과
-  `.superpowers/sdd/final-motor-gui-e163eed.xml`. 이후 `60a813f`는 ROS test 파일만 바꿔
+  `.superpowers/sdd/final-motor-gui-e163eed.xml`. 이후
+  `60a813f555d5d85fd58bed769853ee5995974f80`는 ROS test 파일만 바꿔
   production Python 범위는 동일하다.
 - 격리 read-only ROS 워크스페이스: commit
-  `60a813f68027c9153e99582d6e21b7bd37f71ece`, `robot_arm_msgs`·`powertrain_msgs`·
+  `60a813f555d5d85fd58bed769853ee5995974f80`, `robot_arm_msgs`·`powertrain_msgs`·
   `powertrain_ros` 3패키지 clean build, `powertrain_ros` **30/30 passed**. JUnit은
   `.superpowers/sdd/final-ros-60a813f.xml`이다.
+- 이후 test-only commit `839103dc2ae7d8abe0e2c789849bae58eb1e9287`에서 agent가 관찰한
+  31-test 결과는 추가 참고자료다. 위 root-observed 격리 30/30 JUnit을 대체하지 않는다.
 - Jetson `powertrain_ros` 23 tests: PASS. raw XML은
   `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml`.
 - Jetson software-only FAKE(commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`): **PASS**.
