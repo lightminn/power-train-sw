@@ -1,5 +1,14 @@
 # US-100 충돌방지 안전 모듈 — 구현 계획 (초보자용, 따라하기)
 
+> [!CAUTION]
+> **SUPERSEDED — 역사 보존용 문서이며 이 계획을 실행하지 마십시오.**
+> 아래 `safe/warn/stop`, `Verdict.level`, 초기 `stop`, `None`→`stop` 구현·시험 단계는
+> 폐기되었습니다. 현재 정본은
+> [WP5.1 제어·안전 설계](../specs/2026-07-10-wp5-control-safety-hardening-design.md),
+> [WP5.1 구현 계획](./2026-07-10-wp5-control-safety-hardening-plan.md),
+> [실행 모듈 README](../../motor_control/safety_us100/README.md)입니다. 아래 Task와 명령은
+> 2026-05-25 당시 기록을 보존할 뿐이므로 복사·실행하거나 현재 API로 해석하지 마십시오.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** US-100 거리 센서 1개로 앞쪽 장애물 거리를 재서 "안전/주의/멈춤"을 알려주는(직접 멈추지는 않는) 작은 프로그램을 만든다.

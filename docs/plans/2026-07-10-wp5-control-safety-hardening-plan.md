@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **실행 상태 (2026-07-11):** Tasks 1~8 소프트웨어·FAKE 검증 완료. Task 9의 Jetson 배포와 최종 실기 HIL은 대기 중이며, 이 문서는 아직 HIL 통과나 실측 지표를 기록하지 않는다.
+
 **Goal:** 10모터 차체 제어를 실제 50 Hz 비블로킹 루프로 만들고, US-100·모터 고장을 수동 reset형 E-stop으로 통합하며, WP6용 6바퀴 실측 상태를 50 Hz ROS 토픽으로 제공한다.
 
 **Architecture:** 제어·안전 정책은 `motor_control/`의 순수 Python에 두고 pytest로 검증한다. ROS2는 별도 US-100 프로세스와 `chassis_node` 사이의 `/safety_verdict`, WP6으로 나가는 `/wheel_states`, 기존 `/cmd_vel`·로봇팔 계약을 전달하는 얇은 껍데기다. `ChassisManager`가 CAN과 실제 E-stop 집행의 유일한 소유자다.
@@ -18,6 +20,8 @@
 - `MOTION_HOLD`는 자동복구, `ESTOP`은 수동 reset 후 별도 arm이다.
 - `INVALID_READING`은 정상 통과하고, 유효 거리 `< stop_mm` 또는 확정 `NO_RESPONSE`만 센서 E-stop이다.
 - 실기 기본은 `safety_required=true`; 우회는 FAKE·벤치에서 명시적으로만 허용한다.
+- `safety_topic_timeout`의 운영 기본값·허용 최솟값은 0.75초다(최악 거리+생존 sample
+  0.4초 + 스케줄링·DDS 여유 0.35초).
 - ODrive 정본은 pp=10, cpr=60, bandwidth=30, vel_gain=0.12, vel_integrator_gain=0.2, node 11~16이다.
 - 기존 사용자 소유 untracked 파일 `.claude/settings.json`, `.codex/`, `docs/creativeEngineering/`와 Jetson `motor_control/vision/tests/`를 건드리지 않는다.
 - 테스트는 반드시 RED 실패를 확인한 뒤 최소 구현으로 GREEN을 만든다.
@@ -106,7 +110,7 @@ def test_can_drive_periodic_drain_is_bounded_to_16_frames():
 Run:
 
 ```bash
-docker run --rm -v /home/light/ZETIN/robotics/power-train-sw:/workspace \
+docker run --rm -v "$PWD:/workspace" \
   -w /workspace/motor_control powertrain-sw:dev \
   python3 -m pytest corner_module/tests/test_corner_module.py \
   -k 'periodic_tick_only or periodic_drain_is_bounded' -v
@@ -193,7 +197,7 @@ Run the single test. Expected RED: current code records `[0.005]`. Change `Steer
 Run:
 
 ```bash
-docker run --rm -v /home/light/ZETIN/robotics/power-train-sw:/workspace \
+docker run --rm -v "$PWD:/workspace" \
   -w /workspace/motor_control powertrain-sw:dev \
   python3 -m pytest corner_module/tests/ -v
 ```
@@ -1305,14 +1309,31 @@ Declare and read:
 
 ```python
 self.declare_parameter("safety_required", True)
-self.declare_parameter("safety_topic_timeout", 0.5)
+self.declare_parameter("safety_topic_timeout", 0.75)
 self.declare_parameter("safety_startup_timeout", 1.0)
 self._safety_required = bool(self.get_parameter("safety_required").value)
-self._safety_topic_timeout = float(self.get_parameter("safety_topic_timeout").value)
+self._safety_topic_timeout = validate_safety_topic_timeout(
+    self.get_parameter("safety_topic_timeout").value
+)
 self._safety_startup_timeout = float(self.get_parameter("safety_startup_timeout").value)
 self._started_ms = self._now_ms()
 self._last_safety_ms = None
 self._overrun_count = 0
+```
+
+`validate_safety_topic_timeout()`은 값이 유한하고 0.75초 이상인지 검사하고, 아니면
+`ValueError`를 발생시킨다. 0.75초는 최악의 거리 요청+생존 확인 sample 0.4초에 타이머
+스케줄링·DDS 전달 여유 0.35초를 더한 운영 최솟값이다. 0.4, 0.5, 0.749, NaN, infinity를
+거부하고 0.75를 허용하는 순수 단위시험을 추가한다.
+
+```python
+def validate_safety_topic_timeout(value):
+    timeout_s = float(value)
+    if not math.isfinite(timeout_s) or timeout_s < 0.75:
+        raise ValueError(
+            "safety_topic_timeout must be finite and at least 0.75 s"
+        )
+    return timeout_s
 ```
 
 Create a reliable depth-1 safety subscription, a `WheelStates` publisher, and
@@ -1535,7 +1556,7 @@ accesses.
 Run:
 
 ```bash
-docker run --rm -v /home/light/ZETIN/robotics/power-train-sw:/workspace \
+docker run --rm -v "$PWD:/workspace" \
   -w /workspace/motor_control powertrain-sw:dev \
   python3 -m pytest chassis/tests corner_module/tests safety_us100/tests -v
 ```
@@ -1561,11 +1582,17 @@ FAKE ROS 검증과 전체 코드 리뷰를 먼저 끝낸 뒤, 본 Task에서 Jet
 한 번에 수행한다.
 
 **Files:**
+- Modify: `docs/specs/2026-07-10-wp5-control-safety-hardening-design.md`
+- Modify: `docs/plans/2026-07-10-wp5-control-safety-hardening-plan.md`
 - Modify: `docs/plans/2026-07-02-autonomous-driving-kickoff.md`
 - Modify: `docs/reports/2026-07-10-project-and-jetson-state.md`
+- Modify: `docs/specs/2026-05-25-us100-safety-module-design.md` (SUPERSEDED banner only; preserve body)
+- Modify: `docs/plans/2026-05-25-us100-safety-module-plan.md` (SUPERSEDED banner only; preserve body)
 - Modify: `ros2/README.md`
 - Modify: `README.md`
 - Modify: `AGENTS.md`
+- Modify: `.claude/CLAUDE.md`
+- Modify: `.claude/AGENTS.md`
 - Create: `docs/reports/2026-07-10-wp5-control-safety-hil.md`
 
 **Interfaces:**
@@ -1575,11 +1602,11 @@ FAKE ROS 검증과 전체 코드 리뷰를 먼저 끝낸 뒤, 본 Task에서 Jet
 - [ ] **Step 1: Run the supported local automatic regression suites**
 
 ```bash
-docker run --rm -v /home/light/ZETIN/robotics/power-train-sw:/workspace \
+docker run --rm -v "$PWD:/workspace" \
   -w /workspace/motor_control powertrain-sw:dev \
   python3 -m pytest chassis/tests corner_module/tests safety_us100/tests -v
 
-docker run --rm -v /home/light/ZETIN/robotics/power-train-sw:/workspace \
+docker run --rm -v "$PWD:/workspace" \
   -w /workspace powertrain-sw:dev \
   python3 -m pytest motor_gui/tests -v
 ```
@@ -1590,7 +1617,26 @@ errors. Do not run unbounded recursive collection under `motor_control/`; filena
 
 - [ ] **Step 2: Run full ROS build and tests on Jetson without motors**
 
-Commit and push Tasks 1~8, then on Jetson preserve existing untracked `motor_control/vision/tests/`, fetch and fast-forward `~/power-train-sw`, rebuild `powertrain_ros`, and run `colcon test-result --verbose`.
+Commit Tasks 1~8 on the current feature branch, record the immutable commit, and push that branch
+without assuming `main`:
+
+```bash
+BRANCH=$(git branch --show-current)
+test -n "$BRANCH"
+DEPLOY_COMMIT=$(git rev-parse HEAD)
+git push -u origin "$BRANCH"
+```
+
+On Jetson, preserve existing untracked `motor_control/vision/tests/`, confirm there are no
+overlapping tracked changes, fetch the same feature branch, and fast-forward to that exact commit.
+Before rebuilding, require `git rev-parse HEAD` to equal `$DEPLOY_COMMIT`; do not test an implicit
+branch tip that may have moved. Rebuild `powertrain_ros` and run `colcon test-result --verbose`.
+
+```bash
+git fetch origin "$BRANCH"
+git merge --ff-only "$DEPLOY_COMMIT"
+test "$(git rev-parse HEAD)" = "$DEPLOY_COMMIT"
+```
 
 Expected: `robot_arm_msgs`, `powertrain_msgs`, `powertrain_ros` build; all ROS tests PASS.
 
@@ -1607,7 +1653,7 @@ close verdict             → ESTOP
 far verdict after trip    → remains ESTOP
 reset                     → IDLE, wheels stopped
 arm after reset           → ARMED
-publisher killed          → within 0.5 s ESTOP
+publisher killed          → within 0.75 s ESTOP
 ```
 
 - [ ] **Step 4: Request HIL setup from the user before touching hardware**
@@ -1644,18 +1690,44 @@ Document the chosen value and test speed. Do not keep 200 mm merely because it w
 
 - [ ] **Step 8: Update authority documents**
 
-Update the kickoff plan with WP5.1 completion evidence, 50 Hz measured rate, E-stop terminology, `/wheel_states` and safety flow. Update ROS README commands, root README feature table, current-state report and AGENTS durable guidance. Preserve historical completion banners but add a newer override rather than rewriting old HIL history.
+Update the kickoff plan with WP5.1 completion evidence, measured rate, E-stop terminology,
+`/wheel_states` and safety flow. Update the current design/plan status, ROS README commands, root
+README feature table, current-state report, root AGENTS, `.claude/CLAUDE.md`, and
+`.claude/AGENTS.md`. The authority update must explain all of the following:
+
+- `RUN` / `MOTION_HOLD` / latched `ESTOP`, reset, and separate arm semantics
+- the hybrid architecture: pure-Python policy and motor ownership, ROS transport/freshness, and
+  the separate blocking US-100 process
+- why that split exists: deterministic 50 Hz chassis work despite UART latency, one final E-stop
+  authority, and reusable non-ROS teleop semantics
+- why the 2026-05-25 `safe/warn/stop` + `Verdict.level` + startup/`None`→`stop` model is retired,
+  with both old design/plan documents marked SUPERSEDED and linked to the current WP5 authority
+
+Preserve historical completion banners but add a newer override rather than rewriting old HIL
+history.
 
 - [ ] **Step 9: Run final verification and commit documentation**
 
-Run fresh pure tests, ROS build/test, `git diff --check`, and inspect `git status`. Commit only tracked task files:
+Run fresh pure tests, ROS build/test, `git diff --check`, and inspect `git status`. Stage only the
+listed tracked Task 9 files; verify the index before committing. Push the current feature branch,
+never a hard-coded `main`, and record the exact documentation commit:
 
 ```bash
-git add README.md AGENTS.md ros2/README.md docs/plans/2026-07-02-autonomous-driving-kickoff.md \
+git add -- README.md AGENTS.md .claude/CLAUDE.md .claude/AGENTS.md ros2/README.md \
+  docs/specs/2026-07-10-wp5-control-safety-hardening-design.md \
+  docs/plans/2026-07-10-wp5-control-safety-hardening-plan.md \
   docs/reports/2026-07-10-project-and-jetson-state.md \
+  docs/specs/2026-05-25-us100-safety-module-design.md \
+  docs/plans/2026-05-25-us100-safety-module-plan.md \
+  docs/plans/2026-07-02-autonomous-driving-kickoff.md \
   docs/reports/2026-07-10-wp5-control-safety-hil.md
+git diff --cached --name-only
 git commit -m "docs: record WP5 control safety HIL"
-git push origin main
+DOC_COMMIT=$(git rev-parse HEAD)
+BRANCH=$(git branch --show-current)
+test -n "$BRANCH"
+git push -u origin "$BRANCH"
+test "$(git rev-parse HEAD)" = "$DOC_COMMIT"
 ```
 
 - [ ] **Step 10: Move to the next approved architecture track**

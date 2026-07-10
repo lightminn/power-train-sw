@@ -1,7 +1,7 @@
 # WP5.1 차체 제어·안전 경로 보강 설계
 
 > 작성: 2026-07-10
-> 상태: 사용자 대화 승인 내용을 문서화한 구현 전 설계
+> 상태: Tasks 1~8 소프트웨어·FAKE 검증 완료, Task 9 Jetson 배포·최종 실기 HIL 대기
 > 상위 계획: `docs/plans/2026-07-02-autonomous-driving-kickoff.md` WP5 확장·WP6 선행
 > 구현 원칙: 제어·안전 정책은 ROS 없는 순수 Python, ROS2는 노드 사이 데이터 전달을 맡는 얇은 껍데기
 
@@ -294,12 +294,15 @@ powertrain_msgs/WheelState[] wheels
 
 ```text
 safety_required=true
-safety_topic_timeout=0.5
+safety_topic_timeout=0.75
 safety_startup_timeout=1.0
 ```
 
 - 실기 기본은 `safety_required=true`다.
 - `false`는 FAKE·벤치 시험에서만 명시적으로 사용하며 경고 로그를 남긴다.
+- `safety_topic_timeout`의 운영 기본값이자 허용 최솟값은 0.75초다. US-100의 거리 요청과
+  생존 확인 한 sample이 최악 0.4초 걸릴 수 있고, 타이머 스케줄링·DDS 전달 지연에
+  0.35초 여유를 둔 값이다. 0.75초 미만 또는 유한하지 않은 값은 시작 단계에서 거부한다.
 - 기존 `~/estop`, `~/arm`, `~/disarm`을 유지하고 `~/reset_estop` Trigger 서비스를
   추가한다.
 - `~/arm`은 latch 상태에서 실패와 원인을 반환한다.
@@ -307,7 +310,7 @@ safety_startup_timeout=1.0
 ## 9. 오류 처리
 
 - 안전 토픽이 아직 없으면 시작 후 1초까지 `MOTION_HOLD`, 이후 `ESTOP`이다.
-- 마지막 안전 토픽 수신 후 0.5초가 지나면 `SAFETY_TOPIC_STALE` E-stop이다.
+- 마지막 안전 토픽 수신 후 0.75초가 지나면 `SAFETY_TOPIC_STALE` E-stop이다.
 - 유효한 안전 토픽을 다시 받아도 E-stop은 자동 해제하지 않는다.
 - CAN 송신 예외를 드라이버가 흡수한 경우 stale 상태가 E-stop을 일으킨다.
 - `ChassisManager.tick()` 밖으로 나온 예외는 `CONTROL_EXCEPTION` E-stop을 일으키고
@@ -364,7 +367,7 @@ ChassisManager:
 - 가까운 거리 verdict → `ESTOP`
 - 이후 먼 거리 verdict → latch 유지
 - reset → `IDLE`, arm 전 구동 0
-- safety publisher 중단 → 0.5초 후 `ESTOP`
+- safety publisher 중단 → 0.75초 이내 `ESTOP`
 - `safety_required=false`에서 경고 후 FAKE 구동 가능
 
 ### 10.3 Jetson HIL
