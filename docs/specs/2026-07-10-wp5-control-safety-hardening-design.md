@@ -310,7 +310,8 @@ safety_startup_timeout=1.0
 ## 9. 오류 처리
 
 - 안전 토픽이 아직 없으면 시작 후 1초까지 `MOTION_HOLD`, 이후 `ESTOP`이다.
-- 마지막 안전 토픽 수신 후 0.75초가 지나면 `SAFETY_TOPIC_STALE` E-stop이다.
+- 마지막 안전 토픽의 age가 0.75초를 초과한 뒤 다음 50 Hz tick에서
+  `SAFETY_TOPIC_STALE` E-stop이다(명목 0.75–0.77초).
 - 유효한 안전 토픽을 다시 받아도 E-stop은 자동 해제하지 않는다.
 - CAN 송신 예외를 드라이버가 흡수한 경우 stale 상태가 E-stop을 일으킨다.
 - `ChassisManager.tick()` 밖으로 나온 예외는 `CONTROL_EXCEPTION` E-stop을 일으키고
@@ -367,7 +368,8 @@ ChassisManager:
 - 가까운 거리 verdict → `ESTOP`
 - 이후 먼 거리 verdict → latch 유지
 - reset → `IDLE`, arm 전 구동 0
-- safety publisher 중단 → 0.75초 이내 `ESTOP`
+- safety publisher 중단 → age >0.75초 후 다음 50 Hz tick에서 `ESTOP`
+  (명목 0.75–0.77초)
 - `safety_required=false`에서 경고 후 FAKE 구동 가능
 
 ### 10.3 Jetson HIL

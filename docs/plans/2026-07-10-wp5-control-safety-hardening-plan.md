@@ -1618,24 +1618,57 @@ errors. Do not run unbounded recursive collection under `motor_control/`; filena
 - [ ] **Step 2: Run full ROS build and tests on Jetson without motors**
 
 Commit Tasks 1~8 on the current feature branch, record the immutable commit, and push that branch
-without assuming `main`:
+without assuming `main`. Verify that the remote branch resolves to the same commit, then encode the
+two values for safe transfer into the separate Jetson SSH shell:
 
 ```bash
+set -eu
+test -n "${JETSON_SSH_PASS:-}"
 BRANCH=$(git branch --show-current)
 test -n "$BRANCH"
+git check-ref-format --branch "$BRANCH" >/dev/null
 DEPLOY_COMMIT=$(git rev-parse HEAD)
+git cat-file -e "${DEPLOY_COMMIT}^{commit}"
+test "$(git rev-parse "${BRANCH}^{commit}")" = "$DEPLOY_COMMIT"
 git push -u origin "$BRANCH"
+REMOTE_COMMIT=$(
+  git ls-remote --heads origin "refs/heads/$BRANCH" |
+    awk 'NR == 1 {print $1}'
+)
+test "$REMOTE_COMMIT" = "$DEPLOY_COMMIT"
+BRANCH_B64=$(printf '%s' "$BRANCH" | base64 -w0)
+DEPLOY_COMMIT_B64=$(printf '%s' "$DEPLOY_COMMIT" | base64 -w0)
 ```
 
 On Jetson, preserve existing untracked `motor_control/vision/tests/`, confirm there are no
 overlapping tracked changes, fetch the same feature branch, and fast-forward to that exact commit.
-Before rebuilding, require `git rev-parse HEAD` to equal `$DEPLOY_COMMIT`; do not test an implicit
+The base64 values are single-quoted in the remote command, and the quoted heredoc prevents local
+expansion; the remote shell decodes and validates both values before using them. Before rebuilding,
+require `git rev-parse HEAD` to equal the transferred `$DEPLOY_COMMIT`; do not test an implicit
 branch tip that may have moved. Rebuild `powertrain_ros` and run `colcon test-result --verbose`.
 
 ```bash
-git fetch origin "$BRANCH"
+SSHPASS="$JETSON_SSH_PASS" sshpass -e ssh zetin@jetson-orin.local \
+  "BRANCH_B64='$BRANCH_B64' DEPLOY_COMMIT_B64='$DEPLOY_COMMIT_B64' bash -s" \
+  <<'JETSON'
+set -eu
+BRANCH=$(printf '%s' "$BRANCH_B64" | base64 -d)
+DEPLOY_COMMIT=$(printf '%s' "$DEPLOY_COMMIT_B64" | base64 -d)
+test -n "$BRANCH"
+test -n "$DEPLOY_COMMIT"
+git check-ref-format --branch "$BRANCH" >/dev/null
+test "${#DEPLOY_COMMIT}" -eq 40
+case "$DEPLOY_COMMIT" in
+  *[!0-9a-f]*) exit 1 ;;
+esac
+cd ~/power-train-sw
+test -z "$(git status --porcelain --untracked-files=no)"
+git fetch --no-tags origin "refs/heads/$BRANCH"
+test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$DEPLOY_COMMIT"
+git cat-file -e "${DEPLOY_COMMIT}^{commit}"
 git merge --ff-only "$DEPLOY_COMMIT"
 test "$(git rev-parse HEAD)" = "$DEPLOY_COMMIT"
+JETSON
 ```
 
 Expected: `robot_arm_msgs`, `powertrain_msgs`, `powertrain_ros` build; all ROS tests PASS.
@@ -1653,7 +1686,7 @@ close verdict             → ESTOP
 far verdict after trip    → remains ESTOP
 reset                     → IDLE, wheels stopped
 arm after reset           → ARMED
-publisher killed          → within 0.75 s ESTOP
+publisher killed          → after age >0.75 s, by next 50 Hz tick (nominal 0.75–0.77 s) ESTOP
 ```
 
 - [ ] **Step 4: Request HIL setup from the user before touching hardware**
