@@ -307,6 +307,24 @@ def test_can_drive_periodic_drain_is_bounded_to_16_frames():
     assert len(bus._rx) == 4
 
 
+def test_can_drive_periodic_drain_bounds_invalid_and_unrelated_frames():
+    node = 11
+    rx = [
+        _enc(node + 1, float(i), float(i))
+        if i % 2
+        else can.Message(arbitration_id=(node << 5) | 0x1F,
+                         data=bytes(8), is_extended_id=False)
+        for i in range(20)
+    ]
+    bus = _FakeCanBus(rx=rx)
+    d = DriveOdriveCan(node_id=node, bus=bus)
+    d.connect()
+    d.tick()
+    assert len(bus.recv_timeouts) == 16
+    assert len(bus._rx) == 4
+    assert d.state()["stale"] is True
+
+
 def test_can_drive_state_parses_heartbeat_encoder_iq():
     node = 13
     bus = _FakeCanBus(rx=[_hb(node, err=0, state=8), _enc(node, 1.5, 0.98), _iq(node, 0.3, 0.42)])
