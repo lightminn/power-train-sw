@@ -6,6 +6,7 @@ import threading
 import time
 
 from .config import DashboardConfig
+from .stream_buffer import BoundedRing, LatestSlot, StreamSample
 
 EXPECTED_L515_SERIAL = "00000000F0271544"
 
@@ -96,7 +97,17 @@ class L515GatewaySource:
         self._wait_fn = wait_fn or self._interruptible_wait
         self._mapper_factory = mapper_factory
         self._stop_timeout = float(stop_timeout)
-        self._latest = GatewayFrames()
+        self._buffers = {
+            self._rs.stream.color: LatestSlot(),
+            self._rs.stream.depth: LatestSlot(),
+            self._rs.stream.accel: BoundedRing(32),
+            self._rs.stream.gyro: BoundedRing(32),
+        }
+        self._capture_lock = threading.Lock()
+        self._capture_generation = None
+        self._last_frame_numbers = {}
+        self._mapper = None
+        self._poll_sequences = {stream: 0 for stream in self._buffers}
         self._thread = None
         self._pipeline = None
         self._pipeline_cleanup = None
@@ -106,7 +117,6 @@ class L515GatewaySource:
         self._generation = 0
         self._before_pipeline_start = lambda: None
         self._after_pipeline_start_validation = lambda: None
-        self._before_frame_commit = lambda: None
         self.state = GatewaySourceState.STOPPED
         self.state_changed_at = clock()
         self.connected_serial = None
@@ -174,7 +184,7 @@ class L515GatewaySource:
             self._pipeline = None
             self._pipeline_cleanup = None
             self._starting = None
-            self._latest.clear()
+            self._clear_capture()
             self.connected_serial = None
             self.connected_profile = None
             self._set_state(GatewaySourceState.STOPPED)
@@ -199,7 +209,105 @@ class L515GatewaySource:
                 self._finish_stopped(thread)
 
     def poll_latest(self):
-        return self._latest.drain()
+        color_sequence, color = self.read_color_after(
+            self._poll_sequences[self._rs.stream.color]
+        )
+        depth_sequence, depth = self.read_depth_after(
+            self._poll_sequences[self._rs.stream.depth]
+        )
+        accel = self.read_accel_after(
+            self._poll_sequences[self._rs.stream.accel], 32
+        )
+        gyro = self.read_gyro_after(
+            self._poll_sequences[self._rs.stream.gyro], 32
+        )
+        self._poll_sequences.update({
+            self._rs.stream.color: color_sequence,
+            self._rs.stream.depth: depth_sequence,
+            self._rs.stream.accel: accel.sequence,
+            self._rs.stream.gyro: gyro.sequence,
+        })
+        return GatewayFrames(
+            raw_color=None if color is None else color.frame,
+            raw_depth=None if depth is None else depth.frame,
+            accel=None if not accel.samples else accel.samples[-1].frame,
+            gyro=None if not gyro.samples else gyro.samples[-1].frame,
+            mapper=self._mapper,
+        )
+
+    def read_color_after(self, sequence):
+        return self._buffers[self._rs.stream.color].read_after(sequence)
+
+    def read_depth_after(self, sequence):
+        return self._buffers[self._rs.stream.depth].read_after(sequence)
+
+    def read_accel_after(self, sequence, limit):
+        return self._buffers[self._rs.stream.accel].read_after(sequence, limit)
+
+    def read_gyro_after(self, sequence, limit):
+        return self._buffers[self._rs.stream.gyro].read_after(sequence, limit)
+
+    def _reset_capture(self, generation):
+        with self._capture_lock:
+            self._capture_generation = generation
+            self._last_frame_numbers.clear()
+            self._mapper = self._mapper_factory()
+            for stream, buffer in self._buffers.items():
+                buffer.clear()
+                self._poll_sequences[stream] = 0
+
+    def _clear_capture(self, generation=None):
+        with self._capture_lock:
+            if generation is not None and generation != self._capture_generation:
+                return
+            self._capture_generation = None
+            self._last_frame_numbers.clear()
+            self._mapper = None
+            for stream, buffer in self._buffers.items():
+                buffer.clear()
+                self._poll_sequences[stream] = 0
+
+    def _sample_from_frame(self, stream, frame):
+        keeper = getattr(frame, "keep", None)
+        if callable(keeper):
+            keeper()
+        return StreamSample(
+            stream=stream,
+            frame_number=int(frame.get_frame_number()),
+            timestamp_ms=float(frame.get_timestamp()),
+            received_ns=time.monotonic_ns(),
+            frame=frame,
+        )
+
+    @staticmethod
+    def _children(frame):
+        is_frameset = getattr(frame, "is_frameset", None)
+        if callable(is_frameset) and is_frameset():
+            frameset = frame.as_frameset()
+            try:
+                return tuple(frameset)
+            except TypeError:
+                return tuple(frameset[index] for index in range(frameset.size()))
+        return (frame,)
+
+    def _on_frame(self, frame, generation):
+        if not self._is_current(generation):
+            return
+        for child in self._children(frame):
+            profile = child.get_profile()
+            stream = profile.stream_type()
+            if stream not in self._buffers:
+                continue
+            number = int(child.get_frame_number())
+            with self._capture_lock:
+                if (not self._is_current(generation)
+                        or self._capture_generation != generation):
+                    return
+                if self._last_frame_numbers.get(stream) == number:
+                    continue
+                self._last_frame_numbers[stream] = number
+                sample = self._sample_from_frame(stream, child)
+                self._buffers[stream].publish(sample)
 
     def _matching_serial(self):
         expected = _canonical_serial(EXPECTED_L515_SERIAL)
@@ -232,19 +340,6 @@ class L515GatewaySource:
         config.enable_stream(self._rs.stream.accel)
         config.enable_stream(self._rs.stream.gyro)
         return config
-
-    @staticmethod
-    def _dedup(payload, last):
-        for name in ("raw_color", "raw_depth", "aligned_depth", "accel", "gyro"):
-            sample = payload[name]
-            getter = getattr(sample, "get_timestamp", None)
-            if sample is None or not callable(getter):
-                continue
-            stamp = float(getter())
-            if last.get(name) == stamp:
-                payload[name] = None
-            else:
-                last[name] = stamp
 
     def _run(self, generation=None):
         generation = self._generation if generation is None else generation
@@ -288,7 +383,11 @@ class L515GatewaySource:
                     if not self._is_current(generation):
                         break
                 self._after_pipeline_start_validation()
-                pipeline.start(sdk_config)
+                self._reset_capture(generation)
+                pipeline.start(
+                    sdk_config,
+                    lambda frame, current=generation: self._on_frame(frame, current),
+                )
                 with self._lifecycle_lock:
                     starting = self._starting
                     same_start = (
@@ -306,7 +405,6 @@ class L515GatewaySource:
                     self._stop_pipeline_once(pipeline, cleanup)
                     cleanup_done = True
                     break
-                align = self._rs.align(self._rs.stream.color)
                 self.connected_serial = serial
                 self.connected_profile = {
                     "color": [self.config.color_width, self.config.color_height,
@@ -314,37 +412,24 @@ class L515GatewaySource:
                     "depth": [self.config.depth_width, self.config.depth_height,
                               self.config.fps],
                 }
-                mapper = self._mapper_factory()
-                last = {}
-                self._latest.clear()
                 with self._lifecycle_lock:
                     if not self._is_current(generation):
                         break
                     self._set_state(GatewaySourceState.STREAMING)
                 while self._is_current(generation):
-                    frames = pipeline.wait_for_frames()
-                    aligned = align.process(frames)
-                    payload = {
-                        "raw_color": frames.get_color_frame(),
-                        "raw_depth": frames.get_depth_frame(),
-                        "aligned_depth": aligned.get_depth_frame(),
-                        "accel": frames.first_or_default(self._rs.stream.accel),
-                        "gyro": frames.first_or_default(self._rs.stream.gyro),
-                        "mapper": mapper,
-                    }
-                    self._dedup(payload, last)
-                    self._before_frame_commit()
-                    with self._lifecycle_lock:
-                        if not self._is_current(generation):
-                            break
-                        self._latest.put(**payload)
+                    if self._stop_event.wait(
+                            min(self.config.reconnect_interval_s, 0.1)):
+                        break
+                    if self._matching_serial() != serial:
+                        raise RuntimeError("expected L515 disconnected")
             except Exception:
                 if self._is_current(generation):
-                    self._latest.clear()
+                    self._clear_capture(generation)
                     self.connected_serial = None
                     self.connected_profile = None
                     self._set_state(GatewaySourceState.DISCONNECTED)
             finally:
+                self._clear_capture(generation)
                 if pipeline is not None and not cleanup_done:
                     self._stop_pipeline_once(pipeline, cleanup)
                 with self._lifecycle_lock:
