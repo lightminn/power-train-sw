@@ -126,7 +126,7 @@ def test_publishes_only_six_topics_with_native_camera_profiles_and_imu():
         mapper=mapper,
     )
 
-    gateway.publish(frames)
+    published = gateway.publish(frames)
 
     assert tuple(topic for _, topic, _, _ in node.created) == TOPIC_SPECS
     assert len(node.created) == 6
@@ -144,6 +144,8 @@ def test_publishes_only_six_topics_with_native_camera_profiles_and_imu():
     assert messages["/l515/gyro/sample"][0].angular_velocity.x == 1
     assert messages["/l515/accel/sample"][0].linear_acceleration.z == 6
     assert all(len(value) == 1 for value in messages.values())
+    assert set(published) == set(TOPIC_SPECS)
+    assert gateway.publish_counts() == {topic: 1 for topic in TOPIC_SPECS}
 
 
 def test_equal_device_timestamps_are_deduplicated_per_stream():
@@ -152,8 +154,8 @@ def test_equal_device_timestamps_are_deduplicated_per_stream():
         node, now_ns=lambda: 10, dependencies=dependencies()
     )
     color = Video(np.zeros((720, 1280, 3), np.uint8), 5)
-    gateway.publish(GatewayFrames(raw_color=color, mapper=mapper))
-    gateway.publish(GatewayFrames(raw_color=color, mapper=mapper))
+    first = gateway.publish(GatewayFrames(raw_color=color, mapper=mapper))
+    second = gateway.publish(GatewayFrames(raw_color=color, mapper=mapper))
 
     messages = {
         topic: publisher.messages for _, topic, _, publisher in node.created
@@ -161,6 +163,9 @@ def test_equal_device_timestamps_are_deduplicated_per_stream():
     assert len(messages["/l515/color/image_raw"]) == 1
     assert len(messages["/l515/color/camera_info"]) == 1
     assert mapper.calls == [(5, 10, "/l515/color/image_raw")]
+    assert first == ("/l515/color/image_raw", "/l515/color/camera_info")
+    assert second == ()
+    assert gateway.publish_counts()["/l515/color/image_raw"] == 1
 
 
 def test_new_mapper_generation_resets_publisher_dedup():

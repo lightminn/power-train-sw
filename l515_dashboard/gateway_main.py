@@ -23,8 +23,12 @@ class RosRuntime:
         self.publisher=GatewayRosPublisher(self.node)
 
     def publish(self, frames):
-        self.publisher.publish(frames)
+        published=self.publisher.publish(frames)
         self._rclpy.spin_once(self.node, timeout_sec=0.0)
+        return published
+
+    def publish_counts(self):
+        return self.publisher.publish_counts() if self.publisher else {}
 
     def stop(self):
         if self.node is not None: self.node.destroy_node(); self.node=None
@@ -65,7 +69,7 @@ def main():
     finally:
         gateway.shutdown()
         for sig, handler in old.items(): signal.signal(sig, handler)
-    return 1 if gateway.last_error else 0
+    return 1 if gateway.fatal_error else 0
 
 
 if __name__ == "__main__":

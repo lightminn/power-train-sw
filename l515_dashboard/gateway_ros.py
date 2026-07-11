@@ -65,6 +65,7 @@ class GatewayRosPublisher:
         }
         self._last_timestamps = {}
         self._mapper = None
+        self._counts = {topic: 0 for topic in TOPIC_SPECS}
 
     @staticmethod
     def _intrinsics(frame):
@@ -83,7 +84,7 @@ class GatewayRosPublisher:
     def _video(self, frame, mapper, topic, info_topic, encoding, frame_id):
         stamp = self._stamp(frame, mapper, topic)
         if stamp is None:
-            return
+            return ()
         image = self._image_from_array(
             frame.get_data(), encoding, frame_id, stamp
         )
@@ -92,50 +93,60 @@ class GatewayRosPublisher:
         )
         self._publishers[topic].publish(image)
         self._publishers[info_topic].publish(info)
+        self._counts[topic] += 1
+        self._counts[info_topic] += 1
+        return (topic, info_topic)
 
     def _motion(self, frame, mapper, topic, kind, frame_id):
         stamp = self._stamp(frame, mapper, topic)
         if stamp is None:
-            return
+            return ()
         vector = frame.as_motion_frame().get_motion_data()
         self._publishers[topic].publish(
             self._imu_from_vector(vector, kind, frame_id, stamp)
         )
+        self._counts[topic] += 1
+        return (topic,)
 
     def publish(self, frames):
         mapper = frames.mapper
         if mapper is None:
-            return
+            return ()
+        published = []
         if mapper is not self._mapper:
             self._mapper = mapper
             self._last_timestamps.clear()
         if frames.raw_color is not None:
-            self._video(
+            published.extend(self._video(
                 frames.raw_color,
                 mapper,
                 "/l515/color/image_raw",
                 "/l515/color/camera_info",
                 "bgr8",
                 _COLOR_FRAME,
-            )
+            ))
         if frames.raw_depth is not None:
-            self._video(
+            published.extend(self._video(
                 frames.raw_depth,
                 mapper,
                 "/l515/depth/image_rect_raw",
                 "/l515/depth/camera_info",
                 "16UC1",
                 _DEPTH_FRAME,
-            )
+            ))
         if frames.gyro is not None:
-            self._motion(
+            published.extend(self._motion(
                 frames.gyro, mapper, "/l515/gyro/sample", "gyro", _GYRO_FRAME
-            )
+            ))
         if frames.accel is not None:
-            self._motion(
+            published.extend(self._motion(
                 frames.accel,
                 mapper,
                 "/l515/accel/sample",
                 "accel",
                 _ACCEL_FRAME,
-            )
+            ))
+        return tuple(published)
+
+    def publish_counts(self):
+        return dict(self._counts)

@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 import os
+import queue
 import socket
 import threading
 
@@ -24,12 +25,16 @@ class UnixControlServer:
         self._max_clients = int(max_clients)
         self._idle_timeout = float(idle_timeout_s)
         self._owner_guard = None
+        self._socket_factory = socket.socket
         self._stop_event = threading.Event()
         self._socket = None
         self._thread = None
         self._clients = {}
         self._lock = threading.Lock()
         self._socket_identity = None
+        self._action_capacity = int(max_clients)
+        self._actions = queue.Queue(maxsize=self._action_capacity)
+        self._action_thread = None
 
     def require_owner(self, guard):
         self._owner_guard = guard
@@ -38,13 +43,15 @@ class UnixControlServer:
     def start(self):
         if self._socket is not None:
             return
+        if self._action_thread is not None:
+            self._actions = queue.Queue(maxsize=self._action_capacity)
         if self._owner_guard is not None and not self._owner_guard.acquired:
             raise RuntimeError("socket owner guard is not acquired")
         parent = os.path.dirname(self.path) or "."
         if not os.path.exists(parent):
             os.makedirs(parent, mode=0o750)
         # Never unlink here: stale removal belongs exclusively to ResourceGuard.
-        sock = socket.socket(socket.AF_UNIX)
+        sock = self._socket_factory(socket.AF_UNIX)
         try:
             sock.bind(self.path)
             os.chmod(self.path, 0o660)
@@ -54,12 +61,50 @@ class UnixControlServer:
             sock.settimeout(0.1)
         except Exception:
             sock.close()
+            self._unlink_owned_socket()
             raise
         self._socket = sock
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._accept, daemon=True,
                                         name="l515-control-server")
-        self._thread.start()
+        self._action_thread = threading.Thread(target=self._run_actions,
+                                               name="l515-control-actions")
+        try:
+            self._action_thread.start()
+            self._thread.start()
+        except Exception:
+            self._stop_event.set()
+            sock.close()
+            self._socket = None
+            if self._action_thread.is_alive():
+                self._actions.put(None)
+                self._action_thread.join(1)
+            self._unlink_owned_socket()
+            raise
+
+    def _unlink_owned_socket(self):
+        try:
+            stat = os.stat(self.path)
+            if (stat.st_dev, stat.st_ino) == self._socket_identity:
+                os.unlink(self.path)
+        except FileNotFoundError:
+            pass
+        self._socket_identity = None
+
+    def _run_actions(self):
+        while True:
+            item = self._actions.get()
+            if item is None:
+                return
+            gate, cancelled, action = item
+            while not gate.wait(.05):
+                if self._stop_event.is_set():
+                    break
+            if not self._stop_event.is_set() and not cancelled.is_set():
+                try:
+                    action()
+                except Exception:
+                    pass
 
     def _accept(self):
         while not self._stop_event.is_set():
@@ -98,11 +143,24 @@ class UnixControlServer:
                     raw, _, remainder = buffer.partition(b"\n")
                     buffer = bytearray(remainder)
                     action = None
+                    gate = None
+                    cancelled = None
                     try:
                         request = decode_request(raw, self._max)
                         result = self._handler(request)
                         if isinstance(result, DeferredResponse):
                             payload, action = result.payload, result.after_send
+                            if action is not None:
+                                gate = threading.Event()
+                                cancelled = threading.Event()
+                                try:
+                                    self._actions.put_nowait((gate, cancelled, action))
+                                except queue.Full:
+                                    action = None
+                                    output = response(request["request_id"],
+                                                      error="action queue is full")
+                                    client.sendall(encode_message(output, self._max))
+                                    continue
                         else:
                             payload = result
                         output = response(request["request_id"], payload)
@@ -110,10 +168,15 @@ class UnixControlServer:
                         output = response(exc.request_id, error=str(exc))
                     except Exception as exc:
                         output = response(None, error=f"command failed: {exc}")
-                    client.sendall(encode_message(output, self._max))
-                    if action is not None:
-                        threading.Thread(target=action, daemon=True,
-                                         name="l515-control-action").start()
+                    try:
+                        client.sendall(encode_message(output, self._max))
+                    except Exception:
+                        if gate is not None:
+                            cancelled.set()
+                            gate.set()
+                        raise
+                    if gate is not None:
+                        gate.set()
         except (BrokenPipeError, ConnectionError, OSError):
             pass
         finally:
@@ -143,10 +206,14 @@ class UnixControlServer:
         for _, thread in clients:
             if thread is not current:
                 thread.join(1)
-        try:
-            stat = os.stat(self.path)
-            if (stat.st_dev, stat.st_ino) == self._socket_identity:
-                os.unlink(self.path)
-        except FileNotFoundError:
-            pass
-        self._socket_identity = None
+        while True:
+            try:
+                item = self._actions.get_nowait()
+                if item is not None:
+                    item[0].set()
+            except queue.Empty:
+                break
+        self._actions.put(None)
+        if self._action_thread is not current:
+            self._action_thread.join(1)
+        self._unlink_owned_socket()

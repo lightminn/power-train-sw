@@ -109,6 +109,8 @@ class L515GatewaySource:
         self._before_frame_commit = lambda: None
         self.state = GatewaySourceState.STOPPED
         self.state_changed_at = clock()
+        self.connected_serial = None
+        self.connected_profile = None
 
     def _set_state(self, state):
         self.state = state
@@ -173,6 +175,8 @@ class L515GatewaySource:
             self._pipeline_cleanup = None
             self._starting = None
             self._latest.clear()
+            self.connected_serial = None
+            self.connected_profile = None
             self._set_state(GatewaySourceState.STOPPED)
 
     def stop(self):
@@ -303,6 +307,13 @@ class L515GatewaySource:
                     cleanup_done = True
                     break
                 align = self._rs.align(self._rs.stream.color)
+                self.connected_serial = serial
+                self.connected_profile = {
+                    "color": [self.config.color_width, self.config.color_height,
+                              self.config.fps],
+                    "depth": [self.config.depth_width, self.config.depth_height,
+                              self.config.fps],
+                }
                 mapper = self._mapper_factory()
                 last = {}
                 self._latest.clear()
@@ -330,6 +341,8 @@ class L515GatewaySource:
             except Exception:
                 if self._is_current(generation):
                     self._latest.clear()
+                    self.connected_serial = None
+                    self.connected_profile = None
                     self._set_state(GatewaySourceState.DISCONNECTED)
             finally:
                 if pipeline is not None and not cleanup_done:

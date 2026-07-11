@@ -61,7 +61,9 @@ def test_exact_profiles_alignment_raw_separation_imu_and_mapper():
     rs=RS([Frames("one",1)])
     source=L515GatewaySource(rs, wait_fn=lambda _:False, mapper_factory=object)
     original=source._latest.put
+    connected=[]
     def put_then_stop(**payload):
+        connected.append((source.connected_serial, source.connected_profile))
         original(**payload); source._stop_event.set()
     source._latest.put=put_then_stop
     source._run()
@@ -71,6 +73,8 @@ def test_exact_profiles_alignment_raw_separation_imu_and_mapper():
     assert out.raw_color.name == "color-one" and out.raw_depth.name == "raw-one"
     assert out.aligned_depth.name == "aligned-color-one"
     assert out.accel.name == "accel-one" and out.gyro.name == "gyro-one" and out.mapper is not None
+    assert connected == [("00000000F0271544", {
+        "color":[1280,720,30], "depth":[640,480,30]})]
 
 
 def test_source_consumes_dashboard_config_profiles_and_reconnect_interval():

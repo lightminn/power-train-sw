@@ -47,3 +47,22 @@ Fresh verification after remediation:
 - `/home/light/anaconda3/bin/python -m compileall -q l515_dashboard`: pass.
 - `git diff --check`: pass.
 - No HIL was run, as requested for this review follow-up.
+
+## Second re-review remediation
+
+- Replaced per-command daemon action threads with one tracked FIFO worker and a bounded queue. Queue-full requests receive an error, actions are gated until ACK send succeeds, queued actions are cancelled during stop, and the worker is joined.
+- Wrapped SRT start, stop/reap, mode, submit, and snapshot paths. Any SRT-only exception records the recoverable error and leaves SDK, ROS, guard, and socket alive in DEGRADED.
+- Post-bind listen/settimeout failures remove only the inode created by that server. Replacement paths are preserved, and a later ResourceGuard claim failure rolls the server back through the normal lifecycle.
+- Source status now exposes the SDK-reported connected serial and active profile. ROS publication returns exact topic keys after dedup and owns exact counters, so Gateway diagnostics update only for messages actually published. SRT status explicitly includes nullable `client_state`.
+- The default system collector now reports interval CPU percent and current resident bytes. It no longer reports cumulative CPU seconds or peak RSS.
+- Successful SRT restart clears only the recoverable SRT error. `fatal_error` is separate, so an intentional clean stop exits 0 even if an old recoverable error was displayed.
+- Invalid or empty request IDs are never echoed; only parsed nonempty strings correlate error responses.
+
+Fresh automated evidence before commit:
+
+- `/home/light/anaconda3/bin/python -m pytest -q l515_dashboard/tests`: `166 passed in 1.35s` before the final added edge-case tests.
+- Focused protocol/control/Gateway/main edge cases after those additions: `32 passed in 0.83s`.
+- Full final suite: `170 passed in 1.41s`.
+- `/home/light/anaconda3/bin/python -m compileall -q l515_dashboard`: pass.
+- `git diff --check`: pass.
+- No HIL was run.

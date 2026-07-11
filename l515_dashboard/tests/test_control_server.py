@@ -83,3 +83,54 @@ def test_client_count_idle_deadline_and_stop_join_are_bounded(tmp_path):
     threads[0].join(.5)
     assert not threads[0].is_alive()
     server.stop()
+
+
+def test_deferred_actions_use_one_fifo_worker_and_reject_full_queue(tmp_path):
+    path=tmp_path / "gateway.sock"; entered=threading.Event(); release=threading.Event(); order=[]
+    def handler(request):
+        value=request["request_id"]
+        def action():
+            order.append(value)
+            if value == "1": entered.set(); release.wait()
+        return DeferredResponse({"accepted":True}, action)
+    server=UnixControlServer(path, handler, max_clients=1); server.start()
+    client=socket.socket(socket.AF_UNIX); client.connect(str(path)); reader=client.makefile()
+    client.sendall(wire("1")); assert json.loads(reader.readline())["type"] == "response"
+    assert entered.wait(1)
+    client.sendall(wire("2")); assert json.loads(reader.readline())["type"] == "response"
+    client.sendall(wire("3")); assert json.loads(reader.readline())["type"] == "error"
+    release.set()
+    for _ in range(100):
+        if order == ["1","2"]: break
+        threading.Event().wait(.005)
+    assert order == ["1","2"]
+    assert server._action_thread.is_alive()
+    client.close(); server.stop(); assert not server._action_thread.is_alive()
+
+
+@pytest.mark.parametrize("failure", ["listen", "settimeout"])
+def test_post_bind_failure_removes_only_own_inode(tmp_path, failure):
+    path=tmp_path / "gateway.sock"; server=UnixControlServer(path, lambda _: {})
+    real_factory=socket.socket
+    class FailingSocket:
+        def __init__(self, *args): self.real=real_factory(*args)
+        def bind(self, value): self.real.bind(value)
+        def listen(self, _):
+            if failure == "listen": raise RuntimeError("listen failed")
+            self.real.listen(1)
+        def settimeout(self, value):
+            if failure == "settimeout": raise RuntimeError("timeout failed")
+            self.real.settimeout(value)
+        def close(self): self.real.close()
+    server._socket_factory=FailingSocket
+    with pytest.raises(RuntimeError): server.start()
+    assert not path.exists()
+
+    class ReplacingSocket(FailingSocket):
+        def listen(self, _):
+            self.real.close(); path.unlink(); path.write_text("replacement")
+            raise RuntimeError("listen failed")
+        def settimeout(self, value): pass
+    server._socket_factory=ReplacingSocket
+    with pytest.raises(RuntimeError): server.start()
+    assert path.read_text() == "replacement"

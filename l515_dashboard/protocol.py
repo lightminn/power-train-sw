@@ -29,7 +29,8 @@ def decode_request(line, max_bytes):
         message = json.loads(line.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ProtocolError("invalid JSON") from exc
-    request_id = message.get("request_id") if isinstance(message, dict) else None
+    candidate = message.get("request_id") if isinstance(message, dict) else None
+    request_id = candidate if isinstance(candidate, str) and candidate else None
     if not isinstance(message, dict) or set(message) != {"protocol_version", "request_id", "type", "payload"}:
         raise ProtocolError("invalid envelope", request_id)
     if message["protocol_version"] != PROTOCOL_VERSION:

@@ -1,7 +1,7 @@
 import threading
 from types import SimpleNamespace
 
-from l515_dashboard.gateway import Gateway, GatewayState
+from l515_dashboard.gateway import Gateway, GatewayState, SystemCollector
 
 
 class Part:
@@ -85,6 +85,15 @@ def test_component_that_fails_inside_start_is_rolled_back():
     assert failed.started == failed.stopped == 1
 
 
+def test_socket_claim_failure_rolls_back_bound_server():
+    class Guard(Part):
+        def claim_socket(self): raise RuntimeError("claim failed")
+    gateway, parts=make_gateway(guard=Guard())
+    try: gateway.start()
+    except RuntimeError: pass
+    assert parts["server"].stopped == 1 and gateway.state is GatewayState.FAULT
+
+
 def test_crashed_streamer_is_reaped_before_replacement_and_at_cleanup():
     old=Streamer(); old.running=False
     new=Streamer(); gateway, _=make_gateway(streamer=old)
@@ -117,9 +126,48 @@ def test_connecting_is_starting_and_status_contract_is_complete():
     gateway._diagnostics=diagnostics; gateway._system_collector=lambda: {"cpu":1,"ram":2}
     gateway.start(); assert gateway.state is GatewayState.STARTING
     status=gateway.status_snapshot()
-    assert status["sdk"]["serial"] == "00000000F0271544"
-    assert status["sdk"]["profile"]["color"] == [1280,720,30]
+    assert status["sdk"]["serial"] is None
+    assert status["sdk"]["expected_serial"] == "00000000F0271544"
+    assert status["sdk"]["profile"] is None
     assert set(status) == {"state","sdk","diagnostics","ros_publish_counts","srt","system","last_error"}
     assert status["diagnostics"]["color"]["fps"] == 30.0
     assert status["system"] == {"cpu":1,"ram":2}
     gateway.shutdown()
+
+
+def test_streamer_submit_and_snapshot_exceptions_are_isolated():
+    class BadStreamer(Streamer):
+        def submit_color(self, _): raise RuntimeError("submit broke")
+    class Frame:
+        empty=False; raw_depth=aligned_depth=gyro=accel=None
+        raw_color=SimpleNamespace(get_data=lambda: __import__("numpy").zeros((1,1,3),dtype="uint8"), get_timestamp=lambda:1)
+    source=Source(); source.poll_latest=lambda: Frame()
+    ros=Part(); ros.publish=lambda _: ("/l515/color/image_raw",)
+    gateway, parts=make_gateway(source=source,ros=ros,streamer=BadStreamer()); gateway.start(); gateway.run_once()
+    assert gateway.state is GatewayState.DEGRADED and parts["source"].stopped == 0
+    assert "submit broke" in gateway.last_error
+    gateway.shutdown()
+
+    bad=Streamer(); bad.snapshot=lambda: (_ for _ in ()).throw(RuntimeError("snapshot broke"))
+    gateway, parts=make_gateway(streamer=bad); gateway.start()
+    assert gateway.state is GatewayState.DEGRADED
+    assert "snapshot broke" in gateway.last_error and parts["source"].stopped == 0
+    gateway.shutdown()
+
+
+def test_successful_stream_restart_clears_recoverable_error_not_fatal():
+    old=Streamer(); old.running=False
+    old.snapshot=lambda: SimpleNamespace(running=False,mode=None,sent=0,dropped=0,last_error="gst died")
+    new=Streamer(); gateway,_=make_gateway(streamer=old); gateway._streamer_factory=lambda:new
+    gateway.start(); gateway.observe(); assert gateway.last_error == "gst died"
+    gateway._set_streaming(True)
+    assert gateway.last_error is None and gateway.fatal_error is None
+    gateway.shutdown()
+
+
+def test_system_collector_reports_current_cpu_and_rss():
+    times=iter([0.0,1.0]); cpus=iter([0.0,.25])
+    collector=SystemCollector(monotonic=lambda:next(times), process_time=lambda:next(cpus))
+    snapshot=collector()
+    assert snapshot["cpu_percent"] == 25.0
+    assert snapshot["current_rss_bytes"] is None or snapshot["current_rss_bytes"] > 0

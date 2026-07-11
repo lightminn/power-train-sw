@@ -35,3 +35,10 @@ def test_validation_error_preserves_parsed_request_id():
     with pytest.raises(ProtocolError) as caught:
         decode_request(encode_message(request("unknown"), 1024).rstrip(), 1024)
     assert caught.value.request_id == "r1"
+
+
+def test_invalid_request_id_is_never_echoed():
+    message=request(); message["request_id"]=7
+    with pytest.raises(ProtocolError) as caught:
+        decode_request(encode_message(message,1024).rstrip(),1024)
+    assert caught.value.request_id is None
