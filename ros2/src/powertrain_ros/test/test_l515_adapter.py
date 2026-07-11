@@ -1,8 +1,10 @@
+import array
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 from builtin_interfaces.msg import Time
+import powertrain_ros.l515_adapter as adapter
 
 from powertrain_ros.l515_adapter import (
     TimestampMapper,
@@ -75,6 +77,34 @@ def test_image_from_array_accepts_realsense_array_compatible_buffer():
     assert msg.width == 2
     assert msg.step == 6
     assert bytes(msg.data) == expected.tobytes()
+
+
+def test_image_from_array_assigns_ros_data_as_byte_array(monkeypatch):
+    assigned = []
+
+    class FakeImage:
+        def __init__(self):
+            self.header = SimpleNamespace(stamp=None, frame_id=None)
+
+        @property
+        def data(self):
+            return assigned[-1]
+
+        @data.setter
+        def data(self, value):
+            assigned.append(value)
+
+    monkeypatch.setattr(adapter, "Image", FakeImage)
+
+    adapter.image_from_array(
+        np.zeros((2, 2, 3), dtype=np.uint8),
+        "bgr8",
+        "color_frame",
+        Time(),
+    )
+
+    assert isinstance(assigned[0], array.array)
+    assert assigned[0].typecode == "B"
 
 
 def test_camera_info_maps_intrinsics_and_header():

@@ -1,5 +1,6 @@
 """Hardware-independent conversions from L515 samples to ROS messages."""
 
+import array as std_array
 import numpy as np
 from sensor_msgs.msg import CameraInfo, Image, Imu
 
@@ -52,7 +53,7 @@ def image_from_array(array, encoding, frame_id, stamp) -> Image:
     msg.encoding = encoding
     msg.is_bigendian = 0
     msg.step = array.strides[0]
-    msg.data = array.tobytes()
+    msg.data = std_array.array("B", array.tobytes())
     return msg
 
 
