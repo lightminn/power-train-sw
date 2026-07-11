@@ -38,10 +38,14 @@ def test_rejects_invalid_runtime_configuration(kwargs, message):
         DashboardConfig(**kwargs)
 
 
-@pytest.mark.parametrize("port", [5000.5, True])
-def test_rejects_noninteger_port(port):
-    with pytest.raises(ValueError, match="port"):
-        DashboardConfig(port=port)
+@pytest.mark.parametrize(
+    "field",
+    ["port", "latency_ms", "width", "height", "fps", "bitrate_kbps"],
+)
+@pytest.mark.parametrize("value", [1.5, True, "1"])
+def test_rejects_noninteger_fields(field, value):
+    with pytest.raises(ValueError, match=field):
+        DashboardConfig(**{field: value})
 
 
 @pytest.mark.parametrize(

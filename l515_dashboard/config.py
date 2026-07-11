@@ -31,17 +31,24 @@ class DashboardConfig:
         if self.encoder not in ENCODERS:
             raise ValueError(f"encoder must be one of {ENCODERS}: {self.encoder!r}")
 
-        positive_fields = (
+        positive_integer_fields = (
             "latency_ms",
             "width",
             "height",
             "fps",
             "bitrate_kbps",
+        )
+        for name in positive_integer_fields:
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
+
+        positive_real_fields = (
             "startup_timeout_s",
             "graceful_timeout_s",
             "termination_timeout_s",
         )
-        for name in positive_fields:
+        for name in positive_real_fields:
             value = getattr(self, name)
             if (
                 isinstance(value, bool)
