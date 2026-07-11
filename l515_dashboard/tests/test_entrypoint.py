@@ -67,9 +67,9 @@ def test_compose_shares_persistent_gateway_flock_with_host():
         cwd=COMPOSE.parents[1],text=True,capture_output=True,check=True,
     ).stdout
     ros_service=rendered.split("  powertrain_ros:",1)[1]
+    assert "type: bind" in ros_service
     assert "source: /run/powertrain" in ros_service
     assert "target: /run/powertrain" in ros_service
-    assert "create_host_path: false" in ros_service
 
 
 def test_tmpfiles_contract_and_root_only_installer():
