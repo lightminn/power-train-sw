@@ -347,6 +347,7 @@ class Gateway:
             }
             profile = getattr(self.source, "connected_profile", None)
             native_rates = getattr(self.source, "native_callback_rates", lambda: {})()
+            native_frame_stats = getattr(self.source, "native_frame_stats", lambda: {})()
             ros_rates = {topic: metric.fps for topic, metric in snapshot.topics.items()}
             return {
                 "state": self.state.value,
@@ -357,6 +358,7 @@ class Gateway:
                         "color_overwrites": getattr(
                             self.source, "color_overwrites", 0),
                         "native_callback_rates_hz": native_rates,
+                        "native_frame_stats": native_frame_stats,
                         "source_state": getattr(getattr(self.source, "state", None),
                                                 "value", "unknown")},
                 "diagnostics": diagnostics,

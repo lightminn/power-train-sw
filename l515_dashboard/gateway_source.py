@@ -124,6 +124,7 @@ class L515GatewaySource:
         self._capture_token = None
         self._next_capture_token = 0
         self._last_frame_numbers = {}
+        self._frame_stats = {}
         self._last_video_callback_at = None
         self._callback_arrivals = {stream: deque(maxlen=512) for stream in self._buffers}
         self._mapper = None
@@ -294,6 +295,7 @@ class L515GatewaySource:
             self._capture_generation = generation
             self._capture_token = token
             self._last_frame_numbers.clear()
+            self._frame_stats.clear()
             self._last_video_callback_at = None
             for arrivals in self._callback_arrivals.values():
                 arrivals.clear()
@@ -311,6 +313,7 @@ class L515GatewaySource:
             self._capture_generation = None
             self._capture_token = None
             self._last_frame_numbers.clear()
+            self._frame_stats.clear()
             self._last_video_callback_at = None
             for arrivals in self._callback_arrivals.values():
                 arrivals.clear()
@@ -372,6 +375,16 @@ class L515GatewaySource:
                     return
                 if self._last_frame_numbers.get(stream) == number:
                     continue
+                stats = self._frame_stats.get(stream)
+                if stats is None:
+                    stats = {"count": 0, "first": number, "last": None,
+                             "gap_count": 0}
+                    self._frame_stats[stream] = stats
+                previous = stats["last"]
+                if previous is not None and number > previous + 1:
+                    stats["gap_count"] += number - previous - 1
+                stats["count"] += 1
+                stats["last"] = number
                 self._last_frame_numbers[stream] = number
                 sample = self._sample_from_frame(stream, child)
                 if stream in (self._rs.stream.color, self._rs.stream.depth):
@@ -396,6 +409,18 @@ class L515GatewaySource:
                 result[names[stream]] = (0.0 if duration_ns <= 0 else
                     (len(arrivals) - 1) * 1_000_000_000 / duration_ns)
             return result
+
+    def native_frame_stats(self):
+        names = {
+            self._rs.stream.color: "color", self._rs.stream.depth: "depth",
+            self._rs.stream.accel: "accel", self._rs.stream.gyro: "gyro",
+        }
+        with self._capture_lock:
+            return {
+                names[stream]: dict(self._frame_stats.get(stream, {
+                    "count": 0, "first": None, "last": None, "gap_count": 0}))
+                for stream in self._buffers
+            }
 
     def _matching_serial(self):
         expected = _canonical_serial(EXPECTED_L515_SERIAL)

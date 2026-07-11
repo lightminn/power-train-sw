@@ -115,10 +115,23 @@ def test_native_callback_rates_count_unique_frames_and_reset_on_capture():
     rates = source.native_callback_rates()
     assert rates["color"] > 0
     assert rates["depth"] == rates["accel"] == rates["gyro"] == 0.0
+    assert source.native_frame_stats()["color"] == {
+        "count":2, "first":1, "last":2, "gap_count":0}
 
     source._clear_capture(token)
     assert source.native_callback_rates() == {
         "color":0.0, "depth":0.0, "accel":0.0, "gyro":0.0}
+    assert source.native_frame_stats()["color"] == {
+        "count":0, "first":None, "last":None, "gap_count":0}
+
+
+def test_native_frame_stats_count_forward_device_number_gaps_only():
+    source = L515GatewaySource(RS(), mapper_factory=object)
+    source._generation = 1; source._stop_event.clear(); token = source._reset_capture(1)
+    for number in (10, 11, 14, 9):
+        source._on_frame(Frame("depth", number), 1, token)
+    assert source.native_frame_stats()["depth"] == {
+        "count":4, "first":10, "last":9, "gap_count":2}
 
 
 def test_composite_callback_retains_real_latest_bundle_and_counts_overwrites():

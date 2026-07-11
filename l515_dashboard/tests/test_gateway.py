@@ -220,6 +220,7 @@ def test_connecting_is_starting_and_status_contract_is_complete():
                                   depth_width=640,depth_height=480,fps=30)
     source.color_overwrites=3; source.video_bundle_overwrites=4
     source.native_callback_rates=lambda: {"color":29.9,"depth":30.0,"accel":100.0,"gyro":100.0}
+    source.native_frame_stats=lambda: {"color":{"count":10,"first":1,"last":10,"gap_count":0}}
     metric=SimpleNamespace(fps=30.0,age_s=.01,max_gap_s=.04,nonincreasing_count=0)
     diagnostics=SimpleNamespace(snapshot=lambda _: SimpleNamespace(topics={"color":metric}))
     gateway, _=make_gateway(source=source)
@@ -233,6 +234,7 @@ def test_connecting_is_starting_and_status_contract_is_complete():
     assert status["sdk"]["video_bundle_overwrites"] == 4
     assert status["sdk"]["native_callback_rates_hz"] == {
         "color":29.9,"depth":30.0,"accel":100.0,"gyro":100.0}
+    assert status["sdk"]["native_frame_stats"]["color"]["gap_count"] == 0
     assert set(status) == {"state","sdk","diagnostics","ros_topic_rates_hz",
                            "ros_publish_counts","srt","system","last_error"}
     assert status["diagnostics"]["color"]["fps"] == 30.0
