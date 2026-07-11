@@ -141,6 +141,39 @@ def test_immediate_worker_thread_failure_is_reported_by_start_barrier():
         worker.start()
 
 
+def test_startup_error_does_not_reenter_external_fatal_under_lifecycle_lock():
+    lifecycle = threading.Lock(); fatal_calls = []
+    source = Source()
+    source.read_color_after = lambda sequence: (_ for _ in ()).throw(RuntimeError("initial read failed"))
+    def fatal(exc):
+        with lifecycle:
+            fatal_calls.append(exc)
+    worker = ColorWorker(source, SimpleNamespace(publish_color=lambda *a: ()),
+                         fatal=fatal, stop_timeout=.05)
+    with lifecycle:
+        with __import__('pytest').raises(RuntimeError, match="initial read failed") as caught:
+            worker.start()
+    assert not isinstance(caught.value, WorkerStopTimeout)
+    assert fatal_calls == [] and not worker.is_alive
+
+
+def test_runtime_error_after_successful_start_commit_calls_fatal_once():
+    release = threading.Event(); fatal_calls = []
+    source = Source()
+    def read(sequence):
+        if not release.is_set(): return sequence, None
+        raise RuntimeError("runtime read failed")
+    source.read_color_after = read
+    worker = ColorWorker(source, SimpleNamespace(publish_color=lambda *a: ()),
+                         fatal=fatal_calls.append, stop_timeout=.1)
+    worker.start(); release.set()
+    deadline=time.monotonic()+.2
+    while not fatal_calls and time.monotonic()<deadline: time.sleep(.002)
+    worker.stop()
+    assert len(fatal_calls) == 1
+    assert str(fatal_calls[0]) == "runtime read failed"
+
+
 def test_nonready_worker_timeout_stops_and_joins_its_thread():
     class NeverReady(_Worker):
         def __init__(self): super().__init__(name="never-ready", fatal=lambda exc: None,

@@ -63,6 +63,30 @@ def test_worker_start_failure_prevents_optional_streamer_start():
     assert streamer.started == 0 and gateway.state is GatewayState.FAULT
 
 
+def test_gateway_worker_startup_error_propagates_without_fatal_reentry_or_srt():
+    from l515_dashboard.gateway_workers import WorkerGroup
+    class AsyncSource(Source):
+        mapper=object()
+        def read_color_after(self, sequence): raise RuntimeError("initial capture read failed")
+        def read_depth_after(self, sequence): return sequence, None
+        def read_video_bundle_after(self, sequence): return sequence, None
+        def read_gyro_after(self, sequence, limit): return SimpleNamespace(sequence=sequence,samples=())
+        read_accel_after=read_gyro_after
+    class Ros(Part):
+        publish_color=lambda *a: ()
+        publish_depth=lambda *a: ()
+        publish_imu=lambda *a: ()
+    streamer=Streamer()
+    factory=lambda **kwargs: WorkerGroup(**kwargs,aligner=lambda _:None,stop_timeout=.05)
+    gateway=Gateway(guard=Part(),server=Part(),source=AsyncSource(),ros=Ros(),
+                    streamer=streamer,workers_factory=factory)
+    with __import__('pytest').raises(RuntimeError,match="initial capture read failed") as caught:
+        gateway.start()
+    assert not isinstance(caught.value, WorkerStopTimeout)
+    assert streamer.started == 0
+    assert all(not worker.is_alive for worker in gateway.workers.workers)
+
+
 def test_blocked_worker_stop_prevents_sdk_ros_teardown_and_cleanup_retries():
     class RetryWorkers(Part):
         def __init__(self): super().__init__(); self.release=False

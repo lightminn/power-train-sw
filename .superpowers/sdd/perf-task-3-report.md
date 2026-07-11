@@ -161,6 +161,52 @@ git diff --check
 # no output, exit 0
 ```
 
+## Final startup lock-inversion remediation
+
+Production startup held the Gateway lifecycle lock while starting workers. An immediate worker
+error previously called external `Gateway.ros_fatal` from the worker thread before `_Worker.start()`
+returned. That callback blocked on the Gateway lock while `_Worker.start()` tried to stop/join the
+same thread, replacing the original error with `WorkerStopTimeout`.
+
+RED evidence:
+
+```text
+/home/light/anaconda3/bin/python -m pytest -q \
+  l515_dashboard/tests/test_gateway_workers.py \
+  -k 'startup_error_does_not_reenter or runtime_error_after_successful'
+
+1 failed, 1 passed, 9 deselected in 0.20s
+Expected: initial read failed
+Actual: l515-color-worker is still alive
+```
+
+`_Worker` now has a startup-state lock and explicit successful-start commit. The worker records and
+signals every error, but errors before that atomic commit exit without invoking the external fatal
+callback. `_Worker.start()` observes the original error, joins the already exiting thread, and
+propagates it. Once startup commits successfully, later runtime errors invoke fatal exactly once.
+
+Tests cover both a deliberately non-reentrant lifecycle lock and the actual Gateway startup path.
+The Gateway test verifies the original capture-read error, no `WorkerStopTimeout`, zero live worker
+threads, and zero optional SRT starts. The paired runtime test releases an error only after
+`start()` returns and observes exactly one fatal callback.
+
+Final fresh verification:
+
+```text
+/home/light/anaconda3/bin/python -m pytest -q \
+  l515_dashboard/tests/test_gateway_source.py \
+  l515_dashboard/tests/test_gateway_workers.py \
+  l515_dashboard/tests/test_gateway.py \
+  l515_dashboard/tests/test_gateway_ros.py
+52 passed in 3.09s
+
+/home/light/anaconda3/bin/python -m pytest -q l515_dashboard/tests
+223 passed in 7.69s
+
+git diff --check
+# no output, exit 0
+```
+
 ## Second re-review remediation
 
 The overwrite counter originally incremented whenever a slot already contained any sample. Because

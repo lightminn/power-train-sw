@@ -27,6 +27,8 @@ class _Worker:
         self._error = None
         self._failed = threading.Event()
         self._stop_timeout = stop_timeout
+        self._startup_lock = threading.Lock()
+        self._startup_committed = False
 
     @property
     def is_alive(self):
@@ -37,6 +39,8 @@ class _Worker:
             return
         self._stop_event.clear()
         self._ready.clear(); self._failed.clear(); self._error = None
+        with self._startup_lock:
+            self._startup_committed = False
         self._thread = threading.Thread(target=self._run_guarded, name=self._name,
                                         daemon=True)
         self._thread.start()
@@ -45,10 +49,13 @@ class _Worker:
             self.stop()
             raise error
         self._failed.wait(min(.01, self._stop_timeout))
-        if self._error is not None:
+        with self._startup_lock:
+            if self._error is None:
+                self._startup_committed = True
+                return
             error = self._error
-            self.stop()
-            raise error
+        self.stop()
+        raise error
 
     def stop(self):
         self._stop_event.set()
@@ -66,10 +73,12 @@ class _Worker:
             self._ready.set()
             self._run()
         except Exception as exc:
-            self._error = exc
-            self._failed.set()
-            self._ready.set()
-            if not self._stop_event.is_set():
+            with self._startup_lock:
+                self._error = exc
+                runtime_error = self._startup_committed
+                self._failed.set()
+                self._ready.set()
+            if runtime_error and not self._stop_event.is_set():
                 self._fatal(exc)
 
     def _on_start(self):
