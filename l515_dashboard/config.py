@@ -1,6 +1,8 @@
 """Configuration contract for the L515 dashboard runtime."""
 
 from dataclasses import dataclass
+import math
+from numbers import Real
 
 
 ENCODERS = ("x264", "openh264")
@@ -22,6 +24,8 @@ class DashboardConfig:
     termination_timeout_s: float = 2.0
 
     def __post_init__(self) -> None:
+        if isinstance(self.port, bool) or not isinstance(self.port, int):
+            raise ValueError("port must be an integer")
         if not 1 <= self.port <= 65535:
             raise ValueError("port must be between 1 and 65535")
         if self.encoder not in ENCODERS:
@@ -38,5 +42,11 @@ class DashboardConfig:
             "termination_timeout_s",
         )
         for name in positive_fields:
-            if getattr(self, name) <= 0:
-                raise ValueError(f"{name} must be positive")
+            value = getattr(self, name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, Real)
+                or not math.isfinite(value)
+                or value <= 0
+            ):
+                raise ValueError(f"{name} must be a finite positive number")

@@ -36,3 +36,28 @@ def test_config_is_immutable():
 def test_rejects_invalid_runtime_configuration(kwargs, message):
     with pytest.raises(ValueError, match=message):
         DashboardConfig(**kwargs)
+
+
+@pytest.mark.parametrize("port", [5000.5, True])
+def test_rejects_noninteger_port(port):
+    with pytest.raises(ValueError, match="port"):
+        DashboardConfig(port=port)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "latency_ms",
+        "width",
+        "height",
+        "fps",
+        "bitrate_kbps",
+        "startup_timeout_s",
+        "graceful_timeout_s",
+        "termination_timeout_s",
+    ],
+)
+@pytest.mark.parametrize("value", [float("nan"), float("inf")])
+def test_rejects_nonfinite_positive_numeric_fields(field, value):
+    with pytest.raises(ValueError, match=field):
+        DashboardConfig(**{field: value})
