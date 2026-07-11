@@ -6,7 +6,8 @@ from l515_dashboard.gateway import GatewayState
 
 class FakeGateway:
     def __init__(self, trigger):
-        self.state=GatewayState.STOPPED; self.last_error=None; self.fatal_error=None; self.trigger=trigger
+        self.state=GatewayState.STOPPED; self.last_error=None; self.fatal_error=None
+        self.shutdown_requested=False; self.trigger=trigger
         self.shutdown_calls=0
     def start(self): self.state=GatewayState.RUNNING
     def run_once(self): self.trigger(signal.SIGTERM, None)

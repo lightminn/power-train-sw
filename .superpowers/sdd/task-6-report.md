@@ -66,3 +66,19 @@ Fresh automated evidence before commit:
 - `/home/light/anaconda3/bin/python -m compileall -q l515_dashboard`: pass.
 - `git diff --check`: pass.
 - No HIL was run.
+
+## Final lifecycle review remediation
+
+- Gateway cleanup is now two phase: while holding the lifecycle lock it marks STOPPING/FAULT, rejects commands, and atomically detaches the owned-resource cleanup plan; it then releases the lock before every component stop and server client/action-thread join; finally it reacquires the lock to publish the terminal state and wake concurrent shutdown callers.
+- `restart_components` wraps SRT, source, and ROS teardown plus startup. Any non-SRT stop/start exception records both `last_error` and `fatal_error`, transitions through the shared FAULT cleanup, continues stopping all remaining resources, and is re-raised for the action worker error callback.
+- The control action worker records action exceptions and calls an injected fatal handler instead of discarding them.
+- `stop_gateway` now schedules a main-loop shutdown request, avoiding action-worker self-join. The main thread performs the common cleanup.
+- Once server stopping begins, handlers cannot invoke a new callback or enqueue an action. ACK failure cancels the reserved queue item, and `stop()` closes sockets then joins every non-current tracked accept/client/action thread without a timeout.
+- Deterministic two-client blocked-handler coverage proves stop waits for callbacks already in flight, executes no deferred actions after stopping, leaves zero tracked clients, and returns with server/action threads dead.
+
+Fresh final evidence:
+
+- `/home/light/anaconda3/bin/python -m pytest -q l515_dashboard/tests`: `174 passed in 1.79s`.
+- `/home/light/anaconda3/bin/python -m compileall -q l515_dashboard`: pass.
+- `git diff --check`: pass.
+- No HIL was run.

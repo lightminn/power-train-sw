@@ -17,11 +17,14 @@ class DeferredResponse:
 
 class UnixControlServer:
     def __init__(self, path, handler, *, max_message_bytes=65536,
-                 on_disconnect=None, max_clients=8, idle_timeout_s=5.0):
+                 on_disconnect=None, on_action_error=None, max_clients=8,
+                 idle_timeout_s=5.0):
         self.path = str(path)
         self._handler = handler
         self._max = int(max_message_bytes)
         self._on_disconnect = on_disconnect or (lambda: None)
+        self._on_action_error = on_action_error or (lambda _exc: None)
+        self.last_action_error = None
         self._max_clients = int(max_clients)
         self._idle_timeout = float(idle_timeout_s)
         self._owner_guard = None
@@ -103,8 +106,9 @@ class UnixControlServer:
             if not self._stop_event.is_set() and not cancelled.is_set():
                 try:
                     action()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    self.last_action_error = str(exc)
+                    self._on_action_error(exc)
 
     def _accept(self):
         while not self._stop_event.is_set():
@@ -147,7 +151,11 @@ class UnixControlServer:
                     cancelled = None
                     try:
                         request = decode_request(raw, self._max)
+                        if self._stop_event.is_set():
+                            return
                         result = self._handler(request)
+                        if self._stop_event.is_set():
+                            return
                         if isinstance(result, DeferredResponse):
                             payload, action = result.payload, result.after_send
                             if action is not None:
@@ -202,10 +210,10 @@ class UnixControlServer:
             client.close()
         current = threading.current_thread()
         if self._thread is not current:
-            self._thread.join(1)
+            self._thread.join()
         for _, thread in clients:
             if thread is not current:
-                thread.join(1)
+                thread.join()
         while True:
             try:
                 item = self._actions.get_nowait()
@@ -215,5 +223,5 @@ class UnixControlServer:
                 break
         self._actions.put(None)
         if self._action_thread is not current:
-            self._action_thread.join(1)
+            self._action_thread.join()
         self._unlink_owned_socket()

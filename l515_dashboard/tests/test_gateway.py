@@ -171,3 +171,30 @@ def test_system_collector_reports_current_cpu_and_rss():
     snapshot=collector()
     assert snapshot["cpu_percent"] == 25.0
     assert snapshot["current_rss_bytes"] is None or snapshot["current_rss_bytes"] > 0
+
+
+def test_restart_source_stop_failure_faults_and_cleans_every_resource():
+    class BadStopSource(Source):
+        def stop(self): self.stopped += 1; raise RuntimeError("source stop failed")
+    source=BadStopSource(); gateway,parts=make_gateway(source=source)
+    gateway.start()
+    try: gateway.restart_components()
+    except RuntimeError: pass
+    assert gateway.state is GatewayState.FAULT
+    assert gateway.fatal_error == "source stop failed"
+    assert source.stopped >= 2
+    assert parts["streamer"].stopped >= 1
+    assert parts["ros"].stopped == parts["server"].stopped == parts["guard"].stopped == 1
+
+
+def test_cleanup_does_not_hold_lifecycle_lock_while_server_stop_blocks():
+    entered=threading.Event(); release=threading.Event()
+    class BlockingServer(Part):
+        def stop(self):
+            self.stopped += 1; entered.set(); release.wait()
+    gateway, _=make_gateway(server=BlockingServer()); gateway.start()
+    stopper=threading.Thread(target=gateway.shutdown); stopper.start(); assert entered.wait(1)
+    acquired=gateway._lock.acquire(timeout=.2)
+    assert acquired
+    gateway._lock.release(); release.set(); stopper.join(1)
+    assert not stopper.is_alive() and gateway.state is GatewayState.STOPPED

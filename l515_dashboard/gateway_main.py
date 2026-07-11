@@ -45,7 +45,8 @@ def build_gateway(config=None):
     gateway=Gateway(guard=guard, source=source, ros=ros, streamer=factory(), streamer_factory=factory)
     gateway.server=UnixControlServer(config.socket_path, gateway.handle_request,
         max_message_bytes=config.max_message_bytes,
-        on_disconnect=gateway.client_disconnected).require_owner(guard)
+        on_disconnect=gateway.client_disconnected,
+        on_action_error=gateway.action_fatal).require_owner(guard)
     return gateway
 
 
@@ -58,7 +59,8 @@ def main():
     old={sig: signal.signal(sig, request_stop) for sig in (signal.SIGINT, signal.SIGTERM)}
     try:
         gateway.start()
-        while not stopping and gateway.state not in (GatewayState.STOPPED, GatewayState.FAULT):
+        while (not stopping and not gateway.shutdown_requested
+               and gateway.state not in (GatewayState.STOPPED, GatewayState.FAULT)):
             gateway.run_once(); time.sleep(0.005)
     except KeyboardInterrupt:
         pass

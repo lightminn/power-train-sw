@@ -62,6 +62,10 @@ class Gateway:
         self._owned = []
         self._streamers = []
         self._lock = threading.RLock()
+        self._cleanup_condition = threading.Condition(self._lock)
+        self._cleanup_active = False
+        self._accept_commands = False
+        self.shutdown_requested = False
         self._shutdown_done = False
         self._ros_counts = {
             "/l515/color/image_raw": 0, "/l515/color/camera_info": 0,
@@ -103,9 +107,11 @@ class Gateway:
             return False
 
     def start(self):
+        failure = None
         with self._lock:
             self.state = GatewayState.STARTING
             self._shutdown_done = False
+            self._accept_commands = False
             try:
                 self._start_owned(self.guard)
                 self._start_owned(self.source)
@@ -115,45 +121,61 @@ class Gateway:
                 claim = getattr(self.guard, "claim_socket", None)
                 if claim and self.server is not None:
                     claim()
+                self._accept_commands = True
                 self.observe()
             except Exception as exc:
                 self.last_error = str(exc)
                 self.fatal_error = self.last_error
-                self._cleanup(GatewayState.FAULT)
-                raise
+                failure = exc
+        if failure is not None:
+            self._cleanup(GatewayState.FAULT)
+            raise failure
 
     def _cleanup(self, final_state):
-        if self._shutdown_done:
-            return
-        self.state = (GatewayState.STOPPING if final_state is GatewayState.STOPPED
-                      else GatewayState.FAULT)
-        # _lock blocks frame intake. Reap every SRT generation before SDK.
-        for part in reversed(self._streamers):
-            if part in self._owned:
-                try:
-                    self._stop(part)
-                except Exception as exc:
-                    self.last_error = self.last_error or str(exc)
-                self._owned.remove(part)
-        for part in (self.source, self.ros, self.server, self.guard):
-            if part in self._owned:
-                try:
-                    self._stop(part)
-                except Exception as exc:
-                    self.last_error = self.last_error or str(exc)
-                self._owned.remove(part)
-        self._shutdown_done = True
-        self.state = final_state
+        """Two-phase cleanup: claim under lock, stop/join without it, finalize."""
+        with self._cleanup_condition:
+            if self._shutdown_done:
+                return
+            if self._cleanup_active:
+                self._cleanup_condition.wait_for(lambda: not self._cleanup_active)
+                return
+            self._cleanup_active = True
+            self._accept_commands = False
+            self.state = (GatewayState.STOPPING if final_state is GatewayState.STOPPED
+                          else GatewayState.FAULT)
+            streamers = [part for part in reversed(self._streamers)
+                         if part in self._owned]
+            others = [part for part in (self.source, self.ros, self.server, self.guard)
+                      if part in self._owned]
+            plan = streamers + others
+            self._owned = [part for part in self._owned if part not in plan]
+        errors = []
+        for part in plan:
+            try:
+                self._stop(part)
+            except Exception as exc:
+                errors.append(exc)
+        with self._cleanup_condition:
+            if errors:
+                self.last_error = self.last_error or str(errors[0])
+                if final_state is GatewayState.FAULT:
+                    self.fatal_error = self.fatal_error or str(errors[0])
+            self._shutdown_done = True
+            self.state = final_state
+            self._cleanup_active = False
+            self._cleanup_condition.notify_all()
 
     def shutdown(self):
-        with self._lock:
-            self._cleanup(GatewayState.STOPPED)
+        self._cleanup(GatewayState.STOPPED)
 
     def ros_fatal(self, exc):
         with self._lock:
             self.last_error = str(exc)
             self.fatal_error = self.last_error
-            self._cleanup(GatewayState.FAULT)
+        self._cleanup(GatewayState.FAULT)
+
+    def action_fatal(self, exc):
+        self.ros_fatal(exc)
 
     def client_disconnected(self):
         return None
@@ -188,6 +210,7 @@ class Gateway:
 
     def run_once(self):
         """Serialize drain/publish/submit against restart and cleanup."""
+        fatal = None
         with self._lock:
             if self.state in (GatewayState.STOPPED, GatewayState.FAULT,
                               GatewayState.STOPPING):
@@ -199,9 +222,10 @@ class Gateway:
                     self._record_published(frames, published)
                 except Exception as exc:
                     self.last_error = str(exc)
-                    self._cleanup(GatewayState.FAULT)
-                    return
-                if self.streamer is not None and self.streaming_enabled:
+                    self.fatal_error = self.last_error
+                    fatal = exc
+                if (fatal is None and self.streamer is not None
+                        and self.streaming_enabled):
                     import numpy as np
                     try:
                         if frames.raw_color is not None:
@@ -212,7 +236,10 @@ class Gateway:
                                 np.asanyarray(frames.aligned_depth.get_data()))
                     except Exception as exc:
                         self._disable_streamer(exc)
-            self.observe()
+            if fatal is None:
+                self.observe()
+        if fatal is not None:
+            self._cleanup(GatewayState.FAULT)
 
     def _record_published(self, frames, published):
         now = self._now_ns()
@@ -291,6 +318,8 @@ class Gateway:
 
     def handle_request(self, request):
         with self._lock:
+            if not self._accept_commands:
+                raise RuntimeError("Gateway is stopping or restarting")
             kind, payload = request["type"], request.get("payload", {})
             if kind == "get_status":
                 return self.status_snapshot()
@@ -304,8 +333,13 @@ class Gateway:
             elif kind == "restart_gateway":
                 return DeferredResponse({"accepted": True}, self.restart_components)
             elif kind == "stop_gateway":
-                return DeferredResponse({"accepted": True}, self.shutdown)
+                return DeferredResponse({"accepted": True}, self.request_shutdown)
             return self.status_snapshot()
+
+    def request_shutdown(self):
+        with self._lock:
+            self.shutdown_requested = True
+            self._accept_commands = False
 
     def _set_streaming(self, enabled):
         if self.streamer is None:
@@ -337,21 +371,31 @@ class Gateway:
     def restart_components(self):
         """Internally restart SDK, ROS and optional SRT; keep guard/socket alive."""
         with self._lock:
-            if self._shutdown_done:
+            if self._shutdown_done or self._cleanup_active:
                 return
             self.state = GatewayState.STARTING
-            for streamer in reversed(self._streamers):
-                try:
-                    self._stop(streamer)
-                except Exception as exc:
+            self._accept_commands = False
+            streamers = [s for s in reversed(self._streamers) if s in self._owned]
+        for streamer in streamers:
+            try:
+                self._stop(streamer)
+            except Exception as exc:
+                with self._lock:
                     self._disable_streamer(exc)
+            with self._lock:
                 if streamer in self._owned:
                     self._owned.remove(streamer)
-            for part in (self.source, self.ros):
-                self._stop(part)
-                if part in self._owned:
-                    self._owned.remove(part)
-            try:
+        try:
+            # Non-SRT teardown failures are fatal and use common cleanup.
+            self._stop(self.source)
+            with self._lock:
+                if self.source in self._owned:
+                    self._owned.remove(self.source)
+            self._stop(self.ros)
+            with self._lock:
+                if self.ros in self._owned:
+                    self._owned.remove(self.ros)
+            with self._lock:
                 self._start_owned(self.source)
                 self._start_owned(self.ros)
                 if self._streamer_factory is not None:
@@ -363,8 +407,11 @@ class Gateway:
                         self._disable_streamer(exc)
                     if self.streaming_enabled:
                         self._clear_stream_error()
+                self._accept_commands = True
                 self.observe()
-            except Exception as exc:
+        except Exception as exc:
+            with self._lock:
                 self.last_error = str(exc)
                 self.fatal_error = self.last_error
-                self._cleanup(GatewayState.FAULT)
+            self._cleanup(GatewayState.FAULT)
+            raise

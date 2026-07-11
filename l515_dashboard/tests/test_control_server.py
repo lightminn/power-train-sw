@@ -134,3 +134,41 @@ def test_post_bind_failure_removes_only_own_inode(tmp_path, failure):
     server._socket_factory=ReplacingSocket
     with pytest.raises(RuntimeError): server.start()
     assert path.read_text() == "replacement"
+
+
+def test_stop_joins_blocked_multi_client_handlers_and_cancels_actions(tmp_path):
+    path=tmp_path / "gateway.sock"; entered=[]; lock=threading.Lock()
+    both=threading.Event(); release=threading.Event(); actions=[]
+    def handler(request):
+        with lock:
+            entered.append(request["request_id"])
+            if len(entered)==2: both.set()
+        release.wait()
+        return DeferredResponse({"accepted":True}, lambda:actions.append(request["request_id"]))
+    server=UnixControlServer(path,handler,max_clients=2); server.start()
+    clients=[socket.socket(socket.AF_UNIX) for _ in range(2)]
+    for index,client in enumerate(clients):
+        client.connect(str(path)); client.sendall(wire(str(index)))
+    assert both.wait(1)
+    stopper=threading.Thread(target=server.stop); stopper.start()
+    threading.Event().wait(.05); assert stopper.is_alive()
+    release.set(); stopper.join(1)
+    assert not stopper.is_alive()
+    assert actions == []
+    assert server._clients == {}
+    assert not server._thread.is_alive() and not server._action_thread.is_alive()
+    for client in clients: client.close()
+
+
+def test_action_worker_records_and_reports_action_failure(tmp_path):
+    path=tmp_path / "gateway.sock"; failures=[]
+    def fail(): raise RuntimeError("action failed")
+    server=UnixControlServer(path,lambda _:DeferredResponse({"accepted":True},fail),
+                             on_action_error=failures.append)
+    server.start(); client=socket.socket(socket.AF_UNIX); client.connect(str(path)); client.sendall(wire("x"))
+    assert json.loads(client.makefile().readline())["type"] == "response"
+    for _ in range(100):
+        if failures: break
+        threading.Event().wait(.005)
+    assert str(failures[0]) == server.last_action_error == "action failed"
+    client.close(); server.stop()
