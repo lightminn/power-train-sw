@@ -34,7 +34,9 @@ class SrtStreamer:
         self._config = config
         self._mode = FrameMode(mode)
         self._popen = popen
-        self._frames = LatestVideoFrames(config.width, config.height)
+        self._frames = LatestVideoFrames(
+            config.width, config.height, config.overlay_alpha
+        )
         self._condition = Condition()
         self._process = None
         self._thread: Optional[Thread] = None

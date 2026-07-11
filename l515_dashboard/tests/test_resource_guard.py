@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import socket as socket_module
 
 import pytest
 
@@ -26,8 +27,10 @@ def test_live_owner_blocks_second_acquire(tmp_path):
 def test_stale_lock_and_socket_are_reclaimed(tmp_path):
     lock = tmp_path / "camera.lock"
     socket = tmp_path / "gateway.sock"
-    lock.write_text(json.dumps({"pid": 99999999, "start_identity": "old"}))
     socket.write_text("stale")
+    stat = socket.stat()
+    lock.write_text(json.dumps({"pid": 99999999, "start_identity": "old",
+                                "socket_identity": [stat.st_dev, stat.st_ino]}))
     guard = ResourceGuard(lock, socket)
     guard.acquire()
     assert guard.acquired and not socket.exists()
@@ -64,5 +67,55 @@ def test_unknown_owner_is_never_signalled(tmp_path, monkeypatch):
     lock.write_text("not-json")
     calls = []
     monkeypatch.setattr(os, "kill", lambda *args: calls.append(args))
-    ResourceGuard(lock, tmp_path / "sock").acquire()
+    with pytest.raises(ResourceBusy):
+        ResourceGuard(lock, tmp_path / "sock").acquire()
     assert calls == []
+
+
+def test_fully_written_lock_is_published_atomically_under_interleaving(tmp_path):
+    lock, socket = tmp_path / "lock", tmp_path / "sock"
+    ready, release = threading.Event(), threading.Event()
+    first = ResourceGuard(lock, socket)
+    first._before_publish = lambda: (ready.set(), release.wait())
+    outcomes = []
+    t1 = threading.Thread(target=lambda: (first.acquire(), outcomes.append("first")))
+    t1.start(); assert ready.wait(1)
+    second = ResourceGuard(lock, socket)
+    t2 = threading.Thread(target=lambda: _acquire_outcome(second, outcomes, "second"))
+    t2.start()
+    assert not lock.exists()
+    release.set(); t1.join(1); t2.join(1)
+    assert len([x for x in outcomes if x in ("first", "second")]) == 1
+    json.loads(lock.read_text())
+    first.release(); second.release()
+
+
+def _acquire_outcome(guard, outcomes, winner):
+    try:
+        guard.acquire(); outcomes.append(winner)
+    except ResourceBusy:
+        outcomes.append("busy")
+
+
+def test_release_does_not_remove_unknown_or_replaced_socket(tmp_path):
+    lock, path = tmp_path / "lock", tmp_path / "sock"
+    guard = ResourceGuard(lock, path); guard.acquire()
+    path.write_text("unknown")
+    guard.release()
+    assert path.exists()
+
+    path.unlink(); guard.acquire(); path.write_text("ours"); guard.claim_socket()
+    path.unlink(); path.write_text("successor")
+    guard.release()
+    assert path.read_text() == "successor"
+
+
+def test_stale_reclaim_does_not_remove_replaced_socket(tmp_path):
+    lock, path = tmp_path / "lock", tmp_path / "sock"
+    path.write_text("old"); old = path.stat()
+    lock.write_text(json.dumps({"pid": 99999999, "start_identity": "old",
+                                "socket_identity": [old.st_dev, old.st_ino]}))
+    path.unlink(); path.write_text("successor")
+    guard = ResourceGuard(lock, path); guard.acquire()
+    assert path.read_text() == "successor"
+    guard.release()

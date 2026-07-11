@@ -1,12 +1,14 @@
-"""Atomic singleton ownership for physical resources and their Unix socket."""
+"""Identity-safe singleton ownership for physical resources."""
 
+import fcntl
 import json
 import os
 from pathlib import Path
+import tempfile
 
 
 class ResourceBusy(RuntimeError):
-    """Raised when a verified live process owns the resource."""
+    """Raised when ownership is live or cannot be verified safely."""
 
 
 class ResourceGuard:
@@ -16,6 +18,8 @@ class ResourceGuard:
         self.pid = os.getpid() if pid is None else int(pid)
         self.proc_root = Path(proc_root)
         self._lock_identity = None
+        self._payload = None
+        self._before_publish = lambda: None
 
     @property
     def acquired(self):
@@ -23,17 +27,13 @@ class ResourceGuard:
 
     @staticmethod
     def _stat_start(text):
-        # comm is parenthesized and may contain spaces or ')'; fields following
-        # the final ')' begin at field 3, making starttime field 22 index 19.
-        tail = text.rsplit(")", 1)[1].split()
-        return tail[19]
+        return text.rsplit(")", 1)[1].split()[19]
 
     @classmethod
     def process_start_identity(cls, pid, proc_root="/proc"):
         try:
-            return cls._stat_start(
-                (Path(proc_root) / str(int(pid)) / "stat").read_text()
-            )
+            text = (Path(proc_root) / str(int(pid)) / "stat").read_text()
+            return cls._stat_start(text)
         except (OSError, ValueError, IndexError):
             return None
 
@@ -42,8 +42,53 @@ class ResourceGuard:
             pid = int(payload["pid"])
             expected = str(payload["start_identity"])
         except (KeyError, TypeError, ValueError):
-            return False
+            return None
         return self.process_start_identity(pid, self.proc_root) == expected
+
+    def _mutex(self):
+        path = self.lock_path.with_name(self.lock_path.name + ".mutex")
+        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        return fd
+
+    @staticmethod
+    def _unlock(fd):
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+    def _publish(self, payload):
+        encoded = (json.dumps(payload, sort_keys=True) + "\n").encode()
+        fd, temporary = tempfile.mkstemp(
+            prefix=self.lock_path.name + ".", dir=self.lock_path.parent
+        )
+        try:
+            os.fchmod(fd, 0o600)
+            os.write(fd, encoded)
+            os.fsync(fd)
+            os.close(fd)
+            fd = -1
+            self._before_publish()
+            os.link(temporary, self.lock_path)
+            stat = self.lock_path.stat()
+            self._lock_identity = (stat.st_dev, stat.st_ino)
+        finally:
+            if fd >= 0:
+                os.close(fd)
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
+
+    def _remove_owned_socket(self, payload):
+        expected = payload.get("socket_identity")
+        if not isinstance(expected, list) or len(expected) != 2:
+            return
+        try:
+            stat = self.socket_path.stat()
+            if [stat.st_dev, stat.st_ino] == expected:
+                self.socket_path.unlink()
+        except FileNotFoundError:
+            pass
 
     def acquire(self):
         if self.acquired:
@@ -52,59 +97,57 @@ class ResourceGuard:
         identity = self.process_start_identity(self.pid, self.proc_root)
         if identity is None:
             raise RuntimeError("cannot determine owner process start identity")
-        encoded = json.dumps({"pid": self.pid, "start_identity": identity}) + "\n"
-        for _ in range(32):
-            try:
-                fd = os.open(self.lock_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            except FileExistsError:
+        mutex = self._mutex()
+        try:
+            if self.lock_path.exists():
                 try:
-                    before = self.lock_path.stat()
                     payload = json.loads(self.lock_path.read_text())
-                except (OSError, ValueError, TypeError):
-                    payload = {}
-                    try:
-                        before = self.lock_path.stat()
-                    except FileNotFoundError:
-                        continue
-                if self._owner_is_live(payload):
+                except (OSError, ValueError, TypeError) as exc:
+                    raise ResourceBusy("lock owner identity is unknown") from exc
+                live = self._owner_is_live(payload)
+                if live is None:
+                    raise ResourceBusy("lock owner identity is unknown")
+                if live:
                     raise ResourceBusy(f"resource owned by pid {payload['pid']}")
-                try:
-                    after = self.lock_path.stat()
-                    if (before.st_dev, before.st_ino) == (after.st_dev, after.st_ino):
-                        self.lock_path.unlink()
-                except FileNotFoundError:
-                    pass
-                continue
-            try:
-                os.write(fd, encoded.encode())
-                os.fsync(fd)
-                stat = os.fstat(fd)
-                self._lock_identity = (stat.st_dev, stat.st_ino)
-            finally:
-                os.close(fd)
-            # A socket without our newly-created lock cannot be a verified live
-            # owner. Remove only the pathname; never signal its unknown process.
-            try:
-                self.socket_path.unlink()
-            except FileNotFoundError:
-                pass
-            return
-        raise ResourceBusy("resource lock changed too frequently")
+                self._remove_owned_socket(payload)
+                self.lock_path.unlink()
+            self._payload = {"pid": self.pid, "start_identity": identity}
+            self._publish(self._payload)
+        finally:
+            self._unlock(mutex)
+
+    def claim_socket(self):
+        if not self.acquired:
+            raise RuntimeError("resource is not acquired")
+        stat = self.socket_path.stat()
+        mutex = self._mutex()
+        try:
+            current = self.lock_path.stat()
+            if (current.st_dev, current.st_ino) != self._lock_identity:
+                raise ResourceBusy("lock ownership changed")
+            payload = dict(self._payload)
+            payload["socket_identity"] = [stat.st_dev, stat.st_ino]
+            self.lock_path.unlink()
+            self._publish(payload)
+            self._payload = payload
+        finally:
+            self._unlock(mutex)
 
     def release(self):
         identity = self._lock_identity
-        self._lock_identity = None
         if identity is None:
             return
+        mutex = self._mutex()
         try:
-            stat = self.lock_path.stat()
-            if (stat.st_dev, stat.st_ino) != identity:
+            try:
+                current = self.lock_path.stat()
+            except FileNotFoundError:
                 return
+            if (current.st_dev, current.st_ino) != identity:
+                return
+            self._remove_owned_socket(self._payload)
             self.lock_path.unlink()
-        except FileNotFoundError:
-            pass
-        try:
-            self.socket_path.unlink()
-        except FileNotFoundError:
-            pass
-
+        finally:
+            self._lock_identity = None
+            self._payload = None
+            self._unlock(mutex)

@@ -51,15 +51,27 @@ def test_color_mode_passes_through_the_color_frame(color, depth):
     rendered = render_frame(FrameMode.COLOR, color, depth, WIDTH, HEIGHT)
 
     np.testing.assert_array_equal(rendered, color)
+    assert rendered is color
+
+
+def test_rejects_wrong_or_noncontiguous_gateway_frames(color, depth):
+    with pytest.raises(ValueError, match="color"):
+        render_frame(FrameMode.COLOR, color[:, ::2], depth, WIDTH, HEIGHT)
+    with pytest.raises(ValueError, match="aligned depth"):
+        render_frame(FrameMode.DEPTH, color, depth[:480, :640], WIDTH, HEIGHT)
+    with pytest.raises(ValueError, match="contiguous"):
+        render_frame(FrameMode.DEPTH, color, depth[:, ::-1], WIDTH, HEIGHT)
 
 
 def test_depth_mode_uses_fixed_zero_aware_turbo_mapping(color):
-    depth = np.array([[0, 1, 2500, 5000, 6000]], dtype=np.uint16)
-    normalized = np.array([[0, 0, 128, 255, 255]], dtype=np.uint8)
+    depth = np.zeros((HEIGHT, WIDTH), dtype=np.uint16)
+    depth[0, :5] = [0, 1, 2500, 5000, 6000]
+    normalized = np.zeros((HEIGHT, WIDTH), dtype=np.uint8)
+    normalized[0, :5] = [0, 0, 128, 255, 255]
     expected = cv2.applyColorMap(normalized, cv2.COLORMAP_TURBO)
     expected[depth == 0] = 0
 
-    rendered = render_frame(FrameMode.DEPTH, color, depth, 5, 1)
+    rendered = render_frame(FrameMode.DEPTH, color, depth, WIDTH, HEIGHT)
 
     np.testing.assert_array_equal(rendered, expected)
     assert np.array_equal(rendered[0, 0], np.zeros(3, dtype=np.uint8))
@@ -133,24 +145,25 @@ def test_put_copies_input_to_prevent_concurrent_mutation(color):
 
 
 def test_overlay_alpha_blends_color_and_depth():
-    color = np.full((1, 2, 3), 19, dtype=np.uint8)
-    depth = np.array([[0, MAX_DEPTH_MM]], dtype=np.uint16)
+    color = np.full((HEIGHT, WIDTH, 3), 19, dtype=np.uint8)
+    depth = np.full((HEIGHT, WIDTH), MAX_DEPTH_MM, dtype=np.uint16)
+    depth[:, 0] = 0
 
-    rendered = render_frame(FrameMode.OVERLAY, color, depth, 2, 1)
+    rendered = render_frame(FrameMode.OVERLAY, color, depth, WIDTH, HEIGHT, overlay_alpha=0.25)
 
-    colored = render_frame(FrameMode.DEPTH, color, depth, 2, 1)
-    expected = cv2.addWeighted(color, 0.5, colored, 0.5, 0)
+    colored = render_frame(FrameMode.DEPTH, color, depth, WIDTH, HEIGHT)
+    expected = cv2.addWeighted(color, 0.75, colored, 0.25, 0)
     np.testing.assert_array_equal(rendered, expected)
 
 
 def test_latest_depth_slot_overwrites_with_newest_frame():
-    frames = LatestVideoFrames(2, 1)
-    frames.put_depth(np.array([[100, 200]], dtype=np.uint16))
-    newest = np.array([[300, 400]], dtype=np.uint16)
+    frames = LatestVideoFrames(WIDTH, HEIGHT)
+    frames.put_depth(np.full((HEIGHT, WIDTH), 100, dtype=np.uint16))
+    newest = np.full((HEIGHT, WIDTH), 400, dtype=np.uint16)
     frames.put_depth(newest)
 
     np.testing.assert_array_equal(
         frames.take(FrameMode.DEPTH),
-        render_frame(FrameMode.DEPTH, None, newest, 2, 1),
+        render_frame(FrameMode.DEPTH, None, newest, WIDTH, HEIGHT),
     )
     assert frames.take(FrameMode.DEPTH) is None
