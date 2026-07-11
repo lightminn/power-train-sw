@@ -20,6 +20,14 @@ ZETIN Defense Robot — a 6-wheeled rocker-bogie suspension robot. Work in this 
 1. **Parameter optimization** (`parameter_calc/`) — multi-criteria optimization that selects the optimal rocker-bogie geometry across terrain types. Current authoritative track is **v4** (`python_gpu_triangle/`): 15-dimensional, 7 terrains (stairs, wood, rough, step, curved ramp, 15°/30° incline), 면-기준 물리 수정본. v3 (`python_gpu/`): 14-dim, 4 terrains.
 2. **Motor control** (`motor_control/`) — runtime control software for the physical robot: ODrive driver scripts, DualSense gamepad teleop, YOLO-based object tracking, and laptop↔robot networking.
 
+## WP5.1 Completion Override (2026-07-11)
+
+- WP5.1 HIL is complete using the prior 10-motor integration evidence plus the 2026-07-11
+  US-100, fail-safe, and real 50 Hz evidence. ODrive 13/14 were temporarily absent only.
+- Ground braking and final `stop_mm` selection are vehicle commissioning after chassis assembly,
+  not an open WP5.1 gate. Keep 200 mm as the bench/HIL value until commissioning.
+- Next software task: single `/cmd_vel` command-authority specification.
+
 ## WP5.1 Authority Override (2026-07-10)
 
 This block supersedes conflicting status and safety semantics below while preserving them as

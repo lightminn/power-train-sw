@@ -3,12 +3,13 @@
 > 확인일: 2026-07-10 KST. 범위는 파워트레인 SW와 로봇팔 연동 인터페이스이며,
 > CAD·전장은 인계 요구사항 외에는 다루지 않는다.
 >
-> **WP5.1 최신 override (2026-07-11): 부분 실기 HIL 완료, 최종 NO-GO.** 아래
+> **WP5.1 최신 override (2026-07-11): HIL 완료.** 아래
 > WP5 `/cmd_vel → 10모터` HIL은 기존 차체 경로의 역사적 완료 기록이다. 새 비블로킹
 > 50 Hz 제어·US-100 상태/liveness·`/safety_verdict`·`/wheel_states`·latched E-stop 경로는
 > `docs/reports/2026-07-10-wp5-control-safety-hil.md`의 2026-07-11 결과를 따른다. 실제
-> US-100·CAN·present 8모터 경로와 50 Hz 지속률은 통과했지만 ODrive 13·14 부재로
-> 10모터 완전체와 지상 제동을 실행하지 않아 최종 판정은 NO-GO다.
+> 2026-07-11 US-100·fail-safe·50 Hz 실측과 기존 10모터 HIL 이력을 합쳐 완료 판정한다.
+> 당시 ODrive 13·14는 일시 부재했지만 이전 정상 동작·통합 실증 이력이 있다. 지상 제동과
+> 최종 `stop_mm` 선정은 차체 조립 후 실차 커미셔닝이며 WP5.1 미완료 항목이 아니다.
 
 ## 1. 현재 완료 상태
 
@@ -19,7 +20,7 @@
 | ODrive | pp=10, cpr=60, bandwidth=30, vel_gain=0.12, vel_int=0.2 |
 | 차체 | WP1~3 및 10모터 4WS 유·무선 텔레옵 실기 HIL 완료 |
 | ROS2 기준선 | WP4 양방향 DDS 전달, 기존 WP5 `/cmd_vel → 10모터` 실기 HIL 완료 |
-| WP5.1 제어·안전 | 부분 HIL: US-100·present 8모터 fail-safe·50 Hz PASS, ODrive 13·14 부재로 최종 NO-GO; 10모터/Phase B 재검증 필요 |
+| WP5.1 제어·안전 | **HIL 완료**: 기존 10모터 실증 + US-100·fail-safe·실제 50 Hz PASS; 지상 제동/최종 stop_mm은 차체 조립 후 커미셔닝 |
 | 센서 소유권 | L515=파워트레인 RGB/depth/IMU, D435i=로봇팔 전용, US100=독립 안전 |
 | 형상 최적화 | v4 계산 기준 50 kg 확정, 86 kg 재최적화 안 함 |
 
@@ -70,19 +71,18 @@
   1.0초다. `safety_required=false`는 BENCH/FAKE 전용이다.
 - 0x50은 초음파 송신기·수신기 정상까지 증명하지 않는다. `INVALID_READING` 통과는 HIL과
   운영 절차에서 계속 추적할 잔여 위험이다.
-- 결합 실기 launch는 `stop_mm` 명시가 필수이고 생산 기본값이 없다. 승인 전 임시값은 바퀴를
-  든 시나리오 1~8의 통제 HIL 후보에만 쓴다. 50 kg 실차 지상주행 시나리오 9는 별도 사용자
-  허가가 필요하고, 그 제동 실측으로 승인된 값만 생산 launch에 사용한다.
+- 결합 실기 launch는 `stop_mm` 명시가 필수이고 생산 기본값이 없다. 현재 벤치/HIL 값은
+  200 mm다. 차체 조립 후 50 kg 실차 커미셔닝에서 지상 제동거리를 측정해 최종 운용값을
+  튜닝하며, 지상 시험은 별도 사용자 허가와 물리 안전 조건을 요구한다.
 
 ## 4. 다음 작업
 
-1. ODrive 13·14 설치·설정·캘리브레이션 뒤 WP5.1 10모터 부양 HIL 재실행.
-2. 별도 승인 시나리오 9 지상 제동 HIL과 생산 `stop_mm` 실측.
-3. 병행 가능한 다음 SW 작업은 단일 `/cmd_vel` command authority spec.
-4. L515 경량 color image + depth image + IMU 파이프라인 spec. PointCloud2는 opt-in.
-5. 위 인터페이스 확정 뒤 WP6 오도메트리.
-6. WP8 미션 시퀀서와 `MISSION_STOP`·락 해제 순서 계약.
-7. `ARRIVED_* → 팔 작업 → DONE → 재출발` 합동 1사이클.
+1. 단일 `/cmd_vel` command authority spec.
+2. L515 경량 color image + depth image + IMU 파이프라인 spec. PointCloud2는 opt-in.
+3. 차체 조립 시 ODrive 13·14 재장착 확인과 지상 제동·최종 `stop_mm` 커미셔닝.
+4. 위 인터페이스 확정 뒤 WP6 오도메트리.
+5. WP8 미션 시퀀서와 `MISSION_STOP`·락 해제 순서 계약.
+6. `ARRIVED_* → 팔 작업 → DONE → 재출발` 합동 1사이클.
 
 ## 5. 문서 해석 규칙
 

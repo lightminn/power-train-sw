@@ -5,17 +5,18 @@
 > 방침: **로봇팔 팀이 확정한 인터페이스(메시지 5종)에 우리가 맞춘다.**
 > 이 문서는 "무엇을, 어떤 도구로, 어떤 파일에, 어떻게 테스트하는지"까지 내려간 실행 계획이다.
 >
-> **📌 WP5.1 최신 상태 (2026-07-11): 부분 실기 HIL 완료, ODrive 13·14 부재로 NO-GO.** 아래
+> **📌 WP5.1 최신 상태 (2026-07-11): HIL 완료.** 아래
 > 2026-07-07 WP5 `/cmd_vel → 10모터` HIL은 기존 차체 경로의 유효한 이력이다. 이후 추가한
 > 순수 Python 안전 코어·비블로킹 50 Hz 제어·별도 US-100 ROS 노드·`/safety_verdict`·
 > `/wheel_states` 경로는 실행 HEAD `ec452f6474b6fc57437d576298f2bc954649be42`에서
 > `motor_control` 198 passed, `motor_gui` 91 passed, Jetson `powertrain_ros` 32/32를 통과했다.
 > 실제 US-100 near·전원분리·재연결 latch와 present 8모터 fail-safe, 60초 50 Hz는 통과했다.
-> `INVALID_READING`, ODrive 13·14를 포함한 완전한 10모터, Phase B와 생산 `stop_mm`은 미검증이다.
+> `INVALID_READING` 실측은 환경상 생략했으며 자동시험으로 보완했다. ODrive 13·14는 이번에
+> 일시 부재했지만 기존 10모터 실증 이력이 있다. 지상 제동과 최종 `stop_mm`은 차체 조립 후
+> 실차 커미셔닝으로 분리하며 WP5.1 완료를 막지 않는다.
 > 상태·증거는 HIL 보고서에 기록한다.
 >
-> **재검증/개발 순서**: ODrive 13·14 설치 뒤 10모터 HIL·Phase B → command authority spec →
-> L515 경량 color image + depth image +
+> **개발 순서**: command authority spec → L515 경량 color image + depth image +
 > IMU 파이프라인(PointCloud2는 필요할 때만 선택) → WP6 오도메트리. WP8 미션 시퀀서와
 > `MISSION_STOP`·락 해제 순서·`ARRIVED_* → 팔 작업 → DONE → 재출발` 합동 1사이클은
 > 별도 미결 작업으로 유지한다.
@@ -413,7 +414,7 @@ US100 ─► /safety_verdict ───────────► chassis_node(g
 
 **의존 관계**: WP2→WP3→WP5, WP1→WP3, WP4→WP5~9. WP2와 WP4는 지금 병렬로 시작 가능.
 
-**2026-07-10 최신 실행 순서**: WP5.1 최종 HIL → command authority spec → L515 경량
+**2026-07-11 최신 실행 순서**: command authority spec → L515 경량
 color/depth image+IMU spec(PointCloud2 선택) → WP6. WP8과 크로스팀 핸드셰이크는 계속 미결이다.
 
 ---

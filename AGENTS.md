@@ -7,10 +7,11 @@ Reconciled with repository, Jetson, and Notion state: `2026-07-10T19:34+09:00`
 
 These notes were migrated from Claude Code project memory. Treat them as durable project context unless the user gives newer instructions.
 
-## CURRENT STATE OVERRIDE — 2026-07-11 WP5.1 HIL
+## CURRENT STATE OVERRIDE — 2026-07-11 WP5.1 HIL COMPLETE
 
-- WP5.1 real HIL is **PARTIAL / final NO-GO**. ODrive nodes 13 and 14 were physically absent.
-  Do not claim 10-motor completion or run the 50 kg ground-braking phase until they are installed.
+- WP5.1 HIL is **COMPLETE** when the prior 10-motor HIL evidence and the 2026-07-11 safety/50 Hz
+  HIL are evaluated together. ODrive nodes 13 and 14 were temporarily absent on 2026-07-11 but
+  had already passed earlier individual and 10-motor integration tests.
 - Real CAN at 500 kbps saw AK 1~4 and ODrive 11,12,15,16 with zero CAN error/passive/bus-off
   delta. Present ODrives calibrated 4/4; absent nodes correctly forced a latched E-stop.
 - Real US-100 passed far (2433~2469 mm), near (75~96 mm → E-stop), power-loss
@@ -21,7 +22,9 @@ These notes were migrated from Claude Code project memory. Treat them as durable
   watchdog stopped, and can0 DOWN/STOPPED.
 - HIL fixes through `ec452f6474b6fc57437d576298f2bc954649be42`: wait for configured CAN before watchdog
   recovery, typed launch `stop_mm` double coercion, nonblocking AK E-stop, and ODrive heartbeat
-  drain before stale evaluation. Continue from the HIL report, not the older NOT RUN text below.
+  drain before stale evaluation. Ground braking and final `stop_mm` selection are deferred vehicle
+  commissioning after chassis assembly, not unfinished WP5.1 HIL. Use 200 mm only as the current
+  bench/HIL value until commissioning. Continue from the HIL report, not the older text below.
 
 ## CURRENT STATE OVERRIDE — 2026-07-10 WP5.1
 

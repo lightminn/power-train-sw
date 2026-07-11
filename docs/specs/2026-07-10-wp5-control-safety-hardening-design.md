@@ -1,5 +1,9 @@
 # WP5.1 차체 제어·안전 경로 보강 설계
 
+> **2026-07-11 완료 override:** 기존 10모터 실증과 이번 US-100·fail-safe·실제 50 Hz
+> 결과를 합쳐 WP5.1 HIL 완료로 판정한다. 아래 Phase B 표현은 당시 검증 설계 이력이며,
+> 지상 제동과 최종 `stop_mm` 선정은 차체 조립 후 실차 커미셔닝으로 재분류됐다.
+
 > 작성: 2026-07-10
 > 상태: Tasks 1~8 소프트웨어 완료, Jetson software-only FAKE PASS, Task 9 실기 HIL 대기
 > 상위 계획: `docs/plans/2026-07-02-autonomous-driving-kickoff.md` WP5 확장·WP6 선행

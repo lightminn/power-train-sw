@@ -1,5 +1,9 @@
 # WP5.1 Control and Safety Hardening Implementation Plan
 
+> **2026-07-11 완료 override:** Tasks 1~9와 HIL 완료. 기존 10모터 실증에 이번
+> US-100·fail-safe·실제 50 Hz 결과를 결합한다. 아래 미체크 Phase B는 WP5.1 잔여 작업이
+> 아니라 차체 조립 후 지상 제동·최종 `stop_mm`을 정하는 실차 커미셔닝 체크리스트다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 > **실행 상태 (2026-07-11):** Tasks 1~8 소프트웨어 완료. commit `49831bb`의 Jetson

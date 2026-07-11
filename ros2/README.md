@@ -4,16 +4,12 @@
 노드·컨테이너를 소유하고, `robot_arm_msgs` 계약만 공유하며 DDS(host network, domain 0)로
 통신한다.
 
-> **WP5.1 상태 (2026-07-10): Tasks 1~8 소프트웨어 완료, 최종 실기 HIL 미실행.** 2026-07-07의
-> WP4 양방향 DDS와 기존 WP5 `/cmd_vel → 10모터` HIL 이력은 보존한다. 아래 새
-> `/safety_verdict`·`/wheel_states`·latched E-stop 경로는
-> [`WP5.1 HIL 보고서`](../docs/reports/2026-07-10-wp5-control-safety-hil.md)의
-> `NOT RUN` 항목을 통과하기 전까지 실기 완료로 주장하지 않는다. 로컬 관찰 증거는
-> 배포 HEAD `c3610c136357a8c881263926ec18bcd7e3432a5d`에서 `motor_control` 189 passed,
-> `motor_gui` 91 passed, 격리 read-only ROS 3패키지 clean build와 `powertrain_ros` 31/31,
-> Jetson 동일 HEAD의 3패키지 build와 `powertrain_ros` 31/31까지 통과했다. software-only FAKE는 별도
-> commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`에서 PASS다. FAKE는 실기 HIL이 아니며
-> 최종 Jetson/10모터/US-100 HIL은 대기 중이다.
+> **WP5.1 상태 (2026-07-11): HIL 완료.** 기존 `/cmd_vel → 10모터` 실증과 새
+> `/safety_verdict`·`/wheel_states`·latched E-stop·실제 50 Hz 결과를 합쳐 완료 판정했다.
+> 실행 HEAD `ec452f6474b6fc57437d576298f2bc954649be42`에서 `motor_control` 198,
+> `motor_gui` 91, Jetson `powertrain_ros` 32/32가 통과했다. 지상 제동과 최종 `stop_mm`은
+> 차체 조립 후 실차 커미셔닝으로 분리한다. 상세는
+> [`WP5.1 HIL 보고서`](../docs/reports/2026-07-10-wp5-control-safety-hil.md)를 따른다.
 
 ## 구조
 
@@ -85,10 +81,9 @@ colcon test-result --verbose
 
 ### 실기 launch 게이트
 
-`wp5_control.launch.py`는 `stop_mm`을 생략할 수 없는 결합 실기 진입점이다. 생산 기본값은
-없다. HIL 승인 전에는 **HIL 후보**일 뿐이며, 바퀴를 든 시나리오 1~8에서 통제된 저속과
-명시적 임시값으로만 사용한다. 시나리오 9의 50 kg 지상 제동 실측으로 승인된 값을 얻은
-뒤에만 생산 실행으로 부를 수 있다.
+`wp5_control.launch.py`는 `stop_mm`을 생략할 수 없는 결합 실기 진입점이다. 현재 벤치/HIL
+값은 200 mm이고 생산 기본값은 없다. 차체 조립 후 50 kg 실차 지상 커미셔닝에서 제동거리를
+측정해 최종 운용값을 튜닝한다. 이는 완료된 WP5.1 HIL과 별도다.
 
 먼저 사용자가 물리 준비를 명시적으로 확인해야 한다.
 
@@ -277,11 +272,11 @@ ros2 run powertrain_ros chassis --ros-args \
 | `chassis_node` | `safety_startup_timeout` | 1.0 s | 첫 판정 미수신 시 latched `ESTOP` |
 | `us100_safety_node` | `sample_hz` | 5.0 Hz | 허용 범위 5~10 Hz |
 | `us100_safety_node` | `fail_stop_count` | 3 | 거리와 0x50 생존 확인 모두 연속 실패한 횟수 |
-| `us100_safety_node` | `stop_mm` | 생산 결합 launch 기본 없음 | 결합 launch에 필수; 지상 저속 HIL의 감지·제동 실측으로 생산값 승인 |
+| `us100_safety_node` | `stop_mm` | 생산 결합 launch 기본 없음 | 결합 launch에 필수; 차체 조립 후 지상 커미셔닝의 제동 실측으로 최종 운용값 튜닝 |
 
 0.75초 freshness 계약은 `age > 0.75 s` 조건이 참이 된 뒤 다음 20 ms tick에 집행되므로
 명목 E-stop 시점은 마지막 판정 후 0.75~0.77초다. 이는 0.5초 `/cmd_vel` watchdog과 서로
-다른 고장 경로다. 생산 `stop_mm`은 HIL 측정 전까지 승인값이 없다.
+다른 고장 경로다. 200 mm는 현재 벤치/HIL 값이며 최종 운용값은 차체 조립 후 커미셔닝한다.
 
 ## 토픽과 서비스 계약
 
