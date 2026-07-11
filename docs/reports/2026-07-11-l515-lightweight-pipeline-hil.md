@@ -124,5 +124,8 @@ Jetson의 기존 dirty checkout 두 곳은 수정하지 않았다. 로봇팔 `ro
   양 node log의 error/exception은 0이었다. DDS 그래프에는 양 node와 목표 토픽이 남았다.
 - `PointCloud2` 토픽은 없었다. color/depth/IMU 소비 노드가 요구하는
   `base_link→l515_link` static TF 실측은 차체 조립 후 센서 마운트 커미셔닝 항목이다.
+- closure commit `72c5d251c616c9f1d9f40bbc07e38f8921b9b357`의 exact archive로 Jetson에서
+  3-package clean build/test를 실행해 `powertrain_ros` **91 passed**, 전체 91 tests,
+  failure/error/skip 0을 확인했다.
 - 동시 raw 증거는 Jetson `/tmp/powertrain-l515-task7-d18dc4d7580856c191e16693d32dd0aba95528cc`
   snapshot과 `/tmp/task7-rerun-*` 로그에 보존했다.
