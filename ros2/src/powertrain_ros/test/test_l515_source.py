@@ -1,4 +1,6 @@
 from types import SimpleNamespace
+import threading
+import time
 
 import pytest
 
@@ -171,10 +173,21 @@ def test_disconnect_clears_stale_frames_and_reconnect_uses_new_mapper():
     source = L515Source(
         rs, wait_fn=wait_fn, mapper_factory=lambda: next(mappers)
     )
+    original_put = source._latest.put
+    put_count = 0
+
+    def put_then_stop(**payload):
+        nonlocal put_count
+        original_put(**payload)
+        put_count += 1
+        if put_count == 2:
+            source._stop_event.set()
+
+    source._latest.put = put_then_stop
     rs.results = [
         FakeFrames("old"),
         RuntimeError("disconnect"),
-        FakeFrames("new", on_read=source._stop_event.set),
+        FakeFrames("new"),
     ]
     source._run()
 
@@ -221,8 +234,84 @@ def test_stop_is_bounded_and_pipeline_stop_is_best_effort():
     source = L515Source(FakeRs([]), stop_timeout=0.25)
     source._thread = Worker()
     source._pipeline = BrokenPipeline()
+    source._set_state(L515State.STREAMING)
 
     source.stop()
 
     assert source._thread.timeout == 0.25
+    assert source.state is not L515State.STOPPED
+
+
+def test_stop_does_not_block_on_blocking_sdk_stop():
+    stop_entered = threading.Event()
+    release_stop = threading.Event()
+
+    class BlockingPipeline:
+        def stop(self):
+            stop_entered.set()
+            release_stop.wait()
+
+    source = L515Source(FakeRs([]), stop_timeout=0.02)
+    source._pipeline = BlockingPipeline()
+
+    started = time.monotonic()
+    source.stop()
+    elapsed = time.monotonic() - started
+
+    assert stop_entered.wait(0.2)
+    assert elapsed < 0.15
+    release_stop.set()
+
+
+def test_late_worker_cannot_enqueue_or_regress_state_after_stop():
+    frames_ready = threading.Event()
+    release_frames = threading.Event()
+
+    class LatePipeline(FakePipeline):
+        def wait_for_frames(self):
+            frames_ready.set()
+            release_frames.wait()
+            return FakeFrames("late")
+
+    rs = FakeRs([EXPECTED_L515_SERIAL])
+    rs.pipeline = lambda: LatePipeline(rs)
+    source = L515Source(rs, stop_timeout=0.01, mapper_factory=object)
+    source.start()
+    assert frames_ready.wait(0.2)
+
+    source.stop()
+    assert source.state is not L515State.STOPPED
+    worker = source._thread
+    release_frames.set()
+    worker.join(0.2)
+
+    assert source.state is L515State.STOPPED
+    assert source.poll_latest().empty
+
+
+def test_stop_during_device_query_prevents_pipeline_creation_and_start():
+    query_entered = threading.Event()
+    release_query = threading.Event()
+
+    class RacingRs(FakeRs):
+        def context(self):
+            def query_devices():
+                query_entered.set()
+                release_query.wait()
+                return [FakeDevice(EXPECTED_L515_SERIAL)]
+
+            return SimpleNamespace(query_devices=query_devices)
+
+    rs = RacingRs([EXPECTED_L515_SERIAL])
+    source = L515Source(rs, stop_timeout=0.01)
+    source.start()
+    assert query_entered.wait(0.2)
+
+    source.stop()
+    worker = source._thread
+    release_query.set()
+    worker.join(0.2)
+
+    assert rs.pipelines == []
+    assert rs.started == []
     assert source.state is L515State.STOPPED

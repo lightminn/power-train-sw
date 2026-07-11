@@ -1,0 +1,88 @@
+# Task 3 Report
+
+## Scope
+
+- Added `powertrain_ros/l515_source.py` only for serial-locked SDK acquisition,
+  latest-frame handoff, and reconnect state.
+- Added `test/test_l515_source.py` with an injected fake `rs` module, clock,
+  wait function, and mapper factory. No hardware or real sleep is used.
+
+## TDD evidence
+
+- RED: `/home/light/anaconda3/bin/python -m pytest -q test/test_l515_source.py`
+  failed during collection with
+  `ModuleNotFoundError: No module named 'powertrain_ros.l515_source'`.
+- GREEN: the focused source suite passed after the minimal implementation.
+
+## Requirement review
+
+- Immutable configuration accepts only L515 serial `00000000F0271544`.
+- Device enumeration never falls back to the D435 serial.
+- SDK requests color BGR8 and depth Z16 at exactly 640x480x30, plus accel
+  and gyro streams.
+- `LatestFrames` uses a lock, overwrites one slot per stream, and atomically
+  drains/clears without blocking.
+- Disconnect clears queued frames, stops the pipeline best-effort, waits the
+  configured 2.0 seconds, and retries only the expected serial.
+- Each connection creates a new timestamp mapper; tests prove the second
+  session payload carries the second mapper and no first-session frame.
+- `stop()` signals shutdown, stops the pipeline best-effort, and joins with
+  the configured bounded timeout.
+
+## Fresh verification
+
+- `python3 -m flake8 powertrain_ros/l515_source.py test/test_l515_source.py`:
+  exit 0.
+- `python3 -m pytest -q test/test_l515_source.py` in
+  `powertrain-sw:ros-task7-minors`: `8 passed in 0.02s`.
+- `colcon test --packages-select powertrain_ros` followed by
+  `colcon test-result --verbose`: `52 tests, 0 errors, 0 failures, 0 skipped`.
+- `git diff --check`: exit 0.
+
+## Self-review
+
+- Only the Task 3 production module, its tests, and this report are changed.
+- SDK import is injected; ROS adapter import is lazy so unit tests remain
+  hardware-independent.
+- No Jetson, hardware, user file, launch/config, or other task file changed.
+
+## Review-finding fixes
+
+- `stop()` now signals and invalidates the active generation before doing any
+  SDK work. SDK `pipeline.stop()` runs best-effort on a daemon helper, so a
+  blocked native stop cannot exceed the configured join bound.
+- Lifecycle generation checks prevent pipeline creation/start after a stop
+  observed during discovery, prevent late frame enqueue/state regression, and
+  only publish `STOPPED` after the worker is quiescent.
+- A timed-out join leaves the last non-stopped state visible until the worker
+  actually exits. `LatestFrames.empty` now reads its slots under the same lock
+  used by put/drain/clear.
+- Added deterministic regressions for blocked SDK stop, join timeout, late
+  worker completion/no late payload, and the discovery-vs-stop race.
+
+## Review-fix TDD and verification evidence
+
+- RED command: `/home/light/anaconda3/bin/python -m pytest -q
+  test/test_l515_source.py`. Result on the pre-fix implementation: seven tests
+  reached completion, the join-timeout assertion failed, and execution then
+  blocked in the new blocking-SDK-stop regression until terminated.
+- Focused command: `/home/light/anaconda3/bin/python -m pytest -q
+  test/test_l515_source.py`. Result: `11 passed in 0.05s`.
+- Style command: `/home/light/anaconda3/bin/python -m flake8
+  powertrain_ros/l515_source.py test/test_l515_source.py`. Result: exit 0.
+- Full ROS command: `docker run --rm -v "$PWD:/workspace" -w /workspace/ros2
+  powertrain-sw:ros-task7-minors bash -lc 'source
+  /opt/ros/humble/setup.bash && colcon --log-base /tmp/l515-log build
+  --build-base /tmp/l515-build --install-base /tmp/l515-install
+  --packages-select powertrain_msgs robot_arm_msgs powertrain_ros && source
+  /tmp/l515-install/setup.bash && colcon --log-base /tmp/l515-test-log test
+  --build-base /tmp/l515-build --install-base /tmp/l515-install
+  --packages-select powertrain_ros --event-handlers console_direct+ && colcon
+  test-result --test-result-base /tmp/l515-build/powertrain_ros --verbose'`.
+  Result: three packages built; `55 passed in 0.36s`; `55 tests, 0 errors, 0
+  failures, 0 skipped`.
+- Diff command: `git diff --check`. Result: exit 0.
+- Host-only `/home/light/anaconda3/bin/python -m pytest -q test` was also
+  attempted, but collection lacked ROS `launch.action` and
+  `builtin_interfaces`; the isolated ROS image command above is the relevant
+  full-suite result.
