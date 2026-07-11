@@ -134,6 +134,7 @@ class Gateway:
                         published=self._record_worker_published,
                         color_streamer=self._submit_color,
                         depth_streamer=self._submit_depth,
+                        alignment_required=self._alignment_required,
                     )
                 self._start_owned(self.workers)
                 self._stream_active = self._start_owned(self.streamer, optional=True)
@@ -283,6 +284,10 @@ class Gateway:
         except Exception as exc:
             with self._lock:
                 self._disable_streamer(exc)
+
+    def _alignment_required(self):
+        stream = self._stream_snapshot()
+        return bool(stream and getattr(stream, "mode", None) is not FrameMode.COLOR)
 
     def _record_published(self, frames, published):
         now = self._now_ns()

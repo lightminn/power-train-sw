@@ -234,7 +234,7 @@ Jetson HIL:
 
 - L515 system-wide owner가 Gateway 하나뿐이다.
 - 자율주행 ROS 6개 토픽과 원격주행 SRT가 동시에 동작한다.
-- ROS color와 SRT receiver가 각각 안정 구간 실측 29.0 Hz 이상이며 profile/caps는 30 fps다.
+- ROS color와 **RGB mode SRT receiver**가 각각 안정 구간 실측 29.0 Hz 이상이며 profile/caps는 30 fps다. RGB mode는 alignment를 완전히 억제하고, Depth/overlay mode의 alignment와 SRT rate는 기능 확인 및 best-effort 실측값으로 기록한다.
 - SRT가 Orin Nano의 독립 software x264 worker를 사용하며 다른 encoder로 silent fallback하지 않는다.
 - 새 aligned depth ROS 토픽 없이 세 영상 모드를 무재시작 전환한다.
 - Dashboard/SSH 종료가 Gateway, ROS, SRT를 끊지 않는다.

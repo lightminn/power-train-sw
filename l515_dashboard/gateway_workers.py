@@ -122,6 +122,7 @@ class ColorWorker(_Worker):
 class DepthWorker(_Worker):
     def __init__(self, source, ros, *, period_s=.1, aligner=None, fatal,
                  published=None, streamer=None, now_ns=time.monotonic_ns,
+                 alignment_required=None,
                  stop_timeout=1.0):
         super().__init__(name="l515-depth-worker", fatal=fatal,
                          stop_timeout=stop_timeout)
@@ -130,6 +131,7 @@ class DepthWorker(_Worker):
         self._aligner = aligner or self._default_aligner(source)
         self._published = published or (lambda sample, topics: None)
         self._streamer = streamer
+        self._alignment_required = alignment_required or (lambda: True)
         self._now_ns = now_ns
         self._aligned_lock = threading.Lock()
         self._aligned_depth = None
@@ -150,6 +152,7 @@ class DepthWorker(_Worker):
 
     def _run(self):
         depth_sequence = bundle_sequence = 0
+        deadline = time.monotonic()
         while not self._stop_event.is_set():
             new_depth_sequence, depth = self.source.read_depth_after(depth_sequence)
             new_bundle_sequence, bundle = self.source.read_video_bundle_after(bundle_sequence)
@@ -159,7 +162,8 @@ class DepthWorker(_Worker):
                 if mapper is not None:
                     topics = self.ros.publish_depth(depth, mapper) or ()
                     self._published(depth, topics)
-            if bundle is not None and self._aligner is not None:
+            if (bundle is not None and self._aligner is not None
+                    and self._alignment_required()):
                 bundle_sequence = new_bundle_sequence
                 identity = (bundle.generation, bundle.capture_token)
                 if self.source.capture_identity() == identity:
@@ -178,7 +182,12 @@ class DepthWorker(_Worker):
                         self._aligned_depth = aligned
                     if self._streamer is not None:
                         self._streamer(aligned)
-            self._wait(self.period_s)
+            deadline += self.period_s
+            delay = deadline - time.monotonic()
+            if delay < 0:
+                deadline = time.monotonic() + self.period_s
+                delay = self.period_s
+            self._wait(delay)
 
 
 class ImuWorker(_Worker):
@@ -211,13 +220,15 @@ class ImuWorker(_Worker):
 class WorkerGroup:
     def __init__(self, *, source, ros, fatal, depth_period_s=.1,
                  imu_max_rate_hz=100, aligner=None, published=None,
-                 color_streamer=None, depth_streamer=None, stop_timeout=1.0):
+                 color_streamer=None, depth_streamer=None,
+                 alignment_required=None, stop_timeout=1.0):
         common = {"fatal": fatal, "published": published,
                   "stop_timeout": stop_timeout}
         self.workers = (
             ColorWorker(source, ros, streamer=color_streamer, **common),
             DepthWorker(source, ros, period_s=depth_period_s, aligner=aligner,
-                        streamer=depth_streamer, **common),
+                        streamer=depth_streamer,
+                        alignment_required=alignment_required, **common),
             ImuWorker(source, ros, "gyro", max_rate_hz=imu_max_rate_hz, **common),
             ImuWorker(source, ros, "accel", max_rate_hz=imu_max_rate_hz, **common),
         )

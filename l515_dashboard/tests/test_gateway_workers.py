@@ -117,6 +117,66 @@ def test_depth_alignment_uses_real_composite_frameset_only():
     assert seen == [real]
 
 
+def test_rgb_mode_skips_alignment_without_skipping_raw_depth_publish():
+    source = Source(); source.depth.publish(sample(1))
+    source.bundle.publish(VideoBundle(1, 1, object(), 1)); published = []; aligned = []
+    worker = DepthWorker(
+        source, SimpleNamespace(publish_depth=lambda *a: published.append(True) or ()),
+        period_s=.01, aligner=lambda frame: aligned.append(frame),
+        alignment_required=lambda: False, fatal=lambda exc: None)
+    worker.start(); time.sleep(.03); worker.stop()
+    assert published == [True]
+    assert aligned == []
+
+
+def test_depth_period_is_deadline_based_instead_of_work_plus_sleep():
+    source = Source(); published = []
+    def publish(*_):
+        published.append(time.monotonic())
+        time.sleep(.05)
+        return ()
+    worker = DepthWorker(source, SimpleNamespace(publish_depth=publish),
+                         period_s=.1, aligner=lambda _: None,
+                         fatal=lambda exc: None)
+    worker.start(); deadline = time.monotonic() + 1.02; number = 0
+    while time.monotonic() < deadline:
+        number += 1; source.depth.publish(sample(number)); time.sleep(.02)
+    worker.stop()
+    assert 9 <= len(published) <= 11
+
+
+def test_depth_overrun_skips_deadline_without_catchup_burst():
+    source = Source(); published = []
+    def publish(*_):
+        published.append(time.monotonic()); time.sleep(.03); return ()
+    worker = DepthWorker(source, SimpleNamespace(publish_depth=publish),
+                         period_s=.01, aligner=lambda _: None,
+                         fatal=lambda exc: None)
+    worker.start()
+    for number in range(10):
+        source.depth.publish(sample(number)); time.sleep(.01)
+    time.sleep(.08); worker.stop()
+    assert all(b - a >= .025 for a, b in zip(published, published[1:]))
+
+
+def test_alignment_follows_depth_overlay_mode_and_stops_again_in_rgb():
+    source = Source(); required = False; aligned = []
+    worker = DepthWorker(
+        source, SimpleNamespace(publish_depth=lambda *a: ()), period_s=.01,
+        aligner=lambda frame: aligned.append(frame),
+        alignment_required=lambda: required, fatal=lambda exc: None)
+    worker.start()
+    source.bundle.publish(VideoBundle(1, 1, object(), 1)); time.sleep(.02)
+    assert aligned == []
+    required = True
+    source.bundle.publish(VideoBundle(1, 1, object(), 2)); time.sleep(.02)
+    assert len(aligned) == 1
+    required = False
+    source.bundle.publish(VideoBundle(1, 1, object(), 3)); time.sleep(.02)
+    worker.stop()
+    assert len(aligned) == 1
+
+
 def test_worker_group_stop_fails_if_dependency_user_is_still_alive_then_retries():
     source = Source(); entered, release = threading.Event(), threading.Event()
     source.color.publish(sample(1))

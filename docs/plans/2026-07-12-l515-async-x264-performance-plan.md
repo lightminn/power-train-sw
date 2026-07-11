@@ -4,7 +4,7 @@
 
 **Goal:** Deliver independent 1280×720 ROS color and SRT paths at a measured 29.0 Hz or better on the Jetson Orin Nano while bounding lower-priority Depth, alignment, and IMU work.
 
-**Architecture:** One RealSense pipeline uses the SDK asynchronous callback and immediately routes color, depth, accel, and gyro into stream-specific bounded handoffs. Independent workers publish ROS color at camera cadence, publish Depth/alignment at 10 Hz, publish each IMU stream at no more than 100 Hz, and feed an isolated software-x264 SRT process at RGB cadence. No consumer may block the SDK callback or another consumer.
+**Architecture:** One RealSense pipeline uses the SDK asynchronous callback and immediately routes color, depth, accel, and gyro into stream-specific bounded handoffs. Independent workers publish ROS color at camera cadence, publish raw Depth at a deadline-based 10 Hz, publish each IMU stream at no more than 100 Hz, and feed an isolated software-x264 SRT process at RGB cadence. Expensive alignment runs only while Depth or overlay SRT mode needs it; RGB mode suppresses alignment so it cannot starve the 30 fps writer. No consumer may block the SDK callback or another consumer.
 
 **Tech Stack:** Python 3.10, pyrealsense2 2.50.0, ROS 2 Humble/rclpy, NumPy/OpenCV, GStreamer `x264enc`, SRT, pytest, Docker Compose on Jetson Orin Nano Super.
 
@@ -13,7 +13,7 @@
 - Exact L515 serial remains `00000000F0271544`; D435i fallback is forbidden.
 - Color profile is BGR8 1280×720×30; raw Depth is Z16 640×480×30.
 - Existing six ROS topics remain; no aligned-depth or additional ROS topic is added.
-- ROS color image/CameraInfo and SRT receiver must each measure at least 29.0 Hz over every complete 5 s window in the final 60 s observation.
+- ROS color image/CameraInfo and the **RGB-mode** SRT receiver must each measure at least 29.0 Hz over every complete 5 s window in the final 60 s observation. Depth and overlay SRT are functional best-effort modes whose measured rate is documented.
 - Raw Depth image/CameraInfo are published at 10 Hz; accel and gyro are each capped at 100 Hz.
 - SRT is fixed at 1280×720×30 in RGB, Depth, and overlay modes; mode changes do not restart SDK or GStreamer.
 - Aligned Depth may be reused for RGB-paced output only while its age is at most 250 ms; older data stops Depth/overlay output and marks streaming DEGRADED.
@@ -217,7 +217,7 @@ Each worker uses `Event.wait(timeout)` for interruptible cadence, owns no SDK pi
 - [ ] **Step 4: Move alignment out of the capture path**
 
 Depth worker consumes the latest real SDK composite frameset, runs `rs.align(color)` no faster than
-10 Hz, publishes raw Depth from its independent stream slot at 10 Hz, and stores an immutable aligned
+10 Hz and only in Depth/overlay SRT modes, publishes raw Depth from its independent stream slot at a deadline-based 10 Hz, and stores an immutable aligned
 array with `created_ns`. It discards results when the capture generation or token changed during
 alignment; it never synthesizes a composite from independent child frames.
 
@@ -352,7 +352,7 @@ Record feature commit, image ID, SDK version, GStreamer plugin versions, model s
 
 - [ ] **Step 6: Run connected 60 s performance acceptance**
 
-With RGB SRT enabled, record unique frame numbers and every complete 5 s window. Require ROS color image and CameraInfo ≥29.0 Hz, SRT receiver ≥29.0 fps, raw Depth 9.5–10.5 Hz, accel/gyro ≤100.5 Hz with bounded queues, no SDK internal frame gap, and no process overrun/backlog growth.
+With RGB SRT enabled and alignment suppressed, record unique frame numbers and every complete 5 s window. Require ROS color image and CameraInfo ≥29.0 Hz, RGB SRT receiver ≥29.0 fps, raw Depth 9.5–10.5 Hz, accel/gyro ≤100.5 Hz with bounded queues, no SDK internal frame gap, and no process overrun/backlog growth. Measure Depth/overlay SRT separately as best-effort functional modes.
 
 - [ ] **Step 7: Complete functional and fault HIL**
 
