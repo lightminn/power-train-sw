@@ -22,6 +22,8 @@ These notes were migrated from Claude Code project memory. Treat them as durable
   `ros2 launch powertrain_ros l515.launch.py`.
 - Outputs are color/depth Image plus CameraInfo and separate gyro/accel Imu topics. PointCloud2,
   IR, confidence, alignment, and synthetic IMU are intentionally absent.
+- This direct custom `pyrealsense2` node supersedes every historical L515 instruction below that
+  mentions `realsense-ros`, `realsense2_camera`, or optional PointCloud2. Do not use those paths.
 
 ## CURRENT STATE OVERRIDE — 2026-07-11 WP5.1 HIL COMPLETE
 
@@ -82,7 +84,7 @@ below. Preserve the older text as history, but use this section when it conflict
   `docs/plans/2026-07-10-wp5-control-safety-hardening-plan.md`, and
   `docs/reports/2026-07-10-wp5-control-safety-hil.md`.
 - After the final WP5.1 HIL, proceed in this order: command-authority spec → L515 lightweight
-  color-image + depth-image + IMU pipeline (PointCloud2 optional) → WP6 odometry. WP8 and the
+  custom pyrealsense2 color-image + depth-image + IMU pipeline (PointCloud2 absent) → WP6 odometry. WP8 and the
   remaining `MISSION_STOP`, unlock-ordering, and full arm-handshake work remain open in parallel.
 - Provenance at `c3610c136357a8c881263926ec18bcd7e3432a5d`: local JUnit files are
   `.superpowers/sdd/final-motor-control-c3610c1.xml`,
@@ -642,7 +644,7 @@ metadata:
 
 2026-06-02 역사 기록: Jetson Orin Nano에 D435i USB3 연결. 당시 메인 비전 계획은 7/7 센서분리로 대체됨 — 현재 D435i=로봇팔 전용, L515=파워트레인, US-100=독립 안전. [[corner-module-ackermann]]
 
-**SDK 설치 = `docker/Dockerfile.jetson` 에 librealsense v2.55.1 + pyrealsense2 소스 빌드 baking (커밋 fa75674 + fix 019e186 + 테스트 b40fc57, main).** 핵심 플래그·함정:
+**역사 기록 전용(D435i): SDK 설치 = `docker/Dockerfile.jetson` 에 librealsense v2.55.1 + pyrealsense2 소스 빌드 baking (커밋 fa75674 + fix 019e186 + 테스트 b40fc57, main). 현재 L515 운영에는 이 절차를 쓰지 말고 상단의 powertrain_ros v2.50.0 custom pyrealsense2 절차를 따른다.** 핵심 플래그·함정:
 - **`-DFORCE_RSUSB_BACKEND=ON`** — 컨테이너라 커널 패치 불가 → libusb 유저스페이스 백엔드. compose 가 privileged + `/dev` 마운트 + network host 라 카메라 접근됨.
 - **`-DIMPORT_DEPTH_CAM_FW=OFF`** — 안 끄면 cmake configure 가 펌웨어 바이너리를 다운로드하다 **도커 빌드 네트워크에서 SSL connect error 로 실패**(실행 컨테이너는 host net 이라 됐지만 buildkit 빌드 net 은 다름). 카메라에 펌웨어 이미 있어 스트리밍엔 불필요.
 - **make install 버그**: 메인 `pyrealsense2.cpython-310-aarch64-linux-gnu.so` 와 `__init__.py` 를 site-packages 에 안 넣고 `pyrsutils` 만 넣음 → `import pyrealsense2` 가 빈 네임스페이스 패키지(`__file__=None`, `rs.context` 없음). **해결: `build/Release/` 에서 메인 .so 복사 + `printf 'from .pyrealsense2 import *' > __init__.py`** (Dockerfile 에 포함). 설치경로 `/usr/local/lib/python3.10/dist-packages/pyrealsense2/`(기본 path, PYTHONPATH 불필요).
@@ -939,7 +941,7 @@ metadata:
 - **커스텀 메시지 5종 `robot_arm_msgs`** (계약): `/detected_objects`(팔→우리, 30fps 전체 인식), `/arm_status`(팔→우리, DONE=재출발 트리거), `/arrival_status`(우리→팔, mission_id+status), `/chassis_mode`(우리→팔, DRIVING/CORNERING/ROUGH_TERRAIN/MISSION_STOP/FOLLOW_LEAD — 팔 자세락), `/pick_target`(팔 내부, latched). 핸드셰이크: MISSION_STOP→ArrivalStatus→팔 작업→DONE→재출발.
 - **우리 몫 명시**(그들 통합계획 §6): Nav2 미사용·레인 추종, 4WS 키네마틱스(CornerModule 위), odometry(휠+IMU 단거리), 레인은 raw 센서 직접 처리, 정지선/신호등/마커는 100% `/detected_objects` 구독(단일 인식 소스 원칙). 우리 착수계획: `docs/plans/2026-07-02-autonomous-driving-kickoff.md`.
 - ✅ **PR #11 main 머지 완료(2026-07-03, main HEAD `0ec4a0a`)** → `robot_arm_msgs`(5종)·`robot_arm_perception`(perception_node)·`arm_fsm`(12상태)·MoveIt-Dynamixel 브릿지·설계문서가 **main에 반영**(이전엔 열린 PR에만 있었음). 팔은 6/24 6축→**3축** 대격변(그리퍼 재검토 중).
-- ✅ **D435i 독점 충돌 — 2026-07-07 해소**: 원래 그들 perception_node가 pyrealsense2로 카메라 직접 오픈(단일 프로세스만) → 우리 레인용 raw 영상 접근 불가였음. **재발행/통일 협상 대신 '센서 분리'로 종결** — D435i=로봇팔 전용(통째로), **L515가 우리 레인·depth·IMU 카메라**(우리 realsense-ros 드라이버 `l515_camera`). IMU도 **L515 내장(BMI085)** → D435i 내장 IMU 의존 없음. 상세=착수계획 센서배치 배너.
+- ✅ **D435i 독점 충돌 — 2026-07-07 해소**: 원래 그들 perception_node가 pyrealsense2로 카메라 직접 오픈(단일 프로세스만) → 우리 레인용 raw 영상 접근 불가였음. **재발행/통일 협상 대신 '센서 분리'로 종결** — D435i=로봇팔 전용(통째로), **L515가 우리 레인·depth·IMU 카메라**. 당시 `realsense-ros` 계획은 폐기됐고 현재는 powertrain_ros의 custom pyrealsense2 node이며 PointCloud2는 없다. IMU도 **L515 내장(BMI085)** → D435i 내장 IMU 의존 없음. 상세=착수계획 센서배치 배너.
 - 미결(그들이 "파워트레인 합의 대기"로 보류): status enum(대문자 스네이크 잠정), mission_id 관리 주체(우리 미션 시퀀서가 맞음), MISSION_STOP→ArrivalStatus 순서, ROS_DOMAIN_ID, 라이다(/scan, 후방 마운트) 역할 분담.
 - **젯슨 7/2~3 역사 기록:** 당시 두 레포 main 싱크와 ROS 환경 존재 확인. 최신 7/10 실측은 상단 CURRENT STATE OVERRIDE와 `project-state-2026-07-10.md`를 따른다; WP4·WP5는 완료됐다.
 - 그들 요구사항 문서 `docs/requirements/`는 gitignore(레포에 없음) — 스펙은 노션+직접 소통. 그들 CLAUDE.md도 stale(6축 서술 vs 실제 3축).

@@ -44,21 +44,9 @@ awk -v speed="$speed" -v minimum="$MIN_USB_SPEED_MBPS" \
   'BEGIN { exit !(speed >= minimum) }' \
   || fail "USB link must be >= ${MIN_USB_SPEED_MBPS} Mbps, got ${speed} Mbps"
 
-sdk_serials=$(docker exec -i powertrain_ros python3 - "$EXPECTED_SERIAL" <<'PY'
-import sys
-
-import pyrealsense2 as rs
-
-expected = sys.argv[1]
-matches = []
-for device in rs.context().query_devices():
-    serial = device.get_info(rs.camera_info.serial_number)
-    if serial == expected:
-        matches.append(serial)
-for serial in matches:
-    print(serial)
-PY
-) || fail "SDK enumeration failed in powertrain_ros"
+sdk_serials=$(docker exec -i powertrain_ros \
+  python3 /workspace/scripts/l515_sdk_probe.py --serial "$EXPECTED_SERIAL") \
+  || fail "SDK enumeration failed in powertrain_ros for serial $EXPECTED_SERIAL"
 
 [ "$sdk_serials" = "$EXPECTED_SERIAL" ] \
   || fail "SDK must select only L515 serial $EXPECTED_SERIAL; got '${sdk_serials:-none}'"
