@@ -4,7 +4,6 @@ from dataclasses import dataclass
 import math
 from numbers import Real
 
-
 ENCODERS = ("x264", "openh264")
 
 
@@ -38,7 +37,9 @@ class DashboardConfig:
         if not 1 <= self.port <= 65535:
             raise ValueError("port must be between 1 and 65535")
         if self.encoder not in ENCODERS:
-            raise ValueError(f"encoder must be one of {ENCODERS}: {self.encoder!r}")
+            raise ValueError(
+                f"encoder must be one of {ENCODERS}: {self.encoder!r}"
+            )
 
         positive_integer_fields = (
             "latency_ms",
@@ -54,10 +55,16 @@ class DashboardConfig:
         )
         for name in positive_integer_fields:
             value = getattr(self, name)
-            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or value <= 0
+            ):
                 raise ValueError(f"{name} must be a positive integer")
         if (self.width, self.height) != (1280, 720):
             raise ValueError("width and height must be fixed at 1280x720")
+        if self.fps != 30:
+            raise ValueError("fps must be fixed at 30")
         if (self.color_width, self.color_height) != (1280, 720):
             raise ValueError("color profile must be fixed at 1280x720")
         if (self.depth_width, self.depth_height) != (640, 480):

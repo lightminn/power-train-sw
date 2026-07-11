@@ -8,7 +8,11 @@ from l515_dashboard.config import DashboardConfig
 def test_defaults_match_l515_stream_contract():
     config = DashboardConfig()
 
-    assert (config.port, config.latency_ms, config.encoder) == (5000, 60, "x264")
+    assert (config.port, config.latency_ms, config.encoder) == (
+        5000,
+        60,
+        "x264",
+    )
     assert (config.width, config.height, config.fps) == (1280, 720, 30)
     assert config.bitrate_kbps == 3000
     assert config.startup_timeout_s == 10.0
@@ -52,9 +56,19 @@ def test_rejects_invalid_runtime_configuration(kwargs, message):
 
 @pytest.mark.parametrize(
     "field",
-    ["port", "latency_ms", "width", "height", "fps", "bitrate_kbps",
-     "color_width", "color_height", "depth_width", "depth_height",
-     "max_message_bytes"],
+    [
+        "port",
+        "latency_ms",
+        "width",
+        "height",
+        "fps",
+        "bitrate_kbps",
+        "color_width",
+        "color_height",
+        "depth_width",
+        "depth_height",
+        "max_message_bytes",
+    ],
 )
 @pytest.mark.parametrize("value", [1.5, True, "1"])
 def test_rejects_noninteger_fields(field, value):
@@ -95,3 +109,8 @@ def test_rejects_nonfixed_stream_profiles():
         DashboardConfig(color_width=640)
     with pytest.raises(ValueError, match="depth"):
         DashboardConfig(depth_height=720)
+
+
+def test_srt_fps_is_fixed_at_30():
+    with pytest.raises(ValueError, match="fps must be fixed at 30"):
+        DashboardConfig(fps=29)

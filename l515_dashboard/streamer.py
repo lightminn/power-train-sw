@@ -44,6 +44,7 @@ class SrtStreamer:
         self._stopped = False
         self._cleanup_in_progress = False
         self._cleanup_done = False
+        self._generation = 0
         self._pending = False
         self._color_ready = False
         self._depth_ready = False
@@ -73,14 +74,21 @@ class SrtStreamer:
                 self._reap(process, close_stdin=False)
                 raise RuntimeError("GStreamer stdin pipe was not created")
             self._running = True
+            self._generation += 1
+            generation = self._generation
             self._thread = Thread(
-                target=self._run, name="l515-srt-streamer", daemon=True
+                target=self._run,
+                args=(generation,),
+                name="l515-srt-streamer",
+                daemon=True,
             )
             self._thread.start()
 
     def set_mode(self, mode: FrameMode) -> None:
         mode = FrameMode(mode)
         with self._condition:
+            if self._stopped:
+                return
             if mode is self._mode:
                 return
             self._mode = mode
@@ -125,7 +133,7 @@ class SrtStreamer:
                 self._pending = True
                 self._condition.notify()
 
-    def _run(self) -> None:
+    def _run(self, generation) -> None:
         while True:
             with self._condition:
                 self._condition.wait_for(
@@ -137,7 +145,8 @@ class SrtStreamer:
                 process = self._process
                 if process.poll() is not None:
                     self._fail(
-                        f"GStreamer exited with code {process.returncode}"
+                        f"GStreamer exited with code {process.returncode}",
+                        generation,
                     )
                     return
                 if not self._pending:
@@ -156,13 +165,15 @@ class SrtStreamer:
                 process.stdin.write(frame.tobytes())
             except (BrokenPipeError, OSError) as exc:
                 with self._condition:
-                    self._fail(f"{type(exc).__name__}: {exc}")
+                    self._fail(f"{type(exc).__name__}: {exc}", generation)
                 return
             with self._condition:
-                if self._running:
+                if self._running and generation == self._generation:
                     self._sent += 1
 
-    def _fail(self, message: str) -> None:
+    def _fail(self, message: str, generation: int) -> None:
+        if self._stopped or generation != self._generation:
+            return
         self._last_error = message
         self._running = False
         self._condition.notify_all()
@@ -176,6 +187,7 @@ class SrtStreamer:
                 return
             self._cleanup_in_progress = True
             self._stopped = True
+            self._generation += 1
             self._running = False
             self._pending = False
             process = self._process

@@ -41,3 +41,15 @@
 - Subprocess escalation belongs to `SrtStreamer.stop()`. Worker failure records state but does not
   race to reap the child.
 - Hardware/SRT receiver behavior is not exercised here; it remains a later Jetson HIL concern.
+
+## Review fix — immutable terminal snapshot and fixed cadence
+
+- RED reproduced a late blocked write raising BrokenPipe after `stop()` returned and changing
+  `last_error`; another RED showed `set_mode()` changing the terminal snapshot.
+- `stop()` now invalidates the active worker generation under the condition lock. Every worker
+  write to `sent`, `last_error`, and `running` requires the same live generation, and mode changes
+  become a no-op after terminal stop. The complete snapshot is therefore immutable after stop.
+- `DashboardConfig` now rejects every fps value except the approved fixed 30 fps.
+- Focused streamer/config verification after the fix: 88 passed.
+- Full dashboard verification: 137 passed. Clean isolated ROS regression: 91 tests, 0 errors,
+  0 failures, 0 skipped. Changed-file Flake8, compileall, and diff checks are clean.

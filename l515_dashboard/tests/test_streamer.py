@@ -283,3 +283,38 @@ def test_inflight_write_cannot_increment_sent_after_stop_returns():
     time.sleep(0.03)
     assert streamer.snapshot() == after
     assert after.sent == 0
+
+
+def test_blocked_write_failure_after_stop_cannot_mutate_snapshot():
+    entered, release = threading.Event(), threading.Event()
+    process = FakeProcess(
+        FakeStdin(
+            error=BrokenPipeError("late failure"),
+            entered=entered,
+            release=release,
+        )
+    )
+    streamer = SrtStreamer(
+        DashboardConfig(graceful_timeout_s=0.01), popen=FakePopen(process)
+    )
+    streamer.start()
+    streamer.submit_color(np.zeros((720, 1280, 3), np.uint8))
+    assert entered.wait(1)
+
+    streamer.stop()
+    stopped = streamer.snapshot()
+    release.set()
+    wait_until(lambda: not streamer._thread.is_alive())
+
+    assert streamer.snapshot() == stopped
+
+
+def test_set_mode_after_stop_is_a_snapshot_preserving_noop():
+    streamer = SrtStreamer(DashboardConfig(), popen=FakePopen())
+    streamer.start()
+    streamer.stop()
+    stopped = streamer.snapshot()
+
+    streamer.set_mode(FrameMode.DEPTH)
+
+    assert streamer.snapshot() == stopped
