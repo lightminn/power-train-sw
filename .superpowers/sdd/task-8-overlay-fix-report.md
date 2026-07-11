@@ -68,3 +68,25 @@ server and guard. Compose coverage asserts the exact shared mount.
 Final namespace-fix verification: compose config exit 0, `git diff --check`
 exit 0, compileall exit 0, and the full Dashboard suite completed within its
 30-second bound with `191 passed in 4.94s` and no remaining pytest process.
+
+## Fresh-boot runtime directory provisioning
+
+Added `docker/powertrain-gateway-tmpfiles.conf` with the exact rule:
+
+`d /run/powertrain 0750 root root -`
+
+The idempotent root-only `scripts/install_powertrain_runtime_dir.sh` installs it
+as `/etc/tmpfiles.d/powertrain-gateway.conf`, invokes `systemd-tmpfiles
+--create`, and fails unless `/run/powertrain` is exactly a root:root mode 0750
+directory. The rule recreates volatile `/run` state after reboot.
+
+The Compose mount now uses long bind syntax with `create_host_path: false`, so
+Docker cannot silently create an insecure mode-0755 directory. Tests cover the
+exact tmpfiles/static installer contract, non-root fail-closed behavior,
+rendered Compose output, and ResourceGuard acceptance of 0750 versus rejection
+of 0755.
+
+Final fresh-boot verification: installer `bash -n` exit 0; Compose config exit
+0 and rendered `source`, `target`, and `create_host_path: false` confirmed;
+`git diff --check` and compileall exit 0; bounded full Dashboard suite `194
+passed in 4.95s`; no pytest process remained.

@@ -70,8 +70,12 @@ services:
     volumes:
       - ../:/workspace:rw
       - /dev:/dev
-      # Gateway singleton flock inode must be shared across replacement containers.
-      - /run/powertrain:/run/powertrain
+      # Provision first with scripts/install_powertrain_runtime_dir.sh.
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
     working_dir: /workspace
     stdin_open: true
     tty: true

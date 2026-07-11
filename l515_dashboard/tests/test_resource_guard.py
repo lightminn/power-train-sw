@@ -51,3 +51,15 @@ def test_release_never_unlinks_lock(tmp_path, monkeypatch):
     monkeypatch.setattr(os, "unlink", lambda value: calls.append(value))
     guard.release()
     assert calls == [] and path.exists()
+
+
+def test_runtime_directory_accepts_0750_and_rejects_0755(tmp_path):
+    secure = tmp_path / "secure"
+    secure.mkdir(mode=0o750)
+    guard = ResourceGuard(secure / "gateway.lock")
+    guard.acquire(); guard.release()
+
+    unsafe = tmp_path / "unsafe"
+    unsafe.mkdir(mode=0o755)
+    with pytest.raises(ResourceBusy, match="directory permissions"):
+        ResourceGuard(unsafe / "gateway.lock").acquire()

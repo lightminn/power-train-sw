@@ -12,9 +12,15 @@ checkout the container entrypoint builds the three ROS packages before starting 
 also rebuilds when a source file is newer than the installed workspace:
 
 ```bash
+sudo bash scripts/install_powertrain_runtime_dir.sh  # one-time host install
 docker compose -f docker/docker-compose.jetson.yml up -d powertrain_ros
 docker exec -it powertrain_ros python3 -m l515_dashboard
 ```
+
+The installer writes `/etc/tmpfiles.d/powertrain-gateway.conf`, creates and verifies root-owned
+mode 0750 `/run/powertrain`, and is idempotent. The installed tmpfiles rule recreates this volatile
+runtime directory after every reboot. Compose deliberately sets `create_host_path: false`; if the
+one-time install was skipped or provisioning is wrong, startup fails instead of creating mode 0755.
 
 Keys: `1` RGB, `2` aligned depth, `3` overlay, `s` streaming on/off, `r` restart Gateway
 components, and `q` detach the Dashboard. `Shift+Q` displays a confirmation; `y` sends the

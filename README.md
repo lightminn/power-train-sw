@@ -95,6 +95,8 @@ SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 `@powertrain-l515-gateway`만 사용하므로 `q`/SSH 종료가 Gateway를 멈추지 않는다.
 Jetson `powertrain_ros`는 host `/run/powertrain`을 같은 경로에 bind-mount하고 host network를
 사용하므로 중복 container도 동일한 flock inode와 abstract endpoint에서 충돌 후 카메라 접근 전에 종료된다.
+최초 1회 `sudo bash scripts/install_powertrain_runtime_dir.sh`를 실행해야 하며, 설치된
+systemd-tmpfiles 규칙이 매 부팅마다 root:root 0750 runtime directory를 재생성한다.
 실행, 수신기 명령, 키와 singleton 장애 대응은 [`l515_dashboard/README.md`](l515_dashboard/README.md)를 따른다.
 
 파워트레인 L515는 serial `00000000F0271544`만 열며, `powertrain_ros` 이미지에

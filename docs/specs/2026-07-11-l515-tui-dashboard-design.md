@@ -59,6 +59,12 @@ abstract endpoint도 host network namespace에서 하나뿐이다. 시작 순서
 `flock 획득 → abstract endpoint bind/listen → SDK → ROS → SRT`이며, lock 또는 bind 실패는
 L515 SDK를 열기 전에 rollback한다.
 
+Host는 최초 1회 `sudo bash scripts/install_powertrain_runtime_dir.sh`를 실행한다. helper는
+`docker/powertrain-gateway-tmpfiles.conf`를 `/etc/tmpfiles.d/powertrain-gateway.conf`로 설치하고
+`systemd-tmpfiles --create` 후 `/run/powertrain`이 root:root 0750 directory인지 검증한다.
+tmpfiles가 volatile `/run`을 매 재부팅마다 복구한다. Compose bind는
+`create_host_path: false`여서 helper 미실행·권한 오류 시 insecure 0755 자동생성 대신 fail closed한다.
+
 ## 3. 데이터 계약
 
 ### 3.1 SDK 프로파일

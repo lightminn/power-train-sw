@@ -67,6 +67,7 @@
 - [ ] Write RED two-contender, release/reacquire, stale-file, symlink-rejection, and no-unlink tests.
 - [ ] Implement reusable persistent `flock` guard; write/fsync owner metadata while locked and never signal unrelated processes.
 - [ ] Bind-mount host `/run/powertrain` into `powertrain_ros` at the same path so replacement containers contend on one lock inode.
+- [ ] Before compose deployment, run the root-only idempotent tmpfiles installer; verify root:root 0750 and use `bind.create_host_path: false` so missing provisioning fails closed across fresh boots.
 - [ ] Write RED fake-SDK tests for exact color/depth profiles, `rs.align(color)`, raw versus aligned separation, IMU, latest-one-slot, dedup, disconnect/reconnect reset, and bounded stop.
 - [ ] Implement one SDK pipeline owner based on proven `L515Source` lifecycle without duplicating its race bugs.
 - [ ] Adapt frame modes/config to fixed 1280×720 and overlay; remove incompatible variable-width streamer assumptions.
