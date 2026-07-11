@@ -49,6 +49,18 @@ def test_newer_source_rebuilds_existing_install(tmp_path):
     assert log.read_text().splitlines()[0].startswith("colcon:build")
 
 
+def test_ros_setup_can_reference_unset_variables_under_strict_entrypoint(tmp_path):
+    _,log,env=environment(tmp_path)
+    Path(env["ROS_DISTRO_SETUP"]).write_text(
+        ': "${AMENT_TRACE_SETUP_FILES}"\nexport ROS_BASE_SOURCED=yes\n'
+    )
+
+    result=subprocess.run([SCRIPT],env=env,text=True,capture_output=True)
+
+    assert result.returncode == 0, result.stderr
+    assert "python:-m l515_dashboard.gateway_main:yes" in log.read_text()
+
+
 def test_compose_bounds_crash_restarts_but_keeps_clean_stop_stopped():
     text=COMPOSE.read_text()
     service=text.split("  powertrain_ros:",1)[1]

@@ -6,7 +6,14 @@ ros_setup=${ROS_DISTRO_SETUP:-/opt/ros/humble/setup.bash}
 ros_workspace="$workspace/ros2"
 install_setup="$ros_workspace/install/setup.bash"
 
-source "$ros_setup"
+source_setup() {
+    set +u
+    # ROS/ament setup scripts are not guaranteed to be nounset-safe.
+    source "$1"
+    set -u
+}
+
+source_setup "$ros_setup"
 needs_build=false
 if [[ ! -f "$install_setup" ]]; then
     needs_build=true
@@ -19,6 +26,6 @@ if [[ "$needs_build" == true ]]; then
     colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
 fi
 
-source "$install_setup"
+source_setup "$install_setup"
 cd "$workspace"
 exec python3 -m l515_dashboard.gateway_main
