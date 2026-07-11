@@ -199,3 +199,32 @@ def test_cancelled_native_start_uses_one_worker_stop_attempt():
     assert stop_entered.wait(.2) and pipeline.calls == 1 and not worker.is_alive()
     assert source.state.value == "stopped"
     release_stop.set()
+
+
+def test_ordinary_streaming_shutdown_stops_pipeline_exactly_once():
+    entered, release = threading.Event(), threading.Event()
+    class CountingPipeline(Pipeline):
+        def __init__(self,rs): super().__init__(rs); self.stop_calls=0
+        def wait_for_frames(self): entered.set(); release.wait(); return Frames("late",1)
+        def stop(self): self.stop_calls += 1
+    rs=RS([]); pipeline=CountingPipeline(rs); rs.pipeline=lambda:pipeline
+    source=L515GatewaySource(rs,stop_timeout=.01,mapper_factory=object)
+    source.start(); assert entered.wait(.2); source.stop(); worker=source._thread
+    release.set(); worker.join(.2)
+    assert pipeline.stop_calls == 1 and source.state.value == "stopped"
+
+
+def test_blocking_normal_stop_is_not_invoked_concurrently_by_worker():
+    frames_entered, release_frames = threading.Event(), threading.Event()
+    stop_entered, release_stop = threading.Event(), threading.Event()
+    class BlockingStopPipeline(Pipeline):
+        def __init__(self,rs): super().__init__(rs); self.stop_calls=0
+        def wait_for_frames(self): frames_entered.set(); release_frames.wait(); return Frames("late",1)
+        def stop(self):
+            self.stop_calls += 1; stop_entered.set(); release_stop.wait()
+    rs=RS([]); pipeline=BlockingStopPipeline(rs); rs.pipeline=lambda:pipeline
+    source=L515GatewaySource(rs,stop_timeout=.01,mapper_factory=object)
+    source.start(); assert frames_entered.wait(.2); source.stop(); assert stop_entered.wait(.2)
+    worker=source._thread; release_frames.set(); worker.join(.2)
+    assert pipeline.stop_calls == 1 and not worker.is_alive()
+    release_stop.set()

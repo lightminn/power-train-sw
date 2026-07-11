@@ -22,8 +22,8 @@ class DashboardConfig:
     startup_timeout_s: float = 10.0
     graceful_timeout_s: float = 3.0
     termination_timeout_s: float = 2.0
-    socket_path: str = "/run/l515-gateway/gateway.sock"
-    lock_path: str = "/run/l515-gateway/l515.lock"
+    socket_path: str = "/run/powertrain/l515-gateway.sock"
+    lock_path: str = "/run/powertrain/l515-gateway.lock"
     color_width: int = 1280
     color_height: int = 720
     depth_width: int = 640

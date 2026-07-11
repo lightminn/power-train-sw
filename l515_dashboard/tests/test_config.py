@@ -14,8 +14,8 @@ def test_defaults_match_l515_stream_contract():
     assert config.startup_timeout_s == 10.0
     assert config.graceful_timeout_s == 3.0
     assert config.termination_timeout_s == 2.0
-    assert config.socket_path == "/run/l515-gateway/gateway.sock"
-    assert config.lock_path == "/run/l515-gateway/l515.lock"
+    assert config.socket_path == "/run/powertrain/l515-gateway.sock"
+    assert config.lock_path == "/run/powertrain/l515-gateway.lock"
     assert (config.color_width, config.color_height) == (1280, 720)
     assert (config.depth_width, config.depth_height) == (640, 480)
     assert config.overlay_alpha == 0.5

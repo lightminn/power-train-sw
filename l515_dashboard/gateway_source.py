@@ -99,6 +99,7 @@ class L515GatewaySource:
         self._latest = GatewayFrames()
         self._thread = None
         self._pipeline = None
+        self._pipeline_cleanup = None
         self._starting = None
         self._public_lock = threading.Lock()
         self._lifecycle_lock = threading.Lock()
@@ -150,6 +151,18 @@ class L515GatewaySource:
         stopper.start()
         stopper.join(self._stop_timeout)
 
+    def _stop_pipeline_once(self, pipeline, cleanup):
+        with self._lifecycle_lock:
+            if cleanup is None:
+                cleanup = {"claimed": False}
+                if self._pipeline is pipeline:
+                    self._pipeline_cleanup = cleanup
+            if cleanup["claimed"]:
+                return False
+            cleanup["claimed"] = True
+        self._stop_pipeline_bounded(pipeline)
+        return True
+
     def _finish_stopped(self, thread):
         with self._lifecycle_lock:
             if thread is not None and self._thread is not thread:
@@ -157,6 +170,7 @@ class L515GatewaySource:
             if thread is not None:
                 self._thread = None
             self._pipeline = None
+            self._pipeline_cleanup = None
             self._starting = None
             self._latest.clear()
             self._set_state(GatewaySourceState.STOPPED)
@@ -169,11 +183,12 @@ class L515GatewaySource:
                 if self._starting is not None:
                     self._starting["cancel_requested"] = True
                 pipeline = self._pipeline
+                cleanup = self._pipeline_cleanup
                 starting = self._starting
                 thread = self._thread
             # Never call stop while native start may still be in progress.
             if pipeline is not None and starting is None:
-                self._stop_pipeline_bounded(pipeline)
+                self._stop_pipeline_once(pipeline, cleanup)
             if thread is not None and thread.is_alive():
                 thread.join(self._stop_timeout)
             if thread is None or not thread.is_alive():
@@ -239,6 +254,7 @@ class L515GatewaySource:
     def _run_generation(self, generation):
         while self._is_current(generation):
             pipeline = None
+            cleanup = None
             cleanup_done = False
             with self._lifecycle_lock:
                 if not self._is_current(generation):
@@ -251,10 +267,12 @@ class L515GatewaySource:
                 if not self._is_current(generation):
                     break
                 pipeline = self._rs.pipeline()
+                cleanup = {"claimed": False}
                 with self._lifecycle_lock:
                     if not self._is_current(generation):
                         break
                     self._pipeline = pipeline
+                    self._pipeline_cleanup = cleanup
                     self._starting = {
                         "generation": generation,
                         "pipeline": pipeline,
@@ -281,7 +299,7 @@ class L515GatewaySource:
                     if same_start and not cancelled:
                         self._starting = None
                 if cancelled:
-                    self._stop_pipeline_bounded(pipeline)
+                    self._stop_pipeline_once(pipeline, cleanup)
                     cleanup_done = True
                     break
                 align = self._rs.align(self._rs.stream.color)
@@ -315,10 +333,11 @@ class L515GatewaySource:
                     self._set_state(GatewaySourceState.DISCONNECTED)
             finally:
                 if pipeline is not None and not cleanup_done:
-                    self._stop_pipeline_bounded(pipeline)
+                    self._stop_pipeline_once(pipeline, cleanup)
                 with self._lifecycle_lock:
                     if self._pipeline is pipeline:
                         self._pipeline = None
+                        self._pipeline_cleanup = None
                     starting = self._starting
                     if (
                         starting is not None

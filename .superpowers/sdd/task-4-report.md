@@ -42,3 +42,22 @@ Exact fresh outputs:
 ## Scope boundary
 
 Only fixed-size and overlay-alpha plumbing needed by revised Task 4 touched the provisional streamer. Revised Task 5 Gateway orchestration remains out of scope.
+
+## Final re-review fixes
+
+- Runtime defaults now use the exact socket `/run/powertrain/l515-gateway.sock` and consistent lock `/run/powertrain/l515-gateway.lock`.
+- Public stop and worker-finally share a pipeline-specific cleanup record. The first path atomically claims cleanup under the lifecycle lock; all later paths skip it. Normal streaming therefore calls `pipeline.stop()` exactly once, including when the bounded stop thread remains blocked. Native-start cancellation still leaves cleanup to the worker and calls stop once after start completes.
+
+TDD RED command:
+
+`PYTHONPATH=ros2/src/powertrain_ros /home/light/anaconda3/bin/python -m pytest -q l515_dashboard/tests/test_config.py l515_dashboard/tests/test_gateway_source.py`
+
+RED result: `3 failed, 84 passed in 0.49s`; failures were the exact socket default, ordinary double-stop, and overlapping blocking double-stop.
+
+Fresh verification after fixes:
+
+- Focused config/Gateway source: `87 passed in 0.29s`.
+- Dashboard Tasks 1–4: `126 passed in 0.75s`.
+- Existing L515 lifecycle regression: `19 passed in 0.12s`.
+- `git diff --check`: exit 0, no output.
+- `compileall`: exit 0, no output.
