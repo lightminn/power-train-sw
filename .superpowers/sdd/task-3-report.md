@@ -86,3 +86,45 @@
   attempted, but collection lacked ROS `launch.action` and
   `builtin_interfaces`; the isolated ROS image command above is the relevant
   full-suite result.
+
+## Second review-fix wave
+
+- Public `start()` and `stop()` are serialized separately from the short
+  lifecycle critical sections. A concurrent start cannot clear the stop event
+  or replace its generation until the bounded stop operation returns.
+- Stop-event set, generation invalidation, and thread/pipeline snapshot are
+  atomic under the lifecycle lock. No native SDK call occurs while that lock
+  is held.
+- Pipeline creation is followed by locked registration of an explicit starting
+  generation. The worker revalidates after the pre-start barrier and again
+  after native `pipeline.start()`; an invalidated start is cleaned up without
+  publishing `STREAMING`.
+- State changes, frame commits, and reconnect clears revalidate and mutate
+  under the lifecycle lock, so stop invalidation cannot interleave between a
+  successful generation check and its commit.
+- Added deterministic barriers after frame preparation/before queue commit,
+  immediately before native pipeline start, and across concurrent public
+  stop/start.
+
+## Second-wave TDD and verification evidence
+
+- RED command: `/home/light/anaconda3/bin/python -m pytest -q
+  test/test_l515_source.py`. Result before the second-wave implementation:
+  `3 failed, 11 passed`; failures were the frame-commit barrier, pre-native-start
+  barrier, and concurrent public start/stop serialization tests.
+- Focused command: `/home/light/anaconda3/bin/python -m pytest -q
+  test/test_l515_source.py`. Result: `14 passed in 0.08s`.
+- Style command: `/home/light/anaconda3/bin/python -m flake8
+  powertrain_ros/l515_source.py test/test_l515_source.py`. Result: exit 0.
+- Full ROS command: `docker run --rm -v "$PWD:/workspace" -w /workspace/ros2
+  powertrain-sw:ros-task7-minors bash -lc 'source
+  /opt/ros/humble/setup.bash && colcon --log-base /tmp/l515-log build
+  --build-base /tmp/l515-build --install-base /tmp/l515-install
+  --packages-select powertrain_msgs robot_arm_msgs powertrain_ros && source
+  /tmp/l515-install/setup.bash && colcon --log-base /tmp/l515-test-log test
+  --build-base /tmp/l515-build --install-base /tmp/l515-install
+  --packages-select powertrain_ros --event-handlers console_direct+ && colcon
+  test-result --test-result-base /tmp/l515-build/powertrain_ros --verbose'`.
+  Result: three packages built; `58 passed in 0.36s`; `58 tests, 0 errors, 0
+  failures, 0 skipped`.
+- Diff command: `git diff --check`. Result: exit 0.

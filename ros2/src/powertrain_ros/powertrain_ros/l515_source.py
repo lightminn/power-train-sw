@@ -122,8 +122,12 @@ class L515Source:
         self._latest = LatestFrames()
         self._thread = None
         self._pipeline = None
+        self._starting_generation = None
+        self._public_lock = threading.Lock()
         self._lifecycle_lock = threading.Lock()
         self._generation = 0
+        self._before_pipeline_start = lambda: None
+        self._before_frame_commit = lambda: None
         self.state = L515State.STOPPED
         self.state_changed_at = self._clock()
 
@@ -135,39 +139,40 @@ class L515Source:
         return not self._stop_event.wait(seconds)
 
     def start(self) -> None:
-        with self._lifecycle_lock:
-            if self._thread is not None and self._thread.is_alive():
-                return
-            self._generation += 1
-            generation = self._generation
-            self._stop_event.clear()
-            self._thread = threading.Thread(
-                target=self._run,
-                args=(generation,),
-                name="l515-source",
-                daemon=True,
-            )
-            self._thread.start()
+        with self._public_lock:
+            with self._lifecycle_lock:
+                if self._thread is not None and self._thread.is_alive():
+                    return
+                self._generation += 1
+                generation = self._generation
+                self._stop_event.clear()
+                self._thread = threading.Thread(
+                    target=self._run,
+                    args=(generation,),
+                    name="l515-source",
+                    daemon=True,
+                )
+                thread = self._thread
+            thread.start()
 
     def stop(self) -> None:
-        # Signal first and never wait for the lifecycle lock: SDK start may be
-        # holding it while blocked in native code.  Attribute reads/writes are
-        # atomic under CPython; the worker rechecks both values before start.
-        self._stop_event.set()
-        self._generation += 1
-        pipeline = self._pipeline
-        thread = self._thread
-        if pipeline is not None:
-            threading.Thread(
-                target=self._stop_pipeline,
-                args=(pipeline,),
-                name="l515-sdk-stop",
-                daemon=True,
-            ).start()
-        if thread is not None and thread.is_alive():
-            thread.join(self._stop_timeout)
-        if thread is None or not thread.is_alive():
-            self._finish_stopped(thread)
+        with self._public_lock:
+            with self._lifecycle_lock:
+                self._stop_event.set()
+                self._generation += 1
+                pipeline = self._pipeline
+                thread = self._thread
+            if pipeline is not None:
+                threading.Thread(
+                    target=self._stop_pipeline,
+                    args=(pipeline,),
+                    name="l515-sdk-stop",
+                    daemon=True,
+                ).start()
+            if thread is not None and thread.is_alive():
+                thread.join(self._stop_timeout)
+            if thread is None or not thread.is_alive():
+                self._finish_stopped(thread)
 
     def poll_latest(self) -> LatestFrames:
         return self._latest.drain()
@@ -207,6 +212,9 @@ class L515Source:
             and generation == self._generation
         )
 
+    def _is_current_locked(self, generation: int) -> bool:
+        return self._is_current(generation)
+
     @staticmethod
     def _stop_pipeline(pipeline) -> None:
         try:
@@ -221,6 +229,7 @@ class L515Source:
             if thread is not None:
                 self._thread = None
             self._pipeline = None
+            self._starting_generation = None
             self._latest.clear()
             self._set_state(L515State.STOPPED)
 
@@ -231,6 +240,13 @@ class L515Source:
             if not self._is_current(generation):
                 return False
             self._set_state(state)
+            return True
+
+    def _clear_if_current(self, generation: int) -> bool:
+        with self._lifecycle_lock:
+            if not self._is_current_locked(generation):
+                return False
+            self._latest.clear()
             return True
 
     def _run(self, generation: Optional[int] = None) -> None:
@@ -253,44 +269,59 @@ class L515Source:
             try:
                 if not self._expected_device_present():
                     raise RuntimeError("expected L515 serial is not present")
-                with self._lifecycle_lock:
-                    if not self._is_current(generation):
-                        break
-                    pipeline = self._rs.pipeline()
-                    if not self._is_current(generation):
-                        break
-                    self._pipeline = pipeline
-                    pipeline.start(self._sdk_config())
                 if not self._is_current(generation):
                     break
+                pipeline = self._rs.pipeline()
+                with self._lifecycle_lock:
+                    if not self._is_current_locked(generation):
+                        break
+                    self._pipeline = pipeline
+                    self._starting_generation = generation
+                sdk_config = self._sdk_config()
+                self._before_pipeline_start()
+                with self._lifecycle_lock:
+                    if not self._is_current_locked(generation):
+                        break
+                pipeline.start(sdk_config)
+                with self._lifecycle_lock:
+                    if self._starting_generation == generation:
+                        self._starting_generation = None
+                    if not self._is_current_locked(generation):
+                        break
                 mapper = self._mapper_factory()
-                self._latest.clear()
+                if not self._clear_if_current(generation):
+                    break
                 if not self._set_state_if_current(
                     generation, L515State.STREAMING
                 ):
                     break
                 while self._is_current(generation):
                     frames = pipeline.wait_for_frames()
-                    if not self._is_current(generation):
-                        break
-                    self._latest.put(
+                    payload = dict(
                         color=frames.get_color_frame(),
                         depth=frames.get_depth_frame(),
                         accel=frames.first_or_default(self._rs.stream.accel),
                         gyro=frames.first_or_default(self._rs.stream.gyro),
                         timestamp_mapper=mapper,
                     )
+                    self._before_frame_commit()
+                    with self._lifecycle_lock:
+                        if not self._is_current_locked(generation):
+                            break
+                        self._latest.put(**payload)
             except Exception:
-                self._latest.clear()
-                self._set_state_if_current(
-                    generation, L515State.DISCONNECTED
-                )
+                if self._clear_if_current(generation):
+                    self._set_state_if_current(
+                        generation, L515State.DISCONNECTED
+                    )
             finally:
                 if pipeline is not None:
                     self._stop_pipeline(pipeline)
                 with self._lifecycle_lock:
                     if self._pipeline is pipeline:
                         self._pipeline = None
+                    if self._starting_generation == generation:
+                        self._starting_generation = None
 
             if not self._is_current(generation):
                 break

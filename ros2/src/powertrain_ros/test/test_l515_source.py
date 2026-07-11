@@ -315,3 +315,100 @@ def test_stop_during_device_query_prevents_pipeline_creation_and_start():
     assert rs.pipelines == []
     assert rs.started == []
     assert source.state is L515State.STOPPED
+
+
+def test_stop_after_generation_check_prevents_frame_commit():
+    before_commit = threading.Event()
+    release_commit = threading.Event()
+
+    class OneFramePipeline(FakePipeline):
+        def wait_for_frames(self):
+            return FakeFrames("racing")
+
+    rs = FakeRs([EXPECTED_L515_SERIAL])
+    rs.pipeline = lambda: OneFramePipeline(rs)
+    source = L515Source(rs, stop_timeout=0.01, mapper_factory=object)
+
+    def block_before_commit():
+        before_commit.set()
+        release_commit.wait()
+
+    source._before_frame_commit = block_before_commit
+    source.start()
+    assert before_commit.wait(0.2)
+
+    source.stop()
+    worker = source._thread
+    release_commit.set()
+    worker.join(0.2)
+
+    assert source.poll_latest().empty
+    assert source.state is L515State.STOPPED
+
+
+def test_stop_immediately_before_native_start_prevents_sdk_start():
+    before_start = threading.Event()
+    release_start = threading.Event()
+    rs = FakeRs([EXPECTED_L515_SERIAL])
+    source = L515Source(rs, stop_timeout=0.01, mapper_factory=object)
+
+    def block_before_start():
+        before_start.set()
+        release_start.wait()
+
+    source._before_pipeline_start = block_before_start
+    source.start()
+    assert before_start.wait(0.2)
+
+    source.stop()
+    worker = source._thread
+    release_start.set()
+    worker.join(0.2)
+
+    assert rs.started == []
+    assert source.state is L515State.STOPPED
+
+
+def test_concurrent_start_cannot_replace_in_progress_stop():
+    join_entered = threading.Event()
+    release_join = threading.Event()
+    restart_entered = threading.Event()
+
+    class JoiningWorker:
+        def __init__(self):
+            self.alive = True
+
+        def is_alive(self):
+            return self.alive
+
+        def join(self, _timeout):
+            join_entered.set()
+            release_join.wait()
+            self.alive = False
+
+    source = L515Source(FakeRs([]), stop_timeout=0.2)
+    source._thread = JoiningWorker()
+    source._stop_event.clear()
+    stopping = threading.Thread(target=source.stop)
+
+    def restart():
+        restart_entered.set()
+        source.start()
+
+    restarting = threading.Thread(target=restart)
+
+    stopping.start()
+    assert join_entered.wait(0.2)
+    restarting.start()
+    assert restart_entered.wait(0.2)
+
+    assert source._stop_event.is_set()
+    assert restarting.is_alive()
+
+    release_join.set()
+    stopping.join(0.2)
+    restarting.join(0.2)
+    source.stop()
+
+    assert not stopping.is_alive()
+    assert not restarting.is_alive()
