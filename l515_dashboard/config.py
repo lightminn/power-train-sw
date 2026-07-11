@@ -15,8 +15,8 @@ class DashboardConfig:
     port: int = 5000
     latency_ms: int = 60
     encoder: str = "x264"
-    width: int = 640
-    height: int = 480
+    width: int = 1280
+    height: int = 720
     fps: int = 30
     bitrate_kbps: int = 3000
     startup_timeout_s: float = 10.0
@@ -42,6 +42,8 @@ class DashboardConfig:
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise ValueError(f"{name} must be a positive integer")
+        if (self.width, self.height) != (1280, 720):
+            raise ValueError("width and height must be fixed at 1280x720")
 
         positive_real_fields = (
             "startup_timeout_s",

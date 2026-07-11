@@ -9,8 +9,8 @@ from l515_dashboard.frame_modes import (
 )
 
 
-WIDTH = 640
-HEIGHT = 480
+WIDTH = 1280
+HEIGHT = 720
 MAX_DEPTH_MM = 5000
 
 
@@ -33,7 +33,7 @@ def depth():
     [
         (FrameMode.COLOR, (HEIGHT, WIDTH, 3)),
         (FrameMode.DEPTH, (HEIGHT, WIDTH, 3)),
-        (FrameMode.SIDE_BY_SIDE, (HEIGHT, WIDTH * 2, 3)),
+        (FrameMode.OVERLAY, (HEIGHT, WIDTH, 3)),
     ],
 )
 def test_render_modes_return_contiguous_uint8_bgr(
@@ -70,8 +70,8 @@ def test_depth_mode_uses_fixed_zero_aware_turbo_mapping(color):
     [
         (FrameMode.COLOR, False, True),
         (FrameMode.DEPTH, True, False),
-        (FrameMode.SIDE_BY_SIDE, False, True),
-        (FrameMode.SIDE_BY_SIDE, True, False),
+        (FrameMode.OVERLAY, False, True),
+        (FrameMode.OVERLAY, True, False),
     ],
 )
 def test_missing_selected_input_returns_none(
@@ -102,13 +102,13 @@ def test_latest_slots_overwrite_and_take_consumes_the_newest(color):
     assert frames.take(FrameMode.COLOR) is None
 
 
-def test_incomplete_side_by_side_take_discards_unpaired_frame(color, depth):
+def test_incomplete_overlay_take_discards_unpaired_frame(color, depth):
     frames = LatestVideoFrames(WIDTH, HEIGHT)
     frames.put_color(color)
 
-    assert frames.take(FrameMode.SIDE_BY_SIDE) is None
+    assert frames.take(FrameMode.OVERLAY) is None
     frames.put_depth(depth)
-    assert frames.take(FrameMode.SIDE_BY_SIDE) is None
+    assert frames.take(FrameMode.OVERLAY) is None
 
 
 def test_take_discards_unselected_slot_so_mode_change_cannot_replay_it(
@@ -132,16 +132,15 @@ def test_put_copies_input_to_prevent_concurrent_mutation(color):
     np.testing.assert_array_equal(frames.take(FrameMode.COLOR), expected)
 
 
-def test_side_by_side_places_color_left_and_depth_rendering_right():
+def test_overlay_alpha_blends_color_and_depth():
     color = np.full((1, 2, 3), 19, dtype=np.uint8)
     depth = np.array([[0, MAX_DEPTH_MM]], dtype=np.uint16)
 
-    rendered = render_frame(FrameMode.SIDE_BY_SIDE, color, depth, 2, 1)
+    rendered = render_frame(FrameMode.OVERLAY, color, depth, 2, 1)
 
-    np.testing.assert_array_equal(rendered[:, :2], color)
-    np.testing.assert_array_equal(
-        rendered[:, 2:], render_frame(FrameMode.DEPTH, color, depth, 2, 1)
-    )
+    colored = render_frame(FrameMode.DEPTH, color, depth, 2, 1)
+    expected = cv2.addWeighted(color, 0.5, colored, 0.5, 0)
+    np.testing.assert_array_equal(rendered, expected)
 
 
 def test_latest_depth_slot_overwrites_with_newest_frame():

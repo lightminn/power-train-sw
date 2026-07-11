@@ -69,8 +69,8 @@ def wait_until(predicate, timeout=1.0):
 
 @pytest.mark.parametrize(
     ("mode", "width"),
-    [(FrameMode.COLOR, 640), (FrameMode.DEPTH, 640),
-     (FrameMode.SIDE_BY_SIDE, 1280)],
+    [(FrameMode.COLOR, 1280), (FrameMode.DEPTH, 1280),
+     (FrameMode.OVERLAY, 1280)],
 )
 def test_start_uses_exact_gst_command_for_mode_width(mode, width):
     config = DashboardConfig()
@@ -92,18 +92,18 @@ def test_start_uses_exact_gst_command_for_mode_width(mode, width):
 
 def test_runtime_mode_selects_next_frame_without_restarting_child():
     popen = FakePopen()
-    streamer = SrtStreamer(DashboardConfig(width=2, height=1), popen=popen)
-    color = np.full((1, 2, 3), 7, dtype=np.uint8)
-    depth = np.array([[0, 5000]], dtype=np.uint16)
+    streamer = SrtStreamer(DashboardConfig(), popen=popen)
+    color = np.full((720, 1280, 3), 7, dtype=np.uint8)
+    depth = np.full((720, 1280), 5000, dtype=np.uint16)
     streamer.start()
 
-    streamer.set_mode(FrameMode.SIDE_BY_SIDE)
+    streamer.set_mode(FrameMode.OVERLAY)
     streamer.submit_color(color)
     streamer.submit_depth(depth)
 
     wait_until(lambda: len(popen.process.stdin.writes) == 1)
     assert len(popen.calls) == 1
-    assert len(popen.process.stdin.writes[0]) == 1 * 4 * 3
+    assert len(popen.process.stdin.writes[0]) == 720 * 1280 * 3
     streamer.stop()
 
 
@@ -112,11 +112,11 @@ def test_worker_overwrites_pending_frame_instead_of_queueing_or_replaying():
     release = threading.Event()
     process = FakeProcess(FakeStdin(entered=entered, release=release))
     streamer = SrtStreamer(
-        DashboardConfig(width=2, height=1), popen=FakePopen(process)
+        DashboardConfig(), popen=FakePopen(process)
     )
-    first = np.full((1, 2, 3), 1, dtype=np.uint8)
-    second = np.full((1, 2, 3), 2, dtype=np.uint8)
-    third = np.full((1, 2, 3), 3, dtype=np.uint8)
+    first = np.full((720, 1280, 3), 1, dtype=np.uint8)
+    second = np.full((720, 1280, 3), 2, dtype=np.uint8)
+    third = np.full((720, 1280, 3), 3, dtype=np.uint8)
     streamer.start()
     streamer.submit_color(first)
     assert entered.wait(1.0)
@@ -133,10 +133,10 @@ def test_worker_overwrites_pending_frame_instead_of_queueing_or_replaying():
 
 def test_broken_pipe_records_error_and_stops_worker():
     process = FakeProcess(FakeStdin(error=BrokenPipeError("receiver gone")))
-    streamer = SrtStreamer(DashboardConfig(width=2, height=1),
+    streamer = SrtStreamer(DashboardConfig(),
                            popen=FakePopen(process))
     streamer.start()
-    streamer.submit_color(np.zeros((1, 2, 3), dtype=np.uint8))
+    streamer.submit_color(np.zeros((720, 1280, 3), dtype=np.uint8))
 
     wait_until(lambda: not streamer.snapshot().running)
     assert "BrokenPipeError" in streamer.snapshot().last_error

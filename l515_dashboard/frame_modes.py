@@ -12,9 +12,9 @@ _MAX_DEPTH_MM = 5000
 
 
 class FrameMode(str, Enum):
-    COLOR = "color"
+    COLOR = "rgb"
     DEPTH = "depth"
-    SIDE_BY_SIDE = "side_by_side"
+    OVERLAY = "overlay"
 
 
 def _sized(frame: np.ndarray, width: int, height: int) -> np.ndarray:
@@ -61,13 +61,15 @@ def render_frame(
         return None
     rendered_color = np.ascontiguousarray(_sized(color, width, height))
     rendered_depth = _render_depth(depth, width, height)
-    return np.ascontiguousarray(np.hstack((rendered_color, rendered_depth)))
+    return np.ascontiguousarray(
+        cv2.addWeighted(rendered_color, 0.5, rendered_depth, 0.5, 0)
+    )
 
 
 class LatestVideoFrames:
     """Thread-safe color/depth slots that are consumed at most once."""
 
-    def __init__(self, width: int = 640, height: int = 480) -> None:
+    def __init__(self, width: int = 1280, height: int = 720) -> None:
         self._width = width
         self._height = height
         self._color: Optional[np.ndarray] = None

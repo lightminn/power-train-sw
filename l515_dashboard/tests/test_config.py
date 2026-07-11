@@ -9,7 +9,7 @@ def test_defaults_match_l515_stream_contract():
     config = DashboardConfig()
 
     assert (config.port, config.latency_ms, config.encoder) == (5000, 60, "x264")
-    assert (config.width, config.height, config.fps) == (640, 480, 30)
+    assert (config.width, config.height, config.fps) == (1280, 720, 30)
     assert config.bitrate_kbps == 3000
     assert config.startup_timeout_s == 10.0
     assert config.graceful_timeout_s == 3.0

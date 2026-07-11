@@ -51,12 +51,9 @@ class SrtStreamer:
         with self._condition:
             if self._process is not None:
                 return
-            width = self._config.width * (
-                2 if self._mode is FrameMode.SIDE_BY_SIDE else 1
-            )
             command = build_gst_command(
                 self._config.port,
-                width,
+                self._config.width,
                 self._config.height,
                 self._config.fps,
                 encoder=self._config.encoder,
@@ -98,14 +95,14 @@ class SrtStreamer:
             if color:
                 self._frames.put_color(frame)
                 selected = self._mode in (
-                    FrameMode.COLOR, FrameMode.SIDE_BY_SIDE
+                    FrameMode.COLOR, FrameMode.OVERLAY
                 )
                 overwrote = self._color_ready
                 self._color_ready = True
             else:
                 self._frames.put_depth(frame)
                 selected = self._mode in (
-                    FrameMode.DEPTH, FrameMode.SIDE_BY_SIDE
+                    FrameMode.DEPTH, FrameMode.OVERLAY
                 )
                 overwrote = self._depth_ready
                 self._depth_ready = True
