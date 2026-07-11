@@ -4,6 +4,9 @@ The Gateway is the only process allowed to open the powertrain L515. The Dashboa
 socket-only Textual client: closing SSH, pressing `q`, receiving SIGHUP, or crashing the client
 does not stop camera capture, ROS publication, or SRT.
 
+The local control endpoint is the Linux abstract Unix socket `@powertrain-l515-gateway`.
+It creates no socket pathname, and the Gateway accepts only same-UID peers using `SO_PEERCRED`.
+
 Run the managed Gateway in `powertrain_ros`, then attach any number of dashboards. On a fresh
 checkout the container entrypoint builds the three ROS packages before starting the Gateway; it
 also rebuilds when a source file is newer than the installed workspace:
@@ -29,7 +32,8 @@ gst-launch-1.0 srtsrc uri="srt://JETSON_IP:5000?mode=caller&latency=60" ! \
   tsdemux ! h264parse ! avdec_h264 ! videoconvert ! autovideosink sync=false
 ```
 
-If startup reports a singleton/lock failure, do not delete the lock or kill an unknown process.
-Check the existing `l515_gateway` owner and container state first. The Gateway excludes direct
+If startup reports a singleton/lock failure, do not delete the persistent
+`/run/powertrain/l515-gateway.lock` file or kill an unknown process. A stale file is normal;
+only the held `flock` denotes ownership. Check the existing `l515_gateway` owner and container state first. The Gateway excludes direct
 RealSense viewers and maintenance scripts while it owns the camera; stop it explicitly before
 approved SDK maintenance. It never opens the robot-arm D435i.

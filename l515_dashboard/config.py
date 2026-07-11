@@ -4,6 +4,8 @@ from dataclasses import dataclass
 import math
 from numbers import Real
 
+from .endpoint import abstract_address
+
 ENCODERS = ("x264", "openh264")
 
 
@@ -21,7 +23,7 @@ class DashboardConfig:
     startup_timeout_s: float = 10.0
     graceful_timeout_s: float = 3.0
     termination_timeout_s: float = 2.0
-    socket_path: str = "/run/powertrain/l515-gateway.sock"
+    socket_path: str = "@powertrain-l515-gateway"
     lock_path: str = "/run/powertrain/l515-gateway.lock"
     color_width: int = 1280
     color_height: int = 720
@@ -96,3 +98,7 @@ class DashboardConfig:
             value = getattr(self, name)
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{name} must be a non-empty string")
+        try:
+            abstract_address(self.socket_path)
+        except ValueError as exc:
+            raise ValueError(f"socket_path is invalid: {exc}") from exc

@@ -1,7 +1,7 @@
 ## L515 Gateway Dashboard ownership
 
 - Production L515 access belongs only to `python3 -m l515_dashboard.gateway_main` in `powertrain_ros`.
-- `python3 -m l515_dashboard` is socket-only. `q`, SIGHUP, and client failure leave Gateway, ROS, and SRT alive; only confirmed `Shift+Q` sends `stop_gateway`.
+- `python3 -m l515_dashboard` uses the same-UID protected Linux abstract socket `@powertrain-l515-gateway`. `q`, SIGHUP, and client failure leave Gateway, ROS, and SRT alive; only confirmed `Shift+Q` sends `stop_gateway`. Singleton ownership uses persistent `/run/powertrain/l515-gateway.lock` with `flock`; never delete the stale file.
 - Stop the Gateway explicitly before approved direct RealSense maintenance.
 
 <!-- BEGIN CLAUDE_TO_CODEX_MEMORY -->

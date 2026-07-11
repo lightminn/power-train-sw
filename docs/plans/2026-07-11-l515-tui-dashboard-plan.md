@@ -16,7 +16,7 @@
 - Modes are RGB, RGB-aligned Depth, and RGB+Depth alpha overlay; switching never restarts SDK or GStreamer.
 - SRT defaults remain port 5000, latency 60 ms, x264, 3000 kbit/s.
 - Dashboard/SSH exit must not stop Gateway, ROS, or SRT.
-- Gateway shutdown is idempotent and leaves no SDK handle, child, socket, or lock.
+- Gateway shutdown is idempotent and leaves no SDK handle, child, abstract socket listener, or held flock.
 - `resource_guard` may be reusable later but this plan changes no US-100, ODrive USB, CAN, or DualSense runtime.
 - Preserve unrelated user and Jetson checkout changes.
 
@@ -28,7 +28,7 @@
 
 - [x] Immutable strict numeric configuration and ROS image dependencies.
 - [x] Textual, NumPy, OpenCV, and GStreamer dependencies.
-- [ ] Extend configuration with socket path `/run/powertrain/l515-gateway.sock`, color/depth profiles, overlay alpha, reconnect interval, message size, and resource-lock path; use strict validation and tests.
+- [ ] Extend configuration with abstract endpoint `@powertrain-l515-gateway`, color/depth profiles, overlay alpha, reconnect interval, message size, and persistent resource-lock path; use strict validation and tests.
 - [ ] Commit the extension with the first Gateway task that consumes it.
 
 ### Task 2: Diagnostic snapshot engine — COMPLETE
@@ -60,12 +60,12 @@
 - Modify: corresponding tests
 
 **Interfaces:**
-- Produces `ResourceGuard.acquire()/release()` using lock, PID, `/proc` start identity, and socket ownership.
+- Produces `ResourceGuard.acquire()/release()` using an owner-checked persistent regular file and nonblocking exclusive `flock`; the file is never unlinked.
 - Produces `GatewayFrames(raw_color, raw_depth, aligned_depth, accel, gyro, mapper)`.
 - Produces `L515GatewaySource.start()/poll_latest()/stop()` with exact-serial reconnect.
 
-- [ ] Write RED stale/live lock, PID reuse, concurrent acquire, and unknown-owner non-kill tests.
-- [ ] Implement reusable guard with atomic lock creation and identity verification; do not signal unrelated processes.
+- [ ] Write RED two-contender, release/reacquire, stale-file, symlink-rejection, and no-unlink tests.
+- [ ] Implement reusable persistent `flock` guard; write/fsync owner metadata while locked and never signal unrelated processes.
 - [ ] Write RED fake-SDK tests for exact color/depth profiles, `rs.align(color)`, raw versus aligned separation, IMU, latest-one-slot, dedup, disconnect/reconnect reset, and bounded stop.
 - [ ] Implement one SDK pipeline owner based on proven `L515Source` lifecycle without duplicating its race bugs.
 - [ ] Adapt frame modes/config to fixed 1280×720 and overlay; remove incompatible variable-width streamer assumptions.
@@ -109,7 +109,7 @@
 - [ ] Implement bounded status snapshots and serialized state-changing commands.
 - [ ] Implement Gateway states and lifecycle: guard→SDK→ROS→optional SRT→socket RUNNING.
 - [ ] Treat L515 loss as DEGRADED/reconnect, GStreamer crash as streaming-off DEGRADED, ROS fatal as FAULT shutdown, Dashboard disconnect as no-op.
-- [ ] Route SIGINT/SIGTERM/container stop/exception through one idempotent cleanup order: frame intake→SRT→SDK→ROS→socket→guard.
+- [ ] Route SIGINT/SIGTERM/container stop/exception through one idempotent cleanup order: frame intake→SRT→SDK→ROS→abstract socket close→flock unlock.
 - [ ] Test partial starts, signals, concurrent commands, repeated shutdown, and zero owned resources.
 - [ ] Run regressions and commit as `feat(l515): add headless Gateway control service`.
 
@@ -129,7 +129,7 @@
 
 - [ ] Write RED reconnect, version mismatch, stale status, command acknowledgement, and disconnect tests.
 - [ ] Write Textual pilot tests for state/SDK/ROS/SRT/resources/errors and keys 1/2/3, streaming toggle, restart, q, Shift+Q.
-- [ ] Implement Dashboard with automatic socket reconnect and immutable snapshots.
+- [ ] Implement Dashboard with automatic abstract-socket reconnect and immutable snapshots; server enforces same-UID `SO_PEERCRED` authorization.
 - [ ] Prove q/SIGHUP/client crash leave fake Gateway and its SRT child alive; explicit stop reaps them.
 - [ ] Document remote-driving operation, singleton failures, receiver command, and maintenance exclusion.
 - [ ] Run full software/ROS/process suites; commit as `feat(l515): add Gateway Dashboard client`.
@@ -146,7 +146,7 @@
 - [ ] Kill/close Dashboard and SSH; prove Gateway, ROS, and SRT continuity, then reconnect Dashboard.
 - [ ] User-approved L515 unplug/replug: DEGRADED, stale replay 0, no D435 fallback, automatic ROS/SRT recovery.
 - [ ] Crash GStreamer: ROS continues; restart streaming without Gateway/SDK restart.
-- [ ] Stop Gateway via TERM/container stop; prove SDK, GStreamer, socket, and lock count 0.
+- [ ] Stop Gateway via TERM/container stop; prove SDK, GStreamer, abstract listener, and held-flock count 0; persistent lock file remains.
 - [ ] Run D435i perception concurrently and verify `/detected_objects` continuity and USB error delta 0.
 - [ ] Run final clean tests and two-stage review; fix every Critical/Important finding.
 - [ ] Update docs/Notion with fetch-before/write/re-fetch, commit, push feature branch, and restore Jetson state.

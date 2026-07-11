@@ -9,6 +9,7 @@ import threading
 import time
 import uuid
 
+from .endpoint import abstract_address
 from .protocol import PROTOCOL_VERSION, encode_message
 
 
@@ -46,7 +47,7 @@ class GatewayClient:
         with self._lock:
             sock=socket.socket(socket.AF_UNIX); sock.settimeout(self.request_timeout_s)
             try:
-                sock.connect(self.socket_path); sock.sendall(encode_message(message,self.max_message_bytes))
+                sock.connect(abstract_address(self.socket_path)); sock.sendall(encode_message(message,self.max_message_bytes))
                 reader=sock.makefile("rb"); raw=reader.readline(self.max_message_bytes+1)
                 if not raw or len(raw)>self.max_message_bytes or not raw.endswith(b"\n"): raise ConnectionError("Gateway disconnected or sent oversized response")
                 reply=json.loads(raw)

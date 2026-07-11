@@ -4,6 +4,7 @@ import signal
 import subprocess
 import sys
 import time
+import uuid
 
 from l515_dashboard.client import GatewayClient
 
@@ -35,14 +36,15 @@ def dashboard(socket_path):
 
 
 def test_real_dashboard_exit_signals_and_crash_do_not_own_gateway(tmp_path):
-    socket_path = tmp_path / "gateway.sock"
+    socket_path = "@test-process-" + uuid.uuid4().hex
     pid_path = tmp_path / "child.pid"
     gateway = subprocess.Popen([
         sys.executable, "-m", "l515_dashboard.tests.fake_gateway_process",
         str(socket_path), str(pid_path),
     ])
     try:
-        assert wait_for(lambda: socket_path.exists() and pid_path.exists())
+        assert wait_for(pid_path.exists)
+        assert wait_for(lambda: GatewayClient(socket_path).poll() is not None)
         child = int(pid_path.read_text())
         for action in ("q", signal.SIGHUP, signal.SIGTERM, signal.SIGKILL):
             process, master = dashboard(socket_path)
@@ -61,7 +63,6 @@ def test_real_dashboard_exit_signals_and_crash_do_not_own_gateway(tmp_path):
         assert snapshot.acknowledged
         gateway.wait(timeout=3)
         assert wait_for(lambda: not alive(child))
-        assert not socket_path.exists()
     finally:
         if gateway.poll() is None:
             gateway.terminate()

@@ -38,7 +38,7 @@ class RosRuntime:
 def build_gateway(config=None):
     import pyrealsense2 as rs
     config=config or DashboardConfig()
-    guard=ResourceGuard(config.lock_path, config.socket_path)
+    guard=ResourceGuard(config.lock_path)
     source=L515GatewaySource(rs, config)
     ros=RosRuntime()
     factory=lambda: SrtStreamer(config)

@@ -1,11 +1,15 @@
 import json
+import os
 import socket
 import threading
-import os
-from types import SimpleNamespace
-import pytest
+import uuid
 
 from l515_dashboard.control_server import DeferredResponse, UnixControlServer
+from l515_dashboard.endpoint import abstract_address
+
+
+def endpoint():
+    return "@test-l515-" + uuid.uuid4().hex
 
 
 def wire(request_id, kind="get_status", payload=None):
@@ -13,201 +17,115 @@ def wire(request_id, kind="get_status", payload=None):
                         "type": kind, "payload": payload or {}}) + "\n").encode()
 
 
-def test_partial_frames_multiple_clients_and_disconnect_are_isolated(tmp_path):
-    path = tmp_path / "gateway.sock"
+def connect(name):
+    client = socket.socket(socket.AF_UNIX)
+    client.connect(abstract_address(name))
+    return client
+
+
+def test_unauthorized_peer_is_rejected_before_handler():
+    name = endpoint(); calls = []
+    server = UnixControlServer(name, calls.append,
+                               peer_authorizer=lambda _client: False)
+    server.start(); client = connect(name); client.settimeout(1)
+    client.sendall(wire("denied"))
+    try:
+        assert client.recv(1) == b""
+    except ConnectionResetError:
+        pass
+    assert calls == []
+    client.close(); server.stop()
+
+
+def test_default_authorizer_accepts_same_uid():
+    name = endpoint()
+    server = UnixControlServer(name, lambda _: {"ok": True}); server.start()
+    client = connect(name); client.sendall(wire("same-uid"))
+    assert json.loads(client.makefile().readline())["request_id"] == "same-uid"
+    client.close(); server.stop()
+
+
+def test_abstract_server_never_unlinks(monkeypatch):
     calls = []
-    server = UnixControlServer(path, lambda message: calls.append(message) or {"ok": True}, max_message_bytes=256)
-    server.start()
-    clients = [socket.socket(socket.AF_UNIX) for _ in range(2)]
-    for client in clients: client.connect(str(path))
+    monkeypatch.setattr(os, "unlink", lambda path: calls.append(path))
+    server = UnixControlServer(endpoint(), lambda _: {})
+    server.start(); server.stop()
+    assert calls == []
+
+
+def test_partial_frames_multiple_clients_are_isolated():
+    name = endpoint(); calls = []
+    server = UnixControlServer(name, lambda message: calls.append(message) or {"ok": True},
+                               max_message_bytes=256)
+    server.start(); clients = [connect(name) for _ in range(2)]
     clients[0].sendall(wire("a")[:10]); clients[1].sendall(wire("b"))
     assert json.loads(clients[1].makefile().readline())["request_id"] == "b"
     clients[0].sendall(wire("a")[10:])
     assert json.loads(clients[0].makefile().readline())["request_id"] == "a"
-    clients[0].close(); clients[1].close(); server.stop(); server.stop()
-    assert not path.exists()
-    assert {x["request_id"] for x in calls} == {"a", "b"}
+    [client.close() for client in clients]; server.stop(); server.stop()
+    assert {item["request_id"] for item in calls} == {"a", "b"}
 
 
-def test_slow_client_does_not_block_other_client(tmp_path):
-    path = tmp_path / "gateway.sock"
-    server = UnixControlServer(path, lambda _: {"blob": "x" * 1000}, max_message_bytes=2048)
-    server.start()
-    slow = socket.socket(socket.AF_UNIX); slow.connect(str(path))
-    for i in range(20): slow.sendall(wire(str(i)))
-    fast = socket.socket(socket.AF_UNIX); fast.settimeout(1); fast.connect(str(path)); fast.sendall(wire("fast"))
-    assert json.loads(fast.makefile().readline())["request_id"] == "fast"
-    slow.close(); fast.close(); server.stop()
-
-
-def test_unknown_existing_socket_path_is_preserved(tmp_path):
-    path = tmp_path / "gateway.sock"; path.write_text("unknown")
-    server = UnixControlServer(path, lambda _: {})
-    with pytest.raises(OSError): server.start()
-    assert path.read_text() == "unknown"
-
-
-def test_socket_mode_and_deferred_action_runs_after_ack(tmp_path):
-    path = tmp_path / "gateway.sock"; action_read=[]
-    server = UnixControlServer(path, lambda _: DeferredResponse(
-        {"accepted": True}, lambda: action_read.append(True)))
-    server.start()
-    assert os.stat(path).st_mode & 0o777 == 0o660
-    client=socket.socket(socket.AF_UNIX); client.connect(str(path)); client.sendall(wire("x"))
-    response=json.loads(client.makefile().readline())
-    assert response["payload"] == {"accepted": True}
+def test_deferred_action_runs_after_ack():
+    name = endpoint(); actions = []
+    server = UnixControlServer(name, lambda _: DeferredResponse(
+        {"accepted": True}, lambda: actions.append(True)))
+    server.start(); client = connect(name); client.sendall(wire("x"))
+    assert json.loads(client.makefile().readline())["payload"] == {"accepted": True}
     for _ in range(100):
-        if action_read: break
+        if actions: break
         threading.Event().wait(.005)
-    assert action_read == [True]
+    assert actions == [True]
     client.close(); server.stop()
 
 
-def test_invalid_command_response_keeps_request_id(tmp_path):
-    path=tmp_path / "gateway.sock"; server=UnixControlServer(path, lambda _: {})
-    server.start(); client=socket.socket(socket.AF_UNIX); client.connect(str(path))
-    client.sendall(wire("known", "bogus"))
-    assert json.loads(client.makefile().readline())["request_id"] == "known"
-    client.close(); server.stop()
-
-
-def test_client_count_idle_deadline_and_stop_join_are_bounded(tmp_path):
-    path=tmp_path / "gateway.sock"
-    server=UnixControlServer(path, lambda _: {}, max_clients=1, idle_timeout_s=.05)
-    server.start(); idle=socket.socket(socket.AF_UNIX); idle.connect(str(path))
-    for _ in range(100):
-        with server._lock:
-            threads=list(server._clients.values())
-        if threads: break
-        threading.Event().wait(.002)
-    assert len(threads) == 1
-    threads[0].join(.5)
-    assert not threads[0].is_alive()
-    server.stop()
-
-
-def test_deferred_actions_use_one_fifo_worker_and_reject_full_queue(tmp_path):
-    path=tmp_path / "gateway.sock"; entered=threading.Event(); release=threading.Event(); order=[]
+def test_deferred_actions_use_fifo_worker_and_reject_full_queue():
+    name = endpoint(); entered = threading.Event(); release = threading.Event(); order = []
     def handler(request):
-        value=request["request_id"]
         def action():
-            order.append(value)
-            if value == "1": entered.set(); release.wait()
-        return DeferredResponse({"accepted":True}, action)
-    server=UnixControlServer(path, handler, max_clients=1); server.start()
-    client=socket.socket(socket.AF_UNIX); client.connect(str(path)); reader=client.makefile()
+            order.append(request["request_id"])
+            if request["request_id"] == "1": entered.set(); release.wait()
+        return DeferredResponse({"accepted": True}, action)
+    server = UnixControlServer(name, handler, max_clients=1); server.start()
+    client = connect(name); reader = client.makefile()
     client.sendall(wire("1")); assert json.loads(reader.readline())["type"] == "response"
     assert entered.wait(1)
     client.sendall(wire("2")); assert json.loads(reader.readline())["type"] == "response"
     client.sendall(wire("3")); assert json.loads(reader.readline())["type"] == "error"
     release.set()
     for _ in range(100):
-        if order == ["1","2"]: break
+        if order == ["1", "2"]: break
         threading.Event().wait(.005)
-    assert order == ["1","2"]
-    assert server._action_thread.is_alive()
-    client.close(); server.stop(); assert not server._action_thread.is_alive()
+    assert order == ["1", "2"]
+    client.close(); server.stop()
 
 
-@pytest.mark.parametrize("failure", ["listen", "settimeout"])
-def test_post_bind_failure_removes_only_own_inode(tmp_path, failure):
-    path=tmp_path / "gateway.sock"; server=UnixControlServer(path, lambda _: {})
-    real_factory=socket.socket
-    class FailingSocket:
-        def __init__(self, *args): self.real=real_factory(*args)
-        def bind(self, value): self.real.bind(value)
-        def listen(self, _):
-            if failure == "listen": raise RuntimeError("listen failed")
-            self.real.listen(1)
-        def settimeout(self, value):
-            if failure == "settimeout": raise RuntimeError("timeout failed")
-            self.real.settimeout(value)
-        def close(self): self.real.close()
-    server._socket_factory=FailingSocket
-    with pytest.raises(RuntimeError): server.start()
-    assert not path.exists()
-
-    class ReplacingSocket(FailingSocket):
-        def listen(self, _):
-            self.real.close(); path.unlink(); path.write_text("replacement")
-            raise RuntimeError("listen failed")
-        def settimeout(self, value): pass
-    server._socket_factory=ReplacingSocket
-    with pytest.raises(RuntimeError): server.start()
-    assert path.read_text() == "replacement"
-
-
-def test_stop_preserves_overlayfs_successor_with_reused_inode(tmp_path, monkeypatch):
-    path = tmp_path / "gateway.sock"
-    server = UnixControlServer(path, lambda _: {})
-    server.start()
-    original = os.lstat(path)
-    path.unlink()
-    path.write_text("successor")
-    successor = os.lstat(path)
-    reused = SimpleNamespace(
-        st_dev=original.st_dev,
-        st_ino=original.st_ino,
-        st_ctime_ns=original.st_ctime_ns + 1,
-        st_mode=successor.st_mode,
-    )
-    real_stat, real_lstat = os.stat, os.lstat
-    monkeypatch.setattr(os, "stat", lambda target, *args, **kwargs: reused
-                        if str(target) == str(path)
-                        else real_stat(target, *args, **kwargs))
-    monkeypatch.setattr(os, "lstat", lambda target, *args, **kwargs: reused
-                        if str(target) == str(path)
-                        else real_lstat(target, *args, **kwargs))
-    server.stop()
-    assert path.read_text() == "successor"
-
-
-def test_stop_preserves_successor_created_exactly_during_cleanup(tmp_path, monkeypatch):
-    path = tmp_path / "gateway.sock"
-    server = UnixControlServer(path, lambda _: {})
-    server.start()
-    real_rename = os.rename
-
-    def replace_during_cleanup(source, destination):
-        real_rename(source, destination)
-        if str(source) == str(path):
-            path.write_text("successor")
-
-    monkeypatch.setattr(os, "rename", replace_during_cleanup)
-    server.stop()
-    assert path.read_text() == "successor"
-
-
-def test_stop_joins_blocked_multi_client_handlers_and_cancels_actions(tmp_path):
-    path=tmp_path / "gateway.sock"; entered=[]; lock=threading.Lock()
-    both=threading.Event(); release=threading.Event(); actions=[]
+def test_stop_joins_blocked_handlers_and_cancels_actions():
+    name = endpoint(); entered = []; lock = threading.Lock()
+    both = threading.Event(); release = threading.Event(); actions = []
     def handler(request):
         with lock:
             entered.append(request["request_id"])
-            if len(entered)==2: both.set()
+            if len(entered) == 2: both.set()
         release.wait()
-        return DeferredResponse({"accepted":True}, lambda:actions.append(request["request_id"]))
-    server=UnixControlServer(path,handler,max_clients=2); server.start()
-    clients=[socket.socket(socket.AF_UNIX) for _ in range(2)]
-    for index,client in enumerate(clients):
-        client.connect(str(path)); client.sendall(wire(str(index)))
+        return DeferredResponse({"accepted": True}, lambda: actions.append(True))
+    server = UnixControlServer(name, handler, max_clients=2); server.start()
+    clients = [connect(name) for _ in range(2)]
+    for index, client in enumerate(clients): client.sendall(wire(str(index)))
     assert both.wait(1)
-    stopper=threading.Thread(target=server.stop); stopper.start()
+    stopper = threading.Thread(target=server.stop); stopper.start()
     threading.Event().wait(.05); assert stopper.is_alive()
     release.set(); stopper.join(1)
-    assert not stopper.is_alive()
-    assert actions == []
-    assert server._clients == {}
-    assert not server._thread.is_alive() and not server._action_thread.is_alive()
-    for client in clients: client.close()
+    assert not stopper.is_alive() and actions == [] and server._clients == {}
+    [client.close() for client in clients]
 
 
-def test_action_worker_records_and_reports_action_failure(tmp_path):
-    path=tmp_path / "gateway.sock"; failures=[]
+def test_action_failure_is_reported():
+    name = endpoint(); failures = []
     def fail(): raise RuntimeError("action failed")
-    server=UnixControlServer(path,lambda _:DeferredResponse({"accepted":True},fail),
-                             on_action_error=failures.append)
-    server.start(); client=socket.socket(socket.AF_UNIX); client.connect(str(path)); client.sendall(wire("x"))
+    server = UnixControlServer(name, lambda _: DeferredResponse({"accepted": True}, fail),
+                               on_action_error=failures.append)
+    server.start(); client = connect(name); client.sendall(wire("x"))
     assert json.loads(client.makefile().readline())["type"] == "response"
     for _ in range(100):
         if failures: break

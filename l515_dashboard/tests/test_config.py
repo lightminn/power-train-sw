@@ -18,7 +18,7 @@ def test_defaults_match_l515_stream_contract():
     assert config.startup_timeout_s == 10.0
     assert config.graceful_timeout_s == 3.0
     assert config.termination_timeout_s == 2.0
-    assert config.socket_path == "/run/powertrain/l515-gateway.sock"
+    assert config.socket_path == "@powertrain-l515-gateway"
     assert config.lock_path == "/run/powertrain/l515-gateway.lock"
     assert (config.color_width, config.color_height) == (1280, 720)
     assert (config.depth_width, config.depth_height) == (640, 480)
@@ -47,6 +47,8 @@ def test_config_is_immutable():
         ({"reconnect_interval_s": 0}, "reconnect_interval_s"),
         ({"max_message_bytes": 0}, "max_message_bytes"),
         ({"socket_path": ""}, "socket_path"),
+        ({"socket_path": "@"}, "socket_path"),
+        ({"socket_path": "@bad\x00name"}, "socket_path"),
     ],
 )
 def test_rejects_invalid_runtime_configuration(kwargs, message):

@@ -120,9 +120,6 @@ class Gateway:
                 self._start_owned(self.ros)
                 self._start_owned(self.streamer, optional=True)
                 self._start_owned(self.server)
-                claim = getattr(self.guard, "claim_socket", None)
-                if claim and self.server is not None:
-                    claim()
                 self._accept_commands = True
                 self.observe()
             except Exception as exc:

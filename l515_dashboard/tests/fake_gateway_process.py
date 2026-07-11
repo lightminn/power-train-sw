@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 from l515_dashboard.protocol import decode_request, encode_message, response
+from l515_dashboard.endpoint import abstract_address
 
 
 def main():
@@ -26,7 +27,7 @@ def main():
         stream.write(str(child.pid))
     sock = socket.socket(socket.AF_UNIX)
     try:
-        sock.bind(path)
+        sock.bind(abstract_address(path))
         sock.listen()
         sock.settimeout(0.1)
         while not stopping:
@@ -47,10 +48,6 @@ def main():
                 conn.sendall(encode_message(response(req["request_id"], payload), 65536))
     finally:
         sock.close()
-        try:
-            os.unlink(path)
-        except FileNotFoundError:
-            pass
         if child.poll() is None:
             child.terminate()
         child.wait(timeout=2)

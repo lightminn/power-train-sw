@@ -4,9 +4,10 @@ from dataclasses import dataclass
 import os
 import queue
 import socket
+import struct
 import threading
 
-from .filesystem_identity import path_identity, quarantine_remove
+from .endpoint import abstract_address
 from .protocol import ProtocolError, decode_request, encode_message, response
 
 
@@ -19,7 +20,7 @@ class DeferredResponse:
 class UnixControlServer:
     def __init__(self, path, handler, *, max_message_bytes=65536,
                  on_disconnect=None, on_action_error=None, max_clients=8,
-                 idle_timeout_s=5.0):
+                 idle_timeout_s=5.0, peer_authorizer=None):
         self.path = str(path)
         self._handler = handler
         self._max = int(max_message_bytes)
@@ -35,7 +36,7 @@ class UnixControlServer:
         self._thread = None
         self._clients = {}
         self._lock = threading.Lock()
-        self._socket_identity = None
+        self._peer_authorizer = peer_authorizer or self._same_uid
         self._action_capacity = int(max_clients)
         self._actions = queue.Queue(maxsize=self._action_capacity)
         self._action_thread = None
@@ -44,6 +45,13 @@ class UnixControlServer:
         self._owner_guard = guard
         return self
 
+    @staticmethod
+    def _same_uid(client):
+        raw = client.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED,
+                                struct.calcsize("3i"))
+        _pid, uid, _gid = struct.unpack("3i", raw)
+        return uid == os.geteuid()
+
     def start(self):
         if self._socket is not None:
             return
@@ -51,20 +59,13 @@ class UnixControlServer:
             self._actions = queue.Queue(maxsize=self._action_capacity)
         if self._owner_guard is not None and not self._owner_guard.acquired:
             raise RuntimeError("socket owner guard is not acquired")
-        parent = os.path.dirname(self.path) or "."
-        if not os.path.exists(parent):
-            os.makedirs(parent, mode=0o750)
-        # Never unlink here: stale removal belongs exclusively to ResourceGuard.
         sock = self._socket_factory(socket.AF_UNIX)
         try:
-            sock.bind(self.path)
-            os.chmod(self.path, 0o660)
-            self._socket_identity = path_identity(self.path)
+            sock.bind(abstract_address(self.path))
             sock.listen(self._max_clients)
             sock.settimeout(0.1)
         except Exception:
             sock.close()
-            self._unlink_owned_socket()
             raise
         self._socket = sock
         self._stop_event.clear()
@@ -82,12 +83,7 @@ class UnixControlServer:
             if self._action_thread.is_alive():
                 self._actions.put(None)
                 self._action_thread.join(1)
-            self._unlink_owned_socket()
             raise
-
-    def _unlink_owned_socket(self):
-        quarantine_remove(self.path, self._socket_identity)
-        self._socket_identity = None
 
     def _run_actions(self):
         while True:
@@ -113,6 +109,13 @@ class UnixControlServer:
                 continue
             except OSError:
                 return
+            try:
+                authorized = self._peer_authorizer(client)
+            except Exception:
+                authorized = False
+            if not authorized:
+                client.close()
+                continue
             with self._lock:
                 if len(self._clients) >= self._max_clients:
                     client.close()
@@ -219,4 +222,3 @@ class UnixControlServer:
         self._actions.put(None)
         if self._action_thread is not current:
             self._action_thread.join()
-        self._unlink_owned_socket()

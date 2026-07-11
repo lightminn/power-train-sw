@@ -85,15 +85,6 @@ def test_component_that_fails_inside_start_is_rolled_back():
     assert failed.started == failed.stopped == 1
 
 
-def test_socket_claim_failure_rolls_back_bound_server():
-    class Guard(Part):
-        def claim_socket(self): raise RuntimeError("claim failed")
-    gateway, parts=make_gateway(guard=Guard())
-    try: gateway.start()
-    except RuntimeError: pass
-    assert parts["server"].stopped == 1 and gateway.state is GatewayState.FAULT
-
-
 def test_crashed_streamer_is_reaped_before_replacement_and_at_cleanup():
     old=Streamer(); old.running=False
     new=Streamer(); gateway, _=make_gateway(streamer=old)
