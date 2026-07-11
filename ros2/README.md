@@ -113,7 +113,8 @@ bash scripts/l515_preflight.sh
 
 컨테이너 entrypoint는 fresh checkout에서 아래 3패키지를 자동 build하고 setup을 source한 뒤
 `python3 -m l515_dashboard.gateway_main`을 exec한다. 설치 후 source가 더 새로우면 자동 재빌드한다.
-따라서 Gateway와 동시에 레거시 `l515.launch.py`를 별도로 실행하지 않는다.
+레거시 `l515_camera` console entry point와 `l515.launch.py`는 production 설치에서 폐기됐으며,
+직접 실행 경로도 Gateway 진입점을 안내하며 fail-closed한다.
 
 ```bash
 docker logs powertrain_ros

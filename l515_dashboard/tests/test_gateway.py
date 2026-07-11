@@ -6,6 +6,7 @@ import l515_dashboard.streamer as streamer_module
 from l515_dashboard.frame_modes import FrameMode
 from l515_dashboard.gateway import Gateway, GatewayState, SystemCollector
 from l515_dashboard.gateway_workers import WorkerStopTimeout
+from l515_dashboard.gateway_source import SourceStopTimeout
 from l515_dashboard.control_server import UnixControlServer
 
 
@@ -104,6 +105,23 @@ def test_blocked_worker_stop_prevents_sdk_ros_teardown_and_cleanup_retries():
     assert not gateway._shutdown_done
     workers.release=True; gateway.shutdown()
     assert parts["source"].stopped == parts["ros"].stopped == 1
+
+
+def test_blocked_source_stop_retains_server_guard_and_retries_without_duplicate_owner():
+    class RetrySource(Source):
+        def __init__(self): super().__init__(); self.release=False
+        def stop(self):
+            self.stopped += 1
+            if not self.release: raise SourceStopTimeout("native pipeline alive")
+    source=RetrySource(); gateway,parts=make_gateway(source=source)
+    gateway.start(); gateway.shutdown()
+    assert not gateway._shutdown_done
+    assert source in gateway._owned
+    assert parts["ros"].stopped == parts["server"].stopped == parts["guard"].stopped == 0
+    assert source.started == 1
+    source.release=True; gateway.shutdown()
+    assert source.started == 1 and gateway._shutdown_done
+    assert parts["guard"].stopped == 1
 
 
 def test_duplicate_abstract_bind_never_starts_camera_source():
@@ -375,6 +393,22 @@ def test_restart_aborts_before_dependencies_when_old_writer_is_uncooperative():
     old.writer_alive = False
     gateway.restart_components()
     assert factory_calls == [True] and new.started == 1
+
+
+def test_restart_source_timeout_keeps_guard_and_old_source_without_replacement():
+    class RetrySource(Source):
+        def __init__(self): super().__init__(); self.release=False
+        def stop(self):
+            self.stopped += 1
+            if not self.release: raise SourceStopTimeout("native source alive")
+    source=RetrySource(); gateway,parts=make_gateway(source=source)
+    gateway.start(); gateway.restart_components()
+    assert source.started == 1 and source in gateway._owned
+    assert parts["ros"].stopped == parts["server"].stopped == parts["guard"].stopped == 0
+    assert not gateway._shutdown_done
+    source.release=True; gateway.restart_components()
+    assert source.started == 2
+    gateway.shutdown()
 
 
 def test_shutdown_retries_streamer_timeout_before_stopping_dependencies():

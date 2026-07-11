@@ -150,6 +150,10 @@ class L515Node(Node):
 
 
 def main(args=None):
+    raise RuntimeError(
+        "legacy l515_node runtime is retired; start the singleton Gateway with "
+        "`python3 -m l515_dashboard.gateway_main`"
+    )
     rclpy.init(args=args)
     node = None
     try:

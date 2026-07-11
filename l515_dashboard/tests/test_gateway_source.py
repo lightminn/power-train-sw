@@ -9,6 +9,7 @@ from l515_dashboard.gateway_source import (
     GatewayFrames,
     GatewaySourceState,
     L515GatewaySource,
+    SourceStopTimeout,
 )
 
 
@@ -299,22 +300,37 @@ def test_late_callback_after_stop_is_rejected_and_every_buffer_is_empty():
     assert source.read_gyro_after(0, 10).samples == ()
 
 
-def test_stop_is_bounded_idempotent_and_stops_pipeline_once():
+def test_stop_timeout_is_retryable_and_stops_pipeline_once():
     class BlockingPipeline(Pipeline):
-        def stop(self): self.stop_calls += 1; time.sleep(1)
+        def __init__(self, rs):
+            super().__init__(rs); self.release = threading.Event()
+        def stop(self): self.stop_calls += 1; self.release.wait()
     rs = RS(); pipeline = BlockingPipeline(rs); rs.pipeline = lambda: pipeline
     source = L515GatewaySource(rs, stop_timeout=.01, mapper_factory=object)
     source.start(); assert wait_until(lambda: source.state is GatewaySourceState.STREAMING)
-    started = time.monotonic(); source.stop(); source.stop()
-    assert time.monotonic() - started < .1 and pipeline.stop_calls == 1
+    with __import__('pytest').raises(SourceStopTimeout, match="native pipeline"):
+        source.stop()
+    assert pipeline.stop_calls == 1
+    assert source._pipeline is pipeline and source._thread is not None
+    with __import__('pytest').raises(SourceStopTimeout, match="previous SDK owner"):
+        source.start()
+    assert len(rs.pipelines) == 0 and pipeline.stop_calls == 1
+    pipeline.release.set()
+    source.stop()
+    assert pipeline.stop_calls == 1
+    assert source.state is GatewaySourceState.STOPPED
 
 
 def test_stop_immediately_before_native_start_prevents_sdk_start():
     ready, release = threading.Event(), threading.Event(); rs = RS()
     source = L515GatewaySource(rs, stop_timeout=.01, mapper_factory=object)
     source._before_pipeline_start = lambda: (ready.set(), release.wait())
-    source.start(); assert ready.wait(.2); source.stop(); worker = source._thread
+    source.start(); assert ready.wait(.2)
+    with __import__('pytest').raises(SourceStopTimeout, match="source worker"):
+        source.stop()
+    worker = source._thread
     release.set(); worker.join(.2)
+    source.stop()
     assert rs.started == [] and source.state is GatewaySourceState.STOPPED
 
 
@@ -325,7 +341,10 @@ def test_cancelled_native_start_is_cleaned_by_one_stop_attempt():
             super().start(config, callback); entered.set(); release.wait()
     rs = RS(); pipeline = ActivePipeline(rs); rs.pipeline = lambda: pipeline
     source = L515GatewaySource(rs, stop_timeout=.01, mapper_factory=object)
-    source.start(); assert entered.wait(.2); source.stop(); release.set()
+    source.start(); assert entered.wait(.2)
+    with __import__('pytest').raises(SourceStopTimeout, match="source worker"):
+        source.stop()
+    release.set()
     assert wait_until(lambda: pipeline.stop_calls == 1)
     source.stop(); assert pipeline.stop_calls == 1
 
@@ -337,6 +356,10 @@ def test_stop_during_device_query_prevents_pipeline_creation():
         return SimpleNamespace(query_devices=query)
     rs.context = context
     source = L515GatewaySource(rs, stop_timeout=.01, mapper_factory=object)
-    source.start(); assert entered.wait(.2); source.stop(); worker = source._thread
+    source.start(); assert entered.wait(.2)
+    with __import__('pytest').raises(SourceStopTimeout, match="source worker"):
+        source.stop()
+    worker = source._thread
     release.set(); worker.join(.2)
+    source.stop()
     assert rs.pipelines == [] and rs.started == [] and source.state is GatewaySourceState.STOPPED

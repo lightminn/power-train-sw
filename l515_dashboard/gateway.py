@@ -8,7 +8,7 @@ import time
 from .control_server import DeferredResponse
 from .diagnostics import DiagnosticsTracker
 from .frame_modes import FrameMode
-from .gateway_source import EXPECTED_L515_SERIAL
+from .gateway_source import EXPECTED_L515_SERIAL, SourceStopTimeout
 from .gateway_workers import WorkerGroup, WorkerStopTimeout
 from .streamer import StreamerStopTimeout
 
@@ -182,7 +182,9 @@ class Gateway:
                 self._stop(part)
             except Exception as exc:
                 errors.append(exc)
-                if isinstance(exc, (WorkerStopTimeout, StreamerStopTimeout)):
+                if isinstance(exc, (
+                    WorkerStopTimeout, StreamerStopTimeout, SourceStopTimeout
+                )):
                     break
             else:
                 with self._cleanup_condition:
@@ -194,7 +196,9 @@ class Gateway:
                 self.last_error = self.last_error or str(errors[0])
                 if final_state is GatewayState.FAULT:
                     self.fatal_error = self.fatal_error or str(errors[0])
-            if any(isinstance(error, (WorkerStopTimeout, StreamerStopTimeout))
+            if any(isinstance(error, (
+                WorkerStopTimeout, StreamerStopTimeout, SourceStopTimeout
+            ))
                    for error in errors):
                 self._lifecycle_operation = None
                 self._cleanup_condition.notify_all()
@@ -527,6 +531,12 @@ class Gateway:
                         self._clear_stream_error()
                 self._accept_commands = True
                 self.observe()
+        except SourceStopTimeout as exc:
+            with self._lock:
+                self.last_error = str(exc)
+                self.state = GatewayState.DEGRADED
+                self._accept_commands = True
+            return
         except Exception as exc:
             with self._lock:
                 self.last_error = str(exc)

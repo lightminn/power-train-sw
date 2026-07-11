@@ -14,7 +14,7 @@ setup(
         ("share/" + package_name, ["package.xml"]),
         (
             "share/" + package_name + "/launch",
-            ["launch/wp5_control.launch.py", "launch/l515.launch.py"],
+            ["launch/wp5_control.launch.py"],
         ),
         ("share/" + package_name + "/config", ["config/l515.yaml"]),
     ],
@@ -30,7 +30,6 @@ setup(
             "bringup = powertrain_ros.bringup_node:main",
             "chassis = powertrain_ros.chassis_node:main",
             "us100_safety = powertrain_ros.us100_safety_node:main",
-            "l515_camera = powertrain_ros.l515_node:main",
         ],
     },
 )

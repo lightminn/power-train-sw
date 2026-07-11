@@ -1,5 +1,11 @@
 # L515 경량 ROS2 파이프라인 설계
 
+> **런타임 아키텍처 폐기됨 (2026-07-12).** 이 문서의 직접 `l515_node`/launch 실행과
+> SDK 소유권 설명은 역사 기록일 뿐 운영 지침이 아니다. 현재 유일한 production 진입점과
+> 단일 SDK 소유자는 `python3 -m l515_dashboard.gateway_main`이며, 현재 설계 정본은
+> [L515 TUI Dashboard 설계](2026-07-11-l515-tui-dashboard-design.md)이다.
+> 아래 adapter·토픽 계약은 참고할 수 있지만 legacy node를 실행해서는 안 된다.
+
 > 작성: 2026-07-11
 > 개정: realsense-ros 경로 폐기, pyrealsense2 직접 노드로 확정
 > 범위: 파워트레인 소유 L515의 color/depth/IMU 입력 계층

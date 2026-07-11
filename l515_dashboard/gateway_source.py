@@ -12,6 +12,10 @@ from .stream_buffer import BoundedRing, LatestSlot, StreamSample
 EXPECTED_L515_SERIAL = "00000000F0271544"
 
 
+class SourceStopTimeout(RuntimeError):
+    """SDK worker or native pipeline stop has not proven termination."""
+
+
 def _canonical_serial(value):
     normalized = str(value).casefold().lstrip("0")
     return normalized or "0"
@@ -158,6 +162,11 @@ class L515GatewaySource:
             with self._lifecycle_lock:
                 if self._thread is not None and self._thread.is_alive():
                     return
+                if (self._pipeline is not None
+                        or self._pipeline_cleanup is not None):
+                    raise SourceStopTimeout(
+                        "previous SDK owner has not completed native pipeline stop"
+                    )
                 self._generation += 1
                 generation = self._generation
                 self._stop_event.clear()
@@ -177,24 +186,32 @@ class L515GatewaySource:
         except Exception:
             pass
 
-    def _stop_pipeline_bounded(self, pipeline):
-        stopper = threading.Thread(
-            target=self._stop_pipeline, args=(pipeline,), daemon=True
-        )
-        stopper.start()
+    def _stop_pipeline_bounded(self, pipeline, cleanup):
+        with self._lifecycle_lock:
+            stopper = cleanup.get("stopper")
+            if stopper is None:
+                stopper = threading.Thread(
+                    target=self._stop_pipeline, args=(pipeline,), daemon=True,
+                    name="l515-gateway-sdk-stop",
+                )
+                cleanup["stopper"] = stopper
+                stopper.start()
         stopper.join(self._stop_timeout)
+        return not stopper.is_alive()
 
     def _stop_pipeline_once(self, pipeline, cleanup):
         with self._lifecycle_lock:
             if cleanup is None:
-                cleanup = {"claimed": False}
+                cleanup = {"complete": False, "stopper": None}
                 if self._pipeline is pipeline:
                     self._pipeline_cleanup = cleanup
-            if cleanup["claimed"]:
-                return False
-            cleanup["claimed"] = True
-        self._stop_pipeline_bounded(pipeline)
-        return True
+            if cleanup.get("complete"):
+                return True
+        complete = self._stop_pipeline_bounded(pipeline, cleanup)
+        if complete:
+            with self._lifecycle_lock:
+                cleanup["complete"] = True
+        return complete
 
     def _finish_stopped(self, thread):
         with self._lifecycle_lock:
@@ -224,12 +241,23 @@ class L515GatewaySource:
             # Reject callbacks before asking the native pipeline to stop.
             self._clear_capture()
             # Never call stop while native start may still be in progress.
+            native_stopped = pipeline is None
             if pipeline is not None and starting is None:
-                self._stop_pipeline_once(pipeline, cleanup)
+                native_stopped = self._stop_pipeline_once(pipeline, cleanup)
             if thread is not None and thread.is_alive():
                 thread.join(self._stop_timeout)
-            if thread is None or not thread.is_alive():
+            worker_stopped = thread is None or not thread.is_alive()
+            if native_stopped and worker_stopped:
                 self._finish_stopped(thread)
+                return
+            blocked = []
+            if not native_stopped:
+                blocked.append("native pipeline stop")
+            if not worker_stopped:
+                blocked.append("source worker")
+            raise SourceStopTimeout(
+                ", ".join(blocked) + " did not terminate before timeout"
+            )
 
     def poll_latest(self):
         color_sequence, color = self.read_color_after(
@@ -467,7 +495,9 @@ class L515GatewaySource:
         try:
             self._run_generation(generation)
         finally:
-            if self._stop_event.is_set() and self._thread is worker:
+            cleanup = self._pipeline_cleanup
+            if (self._stop_event.is_set() and self._thread is worker
+                    and (cleanup is None or cleanup.get("complete", False))):
                 self._finish_stopped(worker)
 
     def _run_generation(self, generation):
@@ -487,7 +517,7 @@ class L515GatewaySource:
                 if not self._is_current(generation):
                     break
                 pipeline = self._rs.pipeline()
-                cleanup = {"claimed": False}
+                cleanup = {"complete": False, "stopper": None}
                 with self._lifecycle_lock:
                     if not self._is_current(generation):
                         break
@@ -525,8 +555,7 @@ class L515GatewaySource:
                     if same_start and not cancelled:
                         self._starting = None
                 if cancelled:
-                    self._stop_pipeline_once(pipeline, cleanup)
-                    cleanup_done = True
+                    cleanup_done = self._stop_pipeline_once(pipeline, cleanup)
                     break
                 self.connected_serial = serial
                 self.connected_profile = {
@@ -561,9 +590,9 @@ class L515GatewaySource:
             finally:
                 self._clear_capture(capture_token)
                 if pipeline is not None and not cleanup_done:
-                    self._stop_pipeline_once(pipeline, cleanup)
+                    cleanup_done = self._stop_pipeline_once(pipeline, cleanup)
                 with self._lifecycle_lock:
-                    if self._pipeline is pipeline:
+                    if self._pipeline is pipeline and cleanup_done:
                         self._pipeline = None
                         self._pipeline_cleanup = None
                     starting = self._starting

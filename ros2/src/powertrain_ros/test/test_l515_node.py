@@ -261,21 +261,17 @@ def test_destroy_node_destroys_ros_node_when_source_stop_raises(
     assert destroyed == [node]
 
 
-def test_main_constructor_exception_always_shuts_down_rclpy(monkeypatch):
+def test_main_fails_closed_before_ros_or_source_construction(monkeypatch):
     import powertrain_ros.l515_node as module
 
     calls = []
     monkeypatch.setattr(module.rclpy, "init", lambda args=None: calls.append("init"))
     monkeypatch.setattr(module.rclpy, "shutdown", lambda: calls.append("shutdown"))
 
-    def fail_constructor():
-        raise RuntimeError("constructor failed")
-
-    monkeypatch.setattr(module, "L515Node", fail_constructor)
-
-    with pytest.raises(RuntimeError, match="constructor failed"):
+    monkeypatch.setattr(module, "L515Node", lambda: calls.append("constructed"))
+    with pytest.raises(RuntimeError, match="l515_dashboard.gateway_main"):
         module.main()
-    assert calls == ["init", "shutdown"]
+    assert calls == []
 
 
 def test_main_spin_exception_destroys_node_then_shuts_down(monkeypatch):
@@ -296,6 +292,6 @@ def test_main_spin_exception_destroys_node_then_shuts_down(monkeypatch):
 
     monkeypatch.setattr(module.rclpy, "spin", fail_spin)
 
-    with pytest.raises(RuntimeError, match="spin failed"):
+    with pytest.raises(RuntimeError, match="l515_dashboard.gateway_main"):
         module.main()
-    assert calls == ["init", "spin", "destroy", "shutdown"]
+    assert calls == []
