@@ -412,3 +412,53 @@ def test_concurrent_start_cannot_replace_in_progress_stop():
 
     assert not stopping.is_alive()
     assert not restarting.is_alive()
+
+
+def test_stop_after_prestart_validation_cleans_late_native_start():
+    validated = threading.Event()
+    release_start = threading.Event()
+    started = threading.Event()
+    cleaned_after_start = threading.Event()
+
+    class LateStartPipeline(FakePipeline):
+        def __init__(self, rs):
+            super().__init__(rs)
+            self.active = False
+
+        def start(self, config):
+            self.rs.started.append(config)
+            self.active = True
+            started.set()
+
+        def stop(self):
+            if self.active:
+                self.active = False
+                cleaned_after_start.set()
+
+    rs = FakeRs([EXPECTED_L515_SERIAL])
+    pipeline = LateStartPipeline(rs)
+    rs.pipeline = lambda: pipeline
+    source = L515Source(rs, stop_timeout=0.01, mapper_factory=object)
+
+    def block_after_validation():
+        validated.set()
+        release_start.wait()
+
+    source._after_pipeline_start_validation = block_after_validation
+    source.start()
+    assert validated.wait(0.2)
+
+    before = time.monotonic()
+    source.stop()
+    elapsed = time.monotonic() - before
+    worker = source._thread
+    release_start.set()
+    worker.join(0.2)
+
+    assert elapsed < 0.15
+    assert started.is_set()
+    assert cleaned_after_start.is_set()
+    assert not pipeline.active
+    assert source._starting is None
+    assert source.state is L515State.STOPPED
+    assert source.poll_latest().empty

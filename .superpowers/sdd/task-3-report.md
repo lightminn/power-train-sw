@@ -82,6 +82,7 @@
   Result: three packages built; `55 passed in 0.36s`; `55 tests, 0 errors, 0
   failures, 0 skipped`.
 - Diff command: `git diff --check`. Result: exit 0.
+
 - Host-only `/home/light/anaconda3/bin/python -m pytest -q test` was also
   attempted, but collection lacked ROS `launch.action` and
   `builtin_interfaces`; the isolated ROS image command above is the relevant
@@ -126,5 +127,42 @@
   --packages-select powertrain_ros --event-handlers console_direct+ && colcon
   test-result --test-result-base /tmp/l515-build/powertrain_ros --verbose'`.
   Result: three packages built; `58 passed in 0.36s`; `58 tests, 0 errors, 0
+  failures, 0 skipped`.
+- Diff command: `git diff --check`. Result: exit 0.
+
+## Final STARTING-handshake fix
+
+- Replaced the scalar starting generation with a registered STARTING record
+  containing generation, pipeline identity, and `cancel_requested`.
+- `stop()` marks an active STARTING record cancelled in the same lifecycle
+  critical section that invalidates the generation and snapshots the worker
+  and pipeline.
+- Added a deterministic barrier after successful locked pre-start validation
+  and lock release. If stop lands there, a late native `pipeline.start()` may
+  return, but the worker performs best-effort stop before clearing STARTING and
+  exits without publishing `STREAMING` or committing frames.
+- No native SDK start/stop/wait call is made while the lifecycle lock is held;
+  the public stop path remains bounded by `stop_timeout`.
+
+## Final-fix TDD and verification evidence
+
+- RED command: `/home/light/anaconda3/bin/python -m pytest -q
+  test/test_l515_source.py`. Result before the handshake implementation:
+  `1 failed, 14 passed`; the post-validation/pre-native-start barrier was not
+  reached because no such handshake boundary existed.
+- Focused command: `/home/light/anaconda3/bin/python -m pytest -q
+  test/test_l515_source.py`. Result: `15 passed in 0.08s`.
+- Style command: `/home/light/anaconda3/bin/python -m flake8
+  powertrain_ros/l515_source.py test/test_l515_source.py`. Result: exit 0.
+- Full ROS command: `docker run --rm -v "$PWD:/workspace" -w /workspace/ros2
+  powertrain-sw:ros-task7-minors bash -lc 'source
+  /opt/ros/humble/setup.bash && colcon --log-base /tmp/l515-log build
+  --build-base /tmp/l515-build --install-base /tmp/l515-install
+  --packages-select powertrain_msgs robot_arm_msgs powertrain_ros && source
+  /tmp/l515-install/setup.bash && colcon --log-base /tmp/l515-test-log test
+  --build-base /tmp/l515-build --install-base /tmp/l515-install
+  --packages-select powertrain_ros --event-handlers console_direct+ && colcon
+  test-result --test-result-base /tmp/l515-build/powertrain_ros --verbose'`.
+  Result: three packages built; `59 passed in 0.40s`; `59 tests, 0 errors, 0
   failures, 0 skipped`.
 - Diff command: `git diff --check`. Result: exit 0.

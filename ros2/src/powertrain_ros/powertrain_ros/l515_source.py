@@ -122,11 +122,12 @@ class L515Source:
         self._latest = LatestFrames()
         self._thread = None
         self._pipeline = None
-        self._starting_generation = None
+        self._starting = None
         self._public_lock = threading.Lock()
         self._lifecycle_lock = threading.Lock()
         self._generation = 0
         self._before_pipeline_start = lambda: None
+        self._after_pipeline_start_validation = lambda: None
         self._before_frame_commit = lambda: None
         self.state = L515State.STOPPED
         self.state_changed_at = self._clock()
@@ -160,6 +161,8 @@ class L515Source:
             with self._lifecycle_lock:
                 self._stop_event.set()
                 self._generation += 1
+                if self._starting is not None:
+                    self._starting["cancel_requested"] = True
                 pipeline = self._pipeline
                 thread = self._thread
             if pipeline is not None:
@@ -229,7 +232,7 @@ class L515Source:
             if thread is not None:
                 self._thread = None
             self._pipeline = None
-            self._starting_generation = None
+            self._starting = None
             self._latest.clear()
             self._set_state(L515State.STOPPED)
 
@@ -276,18 +279,37 @@ class L515Source:
                     if not self._is_current_locked(generation):
                         break
                     self._pipeline = pipeline
-                    self._starting_generation = generation
+                    self._starting = {
+                        "generation": generation,
+                        "pipeline": pipeline,
+                        "cancel_requested": False,
+                    }
                 sdk_config = self._sdk_config()
                 self._before_pipeline_start()
                 with self._lifecycle_lock:
                     if not self._is_current_locked(generation):
                         break
+                self._after_pipeline_start_validation()
                 pipeline.start(sdk_config)
                 with self._lifecycle_lock:
-                    if self._starting_generation == generation:
-                        self._starting_generation = None
-                    if not self._is_current_locked(generation):
-                        break
+                    starting = self._starting
+                    same_start = (
+                        starting is not None
+                        and starting["generation"] == generation
+                        and starting["pipeline"] is pipeline
+                    )
+                    cancelled = (
+                        not self._is_current_locked(generation)
+                        or (same_start and starting["cancel_requested"])
+                    )
+                    if same_start and not cancelled:
+                        self._starting = None
+                if cancelled:
+                    self._stop_pipeline(pipeline)
+                    with self._lifecycle_lock:
+                        if self._starting is starting:
+                            self._starting = None
+                    break
                 mapper = self._mapper_factory()
                 if not self._clear_if_current(generation):
                     break
@@ -320,8 +342,13 @@ class L515Source:
                 with self._lifecycle_lock:
                     if self._pipeline is pipeline:
                         self._pipeline = None
-                    if self._starting_generation == generation:
-                        self._starting_generation = None
+                    starting = self._starting
+                    if (
+                        starting is not None
+                        and starting["generation"] == generation
+                        and starting["pipeline"] is pipeline
+                    ):
+                        self._starting = None
 
             if not self._is_current(generation):
                 break
