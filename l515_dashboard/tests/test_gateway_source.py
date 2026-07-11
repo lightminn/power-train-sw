@@ -137,6 +137,23 @@ def test_composite_callback_retains_real_latest_bundle_and_counts_overwrites():
     assert source.video_bundle_overwrites == 1
 
 
+def test_alignment_bundle_uses_native_composite_conversion_not_base_frame():
+    source = L515GatewaySource(RS(), mapper_factory=object)
+    source._generation = 3; source._stop_event.clear(); token = source._reset_capture(3)
+    converted = Frameset(Frame("color", 1), Frame("depth", 1))
+    class NativeBaseFrame:
+        kept = 0
+        def is_frameset(self): return True
+        def keep(self): self.kept += 1
+        def as_frameset(self): return converted
+    base = NativeBaseFrame()
+
+    source._on_frame(base, 3, token)
+
+    assert source.read_video_bundle_after(0)[1].frameset is converted
+    assert base.kept == 1
+
+
 def test_source_overwrite_counters_do_not_count_consumed_samples():
     source = L515GatewaySource(RS(), mapper_factory=object)
     source._generation = 1; source._stop_event.clear(); token = source._reset_capture(1)

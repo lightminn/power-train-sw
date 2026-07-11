@@ -351,13 +351,14 @@ class L515GatewaySource:
             keeper = getattr(frame, "keep", None)
             if callable(keeper):
                 keeper()
+            frameset = frame.as_frameset()
             with self._capture_lock:
                 if (not self._is_current(generation)
                         or self._capture_generation != generation
                         or self._capture_token != token):
                     return
                 self._video_bundles.publish(VideoBundle(
-                    generation, token, frame, time.monotonic_ns()))
+                    generation, token, frameset, time.monotonic_ns()))
         for child in self._children(frame):
             profile = child.get_profile()
             stream = profile.stream_type()
