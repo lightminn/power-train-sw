@@ -41,10 +41,14 @@ class _Worker:
                                         daemon=True)
         self._thread.start()
         if not self._ready.wait(self._stop_timeout):
-            raise RuntimeError(f"{self._name} did not become ready")
+            error = RuntimeError(f"{self._name} did not become ready")
+            self.stop()
+            raise error
         self._failed.wait(min(.01, self._stop_timeout))
         if self._error is not None:
-            raise self._error
+            error = self._error
+            self.stop()
+            raise error
 
     def stop(self):
         self._stop_event.set()
@@ -81,13 +85,12 @@ def _mapper(source):
 
 class ColorWorker(_Worker):
     def __init__(self, source, ros, *, fatal, published=None, streamer=None,
-                 mapper_lock=None, stop_timeout=1.0):
+                 stop_timeout=1.0):
         super().__init__(name="l515-color-worker", fatal=fatal,
                          stop_timeout=stop_timeout)
         self.source, self.ros = source, ros
         self._published = published or (lambda sample, topics: None)
         self._streamer = streamer
-        self._mapper_lock = mapper_lock or threading.Lock()
 
     def _on_start(self):
         if not callable(getattr(self.ros, "publish_color", None)):
@@ -110,7 +113,7 @@ class ColorWorker(_Worker):
 class DepthWorker(_Worker):
     def __init__(self, source, ros, *, period_s=.1, aligner=None, fatal,
                  published=None, streamer=None, now_ns=time.monotonic_ns,
-                 mapper_lock=None, stop_timeout=1.0):
+                 stop_timeout=1.0):
         super().__init__(name="l515-depth-worker", fatal=fatal,
                          stop_timeout=stop_timeout)
         self.source, self.ros = source, ros
@@ -121,7 +124,6 @@ class DepthWorker(_Worker):
         self._now_ns = now_ns
         self._aligned_lock = threading.Lock()
         self._aligned_depth = None
-        self._mapper_lock = mapper_lock or threading.Lock()
 
     @staticmethod
     def _default_aligner(source):
@@ -172,13 +174,12 @@ class DepthWorker(_Worker):
 
 class ImuWorker(_Worker):
     def __init__(self, source, ros, stream, *, max_rate_hz=100, fatal,
-                 published=None, mapper_lock=None, stop_timeout=1.0):
+                 published=None, stop_timeout=1.0):
         super().__init__(name=f"l515-{stream}-worker", fatal=fatal,
                          stop_timeout=stop_timeout)
         self.source, self.ros, self.stream = source, ros, stream
         self.period_s = 1.0 / max_rate_hz
         self._published = published or (lambda sample, topics: None)
-        self._mapper_lock = mapper_lock or threading.Lock()
 
     def _on_start(self):
         if not callable(getattr(self.ros, "publish_imu", None)):
@@ -202,9 +203,8 @@ class WorkerGroup:
     def __init__(self, *, source, ros, fatal, depth_period_s=.1,
                  imu_max_rate_hz=100, aligner=None, published=None,
                  color_streamer=None, depth_streamer=None, stop_timeout=1.0):
-        mapper_lock = getattr(source, "mapper_lock", threading.Lock())
         common = {"fatal": fatal, "published": published,
-                  "mapper_lock": mapper_lock, "stop_timeout": stop_timeout}
+                  "stop_timeout": stop_timeout}
         self.workers = (
             ColorWorker(source, ros, streamer=color_streamer, **common),
             DepthWorker(source, ros, period_s=depth_period_s, aligner=aligner,
@@ -217,7 +217,7 @@ class WorkerGroup:
         started = []
         try:
             for worker in self.workers:
-                worker.start(); started.append(worker)
+                started.append(worker); worker.start()
         except Exception:
             for worker in reversed(started): worker.stop()
             raise

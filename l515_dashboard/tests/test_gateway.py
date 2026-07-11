@@ -169,6 +169,7 @@ def test_connecting_is_starting_and_status_contract_is_complete():
     source=Source(); source.state=SimpleNamespace(value="connecting")
     source.config=SimpleNamespace(color_width=1280,color_height=720,
                                   depth_width=640,depth_height=480,fps=30)
+    source.color_overwrites=3; source.video_bundle_overwrites=4
     metric=SimpleNamespace(fps=30.0,age_s=.01,max_gap_s=.04,nonincreasing_count=0)
     diagnostics=SimpleNamespace(snapshot=lambda _: SimpleNamespace(topics={"color":metric}))
     gateway, _=make_gateway(source=source)
@@ -178,6 +179,8 @@ def test_connecting_is_starting_and_status_contract_is_complete():
     assert status["sdk"]["serial"] is None
     assert status["sdk"]["expected_serial"] == "00000000F0271544"
     assert status["sdk"]["profile"] is None
+    assert status["sdk"]["color_overwrites"] == 3
+    assert status["sdk"]["video_bundle_overwrites"] == 4
     assert set(status) == {"state","sdk","diagnostics","ros_publish_counts","srt","system","last_error"}
     assert status["diagnostics"]["color"]["fps"] == 30.0
     assert status["system"] == {"cpu":1,"ram":2}

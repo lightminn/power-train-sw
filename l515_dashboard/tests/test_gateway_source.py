@@ -120,6 +120,21 @@ def test_composite_callback_retains_real_latest_bundle_and_counts_overwrites():
     assert source.video_bundle_overwrites == 1
 
 
+def test_source_overwrite_counters_do_not_count_consumed_samples():
+    source = L515GatewaySource(RS(), mapper_factory=object)
+    source._generation = 1; source._stop_event.clear(); token = source._reset_capture(1)
+    def frameset(number):
+        value = Frameset(Frame("color", number), Frame("depth", number))
+        value.keep = lambda: None
+        return value
+    source._on_frame(frameset(1), 1, token)
+    source.read_color_after(0); source.read_video_bundle_after(0)
+    source._on_frame(frameset(2), 1, token)
+    assert source.color_overwrites == source.video_bundle_overwrites == 0
+    source._on_frame(frameset(3), 1, token)
+    assert source.color_overwrites == source.video_bundle_overwrites == 1
+
+
 def test_single_motion_frames_use_capacity_32_ring():
     source = L515GatewaySource(RS(), mapper_factory=object)
     source._generation = 2; source._stop_event.clear(); token = source._reset_capture(2)

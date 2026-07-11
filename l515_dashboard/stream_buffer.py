@@ -28,6 +28,7 @@ class LatestSlot:
         self._sequence = 0
         self._sample = None
         self._overwrites = 0
+        self._unread = False
 
     @property
     def overwrites(self):
@@ -37,19 +38,22 @@ class LatestSlot:
     def publish(self, sample):
         with self._lock:
             self._sequence += 1
-            if self._sample is not None:
+            if self._unread:
                 self._overwrites += 1
             self._sample = sample
+            self._unread = True
 
     def read_after(self, sequence):
         with self._lock:
             if self._sample is None or self._sequence <= sequence:
                 return self._sequence, None
+            self._unread = False
             return self._sequence, self._sample
 
     def clear(self):
         with self._lock:
             self._sample = None
+            self._unread = False
 
 
 class BoundedRing:

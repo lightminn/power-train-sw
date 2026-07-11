@@ -160,3 +160,67 @@ Final fresh verification:
 git diff --check
 # no output, exit 0
 ```
+
+## Second re-review remediation
+
+The overwrite counter originally incremented whenever a slot already contained any sample. Because
+`read_after()` did not mark that sample consumed, a normal publish → read → publish sequence was
+incorrectly reported as a drop. `LatestSlot` now tracks an explicit unread bit: publish increments
+`overwrites` only when replacing an unread value; a successful read and `clear()` clear the bit.
+Sequence/cursor behavior remains unchanged.
+
+Startup timeout also originally raised directly from `_Worker.start()` without stopping its newly
+created thread. `_Worker.start()` now owns rollback: readiness timeout or immediate startup error
+sets stop, performs the bounded join, and only then raises. `WorkerGroup` registers each worker in
+its rollback list before calling `start()` as a second ownership safeguard. If a worker cannot join,
+`WorkerStopTimeout` still preserves the existing fail-closed Gateway dependency boundary.
+
+RED command and evidence:
+
+```text
+/home/light/anaconda3/bin/python -m pytest -q \
+  l515_dashboard/tests/test_stream_buffer.py \
+  l515_dashboard/tests/test_gateway_source.py \
+  l515_dashboard/tests/test_gateway_workers.py \
+  l515_dashboard/tests/test_gateway.py
+
+3 failed, 47 passed in 3.22s
+- consumed LatestSlot still reported overwrites == 1
+- source/Gateway-facing counters inherited the same false overwrite
+- non-ready worker remained alive after startup timeout
+```
+
+GREEN focused evidence:
+
+```text
+/home/light/anaconda3/bin/python -m pytest -q \
+  l515_dashboard/tests/test_stream_buffer.py \
+  l515_dashboard/tests/test_gateway_source.py \
+  l515_dashboard/tests/test_gateway_workers.py \
+  l515_dashboard/tests/test_gateway.py \
+  l515_dashboard/tests/test_gateway_ros.py
+55 passed in 3.14s
+```
+
+Tests now cover publish/read/publish = zero overwrites, publish/publish-before-read = exactly one,
+exact source and Gateway status counters, a deliberately non-ready live worker leaving no thread,
+and the existing blocked-worker fail-closed SDK/ROS cleanup plus release/retry ordering. Unused
+worker-side mapper-lock constructor plumbing was removed; mapper serialization remains owned and
+tested by `GatewayRosPublisher`.
+
+Final fresh re-review verification:
+
+```text
+/home/light/anaconda3/bin/python -m pytest -q \
+  l515_dashboard/tests/test_gateway_source.py \
+  l515_dashboard/tests/test_gateway_workers.py \
+  l515_dashboard/tests/test_gateway.py \
+  l515_dashboard/tests/test_gateway_ros.py
+49 passed in 3.09s
+
+/home/light/anaconda3/bin/python -m pytest -q l515_dashboard/tests
+220 passed in 7.86s
+
+git diff --check
+# no output, exit 0
+```

@@ -23,6 +23,18 @@ def test_latest_slot_returns_no_sample_when_cursor_is_current_and_can_clear():
     assert slot.read_after(0) == (sequence, None)
 
 
+def test_latest_slot_counts_only_replacement_of_unread_sample():
+    slot = LatestSlot()
+    slot.publish(sample(1)); sequence, _ = slot.read_after(0)
+    slot.publish(sample(2))
+    assert slot.overwrites == 0
+    slot.publish(sample(3))
+    assert slot.overwrites == 1
+    slot.read_after(sequence)
+    slot.publish(sample(4))
+    assert slot.overwrites == 1
+
+
 def test_ring_drops_oldest_and_reports_drop_count():
     ring = BoundedRing(capacity=4)
     for number in range(10):

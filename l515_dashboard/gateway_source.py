@@ -112,7 +112,6 @@ class L515GatewaySource:
             self._rs.stream.gyro: BoundedRing(32),
         }
         self._video_bundles = LatestSlot()
-        self._mapper_lock = threading.Lock()
         self._capture_lock = threading.Lock()
         self._capture_generation = None
         self._capture_token = None
@@ -274,10 +273,6 @@ class L515GatewaySource:
     @property
     def color_overwrites(self):
         return self._buffers[self._rs.stream.color].overwrites
-
-    @property
-    def mapper_lock(self):
-        return self._mapper_lock
 
     def capture_identity(self):
         with self._capture_lock:

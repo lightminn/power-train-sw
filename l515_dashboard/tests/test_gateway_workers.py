@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from l515_dashboard.gateway_workers import (
-    ColorWorker, DepthWorker, ImuWorker, WorkerGroup, WorkerStopTimeout,
+    ColorWorker, DepthWorker, ImuWorker, WorkerGroup, WorkerStopTimeout, _Worker,
 )
 from l515_dashboard.gateway_source import VideoBundle
 from l515_dashboard.stream_buffer import BoundedRing, LatestSlot, StreamSample
@@ -139,6 +139,19 @@ def test_immediate_worker_thread_failure_is_reported_by_start_barrier():
                          fatal=lambda exc: None, stop_timeout=.05)
     with __import__('pytest').raises(RuntimeError, match="reader died"):
         worker.start()
+
+
+def test_nonready_worker_timeout_stops_and_joins_its_thread():
+    class NeverReady(_Worker):
+        def __init__(self): super().__init__(name="never-ready", fatal=lambda exc: None,
+                                             stop_timeout=.03)
+        def _on_start(self):
+            while not self._stop_event.wait(.001): pass
+        def _run(self): return None
+    worker = NeverReady()
+    with __import__('pytest').raises(RuntimeError, match="did not become ready"):
+        worker.start()
+    assert not worker.is_alive
 
 
 def test_overrun_waits_a_positive_period_instead_of_catching_up():
