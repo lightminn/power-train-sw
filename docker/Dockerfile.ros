@@ -13,6 +13,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # WP5 구동 연결용 — motor_control(chassis/corner_module)이 python-can 을 씀.
 RUN pip3 install --no-cache-dir python-can pyserial
 
+ARG LIBREALSENSE_TAG=v2.50.0
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake git pkg-config python3-dev \
+        libusb-1.0-0-dev libssl-dev libudev-dev \
+    && git clone --depth 1 --branch ${LIBREALSENSE_TAG} \
+        https://github.com/IntelRealSense/librealsense.git /tmp/librealsense \
+    && cmake -S /tmp/librealsense -B /tmp/librealsense/build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DFORCE_RSUSB_BACKEND=ON \
+        -DBUILD_PYTHON_BINDINGS=ON \
+        -DPYTHON_EXECUTABLE=/usr/bin/python3 \
+        -DBUILD_EXAMPLES=OFF -DBUILD_GRAPHICAL_EXAMPLES=OFF \
+        -DBUILD_UNIT_TESTS=OFF -DBUILD_TOOLS=ON \
+    && cmake --build /tmp/librealsense/build -j2 \
+    && cmake --install /tmp/librealsense/build \
+    && PY_SO=$(find /tmp/librealsense/build -name 'pyrealsense2*.so' -print -quit) \
+    && test -n "$PY_SO" \
+    && cp "$PY_SO" /usr/local/lib/python3.10/dist-packages/ \
+    && ldconfig \
+    && rm -rf /tmp/librealsense /var/lib/apt/lists/*
+
 # 워크스페이스 소스는 compose 로 마운트(../ → /workspace). 빌드는 컨테이너 진입 후:
 #   cd /workspace/ros2 && colcon build && source install/setup.bash
 WORKDIR /workspace/ros2
