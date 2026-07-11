@@ -1,0 +1,7 @@
+l515_camera:
+  ros__parameters:
+    serial: "00000000F0271544"
+    width: 640
+    height: 480
+    fps: 30
+    reconnect_interval: 2.0
