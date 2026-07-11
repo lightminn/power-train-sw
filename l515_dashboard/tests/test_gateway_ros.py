@@ -4,6 +4,7 @@ import numpy as np
 
 from l515_dashboard.gateway_ros import GatewayRosPublisher, TOPIC_SPECS
 from l515_dashboard.gateway_source import GatewayFrames
+from l515_dashboard.stream_buffer import StreamSample
 
 
 class Publisher:
@@ -180,3 +181,19 @@ def test_new_mapper_generation_resets_publisher_dedup():
         topic: publisher.messages for _, topic, _, publisher in node.created
     }
     assert len(messages["/l515/color/image_raw"]) == 2
+
+
+def test_split_publish_methods_preserve_exact_topic_contract():
+    node, mapper = Node(), Mapper()
+    gateway = GatewayRosPublisher(node, now_ns=lambda: 10, dependencies=dependencies())
+    color = StreamSample("color", 1, 1.0, 1,
+                         Video(np.zeros((2, 3, 3), np.uint8), 1))
+    depth = StreamSample("depth", 1, 2.0, 1,
+                         Video(np.zeros((2, 3), np.uint16), 2))
+    gyro = StreamSample("gyro", 1, 3.0, 1, Motion(3, (1, 2, 3)))
+
+    assert gateway.publish_color(color, mapper) == (
+        "/l515/color/image_raw", "/l515/color/camera_info")
+    assert gateway.publish_depth(depth, mapper) == (
+        "/l515/depth/image_rect_raw", "/l515/depth/camera_info")
+    assert gateway.publish_imu("gyro", gyro, mapper) == ("/l515/gyro/sample",)

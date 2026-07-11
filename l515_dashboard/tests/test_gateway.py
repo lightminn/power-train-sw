@@ -26,7 +26,8 @@ class Streamer(Part):
 
 
 def make_gateway(**overrides):
-    parts = dict(guard=Part(), source=Source(), ros=Part(), streamer=Streamer(), server=Part())
+    parts = dict(guard=Part(), source=Source(), ros=Part(), workers=Part(),
+                 streamer=Streamer(), server=Part())
     parts.update(overrides)
     return Gateway(**parts), parts
 
@@ -36,10 +37,10 @@ def test_lifecycle_and_idempotent_cleanup_order():
     class Ordered(Part):
         def __init__(self, name): super().__init__(); self.name=name
         def stop(self): super().stop(); order.append(self.name)
-    parts={name: Ordered(name) for name in ("source","streamer","ros","server","guard")}
+    parts={name: Ordered(name) for name in ("source","workers","streamer","ros","server","guard")}
     gateway=Gateway(**parts); gateway.start(); gateway.shutdown(); gateway.shutdown()
     assert gateway.state is GatewayState.STOPPED
-    assert order == ["streamer", "source", "ros", "server", "guard"]
+    assert order == ["streamer", "workers", "source", "ros", "server", "guard"]
     assert all(part.stopped == 1 for part in parts.values())
 
 
@@ -49,9 +50,9 @@ def test_start_order_acquires_guard_and_binds_server_before_hardware():
         def __init__(self, name): super().__init__(); self.name = name
         def start(self): super().start(); order.append(self.name)
     parts = {name: Ordered(name) for name in
-             ("guard", "server", "source", "ros", "streamer")}
+             ("guard", "server", "source", "ros", "workers", "streamer")}
     gateway = Gateway(**parts); gateway.start(); gateway.shutdown()
-    assert order == ["guard", "server", "source", "ros", "streamer"]
+    assert order == ["guard", "server", "source", "ros", "workers", "streamer"]
 
 
 def test_duplicate_abstract_bind_never_starts_camera_source():
@@ -133,16 +134,13 @@ def test_crashed_streamer_is_reaped_before_replacement_and_at_cleanup():
     assert new.stopped == 1
 
 
-def test_run_once_cannot_overlap_cleanup():
-    entered=threading.Event(); release=threading.Event()
-    class BlockingSource(Source):
-        def poll_latest(self): entered.set(); release.wait(); return SimpleNamespace(empty=True)
-    gateway, parts=make_gateway(source=BlockingSource()); gateway.start()
-    runner=threading.Thread(target=gateway.run_once); runner.start(); assert entered.wait(1)
-    stopper=threading.Thread(target=gateway.shutdown); stopper.start()
-    assert parts["source"].stopped == 0
-    release.set(); runner.join(1); stopper.join(1)
-    assert parts["source"].stopped == 1
+def test_run_once_only_observes_health_and_never_drains_frames():
+    class SourceThatRejectsPolling(Source):
+        def poll_latest(self): raise AssertionError("run_once drained capture")
+    gateway, _=make_gateway(source=SourceThatRejectsPolling()); gateway.start()
+    gateway.run_once()
+    assert gateway.state is GatewayState.RUNNING
+    gateway.shutdown()
 
 
 def test_connecting_is_starting_and_status_contract_is_complete():
@@ -170,9 +168,8 @@ def test_streamer_submit_and_snapshot_exceptions_are_isolated():
     class Frame:
         empty=False; raw_depth=aligned_depth=gyro=accel=None
         raw_color=SimpleNamespace(get_data=lambda: __import__("numpy").zeros((1,1,3),dtype="uint8"), get_timestamp=lambda:1)
-    source=Source(); source.poll_latest=lambda: Frame()
-    ros=Part(); ros.publish=lambda _: ("/l515/color/image_raw",)
-    gateway, parts=make_gateway(source=source,ros=ros,streamer=BadStreamer()); gateway.start(); gateway.run_once()
+    gateway, parts=make_gateway(streamer=BadStreamer()); gateway.start()
+    gateway._submit_color(SimpleNamespace(frame=Frame.raw_color))
     assert gateway.state is GatewayState.DEGRADED and parts["source"].stopped == 0
     assert "submit broke" in gateway.last_error
     gateway.shutdown()

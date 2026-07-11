@@ -9,6 +9,7 @@ from .control_server import DeferredResponse
 from .diagnostics import DiagnosticsTracker
 from .frame_modes import FrameMode
 from .gateway_source import EXPECTED_L515_SERIAL
+from .gateway_workers import WorkerGroup
 
 
 class GatewayState(str, Enum):
@@ -43,16 +44,20 @@ class SystemCollector:
 class Gateway:
     def __init__(self, *, guard, source, ros, streamer=None, server=None,
                  streamer_factory=None, diagnostics=None,
-                 system_collector=None, now_ns=time.time_ns):
+                 system_collector=None, now_ns=time.time_ns, workers=None,
+                 workers_factory=WorkerGroup):
         self.guard = guard
         self.source = source
         self.ros = ros
         self.streamer = streamer
         self.server = server
+        self.workers = workers
+        self._workers_factory = workers_factory
         self.state = GatewayState.STOPPED
         self.last_error = None
         self.fatal_error = None
         self.streaming_enabled = streamer is not None
+        self._stream_active = False
         self._stream_failed = False
         self._stream_error = None
         self._streamer_factory = streamer_factory
@@ -119,7 +124,16 @@ class Gateway:
                 self._start_owned(self.server)
                 self._start_owned(self.source)
                 self._start_owned(self.ros)
-                self._start_owned(self.streamer, optional=True)
+                if self.workers is None:
+                    publisher = getattr(self.ros, "publisher", None) or self.ros
+                    self.workers = self._workers_factory(
+                        source=self.source, ros=publisher, fatal=self.ros_fatal,
+                        published=self._record_worker_published,
+                        color_streamer=self._submit_color,
+                        depth_streamer=self._submit_depth,
+                    )
+                self._start_owned(self.workers)
+                self._stream_active = self._start_owned(self.streamer, optional=True)
                 self._accept_commands = True
                 self.observe()
             except Exception as exc:
@@ -154,7 +168,8 @@ class Gateway:
                           else GatewayState.FAULT)
             streamers = [part for part in reversed(self._streamers)
                          if part in self._owned]
-            others = [part for part in (self.source, self.ros, self.server, self.guard)
+            others = [part for part in (self.workers, self.source, self.ros,
+                                        self.server, self.guard)
                       if part in self._owned]
             plan = streamers + others
             self._owned = [part for part in self._owned if part not in plan]
@@ -171,6 +186,7 @@ class Gateway:
                 if final_state is GatewayState.FAULT:
                     self.fatal_error = self.fatal_error or str(errors[0])
             self._shutdown_done = True
+            self._stream_active = False
             self.state = final_state
             self._lifecycle_operation = None
             self._cleanup_condition.notify_all()
@@ -219,37 +235,36 @@ class Gateway:
             self.state = GatewayState.RUNNING
 
     def run_once(self):
-        """Serialize drain/publish/submit against restart and cleanup."""
-        fatal = None
+        """Observe component health; cadence workers own all frame draining."""
+        self.observe()
+
+    def _record_worker_published(self, sample, published):
+        now = self._now_ns()
         with self._lock:
-            if self.state in (GatewayState.STOPPED, GatewayState.FAULT,
-                              GatewayState.STOPPING):
-                return
-            frames = self.source.poll_latest()
-            if not getattr(frames, "empty", True):
-                try:
-                    published = self.ros.publish(frames) or ()
-                    self._record_published(frames, published)
-                except Exception as exc:
-                    self.last_error = str(exc)
-                    self.fatal_error = self.last_error
-                    fatal = exc
-                if (fatal is None and self.streamer is not None
-                        and self.streaming_enabled):
-                    import numpy as np
-                    try:
-                        if frames.raw_color is not None:
-                            self.streamer.submit_color(
-                                np.asanyarray(frames.raw_color.get_data()))
-                        if frames.aligned_depth is not None:
-                            self.streamer.submit_depth(
-                                np.asanyarray(frames.aligned_depth.get_data()))
-                    except Exception as exc:
-                        self._disable_streamer(exc)
-            if fatal is None:
-                self.observe()
-        if fatal is not None:
-            self._cleanup(GatewayState.FAULT)
+            for topic in published:
+                if topic in self._ros_counts:
+                    self._ros_counts[topic] += 1
+                    self._diagnostics.observe(
+                        topic, int(sample.timestamp_ms * 1_000_000), now)
+
+    def _submit_color(self, sample):
+        if self.streamer is None or not self.streaming_enabled or not self._stream_active:
+            return
+        import numpy as np
+        try:
+            self.streamer.submit_color(np.asanyarray(sample.frame.get_data()))
+        except Exception as exc:
+            with self._lock:
+                self._disable_streamer(exc)
+
+    def _submit_depth(self, aligned):
+        if self.streamer is None or not self.streaming_enabled or not self._stream_active:
+            return
+        try:
+            self.streamer.submit_depth(aligned.array)
+        except Exception as exc:
+            with self._lock:
+                self._disable_streamer(exc)
 
     def _record_published(self, frames, published):
         now = self._now_ns()
@@ -274,6 +289,7 @@ class Gateway:
         self.last_error = message
         self._stream_error = message
         self.streaming_enabled = False
+        self._stream_active = False
         self._stream_failed = True
         try:
             self._stop(self.streamer)
@@ -370,6 +386,7 @@ class Gateway:
                 self.streamer = self._streamer_factory()
                 self._start_owned(self.streamer, optional=False)
                 self.streaming_enabled = True
+                self._stream_active = True
                 self._clear_stream_error()
             except Exception as exc:
                 self._disable_streamer(exc)
@@ -380,6 +397,7 @@ class Gateway:
                 self._disable_streamer(exc)
                 return
             self.streaming_enabled = False
+            self._stream_active = False
             self._clear_stream_error()
 
     def restart_components(self):
@@ -399,6 +417,7 @@ class Gateway:
         failure = None
         try:
             for streamer in streamers:
+                self._stream_active = False
                 try:
                     self._stop(streamer)
                 except Exception as exc:
@@ -407,6 +426,9 @@ class Gateway:
                 if self._restart_cancelled(epoch):
                     return
             # Non-SRT teardown failures are fatal and use common cleanup.
+            self._stop(self.workers)
+            if self._restart_cancelled(epoch):
+                return
             self._stop(self.source)
             if self._restart_cancelled(epoch):
                 return
@@ -422,6 +444,9 @@ class Gateway:
                 self._start_owned(self.ros)
                 if self._restart_cancelled(epoch):
                     return
+                self._start_owned(self.workers)
+                if self._restart_cancelled(epoch):
+                    return
                 if self._streamer_factory is not None:
                     try:
                         self.streamer = self._streamer_factory()
@@ -429,6 +454,7 @@ class Gateway:
                             return
                         self.streaming_enabled = self._start_owned(
                             self.streamer, optional=True)
+                        self._stream_active = self.streaming_enabled
                     except Exception as exc:
                         self._disable_streamer(exc)
                     if self.streaming_enabled:

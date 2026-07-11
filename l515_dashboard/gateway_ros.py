@@ -1,5 +1,6 @@
 """Nonblocking ROS publication adapter for one drained Gateway frameset."""
 
+import threading
 import time
 
 TOPIC_SPECS = (
@@ -66,6 +67,7 @@ class GatewayRosPublisher:
         self._last_timestamps = {}
         self._mapper = None
         self._counts = {topic: 0 for topic in TOPIC_SPECS}
+        self._state_lock = threading.Lock()
 
     @staticmethod
     def _intrinsics(frame):
@@ -73,9 +75,13 @@ class GatewayRosPublisher:
 
     def _stamp(self, frame, mapper, stream_key):
         device_ms = float(frame.get_timestamp())
-        if self._last_timestamps.get(stream_key) == device_ms:
-            return None
-        self._last_timestamps[stream_key] = device_ms
+        with self._state_lock:
+            if mapper is not self._mapper:
+                self._mapper = mapper
+                self._last_timestamps.clear()
+            if self._last_timestamps.get(stream_key) == device_ms:
+                return None
+            self._last_timestamps[stream_key] = device_ms
         return _time_message(
             mapper.map_ms(device_ms, self._now_ns(), stream_key=stream_key),
             self._time_type,
@@ -108,14 +114,28 @@ class GatewayRosPublisher:
         self._counts[topic] += 1
         return (topic,)
 
+    def publish_color(self, sample, mapper):
+        return self._video(sample.frame, mapper, "/l515/color/image_raw",
+                           "/l515/color/camera_info", "bgr8", _COLOR_FRAME)
+
+    def publish_depth(self, sample, mapper):
+        return self._video(sample.frame, mapper, "/l515/depth/image_rect_raw",
+                           "/l515/depth/camera_info", "16UC1", _DEPTH_FRAME)
+
+    def publish_imu(self, stream, sample, mapper):
+        if stream == "gyro":
+            return self._motion(sample.frame, mapper, "/l515/gyro/sample",
+                                "gyro", _GYRO_FRAME)
+        if stream == "accel":
+            return self._motion(sample.frame, mapper, "/l515/accel/sample",
+                                "accel", _ACCEL_FRAME)
+        raise ValueError(f"unsupported IMU stream: {stream}")
+
     def publish(self, frames):
         mapper = frames.mapper
         if mapper is None:
             return ()
         published = []
-        if mapper is not self._mapper:
-            self._mapper = mapper
-            self._last_timestamps.clear()
         if frames.raw_color is not None:
             published.extend(self._video(
                 frames.raw_color,
