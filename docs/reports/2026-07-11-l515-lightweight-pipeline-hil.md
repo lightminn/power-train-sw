@@ -1,7 +1,7 @@
 # L515 경량 파이프라인 단독 HIL 보고서
 
 > 실행일: 2026-07-11 KST  
-> 상태: **COMPLETE — 연결 상태·분리 fail-closed·자동 재연결 HIL 완료**  
+> 상태: **COMPLETE — 연결 상태·분리 fail-closed·자동 재연결 HIL 완료**
 > 실행 commit: `eac10dd76083df3052de0d981b642e0f2a6e7159`
 
 ## 1. 소유권과 격리
