@@ -105,6 +105,8 @@ class L515GatewaySource:
         }
         self._capture_lock = threading.Lock()
         self._capture_generation = None
+        self._capture_token = None
+        self._next_capture_token = 0
         self._last_frame_numbers = {}
         self._mapper = None
         self._poll_sequences = {stream: 0 for stream in self._buffers}
@@ -200,6 +202,8 @@ class L515GatewaySource:
                 cleanup = self._pipeline_cleanup
                 starting = self._starting
                 thread = self._thread
+            # Reject callbacks before asking the native pipeline to stop.
+            self._clear_capture()
             # Never call stop while native start may still be in progress.
             if pipeline is not None and starting is None:
                 self._stop_pipeline_once(pipeline, cleanup)
@@ -249,18 +253,23 @@ class L515GatewaySource:
 
     def _reset_capture(self, generation):
         with self._capture_lock:
+            self._next_capture_token += 1
+            token = self._next_capture_token
             self._capture_generation = generation
+            self._capture_token = token
             self._last_frame_numbers.clear()
             self._mapper = self._mapper_factory()
             for stream, buffer in self._buffers.items():
                 buffer.clear()
                 self._poll_sequences[stream] = 0
+            return token
 
-    def _clear_capture(self, generation=None):
+    def _clear_capture(self, token=None):
         with self._capture_lock:
-            if generation is not None and generation != self._capture_generation:
+            if token is not None and token != self._capture_token:
                 return
             self._capture_generation = None
+            self._capture_token = None
             self._last_frame_numbers.clear()
             self._mapper = None
             for stream, buffer in self._buffers.items():
@@ -290,7 +299,7 @@ class L515GatewaySource:
                 return tuple(frameset[index] for index in range(frameset.size()))
         return (frame,)
 
-    def _on_frame(self, frame, generation):
+    def _on_frame(self, frame, generation, token):
         if not self._is_current(generation):
             return
         for child in self._children(frame):
@@ -301,7 +310,8 @@ class L515GatewaySource:
             number = int(child.get_frame_number())
             with self._capture_lock:
                 if (not self._is_current(generation)
-                        or self._capture_generation != generation):
+                        or self._capture_generation != generation
+                        or self._capture_token != token):
                     return
                 if self._last_frame_numbers.get(stream) == number:
                     continue
@@ -353,6 +363,7 @@ class L515GatewaySource:
     def _run_generation(self, generation):
         while self._is_current(generation):
             pipeline = None
+            capture_token = None
             cleanup = None
             cleanup_done = False
             with self._lifecycle_lock:
@@ -383,10 +394,11 @@ class L515GatewaySource:
                     if not self._is_current(generation):
                         break
                 self._after_pipeline_start_validation()
-                self._reset_capture(generation)
+                capture_token = self._reset_capture(generation)
                 pipeline.start(
                     sdk_config,
-                    lambda frame, current=generation: self._on_frame(frame, current),
+                    lambda frame, current=generation, token=capture_token:
+                        self._on_frame(frame, current, token),
                 )
                 with self._lifecycle_lock:
                     starting = self._starting
@@ -424,12 +436,12 @@ class L515GatewaySource:
                         raise RuntimeError("expected L515 disconnected")
             except Exception:
                 if self._is_current(generation):
-                    self._clear_capture(generation)
+                    self._clear_capture(capture_token)
                     self.connected_serial = None
                     self.connected_profile = None
                     self._set_state(GatewaySourceState.DISCONNECTED)
             finally:
-                self._clear_capture(generation)
+                self._clear_capture(capture_token)
                 if pipeline is not None and not cleanup_done:
                     self._stop_pipeline_once(pipeline, cleanup)
                 with self._lifecycle_lock:

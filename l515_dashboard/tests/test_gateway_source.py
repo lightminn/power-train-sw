@@ -96,9 +96,9 @@ def test_async_start_exact_profiles_and_independent_video_readers():
 
 def test_callback_splits_composite_deduplicates_by_stream_and_frame_number():
     source = L515GatewaySource(RS(), mapper_factory=object)
-    source._generation = 3; source._stop_event.clear(); source._reset_capture(3)
+    source._generation = 3; source._stop_event.clear(); token = source._reset_capture(3)
     color, depth = Frame("color", 7), Frame("depth", 7)
-    source._on_frame(Frameset(color, depth, color), 3)
+    source._on_frame(Frameset(color, depth, color), 3, token)
     assert source.read_color_after(0)[1].frame_number == 7
     assert source.read_depth_after(0)[1].frame_number == 7
     assert color.kept == depth.kept == 1
@@ -106,8 +106,8 @@ def test_callback_splits_composite_deduplicates_by_stream_and_frame_number():
 
 def test_single_motion_frames_use_capacity_32_ring():
     source = L515GatewaySource(RS(), mapper_factory=object)
-    source._generation = 2; source._stop_event.clear(); source._reset_capture(2)
-    for number in range(40): source._on_frame(Frame("gyro", number), 2)
+    source._generation = 2; source._stop_event.clear(); token = source._reset_capture(2)
+    for number in range(40): source._on_frame(Frame("gyro", number), 2, token)
     result = source.read_gyro_after(0, 100)
     assert [sample.frame_number for sample in result.samples] == list(range(8, 40))
     assert source._buffers["gyro"].dropped == 8
@@ -115,9 +115,9 @@ def test_single_motion_frames_use_capacity_32_ring():
 
 def test_poll_latest_is_nonblocking_compatibility_view_over_stream_buffers():
     source = L515GatewaySource(RS(), mapper_factory=object)
-    source._generation = 1; source._stop_event.clear(); source._reset_capture(1)
+    source._generation = 1; source._stop_event.clear(); token = source._reset_capture(1)
     color, accel = Frame("color", 1), Frame("accel", 2)
-    source._on_frame(color, 1); source._on_frame(accel, 1)
+    source._on_frame(color, 1, token); source._on_frame(accel, 1, token)
     result = source.poll_latest()
     assert result.raw_color is color and result.accel is accel and result.mapper is not None
     assert source.poll_latest().empty
@@ -142,6 +142,31 @@ def test_disconnect_invalidates_buffers_mapper_and_reconnects():
     assert source.read_color_after(0)[1] is None and source.poll_latest().mapper is None
     rs.present = True
     assert wait_until(lambda: len(rs.pipelines) == 2 and source.state is GatewaySourceState.STREAMING)
+    source.stop()
+
+
+def test_old_pipeline_callback_cannot_contaminate_reconnected_capture():
+    rs = RS(); config = DashboardConfig(reconnect_interval_s=.01)
+    source = L515GatewaySource(rs, config=config, mapper_factory=object)
+    source.start(); assert wait_until(lambda: source.state is GatewaySourceState.STREAMING)
+    callback1 = rs.pipelines[0].callback
+    rs.present = False
+    assert wait_until(lambda: source.state is GatewaySourceState.DISCONNECTED)
+    rs.present = True
+    assert wait_until(lambda: len(rs.pipelines) == 2
+                      and source.state is GatewaySourceState.STREAMING)
+    callback2 = rs.pipelines[1].callback
+
+    stale_color, stale_gyro = Frame("color", 8), Frame("gyro", 8)
+    callback1(Frameset(stale_color, stale_gyro))
+    assert source.read_color_after(0)[1] is None
+    assert source.read_gyro_after(0, 10).samples == ()
+
+    current_color, current_gyro = Frame("color", 8), Frame("gyro", 8)
+    callback2(Frameset(current_color, current_gyro))
+    assert source.read_color_after(0)[1].frame is current_color
+    assert source.read_gyro_after(0, 10).samples[0].frame is current_gyro
+    assert stale_color.kept == stale_gyro.kept == 0
     source.stop()
 
 
