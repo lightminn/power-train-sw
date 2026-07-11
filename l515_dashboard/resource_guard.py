@@ -93,7 +93,10 @@ class ResourceGuard:
     def acquire(self):
         if self.acquired:
             return
-        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True, mode=0o750)
+        mode = self.lock_path.parent.stat().st_mode & 0o777
+        if mode & 0o027:
+            raise ResourceBusy("resource directory permissions are unsafe")
         identity = self.process_start_identity(self.pid, self.proc_root)
         if identity is None:
             raise RuntimeError("cannot determine owner process start identity")

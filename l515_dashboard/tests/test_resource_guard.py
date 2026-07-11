@@ -119,3 +119,11 @@ def test_stale_reclaim_does_not_remove_replaced_socket(tmp_path):
     guard = ResourceGuard(lock, path); guard.acquire()
     assert path.read_text() == "successor"
     guard.release()
+
+
+def test_new_runtime_directory_is_secure(tmp_path):
+    parent=tmp_path / "runtime"
+    guard=ResourceGuard(parent / "lock", parent / "sock")
+    guard.acquire()
+    assert parent.stat().st_mode & 0o777 in (0o700, 0o750)
+    guard.release()

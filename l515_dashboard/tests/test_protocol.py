@@ -30,3 +30,8 @@ def test_invalid_command_payload_and_oversize_are_rejected():
     with pytest.raises(ProtocolError):
         decode_request(b"{" + b"x" * 100, 32)
 
+
+def test_validation_error_preserves_parsed_request_id():
+    with pytest.raises(ProtocolError) as caught:
+        decode_request(encode_message(request("unknown"), 1024).rstrip(), 1024)
+    assert caught.value.request_id == "r1"

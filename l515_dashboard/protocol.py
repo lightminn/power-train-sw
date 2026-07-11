@@ -7,7 +7,9 @@ COMMANDS = {"get_status", "set_video_mode", "set_streaming", "restart_gateway", 
 
 
 class ProtocolError(ValueError):
-    pass
+    def __init__(self, message, request_id=None):
+        super().__init__(message)
+        self.request_id = request_id
 
 
 def encode_message(message, max_bytes):
@@ -27,23 +29,24 @@ def decode_request(line, max_bytes):
         message = json.loads(line.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ProtocolError("invalid JSON") from exc
+    request_id = message.get("request_id") if isinstance(message, dict) else None
     if not isinstance(message, dict) or set(message) != {"protocol_version", "request_id", "type", "payload"}:
-        raise ProtocolError("invalid envelope")
+        raise ProtocolError("invalid envelope", request_id)
     if message["protocol_version"] != PROTOCOL_VERSION:
-        raise ProtocolError("unsupported protocol version")
+        raise ProtocolError("unsupported protocol version", request_id)
     if not isinstance(message["request_id"], str) or not message["request_id"]:
         raise ProtocolError("request_id must be a non-empty string")
     kind, payload = message["type"], message["payload"]
     if kind not in COMMANDS or not isinstance(payload, dict):
-        raise ProtocolError("invalid command")
+        raise ProtocolError("invalid command", request_id)
     if kind == "get_status" and payload:
-        raise ProtocolError("get_status payload must be empty")
+        raise ProtocolError("get_status payload must be empty", request_id)
     if kind == "set_video_mode" and payload not in ({"mode": "rgb"}, {"mode": "depth"}, {"mode": "overlay"}):
-        raise ProtocolError("invalid video mode")
+        raise ProtocolError("invalid video mode", request_id)
     if kind == "set_streaming" and (set(payload) != {"enabled"} or type(payload["enabled"]) is not bool):
-        raise ProtocolError("enabled must be boolean")
+        raise ProtocolError("enabled must be boolean", request_id)
     if kind in {"restart_gateway", "stop_gateway"} and payload:
-        raise ProtocolError(f"{kind} payload must be empty")
+        raise ProtocolError(f"{kind} payload must be empty", request_id)
     return message
 
 
@@ -51,4 +54,3 @@ def response(request_id, payload=None, *, error=None):
     return {"protocol_version": PROTOCOL_VERSION, "request_id": request_id,
             "type": "error" if error else "response",
             "payload": {"error": error} if error else (payload or {})}
-

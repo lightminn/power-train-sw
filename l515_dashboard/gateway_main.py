@@ -40,7 +40,8 @@ def build_gateway(config=None):
     factory=lambda: SrtStreamer(config)
     gateway=Gateway(guard=guard, source=source, ros=ros, streamer=factory(), streamer_factory=factory)
     gateway.server=UnixControlServer(config.socket_path, gateway.handle_request,
-        max_message_bytes=config.max_message_bytes, on_disconnect=gateway.client_disconnected)
+        max_message_bytes=config.max_message_bytes,
+        on_disconnect=gateway.client_disconnected).require_owner(guard)
     return gateway
 
 
