@@ -180,6 +180,27 @@ def test_crashed_streamer_is_reaped_before_replacement_and_at_cleanup():
     assert new.stopped == 1
 
 
+def test_failed_old_writer_cleanup_prevents_replacement_start():
+    class StuckStreamer(Streamer):
+        def stop(self):
+            self.stopped += 1
+            raise RuntimeError("writer thread did not stop")
+
+    old = StuckStreamer()
+    new = Streamer()
+    gateway, _ = make_gateway(streamer=old)
+    gateway._streamer_factory = lambda: new
+    gateway.start()
+    gateway.streaming_enabled = False
+
+    gateway._set_streaming(True)
+
+    assert gateway.streamer is old
+    assert new.started == 0
+    assert gateway.streaming_enabled is False
+    assert gateway.state is GatewayState.DEGRADED
+
+
 def test_run_once_only_observes_health_and_never_drains_frames():
     class SourceThatRejectsPolling(Source):
         def poll_latest(self): raise AssertionError("run_once drained capture")

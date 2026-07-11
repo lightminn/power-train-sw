@@ -11,12 +11,16 @@ from l515_dashboard.streamer import SrtStreamer
 
 
 class FakeStdin:
-    def __init__(self, error=None, entered=None, release=None):
+    def __init__(self, error=None, entered=None, release=None,
+                 write_results=None, release_on_close=False):
         self.error = error
         self.entered = entered
         self.release = release
         self.writes = []
+        self.accepted = bytearray()
         self.close_calls = 0
+        self.write_results = list(write_results or [])
+        self.release_on_close = release_on_close
 
     def write(self, data):
         if self.entered is not None:
@@ -25,11 +29,17 @@ class FakeStdin:
             assert self.release.wait(1.0)
         if self.error is not None:
             raise self.error
-        self.writes.append(data)
-        return len(data)
+        result = self.write_results.pop(0) if self.write_results else len(data)
+        if isinstance(result, int) and 0 < result <= len(data):
+            accepted = bytes(data[:result])
+            self.writes.append(accepted)
+            self.accepted.extend(accepted)
+        return result
 
     def close(self):
         self.close_calls += 1
+        if self.release_on_close and self.release is not None:
+            self.release.set()
 
 
 class FakeProcess:
@@ -204,6 +214,54 @@ def test_broken_pipe_records_error_and_stops_worker():
     streamer.stop()
 
 
+def test_arbitrary_writer_exception_fails_stream_without_counting_sent():
+    process = FakeProcess(FakeStdin(error=ValueError("bad writer")))
+    streamer = SrtStreamer(DashboardConfig(), popen=FakePopen(process))
+    streamer.start()
+    streamer.submit_color(
+        np.zeros((720, 1280, 3), np.uint8), timestamp_ns=0
+    )
+
+    wait_until(lambda: not streamer.snapshot().running)
+    assert streamer.snapshot().sent == 0
+    assert "ValueError: bad writer" in streamer.snapshot().last_error
+    streamer.stop()
+
+
+def test_short_writes_complete_exactly_one_frame_before_next_frame():
+    stdin = FakeStdin(write_results=[7, 13])
+    process = FakeProcess(stdin)
+    streamer = SrtStreamer(DashboardConfig(), popen=FakePopen(process))
+    first = np.full((720, 1280, 3), 4, np.uint8)
+    second = np.full((720, 1280, 3), 5, np.uint8)
+    streamer.start()
+
+    streamer.submit_color(first, timestamp_ns=0)
+    wait_until(lambda: streamer.snapshot().sent == 1)
+    streamer.submit_color(second, timestamp_ns=33_333_333)
+    wait_until(lambda: streamer.snapshot().sent == 2)
+
+    assert bytes(stdin.accepted) == first.tobytes() + second.tobytes()
+    assert streamer.snapshot().dropped == 0
+    streamer.stop()
+
+
+@pytest.mark.parametrize("result", [0, None, -1, 2_764_801, "bad"])
+def test_invalid_write_count_fails_stream_without_counting_sent(result):
+    process = FakeProcess(FakeStdin(write_results=[result]))
+    streamer = SrtStreamer(DashboardConfig(), popen=FakePopen(process))
+    streamer.start()
+    streamer.submit_color(
+        np.zeros((720, 1280, 3), np.uint8), timestamp_ns=0
+    )
+
+    wait_until(lambda: not streamer.snapshot().running)
+    snapshot = streamer.snapshot()
+    assert snapshot.sent == 0
+    assert "write returned" in snapshot.last_error
+    streamer.stop()
+
+
 def test_unexpected_child_exit_records_error_and_stops_worker():
     process = FakeProcess()
     streamer = SrtStreamer(DashboardConfig(), popen=FakePopen(process))
@@ -287,13 +345,14 @@ def test_inflight_write_cannot_increment_sent_after_stop_returns():
     assert after.sent == 0
 
 
-def test_blocked_write_failure_after_stop_cannot_mutate_snapshot():
+def test_child_cleanup_unblocks_writer_and_stop_returns_only_after_join():
     entered, release = threading.Event(), threading.Event()
     process = FakeProcess(
         FakeStdin(
             error=BrokenPipeError("late failure"),
             entered=entered,
             release=release,
+            release_on_close=True,
         )
     )
     streamer = SrtStreamer(
@@ -305,10 +364,34 @@ def test_blocked_write_failure_after_stop_cannot_mutate_snapshot():
 
     streamer.stop()
     stopped = streamer.snapshot()
+
+    assert not streamer._thread.is_alive()
+    assert streamer.snapshot() == stopped
+
+
+def test_uncooperative_writer_makes_cleanup_fail_without_false_success():
+    entered, release = threading.Event(), threading.Event()
+    process = FakeProcess(FakeStdin(entered=entered, release=release))
+    streamer = SrtStreamer(
+        DashboardConfig(graceful_timeout_s=0.01, termination_timeout_s=0.01),
+        popen=FakePopen(process),
+    )
+    streamer.start()
+    streamer.submit_color(
+        np.zeros((720, 1280, 3), np.uint8), timestamp_ns=0
+    )
+    assert entered.wait(1)
+
+    with pytest.raises(RuntimeError, match="writer thread did not stop"):
+        streamer.stop()
+
+    assert streamer._thread.is_alive()
+    assert streamer._cleanup_done is False
+    assert streamer._cleanup_in_progress is False
     release.set()
     wait_until(lambda: not streamer._thread.is_alive())
-
-    assert streamer.snapshot() == stopped
+    streamer.stop()
+    assert streamer._cleanup_done is True
 
 
 def test_set_mode_after_stop_is_a_snapshot_preserving_noop():

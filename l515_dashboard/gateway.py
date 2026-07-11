@@ -406,6 +406,9 @@ class Gateway:
                 self._stop(self.streamer)
             except Exception as exc:
                 self._disable_streamer(exc)
+                # Never overlap a replacement with an old writer whose
+                # cleanup could not prove termination.
+                return
             if self._streamer_factory is None:
                 raise RuntimeError("streamer cannot be restarted")
             try:

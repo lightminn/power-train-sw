@@ -48,6 +48,8 @@ class SrtStreamer:
         self._stopped = False
         self._cleanup_in_progress = False
         self._cleanup_done = False
+        self._stdin_closed = False
+        self._process_reaped = False
         self._generation = 0
         self._pending = False
         self._pending_timestamp_ns: Optional[int] = None
@@ -152,12 +154,14 @@ class SrtStreamer:
             if frame is None:
                 continue
             try:
-                # A single, frame-sized write is the only in-flight work. No
-                # partial retry can replay stale frame bytes.
-                process.stdin.write(frame.tobytes())
-            except (BrokenPipeError, OSError) as exc:
+                completed = self._write_all(
+                    process.stdin, memoryview(frame).cast("B"), generation
+                )
+            except Exception as exc:
                 with self._condition:
                     self._fail(f"{type(exc).__name__}: {exc}", generation)
+                return
+            if not completed:
                 return
             with self._condition:
                 if self._running and generation == self._generation:
@@ -165,6 +169,28 @@ class SrtStreamer:
                     if self._first_sent_timestamp_ns is None:
                         self._first_sent_timestamp_ns = timestamp_ns
                     self._last_sent_timestamp_ns = timestamp_ns
+
+    def _write_all(self, stream, data: memoryview, generation: int) -> bool:
+        """Write one complete frame without allowing replay or interleaving."""
+        offset = 0
+        while offset < len(data):
+            with self._condition:
+                if not self._running or generation != self._generation:
+                    return False
+            remaining = data[offset:]
+            written = stream.write(remaining)
+            if (
+                isinstance(written, bool)
+                or not isinstance(written, int)
+                or written <= 0
+                or written > len(remaining)
+            ):
+                raise RuntimeError(
+                    f"write returned invalid byte count {written!r} "
+                    f"for {len(remaining)} remaining bytes"
+                )
+            offset += written
+        return True
 
     def _fail(self, message: str, generation: int) -> None:
         if self._stopped or generation != self._generation:
@@ -175,10 +201,9 @@ class SrtStreamer:
 
     def stop(self) -> None:
         with self._condition:
+            while self._cleanup_in_progress:
+                self._condition.wait()
             if self._cleanup_done:
-                return
-            if self._cleanup_in_progress:
-                self._condition.wait_for(lambda: self._cleanup_done)
                 return
             self._cleanup_in_progress = True
             self._stopped = True
@@ -190,31 +215,50 @@ class SrtStreamer:
             thread = self._thread
             self._condition.notify_all()
 
+        cleanup_error = None
         try:
             if process is not None:
                 if thread is not None and thread is not current_thread():
                     thread.join(timeout=self._config.graceful_timeout_s)
                 self._reap(process)
+                if thread is not None and thread is not current_thread():
+                    thread.join(timeout=self._config.termination_timeout_s)
+                    if thread.is_alive():
+                        raise RuntimeError(
+                            "SRT writer thread did not stop after child cleanup"
+                        )
+        except Exception as exc:
+            cleanup_error = exc
+            raise
         finally:
             with self._condition:
-                self._cleanup_done = True
+                if cleanup_error is None:
+                    self._cleanup_done = True
+                else:
+                    self._last_error = str(cleanup_error)
                 self._cleanup_in_progress = False
                 self._condition.notify_all()
 
     def _reap(self, process, *, close_stdin=True):
-        if close_stdin and process.stdin is not None:
+        if close_stdin and process.stdin is not None and not self._stdin_closed:
+            self._stdin_closed = True
             process.stdin.close()
+        if self._process_reaped:
+            return
         try:
             process.wait(timeout=self._config.graceful_timeout_s)
+            self._process_reaped = True
             return
         except subprocess.TimeoutExpired:
             process.terminate()
         try:
             process.wait(timeout=self._config.termination_timeout_s)
+            self._process_reaped = True
             return
         except subprocess.TimeoutExpired:
             process.kill()
         process.wait()
+        self._process_reaped = True
 
     def snapshot(self) -> StreamerSnapshot:
         with self._condition:

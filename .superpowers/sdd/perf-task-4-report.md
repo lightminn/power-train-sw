@@ -84,3 +84,37 @@ Task 4/L515 suite.
 No hardware/HIL was authorized. Actual Orin x264 throughput and SRT receiver
 behavior remain deployment/HIL verification items; software behavior is covered
 by fake-child and lifecycle tests.
+
+## Review remediation — short writes and writer termination
+
+Review found two important lifecycle gaps after `82dae42`.
+
+### RED
+
+Added regressions for short-count writes, zero/`None`/negative/oversized/non-int
+counts, arbitrary writer exceptions, cooperative close-unblock, an uncooperative
+writer, and replacement suppression while an old writer is not proven dead.
+
+Focused streamer RED observed `8 failed, 16 passed`: short writes mixed the next
+frame after an incomplete first frame, invalid counts were treated as successful,
+and `stop()` returned with a live writer. The isolated Gateway replacement RED
+observed `1 failed, 21 deselected`: a new streamer was started after old-writer
+cleanup raised.
+
+### GREEN
+
+- `_write_all` now owns one `memoryview` until every byte is accepted. It checks
+  every count, aborts on stop/generation cancellation, and never increments
+  `sent` for incomplete or failed frames.
+- All writer exceptions are converted into streamer-local failure state.
+- `stop()` closes stdin/reaps the child, then performs a bounded second join. A
+  live writer raises an explicit timeout, records the cleanup error, leaves
+  `_cleanup_done` false, and permits a later cleanup retry.
+- Concurrent cleanup callers wait for the current attempt, then retry only when
+  the prior attempt did not complete.
+- Gateway replacement returns immediately when old-streamer cleanup fails, so
+  no new writer can overlap it.
+
+Focused streamer plus Gateway result: `46 passed in 0.68s` before the additional
+generic-exception regression. Final full L515 verification result: `243 passed
+in 7.96s`. `git diff --check` was clean.
