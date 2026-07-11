@@ -1,7 +1,7 @@
 # L515 Gateway·TUI 원격주행 설계
 
 > 작성일: 2026-07-11 KST
-> 상태: Gateway 구조 승인
+> 상태: 비동기 캡처·Jetson 하드웨어 인코딩 개정안 승인
 > 선행 작업: `2026-07-11-l515-lightweight-pipeline-design.md`
 
 ## 1. 목적과 범위
@@ -15,9 +15,12 @@ socket으로 상태를 표시하고 제어 명령만 전달한다.
 
 - `l515_gateway`가 `pyrealsense2 2.50.0`과 L515 serial `00000000F0271544`를 단독 점유한다.
 - Gateway가 기존 자율주행용 ROS 6개 토픽을 발행하므로 새 정합 토픽은 추가하지 않는다.
-- RGB 1280×720×30, raw depth 640×480×30, accel/gyro를 수집한다.
+- RGB 1280×720×30, raw depth 640×480×30, accel/gyro를 SDK 비동기 callback으로 수집한다.
+- ROS color와 SRT RGB 출력은 서로 독립적으로 실측 30 Hz를 유지한다.
+- Depth 정합·ROS 발행은 10 Hz, IMU ROS 발행은 stream별 최대 100 Hz로 제한한다.
 - SDK 내부 정합 결과는 Gateway 내부 SRT 합성에만 사용한다.
-- SRT 출력은 모든 모드에서 1280×720×30으로 고정해 GStreamer를 재시작하지 않는다.
+- SRT 출력은 NVIDIA 하드웨어 H.264 인코더로 모든 모드에서 1280×720×30으로 고정해
+  GStreamer를 재시작하지 않는다. CPU x264 자동 fallback은 금지한다.
 - Dashboard/SSH가 종료돼도 Gateway와 원격주행 영상은 계속 동작한다.
 - Gateway는 관리되는 서비스이며 system-wide singleton이다. Dashboard는 카메라를 열지 않는다.
 
@@ -28,11 +31,11 @@ socket으로 상태를 표시하고 제어 명령만 전달한다.
 ### 2.1 `l515_gateway`
 
 - L515 SDK pipeline 하나 소유
-- color/depth/IMU 수집과 timestamp 관리
+- color/depth/IMU 비동기 callback 수집과 stream별 timestamp/frame-number 관리
 - 기존 ROS 6개 토픽 발행
 - `rs.align(rs.stream.color)` 기반 depth→RGB 정합
 - RGB, 정합 Depth, 반투명 오버레이 생성
-- GStreamer H.264/MPEG-TS/SRT 송신
+- GStreamer NVIDIA H.264/MPEG-TS/SRT 송신
 - Unix socket 상태·명령 서버
 - USB 분리 시 재연결과 stale frame 억제
 
@@ -89,10 +92,16 @@ Color CameraInfo는 1280×720, raw Depth CameraInfo는 640×480이다. PointClou
 IR, confidence 토픽은 발행하지 않는다. 기존 소비자가 640×480 color를 가정한 경우 WP6/WP7
 착수 전에 새 명시적 color 계약으로 변경한다.
 
+ROS color image/CameraInfo는 실측 30 Hz가 필수다. Raw Depth image/CameraInfo는 최신 native
+frame을 10 Hz로 발행한다. Accel/Gyro callback은 장치 native frame-number를 보존하되 ROS 발행은
+각각 최대 100 Hz의 bounded queue로 제한한다. 느린 소비자 때문에 RGB capture를 block하지 않는다.
+
 ### 3.3 내부 정합과 SRT
 
-SDK frameset을 한 소유자 안에서 `rs.align(color)`로 처리한다. raw depth는 기존 ROS 출력에
-사용하고 aligned depth는 ROS에 내보내지 않고 영상 합성 worker에만 넘긴다.
+SDK callback은 color, depth, accel, gyro를 stream별로 즉시 분리하며 callback 안에서는 배열 복사와
+bounded handoff 외의 정합·ROS·인코딩 작업을 하지 않는다. Alignment worker가 최신 color/depth 쌍을
+최대 10 Hz로 `rs.align(color)` 처리한다. raw depth는 기존 ROS 출력에 사용하고 aligned depth는
+ROS에 내보내지 않고 영상 합성 worker에만 넘긴다.
 
 SRT canvas는 항상 1280×720 BGR8이다.
 
@@ -102,8 +111,9 @@ SRT canvas는 항상 1280×720 BGR8이다.
 | `2` | RGB 좌표계에 정합된 Depth 컬러맵 |
 | `3` | RGB + 정합 Depth 반투명 오버레이 |
 
-모드 전환은 다음 출력 프레임부터 적용하며 SDK/GStreamer/ROS 프로세스를 재시작하지 않는다.
-Depth가 없으면 모드 2·3의 송신을 중단하고 마지막 프레임을 반복하지 않는다.
+모드 전환은 다음 RGB 출력 프레임부터 적용하며 SDK/GStreamer/ROS 프로세스를 재시작하지 않는다.
+모드 2·3은 최신 aligned depth를 여러 RGB frame에서 재사용해 SRT 30 fps를 유지한다. 다만 aligned
+depth age가 250 ms를 초과하면 stale frame 반복 대신 송신을 중단하고 `DEGRADED`로 전이한다.
 
 ## 4. Gateway 내부 구조
 
@@ -113,14 +123,19 @@ Depth가 없으면 모드 2·3의 송신을 중단하고 마지막 프레임을 
 | `gateway.py` | lifecycle, SDK reconnect, 상태 전이 |
 | `ros_publisher.py` | 기존 6개 토픽 변환·발행 |
 | `alignment.py` | SDK color alignment와 Depth 컬러맵/overlay |
-| `streamer.py` | 고정 1280×720 GStreamer/SRT worker |
+| `streamer.py` | 고정 1280×720 NVIDIA H.264 GStreamer/SRT worker |
 | `protocol.py` | versioned JSON command/status schema |
 | `control_server.py` | Unix socket server와 client별 backpressure |
 | `app.py` | Textual Dashboard client |
 
-SDK worker는 최신 frameset 하나만 전달한다. ROS publisher와 SRT worker는 각자 bounded
-latest-one-slot을 소비하며 서로를 block하지 않는다. 오래된 영상, SDK frame, status message를
-무한히 쌓지 않는다.
+SDK callback은 stream별 bounded slot/ring을 사용한다. RGB latest slot은 ROS color publisher와
+SRT compositor가 독립 cursor로 소비한다. Depth/alignment와 IMU publisher도 별도 worker이며 서로를
+block하지 않는다. 오래된 영상, SDK frame, IMU sample, status message를 무한히 쌓지 않는다.
+
+SRT child는 Jetson의 `nvv4l2h264enc`와 필요한 NVIDIA color-conversion/upload 요소를 사용한다.
+Gateway startup preflight는 encoder factory와 실제 READY 전환을 검증한다. 하드웨어 encoder가
+없거나 초기화되지 않으면 CPU `x264enc`로 조용히 대체하지 않고 SRT를 `DEGRADED`로 둔다. ROS와
+SDK capture는 계속 동작하며 오류에는 누락된 plugin/device가 명시된다.
 
 ## 5. Unix socket 프로토콜
 
@@ -148,7 +163,8 @@ Gateway 상태는 `STARTING`, `RUNNING`, `DEGRADED`, `STOPPING`, `STOPPED`, `FAU
 
 - L515 분리: `DEGRADED`, ROS/SRT stale replay 중단, 2초 간격 exact-serial 재탐색
 - L515 복구: 새 세션 timestamp/dedup 상태 초기화 뒤 ROS·SRT 자동 재개
-- GStreamer crash: sensor/ROS는 유지하고 streaming을 off, 상태 `DEGRADED`; 명시적 재시작 가능
+- GStreamer/NVIDIA encoder crash: sensor/ROS는 유지하고 streaming을 off, 상태 `DEGRADED`;
+  같은 Gateway 안에서 명시적 재시작 가능
 - ROS publisher 오류: Gateway `FAULT` 후 전체 종료
 - SDK unrecoverable 오류: `FAULT` 후 전체 종료
 - Dashboard crash/disconnect: Gateway 상태 불변
@@ -174,13 +190,25 @@ command accept gate가 상태 변경 명령을 거부하며, 모든 component가
 
 ## 8. 테스트와 HIL
 
+### 8.1 2026-07-12 성능 개정 근거
+
+Jetson/L515 실측에서 all-stream SDK async callback은 color 30.04 Hz, depth 30.00 Hz,
+accel 201.83 Hz, gyro 200.00 Hz와 내부 frame-number 누락 0을 기록했다. 반면 기존
+`wait_for_frames()` Gateway는 SRT off 20.93 Hz였고 CPU `x264enc` SRT를 켜면 12.10 Hz로
+하락했다. 따라서 장치나 USB가 아니라 동기 frameset polling과 CPU encoding이 병목이며,
+본 개정안의 async stream 분리와 NVIDIA hardware encoding은 선택 최적화가 아니라 30 fps
+계약의 필수 조건이다.
+
+### 8.2 검증 항목
+
 자동시험:
 
 - singleton 두 contender, persistent stale file, release/reacquire, symlink 거부
-- SDK frameset 분배와 bounded latest slots
+- SDK async callback의 stream별 분배, frame-number dedup, bounded slot/ring과 느린 소비자 격리
+- RGB ROS/SRT 독립 cursor와 depth 10 Hz, IMU 최대 100 Hz cadence
 - 1280×720 RGB, aligned Depth, overlay 결과
 - 6개 ROS 토픽 profile·timestamp 계약
-- 고정 1280×720 GStreamer argv와 세 모드 무재시작 전환
+- `nvv4l2h264enc` 필수 preflight, CPU fallback 금지, 고정 1280×720 argv와 세 모드 무재시작 전환
 - abstract socket framing, SO_PEERCRED UID 권한, version, 명령 직렬화, 과대·오염 입력
 - Dashboard 접속·재접속·종료 독립성
 - USB 분리·복구와 stale frame 0
@@ -189,7 +217,8 @@ command accept gate가 상태 변경 명령을 거부하며, 모든 component가
 Jetson HIL:
 
 1. Gateway 단독 실행과 Dashboard 접속·재접속
-2. 기존 6개 ROS 토픽과 SRT 1280×720×30 동시 측정
+2. 기존 6개 ROS 토픽과 SRT 동시 측정: ROS color 30 Hz, SRT 1280×720×30,
+   Depth 10 Hz, IMU 최대 100 Hz
 3. RGB/Depth/overlay 전환 시 Gateway/GStreamer PID 유지
 4. Dashboard/SSH 강제 종료 뒤 ROS·SRT 지속
 5. 사용자 승인 후 L515 분리·복구
@@ -201,6 +230,8 @@ Jetson HIL:
 
 - L515 system-wide owner가 Gateway 하나뿐이다.
 - 자율주행 ROS 6개 토픽과 원격주행 SRT가 동시에 동작한다.
+- ROS color와 SRT receiver가 각각 안정 구간 실측 29.0 Hz 이상이며 profile/caps는 30 fps다.
+- SRT가 NVIDIA 하드웨어 encoder를 사용하고 CPU x264 fallback이 없다.
 - 새 aligned depth ROS 토픽 없이 세 영상 모드를 무재시작 전환한다.
 - Dashboard/SSH 종료가 Gateway, ROS, SRT를 끊지 않는다.
 - USB 분리·재연결 때 stale frame이나 D435i fallback이 없다.
