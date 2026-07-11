@@ -5,20 +5,17 @@
 > 방침: **로봇팔 팀이 확정한 인터페이스(메시지 5종)에 우리가 맞춘다.**
 > 이 문서는 "무엇을, 어떤 도구로, 어떤 파일에, 어떻게 테스트하는지"까지 내려간 실행 계획이다.
 >
-> **📌 WP5.1 최신 상태 (2026-07-10): Tasks 1~8 소프트웨어 완료, 최종 실기 HIL 미실행.** 아래
+> **📌 WP5.1 최신 상태 (2026-07-11): 부분 실기 HIL 완료, ODrive 13·14 부재로 NO-GO.** 아래
 > 2026-07-07 WP5 `/cmd_vel → 10모터` HIL은 기존 차체 경로의 유효한 이력이다. 이후 추가한
 > 순수 Python 안전 코어·비블로킹 50 Hz 제어·별도 US-100 ROS 노드·`/safety_verdict`·
-> `/wheel_states` 경로는 배포 HEAD `c3610c136357a8c881263926ec18bcd7e3432a5d`에서
-> `motor_control` 189 passed, `motor_gui` 91 passed, 격리 read-only ROS 3패키지 clean build와
-> `powertrain_ros` 31/31, Jetson 동일 HEAD의 3패키지 build와 `powertrain_ros` 31/31까지 통과했다.
-> 별도 commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`에서 Jetson software-only FAKE
-> acceptance를 통과했다(60초 3000 samples, mean/min-5s 50.000 Hz, tick p99 0.280 ms,
-> overrun 0, max interval 21.453 ms, publisher-death E-stop 0.753 s). Startup `ESTOP`, far
-> `ARMED/RUN`, near `ESTOP`, far-return latch, reset→`IDLE`·no implicit arm, separate arm도
-> 확인했다. FAKE는 실기 HIL이 아니며 아홉 실기 시나리오는 아직 실행하지 않았다.
+> `/wheel_states` 경로는 실행 HEAD `ec452f6474b6fc57437d576298f2bc954649be42`에서
+> `motor_control` 198 passed, `motor_gui` 91 passed, Jetson `powertrain_ros` 32/32를 통과했다.
+> 실제 US-100 near·전원분리·재연결 latch와 present 8모터 fail-safe, 60초 50 Hz는 통과했다.
+> `INVALID_READING`, ODrive 13·14를 포함한 완전한 10모터, Phase B와 생산 `stop_mm`은 미검증이다.
 > 상태·증거는 HIL 보고서에 기록한다.
 >
-> **WP5.1 HIL 뒤 작업 순서**: command authority spec → L515 경량 color image + depth image +
+> **재검증/개발 순서**: ODrive 13·14 설치 뒤 10모터 HIL·Phase B → command authority spec →
+> L515 경량 color image + depth image +
 > IMU 파이프라인(PointCloud2는 필요할 때만 선택) → WP6 오도메트리. WP8 미션 시퀀서와
 > `MISSION_STOP`·락 해제 순서·`ARRIVED_* → 팔 작업 → DONE → 재출발` 합동 1사이클은
 > 별도 미결 작업으로 유지한다.

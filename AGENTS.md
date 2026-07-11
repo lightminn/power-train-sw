@@ -7,6 +7,22 @@ Reconciled with repository, Jetson, and Notion state: `2026-07-10T19:34+09:00`
 
 These notes were migrated from Claude Code project memory. Treat them as durable project context unless the user gives newer instructions.
 
+## CURRENT STATE OVERRIDE — 2026-07-11 WP5.1 HIL
+
+- WP5.1 real HIL is **PARTIAL / final NO-GO**. ODrive nodes 13 and 14 were physically absent.
+  Do not claim 10-motor completion or run the 50 kg ground-braking phase until they are installed.
+- Real CAN at 500 kbps saw AK 1~4 and ODrive 11,12,15,16 with zero CAN error/passive/bus-off
+  delta. Present ODrives calibrated 4/4; absent nodes correctly forced a latched E-stop.
+- Real US-100 passed far (2433~2469 mm), near (75~96 mm → E-stop), power-loss
+  (`NO_RESPONSE` → E-stop), reconnect-with-latch, reset-to-IDLE, and separate-arm checks.
+  `INVALID_READING` remains untested because a reliable no-reflection condition was unavailable.
+- Corrected real 60 s chassis telemetry was 3000 samples, exactly 50.000 Hz, every complete 5 s
+  window 49.8~50.2 Hz, overrun 0, and CAN errors 0. HIL ended with all control processes stopped,
+  watchdog stopped, and can0 DOWN/STOPPED.
+- HIL fixes through `ec452f6474b6fc57437d576298f2bc954649be42`: wait for configured CAN before watchdog
+  recovery, typed launch `stop_mm` double coercion, nonblocking AK E-stop, and ODrive heartbeat
+  drain before stale evaluation. Continue from the HIL report, not the older NOT RUN text below.
+
 ## CURRENT STATE OVERRIDE — 2026-07-10 WP5.1
 
 This WP5.1 override is newer than the 2026-07-10 audit override and every migrated memory entry

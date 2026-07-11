@@ -1,16 +1,29 @@
 # WP5.1 차체 제어·안전 HIL 검증 보고서
 
-> **상태: NOT RUN — 최종 실기 HIL 미실행**
+> **상태: PARTIAL HIL / NO-GO — ODrive node 13·14 부재**
 >
-> 작성 기준일: 2026-07-10 KST
+> 작성 기준일: 2026-07-11 KST
 > 범위: 파워트레인 SW의 50 Hz 차체 제어, US-100 안전 경로, 10모터 단일 CAN, ROS 계약
 > 소프트웨어 상태: **Tasks 1~8 완료**
-> 현재 증거: 배포 HEAD `c3610c136357a8c881263926ec18bcd7e3432a5d`에서 로컬
-> `motor_control` 189 passed, `motor_gui` 91 passed, 격리 read-only ROS 3패키지 clean build와
-> `powertrain_ros` 31/31, Jetson 동일 HEAD의 3패키지 build와 31/31 passed. 별도 commit
-> `49831bb42058a177ed9c41d72d0273f4f0a8f535`의 Jetson software-only FAKE acceptance도 PASS.
-> FAKE는 실기 HIL이 아니며 Jetson/10모터/US-100 실물 측정값은 없음.
-> 판정: **PENDING**. 아래 체크와 측정란을 실제 관찰로 채우기 전 HIL 통과를 주장하지 않는다.
+> 실행 HEAD `ec452f6474b6fc57437d576298f2bc954649be42`. 실제 Jetson·CAN·US-100 HIL을
+> 수행했으나 ODrive node 13·14가 물리적으로 부재해 10모터 완전체와 Phase B 지상 제동은
+> 실행하지 않았다. present ODrive 11·12·15·16은 CAN 캘리브레이션 4/4 성공했고 AK 1~4와
+> 함께 수동 heartbeat가 확인됐다. 최종 판정은 **NO-GO**이며 13·14 설치 뒤 재검증해야 한다.
+
+### 2026-07-11 실행 요약
+
+- CAN: 500 kbps, AK 1~4 약 50 Hz, ODrive heartbeat 11·12·15·16 확인, 13·14 미검출.
+- ODrive: present 4축 캘리브레이션 4/4 성공; 건강판정은 present 4축 정상, absent 2축 stale.
+- fail-safe: absent 13·14로 전체 섀시가 latched `ESTOP`; CAN error/passive/bus-off delta 0.
+- 실제 US-100: 원거리 2433~2469 mm `VALID`; 근거리 75~96 mm `too_close`→`ESTOP`;
+  전원 분리 `NO_RESPONSE/liveness_timeout`→`ESTOP`; 재연결 뒤 센서 정상이어도 latch 유지.
+- reset은 `IDLE`까지만 복구하고 별도 arm이 필요함을 fake chassis와 실제 센서 결합으로 확인.
+- `INVALID_READING`은 실내에서 무반사 조건을 만들 수 없어 미검증.
+- 보정된 실제 chassis 60초 측정: 3000 samples, 평균 50.000 Hz, 완전한 5초 구간
+  49.8~50.2 Hz, overrun 0, CAN error/passive/bus-off 0.
+- HIL 중 발견·수정: DOWN CAN watchdog reset 폭주, launch 정수→double 형변환,
+  AK E-stop 2초 블로킹, ODrive buffered heartbeat false-stale. 수정 후 fault tick 최대 0.854 ms.
+- 안전 종료: 제어 프로세스 전부 종료, watchdog 정지, `can0` DOWN/STOPPED.
 
 ## 목차
 
@@ -599,46 +612,50 @@ stop_mm ≥ 최고속도_mm_s × (최악_센서주기_s + 최악_처리지연_s)
 
 | 검증 게이트 | 상태 | 증거 |
 |---|---|---|
-| 지원 로컬 `motor_control` suite | `PASS (189 passed)` | commit c3610c1; `.superpowers/sdd/final-motor-control-c3610c1.xml` |
+| 지원 로컬 `motor_control` suite | `PASS (198 passed)` | commit ec452f6; 2026-07-11 재실행 |
 | `motor_gui/tests` | `PASS (91 passed)` | commit c3610c1; `.superpowers/sdd/final-motor-gui-c3610c1.xml` |
 | 격리 read-only ROS 3패키지 clean build | `PASS` | commit `c3610c136357a8c881263926ec18bcd7e3432a5d`; `robot_arm_msgs`, `powertrain_msgs`, `powertrain_ros` |
-| 로컬 `powertrain_ros` tests | `PASS (31/31)` | `.superpowers/sdd/final-ros-c3610c1.xml` |
-| Jetson 동일 HEAD 3패키지 build·`powertrain_ros` tests | `PASS (31/31)` | `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml` |
+| 로컬 `powertrain_ros` tests | `PASS (32/32)` | typed launch parameter fix 포함 |
+| Jetson 동일 HEAD 3패키지 build·`powertrain_ros` tests | `PASS (32/32)` | commit ec452f6 배포·build |
 | Jetson software-only FAKE 60초·freshness | `PASS (HIL 아님)` | commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`; raw log 미보존 |
-| Phase A 사용자 부양 확인 | `PENDING / NOT RUN` | `—` |
-| HIL 시나리오 1~8 | `PENDING / NOT RUN` | `—` |
-| Phase B 별도 지상주행 허가 | `PENDING / NOT RUN` | `—` |
-| HIL 시나리오 9 | `PENDING / NOT RUN` | `—` |
-| 생산 `stop_mm` | `PENDING / 미확정` | `—` |
+| Phase A 사용자 부양 확인 | `PASS WITH CONSTRAINT` | 바퀴 부양·물리 E-stop 준비; ODrive 13·14 부재 사전 고지 |
+| 실제 CAN·present motor health | `PARTIAL PASS` | AK 1~4, ODrive 11·12·15·16; present 캘리 4/4, errors 0 |
+| US-100 near/no-response/latch/reset | `PASS` | 75~96 mm near; power-loss NO_RESPONSE; reconnect latch; reset→IDLE |
+| US-100 `INVALID_READING` | `NOT RUN` | 실내에서 신뢰 가능한 무반사 조건 확보 불가 |
+| 실제 60초 50 Hz | `PASS` | 3000/60 s; 49.8~50.2 Hz/5 s; overrun 0; CAN errors 0 |
+| 완전한 10모터 Phase A | `FAIL / BLOCKED` | ODrive node 13·14 물리 부재 |
+| Phase B 지상주행·생산 `stop_mm` | `NOT RUN` | 완전체 Phase A 실패로 안전상 금지; 생산값 미확정 |
 
-위 자동검증은 모두 배포 HEAD `c3610c136357a8c881263926ec18bcd7e3432a5d`에서 root가
-관찰했다. Jetson software-only FAKE summary는 별도 49831bb 관찰이며 raw log가 없으므로
-현재 HEAD의 자동시험이나 HIL 증거로 확대하지 않는다.
+최신 자동검증은 실행 HEAD `ec452f6474b6fc57437d576298f2bc954649be42`에서 관찰했다.
+Jetson software-only FAKE summary는 별도 49831bb 관찰이며 raw log가 없으므로 현재 HEAD의
+실기 HIL 증거로 확대하지 않는다.
 
 ### 7.2 잔여 위험
 
 | 위험 | 현재 통제 | HIL 뒤 판단 |
 |---|---|---|
-| 0x50은 MCU/UART만 확인해 초음파 송수신부 고장을 놓칠 수 있음 | `INVALID_READING`을 진단에 노출, 저속·운영 감시 | `— (PENDING)` |
+| 0x50은 MCU/UART만 확인해 초음파 송수신부 고장을 놓칠 수 있음 | `INVALID_READING`을 진단에 노출, 저속·운영 감시 | 실내 조건으로 실측 미검증; 잔여 위험 유지 |
 | 단일 can0 공통고장과 물리층 간헐 접촉 | ADM3053·워치독·counter delta·물리 E-stop | `— (PENDING)` |
 | safety topic stale까지 명목 0.75~0.77초 | 생산 최솟값 고정, `stop_mm` 식에 지연 반영 | `— (PENDING)` |
 | node 12/16 HALL 품질과 저속 코깅 | fault/stale 전체 E-stop, 육안 확인 | `— (PENDING)` |
 | `/wheel_states` 발행 실패가 제어와 분리됨 | 로그·rate·overrun 관찰 | WP6 입력 안전정책에서 결정 |
 | 복수 `/cmd_vel` 작성자 충돌 | 현재 미해결을 명시 | HIL 뒤 command-authority spec |
 | L515 PointCloud2 기본 사용 시 불필요한 부하 | color/depth image+IMU 기본, PointCloud2 opt-in | 별도 L515 경량 spec |
-| reset 후 무심코 재가동 | reset→`IDLE`, 별도 arm | 시나리오 6 실기 확인 대기 |
+| reset 후 무심코 재가동 | reset→`IDLE`, 별도 arm | 실제 US-100+fake chassis 결합에서 확인 |
+| ODrive 13·14 부재 | 전체 motor stale을 latched E-stop으로 처리 | 설치·설정·캘리 후 10모터 재검증 필수 |
 
 ### 7.3 최종 판정
 
 | 항목 | 기록 |
 |---|---|
-| 최종 go/no-go | **PENDING — HIL NOT RUN** |
-| 판정자 / 시각 | `— (PENDING)` |
-| 미통과 항목 | Phase A 확인·HIL 1~8, Phase B 별도 허가·HIL 9, 생산 `stop_mm` |
-| 조건부 제한 | WP5.1 HIL 승인 전 자율 실차 운용 승인 없음; 결합 launch는 임시값을 명시한 HIL 후보만 |
-| 승인 commit / 설정 | `— (PENDING)` |
+| 최종 go/no-go | **NO-GO — PARTIAL HIL** |
+| 판정자 / 시각 | Codex+사용자 / 2026-07-11 KST |
+| 미통과 항목 | ODrive 13·14, 완전한 10모터 Phase A, `INVALID_READING`, Phase B, 생산 `stop_mm` |
+| 조건부 제한 | 자율 실차·지상주행 금지; 센서/소프트웨어 벤치와 command-authority 개발만 가능 |
+| 실행 commit / 설정 | `ec452f6474b6fc57437d576298f2bc954649be42`; can0 500 kbps; HIL 후보 stop_mm 200 mm |
 
-HIL 승인 뒤에만 command-authority spec → L515 경량 color/depth image+IMU pipeline
+ODrive 13·14 설치 뒤 10모터 HIL과 Phase B를 재실행한다. 하드웨어 대기 중에는
+command-authority spec을 병행할 수 있으며, 이후 L515 경량 color/depth image+IMU pipeline
 (PointCloud2 optional) → WP6 순서로 진행한다. WP8, `MISSION_STOP`, unlock ordering,
 `ARRIVED_* → 팔 작업 → DONE → 재출발` 합동 1사이클은 별도 미결이다.
 

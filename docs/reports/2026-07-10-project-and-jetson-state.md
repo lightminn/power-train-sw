@@ -3,13 +3,12 @@
 > 확인일: 2026-07-10 KST. 범위는 파워트레인 SW와 로봇팔 연동 인터페이스이며,
 > CAD·전장은 인계 요구사항 외에는 다루지 않는다.
 >
-> **WP5.1 최신 override (2026-07-10): Tasks 1~8 소프트웨어 완료, 최종 실기 HIL 미실행.** 아래
+> **WP5.1 최신 override (2026-07-11): 부분 실기 HIL 완료, 최종 NO-GO.** 아래
 > WP5 `/cmd_vel → 10모터` HIL은 기존 차체 경로의 역사적 완료 기록이다. 새 비블로킹
 > 50 Hz 제어·US-100 상태/liveness·`/safety_verdict`·`/wheel_states`·latched E-stop 경로는
-> `docs/reports/2026-07-10-wp5-control-safety-hil.md`가 `NOT RUN`인 동안 실기 완료로 보지 않는다.
-> 배포 HEAD `c3610c136357a8c881263926ec18bcd7e3432a5d`의 로컬·Jetson 자동검증은 모두
-> 통과했다. 별도 commit `49831bb42058a177ed9c41d72d0273f4f0a8f535`의 software-only FAKE도
-> 통과했지만 실기 HIL 증거가 아니다.
+> `docs/reports/2026-07-10-wp5-control-safety-hil.md`의 2026-07-11 결과를 따른다. 실제
+> US-100·CAN·present 8모터 경로와 50 Hz 지속률은 통과했지만 ODrive 13·14 부재로
+> 10모터 완전체와 지상 제동을 실행하지 않아 최종 판정은 NO-GO다.
 
 ## 1. 현재 완료 상태
 
@@ -20,7 +19,7 @@
 | ODrive | pp=10, cpr=60, bandwidth=30, vel_gain=0.12, vel_int=0.2 |
 | 차체 | WP1~3 및 10모터 4WS 유·무선 텔레옵 실기 HIL 완료 |
 | ROS2 기준선 | WP4 양방향 DDS 전달, 기존 WP5 `/cmd_vel → 10모터` 실기 HIL 완료 |
-| WP5.1 제어·안전 | Tasks 1~8 소프트웨어 완료; c3610c1 로컬 motor_control 189·motor_gui 91·격리 ROS 3패키지 build 및 31/31·Jetson 동일 HEAD 3패키지 build 및 31/31 PASS; 별도 49831bb software-only FAKE PASS; 최종 실기 HIL 미실행 |
+| WP5.1 제어·안전 | 부분 HIL: US-100·present 8모터 fail-safe·50 Hz PASS, ODrive 13·14 부재로 최종 NO-GO; 10모터/Phase B 재검증 필요 |
 | 센서 소유권 | L515=파워트레인 RGB/depth/IMU, D435i=로봇팔 전용, US100=독립 안전 |
 | 형상 최적화 | v4 계산 기준 50 kg 확정, 86 kg 재최적화 안 함 |
 
@@ -77,12 +76,13 @@
 
 ## 4. 다음 작업
 
-1. WP5.1 시나리오 1~8 부양 HIL과 별도 승인 시나리오 9 지상 제동 HIL, 생산 `stop_mm` 실측.
-2. HIL 통과 뒤 단일 `/cmd_vel` command authority spec.
-3. L515 경량 color image + depth image + IMU 파이프라인 spec. PointCloud2는 opt-in.
-4. 위 인터페이스 확정 뒤 WP6 오도메트리.
-5. WP8 미션 시퀀서와 `MISSION_STOP`·락 해제 순서 계약.
-6. `ARRIVED_* → 팔 작업 → DONE → 재출발` 합동 1사이클.
+1. ODrive 13·14 설치·설정·캘리브레이션 뒤 WP5.1 10모터 부양 HIL 재실행.
+2. 별도 승인 시나리오 9 지상 제동 HIL과 생산 `stop_mm` 실측.
+3. 병행 가능한 다음 SW 작업은 단일 `/cmd_vel` command authority spec.
+4. L515 경량 color image + depth image + IMU 파이프라인 spec. PointCloud2는 opt-in.
+5. 위 인터페이스 확정 뒤 WP6 오도메트리.
+6. WP8 미션 시퀀서와 `MISSION_STOP`·락 해제 순서 계약.
+7. `ARRIVED_* → 팔 작업 → DONE → 재출발` 합동 1사이클.
 
 ## 5. 문서 해석 규칙
 
