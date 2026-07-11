@@ -79,6 +79,38 @@ colcon test
 colcon test-result --verbose
 ```
 
+### L515 전용 빌드·preflight·launch
+
+L515는 파워트레인 소유 serial `00000000F0271544`만 사용한다. D435i serial
+`250222071245`는 로봇팔 전용이며 이 파이프라인에서 열지 않는다. `powertrain_ros` 이미지의
+librealsense/pyrealsense2 pin은 **v2.50.0**이고 RSUSB backend를 쓴다. Jetson 호스트에서
+아래 순서 그대로 이미지 빌드와 USB3/SDK fail-closed preflight를 수행한다.
+
+```bash
+set -eu
+cd ~/power-train-sw
+docker compose -f docker/docker-compose.jetson.yml build powertrain_ros
+docker compose -f docker/docker-compose.jetson.yml up -d powertrain_ros
+bash scripts/l515_preflight.sh
+```
+
+그 다음 `powertrain_ros` 컨테이너에서 clean build, source, launch한다.
+
+```bash
+docker exec -it powertrain_ros bash
+cd /workspace/ros2
+rm -rf build install log
+colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 launch powertrain_ros l515.launch.py
+```
+
+발행 토픽은 `/l515/color/image_raw`, `/l515/color/camera_info`,
+`/l515/depth/image_rect_raw`, `/l515/depth/camera_info`, `/l515/gyro/sample`,
+`/l515/accel/sample`이다. color/depth는 640×480 30 Hz 설정이며 IMU 두 토픽은 장치 원본
+stream이다. IR, confidence, alignment, 합성 IMU와 **PointCloud2 토픽은 없다.**
+
 ### 실기 launch 게이트
 
 `wp5_control.launch.py`는 `stop_mm`을 생략할 수 없는 결합 실기 진입점이다. 현재 벤치/HIL

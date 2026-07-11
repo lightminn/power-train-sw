@@ -86,7 +86,19 @@ SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 실차 센서 소유권은 **L515=파워트레인 RGB/depth/IMU**, **D435i=로봇팔 인식 전용**,
 **US-100=독립 충돌 안전**으로 분리한다. 2026-07-10 Jetson USB에서 L515와 D435i
 동시 연결을 확인했다. `motor_control/vision/`의 D435i 코드는 기존 실험·스트리밍 자산이며,
-자율주행 신규 ROS 입력은 `realsense-ros`의 L515 토픽을 사용한다.
+자율주행 신규 ROS 입력은 `powertrain_ros`의 경량 L515 노드가 제공한다.
+
+### L515 경량 ROS 파이프라인
+
+파워트레인 L515는 serial `00000000F0271544`만 열며, `powertrain_ros` 이미지에
+librealsense/pyrealsense2 **정확히 v2.50.0**을 RSUSB backend로 빌드한다. D435i
+`250222071245`는 로봇팔 전용이므로 이 노드가 열지 않는다. 실행 전 Jetson 호스트에서
+`bash scripts/l515_preflight.sh`를 실행한다. 이 게이트는 USB PID `8086:0b64`, 5000 Mbps
+이상 링크, 컨테이너 SDK의 지정 serial 선택이 모두 확인되지 않으면 실패한다. 정확한 이미지
+빌드·source·launch 명령과 토픽은 [`ros2/README.md`](ros2/README.md)에 있다.
+
+이 경량 파이프라인은 color/depth `Image`·`CameraInfo`와 gyro/accel `Imu`만 발행한다.
+**PointCloud2는 설치·생성·발행하지 않는다.**
 
 ## WP5.1 제어·안전 계약
 

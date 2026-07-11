@@ -7,6 +7,22 @@ Reconciled with repository, Jetson, and Notion state: `2026-07-10T19:34+09:00`
 
 These notes were migrated from Claude Code project memory. Treat them as durable project context unless the user gives newer instructions.
 
+## CURRENT STATE OVERRIDE — 2026-07-11 L515 LIGHTWEIGHT PIPELINE
+
+- The powertrain L515 pipeline owns serial `00000000F0271544`; D435i serial `250222071245`
+  remains robot-arm exclusive and must never be opened by this pipeline.
+- `powertrain_ros` pins librealsense/pyrealsense2 exactly `v2.50.0` with RSUSB. Build and start it
+  with `docker compose -f docker/docker-compose.jetson.yml build powertrain_ros` then
+  `docker compose -f docker/docker-compose.jetson.yml up -d powertrain_ros`.
+- Before launch, run `bash scripts/l515_preflight.sh` on the Jetson host. It fails closed unless
+  PID `8086:0b64`, sysfs link speed at least 5000 Mbps, and the exact SDK serial selection all pass.
+- In the container: `cd /workspace/ros2`, remove `build install log`, run
+  `colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros`, then
+  `source /opt/ros/humble/setup.bash`, `source install/setup.bash`, and
+  `ros2 launch powertrain_ros l515.launch.py`.
+- Outputs are color/depth Image plus CameraInfo and separate gyro/accel Imu topics. PointCloud2,
+  IR, confidence, alignment, and synthetic IMU are intentionally absent.
+
 ## CURRENT STATE OVERRIDE — 2026-07-11 WP5.1 HIL COMPLETE
 
 - WP5.1 HIL is **COMPLETE** when the prior 10-motor HIL evidence and the 2026-07-11 safety/50 Hz
