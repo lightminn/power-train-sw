@@ -83,7 +83,11 @@ class SteerAk40(SteerActuator):
 
     def estop(self) -> None:
         if self._ak:
-            self._ak.stop()
+            # E-stop 경로는 50 Hz 제어 tick 안에서 호출된다. AK40.stop()은
+            # 5회 재전송 사이에 50 ms씩 대기하므로 AK 4개에서 전역 정지를
+            # 약 1~2초 막는다. 첫 0 RPM 프레임을 즉시 보내고 반환하며,
+            # 반복 정지는 시간 제약이 없는 disarm()/close()에만 남긴다.
+            self._ak.send_rpm_out(0)
 
     def close(self) -> None:
         if self._ak:

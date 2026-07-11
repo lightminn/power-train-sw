@@ -542,6 +542,8 @@ class _StubAk:
         self.pos_out_deg = 5.0
         self.cur_a = 0.1
         self.fault = 0
+        self.zero_rpm_calls = 0
+        self.stop_calls = 0
 
     def poll(self, timeout=0.0):
         self.poll_timeouts.append(timeout)
@@ -549,6 +551,13 @@ class _StubAk:
 
     def send_pos_out(self, deg):
         self.pos_out_deg = deg
+
+    def send_rpm_out(self, rpm):
+        assert rpm == 0
+        self.zero_rpm_calls += 1
+
+    def stop(self):
+        self.stop_calls += 1
 
 
 def test_steer_periodic_tick_uses_nonblocking_poll():
@@ -574,3 +583,15 @@ def test_steer_ak40_state_stale_when_no_frames():
     s = SteerAk40(motor_id=1)
     s._ak = _StubAk(poll_result=False)         # 버퍼에도 아무것도 없음
     assert s.state()["stale"] is True
+
+
+def test_steer_ak40_estop_sends_one_immediate_zero_without_blocking_stop():
+    from corner_module.steer_ak40 import SteerAk40
+
+    s = SteerAk40(motor_id=1)
+    s._ak = _StubAk(poll_result=False)
+
+    s.estop()
+
+    assert s._ak.zero_rpm_calls == 1
+    assert s._ak.stop_calls == 0
