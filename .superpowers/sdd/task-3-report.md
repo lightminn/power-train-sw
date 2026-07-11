@@ -1,204 +1,66 @@
-# Task 3 Report
+# Task 3 — Video modes and latest-frame handoff report
 
-## Scope
+## Scope implemented
 
-- Added `powertrain_ros/l515_source.py` only for serial-locked SDK acquisition,
-  latest-frame handoff, and reconnect state.
-- Added `test/test_l515_source.py` with an injected fake `rs` module, clock,
-  wait function, and mapper factory. No hardware or real sleep is used.
+- Added `FrameMode.COLOR`, `DEPTH`, and `SIDE_BY_SIDE`.
+- Added `render_frame(mode, color, depth, width, height)` with contiguous uint8
+  BGR output at 640×480 for single modes and 1280×480 for side-by-side.
+- Color is passed through at the configured size.
+- Depth uses a deterministic fixed 0–5000 mm mapping to 0–255 followed by
+  OpenCV TURBO; zero/invalid depth remains black and values above 5000 mm clip.
+- Added thread-safe `LatestVideoFrames` color/depth one-slot overwrite and
+  consume semantics. Inputs are copied on put, rendering occurs outside the
+  lock, and every take clears both slots so a later mode switch cannot replay
+  an unselected old frame.
+- Missing required inputs return `None`; no black placeholder or prior frame is
+  synthesized.
+- No streamer, supervisor, ROS bridge, or TUI behavior was added.
 
 ## TDD evidence
 
-- RED: `/home/light/anaconda3/bin/python -m pytest -q test/test_l515_source.py`
-  failed during collection with
-  `ModuleNotFoundError: No module named 'powertrain_ros.l515_source'`.
-- GREEN: the focused source suite passed after the minimal implementation.
+1. Initial feature RED:
+   `PATH=/home/light/anaconda3/bin:$PATH python3 -m pytest -q l515_dashboard/tests/test_frame_modes.py`
+   → collection failed with `ModuleNotFoundError: l515_dashboard.frame_modes`.
+2. Initial GREEN after the minimal implementation:
+   same focused command → `12 passed in 0.17s`.
+3. Self-review identified a mode-switch stale replay case: taking COLOR left an
+   older DEPTH slot available. A new test reproduced it RED:
+   focused command → `1 failed, 12 passed`; the subsequent DEPTH take returned
+   the old mapped frame instead of `None`.
+4. Fix: each atomic take now snapshots and clears both slots. Focused and
+   Tasks 1–3 regression verification are recorded below after final cleanup.
 
-## Requirement review
+## Final verification evidence
 
-- Immutable configuration accepts only L515 serial `00000000F0271544`.
-- Device enumeration never falls back to the D435 serial.
-- SDK requests color BGR8 and depth Z16 at exactly 640x480x30, plus accel
-  and gyro streams.
-- `LatestFrames` uses a lock, overwrites one slot per stream, and atomically
-  drains/clears without blocking.
-- Disconnect clears queued frames, stops the pipeline best-effort, waits the
-  configured 2.0 seconds, and retries only the expected serial.
-- Each connection creates a new timestamp mapper; tests prove the second
-  session payload carries the second mapper and no first-session frame.
-- `stop()` signals shutdown, stops the pipeline best-effort, and joins with
-  the configured bounded timeout.
-
-## Fresh verification
-
-- `python3 -m flake8 powertrain_ros/l515_source.py test/test_l515_source.py`:
-  exit 0.
-- `python3 -m pytest -q test/test_l515_source.py` in
-  `powertrain-sw:ros-task7-minors`: `8 passed in 0.02s`.
-- `colcon test --packages-select powertrain_ros` followed by
-  `colcon test-result --verbose`: `52 tests, 0 errors, 0 failures, 0 skipped`.
-- `git diff --check`: exit 0.
+- Focused:
+  `PATH=/home/light/anaconda3/bin:$PATH python3 -m pytest -q l515_dashboard/tests/test_frame_modes.py`
+  → `13 passed in 0.18s`.
+- Tasks 1–3 regression:
+  `PATH=/home/light/anaconda3/bin:$PATH python3 -m pytest -q l515_dashboard/tests/test_config.py l515_dashboard/tests/test_diagnostics.py l515_dashboard/tests/test_frame_modes.py`
+  → `61 passed in 0.25s`.
+- Flake8 on both Task 3 files, package compileall, and `git diff --check` all
+  exited 0 with no output.
 
 ## Self-review
 
-- Only the Task 3 production module, its tests, and this report are changed.
-- SDK import is injected; ROS adapter import is lazy so unit tests remain
-  hardware-independent.
-- No Jetson, hardware, user file, launch/config, or other task file changed.
+- Latest overwrite is bounded to one ndarray per input and protected by one
+  lock; no queue can accumulate.
+- The lock covers only snapshot/slot mutation, not OpenCV rendering.
+- Copy-on-put prevents a producer from mutating a frame while a consumer uses
+  it.
+- Incomplete side-by-side attempts consume the unpaired input, preventing it
+  from being combined later with a fresh frame.
+- The depth scale is frame-independent, so identical millimeter values always
+  produce identical BGR values; zeros are explicitly restored to black after
+  applying TURBO.
+- Reviewed scope against the Task 3 brief and approved design; only the two
+  requested files were added.
 
-## Review-finding fixes
+## Concerns
 
-- `stop()` now signals and invalidates the active generation before doing any
-  SDK work. SDK `pipeline.stop()` runs best-effort on a daemon helper, so a
-  blocked native stop cannot exceed the configured join bound.
-- Lifecycle generation checks prevent pipeline creation/start after a stop
-  observed during discovery, prevent late frame enqueue/state regression, and
-  only publish `STOPPED` after the worker is quiescent.
-- A timed-out join leaves the last non-stopped state visible until the worker
-  actually exits. `LatestFrames.empty` now reads its slots under the same lock
-  used by put/drain/clear.
-- Added deterministic regressions for blocked SDK stop, join timeout, late
-  worker completion/no late payload, and the discovery-vs-stop race.
-
-## Review-fix TDD and verification evidence
-
-- RED command: `/home/light/anaconda3/bin/python -m pytest -q
-  test/test_l515_source.py`. Result on the pre-fix implementation: seven tests
-  reached completion, the join-timeout assertion failed, and execution then
-  blocked in the new blocking-SDK-stop regression until terminated.
-- Focused command: `/home/light/anaconda3/bin/python -m pytest -q
-  test/test_l515_source.py`. Result: `11 passed in 0.05s`.
-- Style command: `/home/light/anaconda3/bin/python -m flake8
-  powertrain_ros/l515_source.py test/test_l515_source.py`. Result: exit 0.
-- Full ROS command: `docker run --rm -v "$PWD:/workspace" -w /workspace/ros2
-  powertrain-sw:ros-task7-minors bash -lc 'source
-  /opt/ros/humble/setup.bash && colcon --log-base /tmp/l515-log build
-  --build-base /tmp/l515-build --install-base /tmp/l515-install
-  --packages-select powertrain_msgs robot_arm_msgs powertrain_ros && source
-  /tmp/l515-install/setup.bash && colcon --log-base /tmp/l515-test-log test
-  --build-base /tmp/l515-build --install-base /tmp/l515-install
-  --packages-select powertrain_ros --event-handlers console_direct+ && colcon
-  test-result --test-result-base /tmp/l515-build/powertrain_ros --verbose'`.
-  Result: three packages built; `55 passed in 0.36s`; `55 tests, 0 errors, 0
-  failures, 0 skipped`.
-- Diff command: `git diff --check`. Result: exit 0.
-
-- Host-only `/home/light/anaconda3/bin/python -m pytest -q test` was also
-  attempted, but collection lacked ROS `launch.action` and
-  `builtin_interfaces`; the isolated ROS image command above is the relevant
-  full-suite result.
-
-## Second review-fix wave
-
-- Public `start()` and `stop()` are serialized separately from the short
-  lifecycle critical sections. A concurrent start cannot clear the stop event
-  or replace its generation until the bounded stop operation returns.
-- Stop-event set, generation invalidation, and thread/pipeline snapshot are
-  atomic under the lifecycle lock. No native SDK call occurs while that lock
-  is held.
-- Pipeline creation is followed by locked registration of an explicit starting
-  generation. The worker revalidates after the pre-start barrier and again
-  after native `pipeline.start()`; an invalidated start is cleaned up without
-  publishing `STREAMING`.
-- State changes, frame commits, and reconnect clears revalidate and mutate
-  under the lifecycle lock, so stop invalidation cannot interleave between a
-  successful generation check and its commit.
-- Added deterministic barriers after frame preparation/before queue commit,
-  immediately before native pipeline start, and across concurrent public
-  stop/start.
-
-## Second-wave TDD and verification evidence
-
-- RED command: `/home/light/anaconda3/bin/python -m pytest -q
-  test/test_l515_source.py`. Result before the second-wave implementation:
-  `3 failed, 11 passed`; failures were the frame-commit barrier, pre-native-start
-  barrier, and concurrent public start/stop serialization tests.
-- Focused command: `/home/light/anaconda3/bin/python -m pytest -q
-  test/test_l515_source.py`. Result: `14 passed in 0.08s`.
-- Style command: `/home/light/anaconda3/bin/python -m flake8
-  powertrain_ros/l515_source.py test/test_l515_source.py`. Result: exit 0.
-- Full ROS command: `docker run --rm -v "$PWD:/workspace" -w /workspace/ros2
-  powertrain-sw:ros-task7-minors bash -lc 'source
-  /opt/ros/humble/setup.bash && colcon --log-base /tmp/l515-log build
-  --build-base /tmp/l515-build --install-base /tmp/l515-install
-  --packages-select powertrain_msgs robot_arm_msgs powertrain_ros && source
-  /tmp/l515-install/setup.bash && colcon --log-base /tmp/l515-test-log test
-  --build-base /tmp/l515-build --install-base /tmp/l515-install
-  --packages-select powertrain_ros --event-handlers console_direct+ && colcon
-  test-result --test-result-base /tmp/l515-build/powertrain_ros --verbose'`.
-  Result: three packages built; `58 passed in 0.36s`; `58 tests, 0 errors, 0
-  failures, 0 skipped`.
-- Diff command: `git diff --check`. Result: exit 0.
-
-## Final STARTING-handshake fix
-
-- Replaced the scalar starting generation with a registered STARTING record
-  containing generation, pipeline identity, and `cancel_requested`.
-- `stop()` marks an active STARTING record cancelled in the same lifecycle
-  critical section that invalidates the generation and snapshots the worker
-  and pipeline.
-- Added a deterministic barrier after successful locked pre-start validation
-  and lock release. If stop lands there, a late native `pipeline.start()` may
-  return, but the worker performs best-effort stop before clearing STARTING and
-  exits without publishing `STREAMING` or committing frames.
-- No native SDK start/stop/wait call is made while the lifecycle lock is held;
-  the public stop path remains bounded by `stop_timeout`.
-
-## Final-fix TDD and verification evidence
-
-- RED command: `/home/light/anaconda3/bin/python -m pytest -q
-  test/test_l515_source.py`. Result before the handshake implementation:
-  `1 failed, 14 passed`; the post-validation/pre-native-start barrier was not
-  reached because no such handshake boundary existed.
-- Focused command: `/home/light/anaconda3/bin/python -m pytest -q
-  test/test_l515_source.py`. Result: `15 passed in 0.08s`.
-- Style command: `/home/light/anaconda3/bin/python -m flake8
-  powertrain_ros/l515_source.py test/test_l515_source.py`. Result: exit 0.
-- Full ROS command: `docker run --rm -v "$PWD:/workspace" -w /workspace/ros2
-  powertrain-sw:ros-task7-minors bash -lc 'source
-  /opt/ros/humble/setup.bash && colcon --log-base /tmp/l515-log build
-  --build-base /tmp/l515-build --install-base /tmp/l515-install
-  --packages-select powertrain_msgs robot_arm_msgs powertrain_ros && source
-  /tmp/l515-install/setup.bash && colcon --log-base /tmp/l515-test-log test
-  --build-base /tmp/l515-build --install-base /tmp/l515-install
-  --packages-select powertrain_ros --event-handlers console_direct+ && colcon
-  test-result --test-result-base /tmp/l515-build/powertrain_ros --verbose'`.
-  Result: three packages built; `59 passed in 0.40s`; `59 tests, 0 errors, 0
-  failures, 0 skipped`.
-- Diff command: `git diff --check`. Result: exit 0.
-
-## Bounded cancelled-start cleanup
-
-- Added a worker-side bounded stop helper that runs SDK `pipeline.stop()` on a
-  daemon helper and joins it for at most the configured `stop_timeout`.
-- Cancelled late-start cleanup records completion after that single bounded
-  attempt; `finally` does not invoke stop a second time for the same path.
-- STARTING is cleared only after the bounded cleanup attempt returns. A blocked
-  SDK stop therefore cannot keep the source worker alive or delay caller-side
-  shutdown indefinitely, and no native call occurs under the lifecycle lock.
-- Added a deterministic fake whose pre-start stop returns but whose post-start
-  stop blocks. The test distinguishes the public pre-start stop from the one
-  worker cleanup attempt and proves there is no duplicate active stop.
-
-## Bounded-cleanup TDD and verification evidence
-
-- RED command: `/home/light/anaconda3/bin/python -m pytest -q
-  test/test_l515_source.py`. Result before bounded worker cleanup: `1 failed,
-  15 passed`; the worker remained alive after the 0.2-second join because it
-  was blocked synchronously in SDK stop.
-- Focused command: `/home/light/anaconda3/bin/python -m pytest -q
-  test/test_l515_source.py`. Result: `16 passed in 0.12s`.
-- Style command: `/home/light/anaconda3/bin/python -m flake8
-  powertrain_ros/l515_source.py test/test_l515_source.py`. Result: exit 0.
-- Full ROS command: `docker run --rm -v "$PWD:/workspace" -w /workspace/ros2
-  powertrain-sw:ros-task7-minors bash -lc 'source
-  /opt/ros/humble/setup.bash && colcon --log-base /tmp/l515-log build
-  --build-base /tmp/l515-build --install-base /tmp/l515-install
-  --packages-select powertrain_msgs robot_arm_msgs powertrain_ros && source
-  /tmp/l515-install/setup.bash && colcon --log-base /tmp/l515-test-log test
-  --build-base /tmp/l515-build --install-base /tmp/l515-install
-  --packages-select powertrain_ros --event-handlers console_direct+ && colcon
-  test-result --test-result-base /tmp/l515-build/powertrain_ros --verbose'`.
-  Result: three packages built; `60 passed in 0.62s`; `60 tests, 0 errors, 0
-  failures, 0 skipped`.
-- Diff command: `git diff --check`. Result: exit 0.
+- The approved design requires a fixed visible depth range but does not name
+  its endpoint. Task 3 fixes it at 5000 mm as an explicit deterministic
+  dashboard visualization constant. If operations later approve another fixed
+  range, the constant and pixel-contract test must change together.
+- Host `/usr/bin/python3` does not provide pytest; all executable evidence uses
+  the documented conda base interpreter through `PATH`.
