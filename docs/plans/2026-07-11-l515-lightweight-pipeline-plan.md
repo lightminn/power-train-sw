@@ -357,7 +357,7 @@ ROOT = Path(__file__).resolve().parents[4]
 SCRIPT = ROOT / "scripts" / "l515_preflight.sh"
 
 
-def run_preflight(tmp_path, usb, sdk):
+def run_preflight(tmp_path, usb, sdk, speed="5000"):
     for name, body in {
         "lsusb": f"#!/bin/sh\nprintf '%s\\n' '{usb}'\n",
         "docker": f"#!/bin/sh\nprintf '%s\\n' '{sdk}'\n",
@@ -365,7 +365,13 @@ def run_preflight(tmp_path, usb, sdk):
         path = tmp_path / name
         path.write_text(body)
         path.chmod(0o755)
-    env = {**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"}
+    speed_file = tmp_path / "speed"
+    speed_file.write_text(speed)
+    env = {
+        **os.environ,
+        "PATH": f"{tmp_path}:{os.environ['PATH']}",
+        "L515_USB_SPEED_FILE": str(speed_file),
+    }
     return subprocess.run([SCRIPT], env=env, text=True, capture_output=True)
 
 
@@ -395,6 +401,17 @@ def test_preflight_rejects_wrong_serial(tmp_path):
         "Intel RealSense L515 WRONG USB3.2",
     )
     assert result.returncode != 0
+
+
+def test_preflight_rejects_non_usb3_link(tmp_path):
+    result = run_preflight(
+        tmp_path,
+        "Bus 001 Device 005: ID 8086:0b64 Intel RealSense 515",
+        "Intel RealSense L515 00000000F0271544 USB2.1",
+        speed="480",
+    )
+    assert result.returncode != 0
+    assert "USB3" in result.stderr
 ```
 
 - [ ] **Step 2: Run tests and confirm RED**
@@ -417,6 +434,15 @@ SERIAL="00000000F0271544"
 USB_LINE=$(lsusb -d 8086:0b64 || true)
 if [[ -z "$USB_LINE" ]]; then
   echo "L515 USB device 8086:0b64 not found" >&2
+  exit 1
+fi
+
+SPEED_FILE=${L515_USB_SPEED_FILE:-$(
+  grep -l '^0b64$' /sys/bus/usb/devices/*/idProduct 2>/dev/null \
+    | head -n1 | sed 's|idProduct$|speed|'
+)}
+if [[ -z "$SPEED_FILE" || ! -r "$SPEED_FILE" || "$(cat "$SPEED_FILE")" -lt 5000 ]]; then
+  echo "L515 is not connected at USB3 5 Gbps" >&2
   exit 1
 fi
 
