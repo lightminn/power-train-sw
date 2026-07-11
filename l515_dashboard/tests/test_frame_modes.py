@@ -130,3 +130,28 @@ def test_put_copies_input_to_prevent_concurrent_mutation(color):
     color[:] = 255
 
     np.testing.assert_array_equal(frames.take(FrameMode.COLOR), expected)
+
+
+def test_side_by_side_places_color_left_and_depth_rendering_right():
+    color = np.full((1, 2, 3), 19, dtype=np.uint8)
+    depth = np.array([[0, MAX_DEPTH_MM]], dtype=np.uint16)
+
+    rendered = render_frame(FrameMode.SIDE_BY_SIDE, color, depth, 2, 1)
+
+    np.testing.assert_array_equal(rendered[:, :2], color)
+    np.testing.assert_array_equal(
+        rendered[:, 2:], render_frame(FrameMode.DEPTH, color, depth, 2, 1)
+    )
+
+
+def test_latest_depth_slot_overwrites_with_newest_frame():
+    frames = LatestVideoFrames(2, 1)
+    frames.put_depth(np.array([[100, 200]], dtype=np.uint16))
+    newest = np.array([[300, 400]], dtype=np.uint16)
+    frames.put_depth(newest)
+
+    np.testing.assert_array_equal(
+        frames.take(FrameMode.DEPTH),
+        render_frame(FrameMode.DEPTH, None, newest, 2, 1),
+    )
+    assert frames.take(FrameMode.DEPTH) is None
