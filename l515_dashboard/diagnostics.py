@@ -63,8 +63,6 @@ class DiagnosticsSnapshot:
 @dataclass
 class _TopicState:
     arrivals: Deque[tuple[int, int]]
-    nonincreasing_count: int = 0
-    last_stamp_ns: Optional[int] = None
     last_arrival_ns: Optional[int] = None
 
 
@@ -101,9 +99,6 @@ class DiagnosticsTracker:
         if isinstance(now_ns, bool) or not isinstance(now_ns, int):
             raise ValueError("now_ns must be an integer")
 
-        if state.last_stamp_ns is not None and stamp_ns <= state.last_stamp_ns:
-            state.nonincreasing_count += 1
-        state.last_stamp_ns = stamp_ns
         state.last_arrival_ns = now_ns
         state.arrivals.append((now_ns, stamp_ns))
         self._prune(state, now_ns)
@@ -128,7 +123,7 @@ class DiagnosticsTracker:
                 fps=self._fps(state.arrivals),
                 age_s=age_s,
                 max_gap_s=self._max_gap(state.arrivals),
-                nonincreasing_count=state.nonincreasing_count,
+                nonincreasing_count=self._nonincreasing_count(state.arrivals),
                 fresh=fresh,
             )
 
@@ -161,3 +156,11 @@ class DiagnosticsTracker:
             if current > previous
         ]
         return max(positive_gaps, default=0) / 1_000_000_000
+
+    @staticmethod
+    def _nonincreasing_count(arrivals: Deque[tuple[int, int]]) -> int:
+        stamps = [stamp_ns for _, stamp_ns in arrivals]
+        return sum(
+            current <= previous
+            for previous, current in zip(stamps, stamps[1:])
+        )

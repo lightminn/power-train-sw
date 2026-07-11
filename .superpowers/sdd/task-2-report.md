@@ -47,3 +47,22 @@
   values are deliberate 30 Hz operational defaults and may be moved into dashboard configuration
   in a later integration task if runtime tuning is required.
 - System `/usr/bin/python3` lacks pytest; tests pass with the documented conda base environment.
+
+## Review fix evidence — rolling timestamp-order state
+
+- Review reproduction test inserted an equal-stamp event, advanced beyond a 1 s window, and then
+  inserted a lower stamp as the first event of a new stream window.
+- RED command:
+  `PATH=/home/light/anaconda3/bin:$PATH python3 -m pytest -q l515_dashboard/tests/test_diagnostics.py`
+  → `1 failed, 6 passed`; expired snapshot had `count == 0` but
+  `nonincreasing_count == 1` at `test_diagnostics.py:53`.
+- Root cause: `_TopicState.nonincreasing_count` and `last_stamp_ns` were lifetime scalars independent
+  of the bounded arrival deque, so pruning could not expire timestamp-order history.
+- Fix: removed both lifetime scalars and derive `nonincreasing_count` exclusively from adjacent
+  stamps retained in the bounded rolling deque. No message or image object is retained.
+- Focused GREEN after fix:
+  `PATH=/home/light/anaconda3/bin:$PATH python3 -m pytest -q l515_dashboard/tests/test_diagnostics.py`
+  → `7 passed in 0.01s`.
+- Final Task 1+2 regression:
+  `PATH=/home/light/anaconda3/bin:$PATH python3 -m pytest -q l515_dashboard/tests/test_config.py l515_dashboard/tests/test_diagnostics.py`
+  → `48 passed in 0.03s`.

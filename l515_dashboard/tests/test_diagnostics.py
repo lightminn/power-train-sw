@@ -43,6 +43,21 @@ def test_old_arrivals_leave_bounded_rolling_window():
     assert metric.max_gap_s == pytest.approx(1.0)
 
 
+def test_expired_nonincreasing_event_and_stamp_history_leave_window():
+    tracker = DiagnosticsTracker(window_s=1.0)
+    tracker.observe(COLOR_TOPIC, stamp_ns=100, now_ns=0)
+    tracker.observe(COLOR_TOPIC, stamp_ns=100, now_ns=1)
+
+    expired = tracker.snapshot(now_ns=NS + 2).topics[COLOR_TOPIC]
+    assert expired.count == 0
+    assert expired.nonincreasing_count == 0
+
+    tracker.observe(COLOR_TOPIC, stamp_ns=50, now_ns=NS + 2)
+    restarted = tracker.snapshot(now_ns=NS + 2).topics[COLOR_TOPIC]
+    assert restarted.count == 1
+    assert restarted.nonincreasing_count == 0
+
+
 def test_health_requires_all_six_topics_with_type_specific_freshness():
     tracker = DiagnosticsTracker()
     now_ns = 10 * NS
