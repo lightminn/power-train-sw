@@ -1,3 +1,9 @@
+## L515 Gateway Dashboard ownership
+
+- Production L515 access belongs only to `python3 -m l515_dashboard.gateway_main` in `powertrain_ros`.
+- `python3 -m l515_dashboard` is socket-only. `q`, SIGHUP, and client failure leave Gateway, ROS, and SRT alive; only confirmed `Shift+Q` sends `stop_gateway`.
+- Stop the Gateway explicitly before approved direct RealSense maintenance.
+
 <!-- BEGIN CLAUDE_TO_CODEX_MEMORY -->
 # Migrated Claude Code Memory
 

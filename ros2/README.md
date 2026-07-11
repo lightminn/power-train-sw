@@ -81,6 +81,10 @@ colcon test-result --verbose
 
 ### L515 전용 빌드·preflight·launch
 
+생산 컨테이너는 `docker/powertrain_ros_entrypoint.sh`로 headless Gateway를 직접 관리한다.
+Dashboard는 `docker exec -it powertrain_ros python3 -m l515_dashboard`로 접속하며, `q`는
+클라이언트만 종료한다. 상세 운용 계약은 [`l515_dashboard/README.md`](../l515_dashboard/README.md)다.
+
 L515는 파워트레인 소유 serial `00000000F0271544`만 사용한다. D435i serial
 `250222071245`는 로봇팔 전용이며 이 파이프라인에서 열지 않는다. `powertrain_ros` 이미지의
 librealsense/pyrealsense2 pin은 **v2.50.0**이고 RSUSB backend를 쓴다. SDK가 L515를

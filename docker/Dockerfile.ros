@@ -47,4 +47,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 워크스페이스 소스는 compose 로 마운트(../ → /workspace). 빌드는 컨테이너 진입 후:
 #   cd /workspace/ros2 && colcon build && source install/setup.bash
 WORKDIR /workspace/ros2
-CMD ["bash"]
+ENTRYPOINT ["/workspace/docker/powertrain_ros_entrypoint.sh"]
