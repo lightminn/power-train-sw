@@ -108,6 +108,7 @@ def test_start_uses_independently_specified_fixed_gst_command(mode):
                 "x264enc",
                 "tune=zerolatency",
                 "speed-preset=superfast",
+                "threads=2",
                 "bitrate=3000",
                 "key-int-max=30",
                 "!",
@@ -137,8 +138,8 @@ def test_runtime_mode_selects_next_frame_without_restarting_child():
     streamer.start()
 
     streamer.set_mode(FrameMode.OVERLAY)
-    streamer.submit_color(color)
-    streamer.submit_depth(depth)
+    streamer.submit_aligned_depth(depth, timestamp_ns=0)
+    streamer.submit_color(color, timestamp_ns=0)
 
     wait_until(lambda: len(popen.process.stdin.writes) == 1)
     assert len(popen.calls) == 1
@@ -153,14 +154,15 @@ def test_rgb_depth_overlay_each_send_one_frame_through_same_child():
     depth = np.full((720, 1280), 500, np.uint16)
     streamer.start()
     child = popen.process
-    streamer.submit_color(color)
+    streamer.submit_color(color, timestamp_ns=0)
     wait_until(lambda: streamer.snapshot().sent == 1)
     streamer.set_mode(FrameMode.DEPTH)
-    streamer.submit_depth(depth)
+    streamer.submit_aligned_depth(depth, timestamp_ns=33_333_333)
+    streamer.submit_color(color, timestamp_ns=33_333_333)
     wait_until(lambda: streamer.snapshot().sent == 2)
     streamer.set_mode(FrameMode.OVERLAY)
-    streamer.submit_color(color)
-    streamer.submit_depth(depth)
+    streamer.submit_aligned_depth(depth, timestamp_ns=66_666_666)
+    streamer.submit_color(color, timestamp_ns=66_666_666)
     wait_until(lambda: streamer.snapshot().sent == 3)
     assert popen.process is child
     assert len(popen.calls) == 1
@@ -177,10 +179,10 @@ def test_worker_overwrites_pending_frame_instead_of_queueing_or_replaying():
     second = np.full((720, 1280, 3), 2, dtype=np.uint8)
     third = np.full((720, 1280, 3), 3, dtype=np.uint8)
     streamer.start()
-    streamer.submit_color(first)
+    streamer.submit_color(first, timestamp_ns=0)
     assert entered.wait(1.0)
-    streamer.submit_color(second)
-    streamer.submit_color(third)
+    streamer.submit_color(second, timestamp_ns=33_333_333)
+    streamer.submit_color(third, timestamp_ns=66_666_666)
     release.set()
 
     wait_until(lambda: streamer.snapshot().sent == 2)
@@ -194,7 +196,7 @@ def test_broken_pipe_records_error_and_stops_worker():
     process = FakeProcess(FakeStdin(error=BrokenPipeError("receiver gone")))
     streamer = SrtStreamer(DashboardConfig(), popen=FakePopen(process))
     streamer.start()
-    streamer.submit_color(np.zeros((720, 1280, 3), dtype=np.uint8))
+    streamer.submit_color(np.zeros((720, 1280, 3), dtype=np.uint8), timestamp_ns=0)
 
     wait_until(lambda: not streamer.snapshot().running)
     assert "BrokenPipeError" in streamer.snapshot().last_error
@@ -272,7 +274,7 @@ def test_inflight_write_cannot_increment_sent_after_stop_returns():
         DashboardConfig(graceful_timeout_s=0.05), popen=FakePopen(process)
     )
     streamer.start()
-    streamer.submit_color(np.zeros((720, 1280, 3), np.uint8))
+    streamer.submit_color(np.zeros((720, 1280, 3), np.uint8), timestamp_ns=0)
     assert entered.wait(1)
     stopper = threading.Thread(target=streamer.stop)
     stopper.start()
@@ -298,7 +300,7 @@ def test_blocked_write_failure_after_stop_cannot_mutate_snapshot():
         DashboardConfig(graceful_timeout_s=0.01), popen=FakePopen(process)
     )
     streamer.start()
-    streamer.submit_color(np.zeros((720, 1280, 3), np.uint8))
+    streamer.submit_color(np.zeros((720, 1280, 3), np.uint8), timestamp_ns=0)
     assert entered.wait(1)
 
     streamer.stop()
@@ -318,3 +320,42 @@ def test_set_mode_after_stop_is_a_snapshot_preserving_noop():
     streamer.set_mode(FrameMode.DEPTH)
 
     assert streamer.snapshot() == stopped
+
+
+def test_overlay_outputs_each_color_using_fresh_reusable_depth():
+    popen = FakePopen()
+    streamer = SrtStreamer(DashboardConfig(), mode=FrameMode.OVERLAY, popen=popen)
+    depth = np.full((720, 1280), 500, np.uint16)
+    streamer.start()
+    original_process = popen.process
+    streamer.submit_aligned_depth(depth, timestamp_ns=0)
+
+    for index in range(3):
+        color = np.full((720, 1280, 3), index, np.uint8)
+        streamer.submit_color(color, timestamp_ns=index * 33_333_333)
+        wait_until(lambda: streamer.snapshot().sent == index + 1)
+
+    snapshot = streamer.snapshot()
+    assert len(original_process.stdin.writes) == 3
+    assert popen.process is original_process
+    assert len(popen.calls) == 1
+    assert snapshot.input_color == 3
+    assert snapshot.effective_fps == pytest.approx(30.0, rel=1e-6)
+    assert snapshot.depth_age_ms == pytest.approx(66.666666)
+    assert snapshot.pipeline_command == tuple(popen.calls[0][0])
+    streamer.stop()
+
+
+def test_depth_update_never_schedules_output():
+    popen = FakePopen()
+    streamer = SrtStreamer(DashboardConfig(), mode=FrameMode.DEPTH, popen=popen)
+    streamer.start()
+
+    streamer.submit_aligned_depth(
+        np.full((720, 1280), 500, np.uint16), timestamp_ns=0
+    )
+    time.sleep(0.03)
+
+    assert streamer.snapshot().sent == 0
+    assert popen.process.stdin.writes == []
+    streamer.stop()

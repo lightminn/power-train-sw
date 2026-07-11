@@ -87,7 +87,7 @@ def render_frame(
 
 
 class LatestVideoFrames:
-    """Thread-safe color/depth slots that are consumed at most once."""
+    """Thread-safe latest color plus reusable timestamped aligned depth."""
 
     def __init__(self, width: int = 1280, height: int = 720,
                  overlay_alpha: float = 0.5) -> None:
@@ -95,24 +95,47 @@ class LatestVideoFrames:
         self._height = height
         self._overlay_alpha = overlay_alpha
         self._color: Optional[np.ndarray] = None
+        self._color_timestamp_ns: Optional[int] = None
         self._depth: Optional[np.ndarray] = None
+        self._depth_timestamp_ns: Optional[int] = None
         self._lock = Lock()
 
-    def put_color(self, frame: np.ndarray) -> None:
+    def put_color(self, frame: np.ndarray, timestamp_ns: int) -> None:
         with self._lock:
             self._color = frame.copy()
+            self._color_timestamp_ns = timestamp_ns
 
-    def put_depth(self, frame: np.ndarray) -> None:
+    def put_depth(self, frame: np.ndarray, timestamp_ns: int) -> None:
         with self._lock:
             self._depth = frame.copy()
+            self._depth_timestamp_ns = timestamp_ns
 
-    def take(self, mode: FrameMode) -> Optional[np.ndarray]:
+    def depth_age_ns(self, now_ns: int) -> Optional[int]:
+        with self._lock:
+            if self._depth_timestamp_ns is None:
+                return None
+            return max(0, now_ns - self._depth_timestamp_ns)
+
+    def take(
+        self, mode: FrameMode, now_ns: int, max_depth_age_ns: int
+    ) -> Optional[np.ndarray]:
         mode = FrameMode(mode)
         with self._lock:
             color = self._color
             depth = self._depth
             self._color = None
-            self._depth = None
+            self._color_timestamp_ns = None
+            depth_timestamp_ns = self._depth_timestamp_ns
+
+        if mode in (FrameMode.DEPTH, FrameMode.OVERLAY):
+            if (
+                depth_timestamp_ns is None
+                or max(0, now_ns - depth_timestamp_ns) > max_depth_age_ns
+            ):
+                depth = None
+            # Even depth-only video is paced by a newly consumed RGB sample.
+            if color is None:
+                return None
 
         return render_frame(
             mode, color, depth, self._width, self._height,

@@ -107,41 +107,56 @@ def test_latest_slots_overwrite_and_take_consumes_the_newest(color):
     first[:, :, 0] = 1
     second[:, :, 0] = 2
 
-    frames.put_color(first)
-    frames.put_color(second)
+    frames.put_color(first, timestamp_ns=1)
+    frames.put_color(second, timestamp_ns=2)
 
-    np.testing.assert_array_equal(frames.take(FrameMode.COLOR), second)
-    assert frames.take(FrameMode.COLOR) is None
+    np.testing.assert_array_equal(frames.take(FrameMode.COLOR, 2, 250_000_000), second)
+    assert frames.take(FrameMode.COLOR, 2, 250_000_000) is None
 
 
-def test_incomplete_overlay_take_discards_unpaired_frame(color, depth):
+def test_incomplete_overlay_take_consumes_color_but_keeps_depth(color, depth):
     frames = LatestVideoFrames(WIDTH, HEIGHT)
-    frames.put_color(color)
+    frames.put_color(color, timestamp_ns=1)
 
-    assert frames.take(FrameMode.OVERLAY) is None
-    frames.put_depth(depth)
-    assert frames.take(FrameMode.OVERLAY) is None
+    assert frames.take(FrameMode.OVERLAY, 1, 250_000_000) is None
+    frames.put_depth(depth, timestamp_ns=2)
+    assert frames.take(FrameMode.OVERLAY, 2, 250_000_000) is None
 
 
 def test_take_discards_unselected_slot_so_mode_change_cannot_replay_it(
     color, depth
 ):
     frames = LatestVideoFrames(WIDTH, HEIGHT)
-    frames.put_color(color)
-    frames.put_depth(depth)
+    frames.put_color(color, timestamp_ns=1)
+    frames.put_depth(depth, timestamp_ns=1)
 
-    assert frames.take(FrameMode.COLOR) is not None
-    assert frames.take(FrameMode.DEPTH) is None
+    assert frames.take(FrameMode.COLOR, 1, 250_000_000) is not None
+    assert frames.take(FrameMode.DEPTH, 1, 250_000_000) is None
 
 
 def test_put_copies_input_to_prevent_concurrent_mutation(color):
     frames = LatestVideoFrames(WIDTH, HEIGHT)
     expected = color.copy()
 
-    frames.put_color(color)
+    frames.put_color(color, timestamp_ns=1)
     color[:] = 255
 
-    np.testing.assert_array_equal(frames.take(FrameMode.COLOR), expected)
+    np.testing.assert_array_equal(
+        frames.take(FrameMode.COLOR, 1, 250_000_000), expected
+    )
+
+
+def test_put_depth_copies_input_before_reusable_storage(color, depth):
+    frames = LatestVideoFrames(WIDTH, HEIGHT)
+    expected = depth.copy()
+    frames.put_depth(depth, timestamp_ns=1)
+    depth[:] = 0
+    frames.put_color(color, timestamp_ns=1)
+
+    np.testing.assert_array_equal(
+        frames.take(FrameMode.DEPTH, 1, 250_000_000),
+        render_frame(FrameMode.DEPTH, None, expected, WIDTH, HEIGHT),
+    )
 
 
 def test_overlay_alpha_blends_color_and_depth():
@@ -158,12 +173,34 @@ def test_overlay_alpha_blends_color_and_depth():
 
 def test_latest_depth_slot_overwrites_with_newest_frame():
     frames = LatestVideoFrames(WIDTH, HEIGHT)
-    frames.put_depth(np.full((HEIGHT, WIDTH), 100, dtype=np.uint16))
+    frames.put_depth(np.full((HEIGHT, WIDTH), 100, dtype=np.uint16), timestamp_ns=1)
     newest = np.full((HEIGHT, WIDTH), 400, dtype=np.uint16)
-    frames.put_depth(newest)
+    frames.put_depth(newest, timestamp_ns=2)
+    frames.put_color(np.zeros((HEIGHT, WIDTH, 3), np.uint8), timestamp_ns=2)
 
     np.testing.assert_array_equal(
-        frames.take(FrameMode.DEPTH),
+        frames.take(FrameMode.DEPTH, 2, 250_000_000),
         render_frame(FrameMode.DEPTH, None, newest, WIDTH, HEIGHT),
     )
-    assert frames.take(FrameMode.DEPTH) is None
+    assert frames.take(FrameMode.DEPTH, 2, 250_000_000) is None
+
+
+def test_overlay_reuses_fresh_depth_for_each_new_color(color, depth):
+    frames = LatestVideoFrames(WIDTH, HEIGHT)
+    frames.put_depth(depth, timestamp_ns=0)
+
+    for timestamp_ns in (0, 33_333_333, 66_666_666):
+        frames.put_color(color, timestamp_ns=timestamp_ns)
+        assert frames.take(
+            FrameMode.OVERLAY, timestamp_ns, 250_000_000
+        ) is not None
+
+
+@pytest.mark.parametrize("mode", [FrameMode.DEPTH, FrameMode.OVERLAY])
+def test_stale_depth_never_replays(mode, color, depth):
+    frames = LatestVideoFrames(WIDTH, HEIGHT)
+    frames.put_depth(depth, timestamp_ns=0)
+    frames.put_color(color, timestamp_ns=300_000_000)
+
+    assert frames.take(mode, 300_000_000, 250_000_000) is None
+    assert frames.depth_age_ns(300_000_000) == 300_000_000

@@ -17,8 +17,12 @@ from .frame_modes import FrameMode, LatestVideoFrames
 class StreamerSnapshot:
     running: bool
     mode: FrameMode
+    input_color: int
     sent: int
     dropped: int
+    effective_fps: float
+    depth_age_ms: Optional[float]
+    pipeline_command: tuple[str, ...]
     last_error: Optional[str]
 
 
@@ -46,10 +50,14 @@ class SrtStreamer:
         self._cleanup_done = False
         self._generation = 0
         self._pending = False
-        self._color_ready = False
-        self._depth_ready = False
+        self._pending_timestamp_ns: Optional[int] = None
+        self._input_color = 0
         self._sent = 0
         self._dropped = 0
+        self._first_sent_timestamp_ns: Optional[int] = None
+        self._last_sent_timestamp_ns: Optional[int] = None
+        self._latest_color_timestamp_ns: Optional[int] = None
+        self._pipeline_command: tuple[str, ...] = ()
         self._last_error: Optional[str] = None
 
     def start(self) -> None:
@@ -65,6 +73,7 @@ class SrtStreamer:
                 bitrate_kbps=self._config.bitrate_kbps,
                 latency_ms=self._config.latency_ms,
             )
+            self._pipeline_command = tuple(command)
             self._process = self._popen(
                 command, stdin=subprocess.PIPE, bufsize=0
             )
@@ -92,46 +101,27 @@ class SrtStreamer:
             if mode is self._mode:
                 return
             self._mode = mode
-            self._frames.take(mode)
-            self._pending = False
-            self._color_ready = False
-            self._depth_ready = False
 
-    def submit_color(self, frame: np.ndarray) -> None:
-        self._submit(frame, color=True)
-
-    def submit_depth(self, frame: np.ndarray) -> None:
-        self._submit(frame, color=False)
-
-    def _submit(self, frame: np.ndarray, color: bool) -> None:
+    def submit_color(self, frame: np.ndarray, timestamp_ns: int) -> None:
+        """Replace the pending RGB-paced output; never grow a queue."""
         with self._condition:
             if not self._running:
                 return
-            if color:
-                self._frames.put_color(frame)
-                selected = self._mode in (FrameMode.COLOR, FrameMode.OVERLAY)
-                overwrote = self._color_ready
-                self._color_ready = True
-            else:
-                self._frames.put_depth(frame)
-                selected = self._mode in (FrameMode.DEPTH, FrameMode.OVERLAY)
-                overwrote = self._depth_ready
-                self._depth_ready = True
-            if selected and overwrote:
+            self._frames.put_color(frame, timestamp_ns)
+            self._input_color += 1
+            self._latest_color_timestamp_ns = timestamp_ns
+            if self._pending:
                 self._dropped += 1
+            self._pending = True
+            self._pending_timestamp_ns = timestamp_ns
+            self._condition.notify()
 
-            ready = (
-                self._color_ready
-                if self._mode is FrameMode.COLOR
-                else (
-                    self._depth_ready
-                    if self._mode is FrameMode.DEPTH
-                    else self._color_ready and self._depth_ready
-                )
-            )
-            if ready:
-                self._pending = True
-                self._condition.notify()
+    def submit_aligned_depth(self, frame: np.ndarray, timestamp_ns: int) -> None:
+        """Replace reusable overlay state without scheduling encoded output."""
+        with self._condition:
+            if not self._running:
+                return
+            self._frames.put_depth(frame, timestamp_ns)
 
     def _run(self, generation) -> None:
         while True:
@@ -152,10 +142,12 @@ class SrtStreamer:
                 if not self._pending:
                     continue
                 mode = self._mode
-                frame = self._frames.take(mode)
+                timestamp_ns = self._pending_timestamp_ns
+                frame = self._frames.take(
+                    mode, timestamp_ns, self._config.max_depth_age_ns
+                )
                 self._pending = False
-                self._color_ready = False
-                self._depth_ready = False
+                self._pending_timestamp_ns = None
 
             if frame is None:
                 continue
@@ -170,6 +162,9 @@ class SrtStreamer:
             with self._condition:
                 if self._running and generation == self._generation:
                     self._sent += 1
+                    if self._first_sent_timestamp_ns is None:
+                        self._first_sent_timestamp_ns = timestamp_ns
+                    self._last_sent_timestamp_ns = timestamp_ns
 
     def _fail(self, message: str, generation: int) -> None:
         if self._stopped or generation != self._generation:
@@ -190,6 +185,7 @@ class SrtStreamer:
             self._generation += 1
             self._running = False
             self._pending = False
+            self._pending_timestamp_ns = None
             process = self._process
             thread = self._thread
             self._condition.notify_all()
@@ -222,10 +218,31 @@ class SrtStreamer:
 
     def snapshot(self) -> StreamerSnapshot:
         with self._condition:
+            effective_fps = 0.0
+            if (
+                self._sent > 1
+                and self._first_sent_timestamp_ns is not None
+                and self._last_sent_timestamp_ns > self._first_sent_timestamp_ns
+            ):
+                effective_fps = (
+                    (self._sent - 1) * 1_000_000_000
+                    / (self._last_sent_timestamp_ns - self._first_sent_timestamp_ns)
+                )
+            depth_age_ns = (
+                None
+                if self._latest_color_timestamp_ns is None
+                else self._frames.depth_age_ns(self._latest_color_timestamp_ns)
+            )
             return StreamerSnapshot(
                 running=self._running,
                 mode=self._mode,
+                input_color=self._input_color,
                 sent=self._sent,
                 dropped=self._dropped,
+                effective_fps=effective_fps,
+                depth_age_ms=(
+                    None if depth_age_ns is None else depth_age_ns / 1_000_000
+                ),
+                pipeline_command=self._pipeline_command,
                 last_error=self._last_error,
             )

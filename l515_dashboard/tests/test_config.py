@@ -25,6 +25,7 @@ def test_defaults_match_l515_stream_contract():
     assert config.overlay_alpha == 0.5
     assert config.reconnect_interval_s == 2.0
     assert config.max_message_bytes == 65536
+    assert config.max_depth_age_ns == 250_000_000
 
 
 def test_config_is_immutable():
@@ -46,6 +47,7 @@ def test_config_is_immutable():
         ({"overlay_alpha": 1.1}, "overlay_alpha"),
         ({"reconnect_interval_s": 0}, "reconnect_interval_s"),
         ({"max_message_bytes": 0}, "max_message_bytes"),
+        ({"max_depth_age_ns": 0}, "max_depth_age_ns"),
         ({"socket_path": ""}, "socket_path"),
         ({"socket_path": "@"}, "socket_path"),
         ({"socket_path": "@bad\x00name"}, "socket_path"),
@@ -70,6 +72,7 @@ def test_rejects_invalid_runtime_configuration(kwargs, message):
         "depth_width",
         "depth_height",
         "max_message_bytes",
+        "max_depth_age_ns",
     ],
 )
 @pytest.mark.parametrize("value", [1.5, True, "1"])
@@ -116,3 +119,8 @@ def test_rejects_nonfixed_stream_profiles():
 def test_srt_fps_is_fixed_at_30():
     with pytest.raises(ValueError, match="fps must be fixed at 30"):
         DashboardConfig(fps=29)
+
+
+def test_gateway_rejects_legacy_openh264_fallback():
+    with pytest.raises(ValueError, match="encoder"):
+        DashboardConfig(encoder="openh264")

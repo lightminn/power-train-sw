@@ -44,7 +44,8 @@ class SystemCollector:
 class Gateway:
     def __init__(self, *, guard, source, ros, streamer=None, server=None,
                  streamer_factory=None, diagnostics=None,
-                 system_collector=None, now_ns=time.time_ns, workers=None,
+                 system_collector=None, now_ns=time.time_ns,
+                 stream_now_ns=time.monotonic_ns, workers=None,
                  workers_factory=WorkerGroup):
         self.guard = guard
         self.source = source
@@ -64,6 +65,7 @@ class Gateway:
         self._diagnostics = diagnostics if diagnostics is not None else DiagnosticsTracker()
         self._system_collector = system_collector or SystemCollector()
         self._now_ns = now_ns
+        self._stream_now_ns = stream_now_ns
         self._owned = []
         self._streamers = []
         self._lock = threading.RLock()
@@ -261,7 +263,10 @@ class Gateway:
             return
         import numpy as np
         try:
-            self.streamer.submit_color(np.asanyarray(sample.frame.get_data()))
+            self.streamer.submit_color(
+                np.asanyarray(sample.frame.get_data()),
+                timestamp_ns=self._stream_now_ns(),
+            )
         except Exception as exc:
             with self._lock:
                 self._disable_streamer(exc)
@@ -270,7 +275,9 @@ class Gateway:
         if self.streamer is None or not self.streaming_enabled or not self._stream_active:
             return
         try:
-            self.streamer.submit_depth(aligned.array)
+            self.streamer.submit_aligned_depth(
+                aligned.array, timestamp_ns=aligned.created_ns
+            )
         except Exception as exc:
             with self._lock:
                 self._disable_streamer(exc)
@@ -349,6 +356,12 @@ class Gateway:
                         "mode": getattr(getattr(stream, "mode", None), "value", None),
                         "sent": getattr(stream, "sent", 0),
                         "dropped": getattr(stream, "dropped", 0),
+                        "input_color": getattr(stream, "input_color", 0),
+                        "effective_fps": getattr(stream, "effective_fps", 0.0),
+                        "depth_age_ms": getattr(stream, "depth_age_ms", None),
+                        "pipeline_command": list(
+                            getattr(stream, "pipeline_command", ())
+                        ),
                         "last_error": getattr(stream, "last_error", None),
                         "client_state": None},
                 "system": dict(self._system_collector()),

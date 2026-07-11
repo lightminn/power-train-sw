@@ -213,12 +213,12 @@ def test_connecting_is_starting_and_status_contract_is_complete():
 
 def test_streamer_submit_and_snapshot_exceptions_are_isolated():
     class BadStreamer(Streamer):
-        def submit_color(self, _): raise RuntimeError("submit broke")
+        def submit_color(self, _, timestamp_ns): raise RuntimeError("submit broke")
     class Frame:
         empty=False; raw_depth=aligned_depth=gyro=accel=None
         raw_color=SimpleNamespace(get_data=lambda: __import__("numpy").zeros((1,1,3),dtype="uint8"), get_timestamp=lambda:1)
     gateway, parts=make_gateway(streamer=BadStreamer()); gateway.start()
-    gateway._submit_color(SimpleNamespace(frame=Frame.raw_color))
+    gateway._submit_color(SimpleNamespace(frame=Frame.raw_color, timestamp_ms=1))
     assert gateway.state is GatewayState.DEGRADED and parts["source"].stopped == 0
     assert "submit broke" in gateway.last_error
     gateway.shutdown()

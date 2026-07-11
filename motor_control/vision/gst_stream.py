@@ -53,7 +53,7 @@ def build_gst_command(port: int, width: int, height: int, fps: int,
     if encoder == "x264":
         # zerolatency: B-frame 0·슬라이스 스레딩, superfast: 6코어 A78 가 YOLO 와
         # 공존 가능한 프리셋. key-int-max=30: 키프레임 주기 — 손실 후 화질 복구 한도.
-        enc = ["x264enc", "tune=zerolatency", "speed-preset=superfast",
+        enc = ["x264enc", "tune=zerolatency", "speed-preset=superfast", "threads=2",
                f"bitrate={bitrate_kbps}", "key-int-max=30"]
     elif encoder == "openh264":
         # 폴백 (구이미지에 plugins-ugly 없음). complexity=low: 인코더가 CPU 독식해

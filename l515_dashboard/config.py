@@ -6,7 +6,7 @@ from numbers import Real
 
 from .endpoint import abstract_address
 
-ENCODERS = ("x264", "openh264")
+ENCODERS = ("x264",)
 
 
 @dataclass(frozen=True)
@@ -32,6 +32,7 @@ class DashboardConfig:
     overlay_alpha: float = 0.5
     reconnect_interval_s: float = 2.0
     max_message_bytes: int = 65536
+    max_depth_age_ns: int = 250_000_000
 
     def __post_init__(self) -> None:
         if isinstance(self.port, bool) or not isinstance(self.port, int):
@@ -54,6 +55,7 @@ class DashboardConfig:
             "depth_width",
             "depth_height",
             "max_message_bytes",
+            "max_depth_age_ns",
         )
         for name in positive_integer_fields:
             value = getattr(self, name)
