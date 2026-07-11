@@ -6,7 +6,7 @@ import queue
 import socket
 import threading
 
-from .filesystem_identity import path_has_identity, path_identity
+from .filesystem_identity import path_identity, quarantine_remove
 from .protocol import ProtocolError, decode_request, encode_message, response
 
 
@@ -86,11 +86,7 @@ class UnixControlServer:
             raise
 
     def _unlink_owned_socket(self):
-        try:
-            if path_has_identity(self.path, self._socket_identity):
-                os.unlink(self.path)
-        except FileNotFoundError:
-            pass
+        quarantine_remove(self.path, self._socket_identity)
         self._socket_identity = None
 
     def _run_actions(self):

@@ -42,3 +42,29 @@ Result before fix: `3 failed`.
 - `git diff --check`: exit 0.
 
 No Jetson state or non-code project documentation was changed.
+
+## Canonical-path TOCTOU follow-up
+
+A review found that even four-field `lstat` comparison followed by `unlink`
+left a canonical-path replacement window. Cleanup now uses a shared quarantine
+primitive:
+
+1. Open canonical with `O_PATH|O_NOFOLLOW` and verify the recorded identity.
+2. Atomically rename canonical to an unpredictable same-directory quarantine.
+3. Verify the quarantined entry is the same open inode, accounting for rename's
+   ctime update through the open descriptor.
+4. Unlink only that verified quarantine.
+5. Restore an unknown quarantine with Linux `renameat2(RENAME_NOREPLACE)`.
+   If canonical was recreated, preserve both paths and raise
+   `PathOwnershipConflict`; never delete the unknown quarantine.
+
+Deterministic tests replace canonical exactly during cleanup and cover both an
+owned quarantine with a canonical successor and an unknown quarantine whose
+canonical path is recreated. The primitive is used for ControlServer
+rollback/stop and ResourceGuard socket/lock stale cleanup, claim, and release.
+
+Fresh follow-up verification:
+
+- focused quarantine and integrations: `5 passed in 0.13s`;
+- full dashboard suite: `202 passed in 5.40s`;
+- compileall and `git diff --check`: exit 0.

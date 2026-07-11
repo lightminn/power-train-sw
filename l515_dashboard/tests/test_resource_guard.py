@@ -135,6 +135,23 @@ def test_claim_persists_full_filesystem_identity(tmp_path):
     guard.release()
 
 
+def test_release_preserves_successor_created_exactly_during_cleanup(
+        tmp_path, monkeypatch):
+    lock, path = tmp_path / "lock", tmp_path / "sock"
+    guard = ResourceGuard(lock, path); guard.acquire()
+    path.write_text("owned"); guard.claim_socket()
+    real_rename = os.rename
+
+    def replace_during_cleanup(source, destination):
+        real_rename(source, destination)
+        if str(source) == str(path):
+            path.write_text("successor")
+
+    monkeypatch.setattr(os, "rename", replace_during_cleanup)
+    guard.release()
+    assert path.read_text() == "successor"
+
+
 def test_stale_reclaim_does_not_remove_replaced_socket(tmp_path):
     lock, path = tmp_path / "lock", tmp_path / "sock"
     path.write_text("old"); old = path.stat()

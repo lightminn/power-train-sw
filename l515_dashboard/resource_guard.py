@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from .filesystem_identity import path_has_identity, path_identity, serialized_identity
+from .filesystem_identity import path_identity, quarantine_remove, serialized_identity
 
 
 class ResourceBusy(RuntimeError):
@@ -85,11 +85,7 @@ class ResourceGuard:
 
     def _remove_owned_socket(self, payload):
         expected = payload.get("socket_identity")
-        try:
-            if path_has_identity(self.socket_path, expected):
-                self.socket_path.unlink()
-        except FileNotFoundError:
-            pass
+        quarantine_remove(self.socket_path, expected)
 
     def acquire(self):
         if self.acquired:
@@ -104,6 +100,7 @@ class ResourceGuard:
         mutex = self._mutex()
         try:
             if self.lock_path.exists():
+                stale_lock_identity = path_identity(self.lock_path)
                 try:
                     payload = json.loads(self.lock_path.read_text())
                 except (OSError, ValueError, TypeError) as exc:
@@ -114,7 +111,8 @@ class ResourceGuard:
                 if live:
                     raise ResourceBusy(f"resource owned by pid {payload['pid']}")
                 self._remove_owned_socket(payload)
-                self.lock_path.unlink()
+                if not quarantine_remove(self.lock_path, stale_lock_identity):
+                    raise ResourceBusy("lock ownership changed during stale reclaim")
             self._payload = {"pid": self.pid, "start_identity": identity}
             self._publish(self._payload)
         finally:
@@ -130,7 +128,8 @@ class ResourceGuard:
                 raise ResourceBusy("lock ownership changed")
             payload = dict(self._payload)
             payload["socket_identity"] = serialized_identity(socket_identity)
-            self.lock_path.unlink()
+            if not quarantine_remove(self.lock_path, self._lock_identity):
+                raise ResourceBusy("lock ownership changed")
             self._publish(payload)
             self._payload = payload
         finally:
@@ -149,7 +148,7 @@ class ResourceGuard:
             if current != identity:
                 return
             self._remove_owned_socket(self._payload)
-            self.lock_path.unlink()
+            quarantine_remove(self.lock_path, identity)
         finally:
             self._lock_identity = None
             self._payload = None

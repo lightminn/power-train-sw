@@ -162,6 +162,22 @@ def test_stop_preserves_overlayfs_successor_with_reused_inode(tmp_path, monkeypa
     assert path.read_text() == "successor"
 
 
+def test_stop_preserves_successor_created_exactly_during_cleanup(tmp_path, monkeypatch):
+    path = tmp_path / "gateway.sock"
+    server = UnixControlServer(path, lambda _: {})
+    server.start()
+    real_rename = os.rename
+
+    def replace_during_cleanup(source, destination):
+        real_rename(source, destination)
+        if str(source) == str(path):
+            path.write_text("successor")
+
+    monkeypatch.setattr(os, "rename", replace_during_cleanup)
+    server.stop()
+    assert path.read_text() == "successor"
+
+
 def test_stop_joins_blocked_multi_client_handlers_and_cancels_actions(tmp_path):
     path=tmp_path / "gateway.sock"; entered=[]; lock=threading.Lock()
     both=threading.Event(); release=threading.Event(); actions=[]
