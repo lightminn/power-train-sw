@@ -198,3 +198,46 @@ def test_cleanup_does_not_hold_lifecycle_lock_while_server_stop_blocks():
     assert acquired
     gateway._lock.release(); release.set(); stopper.join(1)
     assert not stopper.is_alive() and gateway.state is GatewayState.STOPPED
+
+
+def test_cleanup_during_restart_teardown_prevents_every_later_start():
+    entered=threading.Event(); release=threading.Event()
+    class BarrierSource(Source):
+        def stop(self):
+            self.stopped += 1
+            if self.stopped == 1:
+                entered.set(); release.wait()
+    source=BarrierSource(); gateway,parts=make_gateway(source=source)
+    gateway._streamer_factory=lambda: Streamer()
+    gateway.start()
+    restart=threading.Thread(target=gateway.restart_components); restart.start()
+    assert entered.wait(1)
+    cleanup=threading.Thread(target=gateway.shutdown); cleanup.start()
+    for _ in range(100):
+        if gateway.shutdown_requested: break
+        threading.Event().wait(.002)
+    release.set(); restart.join(1); cleanup.join(1)
+    assert not restart.is_alive() and not cleanup.is_alive()
+    assert source.started == 1 and parts["ros"].started == 1
+    assert gateway.state is GatewayState.STOPPED
+    assert gateway._owned == []
+    assert all(part.stopped >= 1 for part in parts.values())
+
+
+def test_fatal_request_during_normal_cleanup_dominates_stopped():
+    entered=threading.Event(); release=threading.Event()
+    class BarrierStreamer(Streamer):
+        def stop(self): self.stopped += 1; entered.set(); release.wait()
+    gateway,parts=make_gateway(streamer=BarrierStreamer()); gateway.start()
+    normal=threading.Thread(target=gateway.shutdown); normal.start(); assert entered.wait(1)
+    fatal=threading.Thread(target=gateway.ros_fatal,args=(RuntimeError("late fatal"),))
+    fatal.start()
+    for _ in range(100):
+        if gateway.fatal_error: break
+        threading.Event().wait(.002)
+    release.set(); normal.join(1); fatal.join(1)
+    assert not normal.is_alive() and not fatal.is_alive()
+    assert gateway.state is GatewayState.FAULT
+    assert gateway.fatal_error == "late fatal"
+    assert gateway._owned == []
+    assert parts["source"].stopped == parts["ros"].stopped == parts["server"].stopped == parts["guard"].stopped == 1

@@ -63,7 +63,9 @@ class Gateway:
         self._streamers = []
         self._lock = threading.RLock()
         self._cleanup_condition = threading.Condition(self._lock)
-        self._cleanup_active = False
+        self._lifecycle_operation = None
+        self._lifecycle_epoch = 0
+        self._requested_terminal = None
         self._accept_commands = False
         self.shutdown_requested = False
         self._shutdown_done = False
@@ -134,14 +136,24 @@ class Gateway:
     def _cleanup(self, final_state):
         """Two-phase cleanup: claim under lock, stop/join without it, finalize."""
         with self._cleanup_condition:
+            self.shutdown_requested = True
+            self._lifecycle_epoch += 1
+            if (self._requested_terminal is None
+                    or final_state is GatewayState.FAULT):
+                self._requested_terminal = final_state
             if self._shutdown_done:
+                if self._requested_terminal is GatewayState.FAULT:
+                    self.state = GatewayState.FAULT
                 return
-            if self._cleanup_active:
-                self._cleanup_condition.wait_for(lambda: not self._cleanup_active)
+            self._cleanup_condition.wait_for(
+                lambda: self._lifecycle_operation != "restart")
+            if self._lifecycle_operation == "cleanup":
+                self._cleanup_condition.wait_for(
+                    lambda: self._lifecycle_operation != "cleanup")
                 return
-            self._cleanup_active = True
+            self._lifecycle_operation = "cleanup"
             self._accept_commands = False
-            self.state = (GatewayState.STOPPING if final_state is GatewayState.STOPPED
+            self.state = (GatewayState.STOPPING if self._requested_terminal is GatewayState.STOPPED
                           else GatewayState.FAULT)
             streamers = [part for part in reversed(self._streamers)
                          if part in self._owned]
@@ -156,13 +168,14 @@ class Gateway:
             except Exception as exc:
                 errors.append(exc)
         with self._cleanup_condition:
+            final_state = self._requested_terminal or final_state
             if errors:
                 self.last_error = self.last_error or str(errors[0])
                 if final_state is GatewayState.FAULT:
                     self.fatal_error = self.fatal_error or str(errors[0])
             self._shutdown_done = True
             self.state = final_state
-            self._cleanup_active = False
+            self._lifecycle_operation = None
             self._cleanup_condition.notify_all()
 
     def shutdown(self):
@@ -337,9 +350,13 @@ class Gateway:
             return self.status_snapshot()
 
     def request_shutdown(self):
-        with self._lock:
+        with self._cleanup_condition:
             self.shutdown_requested = True
+            self._lifecycle_epoch += 1
+            if self._requested_terminal is None:
+                self._requested_terminal = GatewayState.STOPPED
             self._accept_commands = False
+            self._cleanup_condition.notify_all()
 
     def _set_streaming(self, enabled):
         if self.streamer is None:
@@ -370,37 +387,49 @@ class Gateway:
 
     def restart_components(self):
         """Internally restart SDK, ROS and optional SRT; keep guard/socket alive."""
-        with self._lock:
-            if self._shutdown_done or self._cleanup_active:
+        with self._cleanup_condition:
+            if self._shutdown_done or self.shutdown_requested:
                 return
+            self._cleanup_condition.wait_for(
+                lambda: self._lifecycle_operation is None)
+            if self._shutdown_done or self.shutdown_requested:
+                return
+            self._lifecycle_operation = "restart"
+            epoch = self._lifecycle_epoch
             self.state = GatewayState.STARTING
             self._accept_commands = False
             streamers = [s for s in reversed(self._streamers) if s in self._owned]
-        for streamer in streamers:
-            try:
-                self._stop(streamer)
-            except Exception as exc:
-                with self._lock:
-                    self._disable_streamer(exc)
-            with self._lock:
-                if streamer in self._owned:
-                    self._owned.remove(streamer)
+        failure = None
         try:
+            for streamer in streamers:
+                try:
+                    self._stop(streamer)
+                except Exception as exc:
+                    with self._lock:
+                        self._disable_streamer(exc)
+                if self._restart_cancelled(epoch):
+                    return
             # Non-SRT teardown failures are fatal and use common cleanup.
             self._stop(self.source)
-            with self._lock:
-                if self.source in self._owned:
-                    self._owned.remove(self.source)
+            if self._restart_cancelled(epoch):
+                return
             self._stop(self.ros)
+            if self._restart_cancelled(epoch):
+                return
             with self._lock:
-                if self.ros in self._owned:
-                    self._owned.remove(self.ros)
-            with self._lock:
+                if self._restart_cancelled(epoch):
+                    return
                 self._start_owned(self.source)
+                if self._restart_cancelled(epoch):
+                    return
                 self._start_owned(self.ros)
+                if self._restart_cancelled(epoch):
+                    return
                 if self._streamer_factory is not None:
                     try:
                         self.streamer = self._streamer_factory()
+                        if self._restart_cancelled(epoch):
+                            return
                         self.streaming_enabled = self._start_owned(
                             self.streamer, optional=True)
                     except Exception as exc:
@@ -413,5 +442,17 @@ class Gateway:
             with self._lock:
                 self.last_error = str(exc)
                 self.fatal_error = self.last_error
+            failure = exc
+        finally:
+            with self._cleanup_condition:
+                if self._lifecycle_operation == "restart":
+                    self._lifecycle_operation = None
+                    self._cleanup_condition.notify_all()
+        if failure is not None:
             self._cleanup(GatewayState.FAULT)
-            raise
+            raise failure
+
+    def _restart_cancelled(self, epoch):
+        with self._lock:
+            return (self.shutdown_requested or self._lifecycle_epoch != epoch
+                    or self._requested_terminal is not None)

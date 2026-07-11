@@ -67,6 +67,21 @@ Fresh automated evidence before commit:
 - `git diff --check`: pass.
 - No HIL was run.
 
+## Restart versus cleanup race remediation
+
+- Restart and cleanup now share one condition-protected lifecycle operation (`restart` or `cleanup`), shutdown epoch, and requested terminal state.
+- A cleanup request atomically sets `shutdown_requested`, increments the epoch, rejects commands, merges its terminal state with FAULT dominating STOPPED, and waits for an active restart to acknowledge cancellation before detaching resources.
+- Restart claims exclusive lifecycle ownership and checks shutdown/epoch after every teardown and immediately before source, ROS, and SRT starts. Cancellation releases lifecycle ownership without starting anything; waiting cleanup then detaches and stops every owned resource.
+- Concurrent cleanup callers wait for the active cleanup. The cleanup owner reads the strongest merged terminal request at finalization, so a fatal arriving during ordinary STOPPING finishes as FAULT and retains `fatal_error`.
+- Deterministic barrier tests cover cleanup during source restart teardown and fatal arrival while normal cleanup is blocked in SRT stop. Both assert terminal state, no post-request starts, empty owned-resource tracking, and complete remaining cleanup.
+
+Fresh evidence:
+
+- `/home/light/anaconda3/bin/python -m pytest -q l515_dashboard/tests`: `176 passed in 1.84s`.
+- `/home/light/anaconda3/bin/python -m compileall -q l515_dashboard`: pass.
+- `git diff --check`: pass.
+- No HIL was run.
+
 ## Final lifecycle review remediation
 
 - Gateway cleanup is now two phase: while holding the lifecycle lock it marks STOPPING/FAULT, rejects commands, and atomically detaches the owned-resource cleanup plan; it then releases the lock before every component stop and server client/action-thread join; finally it reacquires the lock to publish the terminal state and wake concurrent shutdown callers.
