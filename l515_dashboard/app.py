@@ -38,7 +38,10 @@ class DashboardApp(App):
         try:
             snap=self.client.request(kind,payload or {})
             if snap and kind != "stop_gateway": self.show_status(snap.payload)
-        except Exception as exc: self.query_one("#status",Static).update(f"Command failed: {exc}")
+            return snap
+        except Exception as exc:
+            self.query_one("#status",Static).update(f"Command failed: {exc}")
+            return None
     def action_mode_rgb(self): self._command("set_video_mode",{"mode":"rgb"})
     def action_mode_depth(self): self._command("set_video_mode",{"mode":"depth"})
     def action_mode_overlay(self): self._command("set_video_mode",{"mode":"overlay"})
@@ -52,5 +55,11 @@ class DashboardApp(App):
         if self._confirming and event.key.lower() in ("y","n","escape"):
             event.stop(); yes=event.key.lower()=="y"; self._confirming=False
             self.query_one("#confirm-stop").remove()
-            if yes: self._command("stop_gateway"); self.exit()
-
+            if yes:
+                snapshot = self._command("stop_gateway")
+                if snapshot is not None and snapshot.acknowledged:
+                    self.exit()
+                elif snapshot is not None:
+                    self.query_one("#status", Static).update(
+                        "Gateway stop was not acknowledged; Dashboard remains connected"
+                    )

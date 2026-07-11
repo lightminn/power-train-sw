@@ -4,9 +4,12 @@ from l515_dashboard.app import DashboardApp
 
 
 class Client:
-    def __init__(self): self.commands=[]
+    def __init__(self, result=None, error=None): self.commands=[]; self.result=result; self.error=error; self.last_error=None
     def poll(self): return None
-    def request(self, kind, payload=None): self.commands.append((kind, payload or {}))
+    def request(self, kind, payload=None):
+        self.commands.append((kind, payload or {}))
+        if self.error: raise self.error
+        return self.result
 
 
 def test_dashboard_renders_status_and_keys():
@@ -36,5 +39,22 @@ def test_q_exits_client_and_shift_q_requires_confirmation():
         await pilot.press("Q"); await pilot.pause()
         assert app.query_one("#confirm-stop")
         await pilot.press("y"); await pilot.pause()
+        assert app.is_running
     assert client.commands == [("stop_gateway",{})]
+
+    class Ack: acknowledged=True; payload={"accepted":True}
+    client=Client(Ack()); app=DashboardApp(client,poll_interval_s=60)
+    async with app.run_test() as pilot:
+        await pilot.press("Q","y"); await pilot.pause()
+    assert client.commands == [("stop_gateway",{})]
+  asyncio.run(scenario())
+
+
+def test_failed_stop_stays_open_and_displays_error():
+  async def scenario():
+    client=Client(error=TimeoutError("ack timeout")); app=DashboardApp(client,poll_interval_s=60)
+    async with app.run_test() as pilot:
+        await pilot.press("Q","y"); await pilot.pause()
+        assert app.is_running
+        assert "ack timeout" in app.query_one("#status").render().plain
   asyncio.run(scenario())

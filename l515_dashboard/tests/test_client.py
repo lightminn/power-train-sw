@@ -38,8 +38,23 @@ def test_command_returns_acknowledged_immutable_snapshot(tmp_path):
     server = Server(tmp_path/"gateway.sock", [lambda r: response(r["request_id"], {"state":"RUNNING", "nested":{"x":1}})])
     server.start(); client = GatewayClient(server.path, request_timeout_s=.5)
     snap = client.request("get_status")
-    assert snap.payload["state"] == "RUNNING" and snap.acknowledged
+    assert snap.payload["state"] == "RUNNING" and not snap.acknowledged
     with pytest.raises(TypeError): snap.payload["nested"]["x"] = 2
+    server.close()
+
+
+@pytest.mark.parametrize("payload", [{"accepted": False}, {"accepted": 1}, {}, {"accepted": "true"}])
+def test_only_literal_true_is_acknowledged(tmp_path, payload):
+    server=Server(tmp_path/"gateway.sock",[lambda r: response(r["request_id"],payload)])
+    server.start(); snap=GatewayClient(server.path,request_timeout_s=.5).request("stop_gateway")
+    assert snap.acknowledged is False
+    server.close()
+
+
+def test_literal_true_is_acknowledged(tmp_path):
+    server=Server(tmp_path/"gateway.sock",[lambda r: response(r["request_id"],{"accepted":True})])
+    server.start(); snap=GatewayClient(server.path,request_timeout_s=.5).request("stop_gateway")
+    assert snap.acknowledged is True
     server.close()
 
 

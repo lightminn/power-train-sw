@@ -100,17 +100,18 @@ docker compose -f docker/docker-compose.jetson.yml up -d powertrain_ros
 bash scripts/l515_preflight.sh
 ```
 
-그 다음 `powertrain_ros` 컨테이너에서 clean build, source, launch한다.
+컨테이너 entrypoint는 fresh checkout에서 아래 3패키지를 자동 build하고 setup을 source한 뒤
+`python3 -m l515_dashboard.gateway_main`을 exec한다. 설치 후 source가 더 새로우면 자동 재빌드한다.
+따라서 Gateway와 동시에 레거시 `l515.launch.py`를 별도로 실행하지 않는다.
 
 ```bash
-docker exec -it powertrain_ros bash
-cd /workspace/ros2
-rm -rf build install log
-colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-ros2 launch powertrain_ros l515.launch.py
+docker logs powertrain_ros
+docker exec -it powertrain_ros python3 -m l515_dashboard
 ```
+
+Gateway crash는 compose가 최대 5회 재시작하지만, 확인된 `Shift+Q`는 정상 종료 0이므로
+컨테이너가 정지 상태를 유지한다. 재기동은 `docker compose -f docker/docker-compose.jetson.yml
+up -d powertrain_ros`로 명시적으로 수행한다.
 
 발행 토픽은 `/l515/color/image_raw`, `/l515/color/camera_info`,
 `/l515/depth/image_rect_raw`, `/l515/depth/camera_info`, `/l515/gyro/sample`,

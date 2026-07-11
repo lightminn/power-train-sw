@@ -31,7 +31,7 @@ class ClientSnapshot:
     request_id: str
     payload: object
     received_monotonic: float
-    acknowledged: bool = True
+    acknowledged: bool = False
 
 
 class GatewayClient:
@@ -54,7 +54,9 @@ class GatewayClient:
                 if reply.get("request_id") != request_id: raise StaleStatusError("response request_id does not match current request")
                 if reply.get("type") == "error": raise RuntimeError(reply.get("payload",{}).get("error","Gateway error"))
                 if reply.get("type") != "response" or not isinstance(reply.get("payload"),dict): raise ValueError("invalid Gateway response")
-                snap=ClientSnapshot(request_id,_freeze(reply["payload"]),time.monotonic())
+                payload = reply["payload"]
+                acknowledged = payload.get("accepted") is True
+                snap=ClientSnapshot(request_id, _freeze(payload), time.monotonic(), acknowledged)
                 self.snapshot=snap; self.state=ClientState.CONNECTED; self.last_error=None
                 return snap
             except Exception as exc:
@@ -64,4 +66,3 @@ class GatewayClient:
     def poll(self):
         try: return self.request("get_status")
         except (OSError, ConnectionError, TimeoutError): return None
-

@@ -22,7 +22,7 @@
 
 ## Verification
 
-- Full `l515_dashboard/tests`: 184 passed (fresh final run recorded before commit).
+- Full `l515_dashboard/tests`: 194 passed (fresh review-correction run recorded before commit).
 - Docker Compose rendering: `docker compose -f docker/docker-compose.jetson.yml config` passed.
 - Forbidden client imports: no `pyrealsense2`, ROS message, or Image import in client/UI entrypoints.
 - `git diff --check` passed.
@@ -34,3 +34,15 @@
 - Gateway lifecycle remains independent of every client connection; the client opens one bounded
   request socket at a time and owns no long-lived child or hardware handle.
 - Destructive shutdown remains server-acknowledged before cleanup, matching Task 6 deferred actions.
+
+## Review correction
+
+- Corrected acknowledgement semantics: a matching request ID is required and only the literal JSON
+  boolean `accepted: true` marks a command acknowledged. Negative, malformed, timeout, and error
+  outcomes keep the Dashboard open and show the failure.
+- Replaced generic client-loss stand-ins with real `python3 -m l515_dashboard` PTY processes for
+  `q`, SIGHUP, SIGTERM, and SIGKILL continuity evidence. The fake Gateway now handles signals and
+  always reaps its fake SRT child in `finally`; the acknowledged real socket stop proves teardown.
+- The production entrypoint now builds a missing or stale ROS workspace, sources it, and execs the
+  Gateway. Compose uses `on-failure:5`, so crashes recover boundedly while clean `stop_gateway` exit
+  0 remains durably stopped. Legacy concurrent `l515.launch.py` run instructions were removed.
