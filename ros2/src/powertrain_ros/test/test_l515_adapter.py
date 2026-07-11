@@ -60,6 +60,23 @@ def test_image_from_depth_array_uses_uint16_byte_step():
     assert bytes(msg.data) == array.tobytes()
 
 
+def test_image_from_array_accepts_realsense_array_compatible_buffer():
+    expected = np.arange(12, dtype=np.uint8).reshape(2, 2, 3)
+
+    class ArrayCompatible:
+        def __array__(self, dtype=None, copy=None):
+            return np.asarray(expected, dtype=dtype)
+
+    msg = image_from_array(
+        ArrayCompatible(), "bgr8", "color_frame", Time()
+    )
+
+    assert msg.height == 2
+    assert msg.width == 2
+    assert msg.step == 6
+    assert bytes(msg.data) == expected.tobytes()
+
+
 def test_camera_info_maps_intrinsics_and_header():
     intrinsics = SimpleNamespace(
         width=640,

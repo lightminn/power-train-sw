@@ -1,5 +1,6 @@
 """Hardware-independent conversions from L515 samples to ROS messages."""
 
+import numpy as np
 from sensor_msgs.msg import CameraInfo, Image, Imu
 
 
@@ -27,6 +28,19 @@ class TimestampMapper:
 
 def image_from_array(array, encoding, frame_id, stamp) -> Image:
     """Copy a contiguous image array into a sensor_msgs Image."""
+    array = np.asanyarray(array)
+    expected = {
+        "bgr8": (3, np.dtype(np.uint8)),
+        "16UC1": (2, np.dtype(np.uint16)),
+    }
+    if encoding not in expected:
+        raise ValueError(f"unsupported image encoding: {encoding}")
+    ndim, dtype = expected[encoding]
+    if array.ndim != ndim or array.dtype != dtype:
+        raise ValueError(
+            f"{encoding} requires {ndim}D {dtype}, "
+            f"got {array.ndim}D {array.dtype}"
+        )
     if not array.flags.c_contiguous:
         raise ValueError("image array must be C-contiguous")
 
