@@ -1,161 +1,188 @@
-# L515 TUI 진단·영상 송신 통합 관리자 설계
+# L515 Gateway·TUI 원격주행 설계
 
-> 작성일: 2026-07-11 KST  
-> 상태: 구현 전 승인 설계  
+> 작성일: 2026-07-11 KST
+> 상태: Gateway 구조 승인
 > 선행 작업: `2026-07-11-l515-lightweight-pipeline-design.md`
 
 ## 1. 목적과 범위
 
-Jetson에서 L515 경량 ROS 파이프라인의 상태를 터미널에서 진단하고, 기존 H.264/SRT
-영상 송신을 같은 생명주기로 제어하는 Python TUI를 만든다. TUI는 텍스트 진단만 표시하고
-영상은 별도 SRT 수신 화면으로 전송한다.
+원격주행과 자율주행이 같은 L515 입력을 안정적으로 공유하도록, 시스템 전체에서 L515를
+하나의 장기 실행 Gateway 프로세스만 점유한다. Gateway는 기존 ROS 발행, SDK 정합,
+H.264/SRT 영상 송신을 함께 수행한다. 별도 Textual Dashboard 프로세스는 Unix domain
+socket으로 상태를 표시하고 제어 명령만 전달한다.
 
-본 작업의 핵심 계약은 다음과 같다.
+핵심 계약은 다음과 같다.
 
-- TUI가 L515 ROS 노드와 영상 송신기를 한 스택으로 시작·감시·종료한다.
-- L515는 기존 `l515_camera` 노드만 직접 점유한다.
-- 영상 송신기는 ROS Image 토픽을 구독하므로 카메라를 두 번 열지 않는다.
-- Color, Depth 컬러맵, Color+Depth 나란히 화면을 실행 중 전환한다.
-- 정상 종료, 중간 실패, SSH/터미널 단절 뒤에도 고아 프로세스가 남지 않는다.
+- `l515_gateway`가 `pyrealsense2 2.50.0`과 L515 serial `00000000F0271544`를 단독 점유한다.
+- Gateway가 기존 자율주행용 ROS 6개 토픽을 발행하므로 새 정합 토픽은 추가하지 않는다.
+- RGB 1280×720×30, raw depth 640×480×30, accel/gyro를 수집한다.
+- SDK 내부 정합 결과는 Gateway 내부 SRT 합성에만 사용한다.
+- SRT 출력은 모든 모드에서 1280×720×30으로 고정해 GStreamer를 재시작하지 않는다.
+- Dashboard/SSH가 종료돼도 Gateway와 원격주행 영상은 계속 동작한다.
+- Gateway는 관리되는 서비스이며 system-wide singleton이다. Dashboard는 카메라를 열지 않는다.
 
-오도메트리, 객체 검출, PointCloud2 생성, 녹화, 원격 웹 제어는 범위 밖이다.
+객체 검출, 오도메트리, PointCloud2, 녹화, 웹 UI, 주행 명령 자체는 범위 밖이다.
 
-## 2. 사용자 경험
+## 2. 프로세스와 소유권
 
-대시보드를 실행하면 preflight 뒤 전체 스택이 자동으로 시작된다. 기존 프로세스에 붙는
-attach 모드는 제공하지 않는다. 중복 실행은 거부한다.
+### 2.1 `l515_gateway`
 
-화면은 다음 정보를 표시한다.
+- L515 SDK pipeline 하나 소유
+- color/depth/IMU 수집과 timestamp 관리
+- 기존 ROS 6개 토픽 발행
+- `rs.align(rs.stream.color)` 기반 depth→RGB 정합
+- RGB, 정합 Depth, 반투명 오버레이 생성
+- GStreamer H.264/MPEG-TS/SRT 송신
+- Unix socket 상태·명령 서버
+- USB 분리 시 재연결과 stale frame 억제
 
-- 전체 상태: `STARTING`, `RUNNING`, `DEGRADED`, `STOPPING`, `STOPPED`, `FAULT`
-- L515 USB·SDK·serial 상태
-- color, depth, color/depth CameraInfo, accel, gyro 토픽별 FPS와 age
-- 영상·IMU timestamp 비증가 횟수와 최근 최대 gap
-- 현재 영상 모드, SRT 송신 FPS, frame drop, GStreamer 상태
-- L515 스택 CPU/RAM과 최근 오류
+### 2.2 `l515_dashboard`
 
-기본 키는 다음과 같다.
+- Unix socket client
+- Gateway·센서·ROS·SRT·자원 상태 표시
+- 영상 모드, 송신 활성화, Gateway 재시작·정지 명령
+- L515, ROS Image, GStreamer stdin 직접 소유 금지
 
-| 키 | 동작 |
+Dashboard `q`는 Dashboard만 종료한다. `Shift+Q`는 확인 뒤 Gateway 전체 정지를 요청한다.
+SSH/SIGHUP으로 Dashboard가 사라져도 Gateway는 영향을 받지 않는다.
+
+### 2.3 관리 주체
+
+Gateway는 ROS 전용 Docker 컨테이너의 명시적 entrypoint/supervisor가 관리한다. 독립 lock과
+Unix socket은 system-wide singleton을 보장한다. Gateway가 살아 있는 상태에서 두 번째
+Gateway는 실행을 거부한다. Dashboard는 여러 개가 읽기 전용으로 접속할 수 있지만, 상태 변경
+명령은 서버가 직렬화한다.
+
+## 3. 데이터 계약
+
+### 3.1 SDK 프로파일
+
+| 입력 | 프로파일 |
 |---|---|
-| `1` | Color 원본 송신 |
-| `2` | Depth 컬러맵 송신 |
-| `3` | Color+Depth 좌우 결합 송신 |
-| `r` | 전체 스택 순차 재시작 |
-| `q` | 전체 정상 종료 후 TUI 종료 |
-| `?` | 도움말 표시 |
+| Color | BGR8 1280×720×30 |
+| Depth | Z16 640×480×30 |
+| Accel | 장치 지원 기본 profile |
+| Gyro | 장치 지원 기본 profile |
 
-기본 SRT listener 포트는 기존 파이프라인과 같은 5000이며 latency·encoder·포트는 CLI 또는
-설정으로 변경할 수 있다.
+### 3.2 기존 ROS 출력
 
-## 3. 아키텍처
+- `/l515/color/image_raw`
+- `/l515/color/camera_info`
+- `/l515/depth/image_rect_raw`
+- `/l515/depth/camera_info`
+- `/l515/accel/sample`
+- `/l515/gyro/sample`
 
-새 top-level 패키지 `l515_dashboard/`를 둔다.
+Color CameraInfo는 1280×720, raw Depth CameraInfo는 640×480이다. PointCloud2, aligned depth,
+IR, confidence 토픽은 발행하지 않는다. 기존 소비자가 640×480 color를 가정한 경우 WP6/WP7
+착수 전에 새 명시적 color 계약으로 변경한다.
+
+### 3.3 내부 정합과 SRT
+
+SDK frameset을 한 소유자 안에서 `rs.align(color)`로 처리한다. raw depth는 기존 ROS 출력에
+사용하고 aligned depth는 ROS에 내보내지 않고 영상 합성 worker에만 넘긴다.
+
+SRT canvas는 항상 1280×720 BGR8이다.
+
+| 키/명령 | 영상 |
+|---|---|
+| `1` | RGB 원본 |
+| `2` | RGB 좌표계에 정합된 Depth 컬러맵 |
+| `3` | RGB + 정합 Depth 반투명 오버레이 |
+
+모드 전환은 다음 출력 프레임부터 적용하며 SDK/GStreamer/ROS 프로세스를 재시작하지 않는다.
+Depth가 없으면 모드 2·3의 송신을 중단하고 마지막 프레임을 반복하지 않는다.
+
+## 4. Gateway 내부 구조
 
 | 모듈 | 책임 |
 |---|---|
-| `app.py` | Textual 화면, 키 입력, 상태 렌더링 |
-| `supervisor.py` | preflight, 자식 process group, 상태 전이, 재시작·종료 |
-| `diagnostics.py` | ROS 구독, 토픽별 FPS·age·gap·timestamp 통계 |
-| `streamer.py` | Image 구독, 모드별 프레임 생성, GStreamer stdin 공급 |
-| `frame_modes.py` | Color, Depth 컬러맵, 좌우 결합 변환 |
-| `config.py` | 포트, latency, encoder, 임계값, 종료 timeout |
+| `resource_guard.py` | PID+시작 identity+lock 기반 단일 물리자원 소유권 |
+| `gateway.py` | lifecycle, SDK reconnect, 상태 전이 |
+| `ros_publisher.py` | 기존 6개 토픽 변환·발행 |
+| `alignment.py` | SDK color alignment와 Depth 컬러맵/overlay |
+| `streamer.py` | 고정 1280×720 GStreamer/SRT worker |
+| `protocol.py` | versioned JSON command/status schema |
+| `control_server.py` | Unix socket server와 client별 backpressure |
+| `app.py` | Textual Dashboard client |
 
-기존 `motor_control/vision/gst_stream.py`의 encoder 선택과 SRT GStreamer argv 생성기를
-재사용한다. 기존 `realsense_stream.py`는 SDK를 직접 점유하므로 실행하거나 재사용하지 않는다.
+SDK worker는 최신 frameset 하나만 전달한다. ROS publisher와 SRT worker는 각자 bounded
+latest-one-slot을 소비하며 서로를 block하지 않는다. 오래된 영상, SDK frame, status message를
+무한히 쌓지 않는다.
 
-데이터 흐름은 다음과 같다.
+## 5. Unix socket 프로토콜
 
-1. supervisor가 `scripts/l515_preflight.sh`를 실행한다.
-2. supervisor가 `l515_camera`를 새 process group에서 시작한다.
-3. diagnostics/streamer ROS 노드가 여섯 토픽을 구독한다.
-4. 필수 토픽이 들어오면 GStreamer를 시작하고 `RUNNING`으로 전이한다.
-5. streamer는 최신 color/depth 한 장만 보관하며 선택한 모드로 변환해 SRT로 보낸다.
-6. TUI는 진단 snapshot만 받아 렌더링하고 영상 데이터는 직접 그리지 않는다.
+기본 경로는 `/run/powertrain/l515-gateway.sock`이다. 메시지는 길이 제한이 있는 newline-delimited
+JSON이며 `protocol_version`, `request_id`, `type`, `payload`를 가진다.
 
-ROS QoS는 기존 sensor-data profile과 맞춘다. 느린 송신기가 ROS callback을 막지 않도록 최신
-프레임 한 장 슬롯과 별도 worker를 사용한다. 오래된 프레임을 쌓거나 재전송하지 않는다.
+명령은 다음으로 제한한다.
 
-## 4. 영상 모드
+- `get_status`
+- `set_video_mode`: `rgb`, `depth`, `overlay`
+- `set_streaming`: boolean
+- `restart_gateway`
+- `stop_gateway`: Dashboard에서 별도 확인 필요
 
-- Color: `/l515/color/image_raw`의 BGR8 640×480 프레임
-- Depth: `/l515/depth/image_rect_raw`의 16UC1을 가시 범위로 정규화한 컬러맵
-- 나란히: Color와 Depth 컬러맵을 같은 높이로 결합한 1280×480 프레임
+상태는 Gateway state, SDK serial/profile, 각 stream FPS·age·gap·timestamp 이상, ROS publish
+count, SRT client/송신/drop, CPU/RAM, 마지막 오류를 포함한다. 알 수 없는 version/type, 과대
+메시지, 잘못된 값은 연결 단위 오류로 거부하고 Gateway를 종료하지 않는다.
 
-모드 전환은 카메라나 GStreamer 프로세스를 재시작하지 않고 다음 출력 프레임부터 적용한다.
-Depth 프레임이 아직 없으면 검은 화면을 재생하지 않고 해당 모드의 송신을 잠시 멈추며 TUI를
-`DEGRADED`로 표시한다.
+## 6. 상태와 장애 처리
 
-## 5. 프로세스 소유권과 종료 안전성
+Gateway 상태는 `STARTING`, `RUNNING`, `DEGRADED`, `STOPPING`, `STOPPED`, `FAULT`다.
 
-supervisor만 자식 프로세스를 만들고 소유한다. 자식은 새 session/process group에서 실행하며
-직접 만든 `Popen` 객체와 group만 제어한다. 저장된 숫자 PID를 무조건 kill하지 않는다.
+- L515 분리: `DEGRADED`, ROS/SRT stale replay 중단, 2초 간격 exact-serial 재탐색
+- L515 복구: 새 세션 timestamp/dedup 상태 초기화 뒤 ROS·SRT 자동 재개
+- GStreamer crash: sensor/ROS는 유지하고 streaming을 off, 상태 `DEGRADED`; 명시적 재시작 가능
+- ROS publisher 오류: Gateway `FAULT` 후 전체 종료
+- SDK unrecoverable 오류: `FAULT` 후 전체 종료
+- Dashboard crash/disconnect: Gateway 상태 불변
 
-부모 사망 시 자식도 종료되도록 Linux `PR_SET_PDEATHSIG`를 적용한다. TUI는 SIGINT,
-SIGTERM, SIGHUP, 예외, 정상 `q`, `atexit`을 하나의 멱등성 `shutdown()`으로 합친다.
+원격주행에서 카메라/ROS 입력을 유지하는 편이 중요하므로 GStreamer 단독 장애는 Gateway 전체를
+죽이지 않는다. 이는 이전 TUI-parent 설계의 전체 종료 정책을 대체한다.
 
-정상 종료 순서는 고정한다.
+## 7. 종료 안전성과 공통 resource guard
 
-1. 신규 영상 프레임 입력 차단
-2. GStreamer stdin 닫기와 제한시간 대기
-3. 남아 있으면 GStreamer process group에 SIGTERM, 제한시간 뒤 SIGKILL
-4. L515 ROS 노드 process group에 SIGINT와 제한시간 대기
-5. 남아 있으면 SIGTERM, 제한시간 뒤 SIGKILL
-6. ROS 구독과 TUI 자원 해제
-7. 자신이 만든 lockfile 제거
+Gateway 하나가 SDK와 GStreamer 자식을 소유한다. 정상 종료는 신규 frame 차단 → GStreamer
+stdin 종료·reap → SDK pipeline stop → ROS publisher 종료 → socket/lock 제거 순서다.
+SIGINT/SIGTERM, container stop, 내부 예외는 하나의 멱등성 shutdown으로 합친다.
 
-시작 도중 preflight만 끝난 경우, ROS만 시작된 경우, GStreamer만 생성된 경우에도 같은
-`shutdown()`이 안전하게 동작해야 한다. shutdown은 여러 signal·예외 경로에서 반복 호출돼도
-같은 결과를 내야 한다.
+`resource_guard`는 숫자 PID만 믿지 않고 `/proc/<pid>/stat` 시작 identity와 lock inode를 함께
+검증한다. stale lock/socket만 회수하며 알 수 없는 프로세스를 kill하지 않는다. 이 유틸리티는
+향후 US-100 UART, ODrive USB, CAN maintenance authority에 재사용 가능하지만 이번 작업에서
+그 장치들의 동작은 변경하지 않는다.
 
-lockfile에는 PID만 쓰지 않고 process 시작 identity를 함께 기록한다. 살아 있는 동일
-dashboard가 확인될 때만 두 번째 실행을 거부하고, 죽은 프로세스의 stale lock은 회수한다.
+## 8. 테스트와 HIL
 
-## 6. 장애 처리와 상태 전이
+자동시험:
 
-- L515 분리 또는 토픽 timeout: `DEGRADED`, 영상 입력 중단, 기존 ROS 재연결 유지
-- L515 복구: 필수 토픽 freshness 회복 뒤 영상 자동 재개, `RUNNING`
-- GStreamer 비정상 종료: `FAULT`, 전체 스택 종료
-- L515 ROS 프로세스 비정상 종료: `FAULT`, 전체 스택 종료
-- preflight 실패: 자식을 시작하지 않고 `FAULT`
-- TUI 내부 예외: 오류를 기록하고 전체 스택 종료
+- singleton/stale lock/PID 재사용
+- SDK frameset 분배와 bounded latest slots
+- 1280×720 RGB, aligned Depth, overlay 결과
+- 6개 ROS 토픽 profile·timestamp 계약
+- 고정 1280×720 GStreamer argv와 세 모드 무재시작 전환
+- socket framing, version, 명령 직렬화, 과대·오염 입력
+- Dashboard 접속·재접속·종료 독립성
+- USB 분리·복구와 stale frame 0
+- Gateway 정상/부분시작/신호/자식 crash 종료 뒤 고아 0
 
-마지막 영상 프레임 반복, D435i fallback, 영상 없이 센서만 남는 불완전 운영 상태는 허용하지
-않는다. 사용자가 `r`을 누르면 현재 스택이 완전히 `STOPPED`가 된 뒤 새 스택을 시작한다.
+Jetson HIL:
 
-## 7. 테스트 전략
+1. Gateway 단독 실행과 Dashboard 접속·재접속
+2. 기존 6개 ROS 토픽과 SRT 1280×720×30 동시 측정
+3. RGB/Depth/overlay 전환 시 Gateway/GStreamer PID 유지
+4. Dashboard/SSH 강제 종료 뒤 ROS·SRT 지속
+5. 사용자 승인 후 L515 분리·복구
+6. GStreamer crash 뒤 ROS 지속과 streaming 재시작
+7. Gateway 종료 뒤 SDK/GStreamer/socket/lock 고아 0
+8. D435i 로봇팔 perception 동시부하와 USB 오류 delta 0
 
-하드웨어 독립 테스트는 fake ROS message source와 fake GStreamer process를 사용한다.
+## 9. 완료 기준
 
-- FPS·age·gap·timestamp 비증가 통계
-- 세 영상 모드와 런타임 전환
-- latest-one-slot overwrite와 stale frame 미재생
-- 정상 시작·종료와 역순 자원 정리
-- preflight, ROS 시작, GStreamer 시작 각 단계 실패
-- GStreamer crash와 ROS crash의 전체 `FAULT` 종료
-- SIGINT, SIGTERM, SIGHUP, 내부 예외, 반복 shutdown
-- graceful timeout 뒤 SIGTERM/SIGKILL escalation
-- stale/live lockfile 구분과 PID 재사용 방지
-- L515 분리·복구 상태 전이
-
-subprocess 통합 테스트는 매 시나리오 뒤 dashboard가 만든 process group과 자식 PID가 0개인지
-검사한다.
-
-Jetson HIL은 마지막에 한 번 수행한다.
-
-1. TUI로 전체 스택 시작
-2. 노트북 `scripts/recv_stream.sh`로 SRT 수신
-3. Color, Depth, 나란히 모드 전환과 진단 수치 확인
-4. L515 USB 분리 시 영상 중단·`DEGRADED`·D435i 미선택 확인
-5. 재연결 후 자동 복구 확인
-6. `q`, SIGINT, SIGTERM, SIGHUP 각 종료 뒤 고아 프로세스 0 확인
-7. USB 오류와 node/GStreamer 오류 로그 확인
-
-## 8. 완료 기준
-
-- TUI 한 명령으로 L515 ROS와 SRT 송신이 함께 시작·종료된다.
-- 세 영상 모드를 프로세스 재시작 없이 전환한다.
-- 텍스트 진단이 여섯 토픽과 송신 상태를 실시간 반영한다.
-- L515 분리 때 stale 영상이나 D435i fallback 없이 자동 복구한다.
-- 모든 단위·통합 테스트와 Jetson HIL 종료 시 고아 프로세스가 0개다.
-- 기존 L515 30 Hz·timestamp·USB 안정성 계약을 유지한다.
+- L515 system-wide owner가 Gateway 하나뿐이다.
+- 자율주행 ROS 6개 토픽과 원격주행 SRT가 동시에 동작한다.
+- 새 aligned depth ROS 토픽 없이 세 영상 모드를 무재시작 전환한다.
+- Dashboard/SSH 종료가 Gateway, ROS, SRT를 끊지 않는다.
+- USB 분리·재연결 때 stale frame이나 D435i fallback이 없다.
+- Gateway 종료 뒤 모든 소유 자원과 자식 프로세스가 정리된다.
+- 자동시험·Jetson HIL·최종 리뷰가 통과한다.

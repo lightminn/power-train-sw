@@ -1,179 +1,152 @@
-# L515 TUI Dashboard Implementation Plan
+# L515 Gateway and TUI Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a Textual TUI that owns the L515 ROS publisher and H.264/SRT streamer as one safely supervised stack, exposes live diagnostics, switches three video modes, and leaves zero orphan processes on every exit path.
+**Goal:** Build one headless L515 Gateway that owns SDK capture, existing ROS publication, RGB-aligned SRT streaming, and a Unix-socket control plane, plus a separate Textual Dashboard client suitable for remote driving.
 
-**Architecture:** Keep `l515_camera` as the only RealSense owner. The dashboard starts it in a dedicated process group, subscribes to ROS topics for diagnostics and video, and feeds the existing `gst_stream.py` SRT pipeline through a latest-frame worker. One idempotent supervisor shutdown path handles normal exit, signals, partial startup, child crashes, and escalation.
+**Architecture:** Gateway is the system-wide singleton and only `pyrealsense2` owner. It captures RGB 1280×720 and raw Depth 640×480, publishes the existing six ROS topics, aligns Depth internally for a fixed 1280×720 SRT canvas, and serves status/control over a Unix socket. Dashboard never owns hardware and can disconnect without stopping Gateway.
 
-**Tech Stack:** Python 3.10, ROS 2 Humble/rclpy, Textual, NumPy, OpenCV, GStreamer/SRT, pytest.
+**Tech Stack:** Python 3.10, pyrealsense2 2.50.0, ROS 2 Humble/rclpy, Textual, NumPy/OpenCV, GStreamer/SRT, Unix sockets, pytest.
 
 ## Global Constraints
 
-- Work only on `feat/l515-lightweight-pipeline`; preserve unrelated user files and Jetson checkouts.
-- `l515_camera` remains the only RealSense owner; the dashboard never opens `pyrealsense2`.
-- Canonical serial is `00000000F0271544`; D435i fallback is forbidden.
-- SRT defaults are port 5000, latency 60 ms, x264, 3000 kbit/s.
-- Color/Depth are 640×480×30; side-by-side is 1280×480×30.
-- States are `STARTING`, `RUNNING`, `DEGRADED`, `STOPPING`, `STOPPED`, `FAULT`.
-- Every dashboard-owned process and process group must be gone after every exit path.
-- Camera loss never repeats stale frames; recovery resumes only after fresh required topics.
-- PointCloud2, IR, confidence, alignment, detection, odometry, recording, and web control are out of scope.
+- Gateway is the sole L515 owner and exact serial remains `00000000F0271544`; D435i fallback is forbidden.
+- Color input and every SRT mode are 1280×720×30; raw Depth is 640×480×30.
+- Existing six ROS topics remain; no aligned-depth, PointCloud2, IR, confidence, or extra image topic is added.
+- Modes are RGB, RGB-aligned Depth, and RGB+Depth alpha overlay; switching never restarts SDK or GStreamer.
+- SRT defaults remain port 5000, latency 60 ms, x264, 3000 kbit/s.
+- Dashboard/SSH exit must not stop Gateway, ROS, or SRT.
+- Gateway shutdown is idempotent and leaves no SDK handle, child, socket, or lock.
+- `resource_guard` may be reusable later but this plan changes no US-100, ODrive USB, CAN, or DualSense runtime.
+- Preserve unrelated user and Jetson checkout changes.
 
 ---
 
-### Task 1: Package, configuration, and dependencies
+### Task 1: Package, configuration, and dependencies — COMPLETE
+
+**Commits:** `a763d47`, `d490657`, `c32c0ec`
+
+- [x] Immutable strict numeric configuration and ROS image dependencies.
+- [x] Textual, NumPy, OpenCV, and GStreamer dependencies.
+- [ ] Extend configuration with socket path `/run/powertrain/l515-gateway.sock`, color/depth profiles, overlay alpha, reconnect interval, message size, and resource-lock path; use strict validation and tests.
+- [ ] Commit the extension with the first Gateway task that consumes it.
+
+### Task 2: Diagnostic snapshot engine — COMPLETE
+
+**Commits:** `816ac0c`, `8ad0e64`
+
+- [x] Six-topic bounded FPS/age/gap/timestamp diagnostics.
+- [ ] Generalize input keys so Gateway can add SDK, ROS, SRT, and control-plane counters without retaining frame/message objects.
+- [ ] Preserve existing public six-topic behavior and regression tests.
+
+### Task 3: Frame modes — COMPLETE, ADAPTATION REQUIRED
+
+**Commit:** `be74488`
+
+- [x] Deterministic Depth colormap and latest-one-slot handoff.
+- [ ] Replace 640/1280 output shapes with fixed 1280×720 RGB, aligned Depth, and overlay outputs.
+- [ ] Accept only already aligned 1280×720 Depth in render layer; SDK alignment belongs to Gateway capture.
+- [ ] Assert RGB identity, Depth dimensions, overlay alpha/content, contiguity, mode switching, and stale replay 0.
+
+### Task 4: Singleton resource guard and Gateway SDK source
 
 **Files:**
-- Create: `l515_dashboard/__init__.py`
-- Create: `l515_dashboard/config.py`
-- Create: `l515_dashboard/tests/__init__.py`
-- Create: `l515_dashboard/tests/test_config.py`
-- Modify: `docker/Dockerfile.ros`
+- Create: `l515_dashboard/resource_guard.py`
+- Create: `l515_dashboard/gateway_source.py`
+- Create: `l515_dashboard/tests/test_resource_guard.py`
+- Create: `l515_dashboard/tests/test_gateway_source.py`
+- Modify: `l515_dashboard/config.py`
+- Modify: `l515_dashboard/frame_modes.py`
+- Modify: corresponding tests
 
 **Interfaces:**
-- Produces immutable `DashboardConfig` for all later tasks.
+- Produces `ResourceGuard.acquire()/release()` using lock, PID, `/proc` start identity, and socket ownership.
+- Produces `GatewayFrames(raw_color, raw_depth, aligned_depth, accel, gyro, mapper)`.
+- Produces `L515GatewaySource.start()/poll_latest()/stop()` with exact-serial reconnect.
 
-- [ ] Write RED tests asserting `(port, latency_ms, encoder) == (5000, 60, "x264")`, 640×480×30 defaults, and rejection of port 0, unknown encoder, and nonpositive timeouts.
-- [ ] Run `python3 -m pytest -q l515_dashboard/tests/test_config.py`; expect import failure.
-- [ ] Implement frozen `DashboardConfig` with bitrate 3000, startup timeout 10 s, graceful timeout 3 s, termination timeout 2 s, and exact validation.
-- [ ] Add `textual`, `numpy`, `opencv-python-headless`, GStreamer CLI and base/good/bad/ugly plugins to the ROS image; retain the existing librealsense 2.50.0 build.
-- [ ] Run the focused tests and `git diff --check`; expect PASS.
-- [ ] Commit as `build(l515): scaffold TUI dashboard runtime`.
+- [ ] Write RED stale/live lock, PID reuse, concurrent acquire, and unknown-owner non-kill tests.
+- [ ] Implement reusable guard with atomic lock creation and identity verification; do not signal unrelated processes.
+- [ ] Write RED fake-SDK tests for exact color/depth profiles, `rs.align(color)`, raw versus aligned separation, IMU, latest-one-slot, dedup, disconnect/reconnect reset, and bounded stop.
+- [ ] Implement one SDK pipeline owner based on proven `L515Source` lifecycle without duplicating its race bugs.
+- [ ] Adapt frame modes/config to fixed 1280×720 and overlay; remove incompatible variable-width streamer assumptions.
+- [ ] Run Tasks 1–4 regressions and existing L515 source tests; commit as `feat(l515): add singleton Gateway source`.
 
-### Task 2: Diagnostic snapshot engine
+### Task 5: Gateway ROS publisher and fixed-canvas SRT worker
 
 **Files:**
-- Create: `l515_dashboard/diagnostics.py`
-- Create: `l515_dashboard/tests/test_diagnostics.py`
+- Create: `l515_dashboard/gateway_ros.py`
+- Modify: `l515_dashboard/streamer.py`
+- Create/modify: `l515_dashboard/tests/test_gateway_ros.py`, `test_streamer.py`
+- Modify: `ros2/src/powertrain_ros/setup.py` only to retire/redirect the old entrypoint when Gateway is ready.
 
 **Interfaces:**
-- Produces `DiagnosticsTracker.observe(topic: str, stamp_ns: int, now_ns: int) -> None`.
-- Produces immutable `DiagnosticsTracker.snapshot(now_ns: int) -> DiagnosticsSnapshot`.
+- Consumes `GatewayFrames` and existing L515 message adapters.
+- Publishes only the six approved topics.
+- `SrtStreamer` consumes fixed 1280×720 frames and never changes child caps.
 
-- [ ] Write RED tests feeding three arrivals, including one equal stamp, and assert count, rolling FPS, age, maximum gap, and `nonincreasing_count == 1`.
-- [ ] Define the six exact L515 topic constants once and bounded arrival deques per topic.
-- [ ] Implement explicit video/CameraInfo/IMU freshness thresholds and an aggregate `healthy` result.
-- [ ] Test that snapshots retain no ROS message or image object and old arrivals leave the rolling window.
-- [ ] Run `python3 -m pytest -q l515_dashboard/tests/test_diagnostics.py`; expect PASS.
-- [ ] Commit as `feat(l515): add dashboard diagnostics engine`.
+- [ ] Write RED tests for color CameraInfo 1280×720, raw Depth CameraInfo 640×480, IMU, timestamp/dedup, and absence of extra topics.
+- [ ] Implement nonblocking ROS publication from the Gateway frameset.
+- [ ] Replace Task-4 variable-width GStreamer startup with one exact 1280×720 argv for every mode.
+- [ ] Fix reviewed partial-start leak, wait timeout, concurrent stop, in-flight write, post-stop mutation, and independent argv contract tests.
+- [ ] Test RGB→Depth→overlay switching preserves the same fake child identity and exact frame cadence.
+- [ ] Run focused and ROS clean regressions; commit as `feat(l515): publish ROS and SRT from Gateway`.
 
-### Task 3: Video modes and latest-frame handoff
+### Task 6: Versioned Unix control server and Gateway lifecycle
 
 **Files:**
-- Create: `l515_dashboard/frame_modes.py`
-- Create: `l515_dashboard/tests/test_frame_modes.py`
+- Create: `l515_dashboard/protocol.py`
+- Create: `l515_dashboard/control_server.py`
+- Create: `l515_dashboard/gateway.py`
+- Create: `l515_dashboard/gateway_main.py`
+- Create: protocol/server/gateway tests
 
 **Interfaces:**
-- Produces `FrameMode.COLOR`, `FrameMode.DEPTH`, `FrameMode.SIDE_BY_SIDE`.
-- Produces `render_frame(mode, color, depth, width, height) -> np.ndarray | None`.
-- Produces thread-safe `LatestVideoFrames.put_color`, `put_depth`, and `take(mode)`.
+- Newline JSON envelope: `protocol_version`, `request_id`, `type`, `payload`.
+- Commands: get_status, set_video_mode, set_streaming, restart_gateway, stop_gateway.
+- Produces headless `python3 -m l515_dashboard.gateway_main`.
 
-- [ ] Write RED parameterized tests for contiguous uint8 BGR shapes 480×640×3, 480×640×3, and 480×1280×3.
-- [ ] Implement Color passthrough, zero-aware fixed-range Depth normalization with OpenCV TURBO colormap, and horizontal composition.
-- [ ] Test missing selected input returns `None`, never a black or previous frame.
-- [ ] Test two puts before take return only the newest, and a second take returns `None`.
-- [ ] Run the focused tests and commit as `feat(l515): add dashboard video modes`.
+- [ ] Write RED framing/version/size/invalid-command and multiple-client backpressure tests.
+- [ ] Implement bounded status snapshots and serialized state-changing commands.
+- [ ] Implement Gateway states and lifecycle: guard→SDK→ROS→optional SRT→socket RUNNING.
+- [ ] Treat L515 loss as DEGRADED/reconnect, GStreamer crash as streaming-off DEGRADED, ROS fatal as FAULT shutdown, Dashboard disconnect as no-op.
+- [ ] Route SIGINT/SIGTERM/container stop/exception through one idempotent cleanup order: frame intake→SRT→SDK→ROS→socket→guard.
+- [ ] Test partial starts, signals, concurrent commands, repeated shutdown, and zero owned resources.
+- [ ] Run regressions and commit as `feat(l515): add headless Gateway control service`.
 
-### Task 4: GStreamer SRT worker
-
-**Files:**
-- Create: `l515_dashboard/streamer.py`
-- Create: `l515_dashboard/tests/test_streamer.py`
-- Modify only if needed: `motor_control/vision/gst_stream.py`
-
-**Interfaces:**
-- Consumes `DashboardConfig`, `FrameMode`, `LatestVideoFrames`, and existing `build_gst_command`.
-- Produces `SrtStreamer.start()`, `set_mode()`, `submit_color()`, `submit_depth()`, `stop()`.
-- Produces immutable `StreamerSnapshot` with running, mode, sent, dropped, and last_error.
-
-- [ ] Write RED fake-Popen tests asserting exact SRT argv and 640-wide versus 1280-wide output selection.
-- [ ] Implement one condition-driven latest-frame worker; it may perform one bounded stdin write but may not queue or replay frames.
-- [ ] Test `BrokenPipeError` and unexpected child exit set last_error and stop the worker.
-- [ ] Test repeated stop closes stdin and reaps the process exactly once.
-- [ ] Preserve the existing proven x264/openh264 command contract in `gst_stream.py`.
-- [ ] Run focused tests and commit as `feat(l515): add ROS-fed SRT worker`.
-
-### Task 5: Process identity, lock, and orphan-proof supervisor
+### Task 7: Textual Dashboard client and real-process integration
 
 **Files:**
-- Create: `l515_dashboard/child_process.py`
-- Create: `l515_dashboard/lockfile.py`
-- Create: `l515_dashboard/supervisor.py`
-- Create: `l515_dashboard/tests/test_child_process.py`
-- Create: `l515_dashboard/tests/test_lockfile.py`
-- Create: `l515_dashboard/tests/test_supervisor.py`
-
-**Interfaces:**
-- Produces `StackState` with the six approved values.
-- Produces thread-safe `DashboardSupervisor.start()`, `restart()`, `shutdown(reason)`, `snapshot()`.
-- `shutdown()` returns only after every owned child is reaped and is safe to call repeatedly.
-
-- [ ] Write RED lock tests storing PID plus `/proc/<pid>/stat` start time; reject only a live matching identity and recover stale/mismatched locks.
-- [ ] Implement `OwnedProcess` with `start_new_session=True` and Linux `PR_SET_PDEATHSIG=SIGTERM`; retain the originating Popen object and PGID.
-- [ ] Write RED escalation tests for SIGINT→SIGTERM→SIGKILL timeouts using only the owned process group.
-- [ ] Write a RED lifecycle matrix failing at preflight, ROS spawn, topic-ready wait, and GStreamer spawn; every case must end FAULT with zero owned children and no lock.
-- [ ] Implement start order lock→preflight→ROS→topics-ready→streamer→RUNNING.
-- [ ] Implement shutdown order stop frame intake→streamer→ROS→subscriber→lock and route q, signals, exceptions, child crashes, and atexit through it.
-- [ ] Test concurrent repeated shutdown invokes each escalation once and `restart()` waits for STOPPED before spawning.
-- [ ] Run the three focused test files and commit as `feat(l515): add orphan-proof dashboard supervisor`.
-
-### Task 6: ROS bridge and Textual application
-
-**Files:**
-- Create: `l515_dashboard/ros_bridge.py`
+- Create: `l515_dashboard/client.py`
 - Create: `l515_dashboard/app.py`
 - Create: `l515_dashboard/__main__.py`
-- Create: `l515_dashboard/tests/test_ros_bridge.py`
-- Create: `l515_dashboard/tests/test_app.py`
-
-**Interfaces:**
-- Produces `python3 -m l515_dashboard [--port N --latency-ms N --encoder NAME]`.
-
-- [ ] Write RED fake-message tests: all six headers update diagnostics, BGR8/16UC1 images have exact shapes, and only image topics reach video slots.
-- [ ] Implement a dedicated rclpy executor thread using sensor-data QoS; callbacks only update bounded trackers/latest slots.
-- [ ] Write Textual pilot tests for six stream rows, state, SRT/resources/errors, `1/2/3`, `r`, `q`, and `?`.
-- [ ] Implement snapshot-only TUI refresh and signal handlers for SIGINT, SIGTERM, SIGHUP that schedule the same shutdown.
-- [ ] Keep `try/finally` and atexit as final idempotent guards.
-- [ ] Run both focused test files and commit as `feat(l515): add diagnostic Textual dashboard`.
-
-### Task 7: Real subprocess integration and operations docs
-
-**Files:**
-- Create: `l515_dashboard/tests/helpers/fake_child.py`
-- Create: `l515_dashboard/tests/test_process_integration.py`
+- Create: client/app/process integration tests and fake Gateway helper
 - Create: `l515_dashboard/README.md`
-- Modify: `README.md`
-- Modify: `ros2/README.md`
-- Modify: `AGENTS.md`
+- Modify: `README.md`, `ros2/README.md`, `AGENTS.md`, Docker entrypoint/compose as required
 
 **Interfaces:**
-- Verifies the complete process contract locally without camera hardware.
+- Dashboard is socket-only; it imports neither pyrealsense2 nor ROS Image types.
+- `q` exits client only; `Shift+Q` confirms stop_gateway.
 
-- [ ] Create a child fixture that records signals, optionally ignores INT/TERM, spawns a grandchild, crashes on command, and exposes PID/PGID evidence.
-- [ ] Test normal exit, partial startup, ROS crash, GStreamer crash, INT, TERM, HUP, forced KILL escalation, and repeated shutdown.
-- [ ] After every scenario poll `/proc` and assert every owned child and grandchild is absent.
-- [ ] Document the exact container command, keys, state meanings, receiver command, recovery behavior, and orphan audit; forbid concurrent `realsense_stream.py`.
-- [ ] Run all dashboard tests, the existing clean ROS suite, flake8, bash syntax checks, and `git diff --check`.
-- [ ] Commit as `docs(l515): document TUI dashboard operations`.
+- [ ] Write RED reconnect, version mismatch, stale status, command acknowledgement, and disconnect tests.
+- [ ] Write Textual pilot tests for state/SDK/ROS/SRT/resources/errors and keys 1/2/3, streaming toggle, restart, q, Shift+Q.
+- [ ] Implement Dashboard with automatic socket reconnect and immutable snapshots.
+- [ ] Prove q/SIGHUP/client crash leave fake Gateway and its SRT child alive; explicit stop reaps them.
+- [ ] Document remote-driving operation, singleton failures, receiver command, and maintenance exclusion.
+- [ ] Run full software/ROS/process suites; commit as `feat(l515): add Gateway Dashboard client`.
 
 ### Task 8: Jetson HIL, final review, and publication
 
 **Files:**
-- Create: `docs/reports/2026-07-11-l515-tui-dashboard-hil.md`
-- Modify: `docs/plans/2026-07-02-autonomous-driving-kickoff.md`
-- Modify after fetch: relevant active Software Notion page
+- Create: `docs/reports/2026-07-11-l515-gateway-dashboard-hil.md`
+- Modify: autonomous plan, state report, active Software Notion page after fetch
 
-**Interfaces:**
-- Produces final hardware evidence and restores the original Jetson process/repository state.
-
-- [ ] Audit both Jetson checkouts and running processes; transfer the exact commit with `git archive`, use a unique image tag, and never retag production.
-- [ ] Start the TUI and laptop `scripts/recv_stream.sh`; verify diagnostics, 30 Hz-class input/SRT, and keys 1/2/3 without process restart.
-- [ ] Record CPU/RAM, SRT rate, mode transitions, node/GStreamer errors, and USB error deltas.
-- [ ] Ask immediately before one user-controlled L515 unplug/replug; verify DEGRADED, no stale replay, no D435 fallback, same process identities, and automatic SRT recovery.
-- [ ] Run q, INT, TERM, and HUP as separate starts; after each prove dashboard-owned ROS, GStreamer, shell, child, and process group count is zero.
-- [ ] Use a fake child for forced escalation evidence; do not force-kill a healthy camera SDK process.
-- [ ] Remove only temporary containers and restore robot-arm/perception state exactly; recheck both dirty checkouts.
-- [ ] Write the HIL report, update repo docs and active Software Notion pages with fetch-before/write/re-fetch verification.
-- [ ] Request spec compliance review and whole-branch quality review; fix every Critical/Important finding.
-- [ ] Run final clean dashboard and ROS suites, verify a clean worktree, commit, and push `feat/l515-lightweight-pipeline`.
+- [ ] Audit and exact-archive deploy with unique image; preserve both Jetson checkouts and production containers.
+- [ ] Verify Gateway singleton, RGB 1280×720, raw Depth 640×480, six ROS topics, and SRT 1280×720×30.
+- [ ] Switch RGB/Depth/overlay while SDK/GStreamer PIDs remain unchanged; measure rates, latency, CPU/RAM, USB delta.
+- [ ] Kill/close Dashboard and SSH; prove Gateway, ROS, and SRT continuity, then reconnect Dashboard.
+- [ ] User-approved L515 unplug/replug: DEGRADED, stale replay 0, no D435 fallback, automatic ROS/SRT recovery.
+- [ ] Crash GStreamer: ROS continues; restart streaming without Gateway/SDK restart.
+- [ ] Stop Gateway via TERM/container stop; prove SDK, GStreamer, socket, and lock count 0.
+- [ ] Run D435i perception concurrently and verify `/detected_objects` continuity and USB error delta 0.
+- [ ] Run final clean tests and two-stage review; fix every Critical/Important finding.
+- [ ] Update docs/Notion with fetch-before/write/re-fetch, commit, push feature branch, and restore Jetson state.
