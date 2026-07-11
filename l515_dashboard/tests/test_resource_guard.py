@@ -30,10 +30,25 @@ def test_stale_lock_and_socket_are_reclaimed(tmp_path):
     socket.write_text("stale")
     stat = socket.stat()
     lock.write_text(json.dumps({"pid": 99999999, "start_identity": "old",
-                                "socket_identity": [stat.st_dev, stat.st_ino]}))
+                                "socket_identity": [stat.st_dev, stat.st_ino,
+                                                    stat.st_ctime_ns,
+                                                    stat.st_mode & 0o170000]}))
     guard = ResourceGuard(lock, socket)
     guard.acquire()
     assert guard.acquired and not socket.exists()
+    guard.release()
+
+
+def test_legacy_two_field_socket_identity_is_not_safe_to_unlink(tmp_path):
+    lock = tmp_path / "camera.lock"
+    socket = tmp_path / "gateway.sock"
+    socket.write_text("successor")
+    stat = socket.stat()
+    lock.write_text(json.dumps({"pid": 99999999, "start_identity": "old",
+                                "socket_identity": [stat.st_dev, stat.st_ino]}))
+    guard = ResourceGuard(lock, socket)
+    guard.acquire()
+    assert socket.read_text() == "successor"
     guard.release()
 
 
@@ -108,6 +123,16 @@ def test_release_does_not_remove_unknown_or_replaced_socket(tmp_path):
     path.unlink(); path.write_text("successor")
     guard.release()
     assert path.read_text() == "successor"
+
+
+def test_claim_persists_full_filesystem_identity(tmp_path):
+    lock, path = tmp_path / "lock", tmp_path / "sock"
+    guard = ResourceGuard(lock, path); guard.acquire()
+    path.write_text("ours"); guard.claim_socket()
+    stat = path.stat()
+    assert json.loads(lock.read_text())["socket_identity"] == [
+        stat.st_dev, stat.st_ino, stat.st_ctime_ns, stat.st_mode & 0o170000]
+    guard.release()
 
 
 def test_stale_reclaim_does_not_remove_replaced_socket(tmp_path):

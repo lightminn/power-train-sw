@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import tempfile
 
+from .filesystem_identity import path_has_identity, path_identity, serialized_identity
+
 
 class ResourceBusy(RuntimeError):
     """Raised when ownership is live or cannot be verified safely."""
@@ -69,23 +71,22 @@ class ResourceGuard:
             fd = -1
             self._before_publish()
             os.link(temporary, self.lock_path)
-            stat = self.lock_path.stat()
-            self._lock_identity = (stat.st_dev, stat.st_ino)
+            os.unlink(temporary)
+            temporary = None
+            self._lock_identity = path_identity(self.lock_path)
         finally:
             if fd >= 0:
                 os.close(fd)
             try:
-                os.unlink(temporary)
+                if temporary is not None:
+                    os.unlink(temporary)
             except FileNotFoundError:
                 pass
 
     def _remove_owned_socket(self, payload):
         expected = payload.get("socket_identity")
-        if not isinstance(expected, list) or len(expected) != 2:
-            return
         try:
-            stat = self.socket_path.stat()
-            if [stat.st_dev, stat.st_ino] == expected:
+            if path_has_identity(self.socket_path, expected):
                 self.socket_path.unlink()
         except FileNotFoundError:
             pass
@@ -122,14 +123,13 @@ class ResourceGuard:
     def claim_socket(self):
         if not self.acquired:
             raise RuntimeError("resource is not acquired")
-        stat = self.socket_path.stat()
+        socket_identity = path_identity(self.socket_path)
         mutex = self._mutex()
         try:
-            current = self.lock_path.stat()
-            if (current.st_dev, current.st_ino) != self._lock_identity:
+            if path_identity(self.lock_path) != self._lock_identity:
                 raise ResourceBusy("lock ownership changed")
             payload = dict(self._payload)
-            payload["socket_identity"] = [stat.st_dev, stat.st_ino]
+            payload["socket_identity"] = serialized_identity(socket_identity)
             self.lock_path.unlink()
             self._publish(payload)
             self._payload = payload
@@ -143,10 +143,10 @@ class ResourceGuard:
         mutex = self._mutex()
         try:
             try:
-                current = self.lock_path.stat()
+                current = path_identity(self.lock_path)
             except FileNotFoundError:
                 return
-            if (current.st_dev, current.st_ino) != identity:
+            if current != identity:
                 return
             self._remove_owned_socket(self._payload)
             self.lock_path.unlink()

@@ -2,6 +2,7 @@ import json
 import socket
 import threading
 import os
+from types import SimpleNamespace
 import pytest
 
 from l515_dashboard.control_server import DeferredResponse, UnixControlServer
@@ -134,6 +135,31 @@ def test_post_bind_failure_removes_only_own_inode(tmp_path, failure):
     server._socket_factory=ReplacingSocket
     with pytest.raises(RuntimeError): server.start()
     assert path.read_text() == "replacement"
+
+
+def test_stop_preserves_overlayfs_successor_with_reused_inode(tmp_path, monkeypatch):
+    path = tmp_path / "gateway.sock"
+    server = UnixControlServer(path, lambda _: {})
+    server.start()
+    original = os.lstat(path)
+    path.unlink()
+    path.write_text("successor")
+    successor = os.lstat(path)
+    reused = SimpleNamespace(
+        st_dev=original.st_dev,
+        st_ino=original.st_ino,
+        st_ctime_ns=original.st_ctime_ns + 1,
+        st_mode=successor.st_mode,
+    )
+    real_stat, real_lstat = os.stat, os.lstat
+    monkeypatch.setattr(os, "stat", lambda target, *args, **kwargs: reused
+                        if str(target) == str(path)
+                        else real_stat(target, *args, **kwargs))
+    monkeypatch.setattr(os, "lstat", lambda target, *args, **kwargs: reused
+                        if str(target) == str(path)
+                        else real_lstat(target, *args, **kwargs))
+    server.stop()
+    assert path.read_text() == "successor"
 
 
 def test_stop_joins_blocked_multi_client_handlers_and_cancels_actions(tmp_path):

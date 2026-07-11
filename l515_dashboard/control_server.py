@@ -6,6 +6,7 @@ import queue
 import socket
 import threading
 
+from .filesystem_identity import path_has_identity, path_identity
 from .protocol import ProtocolError, decode_request, encode_message, response
 
 
@@ -58,8 +59,7 @@ class UnixControlServer:
         try:
             sock.bind(self.path)
             os.chmod(self.path, 0o660)
-            stat = os.stat(self.path)
-            self._socket_identity = (stat.st_dev, stat.st_ino)
+            self._socket_identity = path_identity(self.path)
             sock.listen(self._max_clients)
             sock.settimeout(0.1)
         except Exception:
@@ -87,8 +87,7 @@ class UnixControlServer:
 
     def _unlink_owned_socket(self):
         try:
-            stat = os.stat(self.path)
-            if (stat.st_dev, stat.st_ino) == self._socket_identity:
+            if path_has_identity(self.path, self._socket_identity):
                 os.unlink(self.path)
         except FileNotFoundError:
             pass
