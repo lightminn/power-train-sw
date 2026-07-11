@@ -42,10 +42,69 @@ Baseline: `9812569d4708e3b4bc7c73485c769d69882b87d5`
   writable external pycache.
 - `git diff --check`: pass.
 
-## Environment limitation
+## Historical local environment limitation
 
 An isolated ROS test run was attempted. Host `/usr/bin/python3` has no pytest, and
 the running `powertrain_dev` container has no `/opt/ros/humble/setup.bash`, so the
 ROS pytest/colcon suite could not execute in this workstation environment. The ROS
 files received syntax and static contract verification above; the full ROS suite
-should be rerun in the Jetson `powertrain_ros` image/CI that contains Humble.
+required the Jetson `powertrain_ros` image containing Humble; that verification is
+now completed in the following section.
+
+## Jetson isolated ROS verification (concern resolved)
+
+The prior environment limitation was resolved on the Jetson without modifying or
+restarting its production checkout, containers, or image tags.
+
+- Exact source: `git archive df4bd86a789548b6460a733d1dbc82979e8fd2ff`
+- Unique read-only snapshot mount:
+  `/tmp/l515-final-review-df4bd86-20260712T051002-503612`
+- Existing verified image tag:
+  `powertrain-sw:ros-l515-perf-e755b7b-20260712t0545`
+- Image ID:
+  `sha256:eef0a22a1745741b92bf2ad62074fed63ea08e806aa79cada469d7f83d096482`
+- Isolation: one-shot `docker run --rm`, `--network none`, no device mounts,
+  archive mounted read-only, copied to container-local `/tmp/src` for the build.
+
+Exact successful container command body:
+
+```bash
+set -eo pipefail
+cp -a /snapshot /tmp/src
+cd /tmp/src/ros2
+rm -rf build install log
+source /opt/ros/humble/setup.bash
+export PYTHONPATH=/tmp/src/motor_control:${PYTHONPATH:-}
+colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros \
+  --event-handlers console_direct+
+source install/setup.bash
+export PYTHONPATH=/tmp/src/motor_control:${PYTHONPATH:-}
+colcon test --packages-select powertrain_ros --event-handlers console_direct+
+colcon test-result --verbose
+```
+
+Results:
+
+- Clean three-package build: `Summary: 3 packages finished`.
+- `powertrain_ros`: `collected 91 items`, `91 passed in 1.64s`.
+- `colcon test-result`: `91 tests, 0 errors, 0 failures, 0 skipped`.
+- Retirement coverage executed explicitly in the full suite:
+  `test_l515_launch_contract.py` 3/3 and `test_l515_node.py` 8/8 passed.
+
+Two pre-result attempts were safely removed by `--rm`: the first stopped before
+build because ROS setup rejects shell `set -u`; the second clean build succeeded
+but collection exposed the missing archive-local `motor_control` PYTHONPATH. No
+source change was required; the successful command supplied the normal repo runtime
+dependency path shown above.
+
+Cleanup verification:
+
+- `snapshot_removed=yes`
+- `test_containers_removed=yes`
+- `test_processes_absent=yes`
+- Production container state remained unchanged: `powertrain_ros` and
+  `powertrain_jetson` remained running; `powertrain_canwatchdog` and `ros2_humble`
+  remained stopped.
+- Production checkout status remained unchanged:
+  `main...origin/main [ahead 41]` plus pre-existing untracked
+  `motor_control/vision/tests/`.
