@@ -53,6 +53,9 @@ class CanWatchdog:
         self._txqueuelen = txqueuelen
         self._sock = None
         self.resets = 0                # 복구 횟수 (텔레메트리/디버깅용)
+        self._fails = 0
+        self._last_tx = None
+        self._last_reset_error = None
 
     # ------------------------------------------------------------------
     def start(self) -> threading.Thread:
@@ -86,6 +89,24 @@ class CanWatchdog:
         except (OSError, ValueError):
             return None
 
+    def _interface_is_up(self):
+        """인터페이스가 존재하고 IFF_UP 상태인지 조회한다.
+
+        부팅 직후처럼 아직 CAN bit timing이 설정되지 않은 상태와 조회 실패는
+        모두 ``None/False``로 취급해 복구 대상에서 제외한다.
+        """
+        name = self._channel.encode()
+        s = None
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            ifr = fcntl.ioctl(s, _SIOCGIFFLAGS, struct.pack("16sh", name, 0))
+            return bool(struct.unpack("16sh", ifr)[1] & _IFF_UP)
+        except OSError:
+            return None
+        finally:
+            if s is not None:
+                s.close()
+
     def _reset_interface(self):
         """ioctl down → up → txqueuelen (ip 바이너리 불필요)."""
         name = self._channel.encode()
@@ -100,6 +121,53 @@ class CanWatchdog:
         finally:
             s.close()
 
+    def _reopen_probe_socket(self):
+        replacement = self._open_probe_socket()
+        old = self._sock
+        self._sock = replacement
+        if old is not None:
+            old.close()
+
+    def _step(self):
+        """감시 1회. 테스트에서 sleep 없이 상태 전이를 검증할 수 있다."""
+        try:
+            is_up = self._interface_is_up()
+        except OSError:
+            is_up = None
+        if not is_up:
+            self._fails = 0
+            self._last_tx = None
+            return "down"
+
+        tx = self._tx_packets()
+        if self._probe_ok():
+            self._fails = 0
+            self._last_tx = tx
+            return "ok"
+
+        stalled = self._last_tx is None or tx is None or tx == self._last_tx
+        self._fails = self._fails + 1 if stalled else 0
+        self._last_tx = tx
+        if self._fails < 2:
+            return "failed"
+
+        self._fails = 0
+        try:
+            self._reset_interface()
+        except OSError as e:
+            self._last_reset_error = e
+            return "reset_failed"
+
+        self.resets += 1
+        self._last_reset_error = None
+        try:
+            self._reopen_probe_socket()
+        except OSError:
+            # 기존 소켓은 down/up 뒤에도 보통 유효하다. ifindex가 바뀐 드문
+            # 경우의 재오픈 실패가 데몬 자체를 죽이지 않도록 다음 복구를 기다린다.
+            pass
+        return "reset"
+
     # ------------------------------------------------------------------
     def _run(self):
         # can0 이 아직 없거나(부팅 직후, can_setup 전) 사라져도 포기하지 않고 재시도
@@ -113,33 +181,25 @@ class CanWatchdog:
                 time.sleep(5.0)
         print("[can_watchdog] %s 감시 시작 (주기 %.0fs)"
               % (self._channel, self._period), flush=True)
-        fails = 0
-        last_tx = None
+        was_up = None
         while True:
             time.sleep(self._period)
-            tx = self._tx_packets()
-            if self._probe_ok():
-                fails = 0
-            else:
-                stalled = (tx is None) or (tx == last_tx)
-                fails = fails + 1 if stalled else 0
-                if fails >= 2:                       # 2연속(≈2s) 정지 → 웻지
-                    self.resets += 1
-                    print("[can_watchdog] TX 웻지 감지 → %s 리셋 (%d회째)"
-                          % (self._channel, self.resets), flush=True)
-                    try:
-                        self._reset_interface()
-                    except OSError as e:
-                        print("[can_watchdog] 리셋 실패: %s (권한? privileged 필요)"
-                              % e, flush=True)
-                    # 인터페이스 재생성(ifindex 변경) 대비 — 프로브 소켓 재오픈
-                    try:
-                        self._sock.close()
-                        self._sock = self._open_probe_socket()
-                    except OSError:
-                        pass                          # 다음 주기 프로브가 다시 걸러냄
-                    fails = 0
-            last_tx = tx
+            event = self._step()
+            up = event != "down"
+            if up != was_up:
+                if up:
+                    print("[can_watchdog] %s UP — 감시 재개" % self._channel,
+                          flush=True)
+                else:
+                    print("[can_watchdog] %s DOWN/미설정 — 설정 대기"
+                          % self._channel, flush=True)
+                was_up = up
+            if event == "reset":
+                print("[can_watchdog] TX 웻지 복구 → %s 리셋 (%d회째)"
+                      % (self._channel, self.resets), flush=True)
+            elif event == "reset_failed":
+                print("[can_watchdog] 리셋 실패: %s (권한? privileged 필요)"
+                      % self._last_reset_error, flush=True)
 
 
 def main(argv=None):
