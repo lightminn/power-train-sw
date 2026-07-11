@@ -25,6 +25,8 @@ one-time install was skipped or provisioning is wrong, startup fails instead of 
 Keys: `1` RGB, `2` aligned depth, `3` overlay, `s` streaming on/off, `r` restart Gateway
 components, and `q` detach the Dashboard. `Shift+Q` displays a confirmation; `y` sends the
 destructive `stop_gateway` command and the managed Gateway reaps its SRT child.
+`r` performs a supervised restart: the Gateway cleans up, exits nonzero, and Compose starts a
+fresh process. This avoids unsupported in-process RSUSB pipeline reuse on librealsense 2.50.0.
 
 The container uses `restart: on-failure:5` to bound consecutive short startup failures to five
 retries. Docker resets that retry counter after roughly 10 seconds of healthy runtime, so a later

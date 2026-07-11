@@ -284,6 +284,17 @@ def test_system_collector_reports_current_cpu_and_rss():
     assert snapshot["current_rss_bytes"] is None or snapshot["current_rss_bytes"] > 0
 
 
+def test_restart_command_requests_supervised_process_replacement():
+    gateway, _ = make_gateway(); gateway.start()
+    deferred = gateway.handle_request({"type":"restart_gateway", "payload":{}})
+    assert deferred.payload == {"accepted": True}
+    assert gateway.shutdown_requested is False
+    deferred.after_send()
+    assert gateway.shutdown_requested is True
+    assert gateway.fatal_error == "supervised restart requested"
+    gateway.shutdown()
+
+
 def test_restart_source_stop_failure_faults_and_cleans_every_resource():
     class BadStopSource(Source):
         def stop(self): self.stopped += 1; raise RuntimeError("source stop failed")

@@ -400,7 +400,7 @@ class Gateway:
             elif kind == "set_streaming":
                 self._set_streaming(payload["enabled"])
             elif kind == "restart_gateway":
-                return DeferredResponse({"accepted": True}, self.restart_components)
+                return DeferredResponse({"accepted": True}, self.request_supervised_restart)
             elif kind == "stop_gateway":
                 return DeferredResponse({"accepted": True}, self.request_shutdown)
             return self.status_snapshot()
@@ -413,6 +413,13 @@ class Gateway:
                 self._requested_terminal = GatewayState.STOPPED
             self._accept_commands = False
             self._cleanup_condition.notify_all()
+
+    def request_supervised_restart(self):
+        """Exit nonzero after cleanup so Compose replaces the SDK process."""
+        with self._lock:
+            self.last_error = "supervised restart requested"
+            self.fatal_error = self.last_error
+        self.request_shutdown()
 
     def _set_streaming(self, enabled):
         if self.streamer is None:
