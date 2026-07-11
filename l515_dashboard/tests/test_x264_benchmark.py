@@ -2,7 +2,11 @@ from scripts.benchmark_l515_x264 import (
     build_x264_benchmark_command,
     run_benchmark,
 )
-from motor_control.vision.gst_stream import X264_CONVERSION, build_gst_command
+from motor_control.vision.gst_stream import (
+    X264_CONVERSION,
+    build_conversion_tokens,
+    build_gst_command,
+)
 
 
 def test_benchmark_commands_are_software_x264_only():
@@ -21,10 +25,31 @@ def test_selected_stream_path_matches_videoconvert_x264_benchmark():
     assert X264_CONVERSION == "videoconvert"
 
 
+def test_x264_nvvidconv_tokens_match_benchmark_path():
+    assert build_conversion_tokens("x264", "nvvidconv") == [
+        "videoconvert",
+        "!",
+        "video/x-raw,format=BGRx",
+        "!",
+        "nvvidconv",
+        "!",
+        "video/x-raw,format=I420",
+    ]
+
+
+def test_openh264_keeps_legacy_conversion_independent_of_x264_selection():
+    assert build_conversion_tokens("openh264", "nvvidconv") == [
+        "videoconvert",
+        "!",
+        "video/x-raw,format=I420",
+    ]
+
+
 class _Stdin:
-    def __init__(self):
+    def __init__(self, close_error=None):
         self.writes = 0
         self.closed = False
+        self.close_error = close_error
 
     def write(self, frame):
         self.writes += 1
@@ -32,6 +57,8 @@ class _Stdin:
 
     def close(self):
         self.closed = True
+        if self.close_error is not None:
+            raise self.close_error
 
 
 class _Process:
@@ -81,3 +108,21 @@ def test_run_benchmark_writes_900_frames_and_reaps_child():
         "cpu_percent": 10.0,
         "returncode": 0,
     }
+
+
+def test_stdin_close_error_still_reaps_child():
+    process = _Process()
+    process.stdin = _Stdin(BrokenPipeError("child closed first"))
+    times = iter([10.0, 40.0])
+
+    result = run_benchmark(
+        "videoconvert",
+        popen=lambda *args, **kwargs: process,
+        monotonic=lambda: next(times),
+        read_cpu_ticks=lambda pid: 300.0,
+        clock_ticks=100.0,
+    )
+
+    assert process.stdin.closed
+    assert process.waits == 1
+    assert result["returncode"] == 0

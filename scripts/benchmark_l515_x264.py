@@ -117,8 +117,12 @@ def run_benchmark(
             cpu_ticks = read_cpu_ticks(process.pid)
         except (FileNotFoundError, ProcessLookupError):
             cpu_ticks = 0.0
-        process.stdin.close()
-        returncode = _reap(process)
+        try:
+            process.stdin.close()
+        except (BrokenPipeError, OSError):
+            pass
+        finally:
+            returncode = _reap(process)
 
     elapsed = max(monotonic() - start, 1e-9)
     ticks_per_second = clock_ticks or float(os.sysconf("SC_CLK_TCK"))

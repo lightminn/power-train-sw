@@ -27,6 +27,21 @@ ENCODERS = ("x264", "openh264")
 X264_CONVERSION = "videoconvert"
 
 
+def build_conversion_tokens(encoder: str, x264_conversion: str) -> list[str]:
+    """Return raw-BGR conversion tokens without coupling the openh264 fallback."""
+    if encoder == "openh264" or x264_conversion == "videoconvert":
+        return ["videoconvert", "!", "video/x-raw,format=I420"]
+    if x264_conversion == "nvvidconv":
+        return [
+            "videoconvert", "!", "video/x-raw,format=BGRx",
+            "!", "nvvidconv", "!", "video/x-raw,format=I420",
+        ]
+    raise ValueError(
+        "x264_conversion must be videoconvert or nvvidconv: "
+        f"{x264_conversion!r}"
+    )
+
+
 def build_gst_command(port: int, width: int, height: int, fps: int,
                       encoder: str = "x264", bitrate_kbps: int = 3000,
                       latency_ms: int = 60) -> list:
@@ -47,6 +62,7 @@ def build_gst_command(port: int, width: int, height: int, fps: int,
                "complexity=low", "scene-change-detection=false"]
     else:
         raise ValueError(f"encoder must be one of {ENCODERS}: {encoder!r}")
+    conversion = build_conversion_tokens(encoder, X264_CONVERSION)
 
     return [
         "gst-launch-1.0",
@@ -55,7 +71,7 @@ def build_gst_command(port: int, width: int, height: int, fps: int,
              "format=bgr",
              f"width={width}", f"height={height}",
              f"framerate={fps}/1",
-        "!", X264_CONVERSION, "!", "video/x-raw,format=I420",
+        "!", *conversion,
         "!", *enc,
         # config-interval=-1: 모든 키프레임에 SPS/PPS — 수신자가 중간 합류해도 디코딩 가능
         "!", "h264parse", "config-interval=-1",
