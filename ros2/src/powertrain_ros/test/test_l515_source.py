@@ -462,3 +462,60 @@ def test_stop_after_prestart_validation_cleans_late_native_start():
     assert source._starting is None
     assert source.state is L515State.STOPPED
     assert source.poll_latest().empty
+
+
+def test_cancelled_late_start_uses_one_bounded_worker_stop_attempt():
+    validated = threading.Event()
+    release_start = threading.Event()
+    blocking_stop_entered = threading.Event()
+    release_blocking_stop = threading.Event()
+
+    class BlockingCleanupPipeline(FakePipeline):
+        def __init__(self, rs):
+            super().__init__(rs)
+            self.active = False
+            self.prestart_stop_calls = 0
+            self.active_stop_calls = 0
+
+        def start(self, config):
+            self.rs.started.append(config)
+            self.active = True
+
+        def stop(self):
+            if not self.active:
+                self.prestart_stop_calls += 1
+                return
+            self.active_stop_calls += 1
+            blocking_stop_entered.set()
+            release_blocking_stop.wait()
+
+    rs = FakeRs([EXPECTED_L515_SERIAL])
+    pipeline = BlockingCleanupPipeline(rs)
+    rs.pipeline = lambda: pipeline
+    source = L515Source(rs, stop_timeout=0.02, mapper_factory=object)
+
+    def block_after_validation():
+        validated.set()
+        release_start.wait()
+
+    source._after_pipeline_start_validation = block_after_validation
+    source.start()
+    assert validated.wait(0.2)
+    source.stop()
+    worker = source._thread
+    assert pipeline.prestart_stop_calls == 1
+
+    started = time.monotonic()
+    release_start.set()
+    worker.join(0.2)
+    elapsed = time.monotonic() - started
+
+    assert blocking_stop_entered.wait(0.2)
+    assert elapsed < 0.15
+    assert not worker.is_alive()
+    assert pipeline.prestart_stop_calls == 1
+    assert pipeline.active_stop_calls == 1
+    assert source._starting is None
+    assert source.state is L515State.STOPPED
+    assert source.poll_latest().empty
+    release_blocking_stop.set()

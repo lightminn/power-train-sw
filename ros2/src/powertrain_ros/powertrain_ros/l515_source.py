@@ -225,6 +225,16 @@ class L515Source:
         except Exception:
             pass
 
+    def _stop_pipeline_bounded(self, pipeline) -> None:
+        stopper = threading.Thread(
+            target=self._stop_pipeline,
+            args=(pipeline,),
+            name="l515-worker-sdk-stop",
+            daemon=True,
+        )
+        stopper.start()
+        stopper.join(self._stop_timeout)
+
     def _finish_stopped(self, thread) -> None:
         with self._lifecycle_lock:
             if thread is not None and self._thread is not thread:
@@ -265,6 +275,7 @@ class L515Source:
     def _run_generation(self, generation: int) -> None:
         while self._is_current(generation):
             pipeline = None
+            pipeline_cleanup_done = False
             if not self._set_state_if_current(
                 generation, L515State.CONNECTING
             ):
@@ -305,7 +316,8 @@ class L515Source:
                     if same_start and not cancelled:
                         self._starting = None
                 if cancelled:
-                    self._stop_pipeline(pipeline)
+                    self._stop_pipeline_bounded(pipeline)
+                    pipeline_cleanup_done = True
                     with self._lifecycle_lock:
                         if self._starting is starting:
                             self._starting = None
@@ -337,8 +349,8 @@ class L515Source:
                         generation, L515State.DISCONNECTED
                     )
             finally:
-                if pipeline is not None:
-                    self._stop_pipeline(pipeline)
+                if pipeline is not None and not pipeline_cleanup_done:
+                    self._stop_pipeline_bounded(pipeline)
                 with self._lifecycle_lock:
                     if self._pipeline is pipeline:
                         self._pipeline = None

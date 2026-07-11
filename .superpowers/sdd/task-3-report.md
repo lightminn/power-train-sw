@@ -166,3 +166,39 @@
   Result: three packages built; `59 passed in 0.40s`; `59 tests, 0 errors, 0
   failures, 0 skipped`.
 - Diff command: `git diff --check`. Result: exit 0.
+
+## Bounded cancelled-start cleanup
+
+- Added a worker-side bounded stop helper that runs SDK `pipeline.stop()` on a
+  daemon helper and joins it for at most the configured `stop_timeout`.
+- Cancelled late-start cleanup records completion after that single bounded
+  attempt; `finally` does not invoke stop a second time for the same path.
+- STARTING is cleared only after the bounded cleanup attempt returns. A blocked
+  SDK stop therefore cannot keep the source worker alive or delay caller-side
+  shutdown indefinitely, and no native call occurs under the lifecycle lock.
+- Added a deterministic fake whose pre-start stop returns but whose post-start
+  stop blocks. The test distinguishes the public pre-start stop from the one
+  worker cleanup attempt and proves there is no duplicate active stop.
+
+## Bounded-cleanup TDD and verification evidence
+
+- RED command: `/home/light/anaconda3/bin/python -m pytest -q
+  test/test_l515_source.py`. Result before bounded worker cleanup: `1 failed,
+  15 passed`; the worker remained alive after the 0.2-second join because it
+  was blocked synchronously in SDK stop.
+- Focused command: `/home/light/anaconda3/bin/python -m pytest -q
+  test/test_l515_source.py`. Result: `16 passed in 0.12s`.
+- Style command: `/home/light/anaconda3/bin/python -m flake8
+  powertrain_ros/l515_source.py test/test_l515_source.py`. Result: exit 0.
+- Full ROS command: `docker run --rm -v "$PWD:/workspace" -w /workspace/ros2
+  powertrain-sw:ros-task7-minors bash -lc 'source
+  /opt/ros/humble/setup.bash && colcon --log-base /tmp/l515-log build
+  --build-base /tmp/l515-build --install-base /tmp/l515-install
+  --packages-select powertrain_msgs robot_arm_msgs powertrain_ros && source
+  /tmp/l515-install/setup.bash && colcon --log-base /tmp/l515-test-log test
+  --build-base /tmp/l515-build --install-base /tmp/l515-install
+  --packages-select powertrain_ros --event-handlers console_direct+ && colcon
+  test-result --test-result-base /tmp/l515-build/powertrain_ros --verbose'`.
+  Result: three packages built; `60 passed in 0.62s`; `60 tests, 0 errors, 0
+  failures, 0 skipped`.
+- Diff command: `git diff --check`. Result: exit 0.
