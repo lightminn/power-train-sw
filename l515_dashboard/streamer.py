@@ -86,7 +86,7 @@ class SrtStreamer:
             )
             self._pipeline_command = tuple(command)
             self._process = self._popen(
-                command, stdin=subprocess.PIPE, bufsize=0
+                command, stdin=subprocess.PIPE
             )
             if self._process.stdin is None:
                 process = self._process

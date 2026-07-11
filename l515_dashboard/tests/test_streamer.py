@@ -134,7 +134,7 @@ def test_start_uses_independently_specified_fixed_gst_command(mode):
                 "sync=false",
                 "async=false",
             ],
-            {"stdin": subprocess.PIPE, "bufsize": 0},
+            {"stdin": subprocess.PIPE},
         )
     ]
     streamer.stop()
