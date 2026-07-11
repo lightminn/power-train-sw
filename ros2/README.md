@@ -113,6 +113,11 @@ ros2 launch powertrain_ros l515.launch.py
 `/l515/accel/sample`이다. color/depth는 640×480 30 Hz 설정이며 IMU 두 토픽은 장치 원본
 stream이다. IR, confidence, alignment, 합성 IMU와 **PointCloud2 토픽은 없다.**
 
+2026-07-11 D435i perception 동시 60초 HIL에서 color/depth 29.750/29.450 Hz,
+accel/gyro 30.166 Hz, 최소 5초 창 28.8 Hz, 비증가 stamp 0, USB error delta 0을 확인했다.
+SDK frameset이 같은 video sample을 다시 줄 수 있으므로 source는 스트림별 동일 device
+timestamp를 폐기한다. 역행 timestamp는 mapper reset을 위해 보존한다.
+
 ### 실기 launch 게이트
 
 `wp5_control.launch.py`는 `stop_mm`을 생략할 수 없는 결합 실기 진입점이다. 현재 벤치/HIL

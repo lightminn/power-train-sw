@@ -26,6 +26,15 @@ These notes were migrated from Claude Code project memory. Treat them as durable
   IR, confidence, alignment, and synthetic IMU are intentionally absent.
 - This direct custom `pyrealsense2` node supersedes every historical L515 instruction below that
   mentions `realsense-ros`, `realsense2_camera`, or optional PointCloud2. Do not use those paths.
+- L515 HIL is COMPLETE through concurrent fix commit `d18dc4d7580856c191e16693d32dd0aba95528cc`:
+  disconnect/reconnect passed without D435 fallback, and the D435IF robot-arm perception node ran
+  concurrently for 60 s. Final L515 color/depth rates were 29.750/29.450 Hz, IMU 30.166 Hz,
+  every 5 s window at least 28.8 Hz, non-increasing stamps 0, and USB error delta 0.
+- Under concurrent load an SDK frameset repeated the latest color/depth sample. The source now
+  drops equal device timestamps per stream, preserves backward timestamps for mapper reset, and
+  resets dedup state on reconnect. Do not replace this with synthetic `+1 ns` stamps.
+- Next implementation is WP6 odometry using `/wheel_states` plus raw L515 gyro/accel. Measure
+  `base_link→l515_link` static TF only after the final sensor mount is assembled.
 
 ## CURRENT STATE OVERRIDE — 2026-07-11 WP5.1 HIL COMPLETE
 

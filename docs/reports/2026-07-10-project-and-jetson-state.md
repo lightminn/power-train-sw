@@ -22,6 +22,7 @@
 | ROS2 기준선 | WP4 양방향 DDS 전달, 기존 WP5 `/cmd_vel → 10모터` 실기 HIL 완료 |
 | WP5.1 제어·안전 | **HIL 완료**: 기존 10모터 실증 + US-100·fail-safe·실제 50 Hz PASS; 지상 제동/최종 stop_mm은 차체 조립 후 커미셔닝 |
 | 센서 소유권 | L515=파워트레인 RGB/depth/IMU, D435i=로봇팔 전용, US100=독립 안전 |
+| L515 입력 | **완료**: custom pyrealsense2 2.50.0, 6토픽, 분리/재연결 및 D435i 동시 60초 HIL PASS, PointCloud2 없음 |
 | 형상 최적화 | v4 계산 기준 50 kg 확정, 86 kg 재최적화 안 함 |
 
 ## 2. Jetson 실측
@@ -33,6 +34,10 @@
   작업 커밋과 perception 미커밋 변경이 존재한다. 파워트레인 문서가 그 내부 구현에
   결합하면 안 된다.
 - USB: Intel RealSense 515와 Depth Camera D435i 동시 연결 확인.
+- L515+D435i 동시 HIL(2026-07-11): L515 color/depth 29.750/29.450 Hz, IMU
+  30.166 Hz, 모든 5초 창 ≥28.8 Hz, stamp 비증가 0, USB error delta 0. 로봇팔
+  `/detected_objects`도 약 19.7 Hz로 연속 발행됐다. 상세는
+  `docs/reports/2026-07-11-l515-lightweight-pipeline-hil.md`를 따른다.
 - 컨테이너: `powertrain_ros`, `powertrain_canwatchdog` 실행 중. 점검 시 chassis/ROS 제어
   프로세스는 없고 can0는 DOWN이었다. `powertrain_jetson`과 로봇팔 `ros2_humble`은
   종료 상태였다.
@@ -77,12 +82,13 @@
 
 ## 4. 다음 작업
 
-1. 단일 `/cmd_vel` command authority spec.
-2. L515 경량 color image + depth image + IMU 파이프라인 spec. PointCloud2는 opt-in.
-3. 차체 조립 시 ODrive 13·14 재장착 확인과 지상 제동·최종 `stop_mm` 커미셔닝.
-4. 위 인터페이스 확정 뒤 WP6 오도메트리.
-5. WP8 미션 시퀀서와 `MISSION_STOP`·락 해제 순서 계약.
-6. `ARRIVED_* → 팔 작업 → DONE → 재출발` 합동 1사이클.
+1. **WP6 오도메트리**: `/wheel_states` + L515 gyro/accel 상보 융합.
+2. 차체 조립 시 `base_link→l515_link` static TF 실측과 ODrive 13·14 재장착 확인,
+   지상 제동·최종 `stop_mm` 커미셔닝.
+3. WP7 color/depth 소비 계층은 필요해질 때 Image를 직접 사용한다. PointCloud2는 현재
+   파이프라인에 추가하지 않는다.
+4. WP8 미션 시퀀서와 `MISSION_STOP`·락 해제 순서 계약.
+5. `ARRIVED_* → 팔 작업 → DONE → 재출발` 합동 1사이클.
 
 ## 5. 문서 해석 규칙
 

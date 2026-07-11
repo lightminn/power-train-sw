@@ -261,6 +261,33 @@ def test_source_drops_equal_sdk_timestamps_per_stream_but_keeps_new_samples():
     assert committed[2]["depth"] is newer.depth
 
 
+def test_dedup_preserves_clock_regression_and_resets_with_new_session_state():
+    previous = {"color": 1000.0}
+    regressed = TimestampedSample("regressed", 900.0)
+    payload = {
+        "color": regressed,
+        "depth": None,
+        "accel": None,
+        "gyro": None,
+    }
+
+    L515Source._drop_duplicate_samples(payload, previous)
+
+    assert payload["color"] is regressed
+    assert previous["color"] == 900.0
+
+    first_after_reconnect = TimestampedSample("reconnected", 900.0)
+    reconnected_payload = {
+        "color": first_after_reconnect,
+        "depth": None,
+        "accel": None,
+        "gyro": None,
+    }
+    L515Source._drop_duplicate_samples(reconnected_payload, {})
+
+    assert reconnected_payload["color"] is first_after_reconnect
+
+
 def test_poll_latest_is_nonblocking_when_worker_has_no_data():
     source = L515Source(FakeRs([]), wait_fn=lambda _: False)
 
