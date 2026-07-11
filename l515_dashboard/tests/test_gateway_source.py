@@ -181,26 +181,50 @@ def test_default_mapper_is_real_timestamp_mapper(monkeypatch):
 
 def test_disconnect_invalidates_buffers_mapper_and_reconnects():
     rs = RS(); config = DashboardConfig(reconnect_interval_s=.01)
-    source = L515GatewaySource(rs, config=config, mapper_factory=object)
+    source = L515GatewaySource(rs, config=config, mapper_factory=object,
+                               video_startup_grace_s=.02,
+                               video_stale_timeout_s=.02)
     source.start(); assert wait_until(lambda: source.state is GatewaySourceState.STREAMING)
     old_pipeline = rs.pipelines[0]
     old_pipeline.callback(Frame("color", 1)); assert source.read_color_after(0)[1]
-    rs.present = False
     assert wait_until(lambda: source.state is GatewaySourceState.DISCONNECTED)
     assert source.read_color_after(0)[1] is None and source.poll_latest().mapper is None
-    rs.present = True
     assert wait_until(lambda: len(rs.pipelines) == 2 and source.state is GatewaySourceState.STREAMING)
+    source.stop()
+
+
+def test_active_stream_never_reenumerates_and_fresh_video_keeps_it_streaming():
+    rs = RS(); config = DashboardConfig(reconnect_interval_s=.01)
+    source = L515GatewaySource(rs, config=config, mapper_factory=object,
+                               video_startup_grace_s=.02,
+                               video_stale_timeout_s=.02)
+    calls = 0
+    original = source._matching_serial
+    def prestart_only():
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise AssertionError("active stream re-enumerated RSUSB")
+        return original()
+    source._matching_serial = prestart_only
+    source.start(); assert wait_until(lambda: source.state is GatewaySourceState.STREAMING)
+    callback = rs.pipelines[0].callback
+    for number in range(1, 6):
+        callback(Frameset(Frame("color", number), Frame("depth", number)))
+        time.sleep(.01)
+    assert source.state is GatewaySourceState.STREAMING
+    assert calls == 1
     source.stop()
 
 
 def test_old_pipeline_callback_cannot_contaminate_reconnected_capture():
     rs = RS(); config = DashboardConfig(reconnect_interval_s=.01)
-    source = L515GatewaySource(rs, config=config, mapper_factory=object)
+    source = L515GatewaySource(rs, config=config, mapper_factory=object,
+                               video_startup_grace_s=.02,
+                               video_stale_timeout_s=.02)
     source.start(); assert wait_until(lambda: source.state is GatewaySourceState.STREAMING)
     callback1 = rs.pipelines[0].callback
-    rs.present = False
     assert wait_until(lambda: source.state is GatewaySourceState.DISCONNECTED)
-    rs.present = True
     assert wait_until(lambda: len(rs.pipelines) == 2
                       and source.state is GatewaySourceState.STREAMING)
     callback2 = rs.pipelines[1].callback

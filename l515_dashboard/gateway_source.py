@@ -96,6 +96,8 @@ class L515GatewaySource:
         wait_fn=None,
         mapper_factory=_new_timestamp_mapper,
         stop_timeout=1.0,
+        video_startup_grace_s=3.0,
+        video_stale_timeout_s=1.0,
     ):
         self._rs = rs_module
         self.config = config or DashboardConfig()
@@ -106,6 +108,10 @@ class L515GatewaySource:
         self._wait_fn = wait_fn or self._interruptible_wait
         self._mapper_factory = mapper_factory
         self._stop_timeout = float(stop_timeout)
+        self._video_startup_grace_s = float(video_startup_grace_s)
+        self._video_stale_timeout_s = float(video_stale_timeout_s)
+        if self._video_startup_grace_s <= 0 or self._video_stale_timeout_s <= 0:
+            raise ValueError("video freshness timeouts must be positive")
         self._buffers = {
             self._rs.stream.color: LatestSlot(),
             self._rs.stream.depth: LatestSlot(),
@@ -118,6 +124,7 @@ class L515GatewaySource:
         self._capture_token = None
         self._next_capture_token = 0
         self._last_frame_numbers = {}
+        self._last_video_callback_at = None
         self._callback_arrivals = {stream: deque(maxlen=512) for stream in self._buffers}
         self._mapper = None
         self._poll_sequences = {stream: 0 for stream in self._buffers}
@@ -287,6 +294,7 @@ class L515GatewaySource:
             self._capture_generation = generation
             self._capture_token = token
             self._last_frame_numbers.clear()
+            self._last_video_callback_at = None
             for arrivals in self._callback_arrivals.values():
                 arrivals.clear()
             self._mapper = self._mapper_factory()
@@ -303,6 +311,7 @@ class L515GatewaySource:
             self._capture_generation = None
             self._capture_token = None
             self._last_frame_numbers.clear()
+            self._last_video_callback_at = None
             for arrivals in self._callback_arrivals.values():
                 arrivals.clear()
             self._mapper = None
@@ -364,6 +373,8 @@ class L515GatewaySource:
                     continue
                 self._last_frame_numbers[stream] = number
                 sample = self._sample_from_frame(stream, child)
+                if stream in (self._rs.stream.color, self._rs.stream.depth):
+                    self._last_video_callback_at = self._clock()
                 self._callback_arrivals[stream].append(sample.received_ns)
                 self._buffers[stream].publish(sample)
 
@@ -466,6 +477,7 @@ class L515GatewaySource:
                     lambda frame, current=generation, token=capture_token:
                         self._on_frame(frame, current, token),
                 )
+                stream_started_at = self._clock()
                 with self._lifecycle_lock:
                     starting = self._starting
                     same_start = (
@@ -498,8 +510,15 @@ class L515GatewaySource:
                     if self._stop_event.wait(
                             min(self.config.reconnect_interval_s, 0.1)):
                         break
-                    if self._matching_serial() != serial:
-                        raise RuntimeError("expected L515 disconnected")
+                    now = self._clock()
+                    with self._capture_lock:
+                        last_video = self._last_video_callback_at
+                    if last_video is None:
+                        stale = now - stream_started_at > self._video_startup_grace_s
+                    else:
+                        stale = now - last_video > self._video_stale_timeout_s
+                    if stale:
+                        raise RuntimeError("expected L515 video callbacks became stale")
             except Exception:
                 if self._is_current(generation):
                     self._clear_capture(capture_token)
