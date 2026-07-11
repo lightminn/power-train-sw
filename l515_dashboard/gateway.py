@@ -116,10 +116,10 @@ class Gateway:
             self._accept_commands = False
             try:
                 self._start_owned(self.guard)
+                self._start_owned(self.server)
                 self._start_owned(self.source)
                 self._start_owned(self.ros)
                 self._start_owned(self.streamer, optional=True)
-                self._start_owned(self.server)
                 self._accept_commands = True
                 self.observe()
             except Exception as exc:

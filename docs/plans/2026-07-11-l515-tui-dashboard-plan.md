@@ -66,6 +66,7 @@
 
 - [ ] Write RED two-contender, release/reacquire, stale-file, symlink-rejection, and no-unlink tests.
 - [ ] Implement reusable persistent `flock` guard; write/fsync owner metadata while locked and never signal unrelated processes.
+- [ ] Bind-mount host `/run/powertrain` into `powertrain_ros` at the same path so replacement containers contend on one lock inode.
 - [ ] Write RED fake-SDK tests for exact color/depth profiles, `rs.align(color)`, raw versus aligned separation, IMU, latest-one-slot, dedup, disconnect/reconnect reset, and bounded stop.
 - [ ] Implement one SDK pipeline owner based on proven `L515Source` lifecycle without duplicating its race bugs.
 - [ ] Adapt frame modes/config to fixed 1280×720 and overlay; remove incompatible variable-width streamer assumptions.
@@ -107,7 +108,7 @@
 
 - [ ] Write RED framing/version/size/invalid-command and multiple-client backpressure tests.
 - [ ] Implement bounded status snapshots and serialized state-changing commands.
-- [ ] Implement Gateway states and lifecycle: guard→SDK→ROS→optional SRT→socket RUNNING.
+- [ ] Implement Gateway states and lifecycle: shared guard→abstract socket bind→SDK→ROS→optional SRT→RUNNING. Duplicate lock/bind must fail before SDK access.
 - [ ] Treat L515 loss as DEGRADED/reconnect, GStreamer crash as streaming-off DEGRADED, ROS fatal as FAULT shutdown, Dashboard disconnect as no-op.
 - [ ] Route SIGINT/SIGTERM/container stop/exception through one idempotent cleanup order: frame intake→SRT→SDK→ROS→abstract socket close→flock unlock.
 - [ ] Test partial starts, signals, concurrent commands, repeated shutdown, and zero owned resources.

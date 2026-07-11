@@ -49,3 +49,22 @@ Final verification:
 - full Dashboard suite under a 30-second external bound: `188 passed in 4.77s`;
 - `compileall` and `git diff --check`: exit 0;
 - no pytest process remained after either run.
+
+## Container namespace closure
+
+The Jetson `powertrain_ros` service now bind-mounts host `/run/powertrain` onto
+the same container path. Replacement containers therefore contend on the same
+persistent flock inode rather than separate container overlay files. Host
+networking already shares the abstract Unix namespace.
+
+Gateway startup now orders ownership barriers before hardware:
+
+`ResourceGuard → abstract ControlServer → SDK source → ROS → optional SRT`
+
+A deterministic duplicate abstract bind test proves that `source.start()` is
+never called when `EADDRINUSE` occurs, while normal cleanup rolls back the
+server and guard. Compose coverage asserts the exact shared mount.
+
+Final namespace-fix verification: compose config exit 0, `git diff --check`
+exit 0, compileall exit 0, and the full Dashboard suite completed within its
+30-second bound with `191 passed in 4.94s` and no remaining pytest process.

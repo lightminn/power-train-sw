@@ -37,3 +37,7 @@ If startup reports a singleton/lock failure, do not delete the persistent
 only the held `flock` denotes ownership. Check the existing `l515_gateway` owner and container state first. The Gateway excludes direct
 RealSense viewers and maintenance scripts while it owns the camera; stop it explicitly before
 approved SDK maintenance. It never opens the robot-arm D435i.
+
+The Jetson compose service bind-mounts host `/run/powertrain` at the same container path and uses
+host networking. Both the persistent flock inode and abstract endpoint are therefore shared across
+replacement containers. Gateway acquires/binds both before opening the L515 SDK.

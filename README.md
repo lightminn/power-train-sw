@@ -93,6 +93,8 @@ SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 운용 시 L515는 장기 실행 Gateway 하나가 점유하며 ROS 6개 토픽과 SRT를 함께 제공한다.
 별도 Textual Dashboard는 same-UID `SO_PEERCRED`로 보호된 abstract Unix socket
 `@powertrain-l515-gateway`만 사용하므로 `q`/SSH 종료가 Gateway를 멈추지 않는다.
+Jetson `powertrain_ros`는 host `/run/powertrain`을 같은 경로에 bind-mount하고 host network를
+사용하므로 중복 container도 동일한 flock inode와 abstract endpoint에서 충돌 후 카메라 접근 전에 종료된다.
 실행, 수신기 명령, 키와 singleton 장애 대응은 [`l515_dashboard/README.md`](l515_dashboard/README.md)를 따른다.
 
 파워트레인 L515는 serial `00000000F0271544`만 열며, `powertrain_ros` 이미지에

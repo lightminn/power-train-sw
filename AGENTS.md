@@ -1,7 +1,7 @@
 ## L515 Gateway Dashboard ownership
 
 - Production L515 access belongs only to `python3 -m l515_dashboard.gateway_main` in `powertrain_ros`.
-- `python3 -m l515_dashboard` uses the same-UID protected Linux abstract socket `@powertrain-l515-gateway`. `q`, SIGHUP, and client failure leave Gateway, ROS, and SRT alive; only confirmed `Shift+Q` sends `stop_gateway`. Singleton ownership uses persistent `/run/powertrain/l515-gateway.lock` with `flock`; never delete the stale file.
+- `python3 -m l515_dashboard` uses the same-UID protected Linux abstract socket `@powertrain-l515-gateway`. `q`, SIGHUP, and client failure leave Gateway, ROS, and SRT alive; only confirmed `Shift+Q` sends `stop_gateway`. Singleton ownership uses persistent `/run/powertrain/l515-gateway.lock` with `flock`; never delete the stale file. `powertrain_ros` bind-mounts host `/run/powertrain` to the same path and uses host networking, so duplicate containers share both ownership namespaces. Startup order is guard→abstract server→SDK/ROS/SRT; duplicate bind must not touch the camera.
 - Stop the Gateway explicitly before approved direct RealSense maintenance.
 
 <!-- BEGIN CLAUDE_TO_CODEX_MEMORY -->

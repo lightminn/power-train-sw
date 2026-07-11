@@ -49,3 +49,9 @@ def test_compose_bounds_crash_restarts_but_keeps_clean_stop_stopped():
     text=COMPOSE.read_text()
     service=text.split("  powertrain_ros:",1)[1]
     assert 'restart: "on-failure:5"' in service
+
+
+def test_compose_shares_persistent_gateway_flock_with_host():
+    text=COMPOSE.read_text()
+    service=text.split("  powertrain_ros:",1)[1]
+    assert "- /run/powertrain:/run/powertrain" in service

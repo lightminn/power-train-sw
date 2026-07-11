@@ -53,6 +53,12 @@ Gateway는 ROS 전용 Docker 컨테이너의 명시적 entrypoint/supervisor가 
 Gateway는 실행을 거부한다. Dashboard는 여러 개가 읽기 전용으로 접속할 수 있지만, 상태 변경
 명령은 서버가 직렬화한다.
 
+`powertrain_ros`는 host `/run/powertrain`을 container의 같은 경로에 bind-mount한다. 따라서
+교체·중복 container도 같은 `l515-gateway.lock` inode에서 경쟁한다. `network_mode: host`의
+abstract endpoint도 host network namespace에서 하나뿐이다. 시작 순서는 반드시
+`flock 획득 → abstract endpoint bind/listen → SDK → ROS → SRT`이며, lock 또는 bind 실패는
+L515 SDK를 열기 전에 rollback한다.
+
 ## 3. 데이터 계약
 
 ### 3.1 SDK 프로파일
@@ -156,6 +162,9 @@ regular file인지 검증한 뒤 nonblocking exclusive `flock`을 잡는다. loc
 lock pathname은 절대 unlink하지 않는다. stale metadata/file은 정상이며 다음 lock owner가 갱신한다. 이 유틸리티는
 향후 US-100 UART, ODrive USB, CAN maintenance authority에 재사용 가능하지만 이번 작업에서
 그 장치들의 동작은 변경하지 않는다.
+
+Abstract server는 hardware보다 먼저 떠서 Gateway가 아직 `STARTING`일 수 있다. 이 구간에는
+command accept gate가 상태 변경 명령을 거부하며, 모든 component가 준비된 뒤에만 허용한다.
 
 ## 8. 테스트와 HIL
 

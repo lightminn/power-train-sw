@@ -1,7 +1,9 @@
 import threading
+import uuid
 from types import SimpleNamespace
 
 from l515_dashboard.gateway import Gateway, GatewayState, SystemCollector
+from l515_dashboard.control_server import UnixControlServer
 
 
 class Part:
@@ -39,6 +41,42 @@ def test_lifecycle_and_idempotent_cleanup_order():
     assert gateway.state is GatewayState.STOPPED
     assert order == ["streamer", "source", "ros", "server", "guard"]
     assert all(part.stopped == 1 for part in parts.values())
+
+
+def test_start_order_acquires_guard_and_binds_server_before_hardware():
+    order = []
+    class Ordered(Part):
+        def __init__(self, name): super().__init__(); self.name = name
+        def start(self): super().start(); order.append(self.name)
+    parts = {name: Ordered(name) for name in
+             ("guard", "server", "source", "ros", "streamer")}
+    gateway = Gateway(**parts); gateway.start(); gateway.shutdown()
+    assert order == ["guard", "server", "source", "ros", "streamer"]
+
+
+def test_duplicate_abstract_bind_never_starts_camera_source():
+    endpoint = "@test-early-bind-" + uuid.uuid4().hex
+    owner = UnixControlServer(endpoint, lambda _: {}); owner.start()
+    try:
+        source = Source()
+        guard = Part()
+        contender = Gateway(
+            guard=guard,
+            server=UnixControlServer(endpoint, lambda _: {}),
+            source=source,
+            ros=Part(),
+            streamer=Streamer(),
+        )
+        try:
+            contender.start()
+        except OSError:
+            pass
+        else:
+            raise AssertionError("duplicate abstract bind unexpectedly succeeded")
+        assert source.started == 0 and guard.stopped == 1
+        assert contender.state is GatewayState.FAULT
+    finally:
+        owner.stop()
 
 
 def test_partial_start_is_cleaned_and_faulted():
