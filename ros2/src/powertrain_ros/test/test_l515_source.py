@@ -97,6 +97,15 @@ class FakeFrames:
         return getattr(self, stream)
 
 
+class TimestampedSample:
+    def __init__(self, name, timestamp_ms):
+        self.name = name
+        self.timestamp_ms = timestamp_ms
+
+    def get_timestamp(self):
+        return self.timestamp_ms
+
+
 def test_config_is_immutable_and_rejects_empty_or_non_l515_serial():
     assert L515Config().serial == EXPECTED_L515_SERIAL
     with pytest.raises(ValueError, match="serial"):
@@ -213,6 +222,43 @@ def test_disconnect_clears_stale_frames_and_reconnect_uses_new_mapper():
     assert len(rs.started) == 2
     assert all(pipeline.stopped for pipeline in rs.pipelines)
     assert source.poll_latest().empty
+
+
+def test_source_drops_equal_sdk_timestamps_per_stream_but_keeps_new_samples():
+    first = FakeFrames("first")
+    duplicate = FakeFrames("duplicate")
+    newer = FakeFrames("newer")
+    for frames, timestamp_ms in (
+        (first, 1000.0),
+        (duplicate, 1000.0),
+        (newer, 1033.0),
+    ):
+        frames.color = TimestampedSample(f"color-{frames.color}", timestamp_ms)
+        frames.depth = TimestampedSample(f"depth-{frames.depth}", timestamp_ms)
+
+    rs = FakeRs(
+        [EXPECTED_L515_SERIAL],
+        [first, duplicate, newer, RuntimeError("done")],
+    )
+    source = L515Source(
+        rs, wait_fn=lambda _: False, mapper_factory=object
+    )
+    committed = []
+    original_put = source._latest.put
+
+    def capture_put(**payload):
+        committed.append(payload)
+        original_put(**payload)
+
+    source._latest.put = capture_put
+    source._run()
+
+    assert committed[0]["color"] is first.color
+    assert committed[0]["depth"] is first.depth
+    assert committed[1]["color"] is None
+    assert committed[1]["depth"] is None
+    assert committed[2]["color"] is newer.color
+    assert committed[2]["depth"] is newer.depth
 
 
 def test_poll_latest_is_nonblocking_when_worker_has_no_data():

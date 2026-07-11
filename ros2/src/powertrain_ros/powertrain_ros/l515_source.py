@@ -271,6 +271,27 @@ class L515Source:
             self._latest.clear()
             return True
 
+    @staticmethod
+    def _drop_duplicate_samples(payload, last_timestamps) -> None:
+        """Remove SDK samples already committed for the same stream.
+
+        A mixed video/motion frameset can repeat its latest color or depth
+        frame when another stream advances.  Publishing that repeated sample
+        produces duplicate ROS stamps under load.  Backward timestamps remain
+        intact so TimestampMapper can establish a new offset after a device
+        clock reset.
+        """
+        for name in ("color", "depth", "accel", "gyro"):
+            sample = payload[name]
+            get_timestamp = getattr(sample, "get_timestamp", None)
+            if sample is None or not callable(get_timestamp):
+                continue
+            timestamp = float(get_timestamp())
+            if last_timestamps.get(name) == timestamp:
+                payload[name] = None
+            else:
+                last_timestamps[name] = timestamp
+
     def _run(self, generation: Optional[int] = None) -> None:
         if generation is None:
             generation = self._generation
@@ -333,6 +354,7 @@ class L515Source:
                             self._starting = None
                     break
                 mapper = self._mapper_factory()
+                last_timestamps = {}
                 if not self._clear_if_current(generation):
                     break
                 if not self._set_state_if_current(
@@ -348,6 +370,7 @@ class L515Source:
                         gyro=frames.first_or_default(self._rs.stream.gyro),
                         timestamp_mapper=mapper,
                     )
+                    self._drop_duplicate_samples(payload, last_timestamps)
                     self._before_frame_commit()
                     with self._lifecycle_lock:
                         if not self._is_current_locked(generation):
