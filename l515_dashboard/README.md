@@ -45,6 +45,12 @@ Orin Nano has no NVENC encoder. The deployed path intentionally uses software
 GStreamer base/good/bad/ugly plugins. Status reports five-second native SDK callback rates,
 ROS rates for all six topics, SRT submit/sent/drop rates, aligned-Depth age, and Gateway CPU/RSS.
 
+2026-07-12 real-image HIL selected this encoder setting: the earlier reusable all-zero benchmark
+overstated `superfast` throughput. RGB is the 29 fps acceptance mode. Alignment is suppressed in
+RGB and runs only for Depth/overlay, whose SRT rates are best effort. Raw ROS Depth remains
+deadline-paced at 10 Hz. Measured RGB acceptance was 29.91 fps at the receiver, 30.0–30.2 Hz
+ROS color, 10.0 Hz raw Depth, and zero SRT drops/native frame gaps.
+
 If startup reports a singleton/lock failure, do not delete the persistent
 `/run/powertrain/l515-gateway.lock` file or kill an unknown process. A stale file is normal;
 only the held `flock` denotes ownership. Check the existing `l515_gateway` owner and container state first. The Gateway excludes direct

@@ -84,6 +84,9 @@ sudo docker compose -f docker/docker-compose.jetson.yml exec powertrain bash
 SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 Gateway 상태에는 SDK native callback Hz, ROS 6토픽별 Hz, SRT submit/sent/drop Hz,
 aligned-depth age, 프로세스 CPU/RSS가 포함된다.
+2026-07-12 real-image HIL에서 RGB receiver 29.91 fps, ROS color 30.0~30.2 Hz,
+raw Depth 10.0 Hz, SRT drop 0, SDK frame gap 0을 확인했다. 상세는
+[`docs/reports/2026-07-12-l515-gateway-performance-hil.md`](docs/reports/2026-07-12-l515-gateway-performance-hil.md)다.
 
 실차 센서 소유권은 **L515=파워트레인 RGB/depth/IMU**, **D435i=로봇팔 인식 전용**,
 **US-100=독립 충돌 안전**으로 분리한다. 2026-07-10 Jetson USB에서 L515와 D435i

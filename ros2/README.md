@@ -98,6 +98,10 @@ serial 장치가 아니면 실패한다. Jetson 호스트에서
 Orin Nano에는 NVENC가 없으므로 SRT는 의도적으로 `videoconvert → x264enc` SW 경로를 쓴다.
 Gateway status의 native callback Hz, ROS 토픽별 Hz, SRT submit/sent/drop Hz,
 aligned-depth age, CPU/RSS를 60초 성능 인수의 정본 계측으로 기록한다.
+최종 real-image 설정은 `ultrafast`, x264 thread 3개다. RGB에서 alignment를 끄고 raw Depth는
+독립 10 Hz deadline으로 발행한다. Depth/overlay alignment·SRT는 best effort다. 2026-07-12
+60초 HIL 결과는 RGB receiver 29.91 fps, color 30.0~30.2 Hz, raw Depth 10.0 Hz,
+drop/gap 0이다.
 
 ```bash
 set -eu

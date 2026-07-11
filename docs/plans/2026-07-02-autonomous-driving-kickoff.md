@@ -21,6 +21,11 @@
 > `MISSION_STOP`·락 해제 순서·`ARRIVED_* → 팔 작업 → DONE → 재출발` 합동 1사이클은
 > 별도 미결 작업으로 유지한다.
 >
+> **2026-07-12 L515 성능 closure**: real-image RGB SRT receiver 29.91 fps, ROS color
+> 30.0~30.2 Hz, raw Depth 10.0 Hz, SRT drop 0, SDK frame gap 0으로 완료했다. RGB에서는
+> alignment를 억제하고 Depth/overlay SRT는 best effort다. 상세는
+> `docs/reports/2026-07-12-l515-gateway-performance-hil.md`다.
+>
 > **📌 현재 상태 (2026-07-11 Jetson HIL 재확인)**: **WP1~WP5와 L515 공통 입력 완료**. WP1(CAN 구동
 > 드라이버)·WP2(키네마틱스)·WP3(ChassisManager)는 10모터 실기 HIL, WP4는 로봇팔 실물
 > ROS 그래프와 양방향 DDS 전달, WP5는 `/cmd_vel → ChassisManager → 10모터` 실기 HIL을 통과했다.

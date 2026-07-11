@@ -5,6 +5,7 @@
 - Before the first `powertrain_ros` compose deployment on a host, run `sudo bash scripts/install_powertrain_runtime_dir.sh`. It installs a systemd-tmpfiles rule that recreates root:root 0750 `/run/powertrain` after reboot. Compose uses `bind.create_host_path: false`; never bypass a missing/unsafe runtime directory with manual mode 0755 creation.
 - Stop the Gateway explicitly before approved direct RealSense maintenance.
 - Orin Nano SRT intentionally uses software `videoconvert → x264enc`; do not expose or document `nvv4l2h264enc` as available. Status must retain native callback rates, six ROS topic rates, SRT submit/sent/drop rates, aligned-Depth age, and process CPU/RSS.
+- 2026-07-12 real-image performance HIL authority is `docs/reports/2026-07-12-l515-gateway-performance-hil.md`: RGB uses x264 ultrafast/3 threads with alignment suppressed, raw Depth is deadline-based 10 Hz, and Depth/overlay SRT is best effort. Supervised restart must replace the process through Compose; do not reuse the RSUSB pipeline in-process.
 
 <!-- BEGIN CLAUDE_TO_CODEX_MEMORY -->
 # Migrated Claude Code Memory
