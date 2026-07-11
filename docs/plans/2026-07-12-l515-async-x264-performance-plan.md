@@ -181,7 +181,9 @@ git commit -m "perf(l515): capture SDK streams asynchronously"
 - Modify: `l515_dashboard/tests/test_gateway_ros.py`
 
 **Interfaces:**
-- Produces `ColorWorker` consuming every new color sample and publishing color image plus CameraInfo.
+- Produces `ColorWorker` consuming the newest available color sample from a latest-one handoff,
+  overwriting stale unread samples and reporting the overwrite count, then publishing color image
+  plus CameraInfo with at most one frame of queue latency.
 - Produces `DepthWorker(period_s=0.1)` publishing raw Depth plus CameraInfo and producing aligned Depth.
 - Produces `ImuWorker(max_rate_hz=100)` per motion stream using bounded-ring sequence cursors.
 - `Gateway.start()` owns workers after source/ROS startup and before optional SRT startup; cleanup stops workers before source and ROS.
@@ -214,7 +216,10 @@ Each worker uses `Event.wait(timeout)` for interruptible cadence, owns no SDK pi
 
 - [ ] **Step 4: Move alignment out of the capture path**
 
-Depth worker pairs the latest color/depth samples, runs `rs.align(color)` no faster than 10 Hz, publishes raw Depth at 10 Hz, and stores an immutable aligned array with `created_ns`. It discards results when either input generation changed during alignment.
+Depth worker consumes the latest real SDK composite frameset, runs `rs.align(color)` no faster than
+10 Hz, publishes raw Depth from its independent stream slot at 10 Hz, and stores an immutable aligned
+array with `created_ns`. It discards results when the capture generation or token changed during
+alignment; it never synthesizes a composite from independent child frames.
 
 - [ ] **Step 5: Split ROS publisher methods**
 
@@ -364,4 +369,3 @@ Write measured rates, CPU/RSS, selected conversion, known limits, HIL transition
 - [ ] **Step 10: Final review, commit, and push**
 
 Run full clean software/ROS suites and two-stage spec/quality review. Fix every Critical or Important finding, commit the report/docs, push `feat/l515-lightweight-pipeline`, and record the pushed commit.
-

@@ -29,6 +29,14 @@ class GatewaySourceState(Enum):
     DISCONNECTED = "disconnected"
 
 
+@dataclass(frozen=True)
+class VideoBundle:
+    generation: int
+    capture_token: int
+    frameset: object
+    received_ns: int
+
+
 @dataclass
 class GatewayFrames:
     raw_color: object = None
@@ -103,6 +111,8 @@ class L515GatewaySource:
             self._rs.stream.accel: BoundedRing(32),
             self._rs.stream.gyro: BoundedRing(32),
         }
+        self._video_bundles = LatestSlot()
+        self._mapper_lock = threading.Lock()
         self._capture_lock = threading.Lock()
         self._capture_generation = None
         self._capture_token = None
@@ -251,6 +261,28 @@ class L515GatewaySource:
     def read_gyro_after(self, sequence, limit):
         return self._buffers[self._rs.stream.gyro].read_after(sequence, limit)
 
+    def read_video_bundle_after(self, sequence):
+        return self._video_bundles.read_after(sequence)
+
+    @property
+    def video_bundle_overwrites(self):
+        return self._video_bundles.overwrites
+
+    def stream_overwrites(self, stream):
+        return self._buffers[stream].overwrites
+
+    @property
+    def color_overwrites(self):
+        return self._buffers[self._rs.stream.color].overwrites
+
+    @property
+    def mapper_lock(self):
+        return self._mapper_lock
+
+    def capture_identity(self):
+        with self._capture_lock:
+            return self._capture_generation, self._capture_token
+
     def _reset_capture(self, generation):
         with self._capture_lock:
             self._next_capture_token += 1
@@ -262,6 +294,7 @@ class L515GatewaySource:
             for stream, buffer in self._buffers.items():
                 buffer.clear()
                 self._poll_sequences[stream] = 0
+            self._video_bundles.clear()
             return token
 
     def _clear_capture(self, token=None):
@@ -275,6 +308,7 @@ class L515GatewaySource:
             for stream, buffer in self._buffers.items():
                 buffer.clear()
                 self._poll_sequences[stream] = 0
+            self._video_bundles.clear()
 
     def _sample_from_frame(self, stream, frame):
         keeper = getattr(frame, "keep", None)
@@ -302,6 +336,18 @@ class L515GatewaySource:
     def _on_frame(self, frame, generation, token):
         if not self._is_current(generation):
             return
+        is_frameset = getattr(frame, "is_frameset", None)
+        if callable(is_frameset) and is_frameset():
+            keeper = getattr(frame, "keep", None)
+            if callable(keeper):
+                keeper()
+            with self._capture_lock:
+                if (not self._is_current(generation)
+                        or self._capture_generation != generation
+                        or self._capture_token != token):
+                    return
+                self._video_bundles.publish(VideoBundle(
+                    generation, token, frame, time.monotonic_ns()))
         for child in self._children(frame):
             profile = child.get_profile()
             stream = profile.stream_type()

@@ -104,6 +104,22 @@ def test_callback_splits_composite_deduplicates_by_stream_and_frame_number():
     assert color.kept == depth.kept == 1
 
 
+def test_composite_callback_retains_real_latest_bundle_and_counts_overwrites():
+    source = L515GatewaySource(RS(), mapper_factory=object)
+    source._generation = 3; source._stop_event.clear(); token = source._reset_capture(3)
+    first = Frameset(Frame("color", 1), Frame("depth", 1))
+    second = Frameset(Frame("color", 2), Frame("depth", 2))
+    first.kept = second.kept = 0
+    first.keep = lambda: setattr(first, "kept", first.kept + 1)
+    second.keep = lambda: setattr(second, "kept", second.kept + 1)
+    source._on_frame(first, 3, token); source._on_frame(second, 3, token)
+    sequence, bundle = source.read_video_bundle_after(0)
+    assert sequence == 2 and bundle.frameset is second
+    assert (bundle.generation, bundle.capture_token) == (3, token)
+    assert first.kept == second.kept == 1
+    assert source.video_bundle_overwrites == 1
+
+
 def test_single_motion_frames_use_capacity_32_ring():
     source = L515GatewaySource(RS(), mapper_factory=object)
     source._generation = 2; source._stop_event.clear(); token = source._reset_capture(2)

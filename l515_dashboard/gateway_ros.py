@@ -68,6 +68,7 @@ class GatewayRosPublisher:
         self._mapper = None
         self._counts = {topic: 0 for topic in TOPIC_SPECS}
         self._state_lock = threading.Lock()
+        self._mapper_lock = threading.Lock()
 
     @staticmethod
     def _intrinsics(frame):
@@ -82,10 +83,10 @@ class GatewayRosPublisher:
             if self._last_timestamps.get(stream_key) == device_ms:
                 return None
             self._last_timestamps[stream_key] = device_ms
-        return _time_message(
-            mapper.map_ms(device_ms, self._now_ns(), stream_key=stream_key),
-            self._time_type,
-        )
+        with self._mapper_lock:
+            mapped = mapper.map_ms(
+                device_ms, self._now_ns(), stream_key=stream_key)
+        return _time_message(mapped, self._time_type)
 
     def _video(self, frame, mapper, topic, info_topic, encoding, frame_id):
         stamp = self._stamp(frame, mapper, topic)

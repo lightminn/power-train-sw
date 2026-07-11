@@ -3,6 +3,7 @@ import uuid
 from types import SimpleNamespace
 
 from l515_dashboard.gateway import Gateway, GatewayState, SystemCollector
+from l515_dashboard.gateway_workers import WorkerStopTimeout
 from l515_dashboard.control_server import UnixControlServer
 
 
@@ -53,6 +54,27 @@ def test_start_order_acquires_guard_and_binds_server_before_hardware():
              ("guard", "server", "source", "ros", "workers", "streamer")}
     gateway = Gateway(**parts); gateway.start(); gateway.shutdown()
     assert order == ["guard", "server", "source", "ros", "workers", "streamer"]
+
+
+def test_worker_start_failure_prevents_optional_streamer_start():
+    workers = Part(fail=True); streamer = Streamer()
+    gateway, _ = make_gateway(workers=workers, streamer=streamer)
+    with __import__('pytest').raises(RuntimeError): gateway.start()
+    assert streamer.started == 0 and gateway.state is GatewayState.FAULT
+
+
+def test_blocked_worker_stop_prevents_sdk_ros_teardown_and_cleanup_retries():
+    class RetryWorkers(Part):
+        def __init__(self): super().__init__(); self.release=False
+        def stop(self):
+            self.stopped += 1
+            if not self.release: raise WorkerStopTimeout("worker alive")
+    workers=RetryWorkers(); gateway,parts=make_gateway(workers=workers)
+    gateway.start(); gateway.shutdown()
+    assert parts["source"].stopped == parts["ros"].stopped == 0
+    assert not gateway._shutdown_done
+    workers.release=True; gateway.shutdown()
+    assert parts["source"].stopped == parts["ros"].stopped == 1
 
 
 def test_duplicate_abstract_bind_never_starts_camera_source():

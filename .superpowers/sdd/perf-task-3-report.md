@@ -84,3 +84,79 @@ worker stop avoids joining its own fatal-reporting thread, allowing common clean
   composite-construction binding remains an explicit HIL verification point.
 - Depth work may exceed its nominal period when alignment or ROS Depth publication blocks; it does
   not catch up in bursts and cannot reduce Color or IMU cadence because each has its own thread.
+
+## Reviewer remediation wave
+
+The user resolved the cadence wording in favor of the proven D435i pattern in
+`motor_control/vision/yolo_depth_3d.py`: video is latest-one, stale unread video is overwritten, and
+queue latency is bounded to at most one frame. It is not an every-frame preservation contract.
+
+### Additional RED evidence
+
+The combined reviewer tests were first run with:
+
+```text
+/home/light/anaconda3/bin/python -m pytest -q \
+  l515_dashboard/tests/test_gateway_source.py \
+  l515_dashboard/tests/test_gateway_workers.py \
+  l515_dashboard/tests/test_gateway.py
+```
+
+Collection failed because the fail-closed worker exception and real composite bundle interfaces did
+not exist:
+
+```text
+ImportError: cannot import name 'WorkerStopTimeout' from
+'l515_dashboard.gateway_workers'
+2 errors in 0.29s
+```
+
+After the first implementation pass, the isolation test exposed that the mapper lock had been placed
+around the entire ROS publish call: blocked Depth reduced Color to 18 publishes instead of at least
+29. Root cause was lock scope, not worker scheduling. The dedicated lock was moved down to only the
+shared `TimestampMapper.map_ms` call inside `GatewayRosPublisher`; ROS publication remains independent.
+
+The first full-suite run then exposed a timing-test issue: the 10 ms startup readiness observation
+window was included in a 120 ms wall-clock call-count assertion, allowing five correctly spaced
+calls instead of four. The test now verifies the actual no-burst property: consecutive calls remain
+at least 25 ms apart for a 20 ms overrun plus the positive cadence wait.
+
+### Remediated design
+
+- Task 2 now retains the actual SDK composite callback frame in a dedicated `LatestSlot` as immutable
+  `VideoBundle(generation, capture_token, frameset, received_ns)`. `keep()` is called before handoff.
+  Independent color/depth slots remain the raw ROS inputs.
+- `LatestSlot.overwrites`, `source.color_overwrites`, and `source.video_bundle_overwrites` expose the
+  intended stale-frame drop behavior. Gateway status reports both counters.
+- `DepthWorker` passes only the retained real composite frameset to one `rs.align(color)` processor.
+  Unsupported `rs.composite_frame(...)` synthesis was removed. Alignment output is accepted only if
+  exact `(generation, capture_token)` identity matches before and after processing.
+- `GatewayRosPublisher` serializes the shared `TimestampMapper` invocation with a dedicated lock;
+  image conversion and ROS publication are outside that lock. A four-thread color/depth/gyro/accel
+  test proves mapper calls never overlap.
+- Every cadence worker waits one positive period from completion. An overrun therefore cannot cause
+  an immediate catch-up burst.
+- Worker startup has ready/error events plus a bounded immediate-error observation window. Missing
+  publisher contracts or immediate reader failure make `start()` fail before optional SRT startup.
+- `WorkerGroup.stop()` raises `WorkerStopTimeout` if any thread remains alive after bounded joins.
+  Gateway cleanup stops at that boundary, keeps ownership retryable, and does not stop SDK/ROS until
+  a later successful retry.
+- The tracked performance plan and Task 3 brief now state latest-one overwrite semantics and real
+  composite alignment explicitly.
+
+Final fresh verification:
+
+```text
+/home/light/anaconda3/bin/python -m pytest -q \
+  l515_dashboard/tests/test_gateway_source.py \
+  l515_dashboard/tests/test_gateway_workers.py \
+  l515_dashboard/tests/test_gateway.py \
+  l515_dashboard/tests/test_gateway_ros.py
+47 passed in 3.14s
+
+/home/light/anaconda3/bin/python -m pytest -q l515_dashboard/tests
+217 passed in 7.70s
+
+git diff --check
+# no output, exit 0
+```

@@ -1,4 +1,6 @@
 from types import SimpleNamespace
+import threading
+import time
 
 import numpy as np
 
@@ -197,3 +199,27 @@ def test_split_publish_methods_preserve_exact_topic_contract():
     assert gateway.publish_depth(depth, mapper) == (
         "/l515/depth/image_rect_raw", "/l515/depth/camera_info")
     assert gateway.publish_imu("gyro", gyro, mapper) == ("/l515/gyro/sample",)
+
+
+def test_timestamp_mapper_calls_are_serialized_across_stream_workers():
+    active = 0; collisions = []
+    class BlockingMapper(Mapper):
+        def map_ms(self, *args, **kwargs):
+            nonlocal active
+            active += 1
+            if active > 1: collisions.append(True)
+            time.sleep(.02)
+            active -= 1
+            return 1
+    gateway = GatewayRosPublisher(Node(), dependencies=dependencies())
+    mapper = BlockingMapper()
+    samples = [
+        (gateway.publish_color, (StreamSample("color",1,1,1,Video(np.zeros((1,1,3),np.uint8),1)), mapper)),
+        (gateway.publish_depth, (StreamSample("depth",1,2,1,Video(np.zeros((1,1),np.uint16),2)), mapper)),
+        (gateway.publish_imu, ("gyro", StreamSample("gyro",1,3,1,Motion(3,(1,2,3))), mapper)),
+        (gateway.publish_imu, ("accel", StreamSample("accel",1,4,1,Motion(4,(1,2,3))), mapper)),
+    ]
+    threads=[threading.Thread(target=fn,args=args) for fn,args in samples]
+    for thread in threads: thread.start()
+    for thread in threads: thread.join()
+    assert collisions == []

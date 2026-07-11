@@ -9,7 +9,7 @@ from .control_server import DeferredResponse
 from .diagnostics import DiagnosticsTracker
 from .frame_modes import FrameMode
 from .gateway_source import EXPECTED_L515_SERIAL
-from .gateway_workers import WorkerGroup
+from .gateway_workers import WorkerGroup, WorkerStopTimeout
 
 
 class GatewayState(str, Enum):
@@ -172,19 +172,28 @@ class Gateway:
                                         self.server, self.guard)
                       if part in self._owned]
             plan = streamers + others
-            self._owned = [part for part in self._owned if part not in plan]
         errors = []
         for part in plan:
             try:
                 self._stop(part)
             except Exception as exc:
                 errors.append(exc)
+                if isinstance(exc, WorkerStopTimeout):
+                    break
+            else:
+                with self._cleanup_condition:
+                    if part in self._owned:
+                        self._owned.remove(part)
         with self._cleanup_condition:
             final_state = self._requested_terminal or final_state
             if errors:
                 self.last_error = self.last_error or str(errors[0])
                 if final_state is GatewayState.FAULT:
                     self.fatal_error = self.fatal_error or str(errors[0])
+            if any(isinstance(error, WorkerStopTimeout) for error in errors):
+                self._lifecycle_operation = None
+                self._cleanup_condition.notify_all()
+                return
             self._shutdown_done = True
             self._stream_active = False
             self.state = final_state
@@ -327,6 +336,10 @@ class Gateway:
                 "state": self.state.value,
                 "sdk": {"serial": getattr(self.source, "connected_serial", None),
                         "expected_serial": EXPECTED_L515_SERIAL, "profile": profile,
+                        "video_bundle_overwrites": getattr(
+                            self.source, "video_bundle_overwrites", 0),
+                        "color_overwrites": getattr(
+                            self.source, "color_overwrites", 0),
                         "source_state": getattr(getattr(self.source, "state", None),
                                                 "value", "unknown")},
                 "diagnostics": diagnostics,

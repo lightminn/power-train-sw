@@ -27,10 +27,18 @@ class LatestSlot:
         self._lock = threading.Lock()
         self._sequence = 0
         self._sample = None
+        self._overwrites = 0
+
+    @property
+    def overwrites(self):
+        with self._lock:
+            return self._overwrites
 
     def publish(self, sample):
         with self._lock:
             self._sequence += 1
+            if self._sample is not None:
+                self._overwrites += 1
             self._sample = sample
 
     def read_after(self, sequence):
