@@ -7,8 +7,8 @@ import pytest
 from launch.action import Action
 from launch.actions import DeclareLaunchArgument
 from launch import LaunchContext
-from launch.substitutions import LaunchConfiguration
 import launch_ros.actions
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 REPO_MARKERS = (
@@ -149,7 +149,15 @@ def test_hardware_launch_requires_stop_mm_without_default():
         arguments[0].execute(LaunchContext())
 
 
-def test_hardware_launch_passes_stop_mm_to_us100_node(monkeypatch):
+@pytest.mark.parametrize(
+    ("launch_value", "expected"),
+    (("200", 200.0), ("321.5", 321.5)),
+)
+def test_hardware_launch_passes_stop_mm_to_us100_node(
+    monkeypatch,
+    launch_value,
+    expected,
+):
     recorded_nodes = []
 
     class RecordingNode(Action):
@@ -177,10 +185,12 @@ def test_hardware_launch_passes_stop_mm_to_us100_node(monkeypatch):
     parameters = us100.kwargs["parameters"]
     assert len(parameters) == 1
     stop_mm = parameters[0]["stop_mm"]
-    assert isinstance(stop_mm, LaunchConfiguration)
+    assert isinstance(stop_mm, ParameterValue)
     context = LaunchContext()
-    context.launch_configurations["stop_mm"] = "321"
-    assert stop_mm.perform(context) == "321"
+    context.launch_configurations["stop_mm"] = launch_value
+    evaluated = stop_mm.evaluate(context)
+    assert evaluated == expected
+    assert isinstance(evaluated, float)
     assert "parameters" not in chassis.kwargs
 
 
