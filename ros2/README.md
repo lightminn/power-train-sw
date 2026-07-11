@@ -58,26 +58,29 @@ US-100 UART
 
 ## 빌드와 실행
 
-Jetson에 SSH 접속한 직후 홈 `~`에서 시작한다.
+Jetson에 SSH 접속한 직후 홈 `~`에서 시작한다. 생산 Gateway가 실행 중인 컨테이너에서
+`colcon build/test`를 수행하면 live install을 바꾸므로 금지한다. 빌드·시험이 필요하면 먼저
+Gateway를 정상 정지하고, entrypoint를 덮어쓴 one-off 컨테이너에서 수행한다.
 
 ```bash
 set -eu
 cd ~/power-train-sw
+docker compose -f docker/docker-compose.jetson.yml stop powertrain_ros
+docker compose -f docker/docker-compose.jetson.yml build powertrain_ros
+docker compose -f docker/docker-compose.jetson.yml run --rm --no-deps \
+  --entrypoint bash powertrain_ros -lc '
+    source /opt/ros/humble/setup.bash
+    cd /workspace/ros2
+    colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
+    source install/setup.bash
+    colcon test --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
+    colcon test-result --verbose
+  '
 docker compose -f docker/docker-compose.jetson.yml up -d canwatchdog powertrain_ros
-test "$(docker inspect -f '{{.State.Running}}' powertrain_canwatchdog)" = "true"
-test "$(docker inspect -f '{{.State.Running}}' powertrain_ros)" = "true"
-docker exec -it powertrain_ros bash
 ```
 
-컨테이너 안에서 빌드하고 환경을 source한다.
-
-```bash
-cd /workspace/ros2
-colcon build
-source install/setup.bash
-colcon test
-colcon test-result --verbose
-```
+이 one-off 절차도 bind-mounted `ros2/build`, `install`, `log`를 갱신하므로 반드시 생산
+`powertrain_ros`가 정지한 상태에서만 사용한다. live Gateway의 install을 병행 수정하지 않는다.
 
 ### L515 전용 빌드·preflight·launch
 
@@ -109,14 +112,16 @@ docker logs powertrain_ros
 docker exec -it powertrain_ros python3 -m l515_dashboard
 ```
 
-Gateway crash는 compose가 최대 5회 재시작하지만, 확인된 `Shift+Q`는 정상 종료 0이므로
-컨테이너가 정지 상태를 유지한다. 재기동은 `docker compose -f docker/docker-compose.jetson.yml
-up -d powertrain_ros`로 명시적으로 수행한다.
+`restart: on-failure:5`는 연속된 짧은 startup 실패를 최대 5회로 제한한다. Docker의 재시작
+카운터는 컨테이너가 약 10초 이상 정상 실행되면 초기화되므로, 장시간 정상 실행 뒤 새 crash에는
+새 retry budget이 적용된다. 확인된 `Shift+Q`는 정상 종료 0이어서 재시작하지 않고 정지 상태를
+유지한다. 재기동은 `docker compose -f docker/docker-compose.jetson.yml up -d powertrain_ros`로
+명시적으로 수행한다.
 
 발행 토픽은 `/l515/color/image_raw`, `/l515/color/camera_info`,
 `/l515/depth/image_rect_raw`, `/l515/depth/camera_info`, `/l515/gyro/sample`,
-`/l515/accel/sample`이다. color/depth는 640×480 30 Hz 설정이며 IMU 두 토픽은 장치 원본
-stream이다. IR, confidence, alignment, 합성 IMU와 **PointCloud2 토픽은 없다.**
+`/l515/accel/sample`이다. color는 1280×720@30, raw depth는 640×480@30이며 IMU 두 토픽은
+장치 원본 stream이다. IR, confidence, alignment, 합성 IMU와 **PointCloud2 토픽은 없다.**
 
 2026-07-11 D435i perception 동시 60초 HIL에서 color/depth 29.750/29.450 Hz,
 accel/gyro 30.166 Hz, 최소 5초 창 28.8 Hz, 비증가 stamp 0, USB error delta 0을 확인했다.

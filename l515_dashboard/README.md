@@ -17,9 +17,10 @@ Keys: `1` RGB, `2` aligned depth, `3` overlay, `s` streaming on/off, `r` restart
 components, and `q` detach the Dashboard. `Shift+Q` displays a confirmation; `y` sends the
 destructive `stop_gateway` command and the managed Gateway reaps its SRT child.
 
-The container uses `restart: on-failure:5`: a crash gets at most five automatic recovery attempts,
-while an acknowledged `Shift+Q` produces exit status 0 and stays stopped. Start it again explicitly
-with `docker compose ... up -d powertrain_ros`.
+The container uses `restart: on-failure:5` to bound consecutive short startup failures to five
+retries. Docker resets that retry counter after roughly 10 seconds of healthy runtime, so a later
+crash gets a new retry budget. An acknowledged `Shift+Q` produces exit status 0 and stays stopped.
+Start it again explicitly with `docker compose ... up -d powertrain_ros`.
 
 Receive the fixed 1280×720×30 stream on the driving laptop:
 

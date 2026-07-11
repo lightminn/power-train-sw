@@ -15,10 +15,9 @@
 
 - Initial client/UI collection failed because `client.py` and `app.py` did not exist.
 - Focused client/UI GREEN: 6 passed; later disconnect coverage brings the focused behavior count to 7.
-- The process integration test initially failed because its real fake-Gateway helper did not exist.
-  The completed test starts an actual Gateway process and an actual SRT child, kills independent
-  Dashboard stand-ins with SIGHUP and SIGKILL, proves both owned processes remain alive, then sends
-  `stop_gateway` through the real Unix client and proves the Gateway, child, and socket are reaped.
+- The process integration test runs real `python3 -m l515_dashboard` PTY processes for `q`, SIGHUP,
+  SIGTERM, and SIGKILL. Each leaves the fake Gateway and its real child process alive. The confirmed
+  UI path and acknowledged Unix `stop_gateway` request then prove Gateway, child, and socket teardown.
 
 ## Verification
 
@@ -44,5 +43,6 @@
   `q`, SIGHUP, SIGTERM, and SIGKILL continuity evidence. The fake Gateway now handles signals and
   always reaps its fake SRT child in `finally`; the acknowledged real socket stop proves teardown.
 - The production entrypoint now builds a missing or stale ROS workspace, sources it, and execs the
-  Gateway. Compose uses `on-failure:5`, so crashes recover boundedly while clean `stop_gateway` exit
-  0 remains durably stopped. Legacy concurrent `l515.launch.py` run instructions were removed.
+  Gateway. Compose `on-failure:5` bounds consecutive short startup failures; Docker resets the retry
+  counter after roughly 10 seconds of healthy runtime. Clean `stop_gateway` exit 0 remains durably
+  stopped. Legacy concurrent `l515.launch.py` run instructions were removed.
