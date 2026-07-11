@@ -64,3 +64,23 @@ or SDK blocking wait call.
   `colcon test-result --verbose`: 69 tests, 0 errors, 0 failures, 0 skipped.
 - `ament_flake8` checked the four changed Python files: no problems found.
   `git diff --check` exited cleanly.
+
+## Second review-fix evidence (2026-07-11)
+
+- RED: the two new real-node lifecycle regressions failed as intended. A
+  deterministic third-publisher failure neither stopped the already assigned
+  source nor destroyed the partial node, and a throwing `source.stop()`
+  prevented base ROS node destruction.
+- The cleanup guard now starts immediately after successful `Node.__init__()`.
+  Safe source/stopped sentinels make every later failure path valid, covering
+  parameter declarations, SDK import/config/source construction, all six
+  publishers, timer creation, and `source.start()`.
+- The intermediate-publisher test instantiates the real `L515Node`, fails the
+  third real publisher creation, and proves both partial-source stop and one
+  base `Node.destroy_node()` call. The stop-failure test proves the original
+  exception propagates after base ROS node destruction.
+- GREEN focused verification after rebuild: 11 passed in 0.37 s.
+- Fresh clean three-package verification: build 3 packages finished; test 3
+  packages finished; 71 tests, 0 errors, 0 failures, 0 skipped.
+- `ament_flake8`: 4 files checked, no problems found. `git diff --check`
+  exited cleanly.

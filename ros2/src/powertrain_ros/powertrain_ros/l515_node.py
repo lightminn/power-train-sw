@@ -25,46 +25,48 @@ class L515Node(Node):
 
     def __init__(self, source=None):
         super().__init__("l515_camera_node")
-        defaults = L515Config()
-        self.declare_parameter("serial", defaults.serial)
-        self.declare_parameter("width", defaults.width)
-        self.declare_parameter("height", defaults.height)
-        self.declare_parameter("fps", defaults.fps)
-        self.declare_parameter(
-            "reconnect_interval", defaults.reconnect_interval
-        )
-
-        if source is None:
-            import pyrealsense2 as rs
-
-            config = L515Config(
-                serial=self.get_parameter("serial").value,
-                width=self.get_parameter("width").value,
-                height=self.get_parameter("height").value,
-                fps=self.get_parameter("fps").value,
-                reconnect_interval=self.get_parameter(
-                    "reconnect_interval"
-                ).value,
-            )
-            source = L515Source(rs, config)
-        self.source = source
-        self._source_stopped = False
-
-        specs = (
-            ("/l515/color/image_raw", Image),
-            ("/l515/color/camera_info", CameraInfo),
-            ("/l515/depth/image_rect_raw", Image),
-            ("/l515/depth/camera_info", CameraInfo),
-            ("/l515/gyro/sample", Imu),
-            ("/l515/accel/sample", Imu),
-        )
-        self.stream_publishers = {
-            topic: self.create_publisher(
-                message_type, topic, qos_profile_sensor_data
-            )
-            for topic, message_type in specs
-        }
+        self.source = None
+        self._source_stopped = True
         try:
+            defaults = L515Config()
+            self.declare_parameter("serial", defaults.serial)
+            self.declare_parameter("width", defaults.width)
+            self.declare_parameter("height", defaults.height)
+            self.declare_parameter("fps", defaults.fps)
+            self.declare_parameter(
+                "reconnect_interval", defaults.reconnect_interval
+            )
+
+            if source is None:
+                import pyrealsense2 as rs
+
+                config = L515Config(
+                    serial=self.get_parameter("serial").value,
+                    width=self.get_parameter("width").value,
+                    height=self.get_parameter("height").value,
+                    fps=self.get_parameter("fps").value,
+                    reconnect_interval=self.get_parameter(
+                        "reconnect_interval"
+                    ).value,
+                )
+                source = L515Source(rs, config)
+            self.source = source
+            self._source_stopped = False
+
+            specs = (
+                ("/l515/color/image_raw", Image),
+                ("/l515/color/camera_info", CameraInfo),
+                ("/l515/depth/image_rect_raw", Image),
+                ("/l515/depth/camera_info", CameraInfo),
+                ("/l515/gyro/sample", Imu),
+                ("/l515/accel/sample", Imu),
+            )
+            self.stream_publishers = {
+                topic: self.create_publisher(
+                    message_type, topic, qos_profile_sensor_data
+                )
+                for topic, message_type in specs
+            }
             self.timer = self.create_timer(1.0 / 200.0, self._drain_source)
             self.source.start()
         except BaseException:
@@ -133,13 +135,17 @@ class L515Node(Node):
             )
 
     def _stop_source(self):
-        if not self._source_stopped:
+        if self.source is not None and not self._source_stopped:
             self._source_stopped = True
             self.source.stop()
 
     def destroy_node(self):
-        self._stop_source()
-        return super().destroy_node()
+        result = None
+        try:
+            self._stop_source()
+        finally:
+            result = super().destroy_node()
+        return result
 
 
 def main(args=None):

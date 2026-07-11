@@ -78,6 +78,12 @@ class FailingStartSource(FakeSource):
         raise RuntimeError("start failed")
 
 
+class FailingStopSource(FakeSource):
+    def stop(self):
+        self.stopped = True
+        raise RuntimeError("stop failed")
+
+
 @pytest.fixture
 def ros_context():
     rclpy.init()
@@ -183,6 +189,66 @@ def test_constructor_start_failure_stops_source_and_destroys_partial_node():
         assert source.stopped
     finally:
         rclpy.shutdown()
+
+
+def test_intermediate_publisher_failure_cleans_real_partial_node(
+        monkeypatch):
+    from rclpy.node import Node
+    from powertrain_ros.l515_node import L515Node
+
+    rclpy.init()
+    source = FakeSource(LatestFrames())
+    create_publisher = L515Node.create_publisher
+    destroyed = []
+    publisher_calls = 0
+
+    def fail_third_publisher(self, *args, **kwargs):
+        nonlocal publisher_calls
+        publisher_calls += 1
+        if publisher_calls == 3:
+            raise RuntimeError("publisher failed")
+        return create_publisher(self, *args, **kwargs)
+
+    base_destroy = Node.destroy_node
+
+    def record_base_destroy(self):
+        destroyed.append((self, self.get_name()))
+        return base_destroy(self)
+
+    monkeypatch.setattr(L515Node, "create_publisher", fail_third_publisher)
+    monkeypatch.setattr(Node, "destroy_node", record_base_destroy)
+    try:
+        with pytest.raises(RuntimeError, match="publisher failed"):
+            L515Node(source=source)
+        assert publisher_calls == 3
+        assert source.stopped
+        assert len(destroyed) == 1
+        assert destroyed[0][1] == "l515_camera_node"
+    finally:
+        rclpy.shutdown()
+
+
+def test_destroy_node_destroys_ros_node_when_source_stop_raises(
+        ros_context, monkeypatch):
+    from rclpy.node import Node
+    from powertrain_ros.l515_node import L515Node
+
+    source = FailingStopSource(LatestFrames())
+    node = L515Node(source=source)
+    destroyed = []
+    base_destroy = Node.destroy_node
+
+    def record_base_destroy(self):
+        destroyed.append(self)
+        return base_destroy(self)
+
+    monkeypatch.setattr(Node, "destroy_node", record_base_destroy)
+
+    with pytest.raises(RuntimeError, match="stop failed"):
+        node.destroy_node()
+
+    assert source.stopped
+    assert destroyed == [node]
 
 
 def test_main_constructor_exception_always_shuts_down_rclpy(monkeypatch):
