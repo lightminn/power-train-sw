@@ -22,6 +22,8 @@ def test_selected_stream_path_matches_videoconvert_x264_benchmark():
     assert "videoconvert" in command
     assert "nvvidconv" not in command
     assert "x264enc" in command
+    assert "speed-preset=ultrafast" in command
+    assert "threads=3" in command
     assert X264_CONVERSION == "videoconvert"
 
 

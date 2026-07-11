@@ -67,7 +67,7 @@ def build_x264_benchmark_command(width, height, fps, conversion, sink):
     return ["gst-launch-1.0", "fdsrc", "fd=0", "do-timestamp=true", "!",
             "rawvideoparse", "format=bgr", f"width={width}", f"height={height}",
             f"framerate={fps}/1", "!", *convert, "!", "x264enc",
-            "tune=zerolatency", "speed-preset=superfast", "threads=2",
+            "tune=zerolatency", "speed-preset=ultrafast", "threads=3",
             "bitrate=3000", "key-int-max=30", "!", sink]
 ```
 
@@ -289,7 +289,7 @@ Depth updates replace a latest immutable aligned frame. Every new color frame sc
 
 - [ ] **Step 4: Apply the Task-1 selected software pipeline**
 
-Keep `x264enc tune=zerolatency speed-preset=superfast threads=2 bitrate=3000 key-int-max=30`, the selected conversion path, MPEG-TS, and SRT listener settings. Reject `encoder != "x264"` in production Gateway config; remove automatic openh264 fallback from this Gateway path without changing unrelated legacy callers.
+Keep `x264enc tune=zerolatency speed-preset=ultrafast threads=3 bitrate=3000 key-int-max=30`, the real-frame HIL-selected conversion path, MPEG-TS, and SRT listener settings. Reject `encoder != "x264"` in production Gateway config; remove automatic openh264 fallback from this Gateway path without changing unrelated legacy callers. The earlier all-zero benchmark overstated `superfast`; final selection must use real L515 image content.
 
 - [ ] **Step 5: Preserve crash isolation and exact restart behavior**
 

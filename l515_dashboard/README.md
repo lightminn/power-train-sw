@@ -39,7 +39,7 @@ gst-launch-1.0 srtsrc uri="srt://JETSON_IP:5000?mode=caller&latency=60" ! \
 ```
 
 Orin Nano has no NVENC encoder. The deployed path intentionally uses software
-`videoconvert → x264enc` (`superfast`, `zerolatency`, two threads); the image includes
+`videoconvert → x264enc` (`ultrafast`, `zerolatency`, three threads); the image includes
 GStreamer base/good/bad/ugly plugins. Status reports five-second native SDK callback rates,
 ROS rates for all six topics, SRT submit/sent/drop rates, aligned-Depth age, and Gateway CPU/RSS.
 
