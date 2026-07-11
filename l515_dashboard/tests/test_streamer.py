@@ -8,7 +8,6 @@ import pytest
 from l515_dashboard.config import DashboardConfig
 from l515_dashboard.frame_modes import FrameMode
 from l515_dashboard.streamer import SrtStreamer
-from motor_control.vision.gst_stream import build_gst_command
 
 
 class FakeStdin:
@@ -38,14 +37,27 @@ class FakeProcess:
         self.stdin = stdin or FakeStdin()
         self.returncode = None
         self.wait_calls = 0
+        self.terminate_calls = 0
+        self.kill_calls = 0
+        self.wait_results = []
 
     def poll(self):
         return self.returncode
 
     def wait(self, timeout=None):
         self.wait_calls += 1
+        if self.wait_results:
+            result = self.wait_results.pop(0)
+            if isinstance(result, BaseException):
+                raise result
         self.returncode = 0 if self.returncode is None else self.returncode
         return self.returncode
+
+    def terminate(self):
+        self.terminate_calls += 1
+
+    def kill(self):
+        self.kill_calls += 1
 
 
 class FakePopen:
@@ -67,26 +79,53 @@ def wait_until(predicate, timeout=1.0):
     raise AssertionError("condition was not met")
 
 
-@pytest.mark.parametrize(
-    ("mode", "width"),
-    [(FrameMode.COLOR, 1280), (FrameMode.DEPTH, 1280),
-     (FrameMode.OVERLAY, 1280)],
-)
-def test_start_uses_exact_gst_command_for_mode_width(mode, width):
+@pytest.mark.parametrize("mode", list(FrameMode))
+def test_start_uses_independently_specified_fixed_gst_command(mode):
     config = DashboardConfig()
     popen = FakePopen()
     streamer = SrtStreamer(config, mode=mode, popen=popen)
 
     streamer.start()
 
-    assert popen.calls == [(
-        build_gst_command(
-            config.port, width, config.height, config.fps,
-            encoder=config.encoder, bitrate_kbps=config.bitrate_kbps,
-            latency_ms=config.latency_ms,
-        ),
-        {"stdin": subprocess.PIPE, "bufsize": 0},
-    )]
+    assert popen.calls == [
+        (
+            [
+                "gst-launch-1.0",
+                "fdsrc",
+                "fd=0",
+                "do-timestamp=true",
+                "!",
+                "rawvideoparse",
+                "format=bgr",
+                "width=1280",
+                "height=720",
+                "framerate=30/1",
+                "!",
+                "videoconvert",
+                "!",
+                "video/x-raw,format=I420",
+                "!",
+                "x264enc",
+                "tune=zerolatency",
+                "speed-preset=superfast",
+                "bitrate=3000",
+                "key-int-max=30",
+                "!",
+                "h264parse",
+                "config-interval=-1",
+                "!",
+                "mpegtsmux",
+                "alignment=7",
+                "!",
+                "srtsink",
+                "uri=srt://:5000?mode=listener&latency=60",
+                "wait-for-connection=false",
+                "sync=false",
+                "async=false",
+            ],
+            {"stdin": subprocess.PIPE, "bufsize": 0},
+        )
+    ]
     streamer.stop()
 
 
@@ -107,13 +146,33 @@ def test_runtime_mode_selects_next_frame_without_restarting_child():
     streamer.stop()
 
 
+def test_rgb_depth_overlay_each_send_one_frame_through_same_child():
+    popen = FakePopen()
+    streamer = SrtStreamer(DashboardConfig(), popen=popen)
+    color = np.full((720, 1280, 3), 7, np.uint8)
+    depth = np.full((720, 1280), 500, np.uint16)
+    streamer.start()
+    child = popen.process
+    streamer.submit_color(color)
+    wait_until(lambda: streamer.snapshot().sent == 1)
+    streamer.set_mode(FrameMode.DEPTH)
+    streamer.submit_depth(depth)
+    wait_until(lambda: streamer.snapshot().sent == 2)
+    streamer.set_mode(FrameMode.OVERLAY)
+    streamer.submit_color(color)
+    streamer.submit_depth(depth)
+    wait_until(lambda: streamer.snapshot().sent == 3)
+    assert popen.process is child
+    assert len(popen.calls) == 1
+    assert [len(data) for data in child.stdin.writes] == [720 * 1280 * 3] * 3
+    streamer.stop()
+
+
 def test_worker_overwrites_pending_frame_instead_of_queueing_or_replaying():
     entered = threading.Event()
     release = threading.Event()
     process = FakeProcess(FakeStdin(entered=entered, release=release))
-    streamer = SrtStreamer(
-        DashboardConfig(), popen=FakePopen(process)
-    )
+    streamer = SrtStreamer(DashboardConfig(), popen=FakePopen(process))
     first = np.full((720, 1280, 3), 1, dtype=np.uint8)
     second = np.full((720, 1280, 3), 2, dtype=np.uint8)
     third = np.full((720, 1280, 3), 3, dtype=np.uint8)
@@ -133,8 +192,7 @@ def test_worker_overwrites_pending_frame_instead_of_queueing_or_replaying():
 
 def test_broken_pipe_records_error_and_stops_worker():
     process = FakeProcess(FakeStdin(error=BrokenPipeError("receiver gone")))
-    streamer = SrtStreamer(DashboardConfig(),
-                           popen=FakePopen(process))
+    streamer = SrtStreamer(DashboardConfig(), popen=FakePopen(process))
     streamer.start()
     streamer.submit_color(np.zeros((720, 1280, 3), dtype=np.uint8))
 
@@ -166,3 +224,62 @@ def test_repeated_stop_closes_stdin_and_reaps_process_once():
     assert process.stdin.close_calls == 1
     assert process.wait_calls == 1
     assert not streamer.snapshot().running
+
+
+def test_partial_start_without_stdin_reaps_child():
+    process = FakeProcess()
+    process.stdin = None
+    streamer = SrtStreamer(DashboardConfig(), popen=FakePopen(process))
+    with pytest.raises(RuntimeError, match="stdin"):
+        streamer.start()
+    assert process.wait_calls == 1
+
+
+def test_wait_timeout_escalates_to_terminate_then_kill_and_owns_timeout():
+    process = FakeProcess()
+    process.wait_results = [
+        subprocess.TimeoutExpired("gst", 3),
+        subprocess.TimeoutExpired("gst", 2),
+        0,
+    ]
+    streamer = SrtStreamer(DashboardConfig(), popen=FakePopen(process))
+    streamer.start()
+    streamer.stop()
+    assert (
+        process.terminate_calls,
+        process.kill_calls,
+        process.wait_calls,
+    ) == (1, 1, 3)
+
+
+def test_concurrent_stop_completes_cleanup_once():
+    process = FakeProcess()
+    streamer = SrtStreamer(DashboardConfig(), popen=FakePopen(process))
+    streamer.start()
+    callers = [threading.Thread(target=streamer.stop) for _ in range(4)]
+    for caller in callers:
+        caller.start()
+    for caller in callers:
+        caller.join(1)
+        assert not caller.is_alive()
+    assert (process.stdin.close_calls, process.wait_calls) == (1, 1)
+
+
+def test_inflight_write_cannot_increment_sent_after_stop_returns():
+    entered, release = threading.Event(), threading.Event()
+    process = FakeProcess(FakeStdin(entered=entered, release=release))
+    streamer = SrtStreamer(
+        DashboardConfig(graceful_timeout_s=0.05), popen=FakePopen(process)
+    )
+    streamer.start()
+    streamer.submit_color(np.zeros((720, 1280, 3), np.uint8))
+    assert entered.wait(1)
+    stopper = threading.Thread(target=streamer.stop)
+    stopper.start()
+    time.sleep(0.02)
+    release.set()
+    stopper.join(1)
+    after = streamer.snapshot()
+    time.sleep(0.03)
+    assert streamer.snapshot() == after
+    assert after.sent == 0

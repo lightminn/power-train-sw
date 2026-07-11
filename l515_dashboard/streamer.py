@@ -42,6 +42,8 @@ class SrtStreamer:
         self._thread: Optional[Thread] = None
         self._running = False
         self._stopped = False
+        self._cleanup_in_progress = False
+        self._cleanup_done = False
         self._pending = False
         self._color_ready = False
         self._depth_ready = False
@@ -66,6 +68,9 @@ class SrtStreamer:
                 command, stdin=subprocess.PIPE, bufsize=0
             )
             if self._process.stdin is None:
+                process = self._process
+                self._process = None
+                self._reap(process, close_stdin=False)
                 raise RuntimeError("GStreamer stdin pipe was not created")
             self._running = True
             self._thread = Thread(
@@ -96,16 +101,12 @@ class SrtStreamer:
                 return
             if color:
                 self._frames.put_color(frame)
-                selected = self._mode in (
-                    FrameMode.COLOR, FrameMode.OVERLAY
-                )
+                selected = self._mode in (FrameMode.COLOR, FrameMode.OVERLAY)
                 overwrote = self._color_ready
                 self._color_ready = True
             else:
                 self._frames.put_depth(frame)
-                selected = self._mode in (
-                    FrameMode.DEPTH, FrameMode.OVERLAY
-                )
+                selected = self._mode in (FrameMode.DEPTH, FrameMode.OVERLAY)
                 overwrote = self._depth_ready
                 self._depth_ready = True
             if selected and overwrote:
@@ -114,9 +115,11 @@ class SrtStreamer:
             ready = (
                 self._color_ready
                 if self._mode is FrameMode.COLOR
-                else self._depth_ready
-                if self._mode is FrameMode.DEPTH
-                else self._color_ready and self._depth_ready
+                else (
+                    self._depth_ready
+                    if self._mode is FrameMode.DEPTH
+                    else self._color_ready and self._depth_ready
+                )
             )
             if ready:
                 self._pending = True
@@ -156,7 +159,8 @@ class SrtStreamer:
                     self._fail(f"{type(exc).__name__}: {exc}")
                 return
             with self._condition:
-                self._sent += 1
+                if self._running:
+                    self._sent += 1
 
     def _fail(self, message: str) -> None:
         self._last_error = message
@@ -165,8 +169,12 @@ class SrtStreamer:
 
     def stop(self) -> None:
         with self._condition:
-            if self._stopped:
+            if self._cleanup_done:
                 return
+            if self._cleanup_in_progress:
+                self._condition.wait_for(lambda: self._cleanup_done)
+                return
+            self._cleanup_in_progress = True
             self._stopped = True
             self._running = False
             self._pending = False
@@ -174,12 +182,31 @@ class SrtStreamer:
             thread = self._thread
             self._condition.notify_all()
 
-        if process is None:
+        try:
+            if process is not None:
+                if thread is not None and thread is not current_thread():
+                    thread.join(timeout=self._config.graceful_timeout_s)
+                self._reap(process)
+        finally:
+            with self._condition:
+                self._cleanup_done = True
+                self._cleanup_in_progress = False
+                self._condition.notify_all()
+
+    def _reap(self, process, *, close_stdin=True):
+        if close_stdin and process.stdin is not None:
+            process.stdin.close()
+        try:
+            process.wait(timeout=self._config.graceful_timeout_s)
             return
-        if thread is not None and thread is not current_thread():
-            thread.join(timeout=self._config.graceful_timeout_s)
-        process.stdin.close()
-        process.wait(timeout=self._config.graceful_timeout_s)
+        except subprocess.TimeoutExpired:
+            process.terminate()
+        try:
+            process.wait(timeout=self._config.termination_timeout_s)
+            return
+        except subprocess.TimeoutExpired:
+            process.kill()
+        process.wait()
 
     def snapshot(self) -> StreamerSnapshot:
         with self._condition:
