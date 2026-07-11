@@ -8,10 +8,20 @@ FROM ros:humble-ros-base
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3-colcon-common-extensions \
         python3-pip \
+        gstreamer1.0-tools \
+        gstreamer1.0-plugins-base \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-plugins-ugly \
     && rm -rf /var/lib/apt/lists/*
 
 # WP5 구동 연결용 — motor_control(chassis/corner_module)이 python-can 을 씀.
-RUN pip3 install --no-cache-dir python-can pyserial
+RUN pip3 install --no-cache-dir \
+        python-can \
+        pyserial \
+        textual \
+        numpy \
+        opencv-python-headless
 
 ARG LIBREALSENSE_TAG=v2.50.0
 RUN apt-get update && apt-get install -y --no-install-recommends \
