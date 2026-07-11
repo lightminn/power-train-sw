@@ -3,6 +3,11 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import rclpy
+from rclpy.qos import (
+    DurabilityPolicy,
+    HistoryPolicy,
+    ReliabilityPolicy,
+)
 
 from powertrain_ros.l515_source import LatestFrames
 
@@ -67,6 +72,12 @@ class FakeSource:
         return frames
 
 
+class FailingStartSource(FakeSource):
+    def start(self):
+        self.started = True
+        raise RuntimeError("start failed")
+
+
 @pytest.fixture
 def ros_context():
     rclpy.init()
@@ -100,7 +111,15 @@ def test_timer_nonblocking_drains_once_and_publishes_exact_contract(ros_context)
         for pub in node.stream_publishers.values()
     )
     assert all(
-        pub.qos_profile.reliability == 2
+        pub.qos_profile.reliability == ReliabilityPolicy.BEST_EFFORT
+        for pub in node.stream_publishers.values()
+    )
+    assert all(
+        pub.qos_profile.history == HistoryPolicy.KEEP_LAST
+        for pub in node.stream_publishers.values()
+    )
+    assert all(
+        pub.qos_profile.durability == DurabilityPolicy.VOLATILE
         for pub in node.stream_publishers.values()
     )
     assert all(len(messages) == 1 for messages in published.values())
@@ -131,3 +150,76 @@ def test_empty_drain_publishes_nothing_and_shutdown_stops_source(ros_context):
 
     assert source.polls == 1
     assert source.stopped
+
+
+def test_node_name_and_registered_timer_are_exact_poll_only_path(ros_context):
+    from powertrain_ros.l515_node import L515Node
+
+    source = FakeSource(LatestFrames())
+    node = L515Node(source=source)
+
+    assert node.get_name() == "l515_camera_node"
+    assert node.timer.callback.__self__ is node
+    assert node.timer.callback.__func__ is L515Node._drain_source
+    assert source.started
+    assert not source.stopped
+
+    node.timer.callback()
+
+    assert source.polls == 1
+    assert source.started
+    assert not source.stopped
+    node.destroy_node()
+
+
+def test_constructor_start_failure_stops_source_and_destroys_partial_node():
+    from powertrain_ros.l515_node import L515Node
+
+    rclpy.init()
+    source = FailingStartSource(LatestFrames())
+    try:
+        with pytest.raises(RuntimeError, match="start failed"):
+            L515Node(source=source)
+        assert source.stopped
+    finally:
+        rclpy.shutdown()
+
+
+def test_main_constructor_exception_always_shuts_down_rclpy(monkeypatch):
+    import powertrain_ros.l515_node as module
+
+    calls = []
+    monkeypatch.setattr(module.rclpy, "init", lambda args=None: calls.append("init"))
+    monkeypatch.setattr(module.rclpy, "shutdown", lambda: calls.append("shutdown"))
+
+    def fail_constructor():
+        raise RuntimeError("constructor failed")
+
+    monkeypatch.setattr(module, "L515Node", fail_constructor)
+
+    with pytest.raises(RuntimeError, match="constructor failed"):
+        module.main()
+    assert calls == ["init", "shutdown"]
+
+
+def test_main_spin_exception_destroys_node_then_shuts_down(monkeypatch):
+    import powertrain_ros.l515_node as module
+
+    calls = []
+    fake_node = SimpleNamespace(
+        destroy_node=lambda: calls.append("destroy")
+    )
+    monkeypatch.setattr(module.rclpy, "init", lambda args=None: calls.append("init"))
+    monkeypatch.setattr(module.rclpy, "shutdown", lambda: calls.append("shutdown"))
+    monkeypatch.setattr(module, "L515Node", lambda: fake_node)
+
+    def fail_spin(node):
+        assert node is fake_node
+        calls.append("spin")
+        raise RuntimeError("spin failed")
+
+    monkeypatch.setattr(module.rclpy, "spin", fail_spin)
+
+    with pytest.raises(RuntimeError, match="spin failed"):
+        module.main()
+    assert calls == ["init", "spin", "destroy", "shutdown"]

@@ -12,8 +12,8 @@ def generate_launch_description():
         Node(
             package="powertrain_ros",
             executable="l515_camera",
-            name="l515_camera",
-            parameters=[str(config)],
+            name="l515_camera_node",
+            parameters=[config],
             output="screen",
         )
     ])

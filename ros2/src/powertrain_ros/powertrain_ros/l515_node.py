@@ -24,7 +24,7 @@ class L515Node(Node):
     """Drain latest SDK samples without blocking the ROS executor."""
 
     def __init__(self, source=None):
-        super().__init__("l515_camera")
+        super().__init__("l515_camera_node")
         defaults = L515Config()
         self.declare_parameter("serial", defaults.serial)
         self.declare_parameter("width", defaults.width)
@@ -48,6 +48,7 @@ class L515Node(Node):
             )
             source = L515Source(rs, config)
         self.source = source
+        self._source_stopped = False
 
         specs = (
             ("/l515/color/image_raw", Image),
@@ -63,8 +64,15 @@ class L515Node(Node):
             )
             for topic, message_type in specs
         }
-        self.timer = self.create_timer(1.0 / 200.0, self._drain_source)
-        self.source.start()
+        try:
+            self.timer = self.create_timer(1.0 / 200.0, self._drain_source)
+            self.source.start()
+        except BaseException:
+            try:
+                self._stop_source()
+            finally:
+                super().destroy_node()
+            raise
 
     def _stamp(self, frame, mapper):
         mapped_ns = mapper.map_ms(
@@ -124,16 +132,25 @@ class L515Node(Node):
                 kind="accel", frame_id=ACCEL_FRAME,
             )
 
+    def _stop_source(self):
+        if not self._source_stopped:
+            self._source_stopped = True
+            self.source.stop()
+
     def destroy_node(self):
-        self.source.stop()
+        self._stop_source()
         return super().destroy_node()
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = L515Node()
+    node = None
     try:
+        node = L515Node()
         rclpy.spin(node)
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        try:
+            if node is not None:
+                node.destroy_node()
+        finally:
+            rclpy.shutdown()

@@ -38,3 +38,29 @@ or SDK blocking wait call.
 - Setup installs config/launch and registers the requested console script;
   package.xml declares `sensor_msgs`.
 - No Jetson, hardware, or unrelated user files were touched.
+
+## Review-fix evidence (2026-07-11)
+
+- RED after adding regression coverage: 4 failed, 5 passed. Failures proved
+  the old `l515_camera` node name, missing source cleanup after `start()`
+  failure, missing `rclpy.shutdown()` after constructor failure, and the old
+  launch node name.
+- GREEN focused verification after implementation and clean package install:
+  `test_l515_node.py` plus `test_l515_launch_contract.py`: 9 passed in 0.34 s.
+- Launch now passes `PathJoinSubstitution` directly. The test evaluates the
+  resulting `ParameterFile` against the active ament index and proves it is
+  exactly the installed `share/powertrain_ros/config/l515.yaml` regular file.
+- The constructor and launch/config root use exactly `l515_camera_node`; the
+  console executable remains `l515_camera`.
+- Constructor/start failure stops the partial source and destroys the partial
+  ROS node. Constructor and spin failures always reach `rclpy.shutdown()`;
+  spin failure destroys the node first.
+- All six publishers assert the complete sensor-data QoS contract: depth 5,
+  best-effort reliability, keep-last history, and volatile durability. The
+  registered 5 ms timer callback is proven to be exactly `_drain_source`; one
+  invocation performs one `poll_latest()` without calling source start/stop.
+- Fresh clean three-package verification:
+  `colcon build`: 3 packages finished; `colcon test`: 3 packages finished;
+  `colcon test-result --verbose`: 69 tests, 0 errors, 0 failures, 0 skipped.
+- `ament_flake8` checked the four changed Python files: no problems found.
+  `git diff --check` exited cleanly.

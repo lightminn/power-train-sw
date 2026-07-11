@@ -1,4 +1,4 @@
-l515_camera:
+l515_camera_node:
   ros__parameters:
     serial: "00000000F0271544"
     width: 640
