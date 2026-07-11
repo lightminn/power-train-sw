@@ -11,6 +11,8 @@ These notes were migrated from Claude Code project memory. Treat them as durable
 
 - The powertrain L515 pipeline owns serial `00000000F0271544`; D435i serial `250222071245`
   remains robot-arm exclusive and must never be opened by this pipeline.
+- librealsense 2.50.0 may report that L515 as `f0271544`; normalize only case and leading zeroes
+  for comparison, require exactly one match, and open the SDK-reported serial string.
 - `powertrain_ros` pins librealsense/pyrealsense2 exactly `v2.50.0` with RSUSB. Build and start it
   with `docker compose -f docker/docker-compose.jetson.yml build powertrain_ros` then
   `docker compose -f docker/docker-compose.jetson.yml up -d powertrain_ros`.

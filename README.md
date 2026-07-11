@@ -93,6 +93,7 @@ SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 파워트레인 L515는 serial `00000000F0271544`만 열며, `powertrain_ros` 이미지에
 librealsense/pyrealsense2 **정확히 v2.50.0**을 RSUSB backend로 빌드한다. D435i
 `250222071245`는 로봇팔 전용이므로 이 노드가 열지 않는다. 실행 전 Jetson 호스트에서
+SDK가 반환하는 `f0271544`는 대소문자·선행 0 정규화 후 같은 장치로 엄격 매칭한다.
 `bash scripts/l515_preflight.sh`를 실행한다. 이 게이트는 USB PID `8086:0b64`, 5000 Mbps
 이상 링크, 컨테이너 SDK의 지정 serial 선택이 모두 확인되지 않으면 실패한다. 정확한 이미지
 빌드·source·launch 명령과 토픽은 [`ros2/README.md`](ros2/README.md)에 있다.

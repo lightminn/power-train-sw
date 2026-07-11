@@ -46,6 +46,15 @@ def test_probe_selects_exact_l515_once_while_d435_coexists():
     assert selected == SERIAL
 
 
+def test_probe_canonicalizes_sdk_l515_serial_case_and_leading_zeroes():
+    probe = _load_probe()
+    context = _FakeContext([D435_SERIAL, "f0271544"])
+
+    selected = probe.select_exact_serial(context, "serial_number", SERIAL)
+
+    assert selected == SERIAL
+
+
 @pytest.mark.parametrize(
     "serials,expected",
     [
@@ -53,6 +62,7 @@ def test_probe_selects_exact_l515_once_while_d435_coexists():
         ([SERIAL], D435_SERIAL),
         ([D435_SERIAL], SERIAL),
         ([SERIAL, SERIAL, D435_SERIAL], SERIAL),
+        (["f0271544", SERIAL, D435_SERIAL], SERIAL),
     ],
 )
 def test_probe_rejects_invalid_expected_selection(serials, expected):

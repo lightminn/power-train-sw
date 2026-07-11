@@ -9,6 +9,11 @@ from typing import Any, Callable, Optional
 EXPECTED_L515_SERIAL = "00000000F0271544"
 
 
+def _canonical_serial(serial):
+    normalized = str(serial).casefold().lstrip("0")
+    return normalized or "0"
+
+
 def _new_timestamp_mapper():
     # Keep SDK source importable without ROS message packages.  The adapter is
     # loaded only when a real streaming session starts.
@@ -180,17 +185,21 @@ class L515Source:
     def poll_latest(self) -> LatestFrames:
         return self._latest.drain()
 
-    def _expected_device_present(self) -> bool:
+    def _matching_device_serial(self) -> Optional[str]:
         devices = self._rs.context().query_devices()
-        return any(
+        expected = _canonical_serial(self.config.serial)
+        matches = [
             device.get_info(self._rs.camera_info.serial_number)
-            == self.config.serial
             for device in devices
-        )
+            if _canonical_serial(
+                device.get_info(self._rs.camera_info.serial_number)
+            ) == expected
+        ]
+        return matches[0] if len(matches) == 1 else None
 
-    def _sdk_config(self):
+    def _sdk_config(self, device_serial):
         sdk_config = self._rs.config()
-        sdk_config.enable_device(self.config.serial)
+        sdk_config.enable_device(device_serial)
         sdk_config.enable_stream(
             self._rs.stream.color,
             self.config.width,
@@ -281,7 +290,8 @@ class L515Source:
             ):
                 break
             try:
-                if not self._expected_device_present():
+                device_serial = self._matching_device_serial()
+                if device_serial is None:
                     raise RuntimeError("expected L515 serial is not present")
                 if not self._is_current(generation):
                     break
@@ -295,7 +305,7 @@ class L515Source:
                         "pipeline": pipeline,
                         "cancel_requested": False,
                     }
-                sdk_config = self._sdk_config()
+                sdk_config = self._sdk_config(device_serial)
                 self._before_pipeline_start()
                 with self._lifecycle_lock:
                     if not self._is_current_locked(generation):

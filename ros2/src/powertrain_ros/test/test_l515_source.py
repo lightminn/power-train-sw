@@ -146,6 +146,20 @@ def test_source_selects_only_expected_serial_and_enables_exact_streams():
     assert waits == [2.0]
 
 
+def test_source_canonicalizes_sdk_serial_and_opens_that_exact_device():
+    rs = FakeRs(
+        ["250222071245", "f0271544"],
+        [RuntimeError("disconnect")],
+    )
+    source = L515Source(
+        rs, wait_fn=lambda _: False, mapper_factory=object
+    )
+
+    source._run()
+
+    assert rs.started[0].serial == "f0271544"
+
+
 def test_source_never_starts_d435_when_expected_serial_is_absent():
     rs = FakeRs(["250222071245"])
     waits = []

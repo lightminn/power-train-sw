@@ -83,7 +83,9 @@ colcon test-result --verbose
 
 L515는 파워트레인 소유 serial `00000000F0271544`만 사용한다. D435i serial
 `250222071245`는 로봇팔 전용이며 이 파이프라인에서 열지 않는다. `powertrain_ros` 이미지의
-librealsense/pyrealsense2 pin은 **v2.50.0**이고 RSUSB backend를 쓴다. Jetson 호스트에서
+librealsense/pyrealsense2 pin은 **v2.50.0**이고 RSUSB backend를 쓴다. SDK가 L515를
+`f0271544`로 표기할 수 있어 비교 시 대소문자와 선행 0만 정규화하고 정확히 하나의 동일
+serial 장치가 아니면 실패한다. Jetson 호스트에서
 아래 순서 그대로 이미지 빌드와 USB3/SDK fail-closed preflight를 수행한다.
 
 ```bash

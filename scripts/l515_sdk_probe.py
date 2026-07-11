@@ -4,6 +4,11 @@
 import argparse
 
 
+def _canonical_serial(serial):
+    normalized = str(serial).casefold().lstrip("0")
+    return normalized or "0"
+
+
 def select_exact_serial(context, serial_info, expected_serial):
     """Return expected_serial only when it occurs exactly once in context."""
     if not expected_serial:
@@ -12,13 +17,17 @@ def select_exact_serial(context, serial_info, expected_serial):
     serials = [
         device.get_info(serial_info) for device in context.query_devices()
     ]
-    matches = [serial for serial in serials if serial == expected_serial]
+    expected = _canonical_serial(expected_serial)
+    matches = [
+        serial for serial in serials
+        if _canonical_serial(serial) == expected
+    ]
     if len(matches) != 1:
         raise ValueError(
             f"expected exactly one SDK device serial {expected_serial}, "
             f"found {len(matches)}"
         )
-    return matches[0]
+    return expected_serial
 
 
 def main():
