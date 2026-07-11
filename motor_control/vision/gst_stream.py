@@ -22,6 +22,9 @@ cv2.VideoWriter 의 GStreamer 백엔드는 dustynv 컨테이너의 opencv-python
 """
 
 ENCODERS = ("x264", "openh264")
+# Orin Nano benchmark selection: nvvidconv is used only with x264 when its
+# measured benefit clears the acceptance rule; otherwise keep CPU conversion.
+X264_CONVERSION = "videoconvert"
 
 
 def build_gst_command(port: int, width: int, height: int, fps: int,
@@ -52,7 +55,7 @@ def build_gst_command(port: int, width: int, height: int, fps: int,
              "format=bgr",
              f"width={width}", f"height={height}",
              f"framerate={fps}/1",
-        "!", "videoconvert", "!", "video/x-raw,format=I420",
+        "!", X264_CONVERSION, "!", "video/x-raw,format=I420",
         "!", *enc,
         # config-interval=-1: 모든 키프레임에 SPS/PPS — 수신자가 중간 합류해도 디코딩 가능
         "!", "h264parse", "config-interval=-1",
