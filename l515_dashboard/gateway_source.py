@@ -373,16 +373,22 @@ class L515GatewaySource:
                         or self._capture_generation != generation
                         or self._capture_token != token):
                     return
-                if self._last_frame_numbers.get(stream) == number:
-                    continue
                 stats = self._frame_stats.get(stream)
                 if stats is None:
                     stats = {"count": 0, "first": number, "last": None,
-                             "gap_count": 0}
+                             "gap_count": 0, "discontinuity_count": 0,
+                             "duplicate_count": 0}
                     self._frame_stats[stream] = stats
                 previous = stats["last"]
-                if previous is not None and number > previous + 1:
-                    stats["gap_count"] += number - previous - 1
+                if previous is not None:
+                    if number == previous:
+                        stats["discontinuity_count"] += 1
+                        stats["duplicate_count"] += 1
+                        continue
+                    if number < previous:
+                        stats["discontinuity_count"] += 1
+                    elif number > previous + 1:
+                        stats["gap_count"] += number - previous - 1
                 stats["count"] += 1
                 stats["last"] = number
                 self._last_frame_numbers[stream] = number
@@ -418,7 +424,8 @@ class L515GatewaySource:
         with self._capture_lock:
             return {
                 names[stream]: dict(self._frame_stats.get(stream, {
-                    "count": 0, "first": None, "last": None, "gap_count": 0}))
+                    "count": 0, "first": None, "last": None, "gap_count": 0,
+                    "discontinuity_count": 0, "duplicate_count": 0}))
                 for stream in self._buffers
             }
 

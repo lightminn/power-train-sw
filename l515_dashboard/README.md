@@ -49,7 +49,10 @@ ROS rates for all six topics, SRT submit/sent/drop rates, aligned-Depth age, and
 overstated `superfast` throughput. RGB is the 29 fps acceptance mode. Alignment is suppressed in
 RGB and runs only for Depth/overlay, whose SRT rates are best effort. Raw ROS Depth remains
 deadline-paced at 10 Hz. Measured RGB acceptance was 29.91 fps at the receiver, 30.0–30.2 Hz
-ROS color, 10.0 Hz raw Depth, and zero SRT drops/native frame gaps.
+ROS color, 10.0 Hz raw Depth, and zero SRT drops/native frame gaps. Native continuity
+counts forward-missing frame numbers in `gap_count`, repeated frame numbers in
+`duplicate_count`, and all non-increasing events (duplicates plus backward resets) in
+`discontinuity_count`; duplicate callbacks are not counted as unique frames.
 
 If startup reports a singleton/lock failure, do not delete the persistent
 `/run/powertrain/l515-gateway.lock` file or kill an unknown process. A stale file is normal;

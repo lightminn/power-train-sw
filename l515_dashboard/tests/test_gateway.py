@@ -3,6 +3,7 @@ import uuid
 from types import SimpleNamespace
 
 import l515_dashboard.streamer as streamer_module
+from l515_dashboard.frame_modes import FrameMode
 from l515_dashboard.gateway import Gateway, GatewayState, SystemCollector
 from l515_dashboard.gateway_workers import WorkerStopTimeout
 from l515_dashboard.control_server import UnixControlServer
@@ -182,6 +183,45 @@ def test_crashed_streamer_is_reaped_before_replacement_and_at_cleanup():
     assert old.stopped >= 1 and new.started == 1
     gateway.shutdown()
     assert new.stopped == 1
+
+
+def test_alignment_gate_tracks_depth_streaming_health_and_restart():
+    old = Streamer()
+    new = Streamer()
+    gateway, _ = make_gateway(streamer=old)
+    gateway._streamer_factory = lambda: new
+    gateway.start()
+    gateway.handle_request({"type": "set_video_mode", "payload": {"mode": "depth"}})
+    assert gateway._alignment_required() is True
+
+    gateway.handle_request({"type": "set_streaming", "payload": {"enabled": False}})
+    assert gateway._alignment_required() is False
+
+    gateway.handle_request({"type": "set_streaming", "payload": {"enabled": True}})
+    new.set_mode(FrameMode.DEPTH)
+    assert gateway._alignment_required() is True
+    new.running = False
+    gateway.observe()
+    assert gateway._alignment_required() is False
+    gateway.shutdown()
+
+
+def test_alignment_stays_off_until_restarted_streamer_reports_running():
+    old = Streamer()
+    old.running = False
+    replacement = Streamer()
+    replacement.running = False
+    gateway, _ = make_gateway(streamer=old)
+    gateway._streamer_factory = lambda: replacement
+    gateway.start()
+    gateway.streaming_enabled = False
+    gateway._stream_active = False
+    replacement.mode = FrameMode.OVERLAY
+    gateway._set_streaming(True)
+    assert gateway._alignment_required() is False
+    replacement.running = True
+    assert gateway._alignment_required() is True
+    gateway.shutdown()
 
 
 def test_failed_old_writer_cleanup_prevents_replacement_start():

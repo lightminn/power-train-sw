@@ -287,7 +287,13 @@ class Gateway:
 
     def _alignment_required(self):
         stream = self._stream_snapshot()
-        return bool(stream and getattr(stream, "mode", None) is not FrameMode.COLOR)
+        return bool(
+            self.streaming_enabled
+            and self._stream_active
+            and stream
+            and stream.running
+            and getattr(stream, "mode", None) in (FrameMode.DEPTH, FrameMode.OVERLAY)
+        )
 
     def _record_published(self, frames, published):
         now = self._now_ns()
