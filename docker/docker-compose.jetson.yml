@@ -22,9 +22,6 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /dev:/dev
       - ../:/workspace:rw
-      # NVENC GStreamer plugin + 의존 라이브러리 (drivers.csv 미등록분 보충)
-      - /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstnvvideo4linux2.so:/usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstnvvideo4linux2.so:ro
-      - /usr/lib/aarch64-linux-gnu/nvidia:/usr/lib/aarch64-linux-gnu/nvidia:ro
 
     cap_add:
       - SYS_RAWIO

@@ -28,9 +28,10 @@ class DashboardApp(App):
 
     def show_status(self,p):
         sdk=p.get("sdk",{}); srt=p.get("srt",{}); system=p.get("system",{}); ros=p.get("ros_publish_counts",{})
+        native_rates=sdk.get("native_callback_rates_hz",{}); ros_rates=p.get("ros_topic_rates_hz",{})
         self.streaming_enabled=bool(srt.get("enabled",False))
         text=(f"State: {p.get('state','?')}\nSDK: serial={sdk.get('serial')} profile={sdk.get('profile')} source={sdk.get('source_state')}\n"
-              f"ROS: {dict(ros)}\nSRT: running={srt.get('running')} enabled={srt.get('enabled')} mode={srt.get('mode')} sent={srt.get('sent')} dropped={srt.get('dropped')} client={srt.get('client_state')}\n"
+              f"Native Hz: {dict(native_rates)}\nROS: {dict(ros)}\nROS Hz: {dict(ros_rates)}\nSRT: running={srt.get('running')} enabled={srt.get('enabled')} mode={srt.get('mode')} sent={srt.get('sent')} dropped={srt.get('dropped')} submit/sent/drop Hz={srt.get('submitted_rate_hz')}/{srt.get('sent_rate_hz')}/{srt.get('drop_rate_hz')} aligned-depth age={srt.get('aligned_depth_age_ms')} ms client={srt.get('client_state')}\n"
               f"Resources: CPU={system.get('cpu_percent')}% RSS={system.get('current_rss_bytes')}\nErrors: {p.get('last_error') or srt.get('last_error') or '-'}")
         self.query_one("#status",Static).update(text)
 

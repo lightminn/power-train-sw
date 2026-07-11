@@ -424,6 +424,9 @@ def test_overlay_outputs_each_color_using_fresh_reusable_depth():
     assert len(popen.calls) == 1
     assert snapshot.input_color == 3
     assert snapshot.effective_fps == pytest.approx(30.0, rel=1e-6)
+    assert snapshot.submitted_rate_hz == pytest.approx(30.0, rel=1e-6)
+    assert snapshot.sent_rate_hz == pytest.approx(30.0, rel=1e-6)
+    assert snapshot.drop_rate_hz == 0.0
     assert snapshot.depth_age_ms == pytest.approx(66.666666)
     assert snapshot.pipeline_command == tuple(popen.calls[0][0])
     streamer.stop()

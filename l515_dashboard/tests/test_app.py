@@ -16,12 +16,13 @@ def test_dashboard_renders_status_and_keys():
   async def scenario():
     client=Client(); app=DashboardApp(client, poll_interval_s=60)
     async with app.run_test() as pilot:
-        app.show_status({"state":"DEGRADED", "sdk":{"serial":"f0271544", "profile":"1280x720"},
+        app.show_status({"state":"DEGRADED", "sdk":{"serial":"f0271544", "profile":"1280x720", "native_callback_rates_hz":{"color":29.9}},
+          "ros_topic_rates_hz":{"/l515/color/image_raw":29.8},
           "ros_publish_counts":{"/l515/color/image_raw":12}, "srt":{"running":True,"enabled":True,"mode":"rgb","sent":10,"dropped":2},
           "system":{"cpu_percent":3.5,"current_rss_bytes":1048576}, "last_error":"camera lost"})
         await pilot.pause()
         text=app.query_one("#status").render().plain
-        for value in ("DEGRADED","f0271544","1280x720","12","rgb","10","2","3.5","camera lost"): assert value in text
+        for value in ("DEGRADED","f0271544","1280x720","Native Hz","29.9","ROS Hz","29.8","12","rgb","10","2","3.5","camera lost"): assert value in text
         for key in ("1","2","3","s","r"): await pilot.press(key)
         assert client.commands == [("set_video_mode",{"mode":"rgb"}), ("set_video_mode",{"mode":"depth"}),
           ("set_video_mode",{"mode":"overlay"}), ("set_streaming",{"enabled":False}), ("restart_gateway",{})]

@@ -341,6 +341,8 @@ class Gateway:
                 for topic, metric in snapshot.topics.items()
             }
             profile = getattr(self.source, "connected_profile", None)
+            native_rates = getattr(self.source, "native_callback_rates", lambda: {})()
+            ros_rates = {topic: metric.fps for topic, metric in snapshot.topics.items()}
             return {
                 "state": self.state.value,
                 "sdk": {"serial": getattr(self.source, "connected_serial", None),
@@ -349,9 +351,11 @@ class Gateway:
                             self.source, "video_bundle_overwrites", 0),
                         "color_overwrites": getattr(
                             self.source, "color_overwrites", 0),
+                        "native_callback_rates_hz": native_rates,
                         "source_state": getattr(getattr(self.source, "state", None),
                                                 "value", "unknown")},
                 "diagnostics": diagnostics,
+                "ros_topic_rates_hz": ros_rates,
                 "ros_publish_counts": dict(self._ros_counts),
                 "srt": {"running": bool(stream and stream.running),
                         "enabled": self.streaming_enabled,
@@ -360,7 +364,11 @@ class Gateway:
                         "dropped": getattr(stream, "dropped", 0),
                         "input_color": getattr(stream, "input_color", 0),
                         "effective_fps": getattr(stream, "effective_fps", 0.0),
+                        "submitted_rate_hz": getattr(stream, "submitted_rate_hz", 0.0),
+                        "sent_rate_hz": getattr(stream, "sent_rate_hz", 0.0),
+                        "drop_rate_hz": getattr(stream, "drop_rate_hz", 0.0),
                         "depth_age_ms": getattr(stream, "depth_age_ms", None),
+                        "aligned_depth_age_ms": getattr(stream, "depth_age_ms", None),
                         "pipeline_command": list(
                             getattr(stream, "pipeline_command", ())
                         ),

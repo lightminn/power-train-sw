@@ -104,6 +104,23 @@ def test_callback_splits_composite_deduplicates_by_stream_and_frame_number():
     assert color.kept == depth.kept == 1
 
 
+def test_native_callback_rates_count_unique_frames_and_reset_on_capture():
+    source = L515GatewaySource(RS(), mapper_factory=object)
+    source._generation = 3; source._stop_event.clear(); token = source._reset_capture(3)
+    source._on_frame(Frame("color", 1), 3, token)
+    time.sleep(.002)
+    source._on_frame(Frame("color", 2), 3, token)
+    source._on_frame(Frame("color", 2), 3, token)
+
+    rates = source.native_callback_rates()
+    assert rates["color"] > 0
+    assert rates["depth"] == rates["accel"] == rates["gyro"] == 0.0
+
+    source._clear_capture(token)
+    assert source.native_callback_rates() == {
+        "color":0.0, "depth":0.0, "accel":0.0, "gyro":0.0}
+
+
 def test_composite_callback_retains_real_latest_bundle_and_counts_overwrites():
     source = L515GatewaySource(RS(), mapper_factory=object)
     source._generation = 3; source._stop_event.clear(); token = source._reset_capture(3)

@@ -25,6 +25,9 @@ class StreamerSnapshot:
     sent: int
     dropped: int
     effective_fps: float
+    submitted_rate_hz: float
+    sent_rate_hz: float
+    drop_rate_hz: float
     depth_age_ms: Optional[float]
     pipeline_command: tuple[str, ...]
     last_error: Optional[str]
@@ -62,6 +65,8 @@ class SrtStreamer:
         self._dropped = 0
         self._first_sent_timestamp_ns: Optional[int] = None
         self._last_sent_timestamp_ns: Optional[int] = None
+        self._first_submitted_timestamp_ns: Optional[int] = None
+        self._last_submitted_timestamp_ns: Optional[int] = None
         self._latest_color_timestamp_ns: Optional[int] = None
         self._pipeline_command: tuple[str, ...] = ()
         self._last_error: Optional[str] = None
@@ -115,6 +120,9 @@ class SrtStreamer:
                 return
             self._frames.put_color(frame, timestamp_ns)
             self._input_color += 1
+            if self._first_submitted_timestamp_ns is None:
+                self._first_submitted_timestamp_ns = timestamp_ns
+            self._last_submitted_timestamp_ns = timestamp_ns
             self._latest_color_timestamp_ns = timestamp_ns
             if self._pending:
                 self._dropped += 1
@@ -281,6 +289,15 @@ class SrtStreamer:
                 if self._latest_color_timestamp_ns is None
                 else self._frames.depth_age_ns(self._latest_color_timestamp_ns)
             )
+            submitted_rate_hz = 0.0
+            submitted_duration_ns = 0
+            if (self._input_color > 1
+                    and self._first_submitted_timestamp_ns is not None
+                    and self._last_submitted_timestamp_ns > self._first_submitted_timestamp_ns):
+                submitted_duration_ns = (
+                    self._last_submitted_timestamp_ns - self._first_submitted_timestamp_ns)
+                submitted_rate_hz = ((self._input_color - 1) * 1_000_000_000
+                                     / submitted_duration_ns)
             return StreamerSnapshot(
                 running=self._running,
                 mode=self._mode,
@@ -288,6 +305,10 @@ class SrtStreamer:
                 sent=self._sent,
                 dropped=self._dropped,
                 effective_fps=effective_fps,
+                submitted_rate_hz=submitted_rate_hz,
+                sent_rate_hz=effective_fps,
+                drop_rate_hz=(0.0 if submitted_duration_ns <= 0 else
+                              self._dropped * 1_000_000_000 / submitted_duration_ns),
                 depth_age_ms=(
                     None if depth_age_ns is None else depth_age_ns / 1_000_000
                 ),

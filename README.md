@@ -82,6 +82,8 @@ sudo docker compose -f docker/docker-compose.jetson.yml exec powertrain bash
 (librealsense / pyrealsense2) 소스 빌드 포함. JetPack 의 `nvidia-container-runtime` 으로 추가
 설정 없이 동작. **Orin Nano 는 NVENC 하드웨어 인코더가 없어**(Orin NX/AGX 만 탑재) 영상은
 SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
+Gateway 상태에는 SDK native callback Hz, ROS 6토픽별 Hz, SRT submit/sent/drop Hz,
+aligned-depth age, 프로세스 CPU/RSS가 포함된다.
 
 실차 센서 소유권은 **L515=파워트레인 RGB/depth/IMU**, **D435i=로봇팔 인식 전용**,
 **US-100=독립 충돌 안전**으로 분리한다. 2026-07-10 Jetson USB에서 L515와 D435i

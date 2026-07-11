@@ -7,6 +7,7 @@ import pytest
 
 SCRIPT=Path(__file__).parents[2]/"docker"/"powertrain_ros_entrypoint.sh"
 COMPOSE=Path(__file__).parents[2]/"docker"/"docker-compose.jetson.yml"
+DOCKERFILE=Path(__file__).parents[2]/"docker"/"Dockerfile.ros"
 TMPFILES=Path(__file__).parents[2]/"docker"/"powertrain-gateway-tmpfiles.conf"
 INSTALLER=Path(__file__).parents[2]/"scripts"/"install_powertrain_runtime_dir.sh"
 
@@ -82,6 +83,19 @@ def test_compose_shares_persistent_gateway_flock_with_host():
     assert "type: bind" in ros_service
     assert "source: /run/powertrain" in ros_service
     assert "target: /run/powertrain" in ros_service
+
+
+def test_l515_image_has_proven_software_gstreamer_contract_only():
+    dockerfile=DOCKERFILE.read_text()
+    compose=COMPOSE.read_text()
+    assert "gstreamer1.0-plugins-base" in dockerfile
+    assert "gstreamer1.0-plugins-good" in dockerfile
+    assert "gstreamer1.0-plugins-bad" in dockerfile
+    assert "gstreamer1.0-plugins-ugly" in dockerfile
+    assert "LIBREALSENSE_TAG=v2.50.0" in dockerfile
+    assert 'ENTRYPOINT ["/usr/local/bin/powertrain_ros_entrypoint"]' in dockerfile
+    assert "network_mode: host" in compose.split("  powertrain_ros:",1)[1]
+    assert "nvv4l2h264enc" not in dockerfile + compose
 
 
 def test_tmpfiles_contract_and_root_only_installer():

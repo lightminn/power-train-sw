@@ -5,6 +5,8 @@
 # 이 노드는 CUDA 불필요(순수 제어) → nvidia 런타임 없이도 동작.
 FROM ros:humble-ros-base
 
+# Orin Nano has no NVENC. The measured path intentionally uses CPU
+# videoconvert + x264enc; plugins-ugly supplies x264enc.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3-colcon-common-extensions \
         python3-pip \

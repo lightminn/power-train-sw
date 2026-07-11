@@ -1,6 +1,7 @@
 """Single-owner, reconnecting RealSense source for the L515 Gateway."""
 
 from dataclasses import dataclass, field
+from collections import deque
 from enum import Enum
 import threading
 import time
@@ -117,6 +118,7 @@ class L515GatewaySource:
         self._capture_token = None
         self._next_capture_token = 0
         self._last_frame_numbers = {}
+        self._callback_arrivals = {stream: deque(maxlen=512) for stream in self._buffers}
         self._mapper = None
         self._poll_sequences = {stream: 0 for stream in self._buffers}
         self._thread = None
@@ -285,6 +287,8 @@ class L515GatewaySource:
             self._capture_generation = generation
             self._capture_token = token
             self._last_frame_numbers.clear()
+            for arrivals in self._callback_arrivals.values():
+                arrivals.clear()
             self._mapper = self._mapper_factory()
             for stream, buffer in self._buffers.items():
                 buffer.clear()
@@ -299,6 +303,8 @@ class L515GatewaySource:
             self._capture_generation = None
             self._capture_token = None
             self._last_frame_numbers.clear()
+            for arrivals in self._callback_arrivals.values():
+                arrivals.clear()
             self._mapper = None
             for stream, buffer in self._buffers.items():
                 buffer.clear()
@@ -358,7 +364,26 @@ class L515GatewaySource:
                     continue
                 self._last_frame_numbers[stream] = number
                 sample = self._sample_from_frame(stream, child)
+                self._callback_arrivals[stream].append(sample.received_ns)
                 self._buffers[stream].publish(sample)
+
+    def native_callback_rates(self):
+        """Return bounded five-second rates for unique SDK callback frames."""
+        now_ns = time.monotonic_ns()
+        cutoff_ns = now_ns - 5_000_000_000
+        names = {
+            self._rs.stream.color: "color", self._rs.stream.depth: "depth",
+            self._rs.stream.accel: "accel", self._rs.stream.gyro: "gyro",
+        }
+        with self._capture_lock:
+            result = {}
+            for stream, arrivals in self._callback_arrivals.items():
+                while arrivals and arrivals[0] < cutoff_ns:
+                    arrivals.popleft()
+                duration_ns = arrivals[-1] - arrivals[0] if len(arrivals) > 1 else 0
+                result[names[stream]] = (0.0 if duration_ns <= 0 else
+                    (len(arrivals) - 1) * 1_000_000_000 / duration_ns)
+            return result
 
     def _matching_serial(self):
         expected = _canonical_serial(EXPECTED_L515_SERIAL)
