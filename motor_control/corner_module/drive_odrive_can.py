@@ -173,6 +173,12 @@ class DriveOdriveCan(DriveActuator):
 
     def state(self) -> dict:
         """정규화 텔레메트리. CornerModule 계약 키 + CAN 건강(stale/axis_error)."""
+        # 6코너를 순차 arm 하는 동안 먼저 arm 된 축의 heartbeat는 커널
+        # 수신 버퍼에 계속 쌓인다. 캐시 시각만 보고 stale을 판정하면 실제
+        # 응답 중인 앞쪽 축까지 오탐하므로, 조향 드라이버와 동일하게
+        # 비블로킹·유한 드레인 후 최신 heartbeat를 반영한다.
+        if self._bus is not None:
+            self._drain_available()
         stale = (self._last_rx_ms is None
                  or (time.monotonic() * 1000.0 - self._last_rx_ms) > self._stale_ms)
         return {

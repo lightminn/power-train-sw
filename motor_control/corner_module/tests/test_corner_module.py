@@ -470,6 +470,21 @@ def test_can_drive_stale_without_rx():
     assert d.state()["stale"] is True
 
 
+def test_can_drive_state_self_heals_from_buffered_heartbeat():
+    node = 11
+    bus = _FakeCanBus(rx=[_hb(node, err=0, state=8)])
+    d = DriveOdriveCan(node_id=node, bus=bus, stale_ms=1000.0)
+    d.connect()
+
+    assert d._last_rx_ms is None
+    state = d.state()
+
+    assert state["stale"] is False
+    assert state["axis_error"] == 0
+    assert bus.recv_timeouts
+    assert set(bus.recv_timeouts) == {0.0}
+
+
 def test_can_drive_estop_commands_idle():
     bus = _FakeCanBus()
     d = DriveOdriveCan(node_id=14, bus=bus)
