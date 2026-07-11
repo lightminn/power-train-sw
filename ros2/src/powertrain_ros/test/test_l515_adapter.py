@@ -35,6 +35,21 @@ def test_timestamp_mapper_resets_offset_when_device_time_goes_backward():
     assert following_ns == 20_002_000_000
 
 
+def test_timestamp_mapper_does_not_reset_for_interleaved_stream_clocks():
+    mapper = TimestampMapper()
+
+    color_first = mapper.map_ms(
+        1000.0, 10_000_000_000, stream_key="color"
+    )
+    mapper.map_ms(1005.0, 10_005_000_000, stream_key="depth")
+    color_next = mapper.map_ms(
+        1001.0, 99_000_000_000, stream_key="color"
+    )
+
+    assert color_first == 10_000_000_000
+    assert color_next == 10_001_000_000
+
+
 def test_image_from_color_array_copies_shape_step_and_bytes():
     array = np.arange(24, dtype=np.uint8).reshape(2, 4, 3)
     stamp = Time(sec=12, nanosec=34)

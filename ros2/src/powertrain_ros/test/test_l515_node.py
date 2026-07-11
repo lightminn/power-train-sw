@@ -13,7 +13,11 @@ from powertrain_ros.l515_source import LatestFrames
 
 
 class FakeMapper:
-    def map_ms(self, device_ms, ros_now_ns):
+    def __init__(self):
+        self.stream_keys = []
+
+    def map_ms(self, device_ms, ros_now_ns, stream_key=None):
+        self.stream_keys.append(stream_key)
         return int(device_ms * 1_000_000) + 7_000_000_000
 
 
@@ -141,6 +145,12 @@ def test_timer_nonblocking_drains_once_and_publishes_exact_contract(ros_context)
     assert depth_info.header.frame_id == "l515_depth_optical_frame"
     assert published["/l515/gyro/sample"][0].header.frame_id == "l515_gyro_frame"
     assert published["/l515/accel/sample"][0].header.frame_id == "l515_accel_frame"
+    assert mapper.stream_keys == [
+        "/l515/color/image_raw",
+        "/l515/depth/image_rect_raw",
+        "/l515/gyro/sample",
+        "/l515/accel/sample",
+    ]
     node.destroy_node()
 
 

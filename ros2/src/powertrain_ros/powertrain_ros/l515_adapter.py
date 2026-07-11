@@ -10,20 +10,23 @@ class TimestampMapper:
 
     def __init__(self):
         self._offset_ns = None
-        self._last_device_ms = None
+        self._last_device_ms = {}
 
-    def map_ms(self, device_ms: float, ros_now_ns: int) -> int:
+    def map_ms(
+        self, device_ms: float, ros_now_ns: int, stream_key=None
+    ) -> int:
         device_ms = float(device_ms)
         device_ns = round(device_ms * 1_000_000)
+        last_device_ms = self._last_device_ms.get(stream_key)
         if (
             self._offset_ns is None
             or (
-                self._last_device_ms is not None
-                and device_ms < self._last_device_ms
+                last_device_ms is not None
+                and device_ms < last_device_ms
             )
         ):
             self._offset_ns = int(ros_now_ns) - device_ns
-        self._last_device_ms = device_ms
+        self._last_device_ms[stream_key] = device_ms
         return device_ns + self._offset_ns
 
 

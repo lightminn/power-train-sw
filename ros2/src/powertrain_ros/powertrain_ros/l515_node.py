@@ -76,9 +76,10 @@ class L515Node(Node):
                 super().destroy_node()
             raise
 
-    def _stamp(self, frame, mapper):
+    def _stamp(self, frame, mapper, stream_key):
         mapped_ns = mapper.map_ms(
-            frame.get_timestamp(), self.get_clock().now().nanoseconds
+            frame.get_timestamp(), self.get_clock().now().nanoseconds,
+            stream_key=stream_key,
         )
         return Time(nanoseconds=mapped_ns).to_msg()
 
@@ -88,7 +89,7 @@ class L515Node(Node):
 
     def _publish_video(self, frame, mapper, *, topic, info_topic,
                        encoding, frame_id):
-        stamp = self._stamp(frame, mapper)
+        stamp = self._stamp(frame, mapper, topic)
         image = image_from_array(
             frame.get_data(), encoding, frame_id, stamp
         )
@@ -99,7 +100,7 @@ class L515Node(Node):
         self.stream_publishers[info_topic].publish(info)
 
     def _publish_motion(self, frame, mapper, *, topic, kind, frame_id):
-        stamp = self._stamp(frame, mapper)
+        stamp = self._stamp(frame, mapper, topic)
         vector = frame.as_motion_frame().get_motion_data()
         message = imu_from_vector(vector, kind, frame_id, stamp)
         self.stream_publishers[topic].publish(message)
