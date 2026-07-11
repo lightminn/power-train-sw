@@ -118,3 +118,38 @@ cleanup raised.
 Focused streamer plus Gateway result: `46 passed in 0.68s` before the additional
 generic-exception regression. Final full L515 verification result: `243 passed
 in 7.96s`. `git diff --check` was clean.
+
+## Second review remediation — Gateway retry boundaries
+
+Second review identified that the streamer itself preserved retryable cleanup
+state, but two Gateway callers erased that guarantee.
+
+### RED
+
+Two real Gateway lifecycle regressions were added with an uncooperative old
+writer:
+
+- `restart_components()` had to retain original ownership, avoid stopping
+  workers/source/ROS, avoid calling the factory, and remain retryable.
+- `shutdown()` had to leave all downstream dependencies running and
+  `_shutdown_done=False` until a later retry could prove the writer dead.
+
+Focused RED observed `2 failed, 22 deselected`: restart replaced the old
+streamer, and shutdown falsely committed `_shutdown_done=True`.
+
+### GREEN
+
+- Added the exported `StreamerStopTimeout` lifecycle contract and made
+  `SrtStreamer.stop()` raise it when the bounded post-reap join cannot prove
+  writer termination.
+- Gateway common cleanup treats `StreamerStopTimeout` like
+  `WorkerStopTimeout`: it stops the cleanup plan immediately, retains ownership,
+  leaves `_shutdown_done=False`, and permits a later shutdown retry.
+- Component restart now aborts on any streamer stop failure, keeps the old
+  streamer owned, starts no replacement or downstream component, exposes
+  DEGRADED state, and re-enables commands so the operation can be retried.
+- The success retry proves the old writer is no longer alive before workers,
+  source, ROS, or a replacement streamer are restarted.
+
+Focused streamer/Gateway result: `49 passed in 0.73s`. Full L515 result before
+the final commit gate: `245 passed in 8.17s`; `git diff --check` was clean.

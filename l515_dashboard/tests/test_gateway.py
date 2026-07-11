@@ -2,6 +2,7 @@ import threading
 import uuid
 from types import SimpleNamespace
 
+import l515_dashboard.streamer as streamer_module
 from l515_dashboard.gateway import Gateway, GatewayState, SystemCollector
 from l515_dashboard.gateway_workers import WorkerStopTimeout
 from l515_dashboard.control_server import UnixControlServer
@@ -281,6 +282,64 @@ def test_restart_source_stop_failure_faults_and_cleans_every_resource():
     assert source.stopped >= 2
     assert parts["streamer"].stopped >= 1
     assert parts["ros"].stopped == parts["server"].stopped == parts["guard"].stopped == 1
+
+
+def test_restart_aborts_before_dependencies_when_old_writer_is_uncooperative():
+    class RetryStreamer(Streamer):
+        def __init__(self):
+            super().__init__(); self.writer_alive = True
+        def stop(self):
+            self.stopped += 1
+            if self.writer_alive:
+                raise streamer_module.StreamerStopTimeout("writer alive")
+
+    old = RetryStreamer(); new = Streamer(); factory_calls = []
+    gateway, parts = make_gateway(streamer=old)
+    gateway._streamer_factory = lambda: factory_calls.append(True) or new
+    gateway.start()
+
+    gateway.restart_components()
+
+    assert gateway.streamer is old
+    assert old in gateway._owned
+    assert factory_calls == [] and new.started == 0
+    assert parts["workers"].stopped == 0
+    assert parts["source"].stopped == parts["ros"].stopped == 0
+    assert gateway.state is GatewayState.DEGRADED
+    assert gateway._shutdown_done is False
+    old.writer_alive = False
+    gateway.restart_components()
+    assert factory_calls == [True] and new.started == 1
+
+
+def test_shutdown_retries_streamer_timeout_before_stopping_dependencies():
+    class RetryStreamer(Streamer):
+        def __init__(self):
+            super().__init__(); self.writer_alive = True
+        def stop(self):
+            self.stopped += 1
+            if self.writer_alive:
+                raise streamer_module.StreamerStopTimeout("writer alive")
+
+    streamer = RetryStreamer()
+    gateway, parts = make_gateway(streamer=streamer)
+    gateway.start()
+
+    gateway.shutdown()
+
+    assert gateway._shutdown_done is False
+    assert streamer in gateway._owned
+    assert parts["workers"].stopped == 0
+    assert parts["source"].stopped == parts["ros"].stopped == 0
+    assert parts["server"].stopped == parts["guard"].stopped == 0
+    streamer.writer_alive = False
+    gateway.shutdown()
+    assert streamer.writer_alive is False
+    assert gateway._shutdown_done is True
+    assert gateway._owned == []
+    assert parts["workers"].stopped == 1
+    assert parts["source"].stopped == parts["ros"].stopped == 1
+    assert parts["server"].stopped == parts["guard"].stopped == 1
 
 
 def test_cleanup_does_not_hold_lifecycle_lock_while_server_stop_blocks():

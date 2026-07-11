@@ -13,6 +13,10 @@ from .config import DashboardConfig
 from .frame_modes import FrameMode, LatestVideoFrames
 
 
+class StreamerStopTimeout(RuntimeError):
+    """The child was reaped but the frame writer is still alive."""
+
+
 @dataclass(frozen=True)
 class StreamerSnapshot:
     running: bool
@@ -224,7 +228,7 @@ class SrtStreamer:
                 if thread is not None and thread is not current_thread():
                     thread.join(timeout=self._config.termination_timeout_s)
                     if thread.is_alive():
-                        raise RuntimeError(
+                        raise StreamerStopTimeout(
                             "SRT writer thread did not stop after child cleanup"
                         )
         except Exception as exc:

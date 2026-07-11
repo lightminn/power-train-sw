@@ -10,6 +10,7 @@ from .diagnostics import DiagnosticsTracker
 from .frame_modes import FrameMode
 from .gateway_source import EXPECTED_L515_SERIAL
 from .gateway_workers import WorkerGroup, WorkerStopTimeout
+from .streamer import StreamerStopTimeout
 
 
 class GatewayState(str, Enum):
@@ -180,7 +181,7 @@ class Gateway:
                 self._stop(part)
             except Exception as exc:
                 errors.append(exc)
-                if isinstance(exc, WorkerStopTimeout):
+                if isinstance(exc, (WorkerStopTimeout, StreamerStopTimeout)):
                     break
             else:
                 with self._cleanup_condition:
@@ -192,7 +193,8 @@ class Gateway:
                 self.last_error = self.last_error or str(errors[0])
                 if final_state is GatewayState.FAULT:
                     self.fatal_error = self.fatal_error or str(errors[0])
-            if any(isinstance(error, WorkerStopTimeout) for error in errors):
+            if any(isinstance(error, (WorkerStopTimeout, StreamerStopTimeout))
+                   for error in errors):
                 self._lifecycle_operation = None
                 self._cleanup_condition.notify_all()
                 return
@@ -451,7 +453,14 @@ class Gateway:
                     self._stop(streamer)
                 except Exception as exc:
                     with self._lock:
-                        self._disable_streamer(exc)
+                        self.last_error = str(exc)
+                        self._stream_error = self.last_error
+                        self._stream_failed = True
+                        self.streaming_enabled = False
+                        self._stream_active = False
+                        self.state = GatewayState.DEGRADED
+                        self._accept_commands = True
+                    return
                 if self._restart_cancelled(epoch):
                     return
             # Non-SRT teardown failures are fatal and use common cleanup.
