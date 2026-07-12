@@ -182,6 +182,7 @@ ROS 실행·토픽·서비스 표는 [`ros2/README.md`](ros2/README.md), HIL 전
 | `motor_control/corner_module/` 코너 모듈 (조향+구동 통합) | [코너 모듈 컨트롤러 — 조향+구동 통합 제어 API (HIL 검증)](https://app.notion.com/p/36b2d27b08d381818b04c1d194bcade1) |
 | `motor_control/chassis/kinematics.py` 4WS 애커만 키네마틱스 (WP2) | [4WS 애커만 키네마틱스 — 차체 (v, ω) → 바퀴별 조향각·속도](https://app.notion.com/p/3912d27b08d381a0a452fa4afdc61c45) |
 | `motor_control/chassis/` 4WS 차체 통합 제어 (ChassisManager, WP3 — 실기 HIL 완료) | [차체 통합 제어 (ChassisManager) — 코너 6개를 하나의 차체로 (4WS)](https://app.notion.com/p/3912d27b08d381e79716e04398e34bd2) |
+| `chassis/teleop_server.py`+`laptop/laptop_client_chassis.py` 무선 원격주행 (DualSense 텔레옵) | [무선 원격주행 — DualSense → 노트북 → 젯슨 → 10모터 (4WS 텔레옵)](https://app.notion.com/p/39b2d27b08d38140bf8df53fe7661c6c) |
 | `docs/plans/2026-07-02-autonomous-driving-kickoff.md` 자율주행 개발 계획 | [자율주행 개발 계획 — 파워트레인 (WP1~9)](https://app.notion.com/p/3912d27b08d381af9e8ed16fb08b0840) |
 | `motor_control/vision/` 기존 D435i 실험·로봇팔 인식 참고 | [RGB-D 카메라(RealSense D435i) 켜는 법](https://app.notion.com/p/3752d27b08d381619d73d6bc19fc02d2) |
 | `motor_control/vision/` YOLO + Depth 3D 좌표 | [YOLO + Depth 융합 — 검출 물체 3D 좌표 추출](https://app.notion.com/p/37b2d27b08d38147b9aceb16268615a8) |
