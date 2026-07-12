@@ -114,6 +114,28 @@ production 코드에는 `if simulator == ...` 분기를 넣지 않는다. simula
 각 입력은 값과 함께 stamp, age, validity를 전달한다. 오래된 마지막 값을 정상값처럼 재사용하지
 않는다. 영상·depth·인식·odom 중 하나가 끊겨도 서로의 freshness를 독립적으로 판정한다.
 
+### 4.3 Jetson-first compute partition
+
+production 최적화 목표는 개별 kernel 최고속도가 아니라 Orin Nano 8 GB에서 RGB 전송,
+로봇팔 YOLO, terrain, ROS, CAN·안전을 동시에 안정적으로 유지하는 것이다.
+
+- GPU 후보: depth deprojection, 좌표변환, elevation scatter, 표면 특징, RGB 대량 전처리와
+  신경망 추론.
+- CPU 고정: CAN, US-100, 50 Hz chassis loop, E-stop/motion hold, command authority,
+  segment FSM, 작은 wheel+IMU odometry, 프로세스 supervision.
+- GPU 입력은 프레임당 한 번만 배열화하고 terrain 결과가 완성될 때까지 GPU에 유지하며,
+  CPU에는 작은 path/diagnostic 결과만 반환.
+- Orin은 CPU/GPU가 같은 물리 DRAM을 공유하므로 외장 GPU식 PCIe `H2D`로 표현하지 않는다.
+  실제 측정 대상은 CPU buffer에서 accelerator array로의 materialization/copy, cache coherency,
+  synchronization과 memory-bandwidth 비용이다.
+- producer가 호환 device buffer를 제공할 때만 DLPack 등 zero-copy를 사용한다. L515 CPU buffer에
+  불가능한 zero-copy를 가정하거나 수명·동기화가 불명확한 buffer를 공유하지 않는다.
+- terrain accelerator는 별도 프로세스와 cgroup/container에 두어 memory/CPU 한도를 적용하고,
+  종료·OOM이 chassis/safety 프로세스를 함께 죽이지 않게 한다.
+- CPU affinity/cpuset 후보를 전체부하에서 검증해 chassis/safety가 x264와 NumPy terrain에
+  굶지 않게 하되, 검증 없이 realtime priority나 core pinning을 production에 적용하지 않는다.
+- Orin Nano에서 사용할 수 없는 `nvv4l2h264enc`를 다시 도입하지 않고 software x264를 유지한다.
+
 ## 5. 공통 기반 작업
 
 ### WP6-S. Production-parity 시뮬레이션 기반
@@ -251,23 +273,28 @@ raw depth + CameraInfo
 
 #### JAX 계산 backend
 
-production 후보는 JAX GPU, 정확성 기준과 fallback은 NumPy로 둔다. 두 backend는 같은 고정 shape
-입력과 같은 결과 계약을 사용한다.
+production 후보는 JAX GPU, 정확성 기준과 별도 승인 profile은 NumPy로 둔다. 두 backend는 같은
+고정 shape 입력과 같은 결과 계약을 사용한다.
 
 - JAX 대상: depth deprojection, 좌표 변환, mask, elevation scatter, 표면 특징 계산.
 - ROI, stride, grid shape를 고정하고 invalid point는 shape 변경 대신 mask로 처리.
 - 시작 시 dummy frame으로 JIT warm-up을 끝내고 warm-up 전 자율 arm을 금지.
 - 주행 중 새로운 shape나 dtype으로 재컴파일하지 않음.
+- accelerator 결과의 shape, stamp, finite value, range를 CPU 경계에서 검증하고 NaN, device error,
+  timeout은 결과 폐기와 motion hold로 변환.
 - `XLA_PYTHON_CLIENT_PREALLOCATE=false`를 기본 후보로 검증해 로봇팔 YOLO와 8 GB RAM을 보호.
 - JAX/jaxlib/CUDA 조합은 JetPack R36.5 aarch64 컨테이너에서 qualification을 통과한 정확한 버전으로
   함께 pin하고 `jax.devices()`가 의도한 GPU를 반환하는지 preflight에서 확인.
-- backend는 프로세스 시작 때 한 번 선택하고 주행 중 자동 전환하지 않음. JAX 시작 실패 시
-  사전 성능승인을 받은 NumPy backend만 허용하며, 둘 다 불가하면 motion hold.
+- backend는 preflight에서 configuration으로 한 번 선택하고 주행 중 자동 전환하지 않음. JAX가
+  시작 또는 실행 중 실패하면 terrain freshness 상실로 motion hold하고 supervised restart.
+  NumPy는 전체부하 승인을 별도로 받은 launch profile일 때만 다음 arm 전에 선택할 수 있으며
+  JAX 장애 직후 같은 run에서 자동 fallback하지 않음.
 
 JAX 채택은 kernel 단독 속도가 아니라 전체 시스템 영향으로 결정한다. L515 Gateway, software
 x264, 전체 ROS/CAN/SRT, 로봇팔 YOLO를 동시에 실행해 terrain p99 30 ms 이하, depth 10 Hz deadline
 준수, RGB SRT receiver 29 fps 이상, 동일 장면 YOLO rate 기준선 대비 지속 저하 5% 이하,
-OOM 0을 모두 확인한다. JAX가 이 gate를 통과하지 못하면 NumPy를 production으로 사용한다.
+OOM 0을 모두 확인한다. NumPy도 동일한 전체부하 gate를 독립 통과해야 fallback profile 자격을
+얻는다. 둘 중 하나가 더 빠르더라도 chassis 50 Hz와 시스템 메모리를 더 침해하면 채택하지 않는다.
 
 완료 기준:
 
@@ -388,11 +415,30 @@ track edge overrun, false hold, fail-open, completion, recovery time, estimator 
 ### 8.4 Jetson 통합
 
 - `powertrain_ros`, L515 Gateway, 로봇팔 인식, terrain backend 동시 부하에서 CPU/RSS/GPU
-  memory와 각 rate 측정.
-- NumPy와 JAX 각각 terrain 평균/p99, depth age, CPU/GPU 전송비용, 추가 JIT compile 횟수 측정.
+  memory, `MemAvailable`, swap I/O, EMC/GR3D 사용률, 온도·클럭과 각 rate 측정.
+- NumPy와 JAX 각각 terrain 평균/p99, depth age, CPU buffer→accelerator array
+  materialization/copy·동기화 비용, 추가 JIT compile 횟수 측정.
 - RGB 30 fps 전송 목표를 우선 보존하고 depth/terrain path는 주기를 낮출 수 있음.
 - 프로세스 강제 종료·카메라 분리·네트워크 단절 뒤 고아 프로세스와 중복 SDK owner 0 확인.
 - CAN, L515, D435i 소유권 경계를 침범하지 않는지 확인.
+
+전체부하 backend 채택 gate는 다음과 같다.
+
+- 30분 연속 실행 중 Linux OOM killer 0, terrain/chassis 비정상 종료 0, sustained swap I/O 0.
+- `MemAvailable` 최솟값 1.5 GB 이상. 미달 backend는 kernel 속도와 무관하게 거부.
+- shared-DRAM buffer materialization/copy·동기화 p99 5 ms 미만.
+- chassis telemetry 60초 3000 samples, complete 5초 window 49.8~50.2 Hz, overrun 0,
+  20 ms 대비 tick interval jitter p99 2 ms 이하와 최대 interval 25 ms 이하.
+- terrain p99 30 ms 이하, depth deadline 10 Hz, RGB SRT receiver 29 fps 이상.
+- 동일 장면 로봇팔 YOLO rate 저하 5% 이하.
+- JAX compile은 arm 전 warm-up 1회만 허용하고 arm 뒤 추가 compile 0회.
+- terrain process kill, CUDA device error와 terrain cgroup memory-limit 초과를 주입해 terrain만
+  종료되고 chassis/safety 50 Hz가 유지되며 motion hold로 전이하는지 확인.
+
+Gemini 3.1 Pro 교차검토는 GPU 사용 자체보다 통합 메모리 OOM이 CPU safety까지 전파되는 위험,
+software x264와 NumPy fallback의 CPU 경합, 10 Hz depth에서 CUDA dispatch가 실익보다 클 가능성을
+주요 반대 근거로 제시했다. 위 gate는 이 지적을 실제 시스템 계측으로 판정하기 위한 것이며,
+측정 전 JAX가 NumPy보다 우월하다고 가정하지 않는다.
 
 ### 8.5 HIL 순서
 
