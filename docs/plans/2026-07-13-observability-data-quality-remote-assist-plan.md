@@ -5,14 +5,15 @@
 > 마지막 단계에서 한 번에 수행한다.
 
 **Goal:** 2025 출품작들에서 확인한 좋은 SW 관행을 현재 powertrain 아키텍처에 맞게 도입해,
-실패 원인이 관측 가능하고 depth·시간·TF 품질이 수치화되며 원격주행이 네트워크 열화에도 30 fps와
-공통 안전 경로를 보존하게 한다.
+실패 원인이 관측 가능하고 depth·시간·TF 품질이 수치화되며 원격주행과 원격 팔 조종이 네트워크
+열화에도 L515·D435i 동시 30 fps와 공통 안전 경로를 보존하게 한다.
 
 **Architecture:** 새 ROS wire schema를 만들지 않는다. 제어와 안전은
 `/autonomy/cmd_vel|/teleop/cmd_vel → chassis_node 내부 CommandAuthority → ChassisManager` 경로를
 유지하고 외부 final `/cmd_vel` 경계를 만들지 않는다. 관측성은 same-UID 보호 Linux
 abstract socket을 통해 비차단 이벤트를 단일 journal daemon에 모으고, TUI는 L515 Gateway와
-observability daemon을 독립적으로 조회한다. terrain·wheel consistency·remote assist는 ROS 없는
+observability daemon을 독립적으로 조회한다. D435i raw 영상과 YOLO metadata는 분리 전송하고
+노트북 receiver가 최신 결과만 합성한다. terrain·wheel consistency·remote assist는 ROS 없는
 순수 Python 코어를 먼저 구현하고 얇은 ROS adapter만 추가한다.
 
 **Tech Stack:** Python 3.10, pytest, rclpy/ROS2 Humble adapter, Textual, NumPy 기준 backend,
@@ -28,10 +29,15 @@ JAX qualification backend, Linux abstract Unix socket, `flock`, JSONL, existing 
 - 팔 안전 어휘·`ArmInterlock`·mission FSM·command authority·CAN lock의 단일 소유자는 WP5.2다.
   이 계획은 해당 산출물을 수정하거나 재정의하지 않고 관측 adapter와 후속 기능만 추가한다.
 - L515 SDK owner와 SRT owner는 계속 `python3 -m l515_dashboard.gateway_main` 하나다.
-- observability 장애·디스크 지연·TUI 종료는 chassis 50 Hz, safety, Gateway, SRT를 중단시키지 않는다.
+- D435i SDK owner는 로봇팔 camera-owner process 하나다. 파워트레인은 D435i를 열거나 fallback하지
+  않으며 로봇팔의 현행 `/perception/debug_image → SRT` 시험 경로를 production 입력으로 채택하지 않는다.
+- observability 장애·디스크 지연·TUI 종료는 chassis 50 Hz, safety, 두 camera owner와 두 SRT
+  sender를 중단시키지 않는다.
 - mission journal과 health snapshot은 진단이지 command authority가 아니다.
-- 새 PointCloud2 토픽과 새 encoder pipeline을 만들지 않는다.
-- RGB는 1280×720 30 fps를 우선 보존한다. depth·overlay와 진단 주기는 양보할 수 있다.
+- 새 PointCloud2 토픽, 중복 camera owner와 중복 encoder를 만들지 않는다. D435i의 승인된 arm-side
+  raw sender 하나만 추가하며 powertrain process가 이를 복제하지 않는다.
+- L515 RGB 1280×720×30과 D435i RGB 848×480×30을 동시에 우선 보존한다. L515 depth/overlay와
+  진단 주기는 양보할 수 있지만 두 raw RGB stream의 해상도·FPS는 몰래 낮추지 않는다.
 - CAN health는 실제 `flock` owner가 측정한 값만 권위 있게 표시한다.
 - production threshold와 장착·TF 값은 qualification 뒤 YAML로 동결한다. run 중 자동 튜닝하지 않는다.
 - 네트워크 profile, NumPy/JAX backend와 FP precision은 arm 전에 선택한다. 운용 중 backend 자동
@@ -49,7 +55,7 @@ JAX qualification backend, Linux abstract Unix socket, `flock`, JSONL, existing 
 | Dolbat 구동계 상태 가시화 | CAN 10-node health matrix | 3 |
 | KUDOS·Angchicken 3D 품질 처리 | robust ROI depth와 표면 일관성 | 4 |
 | KUDOS·RO:BIT 좌표계 검증 | sensor time/TF/known-target qualification | 4 |
-| Dolbat 통신 열화 대응 | RGB 30 fps 우선 정적 video profile | 6 |
+| Dolbat 통신 열화 대응 | L515·D435i 동시 30 fps 정적 video profile | 6 |
 | Zenith 운전자 보조 | 공통 authority 안의 semi-auto remote assist | 6 |
 | Dolbat 구동 동기 진단 | wheel mismatch/virtual-shaft monitor | 3 |
 | Dolbat·RO:BIT manipulator safety | WP5.2 팔 실패 결과의 journal adapter | 5 |
@@ -293,7 +299,7 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
   l515_dashboard/tests/test_app.py'
 ```
 
-## Task 6: network-quality video profile과 semi-auto remote assist
+## Task 6: dual-camera network profile과 semi-auto remote assist
 
 **Files:**
 
@@ -307,28 +313,66 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 - Create: `l515_dashboard/tests/test_network_profiles.py`
 - Modify: `l515_dashboard/tests/test_streamer.py`
 - Modify: `l515_dashboard/tests/test_gateway.py`
+- Create: `remote_video/__init__.py`
+- Create: `remote_video/contract.py`
+- Create: `remote_video/metadata.py`
+- Create: `remote_video/tests/test_contract.py`
+- Create: `remote_video/tests/test_metadata.py`
+- Create: `scripts/recv_remote_operation.py`
+- Create: `tests/test_recv_remote_operation.py`
 - Create: `ros2/src/powertrain_ros/powertrain_ros/remote_assist.py`
 - Create: `ros2/src/powertrain_ros/test/test_remote_assist.py`
 - Modify: `ros2/src/powertrain_ros/powertrain_ros/command_authority.py`
 - Modify: `ros2/src/powertrain_ros/test/test_command_authority.py`
 
+**Channel contract:**
+
+- L515 driving RGB: H.264/SRT listener `:5000`, 1280×720×30.
+- D435i arm RGB: H.264/SRT listener `:5002`, 848×480×30. 로봇팔 camera owner가 한 번 capture한
+  raw RGB에서 직접 fan-out하며 YOLO 완료와 `/perception/debug_image`를 기다리지 않는다.
+- D435i detection metadata: best-effort UDP JSON `:5003`. schema version, sender session ID,
+  source frame sequence/capture stamp, bbox, class와 confidence를 포함한다. 16 KiB 초과, 미인식 version,
+  같은 session의 역행 sequence와 비정상 bbox는 폐기한다. source stamp는 correlation·로그용이고
+  Jetson과 노트북 clock의 직접 비교에는 쓰지 않는다. stale은 노트북 local receive monotonic TTL로 판정한다.
+- YOLO worker 입력은 bounded latest-only slot이다. sender보다 느리면 backlog를 처리하지 않고 최신
+  frame으로 건너뛴다. metadata rate는 inference rate 그대로이며 raw video 30 fps 인수조건이 아니다.
+- 노트북 `recv_remote_operation.py`는 두 SRT를 동시에 decode/display하고 D435i metadata만 client-side
+  합성한다. metadata age가 qualification threshold를 넘으면 bbox를 숨기고 `OVERLAY_STALE`을 표시한다.
+  stale overlay나 packet loss가 raw frame 표시를 막지 않는다.
+- 로봇팔 저장소의 D435i owner/sender는 cross-team deliverable이다. powertrain 쪽은 protocol fixture와
+  receiver를 소유하고, 실제 SDK·sender 코드를 중복 구현하지 않는다.
+
 **Static video profiles:**
 
-- `NORMAL`: RGB 1280×720 30 fps, approved bitrate, operator-selected depth/overlay.
-- `CONGESTED`: RGB resolution/FPS 유지, bitrate를 qualification된 한 단계로 낮춤.
-- `EMERGENCY_REMOTE`: RGB 1280×720 30 fps만 유지하고 depth/overlay SRT submit 중단.
-- receiver는 decode/display fps, frame age, sequence gap, RTT/loss heartbeat를 역방향 control channel로
-  보낸다. 이 feedback가 전환·원격 가용성의 authority이고, sender submit/sent/drop은 downgrade 힌트다.
-  receiver feedback stale은 `REMOTE_VIDEO_UNAVAILABLE`이다. 진입과 복귀 threshold를 다르게 하고 최소
-  dwell time을 둔다.
+- `NORMAL`: L515 1280×720×30과 D435i 848×480×30 raw RGB, approved bitrate, operator-selected
+  L515 depth/overlay, D435i metadata.
+- `CONGESTED`: 두 raw stream의 resolution/FPS 유지, 각 bitrate를 qualification된 한 단계로 낮춤.
+- `EMERGENCY_REMOTE`: 두 raw RGB를 유지하고 L515 depth/overlay SRT submit을 중단. D435i metadata는
+  best effort로 계속 보내되 raw video나 command path를 block하지 않음.
+- receiver는 채널별 decode/display fps, frame age, sequence gap, RTT/loss heartbeat를 역방향 control
+  channel로 보낸다. 이 feedback가 원격 가용성의 authority이고 sender submit/sent/drop은 downgrade
+  힌트다. L515 feedback stale은 `REMOTE_DRIVE_VIDEO_UNAVAILABLE`, D435i raw feedback stale은
+  `REMOTE_ARM_VIDEO_UNAVAILABLE`이다. 진입과 복귀 threshold를 다르게 하고 최소 dwell time을 둔다.
 - profile 전환은 기존 x264 process를 supervised replacement하는 경계에서만 수행한다. 운용 중
   새 encoder 종류나 임의 pipeline string은 허용하지 않는다.
-- 최저 qualified bitrate의 `EMERGENCY_REMOTE`에서도 receiver 29 fps를 유지하지 못하면 해상도·fps를
-  몰래 낮추지 않고 `REMOTE_VIDEO_UNAVAILABLE`로 전이해 motion hold한다. 스트림은 reconnect를
-  계속 시도하지만 운영자 영상 없이 원격주행을 허용하지 않는다.
-- 전환 acceptance는 orphan/encoder overlap 0, 최대 blackout, 첫 IDR 수신시간, 복구 뒤 첫 완전한
-  5초 window의 receiver ≥29 fps로 판정한다. blackout 동안은 승인된 motion hold 또는 최저속 policy를
-  적용하고 마지막 frame만 보고 계속 주행하지 않는다.
+- 최저 qualified bitrate의 `EMERGENCY_REMOTE`에서도 어느 raw receiver든 29 fps를 유지하지 못하면
+  해상도·fps를 몰래 낮추지 않는다. L515 stale은 원격주행, D435i stale은 원격 팔 명령을 motion
+  hold하고 reconnect를 계속 시도한다. companion stream 장애를 무관한 subsystem의 latched E-stop으로
+  승격하지 않지만 dual-stream readiness acceptance는 실패시킨다.
+- 전환 acceptance는 채널별 orphan/encoder overlap 0, 최대 blackout, 첫 IDR 수신시간과 복구 뒤
+  동일한 첫 완전한 5초 window에서 두 receiver 모두 ≥29 fps로 판정한다. blackout 동안 마지막
+  frame만 보고 명령을 계속하지 않는다.
+
+**Remote arm video safety:**
+
+- 원격 팔 명령은 fresh D435i raw receiver feedback, operator deadman, fresh remote input과
+  `MISSION_STOP`/wheel-stop 계약을 모두 요구한다. 하나라도 stale이면 팔 명령을 hold하고 차체는
+  `MISSION_STOP`을 유지한다. 이 경로는 chassis latched E-stop이 아니다.
+- overlay metadata는 보조 정보이며 팔 명령 authority가 아니다. metadata 유실·stale은 overlay만
+  숨기고 raw video와 deadman이 fresh하면 수동 팔 조종을 허용한다.
+- L515와 D435i는 동시에 표시하지만 safety predicate는 operation별이다. L515 raw freshness는
+  remote drive, D435i raw freshness는 remote arm을 gate한다. 비권위 companion 장애를 다른 동작의
+  안전근거로 오판하지 않는다.
 
 **Remote assist contract:**
 
@@ -344,13 +388,15 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 
 **Steps:**
 
-1. receiver feedback freshness, profile hysteresis, dwell, RGB 30 fps invariant, overlay/depth disable의
-   순수 테스트를 작성한다.
-2. operator speed ownership, correction clamp, confidence degradation, stale, deadman,
+1. 두 receiver feedback freshness, profile hysteresis, dwell, 동시 RGB 30 fps invariant와 L515
+   overlay/depth disable의 순수 테스트를 작성한다.
+2. D435i metadata schema, sequence/stamp, TTL, packet loss·reorder·oversize와 stale overlay hide를
+   시험하고 YOLO가 지연돼도 raw receiver cadence가 독립임을 fake sender로 검증한다.
+3. operator speed ownership, correction clamp, confidence degradation, stale, deadman,
    `ASSIST_BYPASS` 1-tick 해제와 zero-confirmed handover 테스트를 작성한다.
-3. static profile state machine과 supervised x264 replacement를 구현한다.
-4. remote assist 순수 함수를 구현하고 command authority의 remote profile에만 연결한다.
-5. profile·assist 개입량·해제 원인을 observability event로 기록한다.
+4. static profile state machine, dual receiver와 supervised x264 replacement를 구현한다.
+5. remote assist 순수 함수를 구현하고 command authority의 remote profile에만 연결한다.
+6. 채널별 profile·receiver health·overlay age와 assist 개입량·해제 원인을 observability event로 기록한다.
 
 **Verify:**
 
@@ -361,6 +407,8 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
   l515_dashboard/tests/test_network_profiles.py \
   l515_dashboard/tests/test_receiver_feedback.py \
   l515_dashboard/tests/test_streamer.py l515_dashboard/tests/test_gateway.py \
+  remote_video/tests/test_contract.py remote_video/tests/test_metadata.py \
+  tests/test_recv_remote_operation.py \
   ros2/src/powertrain_ros/test/test_remote_assist.py \
   ros2/src/powertrain_ros/test/test_command_authority.py'
 ```
@@ -398,8 +446,9 @@ P2/stretch는 vcan 10모터와 Isaac adapter다. 일정상 P2를 P0/P1보다 먼
 1. manifest schema와 checksum drift 실패 테스트를 작성한다.
 2. regression runner가 같은 fixture ID의 backend별 결과를 비교하고 fail-open, false hold, minimum
    clearance, runtime, reject reason을 기록하게 한다.
-3. channel matrix가 ROS/DDS, SRT receiver, remote input, arm heartbeat, CAN telemetry, L515 Gateway를
-   하나씩 kill/restart하고 기대 hold·TUI 표시·journal event·고아 process 수를 검사하게 한다.
+3. channel matrix가 ROS/DDS, L515/D435i SRT receiver, D435i metadata, remote input, arm heartbeat,
+   CAN telemetry와 두 camera owner를 하나씩 kill/restart하고 operation별 기대 hold·TUI 표시·journal
+   event·고아 process 수를 검사하게 한다.
 4. production process kill은 Compose supervised replacement를 사용하고 Gateway RSUSB pipeline을
    in-process 재사용하지 않는다.
 
@@ -429,8 +478,8 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 1. 전체 관련 pytest와 기존 motor/L515/ROS 회귀시험 통과.
 2. MuJoCo hidden seed와 Isaac/real replay 환경 manifest 통과.
 3. observability daemon kill·디스크 오류가 chassis 50 Hz와 Gateway RGB에 영향을 주지 않음.
-4. network profile 전환에서 orphan/overlap 0, blackout·첫 IDR 한계 충족, 복구 뒤 첫 완전한 5초
-   window RGB receiver 29 fps 이상.
+4. network profile 전환에서 두 sender 각각 orphan/overlap 0, blackout·첫 IDR 한계 충족, 복구 뒤
+   동일한 첫 완전한 5초 window에서 L515·D435i receiver 각각 29 fps 이상.
 5. remote assist stale·사망·disable에서 마지막 correction 유지 0.
 6. WP5.2의 cross-container CAN lock과 ODrive 11~16 wheel-stop YAML이 qualified 상태임.
 
@@ -438,14 +487,16 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 
 1. 10개 CAN node matrix 정상/전원단절/stale/fault/복구 식별.
 2. L515 pitch 20°/25°/30°, known-target XYZ, 팔/물자 가림, depth hole·아래 바닥·뱅크 기록.
-3. ROS, SRT, remote, arm, CAN, L515를 하나씩 분리·재연결해 독립 channel 진단과 recovery 확인.
-4. 제한된 네트워크에서 `NORMAL → CONGESTED → EMERGENCY_REMOTE → NORMAL` hysteresis와 RGB 30 fps,
-   receiver feedback stale·최저 bitrate 미달 시 `REMOTE_VIDEO_UNAVAILABLE` motion hold.
+3. ROS, L515/D435i SRT, D435i metadata, remote, arm, CAN과 두 camera owner를 하나씩
+   분리·재연결해 독립 channel 진단과 recovery 확인.
+4. 제한된 네트워크에서 `NORMAL → CONGESTED → EMERGENCY_REMOTE → NORMAL` hysteresis와 두 raw
+   RGB 30 fps를 확인한다. L515 feedback stale은 원격주행, D435i raw feedback stale은 원격 팔
+   조종을 hold하고 metadata stale은 overlay만 숨기는지 검증한다.
 5. 바퀴 부양 상태에서 반자동 원격 centering·speed cap·`ASSIST_BYPASS` 즉시 해제,
    zero-confirmed stop과 모든 chassis gate.
 6. 필수 `FAILED`와 지원되는 선택 팔 진단을 포함한 mission journal 상관관계와 locked-posture resume gate.
-7. 30분 전체부하에서 chassis 50 Hz, RGB receiver 29 fps 이상, OOM 0, journal drop 0 또는 승인된
-   상한 이하, 고아 process 0.
+7. 30분 전체부하에서 chassis 50 Hz, 같은 5초 window의 L515·D435i receiver 각각 29 fps 이상,
+   YOLO backlog 0, OOM 0, journal drop 0 또는 승인된 상한 이하, 고아 process 0.
 
 **Freeze:**
 
