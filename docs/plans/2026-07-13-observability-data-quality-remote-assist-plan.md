@@ -30,6 +30,12 @@ JAX qualification backend, Linux abstract Unix socket, `flock`, JSONL, existing 
   P0/P1 simulation과 replay 뒤에 실행한다. 두 계획이 같은 파일을 동시에 수정하지 않는다.
 - 팔 안전 어휘·`ArmInterlock`·mission FSM·command authority·CAN lock의 단일 소유자는 WP5.2다.
   이 계획은 해당 산출물을 수정하거나 재정의하지 않고 관측 adapter와 후속 기능만 추가한다.
+  단 하나의 명시적 예외: Task 6은 `command_authority.py`에 remote-assist profile 연결(보정 합성
+  hook)을 추가하는 범위에 한해 수정할 수 있으며, 상태 집합·전환 규칙·안전 gate 의미는 변경하지
+  않는다.
+- Verify 공통 규칙: 셸 체인은 `set -e`로 실패를 전파하고(pytest가 마지막 명령이 아닌 체인에서
+  `;`가 실패를 은폐하지 않게), generated msg를 import하는 node 통합 시험은 WP5.2 계획의
+  colcon `/tmp` 빌드 규칙(`--build-base /tmp/build --install-base /tmp/install` 후 source)을 따른다.
 - L515 SDK owner와 SRT owner는 계속 `python3 -m l515_dashboard.gateway_main` 하나다.
 - D435i SDK owner는 로봇팔 camera-owner process 하나다. 파워트레인은 D435i를 열거나 fallback하지
   않으며 로봇팔의 현행 `/perception/debug_image → SRT` 시험 경로를 production 입력으로 채택하지 않는다.
@@ -171,6 +177,9 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 
 - Modify: `motor_control/chassis/telemetry.py`
 - Modify: `motor_control/chassis/chassis_manager.py`
+- Modify: `motor_control/corner_module/steer_ak40.py`
+- Modify: `motor_control/corner_module/drive_odrive_can.py`
+- Create: `motor_control/corner_module/tests/test_driver_health_fields.py`
 - Create: `motor_control/chassis/wheel_consistency.py`
 - Create: `motor_control/chassis/tests/test_wheel_consistency.py`
 - Modify: `motor_control/chassis/tests/test_chassis_manager.py`
@@ -194,7 +203,10 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 2. same-side wheel command/measurement delta, left-right wheel yaw와 IMU yaw mismatch, single-wheel
    spin/stop, command/encoder response ratio의 순수 monitor 테스트를 작성한다.
 3. `ChassisManager.snapshot()`이 한 tick에서 immutable node health와 wheel consistency 결과를 만들게
-   구현한다. 진단 계산은 모터 command 경로에서 blocking I/O를 추가하지 않는다.
+   구현한다. 진단 계산은 모터 command 경로에서 blocking I/O를 추가하지 않는다. 요구 필드
+   (feedback age/rate, recovery count, ODrive axis state)는 현행 드라이버 `state()`가 노출하지
+   않으므로 `steer_ak40`/`drive_odrive_can`에 수동 집계 필드 추가를 포함한다(기존 수신 경로에서
+   카운터만 갱신, 추가 I/O 없음).
 4. 초기 production action은 `WARN`과 terrain-profile speed cap만 허용한다. 자동 wheel별 torque
    redistribution API는 만들지 않는다.
 5. chassis node가 nonblocking observability event를 보내고 TUI가 10-node matrix를 표시하게 한다.
@@ -263,7 +275,7 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 
 ```bash
 docker build -f docker/Dockerfile.autonomy -t powertrain-sw:autonomy .
-docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace/ros2 \
+docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
   -e PYTHONPATH=/workspace:/workspace/motor_control \
   powertrain-sw:autonomy -lc 'pytest -q \
   /workspace/powertrain_autonomy/tests/test_depth_quality.py \
@@ -355,10 +367,15 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 
 **Static video profiles:**
 
-- `NORMAL`: L515 1280×720×30과 D435i 848×480×30 raw RGB, approved bitrate, operator-selected
-  L515 depth/overlay, D435i metadata.
+- `NORMAL`: L515 1280×720×30과 D435i 848×480×30 raw RGB, approved bitrate, D435i metadata.
+  L515 depth/overlay는 별도 동시 채널이 아니다 — 현행 L515 Gateway는 단일 GStreamer
+  process/mode를 소유하므로 depth/overlay는 같은 `:5000` 스트림의 operator-selected **mode
+  전환**으로만 제공한다. 전환 중 L515 RGB feedback은 stale이 되어 원격주행이 hold되며(의도된
+  동작), mode 선택은 운영자 명시 행위로 journal에 기록한다. 원격주행 가용성 판정은 RGB mode
+  복귀 후의 receiver feedback만 사용한다.
 - `CONGESTED`: 두 raw stream의 resolution/FPS 유지, 각 bitrate를 qualification된 한 단계로 낮춤.
-- `EMERGENCY_REMOTE`: 두 raw RGB를 유지하고 L515 depth/overlay SRT submit을 중단. D435i metadata는
+- `EMERGENCY_REMOTE`: 두 raw RGB를 유지하고 L515 depth/overlay SRT submit을 중단(L515 mode를
+  RGB로 고정). D435i metadata는
   best effort로 계속 보내되 raw video나 command path를 block하지 않음.
 - receiver는 채널별 decode/display fps, frame age, sequence gap, RTT/loss heartbeat를 역방향 control
   channel로 보낸다. 이 feedback가 원격 가용성의 authority이고 sender submit/sent/drop은 downgrade
@@ -483,7 +500,7 @@ P2/stretch는 vcan 10모터와 Isaac adapter다. 일정상 P2를 P0/P1보다 먼
 ```bash
 docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
   -e PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros:/workspace/motor_control \
-  powertrain-sw:ros -lc 'source /opt/ros/humble/setup.bash; \
+  powertrain-sw:ros -lc 'set -e; source /opt/ros/humble/setup.bash; \
   pytest -q tests/test_environment_manifest.py tests/test_channel_fault_matrix.py; \
   python3 scripts/run_autonomy_regression.py \
   --manifest tests/fixtures/environment/manifest.yaml --dry-run'
