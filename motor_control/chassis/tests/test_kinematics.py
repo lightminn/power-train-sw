@@ -47,8 +47,12 @@ def test_inner_wheel_steers_more():
 
 def test_front_rear_opposite_phase():
     r = solve(g(), **TURN)             # 4WS 협조: 뒤축은 앞축과 반대로
-    assert r.wheels["rear_left"].steer_deg == pytest.approx(
-        -r.wheels["front_left"].steer_deg, abs=1e-6)
+    # 앞·뒤 축의 x 절댓값은 같아도 윤거가 다르면 각도 크기는 달라진다.
+    # 협조 조향의 불변 조건은 같은 측 앞/뒤의 부호가 반대라는 점이다.
+    assert r.wheels["front_left"].steer_deg > 0
+    assert r.wheels["rear_left"].steer_deg < 0
+    assert r.wheels["front_right"].steer_deg > 0
+    assert r.wheels["rear_right"].steer_deg < 0
 
 
 def test_outer_wheels_faster():

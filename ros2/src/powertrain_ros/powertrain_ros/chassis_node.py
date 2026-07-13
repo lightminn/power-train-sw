@@ -309,7 +309,10 @@ class ChassisNode(Node):
                     "safety_topic_stale",
                 )
 
-        self._expire_speed_scale(now_ms)
+        # `_tick` is also exercised as an unbound method with a lightweight
+        # node fixture. Calling through the class keeps that contract while
+        # behaving identically for a real ChassisNode instance.
+        ChassisNode._expire_speed_scale(self, now_ms)
 
         started = time.monotonic()
         try:
