@@ -32,6 +32,23 @@ STEERABLE = ("front_left", "front_right", "rear_left", "rear_right")
 ALL_WHEELS = ("front_left", "front_right", "mid_left", "mid_right",
               "rear_left", "rear_right")
 
+# ── CAD URDF(rover_cad_boxes.urdf) 의 조인트 이름·부호 ────────────────────
+# 설계팀 CAD 는 조인트 이름이 다르고(`steer_front_left`, `wheel_center_left`), **회전축 부호도
+# 반대**다. base_link 프레임에서 축을 풀어보면:
+#   · 조향 4개 전부 **−Z** (우리 규약은 +Z=좌회전) → **부호 반전**
+#   · 구동 좌측 −Y / 우측 +Y  → 전진 롤은 +Y 축 기준 음의 회전이므로 좌=+θ, 우=−θ
+# 이름·부호를 여기서 맞춰주면 같은 `/wheel_states` 로 **우리 xacro 와 CAD 둘 다** 움직인다.
+# (두 이름을 다 발행한다 — robot_state_publisher 는 URDF 에 없는 조인트는 그냥 무시한다.)
+CAD_WHEEL = {"front_left": "front_left", "front_right": "front_right",
+             "mid_left": "center_left", "mid_right": "center_right",
+             "rear_left": "rear_left", "rear_right": "rear_right"}
+CAD_STEER_SIGN = -1.0
+CAD_DRIVE_SIGN = {n: (1.0 if n.endswith("_left") else -1.0) for n in ALL_WHEELS}
+
+# 로커·보기 서스펜션 — **센서가 없다.** 0 으로 고정 발행해야 RViz 가 TF 를 그린다
+# (안 보내면 그 아래 링크가 통째로 안 그려진다).
+CAD_PASSIVE = ("rocker_left", "rocker_right", "bogie_left", "bogie_right")
+
 
 class JointStateBridge(Node):
     def __init__(self):
@@ -75,10 +92,16 @@ class JointStateBridge(Node):
 
         js = JointState()
         js.header.stamp = now.to_msg()
-        js.name = ([f"{n}_steer_joint" for n in STEERABLE]
-                   + [f"{n}_wheel_joint" for n in ALL_WHEELS])
+        js.name = ([f"{n}_steer_joint" for n in STEERABLE]        # 우리 xacro
+                   + [f"{n}_wheel_joint" for n in ALL_WHEELS]
+                   + [f"steer_{CAD_WHEEL[n]}" for n in STEERABLE]  # 설계팀 CAD
+                   + [f"wheel_{CAD_WHEEL[n]}" for n in ALL_WHEELS]
+                   + list(CAD_PASSIVE))
         js.position = ([self._steer[n] for n in STEERABLE]
-                       + [self._angle[n] for n in ALL_WHEELS])
+                       + [self._angle[n] for n in ALL_WHEELS]
+                       + [CAD_STEER_SIGN * self._steer[n] for n in STEERABLE]
+                       + [CAD_DRIVE_SIGN[n] * self._angle[n] for n in ALL_WHEELS]
+                       + [0.0] * len(CAD_PASSIVE))
         self.pub.publish(js)
 
     def _log(self):

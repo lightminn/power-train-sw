@@ -24,7 +24,8 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
-from launch.substitutions import Command, LaunchConfiguration, NotSubstitution
+from launch.substitutions import (Command, LaunchConfiguration, NotSubstitution,
+                                  PythonExpression)
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -32,9 +33,18 @@ from launch_ros.parameter_descriptions import ParameterValue
 def generate_launch_description():
     share = get_package_share_directory("powertrain_ros")
     xacro_path = os.path.join(share, "urdf", "jetin_rover.urdf.xacro")
+    cad_path = os.path.join(share, "urdf", "cad", "rover_cad_boxes.urdf")
 
-    robot_description = ParameterValue(
-        Command(["xacro ", xacro_path]), value_type=str)
+    # cad:=true → 설계팀 CAD 형상. `xacro` 는 순수 URDF 도 그대로 통과시키므로 명령은 같다.
+    #
+    # ⚠️ CAD zip 에 **STL 메시가 없어서**(103종 전부 누락) 형상은 관성텐서에서 역산한
+    #    상자·원통이다 — `scripts/urdf_boxes_from_inertia.py`. 링크 배치·조인트 축·치수는
+    #    전부 진짜 CAD 값이고(축거 875 / 윤거 705·879·585 mm), **껍데기만 근사**다.
+    #    메시가 오면 이 파일을 갈아끼운다.
+    urdf = PythonExpression(
+        ["'", cad_path, "' if '", LaunchConfiguration("cad"), "'=='true' else '",
+         xacro_path, "'"])
+    robot_description = ParameterValue(Command(["xacro ", urdf]), value_type=str)
 
     fake = LaunchConfiguration("fake_wheels")
     args = [
@@ -47,6 +57,9 @@ def generate_launch_description():
             description="🛑 벤치 전용 — 가짜 /wheel_states 로 주행을 흉내낸다. 실차 금지."),
         DeclareLaunchArgument("course", default_value="square",
                               description="가짜 주행 코스 (straight/circle/square/figure8/pivot)"),
+        DeclareLaunchArgument(
+            "cad", default_value="false",
+            description="설계팀 CAD 형상으로 띄운다 (기본은 우리 단순 모델)"),
         DeclareLaunchArgument(
             "lane", default_value="false",
             description="레인 추종 노드를 띄운다 (인식만 — 주행은 command_authority 가 결정)"),

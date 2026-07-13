@@ -1,0 +1,2184 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="urdf_2">
+    <link name="base_link" />
+    <joint name="base_to_cad" type="fixed">
+        <parent link="base_link" />
+        <child link="base_link_1_3030_240mm_1" />
+        <origin xyz="-0.317828 0.200000 0.323487" rpy="0 0 -1.5707963" />
+    </joint>
+    <link name="base_link_1_3030_500mm_2">
+        <inertial>
+            <origin xyz="0.015000248066101776 0.23499998163086422 5.329070518200751e-16" rpy="0.0 -0.0 0.0" />
+            <mass value="0.5402577850542511" />
+            <inertia ixx="0.011303913639007651" iyy="9.7086234126853e-05" izz="0.011303913639020485" ixy="-1.2016686940646835e-08" iyz="-6.938896297604047e-18" ixz="-3.4694469519536138e-18" />
+        </inertial>
+        <visual>
+            <origin xyz="0.015000248066101776 0.23499998163086422 5.329070518200751e-16" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.500000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_3030_500mm_1">
+        <inertial>
+            <origin xyz="4.263256414560601e-16 -1.8368853318406766e-08 -0.015000001933685461" rpy="0.0 -0.0 0.0" />
+            <mass value="0.5402577850542511" />
+            <inertia ixx="0.011303913639020495" iyy="9.708623412682527e-05" izz="0.011303913639007623" ixy="-2.544632439923918e-30" iyz="1.2016686944116284e-08" ixz="-3.794965962194673e-34" />
+        </inertial>
+        <visual>
+            <origin xyz="4.263256414560601e-16 -1.8368853318406766e-08 -0.015000001933685461" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.500000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_3030_340mm_1">
+        <inertial>
+            <origin xyz="0.015000000000000391 6.0373928079116016e-15 -3.916028263308817e-09" rpy="-1.3684503113236292e-48 2.736911063134409e-48 -1.3684555315672045e-48" />
+            <mass value="0.3673752938368907" />
+            <inertia ixx="0.003572057983560847" iyy="0.003572057983556808" izz="6.601863920151912e-05" ixy="7.564127005249962e-25" iyz="-3.759402700136694e-09" ixz="-4.1941527079108155e-18" />
+        </inertial>
+        <visual>
+            <origin xyz="0.015000000000000391 6.0373928079116016e-15 -3.916028263308817e-09" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.340000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_3030_340mm_2">
+        <inertial>
+            <origin xyz="3.907985046680551e-15 -0.23499981999972408 0.1700002500484443" rpy="0.0 -0.0 0.0" />
+            <mass value="0.3673752938368907" />
+            <inertia ixx="0.0035720579835608335" iyy="0.003572057983556781" izz="6.601863920149831e-05" ixy="6.938893903908025e-18" iyz="-3.759402700831173e-09" ixz="6.742960037327308e-17" />
+        </inertial>
+        <visual>
+            <origin xyz="3.907985046680551e-15 -0.23499981999972408 0.1700002500484443" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.340000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_3030_240mm_1">
+        <inertial>
+            <origin xyz="0.015000000000202943 0.015000000000000013 0.11999999999999998" rpy="0.0 0.0 0.0" />
+            <mass value="0.25932373682604426" />
+            <inertia ixx="0.0012680546329404399" iyy="0.0012680546329881886" izz="4.660139239856531e-05" ixy="5.722228682488707e-20" iyz="-1.8009307119754689e-19" ixz="-4.2515202415078315e-19" />
+        </inertial>
+        <visual>
+            <origin xyz="0.015000000000202943 0.015000000000000013 0.11999999999999998" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.240000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_3030_240mm_2">
+        <inertial>
+            <origin xyz="0.12000000000000036 -1.9836871821610204e-07 -0.18499999995124622" rpy="1.36845553156286e-48 -3.5032461608120435e-46 -1.7516230804060217e-46" />
+            <mass value="0.25932373682604426" />
+            <inertia ixx="4.66013923985653e-05" iyy="0.001268054632988166" izz="0.0012680546329404407" ixy="1.8177414125999556e-33" iyz="-3.4694469519536138e-18" ixz="4.148322968812738e-33" />
+        </inertial>
+        <visual>
+            <origin xyz="0.12000000000000036 -1.9836871821610204e-07 -0.18499999995124622" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.240000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_3030_240mm_3">
+        <inertial>
+            <origin xyz="0.15000000000000055 1.983689995821436e-07 0.18499999608366227" rpy="-1.3684503113236292e-48 2.736911063134409e-48 -1.3684555315672045e-48" />
+            <mass value="0.25932373682604426" />
+            <inertia ixx="4.66013923985653e-05" iyy="0.001268054632988159" izz="0.0012680546329404269" ixy="1.0408340865729069e-17" iyz="-2.168404344971009e-19" ixz="3.4694469519536138e-18" />
+        </inertial>
+        <visual>
+            <origin xyz="0.15000000000000055 1.983689995821436e-07 0.18499999608366227" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.240000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_3030_500mm_3">
+        <inertial>
+            <origin xyz="7.105427357601002e-16 -1.8368853105243943e-08 -0.015000001933685567" rpy="0.0 -0.0 0.0" />
+            <mass value="0.5402577850542511" />
+            <inertia ixx="0.011303913639020544" iyy="9.708623412679751e-05" izz="0.011303913639007651" ixy="1.915285968949627e-35" iyz="1.2016686954524625e-08" ixz="6.93889390390724e-18" />
+        </inertial>
+        <visual>
+            <origin xyz="7.105427357601002e-16 -1.8368853105243943e-08 -0.015000001933685567" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.500000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_3030_500mm_4">
+        <inertial>
+            <origin xyz="0.015000248066103837 0.23499998163086477 4.263256414560601e-16" rpy="0.0 -0.0 0.0" />
+            <mass value="0.5402577850542511" />
+            <inertia ixx="0.011303913639007679" iyy="9.708623412688078e-05" izz="0.01130391363902028" ixy="-1.2016686871257898e-08" iyz="-4.163336579658022e-17" ixz="-2.081668171172425e-17" />
+        </inertial>
+        <visual>
+            <origin xyz="0.015000248066103837 0.23499998163086477 4.263256414560601e-16" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.500000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_3030_340mm_4">
+        <inertial>
+            <origin xyz="-0.18500000391602867 -1.999999963109289e-07 -0.015000000000002345" rpy="0.0 -0.0 0.0" />
+            <mass value="0.3673752938368907" />
+            <inertia ixx="6.601863920155382e-05" iyy="0.003572057983556823" izz="0.003572057983560843" ixy="-3.759402705603357e-09" iyz="-5.635713788827382e-33" ixz="-4.10322918041511e-17" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.18500000391602867 -1.999999963109289e-07 -0.015000000000002345" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.340000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_3030_340mm_5">
+        <inertial>
+            <origin xyz="7.815970093361102e-16 -0.23499981999972389 0.17000025004844468" rpy="0.0 -0.0 0.0" />
+            <mass value="0.3673752938368907" />
+            <inertia ixx="0.003572057983560778" iyy="0.003572057983556781" izz="6.601863920149831e-05" ixy="7.044623540026734e-34" iyz="-3.75940269532256e-09" ixz="-1.8638430608738826e-18" />
+        </inertial>
+        <visual>
+            <origin xyz="7.815970093361102e-16 -0.23499981999972389 0.17000025004844468" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.340000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_3030_340mm_6">
+        <inertial>
+            <origin xyz="0.01500000000000007 0.01500000000000007 0.16999999999999996" rpy="-3.372144891403597e-30 -0.0 1.9721522630525295e-31" />
+            <mass value="0.3673752938368907" />
+            <inertia ixx="0.003572057983560824" iyy="0.003572057983560801" izz="6.601863919746724e-05" ixy="-1.247394211321663e-21" iyz="7.761534949258445e-19" ixz="4.876782642918157e-19" />
+        </inertial>
+        <visual>
+            <origin xyz="0.01500000000000007 0.01500000000000007 0.16999999999999996" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.340000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_3030_240mm_4">
+        <inertial>
+            <origin xyz="0.12000000000000065 1.983692706630791e-07 0.1850000000485408" rpy="1.36845553156286e-48 -3.5032461608120435e-46 -1.7516230804060217e-46" />
+            <mass value="0.25932373682604426" />
+            <inertia ixx="4.66013923985653e-05" iyy="0.0012680546329881521" izz="0.0012680546329404546" ixy="-6.938893903907225e-18" iyz="1.5629980087651619e-35" ixz="4.148322968812787e-33" />
+        </inertial>
+        <visual>
+            <origin xyz="0.12000000000000065 1.983692706630791e-07 0.1850000000485408" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.240000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_main_plate2_1">
+        <inertial>
+            <origin xyz="-0.13421891003147507 0.01799998836912657 -0.015000021234662349" rpy="0.0 -0.0 0.0" />
+            <mass value="7.906227" />
+            <inertia ixx="1.652963360e-02" iyy="4.366457586e-02" izz="5.807325239e-02" ixy="-1.350487456e-16" iyz="1.544991668e-08" ixz="1.323198154e-32" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.13421891003147507 0.01799998836912657 -0.015000021234662349" rpy="0 0 0" />
+            <geometry>
+                <box size="0.254291 0.153228 0.040120" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_chassis_pivot_1">
+        <inertial>
+            <origin xyz="0.03363242603651834 0.0006872355571050904 0.02595699264890584" rpy="0.0 -0.0 0.0" />
+            <mass value="0.21998625352234663" />
+            <inertia ixx="0.0007786386988097587" iyy="0.0008418512804548375" izz="0.0002992114667285281" ixy="-2.177749934214463e-06" iyz="3.924250323274898e-06" ixz="0.00012067012974200519" />
+        </inertial>
+        <visual>
+            <origin xyz="0.03363242603651834 0.0006872355571050904 0.02595699264890584" rpy="0 0 0" />
+            <geometry>
+                <box size="0.099423 0.080229 0.189834" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_3030_340mm_7">
+        <inertial>
+            <origin xyz="6.394884621840901e-16 -0.14999982000005516 0.17000016277351765" rpy="0.0 -0.0 0.0" />
+            <mass value="0.3673752938368907" />
+            <inertia ixx="0.003572057983560808" iyy="0.003572057983556781" izz="6.601863920149831e-05" ixy="-3.4694469519536134e-18" iyz="-3.759402699312825e-09" ixz="4.353795671001407e-18" />
+        </inertial>
+        <visual>
+            <origin xyz="6.394884621840901e-16 -0.14999982000005516 0.17000016277351765" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.018958" length="0.340000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_mounting_plateMirror_1">
+        <inertial>
+            <origin xyz="-0.13421891003147238 -0.01800001163113599 -0.014999978765548363" rpy="0.0 -0.0 0.0" />
+            <mass value="7.906227" />
+            <inertia ixx="1.652963360e-02" iyy="4.366457586e-02" izz="5.807325239e-02" ixy="-1.350487456e-16" iyz="1.544991681e-08" ixz="-2.700974911e-16" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.13421891003147238 -0.01800001163113599 -0.014999978765548363" rpy="0 0 0" />
+            <geometry>
+                <box size="0.254291 0.153228 0.040120" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_chassis_pivotMirror_1">
+        <inertial>
+            <origin xyz="-0.033632427031762266 -0.0006873073114241634 -0.025956992648910104" rpy="0.0 -0.0 0.0" />
+            <mass value="0.21998625352234663" />
+            <inertia ixx="0.0007786387081505437" iyy="0.0008418512711140455" izz="0.0002992114667285246" ixy="-2.17788549545378e-06" iyz="3.924509103934993e-06" ixz="0.00012067012132605323" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.033632427031762266 -0.0006873073114241634 -0.025956992648910104" rpy="0 0 0" />
+            <geometry>
+                <box size="0.099423 0.080229 0.189834" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="base_link_1_diferential_bar_mount_1">
+        <inertial>
+            <origin xyz="-0.01500000017262778 -0.02437209285909681 3.103938665993824e-08" rpy="2.1895288505073937e-47 -4.379057701015054e-47 2.3509887016445755e-38" />
+            <mass value="0.015537172855403942" />
+            <inertia ixx="3.7551549952738106e-06" iyy="3.130133494968177e-06" izz="3.8006999320437315e-06" ixy="9.001870429625677e-14" iyz="7.190514940590824e-13" ixz="-1.0714884064705658e-19" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.01500000017262778 -0.02437209285909681 3.103938665993824e-08" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.020073" length="0.041341" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_L_1_rocker_vertex_front_1">
+        <inertial>
+            <origin xyz="1.5937991463488287e-07 0.031910555777412954 -0.007088321095638648" rpy="0.0 -0.0 3.891344262755744e-95" />
+            <mass value="0.207370328568481" />
+            <inertia ixx="0.00022647169286411917" iyy="0.00014813748665181564" izz="0.00020829150409499425" ixy="-2.0720175575306143e-11" iyz="3.236671850145867e-05" ixz="1.7825677392502293e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="1.5937991463488287e-07 0.031910555777412954 -0.007088321095638648" rpy="0 0 0" />
+            <geometry>
+                <box size="0.061320 0.091067 0.069370" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_L_1_rocker_vertex_rear_1">
+        <inertial>
+            <origin xyz="-4.4371142493560003e-08 -0.034013067179176425 -0.004190191338225234" rpy="0.0 -0.0 3.891344262755744e-95" />
+            <mass value="0.20999142341424265" />
+            <inertia ixx="0.00023737035160597414" iyy="0.0001393261838207871" izz="0.0002296553349536122" ixy="-9.677190125623181e-11" iyz="-2.2525114554374902e-05" ixz="-5.8011331849350256e-11" />
+        </inertial>
+        <visual>
+            <origin xyz="-4.4371142493560003e-08 -0.034013067179176425 -0.004190191338225234" rpy="0 0 0" />
+            <geometry>
+                <box size="0.061323 0.096764 0.064818" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_L_1_rocker_pivot_v3_1">
+        <inertial>
+            <origin xyz="-0.03549401214383646 -1.1502052927880868e-08 1.928396969219648e-08" rpy="0.0 -0.0 -3.550468081197842e-95" />
+            <mass value="0.381938521629057" />
+            <inertia ixx="0.0004998937983420743" iyy="0.0003967257978381433" izz="0.00042208068875356636" ixy="1.4510814078105838e-10" iyz="-7.35827787590182e-11" ixz="-1.0006388079242257e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.03549401214383646 -1.1502052927880868e-08 1.928396969219648e-08" rpy="0 0 0" />
+            <geometry>
+                <box size="0.070781 0.090837 0.086341" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_L_1_rocker_base_front_1">
+        <inertial>
+            <origin xyz="2.108251032240105e-07 0.0276502625743629 1.205406285009758e-08" rpy="0.0 -0.0 3.891344262755744e-95" />
+            <mass value="0.11987968668711403" />
+            <inertia ixx="7.498456091184491e-05" iyy="4.8705710068902563e-05" izz="7.455471299365815e-05" ixy="-2.8166599261303382e-11" iyz="3.186923780429396e-10" ixz="2.2648440067829512e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="2.108251032240105e-07 0.0276502625743629 1.205406285009758e-08" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.028506" length="0.071040" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_L_1_rocker_base_rear_1">
+        <inertial>
+            <origin xyz="-1.2782574891900823e-08 -0.051849996362647185 9.981766304179018e-08" rpy="0.0 -0.0 3.891344262755744e-95" />
+            <mass value="0.20198636958334806" />
+            <inertia ixx="0.0002808043867039353" iyy="8.206104523684338e-05" izz="0.0002803737921523164" ixy="-2.1310549592340466e-10" iyz="1.734723475976807e-18" ixz="8.604228440844963e-16" />
+        </inertial>
+        <visual>
+            <origin xyz="-1.2782574891900823e-08 -0.051849996362647185 9.981766304179018e-08" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.028505" length="0.119299" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_L_1_bogie_pivot_in_1">
+        <inertial>
+            <origin xyz="-0.08643460064645674 0.5346123861277866 0.30162188725650496" rpy="0.0 -0.0 0.0" />
+            <mass value="0.43350773401717024" />
+            <inertia ixx="0.00025065412406719" iyy="0.0002456953325032374" izz="0.0002435139061901792" ixy="1.8440506760475373e-10" iyz="1.4852686947314231e-05" ixz="-1.8823936853706869e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.08643460064645674 0.5346123861277866 0.30162188725650496" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.034006" length="0.057461" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_L_1_rocker_leg_front_1">
+        <inertial>
+            <origin xyz="1.4607164757762802e-08 0.018719827762442166 -0.020144931345863454" rpy="0.0 -0.0 3.891344262755744e-95" />
+            <mass value="0.11937084710452917" />
+            <inertia ixx="7.424609313375768e-05" iyy="6.208463173674669e-05" izz="6.023044213903164e-05" ixy="-1.2543537389331227e-11" iyz="1.2624628963026768e-05" ixz="1.3998574868723246e-11" />
+        </inertial>
+        <visual>
+            <origin xyz="1.4607164757762802e-08 0.018719827762442166 -0.020144931345863454" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.035270" length="0.049154" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_L_1_rocker_leg_rear_1">
+        <inertial>
+            <origin xyz="-3.7734765392372086e-08 -0.029246463898188094 -0.01458621010205377" rpy="0.0 -0.0 3.891344262755744e-95" />
+            <mass value="0.13695295888590384" />
+            <inertia ixx="0.00010303098621047141" iyy="6.499549361675683e-05" izz="9.324720624696511e-05" ixy="-4.048145867997788e-11" iyz="-1.8755177592457957e-05" ixz="-2.071738267050982e-11" />
+        </inertial>
+        <visual>
+            <origin xyz="-3.7734765392372086e-08 -0.029246463898188094 -0.01458621010205377" rpy="0 0 0" />
+            <geometry>
+                <box size="0.049182 0.075839 0.057237" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="bogie_v2_1_bogie_link_front_1">
+        <inertial>
+            <origin xyz="1.606440352475147e-07 -0.006369467457751341 0.08591443073857534" rpy="0.0 -5.564309524039728e-40 0.0" />
+            <mass value="0.31791058644529896" />
+            <inertia ixx="0.0009973839067373702" iyy="0.0009920320352554968" izz="0.00013390040747138232" ixy="-1.6816645243443062e-11" iyz="6.397122061838068e-05" ixz="-1.1682144140579158e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="1.606440352475147e-07 -0.006369467457751341 0.08591443073857534" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.029024" length="0.187135" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="bogie_v2_1_bogie_pivot_out_1">
+        <inertial>
+            <origin xyz="-0.030000055320587648 0.001190684565064757 0.0005697440291444167" rpy="0.0 -0.0 0.0" />
+            <mass value="0.4827647957995653" />
+            <inertia ixx="0.00030567590696869984" iyy="0.0003127424003324387" izz="0.0002830977858227225" ixy="5.038471515006472e-10" iyz="1.8395731601852934e-05" ixz="-3.2464045340852017e-11" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.030000055320587648 0.001190684565064757 0.0005697440291444167" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.034246" length="0.064556" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="bogie_v2_1_bogie_link_center_1">
+        <inertial>
+            <origin xyz="-6.896478716100773e-08 0.07378276750480446 -0.06904469641686908" rpy="0.0 -5.564309524039728e-40 0.0" />
+            <mass value="0.36846720253024745" />
+            <inertia ixx="0.001526174862770041" iyy="0.0007920388639317821" izz="0.0008832233583574572" ixy="4.852687904728392e-10" iyz="0.0006864225987254016" ixz="-4.703393646395592e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="-6.896478716100773e-08 0.07378276750480446 -0.06904469641686908" rpy="0 0 0" />
+            <geometry>
+                <box size="0.049272 0.162285 0.152862" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_1_double_d_washer_1">
+        <inertial>
+            <origin xyz="-0.0015000025142318664 4.612755191146789e-09 1.914572020922378e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.004330660236878764" />
+            <inertia ixx="3.0250440186249325e-07" iyy="1.4494468017083083e-07" izz="1.640455504284266e-07" ixy="-1.6894558668711923e-13" iyz="-5.421010862831999e-20" ixz="-2.7105054312137647e-20" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.0015000025142318664 4.612755191146789e-09 1.914572020922378e-09" rpy="0 0 0" />
+            <geometry>
+                <box size="0.004000 0.021109 0.019815" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_1_bl70200s_1_tire_1">
+        <inertial>
+            <origin xyz="-3.2341404221369884e-09 5.136136849159811e-10 1.4827214123158684e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.6161156175035881" />
+            <inertia ixx="0.005216789414554668" iyy="0.0028967408409382583" izz="0.0028967409185657322" ixy="-2.4980520985096177e-09" iyz="3.3237287921927816e-11" ixz="5.033935074338913e-12" />
+        </inertial>
+        <visual>
+            <origin xyz="-3.2341404221369884e-09 5.136136849159811e-10 1.4827214123158684e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.130132" length="0.074941" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_1_bl70200s_1_wheel_1">
+        <inertial>
+            <origin xyz="-0.05128793546582966 -5.1342001512466594e-08 -2.486107444354957e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="3.765862151343978" />
+            <inertia ixx="0.012841218443185642" iyy="0.0076764668877075115" izz="0.007676414333026127" ixy="5.560295113227198e-09" iyz="6.067424340727712e-12" ixz="9.14969350285233e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.05128793546582966 -5.1342001512466594e-08 -2.486107444354957e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.082582" length="0.063259" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_1_motor_bracket_curved_1">
+        <inertial>
+            <origin xyz="-0.019153230739221174 -5.1528877094142446e-08 -0.0443158948272891" rpy="0.0 -0.0 0.0" />
+            <mass value="1.2721533229343382" />
+            <inertia ixx="0.005870254684908205" iyy="0.008821138742051593" izz="0.004889307152534661" ixy="-2.5210885046256246e-09" iyz="-4.245941376268548e-09" ixz="-0.002509369499201622" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.019153230739221174 -5.1528877094142446e-08 -0.0443158948272891" rpy="0 0 0" />
+            <geometry>
+                <box size="0.192296 0.095616 0.215013" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_1_kingpin_flange_1">
+        <inertial>
+            <origin xyz="-0.047086715848011454 1.442749066882243e-09 2.5142013981849233e-09" rpy="4.421718300208355e-75 -0.0 0.0" />
+            <mass value="0.09920904068862745" />
+            <inertia ixx="2.2946644994081833e-05" iyy="5.739118524778972e-05" izz="5.7391185289024094e-05" ixy="-3.8163916464195843e-17" iyz="-5.6595751393351066e-36" ixz="1.734723475976807e-18" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.047086715848011454 1.442749066882243e-09 2.5142013981849233e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.021508" length="0.074526" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_1_NSK_5204_1_5204-Outer-Ring_1">
+        <inertial>
+            <origin xyz="0.01030000191457212 -3.775948869133572e-09 -2.5198927033898144e-09" rpy="4.421718300208355e-75 -0.0 0.0" />
+            <mass value="0.16023692438253925" />
+            <inertia ixx="5.4696047178656726e-05" iyy="3.287162845265479e-05" izz="3.287162845264091e-05" ixy="4.621500412709073e-27" iyz="-3.2413928221548846e-36" ixz="0.0" />
+        </inertial>
+        <visual>
+            <origin xyz="0.01030000191457212 -3.775948869133572e-09 -2.5198927033898144e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.026128" length="0.020339" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_1_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1">
+        <inertial>
+            <origin xyz="0.0001453222372294505 -4.785923064972053e-05 0.038372847091099054" rpy="0.0 -0.0 0.0" />
+            <mass value="0.4254229336899886" />
+            <inertia ixx="0.00030190487199577287" iyy="0.0003032846989080018" izz="0.00017569577171916428" ixy="7.566954957211047e-07" iyz="4.739309789655866e-06" ixz="1.7515689959279879e-06" />
+        </inertial>
+        <visual>
+            <origin xyz="0.0001453222372294505 -4.785923064972053e-05 0.038372847091099054" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.028740" length="0.077829" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_1_servo_mount_front_1">
+        <inertial>
+            <origin xyz="-0.08967819861689932 -0.0075833627428116305 0.0003181442325904982" rpy="4.421718300208355e-75 -0.0 0.0" />
+            <mass value="0.65273391363519" />
+            <inertia ixx="0.0008371760434863207" iyy="0.0017331551100017994" izz="0.0019420849180645794" ixy="0.00010748446826130964" iyz="-3.0396241459396123e-06" ixz="-1.7323565522961437e-05" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.08967819861689932 -0.0075833627428116305 0.0003181442325904982" rpy="0 0 0" />
+            <geometry>
+                <box size="0.161517 0.098061 0.075993" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_1_AK45-36-KV80_flanged_1_rotational_axis_1">
+        <inertial>
+            <origin xyz="-2.5198926323355407e-09 0.015399998085427597 3.775948869133572e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.1904983245320511" />
+            <inertia ixx="1.773841023744449e-05" iyy="5.357765377494994e-06" izz="1.7738410237402857e-05" ixy="3.469446954575318e-18" iyz="0.0" ixz="0.0" />
+        </inertial>
+        <visual>
+            <origin xyz="-2.5198926323355407e-09 0.015399998085427597 3.775948869133572e-09" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.007500" length="0.030800" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_1_AK45-36-KV80_flanged_1_servo_hub_1">
+        <inertial>
+            <origin xyz="-2.520030051300637e-09 -0.053466431555210435 -3.775939916295102e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.09414045033445224" />
+            <inertia ixx="7.625914694539548e-06" iyy="1.5113554292969789e-05" izz="7.625914708177944e-06" ixy="-1.7347234743912377e-18" iyz="-3.469446951953614e-18" ixz="-7.346839686224684e-40" />
+        </inertial>
+        <visual>
+            <origin xyz="-2.520030051300637e-09 -0.053466431555210435 -3.775939916295102e-09" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.017919" length="0.004000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_1_retainer_plate_1">
+        <inertial>
+            <origin xyz="-0.0014922318280360968 3.775964643182306e-09 2.5198928454983617e-09" rpy="4.421718300208355e-75 -0.0 0.0" />
+            <mass value="0.02092547873798804" />
+            <inertia ixx="1.7581071977331234e-05" iyy="8.806158804937174e-06" izz="8.806158804292724e-06" ixy="-1.8581601366996817e-27" iyz="-8.683083829862538e-37" ixz="-2.168404344971009e-19" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.0014922318280360968 3.775964643182306e-09 2.5198928454983617e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.040992" length="0.004000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_1_STWS20_1">
+        <inertial>
+            <origin xyz="0.0006000019145721681 -7.964291626194609e-10 0.0006028025661753844" rpy="4.421718300208355e-75 -0.0 0.0" />
+            <mass value="0.0014085216809091683" />
+            <inertia ixx="1.6543662274349016e-07" iyy="9.371607853674501e-08" izz="7.2058589410391e-08" ixy="1.5187415936616032e-29" iyz="-2.3222634752684268e-14" ixz="4.9175841936876746e-36" />
+        </inertial>
+        <visual>
+            <origin xyz="0.0006000019145721681 -7.964291626194609e-10 0.0006028025661753844" rpy="0 0 0" />
+            <geometry>
+                <box size="0.004000 0.024748 0.028231" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_1_servo_mount_cover_1">
+        <inertial>
+            <origin xyz="-0.4566374025198927 0.48888591377594853 0.41426397512136887" rpy="0.0 -0.0 0.0" />
+            <mass value="0.00798824043720897" />
+            <inertia ixx="2.2314333738299857e-06" iyy="2.231433373825649e-06" izz="4.441978507497245e-06" ixy="0.0" iyz="0.0" ixz="0.0" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.4566374025198927 0.48888591377594853 0.41426397512136887" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.033349" length="0.004000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_1_double_d_washer_1">
+        <inertial>
+            <origin xyz="-0.0014999985795997263 6.252974582565685e-09 -7.562812420758291e-10" rpy="0.0 -0.0 0.0" />
+            <mass value="0.004330660236878764" />
+            <inertia ixx="3.0250440186238483e-07" iyy="1.4494468017077662e-07" izz="1.640455504278845e-07" ixy="-1.689457222123908e-13" iyz="1.3552527156068805e-20" ixz="-9.492626882970629e-45" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.0014999985795997263 6.252974582565685e-09 -7.562812420758291e-10" rpy="0 0 0" />
+            <geometry>
+                <box size="0.004000 0.021109 0.019815" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_1_bl70200s_1_tire_1">
+        <inertial>
+            <origin xyz="7.004917890185425e-10 2.153833253970561e-09 -1.1881319217366127e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.6161156175035881" />
+            <inertia ixx="0.005216789414554586" iyy="0.0028967408409382653" izz="0.0028967409185658155" ixy="-2.4980521089179586e-09" iyz="3.323729139137477e-11" ixz="5.033938543785865e-12" />
+        </inertial>
+        <visual>
+            <origin xyz="7.004917890185425e-10 2.153833253970561e-09 -1.1881319217366127e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.130132" length="0.074941" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_1_bl70200s_1_wheel_1">
+        <inertial>
+            <origin xyz="-0.05128793153119744 -5.2982221081521176e-08 1.8474588969752404e-10" rpy="0.0 -0.0 0.0" />
+            <mass value="3.765862151343978" />
+            <inertia ixx="0.012841218443185323" iyy="0.0076764668877074005" izz="0.007676414333026016" ixy="5.560295224249501e-09" iyz="6.067452096303327e-12" ixz="9.149693641630208e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.05128793153119744 -5.2982221081521176e-08 1.8474588969752404e-10" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.082582" length="0.063259" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_1_motor_bracket_curved_1">
+        <inertial>
+            <origin xyz="-0.019153233410074542 -4.988865775601426e-08 -0.04431589876192106" rpy="0.0 -0.0 0.0" />
+            <mass value="1.2721533229343382" />
+            <inertia ixx="0.005870254684908163" iyy="0.008821138742051676" izz="0.004889307152534647" ixy="-2.52108849768673e-09" iyz="-4.24594145259638e-09" ixz="-0.002509369499201622" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.019153233410074542 -4.988865775601426e-08 -0.04431589876192106" rpy="0 0 0" />
+            <geometry>
+                <box size="0.192296 0.095616 0.215013" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_1_kingpin_flange_1">
+        <inertial>
+            <origin xyz="-0.04708671851886493 3.0829685826461173e-09 -1.4204305642806504e-09" rpy="-3.891337344173788e-95 -0.0 0.0" />
+            <mass value="0.09920904068862745" />
+            <inertia ixx="2.2946644994087037e-05" iyy="5.7391185247800125e-05" izz="5.739118528903277e-05" ixy="-4.206704429243757e-17" iyz="4.336808689942018e-19" ixz="-1.734723475976807e-18" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.04708671851886493 3.0829685826461173e-09 -1.4204305642806504e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.021508" length="0.074526" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_1_NSK_5204_1_5204-Outer-Ring_1">
+        <inertial>
+            <origin xyz="-0.010300000756281449 4.583831607618549e-09 1.4147391524943486e-09" rpy="-1.3781345778724363e-92 -0.0 0.0" />
+            <mass value="0.16023692438253925" />
+            <inertia ixx="5.469604717863244e-05" iyy="3.287162845264785e-05" izz="3.287162845265479e-05" ixy="-8.673617379884035e-19" iyz="-8.673617379884035e-19" ixz="-1.734723475976807e-18" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.010300000756281449 4.583831607618549e-09 1.4147391524943486e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.026128" length="0.020339" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_1_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1">
+        <inertial>
+            <origin xyz="0.0001453261718613419 -4.78508708691372e-05 0.038372849761952675" rpy="0.0 -0.0 0.0" />
+            <mass value="0.4254229336899886" />
+            <inertia ixx="0.00030190487199578675" iyy="0.0003032846989080018" izz="0.00017569577171915735" ixy="7.566954957315131e-07" iyz="4.739309789652396e-06" ixz="1.7515689959349268e-06" />
+        </inertial>
+        <visual>
+            <origin xyz="0.0001453261718613419 -4.78508708691372e-05 0.038372849761952675" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.028740" length="0.077829" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_1_servo_mount_rear_1">
+        <inertial>
+            <origin xyz="-0.08495565712112267 0.04048174405110069 0.00882985720150078" rpy="0.0 -0.0 0.0" />
+            <mass value="0.6665163351549482" />
+            <inertia ixx="0.0008880534826562619" iyy="0.0019334284565120097" izz="0.0021841198353586555" ixy="-0.00025470024192847385" iyz="3.2769247974538673e-06" ixz="-1.634234490334452e-05" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.08495565712112267 0.04048174405110069 0.00882985720150078" rpy="0 0 0" />
+            <geometry>
+                <box size="0.170505 0.101247 0.075747" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_1_AK45-36-KV80_flanged_1_rotational_axis_1">
+        <inertial>
+            <origin xyz="1.4147392235486223e-09 0.015400000756281217 -4.58383171419996e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.1904983245320511" />
+            <inertia ixx="1.7738410237413266e-05" iyy="5.3577653774672385e-06" izz="1.7738410237416735e-05" ixy="8.634370187256908e-36" iyz="-1.749142294634427e-36" ixz="-1.734723475976807e-18" />
+        </inertial>
+        <visual>
+            <origin xyz="1.4147392235486223e-09 0.015400000756281217 -4.58383171419996e-09" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.007500" length="0.030800" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_1_AK45-36-KV80_flanged_1_servo_hub_1">
+        <inertial>
+            <origin xyz="1.414615766748284e-09 -0.053466434226064126 4.583770714106095e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.09414045033445224" />
+            <inertia ixx="7.6259146979638925e-06" iyy="1.5113554292976727e-05" izz="7.625914704774417e-06" ixy="1.734723475976807e-18" iyz="-7.519732449385284e-37" ixz="-5.89762613745215e-15" />
+        </inertial>
+        <visual>
+            <origin xyz="1.414615766748284e-09 -0.053466434226064126 4.583770714106095e-09" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.017919" length="0.004000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_1_retainer_plate_1">
+        <inertial>
+            <origin xyz="-0.0014922344988895376 -4.583817858616613e-09 -1.414747146100126e-09" rpy="-2.0299659665513177e-63 -0.0 0.0" />
+            <mass value="0.02092547873798804" />
+            <inertia ixx="1.7581071977332535e-05" iyy="8.806158804775845e-06" izz="8.806158804453186e-06" ixy="9.864711915471648e-36" iyz="-2.7994100093575724e-16" ixz="-2.168404344971009e-19" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.0014922344988895376 -4.583817858616613e-09 -1.414747146100126e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.040992" length="0.004000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_1_STWS20_1">
+        <inertial>
+            <origin xyz="0.0005999992437187274 -2.436648536274788e-09 0.0006028065008072759" rpy="-3.891337344173788e-95 -0.0 0.0" />
+            <mass value="0.0014085216809091683" />
+            <inertia ixx="1.654366227436257e-07" iyy="9.37160785366908e-08" izz="7.205858941036389e-08" ixy="-6.776263578034403e-21" iyz="-2.3222641528947846e-14" ixz="-2.710505431213761e-20" />
+        </inertial>
+        <visual>
+            <origin xyz="0.0005999992437187274 -2.436648536274788e-09 0.0006028065008072759" rpy="0 0 0" />
+            <geometry>
+                <box size="0.004000 0.024748 0.028231" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_1_servo_mount_cover_1">
+        <inertial>
+            <origin xyz="-0.6444195985852611 -0.040760334583832165 0.3867961024505152" rpy="0.0 -0.0 0.0" />
+            <mass value="0.00798824043720897" />
+            <inertia ixx="2.2314333738286847e-06" iyy="2.231433373828251e-06" izz="4.441978507496161e-06" ixy="-5.963111948670274e-19" iyz="5.421010862427522e-20" ixz="1.0842021724855044e-19" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.6444195985852611 -0.040760334583832165 0.3867961024505152" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.033349" length="0.004000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_center_1_double_d_washer_1">
+        <inertial>
+            <origin xyz="-0.001499996596648927 -1.3905834705951748e-09 -2.4852041136114168e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.004330660236878764" />
+            <inertia ixx="3.025044018623306e-07" iyy="1.6404555042766767e-07" izz="1.4494468017055978e-07" ixy="-2.710505431213761e-20" iyz="1.6176140175966568e-38" ixz="1.6894580352755373e-13" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.001499996596648927 -1.3905834705951748e-09 -2.4852041136114168e-09" rpy="0 0 0" />
+            <geometry>
+                <box size="0.004000 0.019815 0.021109" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_center_1_bl70200s_1_tire_1">
+        <inertial>
+            <origin xyz="2.683444435547244e-09 2.4441952461984327e-10 -9.5873291527937e-10" rpy="2.3509887016445755e-38 -0.0 0.0" />
+            <mass value="0.6161156175035881" />
+            <inertia ixx="0.00521678941455464" iyy="0.0028967408409382436" izz="0.0028967409185658424" ixy="-2.477360885877466e-09" iyz="3.323730179971561e-11" ixz="-5.0338587465059695e-12" />
+        </inertial>
+        <visual>
+            <origin xyz="2.683444435547244e-09 2.4441952461984327e-10 -9.5873291527937e-10" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.130132" length="0.074941" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_center_1_bl70200s_1_wheel_1">
+        <inertial>
+            <origin xyz="-5.715354234325787e-10 1.2660223092098022e-10 0.00021206704837190671" rpy="-2.1175823643151612e-22 -0.0 -4.930380657631324e-32" />
+            <mass value="3.765862151343978" />
+            <inertia ixx="0.007676414333026137" iyy="0.007676466887701397" izz="0.012841218443191377" ixy="-6.066462539911717e-12" iyz="-2.231372305571492e-11" ixz="9.149693387764209e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="-5.715354234325787e-10 1.2660223092098022e-10 0.00021206704837190671" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.082582" length="0.063259" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_center_1_center_bracket_1">
+        <inertial>
+            <origin xyz="-0.4680375837974614 0.5566475656675569 0.11049676517433397" rpy="0.0 -0.0 0.0" />
+            <mass value="0.2712840552326972" />
+            <inertia ixx="0.00035004023345973703" iyy="0.00029502041481517527" izz="0.00028653499891612144" ixy="-6.0444879024582066e-06" iyz="-6.396301017684569e-05" ixz="-6.4592861658899214e-06" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.4680375837974614 0.5566475656675569 0.11049676517433397" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.050800" length="0.071557" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_center_1_bracket_cover_1">
+        <inertial>
+            <origin xyz="0.001250003403312121 1.3905834173044695e-09 -1.6072153385948697e-10" rpy="0.0 -0.0 0.0" />
+            <mass value="0.021253463350157445" />
+            <inertia ixx="1.1244381627451743e-05" iyy="5.633260325557665e-06" izz="5.6332603262298706e-06" ixy="1.0842021724855044e-19" iyz="-1.0842021724855044e-19" ixz="-6.016607784903316e-12" />
+        </inertial>
+        <visual>
+            <origin xyz="0.001250003403312121 1.3905834173044695e-09 -1.6072153385948697e-10" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.032529" length="0.004000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_R_1_rocker_vertex_front_1">
+        <inertial>
+            <origin xyz="1.593795775178819e-07 0.031910548502481505 -0.00708832109564078" rpy="0.0 -0.0 0.0" />
+            <mass value="0.207370328568481" />
+            <inertia ixx="0.00022647169286413305" iyy="0.00014813748665178789" izz="0.00020829150409500813" ixy="-2.0720175575306143e-11" iyz="3.236671850146561e-05" ixz="1.7825677392502293e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="1.593795775178819e-07 0.031910548502481505 -0.00708832109564078" rpy="0 0 0" />
+            <geometry>
+                <box size="0.061320 0.091067 0.069370" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_R_1_rocker_vertex_rear_1">
+        <inertial>
+            <origin xyz="-4.437147978819667e-08 -0.034013074454107874 -0.004190191338227436" rpy="0.0 -0.0 0.0" />
+            <mass value="0.20999142341424265" />
+            <inertia ixx="0.00023737035160597414" iyy="0.00013932618382079404" izz="0.0002296553349536122" ixy="-9.677190082255094e-11" iyz="-2.2525114554375336e-05" ixz="-5.80113214410094e-11" />
+        </inertial>
+        <visual>
+            <origin xyz="-4.437147978819667e-08 -0.034013074454107874 -0.004190191338227436" rpy="0 0 0" />
+            <geometry>
+                <box size="0.061323 0.096764 0.064818" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_R_1_rocker_base_front_1">
+        <inertial>
+            <origin xyz="8.611205313258098e-08 0.027649940714813574 -1.0503468672595772e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.11942594790178773" />
+            <inertia ixx="7.463442321434949e-05" iyy="4.8523243280876316e-05" izz="7.402554909112513e-05" ixy="6.923413925497002e-11" iyz="-1.6286971771251046e-12" ixz="9.113848911668221e-11" />
+        </inertial>
+        <visual>
+            <origin xyz="8.611205313258098e-08 0.027649940714813574 -1.0503468672595772e-09" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.028506" length="0.070929" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_R_1_rocker_pivot_v3_R_1">
+        <inertial>
+            <origin xyz="0.035494107210055255 4.2209400810122586e-08 -2.8272897978354194e-08" rpy="0.0 -0.0 0.0" />
+            <mass value="0.3819366183981831" />
+            <inertia ixx="0.0004998899674926172" iyy="0.00039672424818928964" izz="0.0004220760604008514" ixy="1.1062092908353804e-10" iyz="-6.938893903907228e-18" ixz="4.323874591705135e-12" />
+        </inertial>
+        <visual>
+            <origin xyz="0.035494107210055255 4.2209400810122586e-08 -2.8272897978354194e-08" rpy="0 0 0" />
+            <geometry>
+                <box size="0.070781 0.090836 0.086341" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_R_1_rocker_base_rear_1">
+        <inertial>
+            <origin xyz="-1.2152113953334265e-07 -0.05184998661780289 -1.2460692744298285e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.20153502106951982" />
+            <inertia ixx="0.000279586908993934" iyy="8.188001474183221e-05" izz="0.00027897815609107326" ixy="1.321257591183067e-10" iyz="6.451941411689255e-12" ixz="-1.7076319872022516e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="-1.2152113953334265e-07 -0.05184998661780289 -1.2460692744298285e-09" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.028506" length="0.119129" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_R_1_bogie_pivot_in_1">
+        <inertial>
+            <origin xyz="0.4985653993532062 0.5346117588528552 0.30162188725650274" rpy="0.0 -0.0 0.0" />
+            <mass value="0.43350773401717024" />
+            <inertia ixx="0.00025065412406721777" iyy="0.00024569533250320963" izz="0.00024351390619020696" ixy="1.8440504678807201e-10" iyz="1.4852686947328109e-05" ixz="-1.882393754759626e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="0.4985653993532062 0.5346117588528552 0.30162188725650274" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.034006" length="0.057461" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_R_1_rocker_leg_front_1">
+        <inertial>
+            <origin xyz="1.784127046988715e-08 0.018719815767508904 -0.020144920093023728" rpy="0.0 -0.0 0.0" />
+            <mass value="0.11891741857557331" />
+            <inertia ixx="7.389971685566737e-05" iyy="6.171833459452103e-05" izz="5.988927059737484e-05" ixy="-1.278452343989045e-11" iyz="1.2453644529848706e-05" ixz="-1.684343983732184e-11" />
+        </inertial>
+        <visual>
+            <origin xyz="1.784127046988715e-08 0.018719815767508904 -0.020144920093023728" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.035254" length="0.049062" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="rocker_v2_R_1_rocker_leg_rear_1">
+        <inertial>
+            <origin xyz="-4.233329246261519e-08 -0.029246461305833187 -0.014586209835945212" rpy="0.0 -0.0 0.0" />
+            <mass value="0.13649950531337746" />
+            <inertia ixx="0.00010254316823053028" iyy="6.47167093071957e-05" izz="9.267703884989834e-05" ixy="-3.9849712180246855e-11" iyz="-1.85617400608963e-05" ixz="-2.132724552517118e-11" />
+        </inertial>
+        <visual>
+            <origin xyz="-4.233329246261519e-08 -0.029246461305833187 -0.014586209835945212" rpy="0 0 0" />
+            <geometry>
+                <box size="0.049102 0.075739 0.057257" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="bogie_v2_2_bogie_link_front_1">
+        <inertial>
+            <origin xyz="1.6064362959866684e-07 -0.006369467457748926 0.08591442479186384" rpy="0.0 -2.4564765747074868e-39 0.0" />
+            <mass value="0.31791058644529896" />
+            <inertia ixx="0.000997383906737398" iyy="0.0009920320352554135" izz="0.0001339004074713962" ixy="-1.6816652182336966e-11" iyz="6.39712206183668e-05" ixz="-1.1682142752800378e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="1.6064362959866684e-07 -0.006369467457748926 0.08591442479186384" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.029024" length="0.187135" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="bogie_v2_2_bogie_pivot_out_1">
+        <inertial>
+            <origin xyz="0.02999994467900649 0.0011906845650670305 0.0005696780824328585" rpy="0.0 -0.0 0.0" />
+            <mass value="0.4827647957995653" />
+            <inertia ixx="0.00030567590696869984" iyy="0.00031274240033241096" izz="0.0002830977858227225" ixy="5.038471445617533e-10" iyz="1.8395731601839056e-05" ixz="-3.2464045340852017e-11" />
+        </inertial>
+        <visual>
+            <origin xyz="0.02999994467900649 0.0011906845650670305 0.0005696780824328585" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.034246" length="0.064556" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="bogie_v2_2_bogie_link_center_1">
+        <inertial>
+            <origin xyz="-6.896519309407268e-08 0.0737827675048068 -0.06904469236358068" rpy="0.0 -2.4564765747074868e-39 0.0" />
+            <mass value="0.36846720253024745" />
+            <inertia ixx="0.001526174862770055" iyy="0.0007920388639317821" izz="0.0008832233583574711" ixy="4.852687939422861e-10" iyz="0.000686422598725412" ixz="-4.703393577006653e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="-6.896519309407268e-08 0.0737827675048068 -0.06904469236358068" rpy="0 0 0" />
+            <geometry>
+                <box size="0.049272 0.162285 0.152862" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_2_double_d_washer_1">
+        <inertial>
+            <origin xyz="0.0014999974684414142 -6.177532867468471e-09 1.9145694984956664e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.004330660236878764" />
+            <inertia ixx="3.0250440186249325e-07" iyy="1.449446801712645e-07" izz="1.640455504284266e-07" ixy="-3.3789139021467296e-13" iyz="-1.921574520195338e-37" ixz="2.710505431213761e-20" />
+        </inertial>
+        <visual>
+            <origin xyz="0.0014999974684414142 -6.177532867468471e-09 1.9145694984956664e-09" rpy="0 0 0" />
+            <geometry>
+                <box size="0.004000 0.021109 0.019815" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_2_bl70200s_1_tire_1">
+        <inertial>
+            <origin xyz="-1.8117406597184528e-09 1.091571419920001e-09 1.4827189431798616e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.6161156175035881" />
+            <inertia ixx="0.005216789414546508" iyy="0.0028967408409462936" izz="0.0028967409185658433" ixy="-4.9857586115198416e-09" iyz="-3.3237287921927816e-11" ixz="-5.033966299361481e-12" />
+        </inertial>
+        <visual>
+            <origin xyz="-1.8117406597184528e-09 1.091571419920001e-09 1.4827189431798616e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.130132" length="0.074941" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_2_bl70200s_1_wheel_1">
+        <inertial>
+            <origin xyz="0.05128793041994776 1.0950942368026517e-07 -2.48610497521895e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="3.765862151343978" />
+            <inertia ixx="0.012841218443167879" iyy="0.007676466887725275" izz="0.007676414333026127" ixy="1.109827652001627e-08" iyz="-6.068479052601106e-12" ixz="-9.14969350285233e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="0.05128793041994776 1.0950942368026517e-07 -2.48610497521895e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.082582" length="0.063259" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_2_motor_bracket_curved_1">
+        <inertial>
+            <origin xyz="-0.01915323073922373 1.0065244168799836e-07 0.04431589987308872" rpy="2.5970073510746066e-83 -0.0 0.0" />
+            <mass value="1.2721533229343382" />
+            <inertia ixx="0.005870254684908205" iyy="0.008821138742038048" izz="0.004889307152548206" ixy="5.2117971605092375e-09" iyz="-8.461906175760701e-09" ixz="0.0025093694991974863" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.01915323073922373 1.0065244168799836e-07 0.04431589987308872" rpy="0 0 0" />
+            <geometry>
+                <box size="0.192296 0.095616 0.215013" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_2_kingpin_flange_1">
+        <inertial>
+            <origin xyz="-0.04708671584801405 1.624368906050222e-10 2.531680678430348e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.09920904068862745" />
+            <inertia ixx="2.294664499409571e-05" iyy="5.739118524778972e-05" izz="5.7391185289024094e-05" ixy="4.5102810375396984e-17" iyz="-3.469446951953614e-18" ixz="2.1575093008603035e-48" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.04708671584801405 1.624368906050222e-10 2.531680678430348e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.021508" length="0.074526" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_2_NSK_5204_1_5204-Outer-Ring_1">
+        <inertial>
+            <origin xyz="0.010300001914569706 2.1707624853206655e-09 -2.520297854857745e-09" rpy="-1.0947644252537633e-47 8.636168555094447e-78 -8.758115402030109e-47" />
+            <mass value="0.16023692438253925" />
+            <inertia ixx="5.4696047178642835e-05" iyy="3.2871628452658245e-05" izz="3.287162845265479e-05" ixy="6.938893903907227e-18" iyz="-6.9388939039072276e-18" ixz="-3.4694469519536138e-18" />
+        </inertial>
+        <visual>
+            <origin xyz="0.010300001914569706 2.1707624853206655e-09 -2.520297854857745e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.026128" length="0.020339" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_2_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1">
+        <inertial>
+            <origin xyz="-0.00014532732873412613 4.785746963676729e-05 0.03837284709110175" rpy="0.0 -0.0 0.0" />
+            <mass value="0.4254229336899886" />
+            <inertia ixx="0.0003019048703729599" iyy="0.00030328470053077317" izz="0.00017569577171905326" ixy="7.566940161962687e-07" iyz="-4.739311667792401e-06" ixz="-1.7515639141318928e-06" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.00014532732873412613 4.785746963676729e-05 0.03837284709110175" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.028740" length="0.077829" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_2_servo_mount_front_1">
+        <inertial>
+            <origin xyz="-0.08967819861690174 -0.007583368689523127 0.0003181442329957207" rpy="-1.0947644252537633e-47 -8.636168555094447e-78 8.758115402030109e-47" />
+            <mass value="0.65273391363519" />
+            <inertia ixx="0.0008371760434863205" iyy="0.001733155110001799" izz="0.001942084918064635" ixy="0.00010748446826128186" iyz="-3.0396241459118563e-06" ixz="-1.7323565522961434e-05" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.08967819861690174 -0.007583368689523127 0.0003181442329957207" rpy="0 0 0" />
+            <geometry>
+                <box size="0.161517 0.098061 0.075993" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_2_AK45-36-KV80_flanged_1_rotational_axis_1">
+        <inertial>
+            <origin xyz="-2.5202982101291127e-09 0.015399998085430298 -2.1707627695377597e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.1904983245320511" />
+            <inertia ixx="1.7738410237416735e-05" iyy="5.357765377439483e-06" izz="1.7738410237409796e-05" ixy="-3.469446951953614e-18" iyz="3.498284589266189e-36" ixz="0.0" />
+        </inertial>
+        <visual>
+            <origin xyz="-2.5202982101291127e-09 0.015399998085430298 -2.1707627695377597e-09" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.007500" length="0.030800" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_2_AK45-36-KV80_flanged_1_servo_hub_1">
+        <inertial>
+            <origin xyz="-2.5204357712027558e-09 -0.053466431555213065 2.1707714381591358e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.09414045033445224" />
+            <inertia ixx="7.625914694539548e-06" iyy="1.511355429295591e-05" izz="7.625914708181414e-06" ixy="-1.734723475976807e-18" iyz="1.5039464949542394e-36" ixz="-6.938893903907228e-18" />
+        </inertial>
+        <visual>
+            <origin xyz="-2.5204357712027558e-09 -0.053466431555213065 2.1707714381591358e-09" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.017919" length="0.004000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_2_retainer_plate_1">
+        <inertial>
+            <origin xyz="-0.0014922318280384773 -2.1707468533804787e-09 2.5202980680205654e-09" rpy="-1.0947644252537633e-47 -8.636168555094447e-78 8.758115402030109e-47" />
+            <mass value="0.02092547873798804" />
+            <inertia ixx="1.7581071977329492e-05" iyy="8.806158804938038e-06" izz="8.80615880429099e-06" ixy="8.673617379884034e-19" iyz="8.6736173798840345e-19" ixz="-5.393779430754498e-49" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.0014922318280384773 -2.1707468533804787e-09 2.5202980680205654e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.040992" length="0.004000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_2_STWS20_1">
+        <inertial>
+            <origin xyz="0.0006000019145695745 -1.4551238791682409e-09 -0.0006028076120563953" rpy="0.0 -0.0 0.0" />
+            <mass value="0.0014085216809091683" />
+            <inertia ixx="1.65436622743707e-07" iyy="9.37160785366366e-08" izz="7.2058589410391e-08" ixy="5.421010862427522e-20" iyz="-4.644521529525991e-14" ixz="2.710505431213761e-20" />
+        </inertial>
+        <visual>
+            <origin xyz="0.0006000019145695745 -1.4551238791682409e-09 -0.0006028076120563953" rpy="0 0 0" />
+            <geometry>
+                <box size="0.004000 0.024748 0.028231" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_front_2_servo_mount_cover_1">
+        <inertial>
+            <origin xyz="0.3759375646976409 2.838564589069392e-07 -0.001304663176468166" rpy="8.236236105569351e-23 -0.0 2.5690582042065932e-23" />
+            <mass value="0.00798824043720897" />
+            <inertia ixx="3.3367059406637982e-06" iyy="2.2314333738269483e-06" izz="3.3367059406616883e-06" ixy="-6.133159299198401e-19" iyz="-1.7679815812939474e-24" ixz="1.1052725668336274e-06" />
+        </inertial>
+        <visual>
+            <origin xyz="0.3759375646976409 2.838564589069392e-07 -0.001304663176468166" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.023636" length="0.057761" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_2_double_d_washer_1">
+        <inertial>
+            <origin xyz="0.0015000014087441472 -2.6955691723173914e-09 -7.562844217545717e-10" rpy="0.0 -0.0 0.0" />
+            <mass value="0.004330660236878764" />
+            <inertia ixx="3.025044018623306e-07" iyy="1.4494468017077657e-07" izz="1.6404555042788446e-07" ixy="-1.689457764224994e-13" iyz="3.473799678774537e-29" ixz="4.772676437174711e-37" />
+        </inertial>
+        <visual>
+            <origin xyz="0.0015000014087441472 -2.6955691723173914e-09 -7.562844217545717e-10" rpy="0 0 0" />
+            <geometry>
+                <box size="0.004000 0.021109 0.019815" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_2_bl70200s_1_tire_1">
+        <inertial>
+            <origin xyz="2.1286527029928947e-09 1.403572174041301e-09 -1.1881343198183459e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.6161156175035881" />
+            <inertia ixx="0.00521678941455459" iyy="0.0028967408409382575" izz="0.0028967409185658146" ixy="-2.4980521054485112e-09" iyz="-3.323729139137414e-11" ixz="-5.033896910422441e-12" />
+        </inertial>
+        <visual>
+            <origin xyz="2.1286527029928947e-09 1.403572174041301e-09 -1.1881343198183459e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.130132" length="0.074941" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_2_bl70200s_1_wheel_1">
+        <inertial>
+            <origin xyz="0.05128793436034194 5.942481564602531e-08 1.8474828777925724e-10" rpy="0.0 -0.0 0.0" />
+            <mass value="3.765862151343978" />
+            <inertia ixx="0.012841218443185365" iyy="0.007676466887707565" izz="0.007676414333026125" ixy="5.5602952520050755e-09" iyz="-6.0674520963017005e-12" ixz="-9.149694057963841e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="0.05128793436034194 5.942481564602531e-08 1.8474828777925724e-10" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.082582" length="0.063259" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_2_motor_bracket_curved_1">
+        <inertial>
+            <origin xyz="-0.0191532334100776 5.3446063166262547e-08 0.04431589593277845" rpy="-9.549919718026508e-93 -0.0 0.0" />
+            <mass value="1.2721533229343382" />
+            <inertia ixx="0.005870254684908052" iyy="0.00882113874205162" izz="0.004889307152534744" ixy="2.521088490747836e-09" iyz="-4.245941459535274e-09" ixz="0.0025093694992016358" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.0191532334100776 5.3446063166262547e-08 0.04431589593277845" rpy="0 0 0" />
+            <geometry>
+                <box size="0.192296 0.095616 0.215013" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_2_kingpin_flange_1">
+        <inertial>
+            <origin xyz="-0.04708671851886738 4.744367565479024e-10 -1.4087115118854855e-09" rpy="-2.7365769675442588e-48 1.7516230804060217e-46 0.0" />
+            <mass value="0.09920904068862745" />
+            <inertia ixx="2.2946644994085296e-05" iyy="5.739118524779838e-05" izz="5.739118528903624e-05" ixy="4.20670442972967e-17" iyz="4.3368086899420173e-19" ixz="8.673617379884034e-19" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.04708671851886738 4.744367565479024e-10 -1.4087115118854855e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.021508" length="0.074526" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_2_NSK_5204_1_5204-Outer-Ring_1">
+        <inertial>
+            <origin xyz="-0.010300000756283652 1.8587628680677426e-09 1.4144028526175135e-09" rpy="-7.518620362518693e-75 -0.0 0.0" />
+            <mass value="0.16023692438253925" />
+            <inertia ixx="5.469604717863591e-05" iyy="3.287162845264785e-05" izz="3.287162845265132e-05" ixy="8.691864799266487e-19" iyz="8.673617379884035e-19" ixz="3.469446951953614e-18" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.010300000756283652 1.8587628680677426e-09 1.4144028526175135e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.026128" length="0.020339" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_2_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1">
+        <inertial>
+            <origin xyz="-0.00014532334272018943 4.785731346375499e-05 0.03837284976195502" rpy="1.7516230804060213e-46 2.736911063134409e-48 0.0" />
+            <mass value="0.4254229336899886" />
+            <inertia ixx="0.00030190487199580746" iyy="0.00030328469890802945" izz="0.00017569577171917122" ixy="7.56695495736717e-07" iyz="-4.739309789652395e-06" ixz="-1.7515689959210488e-06" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.00014532334272018943 4.785731346375499e-05 0.03837284976195502" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.028740" length="0.077829" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_2_servo_mount_rear_1">
+        <inertial>
+            <origin xyz="-0.08495565712112488 0.0404817467761694 0.008829857201838074" rpy="0.0 -0.0 0.0" />
+            <mass value="0.6665163351549482" />
+            <inertia ixx="0.0008880534826562897" iyy="0.001933428456511982" izz="0.002184119835358711" ixy="-0.00025470024192848073" iyz="3.2769247974469293e-06" ixz="-1.6342344903358397e-05" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.08495565712112488 0.0404817467761694 0.008829857201838074" rpy="0 0 0" />
+            <geometry>
+                <box size="0.170505 0.101247 0.075747" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_2_AK45-36-KV80_flanged_1_rotational_axis_1">
+        <inertial>
+            <origin xyz="1.4144016446948626e-09 0.015400000756283418 -1.8587629213584478e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.1904983245320511" />
+            <inertia ixx="1.7738410237409796e-05" iyy="5.357765377463769e-06" izz="1.7738410237409796e-05" ixy="-2.9741572412800573e-22" iyz="-1.734723475976807e-18" ixz="-8.6736173798840345e-19" />
+        </inertial>
+        <visual>
+            <origin xyz="1.4144016446948626e-09 0.015400000756283418 -1.8587629213584478e-09" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.007500" length="0.030800" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_2_AK45-36-KV80_flanged_1_servo_hub_1">
+        <inertial>
+            <origin xyz="1.4142780102588404e-09 -0.053466434226066256 1.8587019567917197e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.09414045033445224" />
+            <inertia ixx="7.625914697967362e-06" iyy="1.5113554292976727e-05" izz="7.625914704774417e-06" ixy="8.389707979973049e-22" iyz="1.2031572460589417e-35" ixz="-5.89762613745215e-15" />
+        </inertial>
+        <visual>
+            <origin xyz="1.4142780102588404e-09 -0.053466434226066256 1.8587019567917197e-09" rpy="-1.5707963 0 0" />
+            <geometry>
+                <cylinder radius="0.017919" length="0.004000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_2_retainer_plate_1">
+        <inertial>
+            <origin xyz="-0.0014922344988917758 -1.858749136829374e-09 -1.4144107751690171e-09" rpy="0.0 -0.0 0.0" />
+            <mass value="0.02092547873798804" />
+            <inertia ixx="1.7581071977332968e-05" iyy="8.806158804776278e-06" izz="8.806158804453186e-06" ixy="-4.871055321606855e-22" iyz="-2.800494211530058e-16" ixz="-1.553197210106276e-32" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.0014922344988917758 -1.858749136829374e-09 -1.4144107751690171e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.040992" length="0.004000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_2_STWS20_1">
+        <inertial>
+            <origin xyz="0.0005999992437163115 -1.1207568384463684e-09 -0.0006028036716653774" rpy="-2.7365769675442588e-48 -1.7516230804060217e-46 0.0" />
+            <mass value="0.0014085216809091683" />
+            <inertia ixx="1.6543662274367985e-07" iyy="9.371607853669078e-08" izz="7.205858941036389e-08" ixy="-6.776263613066969e-21" iyz="-2.3222634752684265e-14" ixz="-2.7105054312137608e-20" />
+        </inertial>
+        <visual>
+            <origin xyz="0.0005999992437163115 -1.1207568384463684e-09 -0.0006028036716653774" rpy="0 0 0" />
+            <geometry>
+                <box size="0.004000 0.024748 0.028231" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_rear_2_servo_mount_cover_1">
+        <inertial>
+            <origin xyz="-0.05941959858559951 -0.0407609618587634 0.3867961024505131" rpy="0.0 -0.0 0.0" />
+            <mass value="0.00798824043720897" />
+            <inertia ixx="2.2314333738289015e-06" iyy="2.2314333738278173e-06" izz="4.441978507496052e-06" ixy="-4.87890977618477e-19" iyz="5.421010862427522e-20" ixz="-1.0842021724855044e-19" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.05941959858559951 -0.0407609618587634 0.3867961024505131" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.033349" length="0.004000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_center_2_double_d_washer_1">
+        <inertial>
+            <origin xyz="0.0015000034029059605 -1.3905856555140872e-09 6.375516399259596e-09" rpy="1.1754943508222875e-38 3.6734198463196485e-40 0.0" />
+            <mass value="0.004330660236878764" />
+            <inertia ixx="3.0250440186243915e-07" iyy="1.4502857558352898e-07" izz="1.6396165501513226e-07" ixy="1.3543853580669849e-15" iyz="-1.2631060754893669e-09" ixz="1.485545627483154e-13" />
+        </inertial>
+        <visual>
+            <origin xyz="0.0015000034029059605 -1.3905856555140872e-09 6.375516399259596e-09" rpy="0 0 0" />
+            <geometry>
+                <box size="0.004000 0.021103 0.019821" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_center_2_bl70200s_1_tire_1">
+        <inertial>
+            <origin xyz="4.122813734852571e-09 -2.836232546599149e-09 -4.348296123168893e-10" rpy="0.0 -0.0 -9.152587104681767e-46" />
+            <mass value="0.6161156175035881" />
+            <inertia ixx="0.005216789414554626" iyy="0.0028967409138316857" izz="0.002896740845672402" ixy="-2.4819979543442182e-09" iyz="3.807888379614442e-11" ixz="-9.989203908488587e-12" />
+        </inertial>
+        <visual>
+            <origin xyz="4.122813734852571e-09 -2.836232546599149e-09 -4.348296123168893e-10" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.130132" length="0.074941" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_center_2_bl70200s_1_wheel_1">
+        <inertial>
+            <origin xyz="-5.715354234325787e-10 1.266022486845486e-10 0.00021206704837190671" rpy="2.0550627472041383e-23 -6.430381954051375e-23 1.3877787807814457e-17" />
+            <mass value="3.765862151343978" />
+            <inertia ixx="0.007676414333026038" iyy="0.007676466887701654" izz="0.012841218443191386" ixy="-6.066461569198545e-12" iyz="-2.2313776515924698e-11" ixz="9.149693012842567e-10" />
+        </inertial>
+        <visual>
+            <origin xyz="-5.715354234325787e-10 1.266022486845486e-10 0.00021206704837190671" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.082582" length="0.063259" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_center_2_center_bracket_1">
+        <inertial>
+            <origin xyz="0.241720270689184 0.5566468046191636 0.1104967651743331" rpy="0.0 -0.0 0.0" />
+            <mass value="0.2712840552326972" />
+            <inertia ixx="0.0003500402593846451" iyy="0.0002950317735459784" izz="0.0002865236142603894" ixy="6.0443699229535686e-06" iyz="-6.396226786083321e-05" ixz="6.459148996124792e-06" />
+        </inertial>
+        <visual>
+            <origin xyz="0.241720270689184 0.5566468046191636 0.1104967651743331" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.050800" length="0.071557" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <link name="motor_bracket_center_2_bracket_cover_1">
+        <inertial>
+            <origin xyz="-0.0012499965970552297 1.3905688334148181e-09 6.2704251391210165e-09" rpy="1.1754943508222875e-38 -3.6734198463196485e-40 0.0" />
+            <mass value="0.021253463350157445" />
+            <inertia ixx="1.1244381627451313e-05" iyy="5.633260326221199e-06" izz="5.633260325568509e-06" ixy="-1.085762643908058e-19" iyz="4.391018798460344e-17" ixz="-6.016608001743754e-12" />
+        </inertial>
+        <visual>
+            <origin xyz="-0.0012499965970552297 1.3905688334148181e-09 6.2704251391210165e-09" rpy="0 1.5707963 0" />
+            <geometry>
+                <cylinder radius="0.032529" length="0.004000" />
+            </geometry>
+            <material name="cad_grey">
+                <color rgba="0.55 0.58 0.62 1.0" />
+            </material>
+        </visual>
+    </link>
+    <joint name="bogie_left" type="continuous">
+        <origin xyz="-0.11643462 0.53598796 0.30014162" rpy="-1.5707963267948966 -0.0 0.0" />
+        <parent link="rocker_v2_L_1_bogie_pivot_in_1" />
+        <child link="bogie_v2_1_bogie_pivot_out_1" />
+        <axis xyz="-1.0 2.1175823627305735e-28 1.0000000000000002e-06" />
+    </joint>
+    <joint name="bogie_right" type="continuous">
+        <origin xyz="0.52856538 0.53598727 0.30014162" rpy="-1.5707963267948966 -0.0 0.0" />
+        <parent link="rocker_v2_R_1_bogie_pivot_in_1" />
+        <child link="bogie_v2_2_bogie_pivot_out_1" />
+        <axis xyz="-1.0 2.1175823619903306e-28 1.0000000000000002e-06" />
+    </joint>
+    <joint name="rocker_right" type="revolute">
+        <origin xyz="-0.15100000000000002 0.018000009999999983 0.004999980000000015" rpy="-3.141592653589793 -1.5707963267948966 0" />
+        <parent link="base_link_1_main_plate2_1" />
+        <child link="base_link_1_chassis_pivot_1" />
+        <axis xyz="1.0000000000000002 -1e-06 -2.1175823677552682e-22" />
+        <limit lower="-1.570796" upper="1.570796" effort="1000000" velocity="1000000" />
+    </joint>
+    <joint name="rocker_left" type="revolute">
+        <origin xyz="-0.15100000000000002 -0.017999989999999997 0.005000019999999985" rpy="3.141592653589793 1.5707963267948966 0" />
+        <parent link="base_link_1_mounting_plateMirror_1" />
+        <child link="base_link_1_chassis_pivotMirror_1" />
+        <axis xyz="-1.0000000000000002 -1e-06 -7.274118342679737e-30" />
+        <limit lower="-1.570796" upper="1.570796" effort="1000000" velocity="1000000" />
+        <mimic joint="rocker_right" multiplier="1" offset="0" />
+    </joint>
+    <joint name="wheel_front_left" type="continuous">
+        <origin xyz="-0.051500000000000025 -5.000000001587068e-08 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_front_1_bl70200s_1_wheel_1" />
+        <child link="motor_bracket_front_1_bl70200s_1_tire_1" />
+        <axis xyz="1.0 -1e-06 -2.117582369984637e-28" />
+    </joint>
+    <joint name="steer_front_left" type="continuous">
+        <origin xyz="0.0 -0.055 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_front_1_AK45-36-KV80_flanged_1_servo_hub_1" />
+        <child link="motor_bracket_front_1_AK45-36-KV80_flanged_1_rotational_axis_1" />
+        <axis xyz="-2.1175823662868644e-22 1.0 -0.0" />
+    </joint>
+    <joint name="wheel_rear_left" type="continuous">
+        <origin xyz="-0.05149999999999999 -5.000000001587068e-08 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_rear_1_bl70200s_1_wheel_1" />
+        <child link="motor_bracket_rear_1_bl70200s_1_tire_1" />
+        <axis xyz="1.0 -1e-06 -5.618743557790079e-38" />
+    </joint>
+    <joint name="steer_rear_left" type="continuous">
+        <origin xyz="0.0 -0.055 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_rear_1_AK45-36-KV80_flanged_1_servo_hub_1" />
+        <child link="motor_bracket_rear_1_AK45-36-KV80_flanged_1_rotational_axis_1" />
+        <axis xyz="3.7384415200297266e-31 1.0 0.0" />
+    </joint>
+    <joint name="wheel_center_left" type="continuous">
+        <origin xyz="1.3905835061223116e-09 -6.847559319567154e-10 -3.4033821805223853e-09" rpy="-1.57079632589124 -1.5707952545300614 -1.5707963276985528" />
+        <parent link="motor_bracket_center_1_bl70200s_1_wheel_1" />
+        <child link="motor_bracket_center_1_bl70200s_1_tire_1" />
+        <axis xyz="1.0 -9.999999999999997e-07 -2.1175823719563406e-28" />
+    </joint>
+    <joint name="wheel_front_right" type="continuous">
+        <origin xyz="0.05149999999999999 1.100000000064938e-07 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_front_2_bl70200s_1_wheel_1" />
+        <child link="motor_bracket_front_2_bl70200s_1_tire_1" />
+        <axis xyz="-1.0 2e-06 -1.2437194346755637e-36" />
+    </joint>
+    <joint name="steer_front_right" type="continuous">
+        <origin xyz="0.0 -0.055 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_front_2_AK45-36-KV80_flanged_1_servo_hub_1" />
+        <child link="motor_bracket_front_2_AK45-36-KV80_flanged_1_rotational_axis_1" />
+        <axis xyz="-6.2191452782430085e-31 1.0 0.0" />
+    </joint>
+    <joint name="wheel_rear_right" type="continuous">
+        <origin xyz="0.051500000000000025 6.000000000838668e-08 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_rear_2_bl70200s_1_wheel_1" />
+        <child link="motor_bracket_rear_2_bl70200s_1_tire_1" />
+        <axis xyz="-1.0 9.999999999999997e-07 -1.5777209293578688e-30" />
+    </joint>
+    <joint name="steer_rear_right" type="continuous">
+        <origin xyz="0.0 -0.055 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_rear_2_AK45-36-KV80_flanged_1_servo_hub_1" />
+        <child link="motor_bracket_rear_2_AK45-36-KV80_flanged_1_rotational_axis_1" />
+        <axis xyz="-5.5511151231171977e-17 1.0 0.0" />
+    </joint>
+    <joint name="wheel_center_right" type="continuous">
+        <origin xyz="3.2906610414329407e-09 -1.1750841011348712e-09 3.4028789031026463e-09" rpy="1.570796328052125 1.5707952545300607 0.06632251261347342" />
+        <parent link="motor_bracket_center_2_bl70200s_1_wheel_1" />
+        <child link="motor_bracket_center_2_bl70200s_1_tire_1" />
+        <axis xyz="-1.0 1e-06 -8.752969712453467e-23" />
+    </joint>
+    <joint name="base_link_1_chassis_pivotMirror_1_rigid-13" type="fixed">
+        <origin xyz="-0.06 -5.999999999062311e-08 -7.105427357601002e-17" rpy="3.141592653589793 -2.117582296058296e-22 1.2325951644078312e-32" />
+        <parent link="base_link_1_chassis_pivotMirror_1" />
+        <child link="rocker_v2_L_1_rocker_pivot_v3_1" />
+    </joint>
+    <joint name="bogie_v2_1_bogie_pivot_out_1_rigid-18" type="fixed">
+        <origin xyz="0.42663798 0.3276416199999999 -0.20336944999999992" rpy="1.5707963267948966 -0.0 0.0" />
+        <parent link="bogie_v2_1_bogie_pivot_out_1" />
+        <child link="motor_bracket_front_1_servo_mount_cover_1" />
+    </joint>
+    <joint name="rocker_v2_L_1_rocker_base_rear_1_rigid-19" type="fixed">
+        <origin xyz="0.6444192799999999 -0.25665913 -0.40049999999999997" rpy="0.0 5.618752361841957e-32 -1.232595164407831e-32" />
+        <parent link="rocker_v2_L_1_rocker_base_rear_1" />
+        <child link="motor_bracket_rear_1_servo_mount_cover_1" />
+    </joint>
+    <joint name="bogie_v2_1_bogie_pivot_out_1_rigid-20" type="fixed">
+        <origin xyz="0.43565871 0.3276416199999999 -0.7598480899999999" rpy="1.5707963267948966 -0.0 0.0" />
+        <parent link="bogie_v2_1_bogie_pivot_out_1" />
+        <child link="motor_bracket_center_1_center_bracket_1" />
+    </joint>
+    <joint name="base_link_1_chassis_pivot_1_rigid-25" type="fixed">
+        <origin xyz="0.06 -6.000000002615024e-08 7.105427357601002e-17" rpy="-3.141592653589793 2.117582369124642e-22 0.0" />
+        <parent link="base_link_1_chassis_pivot_1" />
+        <child link="rocker_v2_R_1_rocker_pivot_v3_R_1" />
+    </joint>
+    <joint name="bogie_v2_2_bogie_pivot_out_1_rigid-27" type="fixed">
+        <origin xyz="-0.23674996 0.17828310999999997 0.2855164" rpy="1.57079556858916 7.582057366242245e-07 -0.7853981633983109" />
+        <parent link="bogie_v2_2_bogie_pivot_out_1" />
+        <child link="motor_bracket_front_2_servo_mount_cover_1" />
+    </joint>
+    <joint name="rocker_v2_R_1_rocker_base_rear_1_rigid-28" type="fixed">
+        <origin xyz="0.05941927999999997 -0.25665851 -0.40049999999999997" rpy="0.0 6.38824447149605e-32 0.0" />
+        <parent link="rocker_v2_R_1_rocker_base_rear_1" />
+        <child link="motor_bracket_rear_2_servo_mount_cover_1" />
+    </joint>
+    <joint name="bogie_v2_2_bogie_pivot_out_1_rigid-30" type="fixed">
+        <origin xyz="-0.20934129 0.3276416199999999 -0.7598473999999997" rpy="1.5707963267948966 -0.0 0.0" />
+        <parent link="bogie_v2_2_bogie_pivot_out_1" />
+        <child link="motor_bracket_center_2_center_bracket_1" />
+    </joint>
+    <joint name="base_link_1_3030_500mm_4_rigid-21" type="fixed">
+        <origin xyz="2.5000000000829916e-07 0.23500000000000001 0.0" rpy="-2.0456994333050097e-53 -1.5707963267948966 0" />
+        <parent link="base_link_1_3030_500mm_4" />
+        <child link="base_link_1_3030_340mm_7" />
+    </joint>
+    <joint name="base_link_1_3030_500mm_4_rigid-23" type="fixed">
+        <origin xyz="0.03000025000000001 0.23499997 0.0" rpy="3.141592653589793 -1.5707963267948966 0" />
+        <parent link="base_link_1_3030_500mm_4" />
+        <child link="base_link_1_main_plate2_1" />
+    </joint>
+    <joint name="base_link_1_3030_500mm_3_rigid-28" type="fixed">
+        <origin xyz="0.0 -2.999999999531156e-08 -0.03" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="base_link_1_3030_500mm_3" />
+        <child link="base_link_1_mounting_plateMirror_1" />
+    </joint>
+    <joint name="base_link_1_3030_340mm_6_rigid-35" type="fixed">
+        <origin xyz="0.029999999523160382 0.0150000000743011 0.16999999509392197" rpy="1.0722648364216263e-06 -2.7856908311738143e-15 -1.2101719603661024e-15" />
+        <parent link="base_link_1_3030_340mm_6" />
+        <child link="base_link_1_diferential_bar_mount_1" />
+    </joint>
+    <joint name="base_link_1_3030_340mm_1_rigid-63" type="fixed">
+        <origin xyz="0.014999999999999965 -0.23500018 -0.16999975" rpy="-3.697785493223493e-32 2.1175823681365097e-22 -9.953952986518066e-33" />
+        <parent link="base_link_1_3030_340mm_1" />
+        <child link="base_link_1_3030_500mm_1" />
+    </joint>
+    <joint name="base_link_1_3030_340mm_1_rigid-64" type="fixed">
+        <origin xyz="0.014999999999999965 1.8000000000073514e-07 0.17" rpy="3.141592653589793 -1.5707963267948966 0" />
+        <parent link="base_link_1_3030_340mm_1" />
+        <child link="base_link_1_3030_500mm_2" />
+    </joint>
+    <joint name="base_link_1_3030_500mm_1_rigid-65" type="fixed">
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0" />
+        <parent link="base_link_1_3030_500mm_1" />
+        <child link="base_link_1_3030_340mm_2" />
+    </joint>
+    <joint name="base_link_1_3030_240mm_1_rigid-66" type="fixed">
+        <origin xyz="0.20000000391602832 0.015000000000010194 -0.0300000000000005" rpy="-3.141591581324958 -1.5707963267948961 0" />
+        <parent link="base_link_1_3030_240mm_1" />
+        <child link="base_link_1_3030_340mm_1" />
+    </joint>
+    <joint name="base_link_1_3030_340mm_2_rigid-67" type="fixed">
+        <origin xyz="0.015 -0.23499982 0.17000025000000002" rpy="6.162975822039155e-32 -2.117582399937465e-22 1.3828936791229704e-30" />
+        <parent link="base_link_1_3030_340mm_2" />
+        <child link="base_link_1_3030_240mm_2" />
+    </joint>
+    <joint name="base_link_1_3030_340mm_1_rigid-68" type="fixed">
+        <origin xyz="-3.552713678800501e-17 0.0 0.0" rpy="-1.3684503113236292e-48 2.736911063134409e-48 -1.3684555315672045e-48" />
+        <parent link="base_link_1_3030_340mm_1" />
+        <child link="base_link_1_3030_240mm_3" />
+    </joint>
+    <joint name="base_link_1_3030_340mm_4_rigid-69" type="fixed">
+        <origin xyz="-0.35499975 -0.23500038 -0.015" rpy="-2.8217884959247407e-30 1.5707963267948966 0" />
+        <parent link="base_link_1_3030_340mm_4" />
+        <child link="base_link_1_3030_500mm_3" />
+    </joint>
+    <joint name="base_link_1_3030_340mm_4_rigid-70" type="fixed">
+        <origin xyz="-0.015 -1.999999999835467e-08 -0.015" rpy="3.141592653589793 -4.4519972544748566e-60 2.8217884959247407e-30" />
+        <parent link="base_link_1_3030_340mm_4" />
+        <child link="base_link_1_3030_500mm_4" />
+    </joint>
+    <joint name="base_link_1_3030_500mm_3_rigid-72" type="fixed">
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0" />
+        <parent link="base_link_1_3030_500mm_3" />
+        <child link="base_link_1_3030_340mm_5" />
+    </joint>
+    <joint name="base_link_1_3030_340mm_2_rigid-73" type="fixed">
+        <origin xyz="0.015 -0.23499982 0.17000025000000002" rpy="6.162975822039155e-32 -2.117582399937465e-22 1.3828936791229704e-30" />
+        <parent link="base_link_1_3030_340mm_2" />
+        <child link="base_link_1_3030_240mm_4" />
+    </joint>
+    <joint name="base_link_1_3030_240mm_3_rigid-74" type="fixed">
+        <origin xyz="0.26999999999999996 1.999999999990898e-07 0.185" rpy="-9.953952986518066e-33 -1.5707963267948966 0" />
+        <parent link="base_link_1_3030_240mm_3" />
+        <child link="base_link_1_3030_340mm_4" />
+    </joint>
+    <joint name="rocker_v2_L_1_rocker_base_front_1_rigid-1" type="fixed">
+        <origin xyz="5.999999999062311e-08 0.055300000000000016 0.0" rpy="0.0 -0.0 3.891344262755744e-95" />
+        <parent link="rocker_v2_L_1_rocker_base_front_1" />
+        <child link="rocker_v2_L_1_rocker_vertex_front_1" />
+    </joint>
+    <joint name="rocker_v2_L_1_rocker_pivot_v3_1_rigid-2" type="fixed">
+        <origin xyz="-0.02749994000000001 0.05450002999999999 0.0" rpy="0.0 -1.096998027722522e-31 2.465190328815662e-32" />
+        <parent link="rocker_v2_L_1_rocker_pivot_v3_1" />
+        <child link="rocker_v2_L_1_rocker_base_front_1" />
+    </joint>
+    <joint name="rocker_v2_L_1_rocker_pivot_v3_1_rigid-3" type="fixed">
+        <origin xyz="-0.027500059999999993 -0.05449997 0.0" rpy="0.0 -1.096998027722522e-31 2.465190328815662e-32" />
+        <parent link="rocker_v2_L_1_rocker_pivot_v3_1" />
+        <child link="rocker_v2_L_1_rocker_base_rear_1" />
+    </joint>
+    <joint name="rocker_v2_L_1_rocker_base_rear_1_rigid-4" type="fixed">
+        <origin xyz="-1.100000000064938e-07 -0.10370000000000001 0.0" rpy="0.0 -0.0 3.891344262755744e-95" />
+        <parent link="rocker_v2_L_1_rocker_base_rear_1" />
+        <child link="rocker_v2_L_1_rocker_vertex_rear_1" />
+    </joint>
+    <joint name="rocker_v2_L_1_rocker_vertex_front_1_rigid-5" type="fixed">
+        <origin xyz="6.000000002615024e-08 0.05882522999999999 -0.025638999999999967" rpy="0.0 -0.0 3.891344262755744e-95" />
+        <parent link="rocker_v2_L_1_rocker_vertex_front_1" />
+        <child link="rocker_v2_L_1_rocker_leg_front_1" />
+    </joint>
+    <joint name="rocker_v2_L_1_rocker_leg_front_1_rigid-6" type="fixed">
+        <origin xyz="0.08643469 -0.4665544 -0.374861" rpy="0.0 5.618752361841957e-32 -1.232595164407831e-32" />
+        <parent link="rocker_v2_L_1_rocker_leg_front_1" />
+        <child link="rocker_v2_L_1_bogie_pivot_in_1" />
+    </joint>
+    <joint name="rocker_v2_L_1_rocker_vertex_rear_1_rigid-7" type="fixed">
+        <origin xyz="-7.000000000090268e-08 -0.06632079 -0.015620750000000001" rpy="0.0 -0.0 3.891344262755744e-95" />
+        <parent link="rocker_v2_L_1_rocker_vertex_rear_1" />
+        <child link="rocker_v2_L_1_rocker_leg_rear_1" />
+    </joint>
+    <joint name="bogie_v2_1_bogie_pivot_out_1_rigid-1" type="fixed">
+        <origin xyz="-0.029999949999999984 -0.003474920000000026 0.046871399999999994" rpy="-2.2178200519267307e-22 3.932701338683106e-23 5.5511151231257815e-17" />
+        <parent link="bogie_v2_1_bogie_pivot_out_1" />
+        <child link="bogie_v2_1_bogie_link_front_1" />
+    </joint>
+    <joint name="bogie_v2_1_bogie_pivot_out_1_rigid-2" type="fixed">
+        <origin xyz="-0.030000029999999997 0.03431761999999999 -0.032113829999999906" rpy="-2.2178200519267307e-22 3.932701338683106e-23 5.5511151231257815e-17" />
+        <parent link="bogie_v2_1_bogie_pivot_out_1" />
+        <child link="bogie_v2_1_bogie_link_center_1" />
+    </joint>
+    <joint name="motor_bracket_front_1_double_d_washer_1_rigid-1" type="fixed">
+        <origin xyz="-0.003000000000000007 9.999999974752428e-09 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_front_1_double_d_washer_1" />
+        <child link="motor_bracket_front_1_bl70200s_1_wheel_1" />
+    </joint>
+    <joint name="motor_bracket_front_1_motor_bracket_curved_1_rigid-2" type="fixed">
+        <origin xyz="-0.14100000000000001 -5.999999999062311e-08 -0.05450000000000003" rpy="-4.235164736271502e-22 1.5707963267948966 0" />
+        <parent link="motor_bracket_front_1_motor_bracket_curved_1" />
+        <child link="motor_bracket_front_1_double_d_washer_1" />
+    </joint>
+    <joint name="motor_bracket_front_1_kingpin_flange_1_rigid-3" type="fixed">
+        <origin xyz="-0.0684 0.0 0.0" rpy="9.860761315262648e-32 4.176194859519056e-53 -4.235164736271502e-22" />
+        <parent link="motor_bracket_front_1_kingpin_flange_1" />
+        <child link="motor_bracket_front_1_motor_bracket_curved_1" />
+    </joint>
+    <joint name="motor_bracket_front_1_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1_rigid-5" type="fixed">
+        <origin xyz="0.0 -5.309999999951742e-06 0.04719999999999996" rpy="-3.141592653589793 1.5707963267948966 0" />
+        <parent link="motor_bracket_front_1_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1" />
+        <child link="motor_bracket_front_1_kingpin_flange_1" />
+    </joint>
+    <joint name="motor_bracket_front_1_AK45-36-KV80_flanged_1_rotational_axis_1_rigid-6" type="fixed">
+        <origin xyz="0.0 0.0 0.0" rpy="-1.5707963267948966 2.1175823662868644e-22 2.1175823653007883e-22" />
+        <parent link="motor_bracket_front_1_AK45-36-KV80_flanged_1_rotational_axis_1" />
+        <child link="motor_bracket_front_1_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1" />
+    </joint>
+    <joint name="motor_bracket_front_1_kingpin_flange_1_rigid-7" type="fixed">
+        <origin xyz="-0.037800000000000014 0.0 0.0" rpy="-3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_front_1_kingpin_flange_1" />
+        <child link="motor_bracket_front_1_STWS20_1" />
+    </joint>
+    <joint name="motor_bracket_front_1_servo_mount_front_1_rigid-8" type="fixed">
+        <origin xyz="-0.1626 0.0 0.0" rpy="-3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_front_1_servo_mount_front_1" />
+        <child link="motor_bracket_front_1_NSK_5204_1_5204-Outer-Ring_1" />
+    </joint>
+    <joint name="motor_bracket_front_1_servo_mount_front_1_rigid-10" type="fixed">
+        <origin xyz="-0.1626 0.0 0.0" rpy="4.421718300208355e-75 -0.0 0.0" />
+        <parent link="motor_bracket_front_1_servo_mount_front_1" />
+        <child link="motor_bracket_front_1_retainer_plate_1" />
+    </joint>
+    <joint name="motor_bracket_front_1_servo_mount_cover_1_rigid-13" type="fixed">
+        <origin xyz="-0.4566374 0.4888859100000001 0.41410905" rpy="-0.0 -1.5707963267948966 0" />
+        <parent link="motor_bracket_front_1_servo_mount_cover_1" />
+        <child link="motor_bracket_front_1_servo_mount_front_1" />
+    </joint>
+    <joint name="motor_bracket_front_1_servo_mount_cover_1_rigid-14" type="fixed">
+        <origin xyz="-0.4566374 0.4888859100000001 0.41210905" rpy="1.5707963267948966 -2.1175823662868644e-22 0.0" />
+        <parent link="motor_bracket_front_1_servo_mount_cover_1" />
+        <child link="motor_bracket_front_1_AK45-36-KV80_flanged_1_servo_hub_1" />
+    </joint>
+    <joint name="motor_bracket_rear_1_double_d_washer_1_rigid-1" type="fixed">
+        <origin xyz="-0.003000000000000007 9.999999992515996e-09 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_rear_1_double_d_washer_1" />
+        <child link="motor_bracket_rear_1_bl70200s_1_wheel_1" />
+    </joint>
+    <joint name="motor_bracket_rear_1_motor_bracket_curved_1_rigid-2" type="fixed">
+        <origin xyz="-0.141 -6.000000000838668e-08 -0.05449999999999999" rpy="1.0947644252537633e-47 1.5707963267948966 0" />
+        <parent link="motor_bracket_rear_1_motor_bracket_curved_1" />
+        <child link="motor_bracket_rear_1_double_d_washer_1" />
+    </joint>
+    <joint name="motor_bracket_rear_1_kingpin_flange_1_rigid-3" type="fixed">
+        <origin xyz="-0.0684 0.0 0.0" rpy="1.232595164407831e-32 -1.349401336733507e-79 1.0947644252537633e-47" />
+        <parent link="motor_bracket_rear_1_kingpin_flange_1" />
+        <child link="motor_bracket_rear_1_motor_bracket_curved_1" />
+    </joint>
+    <joint name="motor_bracket_rear_1_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1_rigid-5" type="fixed">
+        <origin xyz="0.0 -5.300000000012517e-06 0.04719999999999999" rpy="3.141592653589793 1.5707963267948966 0" />
+        <parent link="motor_bracket_rear_1_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1" />
+        <child link="motor_bracket_rear_1_kingpin_flange_1" />
+    </joint>
+    <joint name="motor_bracket_rear_1_AK45-36-KV80_flanged_1_rotational_axis_1_rigid-6" type="fixed">
+        <origin xyz="0.0 0.0 0.0" rpy="-1.5707963267948966 -5.618743557790082e-32 -3.8617010364705097e-31" />
+        <parent link="motor_bracket_rear_1_AK45-36-KV80_flanged_1_rotational_axis_1" />
+        <child link="motor_bracket_rear_1_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1" />
+    </joint>
+    <joint name="motor_bracket_rear_1_kingpin_flange_1_rigid-7" type="fixed">
+        <origin xyz="-0.037800000000000014 0.0 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_rear_1_kingpin_flange_1" />
+        <child link="motor_bracket_rear_1_STWS20_1" />
+    </joint>
+    <joint name="motor_bracket_rear_1_servo_mount_rear_1_rigid-8" type="fixed">
+        <origin xyz="-0.14200000000000004 0.03175972 0.008518380000000008" rpy="3.141592653589793 -9.860761315262648e-32 4.3790577010150533e-47" />
+        <parent link="motor_bracket_rear_1_servo_mount_rear_1" />
+        <child link="motor_bracket_rear_1_NSK_5204_1_5204-Outer-Ring_1" />
+    </joint>
+    <joint name="motor_bracket_rear_1_servo_mount_rear_1_rigid-10" type="fixed">
+        <origin xyz="-0.16260000000000002 0.03175972 0.008518380000000008" rpy="-5.226148371855074e-47 -0.0 0.0" />
+        <parent link="motor_bracket_rear_1_servo_mount_rear_1" />
+        <child link="motor_bracket_rear_1_retainer_plate_1" />
+    </joint>
+    <joint name="motor_bracket_rear_1_servo_mount_cover_1_rigid-11" type="fixed">
+        <origin xyz="-0.6359012199999999 -0.07252005 0.38664118000000003" rpy="-0.0 -1.5707963267948966 0" />
+        <parent link="motor_bracket_rear_1_servo_mount_cover_1" />
+        <child link="motor_bracket_rear_1_servo_mount_rear_1" />
+    </joint>
+    <joint name="motor_bracket_rear_1_servo_mount_cover_1_rigid-12" type="fixed">
+        <origin xyz="-0.6444196 -0.040760330000000004 0.38464118" rpy="1.5707963267948966 3.7384415200297266e-31 0.0" />
+        <parent link="motor_bracket_rear_1_servo_mount_cover_1" />
+        <child link="motor_bracket_rear_1_AK45-36-KV80_flanged_1_servo_hub_1" />
+    </joint>
+    <joint name="motor_bracket_center_1_double_d_washer_1_rigid-1" type="fixed">
+        <origin xyz="-0.05449999659661856 -1.39058352388588e-09 -5.9315240399371306e-08" rpy="1.5707952545300614 3.9429935150961204e-16 1.5707963267948977" />
+        <parent link="motor_bracket_center_1_double_d_washer_1" />
+        <child link="motor_bracket_center_1_bl70200s_1_wheel_1" />
+    </joint>
+    <joint name="motor_bracket_center_1_center_bracket_1_rigid-2" type="fixed">
+        <origin xyz="-0.43315866999999997 0.54728162 0.10048814" rpy="-1.5707963267948966 -0.0 -5.373368294916335e-31" />
+        <parent link="motor_bracket_center_1_center_bracket_1" />
+        <child link="motor_bracket_center_1_bracket_cover_1" />
+    </joint>
+    <joint name="motor_bracket_center_1_center_bracket_1_rigid-3" type="fixed">
+        <origin xyz="-0.49815866999999997 0.5472816899999999 0.10048814" rpy="1.5707963267948966 -0.0 -5.373368294916335e-31" />
+        <parent link="motor_bracket_center_1_center_bracket_1" />
+        <child link="motor_bracket_center_1_double_d_washer_1" />
+    </joint>
+    <joint name="rocker_v2_R_1_rocker_base_front_1_rigid-1" type="fixed">
+        <origin xyz="5.999999999062311e-08 0.055300000000000016 0.0" rpy="0.0 -0.0 0.0" />
+        <parent link="rocker_v2_R_1_rocker_base_front_1" />
+        <child link="rocker_v2_R_1_rocker_vertex_front_1" />
+    </joint>
+    <joint name="rocker_v2_R_1_rocker_pivot_v3_R_1_rigid-2" type="fixed">
+        <origin xyz="0.027500059999999993 -0.05449997 0.0" rpy="3.141592653589793 1.2472337090265714e-31 -2.459734781812153e-62" />
+        <parent link="rocker_v2_R_1_rocker_pivot_v3_R_1" />
+        <child link="rocker_v2_R_1_rocker_base_front_1" />
+    </joint>
+    <joint name="rocker_v2_R_1_rocker_pivot_v3_R_1_rigid-3" type="fixed">
+        <origin xyz="0.02749994000000001 0.05450002999999999 0.0" rpy="3.141592653589793 1.2472337090265714e-31 -2.459734781812153e-62" />
+        <parent link="rocker_v2_R_1_rocker_pivot_v3_R_1" />
+        <child link="rocker_v2_R_1_rocker_base_rear_1" />
+    </joint>
+    <joint name="rocker_v2_R_1_rocker_base_rear_1_rigid-4" type="fixed">
+        <origin xyz="-1.100000000064938e-07 -0.10370000000000001 0.0" rpy="0.0 -0.0 0.0" />
+        <parent link="rocker_v2_R_1_rocker_base_rear_1" />
+        <child link="rocker_v2_R_1_rocker_vertex_rear_1" />
+    </joint>
+    <joint name="rocker_v2_R_1_rocker_vertex_front_1_rigid-5" type="fixed">
+        <origin xyz="6.000000002615024e-08 0.05882522999999999 -0.025638999999999967" rpy="0.0 -0.0 0.0" />
+        <parent link="rocker_v2_R_1_rocker_vertex_front_1" />
+        <child link="rocker_v2_R_1_rocker_leg_front_1" />
+    </joint>
+    <joint name="rocker_v2_R_1_rocker_leg_front_1_rigid-6" type="fixed">
+        <origin xyz="-0.49856531000000004 -0.46655378 -0.374861" rpy="0.0 6.38824447149605e-32 0.0" />
+        <parent link="rocker_v2_R_1_rocker_leg_front_1" />
+        <child link="rocker_v2_R_1_bogie_pivot_in_1" />
+    </joint>
+    <joint name="rocker_v2_R_1_rocker_vertex_rear_1_rigid-7" type="fixed">
+        <origin xyz="-7.000000000090268e-08 -0.0663208 -0.015620750000000001" rpy="0.0 -0.0 0.0" />
+        <parent link="rocker_v2_R_1_rocker_vertex_rear_1" />
+        <child link="rocker_v2_R_1_rocker_leg_rear_1" />
+    </joint>
+    <joint name="bogie_v2_2_bogie_pivot_out_1_rigid-1" type="fixed">
+        <origin xyz="0.030000050000000018 -0.003474920000000026 0.046871340000000004" rpy="-2.5601018414502095e-22 3.511574896267596e-23 5.5511151231257815e-17" />
+        <parent link="bogie_v2_2_bogie_pivot_out_1" />
+        <child link="bogie_v2_2_bogie_link_front_1" />
+    </joint>
+    <joint name="bogie_v2_2_bogie_pivot_out_1_rigid-2" type="fixed">
+        <origin xyz="0.029999970000000004 0.03431761999999999 -0.032113899999999876" rpy="-2.5601018414502095e-22 3.511574896267596e-23 5.5511151231257815e-17" />
+        <parent link="bogie_v2_2_bogie_pivot_out_1" />
+        <child link="bogie_v2_2_bogie_link_center_1" />
+    </joint>
+    <joint name="motor_bracket_front_2_double_d_washer_1_rigid-1" type="fixed">
+        <origin xyz="0.0029999999999999714 -9.999999974752428e-09 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_front_2_double_d_washer_1" />
+        <child link="motor_bracket_front_2_bl70200s_1_wheel_1" />
+    </joint>
+    <joint name="motor_bracket_front_2_motor_bracket_curved_1_rigid-2" type="fixed">
+        <origin xyz="-0.14100000000000001 1.1999999998124623e-07 0.05449999999999996" rpy="-3.503246160812043e-46 1.5707963267948966 0" />
+        <parent link="motor_bracket_front_2_motor_bracket_curved_1" />
+        <child link="motor_bracket_front_2_double_d_washer_1" />
+    </joint>
+    <joint name="motor_bracket_front_2_kingpin_flange_1_rigid-3" type="fixed">
+        <origin xyz="-0.0684 0.0 0.0" rpy="-9.860761315262648e-32 -0.0 -3.503246160812043e-46" />
+        <parent link="motor_bracket_front_2_kingpin_flange_1" />
+        <child link="motor_bracket_front_2_motor_bracket_curved_1" />
+    </joint>
+    <joint name="motor_bracket_front_2_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1_rigid-5" type="fixed">
+        <origin xyz="0.0 5.309999999951742e-06 0.04719999999999996" rpy="-3.141592653589793 1.5707963267948966 0" />
+        <parent link="motor_bracket_front_2_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1" />
+        <child link="motor_bracket_front_2_kingpin_flange_1" />
+    </joint>
+    <joint name="motor_bracket_front_2_AK45-36-KV80_flanged_1_rotational_axis_1_rigid-6" type="fixed">
+        <origin xyz="0.0 0.0 0.0" rpy="-1.5707963267948966 6.219138154571076e-31 6.2191452782430085e-31" />
+        <parent link="motor_bracket_front_2_AK45-36-KV80_flanged_1_rotational_axis_1" />
+        <child link="motor_bracket_front_2_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1" />
+    </joint>
+    <joint name="motor_bracket_front_2_kingpin_flange_1_rigid-7" type="fixed">
+        <origin xyz="-0.037800000000000014 0.0 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_front_2_kingpin_flange_1" />
+        <child link="motor_bracket_front_2_STWS20_1" />
+    </joint>
+    <joint name="motor_bracket_front_2_servo_mount_front_1_rigid-8" type="fixed">
+        <origin xyz="-0.1626 0.0 0.0" rpy="3.141592653589793 -8.636168555094447e-78 8.758115402030109e-47" />
+        <parent link="motor_bracket_front_2_servo_mount_front_1" />
+        <child link="motor_bracket_front_2_NSK_5204_1_5204-Outer-Ring_1" />
+    </joint>
+    <joint name="motor_bracket_front_2_servo_mount_front_1_rigid-10" type="fixed">
+        <origin xyz="-0.1626 0.0 0.0" rpy="-1.0947644252537633e-47 -8.636168555094447e-78 8.758115402030109e-47" />
+        <parent link="motor_bracket_front_2_servo_mount_front_1" />
+        <child link="motor_bracket_front_2_retainer_plate_1" />
+    </joint>
+    <joint name="motor_bracket_front_2_servo_mount_cover_1_rigid-13" type="fixed">
+        <origin xyz="0.3758280178758646 2.8602722409232227e-07 -0.0014142135624808727" rpy="1.072264835803754e-06 -0.785398163396873 8.984141104579551e-22" />
+        <parent link="motor_bracket_front_2_servo_mount_cover_1" />
+        <child link="motor_bracket_front_2_servo_mount_front_1" />
+    </joint>
+    <joint name="motor_bracket_front_2_servo_mount_cover_1_rigid-14" type="fixed">
+        <origin xyz="0.37441380431349075 2.8602722409232227e-07 -0.002828427124853148" rpy="1.5707973990597324 0.7853981633974488 1.5164114732497572e-06" />
+        <parent link="motor_bracket_front_2_servo_mount_cover_1" />
+        <child link="motor_bracket_front_2_AK45-36-KV80_flanged_1_servo_hub_1" />
+    </joint>
+    <joint name="motor_bracket_rear_2_double_d_washer_1_rigid-1" type="fixed">
+        <origin xyz="0.0029999999999999714 0.0 0.0" rpy="3.141592653589793 -0.0 0.0" />
+        <parent link="motor_bracket_rear_2_double_d_washer_1" />
+        <child link="motor_bracket_rear_2_bl70200s_1_wheel_1" />
+    </joint>
+    <joint name="motor_bracket_rear_2_motor_bracket_curved_1_rigid-2" type="fixed">
+        <origin xyz="-0.141 6.000000000838668e-08 0.05449999999999999" rpy="1.7516230804060217e-46 1.5707963267948966 0" />
+        <parent link="motor_bracket_rear_2_motor_bracket_curved_1" />
+        <child link="motor_bracket_rear_2_double_d_washer_1" />
+    </joint>
+    <joint name="motor_bracket_rear_2_kingpin_flange_1_rigid-3" type="fixed">
+        <origin xyz="-0.06840000000000003 0.0 0.0" rpy="1.232595164407831e-32 -1.5777218104420236e-30 1.7516230804060213e-46" />
+        <parent link="motor_bracket_rear_2_kingpin_flange_1" />
+        <child link="motor_bracket_rear_2_motor_bracket_curved_1" />
+    </joint>
+    <joint name="motor_bracket_rear_2_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1_rigid-5" type="fixed">
+        <origin xyz="-3.552713678800501e-17 5.310000000005033e-06 0.04719999999999999" rpy="3.141592653589793 1.5707963267948966 0" />
+        <parent link="motor_bracket_rear_2_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1" />
+        <child link="motor_bracket_rear_2_kingpin_flange_1" />
+    </joint>
+    <joint name="motor_bracket_rear_2_AK45-36-KV80_flanged_1_rotational_axis_1_rigid-6" type="fixed">
+        <origin xyz="0.0 0.0 0.0" rpy="-1.5707963267948966 -2.1175823769330603e-22 5.551115123117195e-17" />
+        <parent link="motor_bracket_rear_2_AK45-36-KV80_flanged_1_rotational_axis_1" />
+        <child link="motor_bracket_rear_2_E-LMPJC55L78-15-20-LK5-RK6_1_BODY-R_E-LMPJC55L78-15-20-LK5-RK6_1" />
+    </joint>
+    <joint name="motor_bracket_rear_2_kingpin_flange_1_rigid-7" type="fixed">
+        <origin xyz="-0.03780000000000005 0.0 0.0" rpy="3.141592653589793 1.7516230804060217e-46 0.0" />
+        <parent link="motor_bracket_rear_2_kingpin_flange_1" />
+        <child link="motor_bracket_rear_2_STWS20_1" />
+    </joint>
+    <joint name="motor_bracket_rear_2_servo_mount_rear_1_rigid-8" type="fixed">
+        <origin xyz="-0.14200000000000004 0.03175972 0.008518380000000008" rpy="-3.141592653589793 1.5777218104420236e-30 -1.1102230246251565e-16" />
+        <parent link="motor_bracket_rear_2_servo_mount_rear_1" />
+        <child link="motor_bracket_rear_2_NSK_5204_1_5204-Outer-Ring_1" />
+    </joint>
+    <joint name="motor_bracket_rear_2_servo_mount_rear_1_rigid-10" type="fixed">
+        <origin xyz="-0.16260000000000002 0.03175972 0.008518380000000008" rpy="-5.226148371855073e-47 -0.0 0.0" />
+        <parent link="motor_bracket_rear_2_servo_mount_rear_1" />
+        <child link="motor_bracket_rear_2_retainer_plate_1" />
+    </joint>
+    <joint name="motor_bracket_rear_2_servo_mount_cover_1_rigid-11" type="fixed">
+        <origin xyz="-0.050901219999999976 -0.07252067999999999 0.38664118000000003" rpy="-0.0 -1.5707963267948966 0" />
+        <parent link="motor_bracket_rear_2_servo_mount_cover_1" />
+        <child link="motor_bracket_rear_2_servo_mount_rear_1" />
+    </joint>
+    <joint name="motor_bracket_rear_2_servo_mount_cover_1_rigid-12" type="fixed">
+        <origin xyz="-0.05941959999999998 -0.04076096 0.38464118" rpy="1.5707963267948966 -5.5511151231171977e-17 0.0" />
+        <parent link="motor_bracket_rear_2_servo_mount_cover_1" />
+        <child link="motor_bracket_rear_2_AK45-36-KV80_flanged_1_servo_hub_1" />
+    </joint>
+    <joint name="motor_bracket_center_2_double_d_washer_1_rigid-1" type="fixed">
+        <origin xyz="0.05450000340287552 -1.3905855844598136e-09 6.320555268501948e-08" rpy="-1.57081250608764 1.504473815210458 1.5707801830728427" />
+        <parent link="motor_bracket_center_2_double_d_washer_1" />
+        <child link="motor_bracket_center_2_bl70200s_1_wheel_1" />
+    </joint>
+    <joint name="motor_bracket_center_2_center_bracket_1_rigid-2" type="fixed">
+        <origin xyz="0.20684133 0.54728093 0.10048814" rpy="-1.5707963267948966 -0.0 2.4588989658812977e-24" />
+        <parent link="motor_bracket_center_2_center_bracket_1" />
+        <child link="motor_bracket_center_2_bracket_cover_1" />
+    </joint>
+    <joint name="motor_bracket_center_2_center_bracket_1_rigid-3" type="fixed">
+        <origin xyz="0.27184133 0.54728087 0.10048814" rpy="1.5707963267948966 -0.0 2.4588989658812977e-24" />
+        <parent link="motor_bracket_center_2_center_bracket_1" />
+        <child link="motor_bracket_center_2_double_d_washer_1" />
+    </joint>
+    <joint name="base_link_1_3030_500mm_4_rigid-76" type="fixed">
+        <origin xyz="-0.3399996090098516 0.3685003623593094 -0.014999999523160881" rpy="3.1415915813249566 -1.5707963267948937 0" />
+        <parent link="base_link_1_3030_500mm_4" />
+        <child link="base_link_1_3030_340mm_6" />
+    </joint>
+</robot>
