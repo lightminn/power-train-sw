@@ -6,7 +6,8 @@
 
 **Goal:** 2025 출품작들에서 확인한 좋은 SW 관행을 현재 powertrain 아키텍처에 맞게 도입해,
 실패 원인이 관측 가능하고 depth·시간·TF 품질이 수치화되며 원격주행과 원격 팔 조종이 네트워크
-열화에도 L515·D435i 동시 30 fps와 공통 안전 경로를 보존하게 한다.
+열화에도 L515·D435i 동시 30 fps와 공통 안전 경로를 보존하게 한다. DualSense 하나로 DRIVE와
+ARM을 상호배타 전환하고 ARM에서는 5개 관절과 그리퍼를 개별 조작한다.
 
 **Architecture:** 새 ROS wire schema를 만들지 않는다. 제어와 안전은
 `/autonomy/cmd_vel|/teleop/cmd_vel → chassis_node 내부 CommandAuthority → ChassisManager` 경로를
@@ -14,7 +15,8 @@
 abstract socket을 통해 비차단 이벤트를 단일 journal daemon에 모으고, TUI는 L515 Gateway와
 observability daemon을 독립적으로 조회한다. D435i raw 영상과 YOLO metadata는 분리 전송하고
 노트북 receiver가 최신 결과만 합성한다. terrain·wheel consistency·remote assist는 ROS 없는
-순수 Python 코어를 먼저 구현하고 얇은 ROS adapter만 추가한다.
+순수 Python 코어를 먼저 구현하고 얇은 ROS adapter만 추가한다. 원격 팔 input은 WP5.2의 단일
+gateway와 로봇팔 `ArmCommandAuthority`를 재사용하며 관측 프로세스가 command owner가 되지 않는다.
 
 **Tech Stack:** Python 3.10, pytest, rclpy/ROS2 Humble adapter, Textual, NumPy 기준 backend,
 JAX qualification backend, Linux abstract Unix socket, `flock`, JSONL, existing x264/SRT pipeline.
@@ -43,6 +45,9 @@ JAX qualification backend, Linux abstract Unix socket, `flock`, JSONL, existing 
 - 네트워크 profile, NumPy/JAX backend와 FP precision은 arm 전에 선택한다. 운용 중 backend 자동
   전환은 금지한다.
 - 반자동 원격 보조는 운영자의 속도 의도와 공통 chassis safety gate를 우회하지 않는다.
+- DualSense DRIVE/ARM gateway, remote-input schema와 arm command authority는 WP5.2 Task 4·7이
+  소유한다. 이 계획은 해당 제어 계약을 바꾸지 않고 dual-video operator console, channel feedback와
+  관측 이벤트만 연결한다.
 - production Compose service는 `powertrain_observability`라는 별도 supervised process다.
   `network_mode: host`, 명시적 command/entrypoint, `PYTHONPATH=/workspace`,
   `/run/powertrain`·`/var/lib/powertrain/runs` bind, `restart: unless-stopped`와 healthcheck를 둔다.
@@ -320,6 +325,8 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 - Create: `remote_video/tests/test_metadata.py`
 - Create: `scripts/recv_remote_operation.py`
 - Create: `tests/test_recv_remote_operation.py`
+- Modify after WP5.2 Task 4: `motor_control/laptop/remote_operation_client.py`
+- Modify after WP5.2 Task 4: `motor_control/laptop/tests/test_remote_operation_client.py`
 - Create: `ros2/src/powertrain_ros/powertrain_ros/remote_assist.py`
 - Create: `ros2/src/powertrain_ros/test/test_remote_assist.py`
 - Modify: `ros2/src/powertrain_ros/powertrain_ros/command_authority.py`
@@ -339,6 +346,10 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 - 노트북 `recv_remote_operation.py`는 두 SRT를 동시에 decode/display하고 D435i metadata만 client-side
   합성한다. metadata age가 qualification threshold를 넘으면 bbox를 숨기고 `OVERLAY_STALE`을 표시한다.
   stale overlay나 packet loss가 raw frame 표시를 막지 않는다.
+- `recv_remote_operation.py`는 Task 4의 `remote_operation_client`를 import해 DualSense를 한 번만
+  연다. 별도 controller reader를 띄우지 않으며 DRIVE/ARM requested mode, Jetson ACK mode, selected
+  joint, deadman, 각 gate freshness와 hold reason을 두 영상 옆에 표시한다. client 요청을 ACK처럼
+  표시하지 않는다.
 - 로봇팔 저장소의 D435i owner/sender는 cross-team deliverable이다. powertrain 쪽은 protocol fixture와
   receiver를 소유하고, 실제 SDK·sender 코드를 중복 구현하지 않는다.
 
@@ -373,6 +384,16 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 - L515와 D435i는 동시에 표시하지만 safety predicate는 operation별이다. L515 raw freshness는
   remote drive, D435i raw freshness는 remote arm을 gate한다. 비권위 companion 장애를 다른 동작의
   안전근거로 오판하지 않는다.
+- DualSense는 `CREATE+OPTIONS` 1초 hold로 DRIVE/ARM 전환을 요청한다. ARM ACK 뒤 D-pad 좌/우는
+  `joint_1`~`joint_5` 선택, 우스틱 Y는 selected joint signed jog, R2/L2는 gripper open/close이며
+  L1은 hold-to-run deadman이다. 같은 frame에서 drive와 arm 출력을 함께 허용하지 않고, 두 trigger
+  동시 입력은 gripper hold다. ○는 양 mode에서 기존 수동 latched E-stop 의미를 유지한다.
+- 원격 팔 control은 기존 `robot_arm_msgs` 5종을 변경하지 않는다. Task 4 gateway가 표준
+  `control_msgs/msg/JointJog`를 만들고 로봇팔 `ArmCommandAuthority`가 FSM과 상호배타로 선택한다.
+  console은 direct Dynamixel command와 all-zero `home`을 제공하지 않는다.
+- ARM→DRIVE 요청 뒤 console은 `STOW_REQUEST/STOWING`을 표시하고 fresh `STOWED_LOCKED` ACK 전까지
+  R2/L2를 gripper 의미로 유지하되 출력은 0으로 보낸다. client-side mode 선반영으로 갑자기 차체가
+  움직이는 경로를 금지한다.
 
 **Remote assist contract:**
 
@@ -394,9 +415,12 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
    시험하고 YOLO가 지연돼도 raw receiver cadence가 독립임을 fake sender로 검증한다.
 3. operator speed ownership, correction clamp, confidence degradation, stale, deadman,
    `ASSIST_BYPASS` 1-tick 해제와 zero-confirmed handover 테스트를 작성한다.
-4. static profile state machine, dual receiver와 supervised x264 replacement를 구현한다.
-5. remote assist 순수 함수를 구현하고 command authority의 remote profile에만 연결한다.
-6. 채널별 profile·receiver health·overlay age와 assist 개입량·해제 원인을 observability event로 기록한다.
+4. DRIVE/ARM request와 ACK 불일치, joint selection, trigger conflict, deadman release, D435i stale,
+   reconnect session 교체와 stow-before-drive를 console fixture로 시험한다.
+5. static profile state machine, dual receiver와 supervised x264 replacement를 구현한다.
+6. remote assist 순수 함수를 구현하고 command authority의 remote profile에만 연결한다.
+7. 채널별 profile·receiver health·overlay age, DRIVE/ARM authority, selected joint, hold reason과 assist
+   개입량·해제 원인을 observability event로 기록한다.
 
 **Verify:**
 
@@ -409,6 +433,7 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
   l515_dashboard/tests/test_streamer.py l515_dashboard/tests/test_gateway.py \
   remote_video/tests/test_contract.py remote_video/tests/test_metadata.py \
   tests/test_recv_remote_operation.py \
+  motor_control/laptop/tests/test_remote_operation_client.py \
   ros2/src/powertrain_ros/test/test_remote_assist.py \
   ros2/src/powertrain_ros/test/test_command_authority.py'
 ```
