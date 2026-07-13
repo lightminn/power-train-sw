@@ -1,6 +1,6 @@
 """앞 로봇 추종 — 국방 ⑤구간 (WP9). 순수 계산 코어.
 
-    /detected_objects (YOLO) → [이것] → (v, ω)
+    /detected_objects (YOLO) → [이것] → (v, ω) → /autonomy/cmd_vel
 
 앞선 로봇을 일정 거리 뒤에서 따라간다. 인식은 **로봇팔 팀 단일 소스**이고 우리는
 결과만 구독한다.

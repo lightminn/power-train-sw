@@ -2,8 +2,8 @@
 
     /l515/color/image_raw ─┐
     /l515/color/camera_info ├─→ [이 노드] ─→ /lane/state  (인식 결과 · 항상 발행)
-    /imu/filtered ─────────┘                └─→ /cmd_vel/auto (⚠️ `enabled:=true` 일 때만)
-                                                 → command_authority → /cmd_vel
+    /imu/filtered ─────────┘                └─→ /autonomy/cmd_vel (⚠️ `enabled:=true` 일 때만)
+                                                 → chassis_node authority → 모터
 
 계산은 전부 순수 코어(`motor_control/vision/lane.py`, pytest 17종)가 한다. 여기서는
 메시지를 옮기고 주기를 맞출 뿐이다 — 레포 원칙 그대로.
@@ -11,18 +11,19 @@
 ────────────────────────────────────────────────────────────────────────
 🛑 `/cmd_vel` 을 **직접 쓰지 않는다**
 ────────────────────────────────────────────────────────────────────────
-`/cmd_vel` 은 **단일 작성자**여야 한다 — `command_authority` 노드만 쓴다. 여기서는
-`/cmd_vel/auto` 로 **제안**만 하고, 실제 발행 여부는 authority 가 모드에 따라 정한다.
+`/cmd_vel` 은 **단일 입력 경로**여야 한다 — authority가 내장된 `chassis_node`만 받는다.
+여기서는 `/autonomy/cmd_vel` 로 **제안**만 하고, 실제 전달 여부는 authority가 정한다.
   · **항상** `/lane/state` 로 인식 결과를 내보낸다 (디버깅·튜닝용)
-  · `enabled:=true` 일 때만 `/cmd_vel/auto` 로 제안한다
+  · `enabled:=true` 일 때만 `/autonomy/cmd_vel` 로 제안한다
   · authority 가 AUTO 모드이고 **중립을 확인**해야 비로소 모터로 간다
+  · 모드 전환: `ros2 service call /chassis_node/authority_auto std_srvs/srv/Trigger`
 
 ⚠️ **레인을 못 보면 아무것도 발행하지 않는다.** 마지막 명령을 반복하면 로봇이 레인을
    잃은 채로 계속 달린다. 상위(미션 시퀀서)가 정지·복구를 결정해야 한다.
    `chassis_node` 의 명령 워치독(300 ms)이 자연히 구동을 0 으로 내린다.
 
-⚠️ **감속 힌트는 여기서 곱하지 않는다.** `/obstacle/speed_scale` 은 `chassis_node` 가
-   `ChassisManager.set_speed_scale()` 로 적용한다 — 한 곳에서만 곱해야 두 번 곱하지 않는다.
+⚠️ obstacle zone의 `/diagnostics/obstacle/speed_scale`은 BENCH/RViz 진단 전용이며
+   production `chassis_node`에 연결하지 않는다. 실제 충돌 안전은 US-100이 담당한다.
 """
 import math
 import os
@@ -86,16 +87,21 @@ class LaneFollowerNode(Node):
                                  lambda m: setattr(self, "_allow_drive", m.data), 10)
 
         self.pub_state = self.create_publisher(Float32MultiArray, "/lane/state", 10)
-        self.pub_cmd = self.create_publisher(Twist, "/cmd_vel/auto", 10)
+        self.pub_cmd = self.create_publisher(Twist, "/autonomy/cmd_vel", 10)
         # RViz 로 보는 인식 결과 — 로그 숫자만으론 튜닝이 안 된다
         self.pub_bev = self.create_publisher(Image, "/lane/bev", qos_profile_sensor_data)
         self.pub_marker = self.create_publisher(Marker, "/lane/marker", 10)
         self.create_timer(2.0, self._log)
 
         if bool(self.get_parameter("enabled").value):
-            self.get_logger().warn("/cmd_vel/auto 제안 ON — 실제 주행은 command_authority 가 AUTO 모드일 때만")
+            self.get_logger().warn(
+                "/autonomy/cmd_vel 제안 ON — 실제 주행은 chassis_node authority가 "
+                "AUTO 모드일 때만"
+            )
         else:
-            self.get_logger().info("/cmd_vel/auto 제안 OFF (인식 결과만 /lane/state 로 발행)")
+            self.get_logger().info(
+                "/autonomy/cmd_vel 제안 OFF (인식 결과만 /lane/state 로 발행)"
+            )
 
     def _on_info(self, msg: CameraInfo):
         K = (msg.k[0], msg.k[4], msg.k[2], msg.k[5])

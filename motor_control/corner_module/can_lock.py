@@ -27,6 +27,10 @@
 
 **프로세스가 죽으면 커널이 소켓을 닫아 락이 자동 해제된다** — 좀비 락 파일이 안 남는다.
 (과거에 좀비 teleop 프로세스가 계속 v=0 을 명령해 새 테스트와 싸운 사고가 있었다.)
+
+⚠️ 임시 보호막이다 — WP5.2 Task 3의 `RealCanSession`(flock,
+`/run/powertrain/can0.lock`, owner snapshot)으로 대체 예정.
+abstract socket의 자동해제 장점은 Task 3 설계 입력으로 전달됨.
 """
 import contextlib
 import os

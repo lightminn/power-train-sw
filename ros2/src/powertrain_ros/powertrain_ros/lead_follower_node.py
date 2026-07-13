@@ -2,12 +2,13 @@
 
     /detected_objects ─→ [이 노드] ─→ /follow/state
                                    ├─→ /follow/active  (→ chassis_node 가 FOLLOW_LEAD 모드로)
-                                   └─→ /cmd_vel/auto   (⚠️ `enabled:=true` 일 때만)
+                                   └─→ /autonomy/cmd_vel (⚠️ `enabled:=true` 일 때만)
 
 계산은 순수 코어(`motor_control/chassis/follow.py`, pytest 14종)가 한다.
 
-🛑 `/cmd_vel` 을 직접 쓰지 않는다 — `command_authority` 만 쓴다.
-⚠️ **레인·벽 추종과 동시에 켜지 않는다** — 셋 다 `/cmd_vel/auto` 를 쓴다.
+🛑 `/cmd_vel` 을 직접 쓰지 않는다 — authority가 내장된 `chassis_node`만 받는다.
+⚠️ **레인·벽 추종과 동시에 켜지 않는다** — 셋 다 `/autonomy/cmd_vel` 를 쓴다.
+모드 전환: `ros2 service call /chassis_node/authority_auto std_srvs/srv/Trigger`.
 ⚠️ 추종 중에는 `/chassis_mode` 가 **FOLLOW_LEAD** 가 돼야 팔이 자세를 락한다
    (앞 차 급정거 시 팔이 흔들린다). `/follow/active` 로 chassis_node 에 알린다.
 """
@@ -30,7 +31,7 @@ from chassis.follow import FollowConfig, LeadFollower    # noqa: E402
 class LeadFollowerNode(Node):
     def __init__(self):
         super().__init__("lead_follower")
-        self.declare_parameter("enabled", False)          # 🛑 /cmd_vel/auto 제안 여부
+        self.declare_parameter("enabled", False)          # 🛑 autonomy 제안 여부
         self.declare_parameter("class_name", "robot")
         self.declare_parameter("target_m", 1.5)
         self.declare_parameter("min_m", 0.8)              # ★ 이 안이면 무조건 정지
@@ -53,7 +54,7 @@ class LeadFollowerNode(Node):
         self.create_subscription(Bool, "/mission/allow_drive",
                                  lambda m: setattr(self, "_allow_drive", m.data), 10)
 
-        self.pub_cmd = self.create_publisher(Twist, "/cmd_vel/auto", 10)
+        self.pub_cmd = self.create_publisher(Twist, "/autonomy/cmd_vel", 10)
         self.pub_state = self.create_publisher(Float32MultiArray, "/follow/state", 10)
         # 추종 중임을 알린다 → chassis_node 가 /chassis_mode = FOLLOW_LEAD 로 (팔 자세 락)
         self.pub_active = self.create_publisher(Bool, "/follow/active", 10)

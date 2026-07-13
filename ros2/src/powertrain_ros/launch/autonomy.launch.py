@@ -14,12 +14,13 @@
 ────────────────────────────────────────────────────────────────────────
 계층 (아래로 갈수록 모터에 가깝다)
 ────────────────────────────────────────────────────────────────────────
-    [인지]  l515_cloud · obstacle_zones · lane_follower / wall_follower
-                              │ 제안              │ 감속 힌트
-                              ▼                   ▼
-    [권한]  command_authority ──→ /cmd_vel        │
-                              │                   │
-    [차체]  chassis_node ◀────┴───────────────────┘   (US-100 + SafetyInterlock 이 최종 게이트)
+    [인지]  l515_cloud · lane_follower / wall_follower
+                              │ 제안
+                              ▼
+    [권한]  /autonomy/cmd_vel ─→ chassis_node 내장 authority
+                                         │
+    [차체]  ChassisManager.set() ◀───────┘   (US-100 + SafetyInterlock 이 최종 게이트)
+    [진단]  obstacle_zones → /diagnostics/obstacle/speed_scale (production 미연결)
     [상태]  odometry · imu_tilt · robot_state_publisher · mission
 
 🛑 **주행(`chassis:=true`)은 기본 꺼짐이다.** 켜기 전에:
@@ -28,11 +29,11 @@
    · `teleop_server` 가 안 떠 있는가 (can0 락이 막지만, 확인이 먼저다)
    · ODrive 재캘리를 했는가 (전원 사이클마다 필요 — 안 하면 arm 은 되는데 안 돈다)
 
-🛑 **레인과 벽 추종은 동시에 켜지 않는다** — 둘 다 `/cmd_vel/auto` 를 쓴다.
+🛑 **레인과 벽 추종은 동시에 켜지 않는다** — 둘 다 `/autonomy/cmd_vel` 를 쓴다.
    `guidance:=lane` (흰 선 구간) 또는 `guidance:=wall` (복도·터널) 중 하나.
 
-⚠️ 주행을 켜도 **바로 안 움직인다.** `command_authority` 가 기본 IDLE 이다:
-       ros2 service call /command_authority/auto std_srvs/srv/Trigger
+⚠️ 주행을 켜도 **바로 안 움직인다.** `chassis_node` 내장 authority가 기본 IDLE이다:
+       ros2 service call /chassis_node/authority_auto std_srvs/srv/Trigger
    그리고 **중립 확인**(자율이 0 을 한 번 보냄) 후에야 권한이 넘어간다.
 """
 import os
@@ -63,7 +64,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "guidance", default_value="none",
             description="유도 방식 택일: none | lane | wall | follow. "
-                        "🛑 동시에 켜지 않는다 (전부 /cmd_vel/auto 를 쓴다)"),
+                        "🛑 동시에 켜지 않는다 (전부 /autonomy/cmd_vel 를 쓴다)"),
         DeclareLaunchArgument(
             "chassis", default_value="false",
             description="🛑 실차 모터 제어. 바퀴 상태·E-stop·재캘리를 확인하고 켤 것"),
@@ -72,7 +73,7 @@ def generate_launch_description():
         DeclareLaunchArgument("min_rev", default_value="1.0",
                               description="⚠️ 코깅존 플로어. docs/specs/2026-07-13-min-rev-speed-range.md"),
         DeclareLaunchArgument("propose", default_value="false",
-                              description="레인/벽이 /cmd_vel/auto 로 제안까지 한다"),
+                              description="레인/벽이 /autonomy/cmd_vel 로 제안까지 한다"),
     ]
 
     # ── 상태 (항상) ──
@@ -115,10 +116,8 @@ def generate_launch_description():
              parameters=[{"enabled": LaunchConfiguration("propose")}]),
     ]
 
-    # ── 권한 · 미션 (항상 — 기본 IDLE 이라 아무것도 안 움직인다) ──
+    # ── 미션 (항상 — 계약 출력은 기본 false라 실물 팔에 도착 신호를 보내지 않는다) ──
     control = [
-        Node(package="powertrain_ros", executable="command_authority",
-             name="command_authority", output="screen"),
         Node(package="powertrain_ros", executable="mission", name="mission",
              output="screen"),
     ]
@@ -129,7 +128,8 @@ def generate_launch_description():
              output="screen",
              condition=IfCondition(chassis),
              parameters=[{"fake": LaunchConfiguration("fake_chassis"),
-                          "min_rev": LaunchConfiguration("min_rev")}]),
+                          "min_rev": LaunchConfiguration("min_rev"),
+                          "authority_enabled": True}]),
     ]
 
     return LaunchDescription(args + state + perception + guidance_nodes + control + body)

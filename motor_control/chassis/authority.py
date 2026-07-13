@@ -1,10 +1,11 @@
 """명령 권한(command authority) — `/cmd_vel` 의 **단일 작성자**를 강제한다 (WP5.2-T).
 
-    teleop  ──┐
-    lane     ─┼─→ [CommandAuthority] ─→ (v, ω) 하나만 → chassis
-    mission ──┘
+    /teleop/cmd_vel ───┐
+                        ├─→ [CommandAuthority] ─→ (v, ω) 하나만 → chassis
+    /autonomy/cmd_vel ─┘
 
-하드웨어·ROS 의존 없음. ROS 래퍼는 `powertrain_ros/command_authority_node.py`.
+하드웨어·ROS 의존 없음. ROS 어댑터는 `chassis_node` 안에 opt-in으로 내장된다
+(`authority_enabled=true`).
 
 ────────────────────────────────────────────────────────────────────────
 왜 필요한가

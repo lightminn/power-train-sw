@@ -1,5 +1,11 @@
 """미션 시퀀서 ROS 래퍼 (WP8) — 로봇팔 핸드셰이크.
 
+────────────────────────────────────────────────────────────────────────
+⚠️ v1 계약 기준 프로토타입
+────────────────────────────────────────────────────────────────────────
+WP5.2 Task 5의 chassis_node 소유 순수 mission_supervisor로 흡수 예정.
+contract_output_enabled=true는 mock 팔 시험 전용 — 실물 팔과 병행 실행 금지.
+
     /detected_objects ─┐                      ┌─→ /chassis_mode   (팔 자세 락 / MISSION_STOP)
     /arm_status ───────┼─→ [이 노드] ─────────┼─→ /arrival_status (도착 알림)
     /odom ─────────────┘                      └─→ /mission/state
@@ -10,8 +16,9 @@
 ────────────────────────────────────────────────────────────────────────
 🛑 정지는 **여기서 명령하지 않는다**
 ────────────────────────────────────────────────────────────────────────
-`allow_drive=False` 여도 이 노드는 `/cmd_vel` 을 쓰지 않는다 — 그건 `command_authority`
-의 몫이다. 대신 `/mission/allow_drive` 로 알리고, **레인 추종이 그걸 보고 제안을 멈춘다.**
+`allow_drive=False` 여도 이 노드는 `/cmd_vel` 을 쓰지 않는다 — 그건 `chassis_node`에
+내장된 command authority의 몫이다. 대신 `/mission/allow_drive` 로 알리고, **레인 추종이
+그걸 보고 제안을 멈춘다.**
 그러면 `chassis_node` 의 명령 워치독(300 ms)이 구동을 0 으로 내린다.
 (여기서 0 을 계속 쏘면 그 워치독이 영영 안 터진다.)
 
@@ -48,6 +55,7 @@ class MissionNode(Node):
         self.declare_parameter("max_retries", 2)
         self.declare_parameter("stop_settle_s", 0.3)
         self.declare_parameter("publish_hz", 20.0)
+        self.declare_parameter("contract_output_enabled", False)
         # ── 도착 자동 판정 (YOLO) ──
         self.declare_parameter("auto_trigger", True)
         self.declare_parameter("pickup_class", "box")
@@ -65,6 +73,9 @@ class MissionNode(Node):
         ))
         self._speed = 0.0
         self._pending = None            # 서비스로 받은 도착 요청
+        self._contract_output_enabled = bool(
+            self.get_parameter("contract_output_enabled").value
+        )
 
         self.trigger = MissionTrigger(TriggerConfig(
             rules=[
@@ -94,7 +105,14 @@ class MissionNode(Node):
         #    **우리가 정차 중인데 DRIVING 을 보고 팔이 움직인다.**
         #    여기서는 "정차해달라"고 **요청**만 한다.
         self.pub_mode = self.create_publisher(String, "/mission/chassis_mode", 10)
-        self.pub_arrival = self.create_publisher(ArrivalStatus, contract.TOPIC_ARRIVAL, 10)
+        if self._contract_output_enabled:
+            self.pub_arrival = self.create_publisher(
+                ArrivalStatus,
+                contract.TOPIC_ARRIVAL,
+                10,
+            )
+        else:
+            self.pub_arrival = None
         self.pub_allow = self.create_publisher(Bool, "/mission/allow_drive", 10)
         self.pub_state = self.create_publisher(String, "/mission/state", 10)
 
@@ -110,6 +128,11 @@ class MissionNode(Node):
         self.create_timer(2.0, self._log)
         self._mission_counter = 0
         self._last = None
+        if self._contract_output_enabled:
+            self.get_logger().warning(
+                "contract_output_enabled=true: mock 팔 시험 전용; "
+                "실물 팔과 병행 실행 금지"
+            )
         self.get_logger().info("mission 시작 — 도착 트리거: ~/arrive_pickup, ~/arrive_drop")
 
     def _now(self):
@@ -177,7 +200,7 @@ class MissionNode(Node):
         self.pub_allow.publish(Bool(data=d.allow_drive))
         self.pub_state.publish(String(data=f"{d.state}|{d.reason}"))
 
-        if d.publish_arrival is not None:
+        if self._contract_output_enabled and d.publish_arrival is not None:
             mid, status = d.publish_arrival
             a = ArrivalStatus()
             a.header.stamp = self.get_clock().now().to_msg()

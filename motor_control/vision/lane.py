@@ -2,7 +2,8 @@
 
     RGB → 이진화 → 버드아이(원근보정) → 중심선 추출 → 횡오차·헤딩오차 → PID → ω
 
-하드웨어·ROS 의존 없음(numpy + cv2 만). ROS 래퍼는 `powertrain_ros/lane_follower_node.py`.
+하드웨어·ROS 의존 없음(numpy + cv2 만). ROS 래퍼는 `powertrain_ros/lane_follower_node.py`이며
+제어 제안은 `/autonomy/cmd_vel` 로 보낸다.
 레포 원칙: **순수 Python 코어 + 얇은 rclpy 래퍼.**
 
 ────────────────────────────────────────────────────────────────────────

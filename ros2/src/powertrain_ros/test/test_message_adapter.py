@@ -135,6 +135,7 @@ def _tick_node(manager, publisher=None):
     logger = _RecordingLogger()
     return SimpleNamespace(
         cm=manager,
+        _authority_enabled=False,  # WP5.2 정합화: 기본 false(기존 /cmd_vel 경로) 계약 검증
         _safety_required=False,
         _overrun_count=0,
         _wheel_telemetry_failed=False,

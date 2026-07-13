@@ -49,7 +49,6 @@ setup(
             "fake_wheels = powertrain_ros.fake_wheels_node:main",
             "obstacle_zones = powertrain_ros.obstacle_zones_node:main",
             "lane_follower = powertrain_ros.lane_follower_node:main",
-            "command_authority = powertrain_ros.command_authority_node:main",
             "mission = powertrain_ros.mission_node:main",
             "wall_follower = powertrain_ros.wall_follower_node:main",
             "lead_follower = powertrain_ros.lead_follower_node:main",

@@ -49,7 +49,7 @@ def generate_launch_description():
                               description="가짜 주행 코스 (straight/circle/square/figure8/pivot)"),
         DeclareLaunchArgument(
             "lane", default_value="false",
-            description="레인 추종 노드를 띄운다 (인식만 — 주행은 command_authority 가 결정)"),
+            description="레인 추종 노드를 띄운다 (인식만 — 주행은 chassis_node authority가 결정)"),
     ]
 
     return LaunchDescription(args + [
@@ -106,8 +106,8 @@ def generate_launch_description():
             name="obstacle_zones",
             output="screen",
         ),
-        # 레인 추종 (인식만). /cmd_vel/auto 로 **제안**하고, 실제 주행 여부는
-        # command_authority 가 AUTO 모드 + 중립 확인 후에 정한다.
+        # 레인 추종 (인식만). /autonomy/cmd_vel 로 **제안**하고, 실제 주행 여부는
+        # chassis_node authority가 AUTO 모드 + 중립 확인 후에 정한다.
         Node(
             package="powertrain_ros",
             executable="lane_follower",

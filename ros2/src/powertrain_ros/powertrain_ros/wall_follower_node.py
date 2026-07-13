@@ -2,14 +2,15 @@
 
     /l515/points ─→ [이 노드] ─→ /wall/state   (거리·각도 · 항상 발행)
                               └─→ /wall/marker (RViz — 추정된 벽)
-                              └─→ /cmd_vel/auto (⚠️ `enabled:=true` 일 때만)
+                              └─→ /autonomy/cmd_vel (⚠️ `enabled:=true` 일 때만)
 
 계산은 순수 코어(`motor_control/vision/wall.py`, pytest 22종)가 한다.
 
-🛑 `/cmd_vel` 을 직접 쓰지 않는다 — `command_authority` 만 쓴다. 여기서는 `/cmd_vel/auto`
-   로 **제안**만 한다.
-⚠️ **레인 추종과 동시에 켜면 안 된다** — 둘 다 `/cmd_vel/auto` 를 쓴다. 상위(미션
+🛑 `/cmd_vel` 을 직접 쓰지 않는다 — authority가 내장된 `chassis_node`만 받는다. 여기서는
+   `/autonomy/cmd_vel` 로 **제안**만 한다.
+⚠️ **레인 추종과 동시에 켜면 안 된다** — 둘 다 `/autonomy/cmd_vel` 를 쓴다. 상위(미션
    시퀀서)가 구간에 따라 하나만 고른다. 레인(흰 선)이 있으면 레인, 없으면(복도·터널) 벽.
+모드 전환: `ros2 service call /chassis_node/authority_auto std_srvs/srv/Trigger`.
 ⚠️ 벽을 못 보면 **아무것도 발행하지 않는다.** 마지막 명령을 반복하면 벽을 잃은 채
    계속 달린다.
 """
@@ -48,7 +49,7 @@ def _apply_tf(pts, tf):
 class WallFollowerNode(Node):
     def __init__(self):
         super().__init__("wall_follower")
-        self.declare_parameter("enabled", False)         # 🛑 /cmd_vel/auto 제안 여부
+        self.declare_parameter("enabled", False)         # 🛑 autonomy 제안 여부
         self.declare_parameter("side", RIGHT)
         self.declare_parameter("target_m", 0.6)
         self.declare_parameter("kp", 1.2)
@@ -79,7 +80,7 @@ class WallFollowerNode(Node):
                                  lambda m: setattr(self, "_allow_drive", m.data), 10)
 
         self.pub_state = self.create_publisher(Float32MultiArray, "/wall/state", 10)
-        self.pub_cmd = self.create_publisher(Twist, "/cmd_vel/auto", 10)
+        self.pub_cmd = self.create_publisher(Twist, "/autonomy/cmd_vel", 10)
         self.pub_marker = self.create_publisher(Marker, "/wall/marker", 10)
         self.create_timer(2.0, self._log)
 
