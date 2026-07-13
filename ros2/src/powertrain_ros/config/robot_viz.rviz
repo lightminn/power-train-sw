@@ -36,9 +36,10 @@ Visualization Manager:
       Show Axes: true
       Show Arrows: false
       Marker Scale: 0.3
+    # 원시 점구름 — 분류 결과(Obstacles)와 겹치므로 기본은 꺼둔다
     - Class: rviz_default_plugins/PointCloud2
       Name: PointCloud2
-      Enabled: true
+      Enabled: false
       Topic:
         Value: /l515/points
         # ⚠️ BEST_EFFORT 필수 — Reliable 로 두면 한 점도 안 보인다
@@ -57,6 +58,28 @@ Visualization Manager:
         Max Value: 2
         Min Value: 0
         Value: true
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Obstacles
+      Enabled: true
+      Topic:
+        Value: /obstacle/points
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Depth: 5
+      Style: Points
+      Size (Pixels): 4
+      Alpha: 1
+      Decay Time: 0
+      Color Transformer: RGB8
+    # 레인 추종 — 추정된 레인 중심선 (초록=인식, 사라지면 못 봄)
+    - Class: rviz_default_plugins/Marker
+      Name: Lane
+      Enabled: true
+      Topic:
+        Value: /lane/marker
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
   Global Options:
     Background Color: 30; 30; 35
     Fixed Frame: odom

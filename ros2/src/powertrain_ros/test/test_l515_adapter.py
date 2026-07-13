@@ -187,3 +187,88 @@ def test_imu_from_vector_rejects_unknown_kind():
             "frame",
             Time(),
         )
+
+
+# ── 시계 드리프트 보정 (2026-07-13) ──────────────────────────────────────
+#
+# ⚠️ 오프셋을 처음 한 번만 앵커하면, 장치 시계와 ROS 시계의 **주파수가 미세하게 달라**
+#    시간이 갈수록 선형으로 벌어진다. 실측: depth 스탬프가 TF 대비 +1.4초 → −3.7초로
+#    점프 → RViz 가 "timestamp earlier than all the data in the transform cache" 로
+#    **모든 포인트클라우드를 버렸다.** TF 기반 소비자 전부가 영향을 받는다.
+
+def _drifting_stream(mapper, ppm, seconds, hz=30, latency_ms=5.0, stream="depth"):
+    """장치 시계가 ROS 대비 ppm 만큼 빠른(느린) 스트림을 흘린다. 최종 오차[ns] 반환."""
+    err = 0
+    n = int(seconds * hz)
+    for i in range(n):
+        ros_s = i / hz
+        device_s = ros_s * (1.0 + ppm * 1e-6)          # 장치 시계가 다르게 흐른다
+        ros_now_ns = int((ros_s + latency_ms * 1e-3) * 1e9)   # 콜백 지연
+        out = mapper.map_ms(device_s * 1000.0, ros_now_ns, stream_key=stream)
+        err = out - int(ros_s * 1e9)                   # 참 ROS 시각과의 차이
+    return err
+
+
+def test_mapper_corrects_linear_clock_drift():
+    """★ 100 ppm 드리프트를 60초 흘려도 오차가 밀리초 수준에 머문다.
+
+    보정이 없으면 100 ppm × 60 s = **6 ms**, 10분이면 60 ms, 한 시간이면 360 ms 로
+    계속 벌어진다(실측에서는 초 단위까지 갔다).
+    """
+    mapper = TimestampMapper(window_ms=5_000.0)
+    err_ns = _drifting_stream(mapper, ppm=100.0, seconds=60.0)
+    assert abs(err_ns) < 20_000_000        # 20 ms 이내 (지연 + 윈도우 추종 지연)
+
+
+def test_mapper_tracks_drift_in_both_directions():
+    for ppm in (+200.0, -200.0):
+        mapper = TimestampMapper(window_ms=5_000.0)
+        err_ns = _drifting_stream(mapper, ppm=ppm, seconds=60.0)
+        assert abs(err_ns) < 30_000_000, f"ppm={ppm} 에서 {err_ns/1e6:.1f} ms"
+
+
+def test_mapper_is_robust_to_latency_jitter():
+    """콜백 지연은 **항상 양수**다 → 최근 구간의 **최솟값**이 참 오프셋에 가깝다."""
+    import random
+    rnd = random.Random(0)
+    mapper = TimestampMapper(window_ms=3_000.0)
+    out_prev = None
+    for i in range(300):
+        ros_s = i / 30.0
+        jitter = rnd.uniform(0.0, 0.030)               # 0~30 ms 지연 지터
+        out = mapper.map_ms(ros_s * 1000.0,
+                            int((ros_s + jitter) * 1e9), stream_key="color")
+        err = out - int(ros_s * 1e9)
+        if i > 60:
+            assert abs(err) < 5_000_000                # 5 ms 이내 (지터에 안 흔들림)
+        out_prev = out
+
+
+def test_mapper_output_is_monotonic():
+    """★ 시간이 거꾸로 가는 타임스탬프는 어떤 소비자도 못 견딘다."""
+    import random
+    rnd = random.Random(1)
+    mapper = TimestampMapper(window_ms=2_000.0)
+    prev = None
+    for i in range(300):
+        ros_s = i / 30.0
+        out = mapper.map_ms(ros_s * 1000.0,
+                            int((ros_s + rnd.uniform(0, 0.05)) * 1e9),
+                            stream_key="depth")
+        if prev is not None:
+            assert out > prev
+        prev = out
+
+
+def test_streams_still_share_one_offset():
+    """★ 스트림 간 **상대 타이밍**은 보존돼야 한다 — 융합(정렬·상보필터)이 그걸 믿는다."""
+    mapper = TimestampMapper(window_ms=5_000.0)
+    for i in range(100):
+        ros_s = i / 30.0
+        mapper.map_ms(ros_s * 1000.0, int(ros_s * 1e9), stream_key="color")
+
+    # 같은 장치 시각의 두 스트림 → 같은 ROS 시각으로 매핑돼야 한다
+    t_dev = 5_000.0
+    a = mapper.map_ms(t_dev, int(6.0 * 1e9), stream_key="color")
+    b = mapper.map_ms(t_dev + 0.001, int(9.0 * 1e9), stream_key="depth")
+    assert abs(b - a) < 2_000_000        # 2 ms 이내 (단조성 보정 여유)

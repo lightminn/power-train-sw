@@ -62,6 +62,19 @@ DEFAULT_WHEEL_MAP = [
     WheelMap("rear_right",  4,    16),
 ]
 
+#: 🛠️ **중륜 2개를 뺀 4륜 매핑** — 중간 ODrive 보드(node 13/14)를 부하모터(다이나모)에
+#: 쓰고 있을 때. `kinematics.four_wheel_geometry()` 와 **반드시 짝으로** 쓴다
+#: (기하와 매핑의 바퀴 이름이 어긋나면 KeyError).
+#:
+#: ⚠️ 이게 없으면 node 13/14 가 버스에 없어 **구동 status stale → 코너 FAULT →
+#:    ChassisManager 가 전체 estop** 으로 전파한다(`CornerModule.tick()` 의 stale 검사).
+FOUR_WHEEL_MAP = [
+    WheelMap("front_left",  1, 11),
+    WheelMap("front_right", 2, 12),
+    WheelMap("rear_left",   3, 15),
+    WheelMap("rear_right",  4, 16),
+]
+
 
 # ── 코너 빌더 (의존성 주입) ───────────────────────────────────────────────
 
@@ -82,10 +95,31 @@ def build_corners(steer_factory, drive_factory, cfg: CornerConfig = None,
     return corners
 
 
+_CAN_LOCK = None            # 프로세스 수명 동안 유지되는 CAN 단독 소유권 (아래 설명)
+
+
 def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
-                       wheel_map=None) -> dict:
+                       wheel_map=None, owner: str = None, lock: bool = True) -> dict:
     """실기용 — AK 조향(CAN) + ODrive 구동(CAN) 코너 6개. 하드웨어 라이브러리는
-    지연 import(무하드웨어 pytest 가 python-can/odrive 없이 이 모듈을 쓰게)."""
+    지연 import(무하드웨어 pytest 가 python-can/odrive 없이 이 모듈을 쓰게).
+
+    ★ **CAN 버스 단독 소유권을 여기서 강제한다.** `chassis_node`(ROS)와
+      `teleop_server`(직접 제어)가 둘 다 can0 을 열 수 있고, 동시에 띄우면 **같은 모터에
+      상반된 명령**이 50 Hz 로 번갈아 간다(socketcan 은 막지 않는다). 지금까지는 "동시에
+      띄우지 말 것"이라는 **운영 관례**로만 막고 있었다 — 사람이 실수하면 그대로 사고다.
+      이 함수가 실기 코너를 만드는 **유일한 진입점**이므로 여기서 잠근다.
+
+      락은 **프로세스 수명 동안** 유지돼야 하므로 모듈 전역에 소켓을 붙들어 둔다.
+      프로세스가 죽으면 커널이 소켓을 닫아 **자동 해제**된다(좀비 락이 안 남는다).
+      `lock=False` 는 테스트·진단 전용이다.
+    """
+    global _CAN_LOCK
+    if lock:
+        from corner_module.can_lock import can_bus_lock
+        if _CAN_LOCK is None:
+            _CAN_LOCK = can_bus_lock(channel, owner=owner)
+            _CAN_LOCK.__enter__()                       # 프로세스 끝까지 붙들고 있는다
+
     from corner_module.steer_ak40 import SteerAk40
     from corner_module.drive_odrive_can import DriveOdriveCan   # WP1 완료 필요
     return build_corners(

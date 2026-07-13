@@ -9,7 +9,9 @@ import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import Header
+from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Imu
+from std_msgs.msg import Bool, Float32, Header, String
 from std_srvs.srv import Trigger
 
 from powertrain_msgs.msg import SafetyVerdict
@@ -61,6 +63,9 @@ class ChassisNode(Node):
     def _initialize(self):
         self.declare_parameter("fake", False)
         self.declare_parameter("channel", "can0")
+        # 🛠️ 중륜 2개(ODrive node 13/14) 없이 4륜만. 중간 보드를 부하모터에 쓸 때.
+        #    ⚠️ 임시 구성 — 없으면 node 13/14 stale → 코너 FAULT → 전체 estop.
+        self.declare_parameter("four_wheel", False)
         self.declare_parameter("min_rev", 1.0)
         self.declare_parameter("v_max", 1.5)
         self.declare_parameter("cmd_timeout", 0.5)
@@ -71,6 +76,8 @@ class ChassisNode(Node):
             DEFAULT_SAFETY_TOPIC_TIMEOUT_S,
         )
         self.declare_parameter("safety_startup_timeout", 1.0)
+        # 감속 힌트(/obstacle/speed_scale) 신선도. 넘으면 fail-open (§_expire_speed_scale)
+        self.declare_parameter("speed_scale_timeout", 0.5)
 
         fake = bool(self.get_parameter("fake").value)
         channel = str(self.get_parameter("channel").value)
@@ -86,6 +93,9 @@ class ChassisNode(Node):
         self._safety_startup_timeout = float(
             self.get_parameter("safety_startup_timeout").value
         )
+        self._scale_timeout = float(
+            self.get_parameter("speed_scale_timeout").value
+        )
 
         from chassis.chassis_manager import (
             ChassisConfig,
@@ -93,10 +103,21 @@ class ChassisNode(Node):
             build_real_corners,
         )
 
+        four_wheel = bool(self.get_parameter("four_wheel").value)
         cfg = ChassisConfig(
             watchdog_ms=self._cmd_timeout * 1000.0,
             min_drive_turns_per_s=min_rev,
         )
+        wheel_map = None
+        if four_wheel:
+            from chassis.chassis_manager import FOUR_WHEEL_MAP
+            from chassis.kinematics import four_wheel_geometry
+            # ★ 기하와 매핑은 **반드시 짝** (이름이 어긋나면 KeyError)
+            wheel_map = FOUR_WHEEL_MAP
+            cfg.geometry = four_wheel_geometry()
+            self.get_logger().warning(
+                "🛠️ 4륜 모드 — 중륜(node 13/14) 없이 앞뒤 4륜만 구동 (임시 구성). "
+                "지상 주행 시 중륜이 끌려다니며 저항·스크럽을 만든다.")
         cfg.geometry.drive_limit_mps = max(
             v_max,
             cfg.geometry.drive_limit_mps,
@@ -108,7 +129,10 @@ class ChassisNode(Node):
                 "FAKE mode: no real motors are controlled"
             )
         else:
-            corners = build_real_corners(channel)
+            # ★ CAN 단독 소유권 — teleop_server 가 이미 잡고 있으면 CanBusBusy 로 죽는다.
+            #   같은 모터에 상반된 명령이 가는 것보다 안 뜨는 게 낫다.
+            corners = build_real_corners(channel, owner="chassis_node",
+                                         wheel_map=wheel_map)
             self.get_logger().info("Real chassis on %s" % channel)
 
         self.cm = ChassisManager(corners, cfg)
@@ -132,6 +156,28 @@ class ChassisNode(Node):
             self._on_safety_verdict,
             safety_qos,
         )
+        # 전방 감속 힌트 (인지 계층 · obstacle_zones). 🛑 안전 게이트가 아니다 —
+        # 게이트는 US-100 + SafetyInterlock 이다. 여기서는 v 만 스케일한다.
+        self.create_subscription(
+            Float32,
+            "/obstacle/speed_scale",
+            self._on_speed_scale,
+            10,
+        )
+        # ★ `/chassis_mode` 는 **팔과의 계약 토픽**이고 이 노드가 **단독 소유**한다.
+        #   미션 시퀀서는 `/mission/chassis_mode` 로 **요청**만 하고, 운동 상태(선회·험지)는
+        #   여기서 /odom·/imu 로 판단해 합친다. 두 노드가 쓰면 팔이 번갈아 받아
+        #   **우리가 정차 중인데 DRIVING 을 보고 팔이 움직인다.**
+        self.create_subscription(String, "/mission/chassis_mode",
+                                 self._on_mission_mode, 10)
+        # 앞 로봇 추종 중 → FOLLOW_LEAD (팔 자세 락. 앞 차 급정거 시 팔이 흔들린다)
+        self.create_subscription(Bool, "/follow/active",
+                                 lambda m: setattr(self, "_follow_lead", m.data), 10)
+        self.create_subscription(Odometry, "/odom", self._on_odom, 10)
+        self.create_subscription(Imu, "/imu/filtered", self._on_imu,
+                                 QoSProfile(history=HistoryPolicy.KEEP_LAST, depth=1,
+                                            reliability=ReliabilityPolicy.BEST_EFFORT))
+
         self.pub_mode = self.create_publisher(
             ChassisMode,
             contract.TOPIC_CHASSIS_MODE,
@@ -165,13 +211,23 @@ class ChassisNode(Node):
         self._last_arm_status = None
         self._started_ms = self._now_ms()
         self._last_safety_ms = None
+        self._speed_scale = 1.0
+        self._last_scale_ms = None
+        from chassis.chassis_mode import ChassisModeSelector
+        self._mode_sel = ChassisModeSelector()
+        self._mission_mode = None
+        self._follow_lead = False
+        self._omega = 0.0
+        self._roll = 0.0
+        self._pitch = 0.0
+        self._scale_stale_logged = False
         self._overrun_count = 0
         self._wheel_telemetry_failed = False
         self._seed_initial_safety()
 
         period = 1.0 / self.cm.cfg.loop_hz
         self.create_timer(period, self._tick)
-        self.create_timer(0.5, self._publish_mode)
+        self.create_timer(0.1, self._publish_mode)   # 팔이 코너 진입을 늦게 알면 의미 없다
         self.create_timer(1.0, self._publish_state)
 
         if not self._safety_required:
@@ -219,6 +275,36 @@ class ChassisNode(Node):
     def _on_cmd_vel(self, msg: Twist):
         self.cm.set(msg.linear.x, msg.angular.z)
 
+    def _on_speed_scale(self, msg: Float32):
+        self._speed_scale = min(1.0, max(0.0, float(msg.data)))
+        self._last_scale_ms = self._now_ms()
+        if self._scale_stale_logged:
+            self.get_logger().info("감속 힌트 복구 — 다시 반영한다")
+            self._scale_stale_logged = False
+        self.cm.set_speed_scale(self._speed_scale)
+
+    def _expire_speed_scale(self, now_ms):
+        """감속 힌트가 끊기면 **fail-open**(제한 해제)한다.
+
+        ★ 왜 fail-open 인가 — 이건 **감속 힌트**지 안전 게이트가 아니기 때문이다.
+          실제 충돌 방지는 **US-100(독립 초음파) + SafetyInterlock** 이 하고, 그건
+          끊기면 `MOTION_HOLD`/`ESTOP` 으로 **fail-closed** 한다(그대로 유지).
+          인지 노드가 죽었다고 여기서 fail-closed 하면, **위험이 없는데도 로봇이
+          멈춰버린다** — 게다가 이 힌트가 없던 시절(오늘 이전)이 곧 fail-open 상태이므로
+          기존 동작 대비 퇴행도 없다.
+          ⚠️ 바꿔 말하면 **depth 인지는 안전 책임을 지지 않는다.** 안전은 US-100 이다.
+        """
+        if self._last_scale_ms is None or self._speed_scale >= 1.0:
+            return
+        if now_ms - self._last_scale_ms <= self._scale_timeout * 1000.0:
+            return
+        self._speed_scale = 1.0
+        self.cm.set_speed_scale(1.0)
+        if not self._scale_stale_logged:
+            self.get_logger().warn(
+                "감속 힌트 stale — 제한 해제(fail-open). 충돌 방지는 US-100 이 담당한다.")
+            self._scale_stale_logged = True
+
     def _on_safety_verdict(self, msg):
         status_name = {
             SafetyVerdict.CHECKING: "CHECKING",
@@ -262,6 +348,8 @@ class ChassisNode(Node):
                     "safety_topic_stale",
                 )
 
+        self._expire_speed_scale(now_ms)
+
         started = time.monotonic()
         try:
             self.cm.tick()
@@ -300,10 +388,33 @@ class ChassisNode(Node):
         header.frame_id = "base_link"
         return header
 
+    def _on_mission_mode(self, msg: String):
+        self._mission_mode = msg.data
+
+    def _on_odom(self, msg: Odometry):
+        self._omega = msg.twist.twist.angular.z
+
+    def _on_imu(self, msg: Imu):
+        q = msg.orientation
+        self._roll = math.atan2(2 * (q.w * q.x + q.y * q.z),
+                                1 - 2 * (q.x * q.x + q.y * q.y))
+        self._pitch = math.asin(max(-1.0, min(1.0, 2 * (q.w * q.y - q.z * q.x))))
+
     def _publish_mode(self):
+        """★ `/chassis_mode` 단독 발행 — 팔이 이걸 보고 자세를 락한다.
+
+        우선순위: MISSION_STOP > FOLLOW_LEAD > ROUGH_TERRAIN > CORNERING > DRIVING.
+        ⚠️ 지금까지 **파라미터 값(항상 DRIVING)만 발행**하고 있었다 — 팔은 코너·험지에서도
+           DRIVING 만 받아 **자세를 락하지 않았다.** 계약은 있었지만 구현이 비어 있었다.
+        """
+        mode = self._mode_sel.update(
+            self._now_ms() / 1000.0,
+            omega=self._omega, roll=self._roll, pitch=self._pitch,
+            mission_mode=self._mission_mode, follow_lead=self._follow_lead,
+        )
         msg = ChassisMode()
         msg.header = self._header()
-        msg.mode = self.get_parameter("mode").value
+        msg.mode = mode
         self.pub_mode.publish(msg)
 
     def _publish_state(self):

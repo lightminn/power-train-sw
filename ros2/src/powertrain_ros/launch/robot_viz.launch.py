@@ -1,4 +1,4 @@
-"""BENCH/RViz 전용 로봇 모델 + L515 + IMU 기울임 통합 시각화.
+"""로봇 모델 + 라이다 + IMU 기울임 통합 시각화 (WP6 Step 1·3·4).
 
     젯슨 (powertrain_ros 컨테이너 안, Gateway 가 이미 떠 있어야 함):
         ros2 launch powertrain_ros robot_viz.launch.py
@@ -47,6 +47,9 @@ def generate_launch_description():
             description="🛑 벤치 전용 — 가짜 /wheel_states 로 주행을 흉내낸다. 실차 금지."),
         DeclareLaunchArgument("course", default_value="square",
                               description="가짜 주행 코스 (straight/circle/square/figure8/pivot)"),
+        DeclareLaunchArgument(
+            "lane", default_value="false",
+            description="레인 추종 노드를 띄운다 (인식만 — 주행은 command_authority 가 결정)"),
     ]
 
     return LaunchDescription(args + [
@@ -95,12 +98,22 @@ def generate_launch_description():
             output="screen",
             parameters=[{"stride": LaunchConfiguration("stride")}],
         ),
-        # 점구름 → 바닥/장애물 분리 → 좌·중·우 진단. production chassis에는 연결하지 않는다.
+        # 점구름 → 바닥/장애물 분리 → 좌·중·우 판정 → speed_scale (WP7)
+        # 🛑 감속 힌트일 뿐 안전 최종 게이트가 아니다 (US-100 + SafetyInterlock 이 게이트).
         Node(
             package="powertrain_ros",
             executable="obstacle_zones",
             name="obstacle_zones",
             output="screen",
+        ),
+        # 레인 추종 (인식만). /cmd_vel/auto 로 **제안**하고, 실제 주행 여부는
+        # command_authority 가 AUTO 모드 + 중립 확인 후에 정한다.
+        Node(
+            package="powertrain_ros",
+            executable="lane_follower",
+            name="lane_follower",
+            output="screen",
+            condition=IfCondition(LaunchConfiguration("lane")),
         ),
         # IMU → /imu/filtered (자세 + 편향보정 각속도).
         # 정적 TF 는 URDF(robot_state_publisher)가, odom→base_link 는 odometry 가 소유

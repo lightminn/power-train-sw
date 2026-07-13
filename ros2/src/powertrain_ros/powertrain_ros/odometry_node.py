@@ -5,7 +5,7 @@
     /imu/filtered ─┘                └─→ TF odom→base_link (병진 + 회전)
 
 **순수 Python 코어 + 얇은 rclpy 래퍼** — 레포 원칙 그대로다. 계산은 전부
-`motor_control/chassis/odometry.py` 가 하고(하드웨어·ROS 의존 0, `test_odometry.py` 회귀),
+`motor_control/chassis/odometry.py` 가 하고(하드웨어·ROS 의존 0, pytest 22종),
 여기서는 메시지를 코어의 자료형으로 옮기고 결과를 다시 메시지로 옮길 뿐이다.
 
 ────────────────────────────────────────────────────────────────────────
@@ -38,6 +38,8 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu
 from tf2_ros import TransformBroadcaster
+
+from std_srvs.srv import Trigger
 
 from powertrain_msgs.msg import WheelStates
 
@@ -76,6 +78,10 @@ class OdometryNode(Node):
         #   바퀴가 없어도 IMU 자세만으로 계속 발행할 책임이 있다(병진은 그대로 유지).
         self.create_timer(1.0 / float(self.get_parameter("publish_hz").value), self._publish)
         self.create_timer(5.0, self._log)
+        # pose 를 원점으로 되돌린다. 오도메트리는 원리적으로 드리프트하므로 새 구간을
+        # 시작할 때(또는 벤치에서 가짜 주행 후) 리셋 수단이 필요하다 — 없으면 스택을
+        # 통째로 재시작해야 했다.
+        self.create_service(Trigger, "~/reset", self._srv_reset)
         self.get_logger().info(
             f"odometry 시작 — 바퀴 {len(self.geom.wheels)}개, "
             f"축거 {(max(w.x for w in self.geom.wheels) - min(w.x for w in self.geom.wheels))*1000:.0f}mm")
@@ -151,6 +157,19 @@ class OdometryNode(Node):
         t.transform.rotation.z = qz
         t.transform.rotation.w = qw
         self.tf.sendTransform(t)
+
+    def _srv_reset(self, _request, response):
+        """pose 를 (0, 0, 0) 으로. 누적 드리프트를 버린다.
+
+        ⚠️ yaw 도 0 으로 돌아간다 — IMU 자이로 적분값과 별개로 odom 원점을 다시 잡는
+        것이므로, 리셋 시점의 방위가 새 기준이 된다.
+        """
+        self.odo.reset()
+        self._t_prev = None                       # dt 가 튀지 않게 시간 기준도 초기화
+        self.get_logger().info("오도메트리 pose 리셋 → (0, 0, 0)")
+        response.success = True
+        response.message = "odometry reset"
+        return response
 
     def _log(self):
         if self._n == 0:

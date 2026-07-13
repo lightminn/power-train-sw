@@ -46,13 +46,17 @@ def test_inner_wheel_steers_more():
 
 
 def test_front_rear_opposite_phase():
-    r = solve(g(), **TURN)             # 4WS 협조: 뒤축은 앞축과 반대로
-    # 앞·뒤 축의 x 절댓값은 같아도 윤거가 다르면 각도 크기는 달라진다.
-    # 협조 조향의 불변 조건은 같은 측 앞/뒤의 부호가 반대라는 점이다.
-    assert r.wheels["front_left"].steer_deg > 0
-    assert r.wheels["rear_left"].steer_deg < 0
-    assert r.wheels["front_right"].steer_deg > 0
-    assert r.wheels["rear_right"].steer_deg < 0
+    """4WS 협조: 뒤축은 앞축과 **반대 부호**로 꺾인다.
+
+    ⚠️ 크기까지 같지는 않다. CAD 실측 기하는 **앞 윤거 705 mm ≠ 뒤 윤거 585 mm** 이므로
+    같은 선회에서 요구되는 조향각이 앞뒤가 다르다(예: 앞 +34.1° / 뒤 −31.7°).
+    구 기하(앞뒤 윤거 동일)에서는 정확한 거울상이었다.
+    """
+    r = solve(g(), **TURN)
+    front = r.wheels["front_left"].steer_deg
+    rear = r.wheels["rear_left"].steer_deg
+    assert front > 0 and rear < 0                      # 반대 위상
+    assert abs(rear) == pytest.approx(abs(front), rel=0.25)   # 크기는 비슷하되 다름
 
 
 def test_outer_wheels_faster():
@@ -130,3 +134,41 @@ def test_arbitrary_geometry_symmetry():
     # 좌우 대칭 기하 → 좌회전에서 fl/fr 조향 부호 같고 크기 다름
     assert r.wheels["fl"].steer_deg > 0 and r.wheels["fr"].steer_deg > 0
     assert abs(r.wheels["fl"].steer_deg) > abs(r.wheels["fr"].steer_deg)
+
+
+# ── 🛠️ 4륜 구성 (중간 ODrive 보드를 부하모터에 쓸 때) ────────────────────
+
+def test_four_wheel_geometry_has_only_steerables():
+    """중륜 2개(고정륜)를 뺀다 — node 13/14 가 버스에 없으면 stale → 전체 estop 이 뜬다."""
+    from chassis.kinematics import four_wheel_geometry
+    g = four_wheel_geometry()
+    assert len(g.wheels) == 4
+    assert all(w.steerable for w in g.wheels)
+    assert {w.name for w in g.wheels} == {
+        "front_left", "front_right", "rear_left", "rear_right"}
+
+
+def test_four_wheel_commands_match_six_wheel():
+    """★ 남는 4바퀴의 명령은 6륜일 때와 **완전히 같아야** 한다.
+
+    중륜은 고정륜이라 다른 바퀴의 조향·구동 명령에 영향을 주지 않는다. 달라진다면
+    기하를 잘못 자른 것이다.
+    """
+    from chassis.kinematics import four_wheel_geometry
+    g6, g4 = default_geometry(), four_wheel_geometry()
+    for v, om in [(0.4, 0.0), (0.4, 0.4), (0.0, 0.5), (-0.3, -0.2)]:
+        r6, r4 = solve(g6, v, om), solve(g4, v, om)
+        for n in r4.wheels:
+            assert r4.wheels[n].steer_deg == pytest.approx(
+                r6.wheels[n].steer_deg, abs=1e-9), f"{n} 조향 불일치 (v={v}, ω={om})"
+            assert r4.wheels[n].drive_mps == pytest.approx(
+                r6.wheels[n].drive_mps, abs=1e-9), f"{n} 구동 불일치 (v={v}, ω={om})"
+
+
+def test_four_wheel_map_matches_geometry():
+    """★ 기하와 모터 매핑의 **바퀴 이름이 어긋나면 KeyError** 로 죽는다."""
+    from chassis.chassis_manager import FOUR_WHEEL_MAP
+    from chassis.kinematics import four_wheel_geometry
+    assert {m.wheel for m in FOUR_WHEEL_MAP} == {
+        w.name for w in four_wheel_geometry().wheels}
+    assert {m.drive_node_id for m in FOUR_WHEEL_MAP} == {11, 12, 15, 16}   # 13/14 제외

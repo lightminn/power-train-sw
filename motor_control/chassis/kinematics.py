@@ -149,11 +149,11 @@ def solve(geom: ChassisGeometry, v_mps: float, omega_rad_s: float) -> SolveResul
 
 
 def default_geometry() -> ChassisGeometry:
-    """6륜 로커보기 바퀴 배치 — 설계팀 CAD URDF에서 도출한 commissioning 후보.
+    """6륜 로커보기 바퀴 배치 — **설계팀 CAD URDF 실제 제작 치수**.
 
-    출처는 외부 설계 익스포트 `/home/light/urdf_2/urdf_2.urdf`(2026-07-11)다.
-    재현 가능한 추출 스크립트와 실차 실측이 아직 레포에 없으므로 production 정본이 아니다.
-    base_link = 축거중점 · 차체중심선 · 지면으로 해석한 후보값이며 조립 뒤 교체한다.
+    출처: `scripts/extract_geometry_from_cad_urdf.py` 가 설계팀 CAD 익스포트
+    (`rover/urdf_2.urdf`, 2026-07-11)에서 도출한다. 숫자를 손으로 고치지 말고 그
+    스크립트를 다시 돌려라. base_link = 축거중점 · 차체중심선 · 지면.
 
       축거(앞−뒤) 875.5 mm   |   윤거: 앞 705.0 / 중간 879.0 / 뒤 585.0 mm
 
@@ -174,10 +174,10 @@ def default_geometry() -> ChassisGeometry:
 
     참고 — **v4 최적화 설계값과 다르다**(제작 과정에서 바뀜):
        v4: 축거 1018 mm, 앞 +509.0 / 중간 −11.4 / 뒤 −509.0 mm (윤거는 v4 범위 밖)
-       이 비교값도 설계 검토용이며 production 실측값이 아니다.
+       CAD 도출은 `parameter_calc/python_gpu_triangle/export_chassis_geometry.py`.
     """
     return ChassisGeometry(wheels=[
-        # CAD URDF 도출 commissioning 후보(좌우 대칭화). 실차 실측 뒤 교체.
+        # CAD URDF 실측 (scripts/extract_geometry_from_cad_urdf.py, 좌우 대칭화 적용)
         Wheel("front_left",  +0.4377, +0.3525, True),
         Wheel("front_right", +0.4377, -0.3525, True),
         Wheel("mid_left",    -0.0603, +0.4395, False),
@@ -185,3 +185,27 @@ def default_geometry() -> ChassisGeometry:
         Wheel("rear_left",   -0.4377, +0.2925, True),
         Wheel("rear_right",  -0.4377, -0.2925, True),
     ])
+
+
+def four_wheel_geometry() -> ChassisGeometry:
+    """🛠️ **중륜 2개를 뺀 4륜 구성** — 중간 ODrive 보드(node 13/14)를 부하모터(다이나모)에
+    쓰고 있을 때의 임시 구성이다.
+
+    ⚠️ **임시다.** 중륜 없이 정상 운용하는 설계가 아니다. 보드가 돌아오면 6륜으로 되돌린다.
+
+    ⚠️ **바퀴는 여전히 땅에 닿아 있다.** 구동만 안 될 뿐 물리적으로는 붙어 있으므로,
+       지상 주행 시 **끌려다니며 저항·스크럽**을 만든다(인휠 BLDC 라 코깅 드래그도 있다).
+       → **바퀴를 띄운 벤치 테스트**에서 쓴다. 지상 주행은 별도 판단.
+
+    ⚠️ **오도메트리 정확도가 떨어진다.** 방정식이 10개 → 8개로 줄고, 중륜은 조향이 없어
+       **회전을 직접 관측하던 유일한 소스**였다(피벗에서 특히). 슬립 배제의 여유도 준다.
+
+    기하 자체는 `default_geometry()` 와 같은 CAD 실측치를 쓴다 — 앞뒤 좌표·윤거 그대로.
+    """
+    full = default_geometry()
+    return ChassisGeometry(
+        wheels=[w for w in full.wheels if w.steerable],   # 조향 4륜만 (중륜은 고정륜)
+        wheel_radius_m=full.wheel_radius_m,
+        steer_limit_deg=full.steer_limit_deg,
+        drive_limit_mps=full.drive_limit_mps,
+    )

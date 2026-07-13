@@ -257,6 +257,10 @@ def main(argv=None):
     p.add_argument("--channel", default="can0")
     p.add_argument("--v-max", type=float, default=1.5)
     p.add_argument("--omega-max", type=float, default=1.2)
+    p.add_argument("--four-wheel", action="store_true",
+                   help="🛠️ 중륜 2개(ODrive node 13/14) 없이 4륜만으로 돌린다. "
+                        "중간 보드를 부하모터(다이나모)에 쓸 때. "
+                        "⚠️ 임시 구성 — 바퀴 띄운 벤치용")
     p.add_argument("--min-rev", type=float, default=1.0,
                    help="최저 구동속도 turns/s (저속 코깅존 회피, 0=off)")
     args = p.parse_args(argv)
@@ -284,8 +288,20 @@ def main(argv=None):
             )
             background.start()
 
-        corners = build_real_corners(args.channel)
+        # CAN 단독 소유권 — chassis_node 가 이미 잡고 있으면 여기서 CanBusBusy
+        wheel_map = None
+        if args.four_wheel:
+            from chassis.chassis_manager import FOUR_WHEEL_MAP
+            wheel_map = FOUR_WHEEL_MAP
+            print("🛠️ 4륜 모드 — 중륜(node 13/14) 없이 앞뒤 4륜만 구동한다 (임시 구성)")
+        corners = build_real_corners(args.channel, owner="teleop_server",
+                                     wheel_map=wheel_map)
+
         cfg = ChassisConfig(min_drive_turns_per_s=args.min_rev)
+        if args.four_wheel:
+            # ★ 기하와 매핑은 **반드시 짝**이어야 한다 (이름이 어긋나면 KeyError)
+            from chassis.kinematics import four_wheel_geometry
+            cfg.geometry = four_wheel_geometry()
         cfg.geometry.drive_limit_mps = max(
             args.v_max,
             cfg.geometry.drive_limit_mps,
