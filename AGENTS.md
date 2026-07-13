@@ -1003,3 +1003,19 @@ When starting a new Codex session in this project, read `.codex/claude-history/H
 
 At the start of a new Codex session in this project, read `.codex/claude-history/claude-ai-export-af79641e/HISTORY.md` once. Use its category indexes to locate the migrated Claude.ai conversations, and open full session files when relevant.
 <!-- END CLAUDE_AI_EXPORT_AF79641E -->
+
+## 2026 국방로봇 자율주행 전체 계획 Notion 정본
+
+- 팀 공용 Notion 설명본은 **「2026 국방로봇 자율주행 SW 전체 개발계획」**
+  (page ID `39c2d27b-08d3-8172-8c1a-de21cc72216b`,
+  https://app.notion.com/p/39c2d27b08d381728c1ade21cc72216b)이다.
+- 이 페이지는 로봇팔 통합만 다루는 문서가 아니다. 대회 목표·전체 아키텍처·WP5.2 안전 기반·
+  WP5.3 관측성·시뮬레이션·WP6-A/B/C·WP7~9·원격운용·시험/HIL·일정·완료/중단 기준을
+  모두 포함해야 한다. 로봇팔 협업과 원격 ARM은 전체 계획의 한 섹션으로 유지한다.
+- 세부 기술 정본은 `docs/plans/2026-07-12-defense-robot-autonomy-software-plan.md`,
+  `docs/plans/2026-07-13-wp5.2-arm-collaboration-safety-plan.md`,
+  `docs/plans/2026-07-13-observability-data-quality-remote-assist-plan.md`다. Notion을 수정할 때
+  세 문서의 범위·의존 순서·acceptance를 함께 동기화하고 쓰기 뒤 반드시 재조회한다.
+- 2026-07-13 전체 페이지 개편 기준 commit은
+  `36902efc9104938559d195853bd8e1ddc5c0f036`이다. DualSense 물리 키매핑은 확정값이 아니라
+  HIL·운전자 피드백 뒤 변경 가능한 versioned 초기 후보로 표기한다.
