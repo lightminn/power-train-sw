@@ -1,8 +1,8 @@
-"""L515 depth → 바닥/장애물 분리 → 좌·중·우 구역 판정 → speed_scale (WP7 착수).
+"""BENCH/RViz 전용 L515 장애물 구역 실험. production command authority가 아니다.
 
-    /l515/points ─→ [이 노드] ─→ /obstacle/points   (바닥=회색 / 장애물=빨강, RViz 용)
-                                 ├→ /obstacle/state       (GO / SLOW / STOP / UNKNOWN)
-                                 └→ /obstacle/speed_scale (1.0 / 0.3 / 0.0)
+    /l515/points ─→ [이 노드] ─→ /diagnostics/obstacle/points
+                                 ├→ /diagnostics/obstacle/state
+                                 └→ /diagnostics/obstacle/speed_scale
 
 2026-07-07 L515 1차 검증(윈도우 PC)의 좌/중/우 3분할 GO·SLOW·STOP 판정을 ROS 로 옮기되,
 그때 미해결로 남았던 두 문제를 푼다.
@@ -76,10 +76,12 @@ class ObstacleZones(Node):
         self._plane = None
         self._n = 0
 
-        self.pub_cloud = self.create_publisher(PointCloud2, "/obstacle/points",
+        self.pub_cloud = self.create_publisher(PointCloud2, "/diagnostics/obstacle/points",
                                                qos_profile_sensor_data)
-        self.pub_state = self.create_publisher(String, "/obstacle/state", 10)
-        self.pub_scale = self.create_publisher(Float32, "/obstacle/speed_scale", 10)
+        self.pub_state = self.create_publisher(String, "/diagnostics/obstacle/state", 10)
+        self.pub_scale = self.create_publisher(
+            Float32, "/diagnostics/obstacle/speed_scale", 10
+        )
         # ★ depth=1 — **항상 최신 프레임만 처리하고 밀린 것은 버린다.**
         #   처리가 입력(10 Hz)보다 조금만 느려도 큐가 무한히 쌓여 발행 타임스탬프가 점점
         #   과거가 된다(실측: 0.9초 → 13초까지 벌어짐). 그러면 RViz 가 TF 캐시 범위를

@@ -1,4 +1,4 @@
-"""로봇 모델 + 라이다 + IMU 기울임 통합 시각화 (WP6 Step 1·3·4).
+"""BENCH/RViz 전용 로봇 모델 + L515 + IMU 기울임 통합 시각화.
 
     젯슨 (powertrain_ros 컨테이너 안, Gateway 가 이미 떠 있어야 함):
         ros2 launch powertrain_ros robot_viz.launch.py
@@ -95,8 +95,7 @@ def generate_launch_description():
             output="screen",
             parameters=[{"stride": LaunchConfiguration("stride")}],
         ),
-        # 점구름 → 바닥/장애물 분리 → 좌·중·우 판정 → speed_scale (WP7)
-        # 🛑 감속 힌트일 뿐 안전 최종 게이트가 아니다 (US-100 + SafetyInterlock 이 게이트).
+        # 점구름 → 바닥/장애물 분리 → 좌·중·우 진단. production chassis에는 연결하지 않는다.
         Node(
             package="powertrain_ros",
             executable="obstacle_zones",

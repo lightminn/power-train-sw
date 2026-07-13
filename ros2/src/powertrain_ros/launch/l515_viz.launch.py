@@ -1,4 +1,4 @@
-"""L515 시각화 스택 — 포인트클라우드 + IMU 기울임 TF (WP6 Step 3·4).
+"""BENCH/RViz 전용 L515 시각화 — 포인트클라우드 + IMU 기울임 TF.
 
     젯슨 (powertrain_ros 컨테이너 안):
         ros2 launch powertrain_ros l515_viz.launch.py

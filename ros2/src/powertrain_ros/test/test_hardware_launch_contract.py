@@ -63,6 +63,12 @@ LAUNCH_FILE = (
     / "wp5_control.launch.py"
 )
 CAN_SETUP = ROOT / "scripts" / "can_setup.sh"
+CHASSIS_NODE = (
+    ROOT / "ros2/src/powertrain_ros/powertrain_ros/chassis_node.py"
+)
+OBSTACLE_ZONES_NODE = (
+    ROOT / "ros2/src/powertrain_ros/powertrain_ros/obstacle_zones_node.py"
+)
 
 
 def _load_launch_module(module_name):
@@ -147,6 +153,14 @@ def test_hardware_launch_requires_stop_mm_without_default():
     assert arguments[0].default_value is None
     with pytest.raises(RuntimeError, match="stop_mm.*not.*provided"):
         arguments[0].execute(LaunchContext())
+
+
+def test_bench_obstacle_hint_cannot_feed_production_chassis():
+    chassis_source = CHASSIS_NODE.read_text(encoding="utf-8")
+    obstacle_source = OBSTACLE_ZONES_NODE.read_text(encoding="utf-8")
+
+    assert '"/obstacle/speed_scale"' not in chassis_source
+    assert '"/diagnostics/obstacle/speed_scale"' in obstacle_source
 
 
 @pytest.mark.parametrize(

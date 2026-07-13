@@ -149,11 +149,11 @@ def solve(geom: ChassisGeometry, v_mps: float, omega_rad_s: float) -> SolveResul
 
 
 def default_geometry() -> ChassisGeometry:
-    """6륜 로커보기 바퀴 배치 — **설계팀 CAD URDF 실제 제작 치수**.
+    """6륜 로커보기 바퀴 배치 — 설계팀 CAD URDF에서 도출한 commissioning 후보.
 
-    출처: `scripts/extract_geometry_from_cad_urdf.py` 가 설계팀 CAD 익스포트
-    (`rover/urdf_2.urdf`, 2026-07-11)에서 도출한다. 숫자를 손으로 고치지 말고 그
-    스크립트를 다시 돌려라. base_link = 축거중점 · 차체중심선 · 지면.
+    출처는 외부 설계 익스포트 `/home/light/urdf_2/urdf_2.urdf`(2026-07-11)다.
+    재현 가능한 추출 스크립트와 실차 실측이 아직 레포에 없으므로 production 정본이 아니다.
+    base_link = 축거중점 · 차체중심선 · 지면으로 해석한 후보값이며 조립 뒤 교체한다.
 
       축거(앞−뒤) 875.5 mm   |   윤거: 앞 705.0 / 중간 879.0 / 뒤 585.0 mm
 
@@ -174,10 +174,10 @@ def default_geometry() -> ChassisGeometry:
 
     참고 — **v4 최적화 설계값과 다르다**(제작 과정에서 바뀜):
        v4: 축거 1018 mm, 앞 +509.0 / 중간 −11.4 / 뒤 −509.0 mm (윤거는 v4 범위 밖)
-       CAD 도출은 `parameter_calc/python_gpu_triangle/export_chassis_geometry.py`.
+       이 비교값도 설계 검토용이며 production 실측값이 아니다.
     """
     return ChassisGeometry(wheels=[
-        # CAD URDF 실측 (scripts/extract_geometry_from_cad_urdf.py, 좌우 대칭화 적용)
+        # CAD URDF 도출 commissioning 후보(좌우 대칭화). 실차 실측 뒤 교체.
         Wheel("front_left",  +0.4377, +0.3525, True),
         Wheel("front_right", +0.4377, -0.3525, True),
         Wheel("mid_left",    -0.0603, +0.4395, False),

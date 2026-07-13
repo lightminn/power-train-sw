@@ -9,7 +9,7 @@ import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import Float32, Header
+from std_msgs.msg import Header
 from std_srvs.srv import Trigger
 
 from powertrain_msgs.msg import SafetyVerdict
@@ -71,8 +71,6 @@ class ChassisNode(Node):
             DEFAULT_SAFETY_TOPIC_TIMEOUT_S,
         )
         self.declare_parameter("safety_startup_timeout", 1.0)
-        # 감속 힌트(/obstacle/speed_scale) 신선도. 넘으면 fail-open (§_expire_speed_scale)
-        self.declare_parameter("speed_scale_timeout", 0.5)
 
         fake = bool(self.get_parameter("fake").value)
         channel = str(self.get_parameter("channel").value)
@@ -87,9 +85,6 @@ class ChassisNode(Node):
         )
         self._safety_startup_timeout = float(
             self.get_parameter("safety_startup_timeout").value
-        )
-        self._scale_timeout = float(
-            self.get_parameter("speed_scale_timeout").value
         )
 
         from chassis.chassis_manager import (
@@ -137,15 +132,6 @@ class ChassisNode(Node):
             self._on_safety_verdict,
             safety_qos,
         )
-        # 전방 감속 힌트 (인지 계층 · obstacle_zones). 🛑 안전 게이트가 아니다 —
-        # 게이트는 US-100 + SafetyInterlock 이다. 여기서는 v 만 스케일한다.
-        self.create_subscription(
-            Float32,
-            "/obstacle/speed_scale",
-            self._on_speed_scale,
-            10,
-        )
-
         self.pub_mode = self.create_publisher(
             ChassisMode,
             contract.TOPIC_CHASSIS_MODE,
@@ -179,9 +165,6 @@ class ChassisNode(Node):
         self._last_arm_status = None
         self._started_ms = self._now_ms()
         self._last_safety_ms = None
-        self._speed_scale = 1.0
-        self._last_scale_ms = None
-        self._scale_stale_logged = False
         self._overrun_count = 0
         self._wheel_telemetry_failed = False
         self._seed_initial_safety()
@@ -236,36 +219,6 @@ class ChassisNode(Node):
     def _on_cmd_vel(self, msg: Twist):
         self.cm.set(msg.linear.x, msg.angular.z)
 
-    def _on_speed_scale(self, msg: Float32):
-        self._speed_scale = min(1.0, max(0.0, float(msg.data)))
-        self._last_scale_ms = self._now_ms()
-        if self._scale_stale_logged:
-            self.get_logger().info("감속 힌트 복구 — 다시 반영한다")
-            self._scale_stale_logged = False
-        self.cm.set_speed_scale(self._speed_scale)
-
-    def _expire_speed_scale(self, now_ms):
-        """감속 힌트가 끊기면 **fail-open**(제한 해제)한다.
-
-        ★ 왜 fail-open 인가 — 이건 **감속 힌트**지 안전 게이트가 아니기 때문이다.
-          실제 충돌 방지는 **US-100(독립 초음파) + SafetyInterlock** 이 하고, 그건
-          끊기면 `MOTION_HOLD`/`ESTOP` 으로 **fail-closed** 한다(그대로 유지).
-          인지 노드가 죽었다고 여기서 fail-closed 하면, **위험이 없는데도 로봇이
-          멈춰버린다** — 게다가 이 힌트가 없던 시절(오늘 이전)이 곧 fail-open 상태이므로
-          기존 동작 대비 퇴행도 없다.
-          ⚠️ 바꿔 말하면 **depth 인지는 안전 책임을 지지 않는다.** 안전은 US-100 이다.
-        """
-        if self._last_scale_ms is None or self._speed_scale >= 1.0:
-            return
-        if now_ms - self._last_scale_ms <= self._scale_timeout * 1000.0:
-            return
-        self._speed_scale = 1.0
-        self.cm.set_speed_scale(1.0)
-        if not self._scale_stale_logged:
-            self.get_logger().warn(
-                "감속 힌트 stale — 제한 해제(fail-open). 충돌 방지는 US-100 이 담당한다.")
-            self._scale_stale_logged = True
-
     def _on_safety_verdict(self, msg):
         status_name = {
             SafetyVerdict.CHECKING: "CHECKING",
@@ -308,11 +261,6 @@ class ChassisNode(Node):
                     stale,
                     "safety_topic_stale",
                 )
-
-        # `_tick` is also exercised as an unbound method with a lightweight
-        # node fixture. Calling through the class keeps that contract while
-        # behaving identically for a real ChassisNode instance.
-        ChassisNode._expire_speed_scale(self, now_ms)
 
         started = time.monotonic()
         try:

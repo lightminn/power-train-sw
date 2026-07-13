@@ -223,6 +223,47 @@ def test_left_turn_matches_kinematics_per_corner():
             > m.corners["front_right"].state()["steer"]["target_deg"] > 0)
 
 
+def test_speed_scale_reduces_forward_drive_only():
+    m = _armed_manager()
+    m.set(0.5, 0.0)
+    m.set_speed_scale(0.4)
+
+    m.tick()
+
+    expected = solve(default_geometry(), 0.2, 0.0)
+    for name, corner in m.corners.items():
+        assert corner.state()["drive"]["target_vel"] == pytest.approx(
+            expected.wheels[name].drive_turns_per_s
+        )
+
+
+def test_speed_scale_does_not_block_reverse_escape():
+    m = _armed_manager()
+    m.set(-0.4, 0.0)
+    m.set_speed_scale(0.0)
+
+    m.tick()
+
+    expected = solve(default_geometry(), -0.4, 0.0)
+    for name, corner in m.corners.items():
+        assert corner.state()["drive"]["target_vel"] == pytest.approx(
+            expected.wheels[name].drive_turns_per_s
+        )
+
+
+def test_speed_scale_does_not_refresh_command_watchdog():
+    clock = FakeClock()
+    m = _armed_manager(cfg=ChassisConfig(watchdog_ms=300.0), clock=clock)
+    m.set(0.4, 0.0)
+    clock.advance(0.31)
+
+    m.set_speed_scale(0.5)
+    m.tick()
+
+    assert m.snapshot().stop_state == "MOTION_HOLD"
+    assert all(value == 0.0 for value in _drive_targets(m).values())
+
+
 def test_pivot_drives_mid_wheels_opposite():
     m = _armed_manager()
     m.set(0.0, 0.5)                               # 제자리 좌회전

@@ -1,4 +1,7 @@
-"""L515 depth 이미지 → PointCloud2 (WP6 Step 4).
+"""BENCH/RViz 전용 L515 depth 이미지 → PointCloud2 도구.
+
+Production terrain 경로에 넣지 않는다. 상시 PointCloud2 없이 raw depth ROI를 같은 프로세스에서
+복원한다는 자율주행 계약은 이 도구보다 우선한다.
 
     실행 (powertrain_ros 컨테이너 안):
         source /opt/ros/humble/setup.bash

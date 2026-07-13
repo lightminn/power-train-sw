@@ -5,7 +5,7 @@
     /imu/filtered ─┘                └─→ TF odom→base_link (병진 + 회전)
 
 **순수 Python 코어 + 얇은 rclpy 래퍼** — 레포 원칙 그대로다. 계산은 전부
-`motor_control/chassis/odometry.py` 가 하고(하드웨어·ROS 의존 0, pytest 22종),
+`motor_control/chassis/odometry.py` 가 하고(하드웨어·ROS 의존 0, `test_odometry.py` 회귀),
 여기서는 메시지를 코어의 자료형으로 옮기고 결과를 다시 메시지로 옮길 뿐이다.
 
 ────────────────────────────────────────────────────────────────────────
