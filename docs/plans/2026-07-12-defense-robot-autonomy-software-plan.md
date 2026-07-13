@@ -474,9 +474,11 @@ operator mode/select → authority FSM ───┘              ↓
 
 #### DualSense DRIVE/ARM 조작 계약
 
-DualSense 하나로 차체와 팔을 조작하되 입력 의미는 모드별로 고정한다.
+DualSense 하나로 차체와 팔을 조작한다. 아래 표는 구현·HIL을 시작하기 위한 **초기 키매핑 후보**이며,
+운전자 사용성 시험 뒤 versioned config로 변경할 수 있다. DRIVE/ARM 상호배타, deadman,
+stow-before-drive와 전역 E-stop 의미는 키 위치와 무관한 고정 안전 계약이다.
 
-| 입력 | DRIVE mode | ARM mode |
+| 초기 후보 입력 | DRIVE mode | ARM mode |
 |---|---|---|
 | R2 / L2 | 전진 / 후진 | 그리퍼 열기 / 닫기 |
 | 좌스틱 X | 차체 회전 | 사용 안 함 |
@@ -511,7 +513,7 @@ DualSense 하나로 차체와 팔을 조작하되 입력 의미는 모드별로 
 - ARM deadman·remote input·D435i feedback 중 하나를 끊으면 다음 arm control tick에 jog가 0이 되고,
   stale 입력이 재연결 뒤 재생되지 않음.
 - FSM trajectory와 remote jog가 동시에 hardware bridge에 도달하지 않으며, ARM 종료 뒤 fresh
-  `STOWED_LOCKED` 전에는 R2/L2가 차체 주행으로 해석되지 않음.
+  `STOWED_LOCKED` 전에는 현재 ARM mapping의 입력이 차체 주행으로 재해석되지 않음.
 
 ### WP5.3. 관측성·진단·qualification 기반
 
@@ -873,10 +875,10 @@ threshold map이 unqualified·누락이면 작업 허가를 fail-closed한다. `
 - 자율 실패 시 zero-confirmed handover 후 원격으로 전환.
 - 원격 중에도 US-100과 모터 E-stop은 동일하게 적용.
 - 네트워크 단절과 조종기 단절은 motion hold로 처리하고 자동 재연결.
-- DualSense는 `CREATE+OPTIONS` 1초 hold로 DRIVE/ARM 전환을 요청하며, 실제 모드는 Jetson ACK 뒤에만
-  바뀐다. ARM에서는 D-pad로 `joint_1`~`joint_5`를 선택하고 우스틱 Y로 저속 조그하며 R2/L2로
-  그리퍼를 열고 닫는다. L1 hold-to-run을 놓으면 즉시 현재 자세 hold다. DRIVE와 ARM 출력은 같은
-  입력 frame에서도 절대 동시에 활성화하지 않는다.
+- 초기 후보 mapping은 `CREATE+OPTIONS` 1초 hold로 DRIVE/ARM 전환 요청, D-pad로
+  `joint_1`~`joint_5` 선택, 우스틱 Y로 저속 조그, R2/L2로 gripper open/close, L1 hold-to-run이다.
+  구체적인 물리 버튼·축은 HIL과 운전자 피드백 뒤 versioned config로 변경할 수 있다. 어떤 mapping을
+  쓰더라도 Jetson ACK 전 mode 변경 금지와 같은 입력 frame의 DRIVE/ARM 동시 활성 금지는 유지한다.
 - 원격 팔 명령은 표준 `JointJog`를 사용하지만 기존 5종 협업 msg에는 필드를 추가하지 않는다.
   자동 FSM과 원격조종은 로봇팔 내부 `ArmCommandAuthority`에서 상호배타이며, direct Dynamixel
   command publisher와 검증되지 않은 `home` 단축키는 production에서 금지한다.

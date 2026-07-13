@@ -384,16 +384,17 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 - L515와 D435i는 동시에 표시하지만 safety predicate는 operation별이다. L515 raw freshness는
   remote drive, D435i raw freshness는 remote arm을 gate한다. 비권위 companion 장애를 다른 동작의
   안전근거로 오판하지 않는다.
-- DualSense는 `CREATE+OPTIONS` 1초 hold로 DRIVE/ARM 전환을 요청한다. ARM ACK 뒤 D-pad 좌/우는
-  `joint_1`~`joint_5` 선택, 우스틱 Y는 selected joint signed jog, R2/L2는 gripper open/close이며
-  L1은 hold-to-run deadman이다. 같은 frame에서 drive와 arm 출력을 함께 허용하지 않고, 두 trigger
-  동시 입력은 gripper hold다. ○는 양 mode에서 기존 수동 latched E-stop 의미를 유지한다.
+- 초기 후보 mapping은 `CREATE+OPTIONS` 1초 hold로 DRIVE/ARM 전환 요청, D-pad 좌/우로
+  `joint_1`~`joint_5` 선택, 우스틱 Y로 selected joint signed jog, R2/L2로 gripper open/close,
+  L1 hold-to-run이다. 구체적인 버튼·축은 HIL과 운전자 피드백 뒤 versioned config로 변경할 수 있다.
+  mapping과 무관하게 같은 frame의 drive/arm 동시 출력 금지, trigger conflict hold와 전역 수동
+  latched E-stop 의미는 유지한다.
 - 원격 팔 control은 기존 `robot_arm_msgs` 5종을 변경하지 않는다. Task 4 gateway가 표준
   `control_msgs/msg/JointJog`를 만들고 로봇팔 `ArmCommandAuthority`가 FSM과 상호배타로 선택한다.
   console은 direct Dynamixel command와 all-zero `home`을 제공하지 않는다.
 - ARM→DRIVE 요청 뒤 console은 `STOW_REQUEST/STOWING`을 표시하고 fresh `STOWED_LOCKED` ACK 전까지
-  R2/L2를 gripper 의미로 유지하되 출력은 0으로 보낸다. client-side mode 선반영으로 갑자기 차체가
-  움직이는 경로를 금지한다.
+  현재 ARM mapping의 입력을 차체 의미로 바꾸지 않고 출력 0으로 보낸다. client-side mode 선반영으로
+  갑자기 차체가 움직이는 경로를 금지한다.
 
 **Remote assist contract:**
 
