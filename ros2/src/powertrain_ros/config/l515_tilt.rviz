@@ -1,0 +1,78 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /PointCloud2
+        - /TF
+      Splitter Ratio: 0.5
+    Tree Height: 600
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+      Plane Cell Count: 20
+      Color: 160; 160; 164
+      Alpha: 0.4
+      Reference Frame: odom
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Show Names: true
+      Show Axes: true
+      Show Arrows: false
+      Marker Scale: 0.4
+      Frame Timeout: 15
+    - Class: rviz_default_plugins/PointCloud2
+      Name: PointCloud2
+      Enabled: true
+      Topic:
+        Value: /l515/points
+        # ⚠️ Gateway 는 BEST_EFFORT 로 발행한다. Reliable 로 두면 한 점도 안 보인다.
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Depth: 5
+      Style: Points
+      Size (Pixels): 3
+      Alpha: 1
+      Decay Time: 0
+      Color Transformer: AxisColor
+      Axis: Z
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 2
+        Min Value: 0
+        Value: true
+  Global Options:
+    Background Color: 30; 30; 35
+    # odom = 고정 프레임. IMU 기울임이 odom→base_link 회전에 들어가므로
+    # 로봇을 기울이면 포인트클라우드가 화면에서 같이 기울어진다.
+    Fixed Frame: odom
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 6
+      Focal Point:
+        X: 1.5
+        Y: 0
+        Z: 0.3
+      Pitch: 0.35
+      Yaw: 3.0
+      Target Frame: odom
+    Saved: ~
+Window Geometry:
+  Height: 900
+  Width: 1400
+  Displays:
+    collapsed: false

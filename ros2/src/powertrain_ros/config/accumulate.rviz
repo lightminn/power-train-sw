@@ -1,0 +1,92 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Accumulated
+      Splitter Ratio: 0.5
+    Tree Height: 600
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 0.5
+      Plane Cell Count: 24
+      Color: 120; 120; 125
+      Alpha: 0.25
+      Reference Frame: odom
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+      Alpha: 0.6
+      Visual Enabled: true
+      Collision Enabled: false
+    # ★ Decay Time > 0 → 점이 사라지지 않고 **odom 프레임에 누적**된다.
+    #   RViz 는 수신 시점의 자세로 점을 고정 프레임에 박아둔다 → 센서가 움직이면 쌓인다.
+    #
+    #   ⚠️ 누적이 **올바르려면** odom→base_link 가 실제 운동을 반영해야 한다:
+    #     · 제자리 회전  → 이동량 0. IMU 회전만으로 정확 → **파노라마가 제대로 맞는다.**
+    #     · 실제 주행    → 바퀴 오도메트리가 이동량을 준다 (드리프트만큼 서서히 뭉개짐).
+    #     · fake_wheels  → 로봇은 "움직인다"는데 카메라는 가만히 → **거짓 맵**(배관만 증명).
+    #     · 손에 들고 이동 → 이동량 소스가 없다 → 회전만 반영되고 뭉개진다.
+    #       (MEMS IMU 가속도 이중적분은 자세오차 0.1°만 있어도 10초에 86 cm 틀린다.)
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Accumulated
+      Enabled: true
+      Topic:
+        Value: /l515/points
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Depth: 5
+      Style: Points
+      Size (Pixels): 2
+      Alpha: 1
+      Decay Time: 120
+      Color Transformer: AxisColor
+      Axis: Z
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 2.5
+        Min Value: -0.5
+        Value: false
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: false
+      Show Names: true
+      Show Axes: true
+      Marker Scale: 0.3
+  Global Options:
+    Background Color: 25; 25; 30
+    Fixed Frame: odom
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 7
+      Focal Point:
+        X: 1.0
+        Y: 0
+        Z: 0.5
+      Pitch: 0.55
+      Yaw: 2.9
+      Target Frame: odom
+    Saved: ~
+Window Geometry:
+  Height: 950
+  Width: 1500
+  Displays:
+    collapsed: false

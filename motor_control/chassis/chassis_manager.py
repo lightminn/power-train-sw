@@ -106,6 +106,7 @@ class ChassisManager:
         self._v = 0.0
         self._omega = 0.0
         self._last_set_ms = None
+        self._speed_scale = 1.0            # 전방 감속 힌트 (1.0 = 제한 없음)
         self._now = time.monotonic if clock is None else clock
         self._interlock = SafetyInterlock(clock=self._now)
         self._last_estop_error = None
@@ -154,6 +155,20 @@ class ChassisManager:
         self._v = v_mps
         self._omega = omega_rad_s
         self._last_set_ms = self._now_ms()
+
+    def set_speed_scale(self, scale: float) -> None:
+        """전방 감속 힌트 [0,1]. **인지 계층**(depth 장애물)이 주는 배율이다.
+
+        ★ `set()` 이 아니라 **별도 채널**인 이유: `set()` 은 `_last_set_ms` 를 갱신해
+          **명령 워치독**(300 ms)을 리셋한다. 감속 힌트를 `set()` 으로 밀어넣으면 상위
+          명령이 끊겨도 워치독이 영영 안 터진다 = **stale 명령 재생**. 배율은 `tick()`
+          에서 곱하므로 워치독 의미를 건드리지 않고, 힌트 변화가 다음 틱(20 ms)에 즉시 먹는다.
+
+        🛑 **안전 게이트가 아니다.** 최종 게이팅은 US-100 + `SafetyInterlock`(`MOTION_HOLD`
+           /`ESTOP`)이 한다. 이건 그 앞단의 **감속 힌트**일 뿐이며, depth 는 검은 물체·
+           반사체에서 구멍이 나므로 단독으로 안전을 책임지지 않는다.
+        """
+        self._speed_scale = min(1.0, max(0.0, float(scale)))
 
     def disarm(self) -> None:
         for c in self.corners.values():
@@ -265,8 +280,14 @@ class ChassisManager:
         # 조향은 항상 명령하고, hold 중에는 구동만 0으로 게이팅한다.
         drive_enabled = safety.state == RUN
 
+        # 전방 감속 힌트 적용 (인지 계층 → set_speed_scale)
+        #  · **전진에만** 건다. 앞에 장애물이 있다고 **후진을 막으면 안 된다** — 빠져나갈
+        #    길을 막는 꼴이다.
+        #  · **ω 는 안 줄인다.** 정지 상태에서도 조향·회전으로 회피할 수 있어야 한다.
+        v_eff = self._v * self._speed_scale if self._v > 0.0 else self._v
+
         # kinematics → 코너별 분배
-        result = solve(self.cfg.geometry, self._v, self._omega)
+        result = solve(self.cfg.geometry, v_eff, self._omega)
         mn = self.cfg.min_drive_turns_per_s
         for w in self.cfg.geometry.wheels:
             wc = result.wheels[w.name]

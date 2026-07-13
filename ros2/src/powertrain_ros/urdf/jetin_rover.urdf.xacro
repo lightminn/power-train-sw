@@ -1,0 +1,149 @@
+<?xml version="1.0"?>
+<!--
+  JET-IN 6륜 로커보기 로버 — 주행제어·시각화용 URDF (WP6 Step 1)
+
+    확인:  xacro jetin_rover.urdf.xacro > /tmp/out.urdf && check_urdf /tmp/out.urdf
+    사용:  ros2 launch powertrain_ros robot_viz.launch.py
+
+  ⚠️ **이것은 시각화·TF 용 최소 모델이다.** 실물 CAD 형상이 아니다.
+     로커·보기 링키지, 서스펜션, 로봇팔은 없다. 목적은 오직 두 가지 —
+       ① RViz 에서 로봇의 자세·바퀴·조향을 눈으로 본다
+       ② `base_link → 각 바퀴/센서` TF 를 robot_state_publisher 가 자동 생성한다
+     설계팀 정본 URDF 가 오면 이 파일을 갈아끼운다. 그때까지 파이프라인을 막지 않는다.
+
+  ── 치수 출처 ──────────────────────────────────────────────────────────────
+  · 바퀴 x (앞뒤)  = **v4 최적화 설계값**. `parameter_calc/python_gpu_triangle/
+    export_chassis_geometry.py` 가 정본 pkl(f_opt 0.2004)에서 평지 접지 평형을 풀어 도출.
+    `motor_control/chassis/kinematics.py` 의 `default_geometry()` 와 **같은 숫자여야 한다.**
+  · 바퀴 반경 0.10 m = R_w (v4 · BL70200 인휠).
+  · 윤거(좌우) = ⚠️ **근거 없음 — 설계팀 실측 대기.** v4 는 측면-절반 2D 모델이라
+    좌우 치수를 아예 다루지 않는다. 실측이 오면 `track_half` 만 바꾸면 된다.
+  · 차체 박스·센서 마운트 = ⚠️ **눈대중 플레이스홀더.**
+-->
+<robot name="jetin_rover" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ═══ 치수 (여기만 고치면 전체가 따라감) ═══════════════════════════════ -->
+  <!-- **설계팀 CAD URDF 실측** — scripts/extract_geometry_from_cad_urdf.py
+       kinematics.default_geometry() 와 **같은 숫자여야 한다.**
+       ⚠️ 윤거가 앞/중/뒤 전부 다르다 (705 / 879 / 585 mm). CAD 상 실측이며 오독이 아니다
+          (조향 4륜의 타이어 원점이 킹핀 축과 Δ0.0 mm 일치 = 스크럽 반경 0 설계).
+          **설계 의도인지 CAD 오류인지 설계팀 확인 필요.** -->
+  <xacro:property name="x_front"    value="0.4377"/>
+  <xacro:property name="x_mid"      value="-0.0603"/>  <!-- ⚠️ 축거중심에서 60 mm 뒤 -->
+  <xacro:property name="x_rear"     value="-0.4377"/>
+  <xacro:property name="y_front"    value="0.3525"/>   <!-- 앞 윤거 705 mm -->
+  <xacro:property name="y_mid"      value="0.4395"/>   <!-- 중간 윤거 879 mm -->
+  <xacro:property name="y_rear"     value="0.2925"/>   <!-- 뒤 윤거 585 mm -->
+  <xacro:property name="wheel_r"    value="0.10"/>
+  <xacro:property name="wheel_w"    value="0.07"/>   <!-- 타이어 폭 70 mm -->
+
+  <!-- ⚠️ 차체 박스는 눈대중 플레이스홀더 (CAD 메시가 오면 교체) -->
+  <xacro:property name="body_l"     value="0.80"/>
+  <xacro:property name="body_w"     value="0.40"/>
+  <xacro:property name="body_h"     value="0.20"/>
+  <xacro:property name="body_z"     value="0.30"/>   <!-- 지면 위 차체 높이 -->
+
+  <!-- ⚠️ 센서 마운트 = 미실측. imu_tilt_node 의 mount_* 기본값과 맞춰둠 -->
+  <xacro:property name="l515_x"  value="0.30"/>
+  <xacro:property name="l515_z"  value="0.35"/>
+  <xacro:property name="d435i_x" value="0.34"/>
+  <xacro:property name="d435i_z" value="0.30"/>
+  <xacro:property name="us100_x" value="0.36"/>
+  <xacro:property name="us100_z" value="0.15"/>
+
+  <material name="grey">  <color rgba="0.35 0.37 0.40 1.0"/></material>
+  <material name="dark">  <color rgba="0.12 0.12 0.14 1.0"/></material>
+  <material name="orange"><color rgba="0.90 0.45 0.10 1.0"/></material>
+  <material name="blue">  <color rgba="0.20 0.45 0.85 1.0"/></material>
+
+  <!-- ═══ 차체 ═══════════════════════════════════════════════════════════ -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${body_z}"/>
+      <geometry><box size="${body_l} ${body_w} ${body_h}"/></geometry>
+      <material name="grey"/>
+    </visual>
+  </link>
+
+  <!-- ═══ 바퀴 매크로 ════════════════════════════════════════════════════
+       steerable=true  : base_link → <name>_steer_link (z축 회전) → 바퀴 (y축 회전)
+       steerable=false : base_link → 바퀴 (y축 회전)  ※ 중간 2륜은 조향모터 없음
+       조향 한계 ±45° = AK45-36 출력축 한계 (corner_module config 와 동일)
+  -->
+  <xacro:macro name="wheel" params="name x y steerable">
+    <!-- 조향륜만 조향 링크를 하나 끼운다. 고정륜은 base_link 에 바로 매단다. -->
+    <xacro:if value="${steerable}">
+      <link name="${name}_steer_link"/>
+      <joint name="${name}_steer_joint" type="revolute">
+        <parent link="base_link"/>
+        <child  link="${name}_steer_link"/>
+        <origin xyz="${x} ${y} ${wheel_r}"/>
+        <axis xyz="0 0 1"/>
+        <limit lower="${-pi/4}" upper="${pi/4}" effort="24" velocity="1.0"/>
+      </joint>
+    </xacro:if>
+
+    <link name="${name}_wheel_link">
+      <visual>
+        <origin rpy="${pi/2} 0 0"/>
+        <geometry><cylinder radius="${wheel_r}" length="${wheel_w}"/></geometry>
+        <material name="${'orange' if steerable else 'dark'}"/>
+      </visual>
+    </link>
+    <joint name="${name}_wheel_joint" type="continuous">
+      <!-- 조향륜은 조향링크에 매달리므로 그 원점이 이미 바퀴 위치 → 오프셋 0 -->
+      <parent link="${name + '_steer_link' if steerable else 'base_link'}"/>
+      <child  link="${name}_wheel_link"/>
+      <origin xyz="${0 if steerable else x} ${0 if steerable else y} ${0 if steerable else wheel_r}"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- 앞·뒤 4륜 = 조향(AK45-36, 주황) / 중간 2륜 = 고정(검정). 윤거는 열마다 다르다. -->
+  <xacro:wheel name="front_left"  x="${x_front}" y="${ y_front}" steerable="true"/>
+  <xacro:wheel name="front_right" x="${x_front}" y="${-y_front}" steerable="true"/>
+  <xacro:wheel name="mid_left"    x="${x_mid}"   y="${ y_mid}"   steerable="false"/>
+  <xacro:wheel name="mid_right"   x="${x_mid}"   y="${-y_mid}"   steerable="false"/>
+  <xacro:wheel name="rear_left"   x="${x_rear}"  y="${ y_rear}"  steerable="true"/>
+  <xacro:wheel name="rear_right"  x="${x_rear}"  y="${-y_rear}"  steerable="true"/>
+
+  <!-- ═══ 센서 ═══════════════════════════════════════════════════════════ -->
+  <!-- L515 = 파워트레인 자율 카메라 (RGB 레인 + depth + 내장 IMU BMI085) -->
+  <link name="l515_link">
+    <visual>
+      <geometry><box size="0.03 0.06 0.03"/></geometry>
+      <material name="blue"/>
+    </visual>
+  </link>
+  <joint name="l515_mount" type="fixed">
+    <parent link="base_link"/><child link="l515_link"/>
+    <origin xyz="${l515_x} 0 ${l515_z}"/>
+  </joint>
+
+  <!-- depth 토픽의 frame_id. 광학 규약(x=오른쪽, y=아래, z=앞) — 표준 카메라 회전 -->
+  <link name="l515_depth_optical_frame"/>
+  <joint name="l515_optical" type="fixed">
+    <parent link="l515_link"/><child link="l515_depth_optical_frame"/>
+    <origin rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- D435i = 로봇팔 팀 전용 (우리는 /detected_objects 만 구독) -->
+  <link name="d435i_link">
+    <visual>
+      <geometry><box size="0.025 0.09 0.025"/></geometry>
+      <material name="dark"/>
+    </visual>
+  </link>
+  <joint name="d435i_mount" type="fixed">
+    <parent link="base_link"/><child link="d435i_link"/>
+    <origin xyz="${d435i_x} 0 ${d435i_z}"/>
+  </joint>
+
+  <!-- US-100 = 독립 충돌 안전 -->
+  <link name="us100_link"/>
+  <joint name="us100_mount" type="fixed">
+    <parent link="base_link"/><child link="us100_link"/>
+    <origin xyz="${us100_x} 0 ${us100_z}"/>
+  </joint>
+
+</robot>

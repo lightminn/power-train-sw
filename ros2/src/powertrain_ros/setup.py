@@ -14,9 +14,20 @@ setup(
         ("share/" + package_name, ["package.xml"]),
         (
             "share/" + package_name + "/launch",
-            ["launch/wp5_control.launch.py"],
+            [
+                "launch/wp5_control.launch.py",
+                "launch/l515_viz.launch.py",
+                "launch/robot_viz.launch.py",
+            ],
         ),
-        ("share/" + package_name + "/config", ["config/l515.yaml"]),
+        (
+            "share/" + package_name + "/config",
+            ["config/l515.yaml", "config/l515_tilt.rviz", "config/robot_viz.rviz"],
+        ),
+        (
+            "share/" + package_name + "/urdf",
+            ["urdf/jetin_rover.urdf.xacro"],
+        ),
     ],
     install_requires=["setuptools"],
     tests_require=["pytest"],
@@ -30,6 +41,12 @@ setup(
             "bringup = powertrain_ros.bringup_node:main",
             "chassis = powertrain_ros.chassis_node:main",
             "us100_safety = powertrain_ros.us100_safety_node:main",
+            "l515_cloud = powertrain_ros.l515_cloud_node:main",
+            "imu_tilt = powertrain_ros.imu_tilt_node:main",
+            "joint_state_bridge = powertrain_ros.joint_state_bridge_node:main",
+            "odometry = powertrain_ros.odometry_node:main",
+            "fake_wheels = powertrain_ros.fake_wheels_node:main",
+            "obstacle_zones = powertrain_ros.obstacle_zones_node:main",
         ],
     },
 )

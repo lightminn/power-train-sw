@@ -1,0 +1,86 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /RobotModel
+        - /PointCloud2
+      Splitter Ratio: 0.5
+    Tree Height: 600
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 0.5
+      Plane Cell Count: 20
+      Color: 130; 130; 135
+      Alpha: 0.3
+      Reference Frame: odom
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+      Alpha: 1
+      Visual Enabled: true
+      Collision Enabled: false
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: false
+      Show Names: true
+      Show Axes: true
+      Show Arrows: false
+      Marker Scale: 0.3
+    - Class: rviz_default_plugins/PointCloud2
+      Name: PointCloud2
+      Enabled: true
+      Topic:
+        Value: /l515/points
+        # ⚠️ BEST_EFFORT 필수 — Reliable 로 두면 한 점도 안 보인다
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Depth: 5
+      Style: Points
+      Size (Pixels): 3
+      Alpha: 1
+      Decay Time: 0
+      Color Transformer: AxisColor
+      Axis: Z
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 2
+        Min Value: 0
+        Value: true
+  Global Options:
+    Background Color: 30; 30; 35
+    Fixed Frame: odom
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 4.5
+      Focal Point:
+        X: 0.5
+        Y: 0
+        Z: 0.3
+      Pitch: 0.4
+      Yaw: 2.6
+      Target Frame: odom
+    Saved: ~
+Window Geometry:
+  Height: 900
+  Width: 1500
+  Displays:
+    collapsed: false

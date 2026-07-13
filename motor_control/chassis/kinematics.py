@@ -149,21 +149,39 @@ def solve(geom: ChassisGeometry, v_mps: float, omega_rad_s: float) -> SolveResul
 
 
 def default_geometry() -> ChassisGeometry:
-    """⚠️ 잠정 플레이스홀더 — CAD 확정·실물 실측 후 숫자 교체할 것.
+    """6륜 로커보기 바퀴 배치 — **설계팀 CAD URDF 실제 제작 치수**.
 
-    6륜 로커보기: 앞·뒤 4바퀴 조향(AK), 중간 2바퀴 고정('M2 조향 브라켓 없음' 설계).
-      - 윤거: v4 최적화 하부폭 W_bot≈520mm → 좌우 y=±0.26 m  [잠정]
-      - 축거: 미확정 → 앞 x=+0.30 / 중간 x=0 / 뒤 x=−0.30 m 로 가정(축거 600mm)  [잠정]
-      - 중간 바퀴 x=0 → 선회·피벗 시 측면 스크럽 0 (조향 불필요 근거).
-    실제 로커보기 바퀴 위치는 parameter_calc `wpos.py` + 최적 pkl 로 계산 예정.
+    출처: `scripts/extract_geometry_from_cad_urdf.py` 가 설계팀 CAD 익스포트
+    (`rover/urdf_2.urdf`, 2026-07-11)에서 도출한다. 숫자를 손으로 고치지 말고 그
+    스크립트를 다시 돌려라. base_link = 축거중점 · 차체중심선 · 지면.
+
+      축거(앞−뒤) 875.5 mm   |   윤거: 앞 705.0 / 중간 879.0 / 뒤 585.0 mm
+
+    ⚠️ **윤거가 세 축 모두 다르다.** 앞 705 / 중간 879 / 뒤 585 mm — 중간이 가장 넓고
+       뒤가 가장 좁다. CAD 상 실측이며 오독이 아니다(조향 4륜의 타이어 링크 원점이
+       킹핀 축과 Δ0.0 mm 로 일치 = 스크럽 반경 0 설계 → 타이어 좌표 = 바퀴 중심면).
+       **설계 의도인지 CAD 오류인지 설계팀 확인 필요.** 키네마틱스는 바퀴별 (x, y)를
+       개별로 받으므로 값이 바뀌어도 코드는 그대로다.
+
+    ⚠️ **중간 바퀴가 축거 중심에서 60.3 mm 뒤로 치우쳐 있다.** x≈0 이면 선회·피벗 시
+       측면 스크럽이 0 인데(그게 중간 2륜에 조향모터를 안 다는 근거였다), 실제로는
+       −60.3 mm 라 **스크럽이 남는다**. v4 최적화 설계값은 −11.4 mm 로 거의 중앙이었다.
+
+    ⚠️ **제자리 피벗은 현 조향한계로 불가능**: 필요 |δ| = 90° − atan(|y| ÷ |x|) →
+       **앞 51.2° · 뒤 56.2°** 로 AK 한계 ±45° 를 넘는다. `solve()` 가 45° 로 클램프하고
+       스크럽을 감수한다(설계된 동작). 피벗 명령 시 바퀴들이 서로 모순된 값을 보고하므로
+       오도메트리 잔차가 뜨고 ω 가 과소추정된다.
+
+    참고 — **v4 최적화 설계값과 다르다**(제작 과정에서 바뀜):
+       v4: 축거 1018 mm, 앞 +509.0 / 중간 −11.4 / 뒤 −509.0 mm (윤거는 v4 범위 밖)
+       CAD 도출은 `parameter_calc/python_gpu_triangle/export_chassis_geometry.py`.
     """
-    y = 0.26
-    xf, xr = 0.30, -0.30
     return ChassisGeometry(wheels=[
-        Wheel("front_left",  xf,  y, True),
-        Wheel("front_right", xf, -y, True),
-        Wheel("mid_left",   0.0,  y, False),
-        Wheel("mid_right",  0.0, -y, False),
-        Wheel("rear_left",  xr,   y, True),
-        Wheel("rear_right", xr,  -y, True),
+        # CAD URDF 실측 (scripts/extract_geometry_from_cad_urdf.py, 좌우 대칭화 적용)
+        Wheel("front_left",  +0.4377, +0.3525, True),
+        Wheel("front_right", +0.4377, -0.3525, True),
+        Wheel("mid_left",    -0.0603, +0.4395, False),
+        Wheel("mid_right",   -0.0603, -0.4395, False),
+        Wheel("rear_left",   -0.4377, +0.2925, True),
+        Wheel("rear_right",  -0.4377, -0.2925, True),
     ])
