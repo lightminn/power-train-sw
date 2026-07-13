@@ -29,6 +29,11 @@ setup(
             "share/" + package_name + "/urdf",
             ["urdf/jetin_rover.urdf.xacro"],
         ),
+        (
+            # 설계팀 CAD 형상 (메시 없이 관성텐서로 역산한 상자·원통 — cad:=true 로 쓴다)
+            "share/" + package_name + "/urdf/cad",
+            ["urdf/cad/rover_cad_boxes.urdf"],
+        ),
     ],
     install_requires=["setuptools"],
     tests_require=["pytest"],
