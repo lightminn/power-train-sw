@@ -10,7 +10,6 @@ FROM ros:humble-ros-base
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3-colcon-common-extensions \
         python3-pip \
-        ros-humble-control-msgs \
         gstreamer1.0-tools \
         gstreamer1.0-plugins-base \
         gstreamer1.0-plugins-good \
@@ -46,6 +45,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && cp "$PY_SO" /usr/local/lib/python3.10/dist-packages/ \
     && ldconfig \
     && rm -rf /tmp/librealsense /var/lib/apt/lists/*
+
+# WP5.2 Task 4: /arm/teleop_jog 의 control_msgs/JointJog.
+# ⚠️ 의도적으로 librealsense 소스빌드(위, ~30분) 뒤의 별도 레이어다 — 앞 레이어에 넣으면
+#    캐시가 무효화돼 Jetson 에서 전체 리빌드가 강제된다(2026-07-14 실측).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ros-humble-control-msgs \
+    && rm -rf /var/lib/apt/lists/*
 
 # 워크스페이스 소스는 compose 로 마운트(../ → /workspace). 빌드는 컨테이너 진입 후:
 #   cd /workspace/ros2 && colcon build && source install/setup.bash
