@@ -23,7 +23,12 @@ setup(
         ),
         (
             "share/" + package_name + "/config",
-            ["config/l515.yaml", "config/l515_tilt.rviz", "config/robot_viz.rviz"],
+            [
+                "config/l515.yaml",
+                "config/l515_tilt.rviz",
+                "config/robot_viz.rviz",
+                "config/wheel_stop.yaml",
+            ],
         ),
         (
             "share/" + package_name + "/urdf",

@@ -1,0 +1,5 @@
+# Development default: production wheel-stop is forbidden until all six
+# ODrive axes are measured and qualified by HIL.
+qualified: false
+thresholds_rev_s: {}
+dwell_ms: 300

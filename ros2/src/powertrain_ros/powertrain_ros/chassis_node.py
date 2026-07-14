@@ -9,14 +9,14 @@ WP5.2 command-authority path is opt-in with ``authority_enabled=true``:
 
 No ROS ``/cmd_vel`` message is republished by the embedded path.
 
-★ zero-confirmed handover: after a mode change, the selected source must send
-  a neutral command once before any command is accepted.  This prevents a
-  still-live full-speed command from taking effect at the handover instant.
+★ qualified handover: a moving source-to-source request first commands zero,
+  waits for the qualified six-wheel stop predicate, and only then changes
+  owner.  The selected source must still send a neutral command once before
+  nonzero output is accepted.  An unqualified predicate rejects the request.
 
-⚠️ A stale source calls no ``set()`` at all.  That deliberate absence works
-  with the existing ChassisManager command watchdog, which naturally drives
-  the command to zero.  Repeatedly setting zero here would keep that watchdog
-  alive and defeat the fail-silent boundary.
+⚠️ The tick that detects a stale source calls no ``set()`` and enters
+  ``MOTION_HOLD``.  Subsequent hold ticks explicitly command zero and require
+  the ``authority_clear_hold`` acknowledgement before another owner request.
 """
 
 import math
@@ -25,6 +25,7 @@ import sys
 import time
 
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from rclpy.qos import (
@@ -63,6 +64,14 @@ DEFAULT_SAFETY_TOPIC_TIMEOUT_S = MIN_SAFETY_TOPIC_TIMEOUT_S
 ARM_GATE_PRODUCTION = "production"
 ARM_GATE_ABSENT_FIELD = "arm_absent_field"
 ARM_GATE_MODES = {ARM_GATE_PRODUCTION, ARM_GATE_ABSENT_FIELD}
+
+
+def default_wheel_stop_config_path():
+    return os.path.join(
+        get_package_share_directory("powertrain_ros"),
+        "config",
+        "wheel_stop.yaml",
+    )
 
 
 def validate_safety_topic_timeout(value):
@@ -196,18 +205,46 @@ class ChassisNode(Node):
         self._last_arm_status = None
 
         self._authority = None
+        self._wheel_stop = None
+        self._authority_final_v = 0.0
+        self._authority_final_omega = 0.0
         self.pub_authority_state = None
         if self._authority_enabled:
             from chassis.authority import (
                 AUTO,
                 AUTO_SOURCE,
+                AuthorityConfig,
                 IDLE,
                 MANUAL,
                 MANUAL_SOURCE,
                 CommandAuthority,
             )
+            from powertrain_ros.wheel_stop import (
+                WheelStopPredicate,
+                load_wheel_stop_config,
+            )
 
-            self._authority = CommandAuthority()
+            self.declare_parameter(
+                "wheel_stop_config",
+                default_wheel_stop_config_path(),
+            )
+            self.declare_parameter("authority_handover_timeout_s", 2.0)
+            wheel_stop_config = load_wheel_stop_config(
+                str(self.get_parameter("wheel_stop_config").value)
+            )
+            self._wheel_stop = WheelStopPredicate(wheel_stop_config)
+
+            self._authority = CommandAuthority(
+                AuthorityConfig(
+                    handover_timeout_s=float(
+                        self.get_parameter(
+                            "authority_handover_timeout_s"
+                        ).value
+                    )
+                ),
+                wheel_stopped=lambda: self._wheel_stop.confirmed,
+                wheel_stop_qualified=lambda: self._wheel_stop.qualified,
+            )
             self._authority.set_mode(IDLE)
             self.create_subscription(
                 Twist,
@@ -219,6 +256,12 @@ class ChassisNode(Node):
                 Twist,
                 "/autonomy/cmd_vel",
                 lambda msg: self._on_authority_cmd(AUTO_SOURCE, msg),
+                10,
+            )
+            self.create_subscription(
+                WheelStates,
+                "/wheel_states",
+                self._on_wheel_states_for_stop,
                 10,
             )
             self.pub_authority_state = self.create_publisher(
@@ -249,6 +292,11 @@ class ChassisNode(Node):
                     IDLE,
                     response,
                 ),
+            )
+            self.create_service(
+                Trigger,
+                "~/authority_clear_hold",
+                self._clear_authority_hold,
             )
         else:
             # Deprecated: WP5.2 Task 4에서 authority 내장 경로로 대체 예정.
@@ -410,7 +458,9 @@ class ChassisNode(Node):
         return (
             self._authority_enabled
             and self._authority is not None
-            and self._authority.mode == "MANUAL"
+            # CommandAuthority normalizes to TELEOP.  MANUAL remains accepted
+            # only at this adapter boundary for older injected/test doubles.
+            and self._authority.mode in ("TELEOP", "MANUAL")
         )
 
     def _arm_gate_decision(self, now_s):
@@ -552,14 +602,49 @@ class ChassisNode(Node):
             self._now_ms() / 1000.0,
         )
 
+    def _on_wheel_states_for_stop(self, msg: WheelStates):
+        from powertrain_ros.wheel_stop import (
+            WheelStopSample,
+            WheelStopWheel,
+        )
+
+        stamp_s = (
+            float(msg.header.stamp.sec)
+            + float(msg.header.stamp.nanosec) * 1e-9
+        )
+        sample = WheelStopSample(
+            stamp_s=stamp_s,
+            healthy=bool(msg.healthy),
+            wheels=tuple(
+                WheelStopWheel(
+                    name=str(wheel.name),
+                    drive_turns_per_s=float(wheel.drive_turns_per_s),
+                    drive_stale=bool(wheel.drive_stale),
+                    steer_stale=bool(wheel.steer_stale),
+                    drive_axis_error=int(wheel.drive_axis_error),
+                    steer_fault=int(wheel.steer_fault),
+                )
+                for wheel in msg.wheels
+            ),
+            authority_v=self._authority_final_v,
+            authority_omega=self._authority_final_omega,
+        )
+        self._wheel_stop.update(sample, now_s=self._now_s())
+
     def _set_authority_mode(self, mode, response):
-        response.success = self._authority.set_mode(mode)
-        response.message = "mode=%s" % mode
+        result = self._authority.request_mode(mode, t=self._now_s())
+        response.success = result.accepted
+        response.message = "%s; state=%s" % (result.reason, result.state)
         if response.success:
             self.get_logger().warning(
-                "authority mode → %s (중립 확인 전까지 명령 전달 안 함)"
-                % mode
+                "authority request %s accepted: %s"
+                % (mode, response.message)
             )
+        return response
+
+    def _clear_authority_hold(self, _request, response):
+        response.success = self._authority.clear_hold()
+        response.message = self._authority.last_transition_reason
         return response
 
     def _tick_authority(self, now_s):
@@ -568,6 +653,8 @@ class ChassisNode(Node):
             String(data="%s|%s" % (self._authority.mode, command.reason))
         )
         if command.ok:
+            self._authority_final_v = command.v
+            self._authority_final_omega = command.omega
             self.cm.set(command.v, command.omega)
 
     def _on_safety_verdict(self, msg):
