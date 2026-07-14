@@ -255,6 +255,28 @@ def test_checking_is_auto_clearing_motion_hold_without_disarm():
     assert m.corners["front_left"].state()["drive"]["target_vel"] != 0.0
 
 
+def test_arm_motion_hold_transition_discards_pending_command():
+    m = _armed_manager()
+    m.set(0.4, 0.4)
+    m.tick()
+    assert any(d != 0.0 for d in _drive_targets(m).values())
+
+    m.set_arm_motion_hold(True, "arm_status_stale")
+    m.tick()
+    assert all(d == 0.0 for d in _drive_targets(m).values())
+    assert m.state()["v"] == 0.0
+    assert m.state()["omega"] == 0.0
+
+    m.set_arm_motion_hold(False)
+    m.tick()
+    assert m.snapshot().stop_state == "RUN"
+    assert all(d == 0.0 for d in _drive_targets(m).values())
+
+    m.set(0.4, 0.4)
+    m.tick()
+    assert any(d != 0.0 for d in _drive_targets(m).values())
+
+
 def test_external_estop_latches_after_condition_clears():
     m = _armed_manager()
     m.update_external_safety("VALID", True, "too_close")

@@ -282,6 +282,14 @@ class ChassisManager:
             "safety_topic_stale", bool(active), detail,
         )
 
+    def set_arm_motion_hold(self, active: bool, detail: str = "") -> None:
+        """Apply the robot-arm final drive gate and discard its old command."""
+        active = bool(active)
+        was_active = "robot_arm" in self._interlock.snapshot().hold_sources
+        if active and not was_active:
+            self._v = self._omega = 0.0
+        self._interlock.set_motion_hold("robot_arm", active, detail)
+
     def close(self) -> None:
         for c in self.corners.values():
             c.close()
