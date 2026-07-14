@@ -69,6 +69,12 @@ services:
     image: powertrain-sw:ros
     container_name: powertrain_ros
     network_mode: host                   # DDS(로봇팔 그래프 합류) + can0(WP5)
+    ipc: host                            # FastDDS SHM 전송이 컨테이너 경계를 넘게 함.
+                                         # ⚠️ net=host+private IPC 조합은 같은 host-id로 SHM
+                                         # 로케이터를 광고하면서 세그먼트는 서로 다른 tmpfs 에
+                                         # 만들어 암묵 UDP 폴백/간헐 유실을 유발(2026-07-14 실측:
+                                         # 양 컨테이너에 동일 이름 fastrtps_* 세그먼트 각자 존재).
+                                         # 로봇팔 ros2_humble 도 ipc:host 여야 효과가 있다.
     privileged: true                     # can0 socketcan (WP5)
     volumes:
       - ../:/workspace:rw
