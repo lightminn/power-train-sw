@@ -22,6 +22,12 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /dev:/dev
       - ../:/workspace:rw
+      # Provision first with scripts/install_powertrain_runtime_dir.sh.
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
 
     cap_add:
       - SYS_RAWIO

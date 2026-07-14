@@ -14,6 +14,8 @@ fi
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SOURCE="$SCRIPT_DIR/../docker/powertrain-gateway-tmpfiles.conf"
 readonly DESTINATION="/etc/tmpfiles.d/powertrain-gateway.conf"
+# Shared by the L515 gateway lock and the real SocketCAN owner locks.
+# This script remains the only authority that creates /run/powertrain.
 readonly RUNTIME_DIR="/run/powertrain"
 
 [ -f "$SOURCE" ] || fail "missing tmpfiles source: $SOURCE"

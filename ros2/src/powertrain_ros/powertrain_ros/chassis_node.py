@@ -90,6 +90,7 @@ class ChassisNode(Node):
     def __init__(self):
         super().__init__("chassis_node")
         self.cm = None
+        self._can_session = None
         try:
             self._initialize()
         except BaseException:
@@ -173,10 +174,15 @@ class ChassisNode(Node):
                 "FAKE mode: no real motors are controlled"
             )
         else:
-            # ★ CAN 단독 소유권 — teleop_server 가 이미 잡고 있으면 CanBusBusy 로 죽는다.
-            #   같은 모터에 상반된 명령이 가는 것보다 안 뜨는 게 낫다.
-            corners = build_real_corners(channel, owner="chassis_node",
-                                         wheel_map=wheel_map)
+            from chassis.runtime_lock import RealCanSession
+
+            # 실물 버스/코너를 만들기 전에 lock을 잡고 node cleanup까지 유지한다.
+            self._can_session = RealCanSession(
+                channel=channel,
+                owner="chassis_node",
+            )
+            self._can_session.__enter__()
+            corners = build_real_corners(channel, wheel_map=wheel_map)
             self.get_logger().info("Real chassis on %s" % channel)
 
         self.cm = ChassisManager(corners, cfg)
@@ -820,22 +826,26 @@ class ChassisNode(Node):
     def close(self):
         manager = self.cm
         self.cm = None
-        if manager is None:
-            return
-        try:
-            manager.estop("node_shutdown", "chassis node cleanup")
-        except BaseException as exc:
-            self.get_logger().error(
-                "E-stop during cleanup failed: %s" % exc
-            )
-        for name, corner in manager.corners.items():
+        can_session = self._can_session
+        self._can_session = None
+        if manager is not None:
             try:
-                corner.close()
+                manager.estop("node_shutdown", "chassis node cleanup")
             except BaseException as exc:
                 self.get_logger().error(
-                    "corner %s close during cleanup failed: %s"
-                    % (name, exc)
+                    "E-stop during cleanup failed: %s" % exc
                 )
+            for name, corner in manager.corners.items():
+                try:
+                    corner.close()
+                except BaseException as exc:
+                    self.get_logger().error(
+                        "corner %s close during cleanup failed: %s"
+                        % (name, exc)
+                    )
+        # 모든 실물 bus/corner fd가 닫힌 뒤 owner flock fd를 놓는다.
+        if can_session is not None:
+            can_session.close()
 
 
 def main(argv=None):

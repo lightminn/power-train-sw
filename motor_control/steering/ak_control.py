@@ -4,7 +4,9 @@ CubeMars AK 시리즈 CAN 제어 라이브러리 (Jetson + socketcan) — 실전
 """
 
 import can
+from pathlib import Path
 import struct
+import sys
 import time
 import math
 
@@ -375,4 +377,8 @@ def demo_core_features():
 
 
 if __name__ == "__main__":
-    demo_core_features()
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from chassis.runtime_lock import RealCanSession
+
+    with RealCanSession(channel="can0", owner="ak_control_demo"):
+        demo_core_features()

@@ -15,7 +15,9 @@ type can bitrate 500000 restart-ms 100`). 컨테이너(powertrain_jetson)에서 
   python3 motor_control/drive/bl70200/can_calibrate_all.py --nodes 11 12
 """
 import argparse
+from pathlib import Path
 import struct
+import sys
 import time
 
 import can
@@ -96,13 +98,19 @@ def main():
     ap.add_argument("--channel", default="can0")
     args = ap.parse_args()
 
-    bus = can.Bus(channel=args.channel, interface="socketcan")
-    print("=== 구동 %d축 CAN 풀캘리 (순차, 각 ~55s) — 바퀴 자유 필수 ===" % len(args.nodes))
-    res = {}
-    for n in args.nodes:
-        res[n] = calibrate(bus, n)
-        time.sleep(0.6)
-    bus.shutdown()
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from chassis.runtime_lock import RealCanSession
+
+    with RealCanSession(channel=args.channel, owner="can_calibrate_all"):
+        bus = can.Bus(channel=args.channel, interface="socketcan")
+        try:
+            print("=== 구동 %d축 CAN 풀캘리 (순차, 각 ~55s) — 바퀴 자유 필수 ===" % len(args.nodes))
+            res = {}
+            for n in args.nodes:
+                res[n] = calibrate(bus, n)
+                time.sleep(0.6)
+        finally:
+            bus.shutdown()
 
     ok = [n for n in args.nodes if res[n]]
     bad = [n for n in args.nodes if not res[n]]

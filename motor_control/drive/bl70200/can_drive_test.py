@@ -15,7 +15,9 @@ CANSimple: Set_Controller_Mode(0x0B)=<ii(2,2), Set_Input_Vel(0x0D)=<ff, Set_Axis
 실행: python3 motor_control/drive/bl70200/can_drive_test.py [--speed 1.0]
 """
 import argparse
+from pathlib import Path
 import struct
+import sys
 import time
 
 import can
@@ -112,51 +114,57 @@ def main():
     args = ap.parse_args()
     sp = args.speed
 
-    bus = can.Bus(channel=args.channel, interface="socketcan")
-    print("셋업 + arm(폐루프)...")
-    for n in NODES:
-        clear_errors(bus, n)
-        set_mode(bus, n)
-        set_vel(bus, n, 0.0)
-    time.sleep(0.2)
-    for n in NODES:
-        set_state(bus, n, S_CLOSED_LOOP)
-    time.sleep(0.5)
-    armed = {}
-    for n in NODES:
-        r = arm_check(bus, n)
-        armed[n] = bool(r and r[1] == S_CLOSED_LOOP)
-        print("  node %-2d state=%s err=%s %s" % (n, r[1] if r else "?", hex(r[0]) if r else "?",
-              "arm" if armed[n] else "FAIL"))
-    n_arm = sum(armed.values())
-    print("  → %d/%d arm" % (n_arm, len(NODES)))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from chassis.runtime_lock import RealCanSession
 
-    try:
-        print("\n① 전진 동시 +%.1f rev/s (2s)" % sp)
-        for n in NODES:
-            set_vel(bus, n, sp)
-        time.sleep(2.0)
-        readall(bus, "전진")
+    with RealCanSession(channel=args.channel, owner="can_drive_test"):
+        bus = can.Bus(channel=args.channel, interface="socketcan")
+        try:
+            print("셋업 + arm(폐루프)...")
+            for n in NODES:
+                clear_errors(bus, n)
+                set_mode(bus, n)
+                set_vel(bus, n, 0.0)
+            time.sleep(0.2)
+            for n in NODES:
+                set_state(bus, n, S_CLOSED_LOOP)
+            time.sleep(0.5)
+            armed = {}
+            for n in NODES:
+                r = arm_check(bus, n)
+                armed[n] = bool(r and r[1] == S_CLOSED_LOOP)
+                print("  node %-2d state=%s err=%s %s" % (n, r[1] if r else "?", hex(r[0]) if r else "?",
+                      "arm" if armed[n] else "FAIL"))
+            n_arm = sum(armed.values())
+            print("  → %d/%d arm" % (n_arm, len(NODES)))
 
-        print("\n② 제자리선회: 좌(11/13/15)=+%.1f / 우(12/14/16)=−%.1f (2s)" % (sp, sp))
-        for n in LEFT:
-            set_vel(bus, n, sp)
-        for n in RIGHT:
-            set_vel(bus, n, -sp)
-        time.sleep(2.0)
-        readall(bus, "선회")
+            print("\n① 전진 동시 +%.1f rev/s (2s)" % sp)
+            for n in NODES:
+                set_vel(bus, n, sp)
+            time.sleep(2.0)
+            readall(bus, "전진")
 
-        print("\n③ 정지 →0 (1.5s)")
-        for n in NODES:
-            set_vel(bus, n, 0.0)
-        time.sleep(1.5)
-        readall(bus, "정지")
-    finally:
-        for n in NODES:
-            set_vel(bus, n, 0.0)
-            set_state(bus, n, S_IDLE)
-        bus.shutdown()
-        print("\n전 축 IDLE (안전정지)")
+            print("\n② 제자리선회: 좌(11/13/15)=+%.1f / 우(12/14/16)=−%.1f (2s)" % (sp, sp))
+            for n in LEFT:
+                set_vel(bus, n, sp)
+            for n in RIGHT:
+                set_vel(bus, n, -sp)
+            time.sleep(2.0)
+            readall(bus, "선회")
+
+            print("\n③ 정지 →0 (1.5s)")
+            for n in NODES:
+                set_vel(bus, n, 0.0)
+            time.sleep(1.5)
+            readall(bus, "정지")
+        finally:
+            try:
+                for n in NODES:
+                    set_vel(bus, n, 0.0)
+                    set_state(bus, n, S_IDLE)
+            finally:
+                bus.shutdown()
+            print("\n전 축 IDLE (안전정지)")
 
 
 if __name__ == "__main__":

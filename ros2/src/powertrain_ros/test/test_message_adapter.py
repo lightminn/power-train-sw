@@ -111,6 +111,7 @@ def test_chassis_close_estops_and_closes_later_corners_after_failure():
     logger = _RecordingLogger()
     node = SimpleNamespace(
         cm=manager,
+        _can_session=None,  # WP5.2 Task 3: 실물 트랙에서만 세션이 잡힘 — fake는 없음
         get_logger=lambda: logger,
     )
 

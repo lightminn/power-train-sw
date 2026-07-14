@@ -8,8 +8,10 @@ from pathlib import Path
 from .base import (Transport, TransportError, SIGNAL_META, ODRIVE_CONTROL_MODES,
                    ODRIVE_INPUTS, ODRIVE_TUNABLES_CAN)
 
-# steering/ak_control.py 의 AK40 클래스 재사용 (hw 로직 단일 소스)
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "motor_control" / "steering"))
+# motor_control의 공통 runtime lock과 steering/ak_control.py를 재사용한다.
+_MOTOR_CONTROL_DIR = Path(__file__).resolve().parents[3] / "motor_control"
+sys.path.insert(0, str(_MOTOR_CONTROL_DIR))
+sys.path.insert(0, str(_MOTOR_CONTROL_DIR / "steering"))
 from ak_control import AK40 as AK  # noqa: E402
 
 NODE_ID = 11                         # ODrive 실전 node (GUI 기본; 웹에서 변경 가능)
@@ -61,6 +63,7 @@ class CanBackend(Transport):
         self._channel = channel
         self._bus = None
         self._ak = None
+        self._can_session = None
         self._node = NODE_ID            # ODrive node (웹에서 변경 가능)
         self._ak_id = AK_ID             # AK 모터 id (웹에서 변경 가능)
         self._state = {k: 0.0 for k in _ODRIVE_SIGNALS}
@@ -72,13 +75,33 @@ class CanBackend(Transport):
 
     def connect(self) -> None:
         import can
+        from chassis.runtime_lock import RealCanSession
+
+        session = RealCanSession(
+            channel=self._channel,
+            owner="motor_gui_can_backend",
+        )
+        session.__enter__()
         try:
             self._bus = can.interface.Bus(channel=self._channel,
                                           interface="socketcan")
-        except OSError as e:
-            raise TransportError(
-                f"{self._channel} open 실패 — 'bash scripts/can_setup.sh' 먼저 ({e})")
-        self._ak = AK(self._bus, self._ak_id, name="steer")
+            self._ak = AK(self._bus, self._ak_id, name="steer")
+        except BaseException as exc:
+            if self._bus is not None:
+                try:
+                    self._bus.shutdown()
+                except BaseException:
+                    pass
+            self._bus = None
+            self._ak = None
+            session.close()
+            if isinstance(exc, OSError):
+                raise TransportError(
+                    f"{self._channel} open 실패 — "
+                    f"'bash scripts/can_setup.sh' 먼저 ({exc})"
+                ) from exc
+            raise
+        self._can_session = session
 
     def _send(self, cmd_id: int, data: bytes = b"") -> None:
         import can
@@ -281,9 +304,17 @@ class CanBackend(Transport):
     def close(self) -> None:
         try:
             if self._bus is not None:
-                self._send(C_SET_STATE, struct.pack("<I", AXIS_IDLE))
-                if self._ak is not None:
-                    self._ak.stop()
-                self._bus.shutdown()
+                try:
+                    self._send(C_SET_STATE, struct.pack("<I", AXIS_IDLE))
+                    if self._ak is not None:
+                        self._ak.stop()
+                finally:
+                    self._bus.shutdown()
         except Exception:
             pass
+        finally:
+            self._bus = None
+            self._ak = None
+            if self._can_session is not None:
+                self._can_session.close()
+                self._can_session = None

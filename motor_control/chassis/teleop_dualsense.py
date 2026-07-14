@@ -118,6 +118,7 @@ def main(argv=None):
 
     import pygame
     from chassis.chassis_manager import ChassisManager, ChassisConfig, build_real_corners
+    from chassis.runtime_lock import RealCanSession
     from corner_module.can_watchdog import CanWatchdog
 
     CanWatchdog(args.channel).start()    # mttcan TX 웻지 자가복구 (데몬 스레드)
@@ -126,6 +127,10 @@ def main(argv=None):
     background = None
     sensor = None
     cm = None
+    can_session = RealCanSession(
+        channel=args.channel,
+        owner="teleop_dualsense",
+    )
     try:
         if use_us100:
             from safety_us100.background_monitor import BackgroundSafetyMonitor
@@ -140,6 +145,7 @@ def main(argv=None):
             )
             background.start()
 
+        can_session.__enter__()
         corners = build_real_corners(args.channel)
         cfg = ChassisConfig(min_drive_turns_per_s=args.min_rev)
         # v_max 만큼 낼 수 있게 kinematics 속도상한도 함께 올림.
@@ -161,6 +167,7 @@ def main(argv=None):
         if cm is not None and not isinstance(exc, (KeyboardInterrupt, SystemExit)):
             cm.estop("control_exception", str(exc))
         cleanup_chassis_resources(cm, background, sensor, pygame)
+        can_session.close()
         raise
     prev_sq = prev_ci = False
     period = 1.0 / cfg.loop_hz
@@ -233,6 +240,7 @@ def main(argv=None):
             sensor,
             pygame,
         )
+        can_session.close()
         if errors:
             print("정리 예외 %d건: %s" % (len(errors), errors[0]))
         print("종료")

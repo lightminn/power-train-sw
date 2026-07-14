@@ -278,12 +278,18 @@ def test_autonomy_launch_uses_embedded_authority():
     assert "/chassis_node/authority_auto" in source
 
 
-def test_can_lock_documents_real_can_session_replacement():
-    source = (REPO / "motor_control/corner_module/can_lock.py").read_text(
+def test_real_can_session_replaces_temporary_abstract_socket_lock():
+    assert not (REPO / "motor_control/corner_module/can_lock.py").exists()
+    source = (REPO / "motor_control/chassis/runtime_lock.py").read_text(
         encoding="utf-8"
     )
-    assert "임시 보호막이다" in source
     assert "RealCanSession" in source
     assert "/run/powertrain/can0.lock" in source
-    assert "owner snapshot" in source
-    assert "abstract socket의 자동해제 장점" in source
+    assert "flock" in source
+    assert "좀비" in source
+
+    manager = (REPO / "motor_control/chassis/chassis_manager.py").read_text(
+        encoding="utf-8"
+    )
+    assert "can_lock" not in manager
+    assert "_CAN_LOCK" not in manager

@@ -267,6 +267,7 @@ def main(argv=None):
     use_us100 = not args.no_us100
 
     from chassis.chassis_manager import ChassisManager, ChassisConfig, build_real_corners
+    from chassis.runtime_lock import RealCanSession
     from corner_module.can_watchdog import CanWatchdog
 
     CanWatchdog(args.channel).start()    # mttcan TX 웻지 자가복구 (데몬 스레드)
@@ -274,6 +275,10 @@ def main(argv=None):
     background = None
     sensor = None
     cm = None
+    can_session = RealCanSession(
+        channel=args.channel,
+        owner="teleop_server",
+    )
     try:
         if use_us100:
             from safety_us100.background_monitor import BackgroundSafetyMonitor
@@ -288,14 +293,13 @@ def main(argv=None):
             )
             background.start()
 
-        # CAN 단독 소유권 — chassis_node 가 이미 잡고 있으면 여기서 CanBusBusy
+        can_session.__enter__()
         wheel_map = None
         if args.four_wheel:
             from chassis.chassis_manager import FOUR_WHEEL_MAP
             wheel_map = FOUR_WHEEL_MAP
             print("🛠️ 4륜 모드 — 중륜(node 13/14) 없이 앞뒤 4륜만 구동한다 (임시 구성)")
-        corners = build_real_corners(args.channel, owner="teleop_server",
-                                     wheel_map=wheel_map)
+        corners = build_real_corners(args.channel, wheel_map=wheel_map)
 
         cfg = ChassisConfig(min_drive_turns_per_s=args.min_rev)
         if args.four_wheel:
@@ -316,6 +320,7 @@ def main(argv=None):
                 _safe_exception_detail(exc),
             )
         cleanup_chassis_resources(cm, background, sensor)
+        can_session.close()
         raise
 
     shared = {"lx": 0.0, "rt": 0.0, "lt": 0.0, "sq": 0, "ci": 0, "rx_ms": None,
@@ -429,6 +434,7 @@ def main(argv=None):
             background,
             sensor,
         )
+        can_session.close()
         raise
     print("=== 차체 4WS 무선 텔레옵 서버 — 포트 %d 대기 (%s) ===" % (args.port,
           "US-100 ON" if use_us100 else "US-100 OFF"), flush=True)
@@ -514,6 +520,7 @@ def main(argv=None):
         if errors:
             print("[server] 정리 예외 %d건: %s" % (len(errors), errors[0]),
                   flush=True)
+        can_session.close()
         print("[server] IDLE — 종료", flush=True)
 
 
