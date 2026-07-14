@@ -122,9 +122,12 @@ services:
         exec ros2 run powertrain_ros teleop_command
     restart: unless-stopped
     healthcheck:
+      # ⚠️ cmdline grep 은 무력하다 — PID 1(bash -lc 래퍼)의 cmdline 에 스크립트 원문이
+      #    들어있어 노드가 crash-loop 여도 매치된다(2026-07-14 실측). 실제 생존 신호는
+      #    teleop_command 의 TCP :9000 리슨이다.
       test:
         - CMD-SHELL
-        - grep -aq 'ros2 run powertrain_ros teleop_command\|powertrain_ros.teleop_command_node' /proc/1/cmdline
+        - python3 -c "import socket; socket.create_connection(('127.0.0.1', 9000), 2).close()"
       interval: 10s
       timeout: 3s
       retries: 3
