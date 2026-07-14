@@ -85,6 +85,12 @@ services:
         target: /run/powertrain
         bind:
           create_host_path: false
+      # install_powertrain_runtime_dir.sh provisions this persistent path.
+      - type: bind
+        source: /var/lib/powertrain
+        target: /var/lib/powertrain
+        bind:
+          create_host_path: false
     working_dir: /workspace
     stdin_open: true
     tty: true
@@ -107,7 +113,12 @@ services:
         target: /run/powertrain
         bind:
           create_host_path: false
-      # Task 5 adds the persistent /var/lib/powertrain bind.
+      # install_powertrain_runtime_dir.sh provisions this persistent path.
+      - type: bind
+        source: /var/lib/powertrain
+        target: /var/lib/powertrain
+        bind:
+          create_host_path: false
     working_dir: /workspace
     entrypoint:
       - /bin/bash

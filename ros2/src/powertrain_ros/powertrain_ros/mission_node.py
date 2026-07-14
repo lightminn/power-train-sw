@@ -1,10 +1,11 @@
 """미션 시퀀서 ROS 래퍼 (WP8) — 로봇팔 핸드셰이크.
 
 ────────────────────────────────────────────────────────────────────────
-⚠️ v1 계약 기준 프로토타입
+⚠️ SUPERSEDED v1 계약 기준 프로토타입
 ────────────────────────────────────────────────────────────────────────
-WP5.2 Task 5의 chassis_node 소유 순수 mission_supervisor로 흡수 예정.
-contract_output_enabled=true는 mock 팔 시험 전용 — 실물 팔과 병행 실행 금지.
+WP5.2 Task 5의 chassis_node 소유 순수 MissionSupervisor로 흡수됐다.
+contract_output_enabled=true는 mission_contract_owner=legacy_mission_node를
+명시한 mock 팔 시험 전용이며 chassis supervisor와 병행 실행할 수 없다.
 
     /detected_objects ─┐                      ┌─→ /chassis_mode   (팔 자세 락 / MISSION_STOP)
     /arm_status ───────┼─→ [이 노드] ─────────┼─→ /arrival_status (도착 알림)
@@ -56,6 +57,7 @@ class MissionNode(Node):
         self.declare_parameter("stop_settle_s", 0.3)
         self.declare_parameter("publish_hz", 20.0)
         self.declare_parameter("contract_output_enabled", False)
+        self.declare_parameter("mission_contract_owner", "chassis_supervisor")
         # ── 도착 자동 판정 (YOLO) ──
         self.declare_parameter("auto_trigger", True)
         self.declare_parameter("pickup_class", "box")
@@ -76,6 +78,17 @@ class MissionNode(Node):
         self._contract_output_enabled = bool(
             self.get_parameter("contract_output_enabled").value
         )
+        self._mission_contract_owner = str(
+            self.get_parameter("mission_contract_owner").value
+        )
+        if (
+            self._contract_output_enabled
+            and self._mission_contract_owner != "legacy_mission_node"
+        ):
+            raise ValueError(
+                "contract_output_enabled=true requires "
+                "mission_contract_owner=legacy_mission_node"
+            )
 
         self.trigger = MissionTrigger(TriggerConfig(
             rules=[
