@@ -431,3 +431,27 @@ fresh `STOWED_LOCKED`를 확인하고 override를 명시적으로 꺼야 정상 
 같은 `mission_id`의 fresh locked heartbeat다. 빈손 상시 heartbeat의 `mission_id`는 0 또는 마지막
 완료 ID 유지 모두 허용하며, 파워트레인은 완료 ACK를 판정할 때만 ID를 해석한다. 남은 통합은
 Task 5 supervisor의 `MISSION_STOP`·동일 ID arrival conjunction과 락 해제 순서다.
+
+### 인식 frame·marker dedup adapter 계약
+
+`powertrain_ros/detection_adapter.py`는 ROS import가 없는 순수 코어다. ROS 경계는
+`DetectedObjectArray`를 `DetectionHeader`, `DetectedObjectValue`, `DetectionPose`,
+`DetectionBBox` 값으로 옮긴 뒤 `DetectionAdapter.process(..., now_s=...)`를 호출해야 한다.
+입력 pose의 XYZ와 adapter 설정의 cluster 반경은 REP-103 `base_link`
+(x=전방, y=좌, z=상), 단위 m 계약을 사용한다. `/pick_target`은 이 adapter 입력도 아니고
+주행 허가도 아니다.
+
+TF callback 계약은 `(frame_id, stamp_s) -> 4x4 | (R_3x3, t_3) | None`이며, 반환 transform은
+array header frame에서 `base_link`로 가는 stamp 시점 transform이다. 빈 `frame_id`, 0·미래·timeout
+초과 stamp, callback 예외·`None`·잘못된 transform은 해당 batch의 observation을 0개로 만들고 각각
+`frame_id_empty`, `stamp_zero`/`stamp_future`/`stamp_stale`, `tf_lookup_failed`/`tf_unavailable`/
+`tf_invalid` hold reason을 반환한다. 이 입력으로 인식 의존 명령이나 confidence 승격을 만들면 안
+된다. 정상 결과의 모든 observation은 `frame_id="base_link"`이고 위치와 yaw 모두 변환된 값이다.
+
+`DetectionAdapterConfig`가 confidence 하한, 3D cluster 반경, 최소 재관측 시간과
+`unique_class_id_contract`를 주입한다. 고유 ID 계약이 켜지면 `class_id`가 위치·이름보다 우선하는
+stable key다. 꺼지면 같은 `class_name`과 최초 `base_link` 위치 반경 안의 관측만 같은 marker로
+묶는다. 최소 시간보다 이른 재관측과 confidence 하한 미만 관측은 출력·집계에서 제외한다. 현재
+위치는 EMA 없이 최초 accepted 위치를 유지한다. `dedup_state()`는 marker별 stable key,
+first/last stamp, accepted 횟수와 `counts_by_class`를 복사해 반환하며 3구간 marker 5종 집계는 이
+snapshot만 조회한다.
