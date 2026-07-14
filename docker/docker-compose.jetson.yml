@@ -89,3 +89,43 @@ services:
     stdin_open: true
     tty: true
     restart: "on-failure:5"
+
+  # WP5.2 control-plane supervisor. This service must override the ROS image
+  # ENTRYPOINT because that entrypoint always starts the L515 Gateway.
+  powertrain_control:
+    image: powertrain-sw:ros
+    container_name: powertrain_control
+    network_mode: host
+    ipc: host
+    privileged: true                     # can0 access for chassis_node rollout
+    volumes:
+      - ../:/workspace:rw
+      - /dev:/dev
+      # Provision first with scripts/install_powertrain_runtime_dir.sh.
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
+      # Task 5 adds the persistent /var/lib/powertrain bind.
+    working_dir: /workspace
+    entrypoint:
+      - /bin/bash
+      - -lc
+    command:
+      - |
+        set -e
+        source /opt/ros/humble/setup.bash
+        cd /workspace/ros2
+        colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
+        source install/setup.bash
+        exec ros2 run powertrain_ros teleop_command
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - grep -aq 'ros2 run powertrain_ros teleop_command\|powertrain_ros.teleop_command_node' /proc/1/cmdline
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5m
