@@ -139,6 +139,7 @@ class ChassisNode(Node):
         self.declare_parameter("authority_enabled", False)
         self.declare_parameter("contract_v2_verified", False)
         self.declare_parameter("arm_gate_mode", "production")
+        self.declare_parameter("arm_override_ttl_s", 30.0)
         self.declare_parameter("mission_contract_owner", MISSION_OWNER_CHASSIS)
         self.declare_parameter("mission_id_path", "/var/lib/powertrain/mission_id")
 
@@ -165,6 +166,14 @@ class ChassisNode(Node):
         self._arm_gate_mode = validate_arm_gate_mode(
             self.get_parameter("arm_gate_mode").value
         )
+        self._arm_override_ttl_s = float(
+            self.get_parameter("arm_override_ttl_s").value
+        )
+        if (
+            not math.isfinite(self._arm_override_ttl_s)
+            or self._arm_override_ttl_s <= 0.0
+        ):
+            raise ValueError("arm_override_ttl_s must be finite and positive")
         self._mission_contract_owner = validate_mission_contract_owner(
             self.get_parameter("mission_contract_owner").value
         )
@@ -228,6 +237,10 @@ class ChassisNode(Node):
         # 나타나는 tick부터 이 객체를 선택하지 않아 즉시 real default-deny로 복귀한다.
         self._arm_absent_interlock = ArmInterlock(timeout_s=0.5)
         self._arm_override_requested = False
+        self._arm_override_activated_s = None
+        self._arm_override_expired = False
+        # TODO(WP5.2 Task 7/remote gate): require a hold-to-run deadman and
+        # independent joint proof before production remote-arm enablement.
         self._chassis_mode_intent = contract.MODE_STOW_REQUEST
         self._last_arm_status = None
 
@@ -414,7 +427,7 @@ class ChassisNode(Node):
         else:
             self.pub_arrival = None
         self.pub_state = self.create_publisher(
-            ChassisMode,
+            String,
             "/chassis_state",
             10,
         )
@@ -564,6 +577,14 @@ class ChassisNode(Node):
         """Return ``(drive_allowed, detail)`` for the manager final gate."""
         if self._arm_override_requested:
             self._chassis_mode_intent = contract.MODE_STOW_REQUEST
+            activated_s = self._arm_override_activated_s
+            if (
+                self._arm_override_expired
+                or activated_s is None
+                or now_s - activated_s > self._arm_override_ttl_s
+            ):
+                self._arm_override_expired = True
+                return False, "operator_override_expired"
             if not self._remote_owner_selected():
                 return False, "operator_override_remote_owner_required"
             allowed = self._arm_interlock.drive_allowed(
@@ -811,6 +832,8 @@ class ChassisNode(Node):
     def _srv_arm_lock_override(self, request, response):
         if not request.data:
             self._arm_override_requested = False
+            self._arm_override_activated_s = None
+            self._arm_override_expired = False
             response.success = True
             response.message = "arm lock override disabled"
             return response
@@ -842,6 +865,8 @@ class ChassisNode(Node):
         self.set_chassis_mode_intent(contract.MODE_STOW_REQUEST)
         self._discard_pending_command()
         self._arm_override_requested = True
+        self._arm_override_activated_s = now_s
+        self._arm_override_expired = False
         response.success = True
         response.message = (
             "override requested: REMOTE_ARM_OVERRIDE only; "
@@ -1075,14 +1100,15 @@ class ChassisNode(Node):
         self.pub_mode.publish(msg)
 
     def _publish_state(self):
+        """Publish ``<mode> v=<m/s> w=<rad/s>`` as String diagnostics."""
         try:
             state = self.cm.state()
-            msg = ChassisMode()
-            msg.header = self._header()
-            msg.mode = "%s v=%.2f w=%.2f" % (
-                state["mode"],
-                state["v"],
-                state["omega"],
+            msg = String(
+                data="%s v=%.2f w=%.2f" % (
+                    state["mode"],
+                    state["v"],
+                    state["omega"],
+                )
             )
             self.pub_state.publish(msg)
         except Exception as exc:

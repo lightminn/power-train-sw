@@ -383,6 +383,8 @@ ros2 run powertrain_ros chassis --ros-args \
 contract violation, US-100, motor, E-stop, command watchdog, authority는 우회하지 않는다. fresh
 `ArmStatus`가 돌아오면 flag는 감사용으로 남지만 drive permission은 즉시 0이 되며, 운영자가
 fresh `STOWED_LOCKED`를 확인하고 override를 명시적으로 꺼야 정상 profile을 다시 선택할 수 있다.
+`arm_override_ttl_s`는 기본 30.0초다. TTL 초과 시 flag는 감사용으로 남고
+`operator_override_expired` hold가 걸리며, 같은 서비스를 다시 호출해야 새 TTL이 시작된다.
 
 `SafetyVerdict.status`는 다음 네 상태만 사용한다.
 

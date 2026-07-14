@@ -301,6 +301,9 @@ def _override_node(gate=None, manager=None):
     node._arm_gate_mode = "production"
     node._contract_v2_verified = True
     node._arm_override_requested = False
+    node._arm_override_activated_s = None
+    node._arm_override_expired = False
+    node._arm_override_ttl_s = 30.0
     node._chassis_mode_intent = contract.MODE_STOW_REQUEST
     node._authority_enabled = True
     node._authority = SimpleNamespace(mode="MANUAL")
@@ -372,11 +375,48 @@ def test_override_fresh_arm_immediately_removes_permission_but_keeps_flag():
     assert node._arm_override_requested is True
 
 
+def test_override_ttl_allows_drive_until_strictly_after_deadline():
+    node = _override_node()
+    assert _set_override(node).success is True
+
+    assert node._arm_override_activated_s == 40.0
+    assert node._tick_arm_gate(70.0) is True
+    assert node._arm_override_expired is False
+
+
+def test_override_ttl_expiry_holds_drive_but_keeps_audit_flag():
+    node = _override_node()
+    assert _set_override(node).success is True
+
+    assert node._tick_arm_gate(70.001) is False
+
+    assert node._arm_override_requested is True
+    assert node._arm_override_expired is True
+    assert node.cm.holds[-1] == (True, "operator_override_expired")
+
+
+def test_override_service_reactivation_starts_a_new_ttl():
+    node = _override_node()
+    assert _set_override(node).success is True
+    assert node._tick_arm_gate(70.001) is False
+
+    node._now_s = lambda: 71.0
+    assert _set_override(node).success is True
+
+    assert node._arm_override_activated_s == 71.0
+    assert node._arm_override_expired is False
+    assert node._tick_arm_gate(101.0) is True
+
+
 def test_arm_status_qos_service_and_fail_closed_defaults_are_explicit():
     source = CHASSIS_NODE.read_text(encoding="utf-8")
 
     assert 'declare_parameter("contract_v2_verified", False)' in source
     assert 'declare_parameter("arm_gate_mode", "production")' in source
+    assert 'declare_parameter("arm_override_ttl_s", 30.0)' in source
+    assert "TODO(WP5.2 Task 7/remote gate)" in source
+    assert "deadman" in source
+    assert "independent joint proof" in source
     assert "DurabilityPolicy.VOLATILE" in source
     assert "ReliabilityPolicy.RELIABLE" in source
     assert "HistoryPolicy.KEEP_LAST" in source
@@ -455,6 +495,8 @@ def test_hardware_launch_and_readme_expose_fail_closed_arm_gate_defaults():
     assert 'default_value="production"' in launch
     assert 'LaunchConfiguration("contract_v2_verified")' in launch
     assert 'LaunchConfiguration("arm_gate_mode")' in launch
+    assert '"arm_override_ttl_s"' in launch
+    assert 'LaunchConfiguration("arm_override_ttl_s")' in launch
     assert "arm_absent_field" in readme
     assert "contract_v2_verified" in readme
     assert "STOW_REQUEST" in readme

@@ -109,6 +109,62 @@ def test_chassis_never_republishes_ros_cmd_vel():
     assert cmd_vel_publishers == []
 
 
+def test_chassis_state_diagnostics_never_use_contract_message_type():
+    initialize = _method_ast(CHASSIS_NODE, "ChassisNode", "_initialize")
+    publishers = [
+        call
+        for call in ast.walk(initialize)
+        if isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr == "create_publisher"
+    ]
+    state_publisher = next(
+        call
+        for call in publishers
+        if any(
+            isinstance(arg, ast.Constant) and arg.value == "/chassis_state"
+            for arg in call.args
+        )
+    )
+    mode_publisher = next(
+        call
+        for call in publishers
+        if any(
+            isinstance(arg, ast.Attribute)
+            and ast.unparse(arg) == "contract.TOPIC_CHASSIS_MODE"
+            for arg in call.args
+        )
+    )
+
+    assert ast.unparse(state_publisher.args[0]) == "String"
+    assert ast.unparse(mode_publisher.args[0]) == "ChassisMode"
+
+
+def test_chassis_state_keeps_existing_diagnostic_string_format():
+    publish_state = _load_method(
+        CHASSIS_NODE,
+        "ChassisNode",
+        "_publish_state",
+        {"String": _DataMessage},
+    )
+    publisher = _Publisher()
+    errors = []
+    node = SimpleNamespace(
+        cm=SimpleNamespace(
+            state=lambda: {"mode": "ARMED", "v": 0.42, "omega": -0.17}
+        ),
+        pub_state=publisher,
+        get_logger=lambda: SimpleNamespace(error=errors.append),
+    )
+
+    publish_state(node)
+
+    assert errors == []
+    assert [message.data for message in publisher.messages] == [
+        "ARMED v=0.42 w=-0.17"
+    ]
+
+
 def test_authority_tick_sets_only_an_accepted_selection():
     tick = _load_method(
         CHASSIS_NODE,

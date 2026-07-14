@@ -41,6 +41,14 @@ def generate_launch_description():
                     "operator-confirmed powertrain-only field profile"
                 ),
             ),
+            DeclareLaunchArgument(
+                "arm_override_ttl_s",
+                default_value="30.0",
+                description=(
+                    "Maximum REMOTE_ARM_OVERRIDE drive-permission lifetime "
+                    "before explicit service reactivation is required"
+                ),
+            ),
             SetParameter(
                 name="contract_v2_verified",
                 value=ParameterValue(
@@ -51,6 +59,13 @@ def generate_launch_description():
             SetParameter(
                 name="arm_gate_mode",
                 value=LaunchConfiguration("arm_gate_mode"),
+            ),
+            SetParameter(
+                name="arm_override_ttl_s",
+                value=ParameterValue(
+                    LaunchConfiguration("arm_override_ttl_s"),
+                    value_type=float,
+                ),
             ),
             Node(
                 package="powertrain_ros",

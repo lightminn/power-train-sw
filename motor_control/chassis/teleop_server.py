@@ -16,7 +16,8 @@
 edge판정·map·ChassisManager.tick. ChassisManager 는 제어 스레드만 만짐(스레드 안전).
 
 실행 (젯슨 컨테이너, motor_control/ 에서 · can0 UP · 6축 캘리):
-  python3 -m chassis.teleop_server --no-us100
+  python3 -m chassis.teleop_server --diagnostic-direct-can --no-us100
+  비대화형 확인: 위 명령에 --confirm-arm-stowed 추가
   옵션: --port 9000 --v-max 1.5 --omega-max 1.2 --min-rev 1.0 --channel can0
 노트북: python3 laptop/laptop_client_chassis.py --host <젯슨IP>
 """
@@ -28,6 +29,7 @@ from chassis.teleop_dualsense import (
     cleanup_chassis_resources,
     handle_chassis_square,
     map_chassis_input,
+    require_diagnostic_direct_can,
 )
 
 WIRELESS_RX_TIMEOUT_MS = 300.0
@@ -247,10 +249,20 @@ def parse_input_line(text):
     return lx, rt, lt, (1 if sq else 0), (1 if ci else 0)
 
 
-def main(argv=None):
+def _parse_args(argv=None, input_fn=None):
     import argparse
 
     p = argparse.ArgumentParser(description="차체 4WS 무선 텔레옵 서버")
+    p.add_argument(
+        "--diagnostic-direct-can",
+        action="store_true",
+        help="legacy direct-CAN diagnostic tool임을 명시",
+    )
+    p.add_argument(
+        "--confirm-arm-stowed",
+        action="store_true",
+        help="비대화형 환경에서 로봇팔의 기계적 접힘·고정을 확인",
+    )
     p.add_argument("--port", type=int, default=9000)
     p.add_argument("--no-us100", action="store_true",
                    help="US-100 충돌방지 없이 (구동 게이팅 OFF)")
@@ -264,6 +276,12 @@ def main(argv=None):
     p.add_argument("--min-rev", type=float, default=1.0,
                    help="최저 구동속도 turns/s (저속 코깅존 회피, 0=off)")
     args = p.parse_args(argv)
+    require_diagnostic_direct_can(p, args, input_fn=input_fn)
+    return args
+
+
+def main(argv=None):
+    args = _parse_args(argv)
     use_us100 = not args.no_us100
 
     from chassis.chassis_manager import ChassisManager, ChassisConfig, build_real_corners
