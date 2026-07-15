@@ -64,7 +64,6 @@ setup(
             "wall_follower = powertrain_ros.wall_follower_node:main",
             "lead_follower = powertrain_ros.lead_follower_node:main",
             "teleop_command = powertrain_ros.teleop_command_node:main",
-            "pdist80b_monitor = powertrain_ros.pdist80b_monitor_node:main",
         ],
     },
 )

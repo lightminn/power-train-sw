@@ -19,6 +19,9 @@ ALLOWED_DIRECT_OPENERS = frozenset(
         "motor_control/steering/calibrate_ak.py",
         "motor_control/steering/status_ak.py",
         "motor_gui/backend/transport/can_bus.py",
+        # RX-only observer: never transmits, does not take the RealCanSession
+        # owner lock (contract test pins the no-send guarantee).
+        "ros2/src/powertrain_ros/powertrain_ros/chassis_telemetry_sender_node.py",
         "motor_gui/backend/transport/can_device.py",
         "scripts/preflight_hil.py",
     }

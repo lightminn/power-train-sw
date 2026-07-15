@@ -1,4 +1,4 @@
-from operator_console.app import pipeline_description, srt_uri
+from operator_console.pipelines import pipeline_description, srt_uri
 from operator_console.metadata import parse_metadata
 from operator_console.telemetry import parse_telemetry
 

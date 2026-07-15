@@ -214,8 +214,9 @@ class ChassisTelemetrySender(Node):
             self._udp.sendto(json.dumps(payload, separators=(",", ":")).encode(), self._endpoint)
             self._sequence += 1
         except OSError as exc:
-            self.get_logger().warning("operator telemetry send failed: %s", exc,
-                                      throttle_duration_sec=5.0)
+            self.get_logger().warning(
+                f"operator telemetry send failed: {exc}", throttle_duration_sec=5.0
+            )
 
     def destroy_node(self):
         if self._can_bus is not None:
