@@ -7,6 +7,9 @@ ENV PYTHONUNBUFFERED=1 \
 
 # NumPy, PyYAML, CUDA, and PyTorch come from the existing Jetson L4T base.
 # JAX is intentionally absent until the full-load Jetson qualification step.
+# pytest is required by the plan's in-image Verify command.
+RUN pip3 install --no-cache-dir pytest
+
 WORKDIR /workspace
 COPY powertrain_autonomy /workspace/powertrain_autonomy
 COPY scripts/l515_commissioning.py /workspace/scripts/l515_commissioning.py
