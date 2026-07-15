@@ -152,3 +152,39 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5m
+
+  # WP5.3 singleton observability journal/status daemon. The ROS image's
+  # default ENTRYPOINT starts the L515 Gateway, so this service must override it.
+  powertrain_observability:
+    image: powertrain-sw:ros
+    container_name: powertrain_observability
+    network_mode: host
+    environment:
+      - PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros:/workspace/motor_control
+    volumes:
+      - ../:/workspace:rw
+      # Provision both host paths with scripts/install_powertrain_runtime_dir.sh.
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/powertrain
+        target: /var/lib/powertrain
+        bind:
+          create_host_path: false
+    working_dir: /workspace
+    entrypoint:
+      - python3
+      - -m
+      - powertrain_observability.main
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python3 -c "from powertrain_observability.client import ObservabilityClient; ObservabilityClient(request_timeout_s=2).query()"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s

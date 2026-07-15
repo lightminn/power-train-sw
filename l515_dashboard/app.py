@@ -13,18 +13,43 @@ class DashboardApp(App):
               Binding("s","toggle_streaming","Stream"),Binding("r","restart","Restart")]
     CSS="#confirm-stop { color: red; border: heavy red; padding: 1; }"
 
-    def __init__(self, client, *, poll_interval_s=1.0):
-        super().__init__(); self.client=client; self.poll_interval_s=poll_interval_s
+    def __init__(self, client, *, observability_client=None, poll_interval_s=1.0):
+        super().__init__(); self.client=client; self.observability_client=observability_client
+        self.poll_interval_s=poll_interval_s
         self.streaming_enabled=True; self._confirming=False
 
     def compose(self)->ComposeResult:
-        yield Header(); yield Vertical(Static("DISCONNECTED",id="status"), id="body"); yield Footer()
+        yield Header()
+        yield Vertical(
+            Static("DISCONNECTED",id="status"),
+            Static("OBSERVABILITY DISCONNECTED",id="observability-status"),
+            id="body",
+        )
+        yield Footer()
 
     def on_mount(self): self.set_interval(self.poll_interval_s,self.refresh_status)
     def refresh_status(self):
-        snap=self.client.poll()
-        if snap: self.show_status(snap.payload)
-        elif self.client.last_error: self.query_one("#status",Static).update(f"DISCONNECTED\n{self.client.last_error}")
+        try:
+            snap=self.client.poll()
+            if snap: self.show_status(snap.payload)
+            elif self.client.last_error:
+                self.query_one("#status",Static).update(f"DISCONNECTED\n{self.client.last_error}")
+        except Exception as exc:
+            self.query_one("#status",Static).update(f"DISCONNECTED\n{exc}")
+
+        if self.observability_client is None:
+            return
+        try:
+            snap=self.observability_client.poll()
+            if snap: self.show_observability_status(snap.payload)
+            elif self.observability_client.last_error:
+                self.query_one("#observability-status",Static).update(
+                    f"OBSERVABILITY DISCONNECTED\n{self.observability_client.last_error}"
+                )
+        except Exception as exc:
+            self.query_one("#observability-status",Static).update(
+                f"OBSERVABILITY DISCONNECTED\n{exc}"
+            )
 
     def show_status(self,p):
         sdk=p.get("sdk",{}); srt=p.get("srt",{}); system=p.get("system",{}); ros=p.get("ros_publish_counts",{})
@@ -34,6 +59,35 @@ class DashboardApp(App):
               f"Native Hz: {dict(native_rates)}\nROS: {dict(ros)}\nROS Hz: {dict(ros_rates)}\nSRT: running={srt.get('running')} enabled={srt.get('enabled')} mode={srt.get('mode')} sent={srt.get('sent')} dropped={srt.get('dropped')} submit/sent/drop Hz={srt.get('submitted_rate_hz')}/{srt.get('sent_rate_hz')}/{srt.get('drop_rate_hz')} aligned-depth age={srt.get('aligned_depth_age_ms')} ms client={srt.get('client_state')}\n"
               f"Resources: CPU={system.get('cpu_percent')}% RSS={system.get('current_rss_bytes')}\nErrors: {p.get('last_error') or srt.get('last_error') or '-'}")
         self.query_one("#status",Static).update(text)
+
+    @staticmethod
+    def _event_payload(recent_events, event_type):
+        event=recent_events.get(event_type,{})
+        payload=event.get("payload",{}) if hasattr(event,"get") else {}
+        return payload if hasattr(payload,"get") else {}
+
+    def show_observability_status(self,p):
+        health=p.get("health",{}); recent=p.get("recent_events",{})
+        owner=self._event_payload(recent,"COMMAND_OWNER")
+        estop=self._event_payload(recent,"ESTOP")
+        hold=self._event_payload(recent,"MOTION_HOLD")
+        stop_source=(estop or hold)
+        fsm=self._event_payload(recent,"FSM_TRANSITION")
+        mission=self._event_payload(recent,"MISSION")
+        arm=self._event_payload(recent,"ARM_RESULT")
+        channels=p.get("channel_health",{})
+        text=(
+            f"Observability: run={p.get('run_id','?')} health={health.get('status','?')} "
+            f"drops={p.get('drop_count',0)}\n"
+            f"Command owner: {owner.get('owner') or owner.get('command_owner') or '-'}\n"
+            f"Hold/E-stop source: {stop_source.get('source') or stop_source.get('reason') or '-'}\n"
+            f"Segment/FSM: {fsm.get('segment') or '-'} / "
+            f"{fsm.get('to') or fsm.get('state') or '-'}\n"
+            f"Mission result: {mission.get('result') or mission.get('state') or '-'}\n"
+            f"Arm result: {arm.get('result') or arm.get('state') or '-'}\n"
+            f"Channel health: {dict(channels)}"
+        )
+        self.query_one("#observability-status",Static).update(text)
 
     def _command(self,kind,payload=None):
         try:
