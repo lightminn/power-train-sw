@@ -5,13 +5,26 @@
 import pytest
 
 from chassis.authority import (
-    AUTO, AUTO_SOURCE, IDLE, MANUAL, MANUAL_SOURCE,
-    AuthorityConfig, CommandAuthority,
+    AUTO,
+    AUTO_SOURCE,
+    AUTONOMY,
+    IDLE,
+    MANUAL,
+    MANUAL_SOURCE,
+    MOTION_HOLD,
+    STOPPING_FOR_HANDOVER,
+    TELEOP,
+    AuthorityConfig,
+    CommandAuthority,
 )
 
 
-def _a(**kw):
-    return CommandAuthority(AuthorityConfig(**kw))
+def _a(*, wheel_stopped=None, wheel_stop_qualified=None, **kw):
+    return CommandAuthority(
+        AuthorityConfig(**kw),
+        wheel_stopped=wheel_stopped,
+        wheel_stop_qualified=wheel_stop_qualified,
+    )
 
 
 # ── 기본 ─────────────────────────────────────────────────────────────────
@@ -122,3 +135,186 @@ def test_missing_source_is_not_ok():
     c = a.select(0.0)
     assert c.ok is False
     assert "명령 없음" in c.reason
+
+
+# ── WP5.2 qualified wheel-stop handover ─────────────────────────────────
+
+def _active_auto(a):
+    a.submit(AUTO_SOURCE, 0.0, 0.0, t=0.0)
+    assert a.set_mode(AUTO) is True
+    assert a.select(0.0).ok is True
+    a.submit(AUTO_SOURCE, 0.5, 0.1, t=0.1)
+    assert a.select(0.1).ok is True
+
+
+def test_legacy_mode_strings_normalize_to_new_state_names():
+    a = _a()
+
+    assert a.set_mode(MANUAL) is True
+    assert a.mode == TELEOP
+    assert a.set_mode(AUTO) is True
+    assert a.mode == AUTONOMY
+    assert a.set_mode(TELEOP) is True
+    assert a.mode == TELEOP
+
+
+def test_nonzero_source_handover_outputs_zero_until_wheel_stop_ack():
+    gate = {"stopped": False, "qualified": True}
+    a = _a(
+        handover_timeout_s=1.0,
+        wheel_stopped=lambda: gate["stopped"],
+        wheel_stop_qualified=lambda: gate["qualified"],
+    )
+    _active_auto(a)
+
+    result = a.request_mode(MANUAL, t=0.2)
+    assert result.accepted is True
+    assert a.mode == STOPPING_FOR_HANDOVER
+
+    a.submit(MANUAL_SOURCE, -0.9, 0.8, t=0.2)
+    a.submit(AUTO_SOURCE, 0.7, -0.4, t=0.2)
+    command = a.select(0.2)
+    assert (command.v, command.omega, command.ok) == (0.0, 0.0, True)
+    assert a.mode == STOPPING_FOR_HANDOVER
+
+    gate["stopped"] = True
+    command = a.select(0.3)
+    assert (command.v, command.omega, command.ok) == (0.0, 0.0, True)
+    assert a.mode == TELEOP
+
+    # The transitional zero-confirmed gate remains: the fresh nonzero teleop
+    # command cannot be replayed immediately after physical stop confirmation.
+    command = a.select(0.31)
+    assert command.ok is False
+    assert "중립 대기" in command.reason
+
+
+def test_unselected_fresh_source_never_affects_output_during_or_after_handover():
+    gate = {"stopped": False}
+    a = _a(
+        handover_timeout_s=1.0,
+        wheel_stopped=lambda: gate["stopped"],
+        wheel_stop_qualified=lambda: True,
+    )
+    _active_auto(a)
+    assert a.request_mode(TELEOP, t=0.2).accepted is True
+
+    a.submit(AUTO_SOURCE, 1.0, 1.0, t=0.25)
+    a.submit(MANUAL_SOURCE, -1.0, -1.0, t=0.25)
+    assert (a.select(0.25).v, a.select(0.25).omega) == (0.0, 0.0)
+
+    gate["stopped"] = True
+    a.select(0.3)
+    a.submit(MANUAL_SOURCE, 0.0, 0.0, t=0.31)
+    assert a.select(0.31).ok is True
+    a.submit(MANUAL_SOURCE, 0.25, -0.2, t=0.32)
+    a.submit(AUTO_SOURCE, -0.8, 0.9, t=0.32)
+    command = a.select(0.32)
+    assert (command.v, command.omega) == (0.25, -0.2)
+
+
+def test_unqualified_predicate_rejects_nonzero_handover_immediately():
+    a = _a(
+        wheel_stopped=lambda: False,
+        wheel_stop_qualified=lambda: False,
+    )
+    _active_auto(a)
+
+    result = a.request_mode(TELEOP, t=0.2)
+
+    assert result.accepted is False
+    assert "unqualified" in result.reason
+    assert a.mode == AUTONOMY
+    command = a.select(0.2)
+    assert (command.v, command.omega, command.ok) == (0.5, 0.1, True)
+
+
+def test_stopping_timeout_enters_hold_until_explicit_clear():
+    a = _a(
+        handover_timeout_s=0.5,
+        wheel_stopped=lambda: False,
+        wheel_stop_qualified=lambda: True,
+    )
+    _active_auto(a)
+    assert a.request_mode(TELEOP, t=0.2).accepted is True
+    assert a.select(0.69).ok is True
+
+    command = a.select(0.70)
+    assert (command.v, command.omega, command.ok) == (0.0, 0.0, True)
+    assert a.mode == MOTION_HOLD
+    assert "timeout" in command.reason
+
+    rejected = a.request_mode(AUTONOMY, t=0.8)
+    assert rejected.accepted is False
+    assert "clear_hold" in rejected.reason
+    assert a.clear_hold() is True
+    assert a.mode == IDLE
+    assert a.set_mode(AUTO) is True
+    assert a.mode == AUTONOMY
+
+
+def test_stopping_clock_rollback_enters_motion_hold():
+    a = _a(
+        handover_timeout_s=0.5,
+        wheel_stopped=lambda: False,
+        wheel_stop_qualified=lambda: True,
+    )
+    _active_auto(a)
+    assert a.request_mode(TELEOP, t=10.0).accepted is True
+
+    command = a.select(1.0)
+
+    assert command.ok is True
+    assert command.v == command.omega == 0.0
+    assert "clock rollback" in command.reason
+    assert a.mode == MOTION_HOLD
+
+
+def test_stale_selected_source_enters_motion_hold_without_replay():
+    a = _a(stale_s=0.3)
+    _active_auto(a)
+
+    command = a.select(0.41)
+
+    assert command.ok is False
+    assert "stale" in command.reason
+    assert a.mode == MOTION_HOLD
+    assert a.set_mode(MANUAL) is False
+    assert a.clear_hold() is True
+
+
+def test_future_dated_selected_source_enters_motion_hold():
+    a = _a()
+    a.submit(AUTO_SOURCE, 0.0, 0.0, t=10.0)
+    assert a.set_mode(AUTO) is True
+
+    command = a.select(1.0)
+
+    assert command.ok is False
+    assert "future" in command.reason
+    assert a.mode == MOTION_HOLD
+
+
+def test_idle_to_first_source_still_uses_neutral_gate_when_unqualified():
+    a = _a(
+        wheel_stopped=lambda: False,
+        wheel_stop_qualified=lambda: False,
+    )
+    a.submit(AUTO_SOURCE, 0.6, 0.0, t=0.0)
+
+    assert a.set_mode(AUTO) is True
+    assert a.mode == AUTONOMY
+    assert a.select(0.0).ok is False
+
+
+def test_explicit_idle_request_always_stops_without_wheel_qualification():
+    a = _a(
+        wheel_stopped=lambda: False,
+        wheel_stop_qualified=lambda: False,
+    )
+    _active_auto(a)
+
+    assert a.set_mode(IDLE) is True
+    assert a.mode == IDLE
+    command = a.select(0.2)
+    assert (command.v, command.omega, command.ok) == (0.0, 0.0, False)

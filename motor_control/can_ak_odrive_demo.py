@@ -18,7 +18,9 @@ VESC 확장 프레임)를 한 버스에서 동시에 독립 제어한다. 단일
 """
 import argparse
 import math
+from pathlib import Path
 import struct
+import sys
 import time
 
 import can
@@ -26,7 +28,7 @@ import can
 ON = 11  # ODrive node id (axis1, 구동)
 
 
-def main(calibrate: bool) -> None:
+def _run_owned_session(calibrate: bool) -> None:
     bus = can.interface.Bus(channel="can0", interface="socketcan")  # 필터 없음 → 표준·확장 모두 수신
 
     # ----- ODrive (node 11, 표준 프레임) -----
@@ -130,13 +132,23 @@ def main(calibrate: bool) -> None:
                 break
     finally:
         # ----- 정지 (필수): 런어웨이 방지 -----
-        o_send(0x07, struct.pack("<i", 1))  # ODrive IDLE
-        for _ in range(5):
-            ak_rpm0(1)
-            ak_rpm0(2)
-            time.sleep(0.04)
-        bus.shutdown()
+        try:
+            o_send(0x07, struct.pack("<i", 1))  # ODrive IDLE
+            for _ in range(5):
+                ak_rpm0(1)
+                ak_rpm0(2)
+                time.sleep(0.04)
+        finally:
+            bus.shutdown()
         print("\n정지 완료")
+
+
+def main(calibrate: bool) -> None:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from chassis.runtime_lock import RealCanSession
+
+    with RealCanSession(channel="can0", owner="can_ak_odrive_demo"):
+        _run_owned_session(calibrate)
 
 
 if __name__ == "__main__":

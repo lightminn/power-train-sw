@@ -122,12 +122,19 @@ def no_zombies():
 
 # ── 3. CAN 단독 소유권 락 ────────────────────────────────────────────────
 
-def can_lock_free():
-    from corner_module.can_lock import is_locked
-    if is_locked("can0"):
-        return FAIL, ("can0 락이 이미 잡혀 있다 — 다른 컨테이너에서 chassis/teleop 이 "
-                      "돌고 있다. 그대로 띄우면 **같은 모터에 상반된 명령**이 간다.")
-    return OK, "can0 락 비어 있음 (chassis_node / teleop_server 둘 다 안 떠 있다)"
+_CAN_OWNER_SNAPSHOT = None
+_CAN_OWNER_ERROR = None
+
+
+def can_lock_owned():
+    if _CAN_OWNER_SNAPSHOT is None:
+        return FAIL, _CAN_OWNER_ERROR or "can0 owner lock 획득 실패"
+    return OK, (
+        "can0 owner lock 획득 "
+        f"(pid={_CAN_OWNER_SNAPSHOT.pid}, "
+        f"process={_CAN_OWNER_SNAPSHOT.process_name}, "
+        f"path={_CAN_OWNER_SNAPSHOT.lock_path})"
+    )
 
 
 # ── 3.5 ★ CAN 버스에 ODrive 가 실제로 살아있는가 (수동 청취) ─────────────
@@ -264,6 +271,8 @@ def unit_tests():
 
 
 def main():
+    global _CAN_OWNER_ERROR, _CAN_OWNER_SNAPSHOT
+
     print("=" * 72)
     print("  모터 HIL 사전 점검 — 전원 올리기 전에 통과시킬 것")
     if FOUR_WHEEL:
@@ -271,15 +280,35 @@ def main():
               "그 보드는 부하모터(다이나모)에 쓰는 중.")
     print("=" * 72 + "\n")
 
-    check("CAN 버스", can_up)
-    check("좀비 프로세스", no_zombies)
-    check("can0 단독 소유권 락", can_lock_free)
-    check("ODrive 노드 생존 (수동 청취)", odrive_nodes_alive)
-    check("기하 — 운용 영역 안전성", geometry_envelope)
-    check("기하 변경 경고", geometry_changed_warning)
-    check("ODrive 캘리브레이션", calibration_reminder)
-    check("코깅존 플로어 (min_rev)", cogging_floor)
-    check("단위 테스트", unit_tests)
+    from chassis.runtime_lock import CanOwnershipError, RealCanSession
+
+    can_session = RealCanSession(channel="can0", owner="preflight_hil")
+    try:
+        can_session.__enter__()
+        _CAN_OWNER_SNAPSHOT = can_session.owner_snapshot
+        _CAN_OWNER_ERROR = None
+    except CanOwnershipError as exc:
+        _CAN_OWNER_SNAPSHOT = None
+        _CAN_OWNER_ERROR = str(exc)
+
+    try:
+        check("CAN 버스", can_up)
+        check("좀비 프로세스", no_zombies)
+        check("can0 단독 소유권 락", can_lock_owned)
+        if _CAN_OWNER_SNAPSHOT is not None:
+            check("ODrive 노드 생존 (수동 청취)", odrive_nodes_alive)
+        else:
+            check(
+                "ODrive 노드 생존 (수동 청취)",
+                lambda: (FAIL, "owner lock 미획득으로 can0 open을 생략했다"),
+            )
+        check("기하 — 운용 영역 안전성", geometry_envelope)
+        check("기하 변경 경고", geometry_changed_warning)
+        check("ODrive 캘리브레이션", calibration_reminder)
+        check("코깅존 플로어 (min_rev)", cogging_floor)
+        check("단위 테스트", unit_tests)
+    finally:
+        can_session.close()
 
     fails = [r for r in _results if r[0] == FAIL]
     warns = [r for r in _results if r[0] == WARN]

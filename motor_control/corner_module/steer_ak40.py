@@ -3,6 +3,10 @@
 조향 출력축 각(도)을 그대로 받아 AK 의 위치 명령으로 전달하고, 매 tick
 status 를 폴링한다. 모터 내장 전류/fault 정보를 state 로 노출한다.
 (드라이버 클래스명은 레거시로 AK40 유지 — 프로파일로 AK45-36 동작.)
+
+라이브러리 import/connect 경로는 owner lock을 만들지 않는다. 실물 CLI/노드 진입점이
+connect 전에 ``chassis.runtime_lock.RealCanSession``을 잡고, 이 드라이버의 close 뒤에
+session을 해제한다.
 """
 import os
 import sys

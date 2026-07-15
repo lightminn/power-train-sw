@@ -46,8 +46,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ldconfig \
     && rm -rf /tmp/librealsense /var/lib/apt/lists/*
 
+# WP5.2 Task 4: /arm/teleop_jog 의 control_msgs/JointJog.
+# ⚠️ 의도적으로 librealsense 소스빌드(위, ~30분) 뒤의 별도 레이어다 — 앞 레이어에 넣으면
+#    캐시가 무효화돼 Jetson 에서 전체 리빌드가 강제된다(2026-07-14 실측).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ros-humble-control-msgs \
+    && rm -rf /var/lib/apt/lists/*
+
 # 워크스페이스 소스는 compose 로 마운트(../ → /workspace). 빌드는 컨테이너 진입 후:
 #   cd /workspace/ros2 && colcon build && source install/setup.bash
 COPY powertrain_ros_entrypoint.sh /usr/local/bin/powertrain_ros_entrypoint
 WORKDIR /workspace/ros2
 ENTRYPOINT ["/usr/local/bin/powertrain_ros_entrypoint"]
+
+# Keep this runtime-only smoke check after every expensive build layer. Compose
+# bind-mounts the repository at /workspace before the healthcheck executes.
+ENV PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros:/workspace/motor_control
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+    CMD python3 -c "import powertrain_observability" || exit 1

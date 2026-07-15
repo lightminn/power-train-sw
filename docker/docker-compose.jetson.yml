@@ -22,6 +22,12 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /dev:/dev
       - ../:/workspace:rw
+      # Provision first with scripts/install_powertrain_runtime_dir.sh.
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
 
     cap_add:
       - SYS_RAWIO
@@ -63,7 +69,15 @@ services:
     image: powertrain-sw:ros
     container_name: powertrain_ros
     network_mode: host                   # DDS(로봇팔 그래프 합류) + can0(WP5)
+    ipc: host                            # FastDDS SHM 전송이 컨테이너 경계를 넘게 함.
+                                         # ⚠️ net=host+private IPC 조합은 같은 host-id로 SHM
+                                         # 로케이터를 광고하면서 세그먼트는 서로 다른 tmpfs 에
+                                         # 만들어 암묵 UDP 폴백/간헐 유실을 유발(2026-07-14 실측:
+                                         # 양 컨테이너에 동일 이름 fastrtps_* 세그먼트 각자 존재).
+                                         # 로봇팔 ros2_humble 도 ipc:host 여야 효과가 있다.
     privileged: true                     # can0 socketcan (WP5)
+    environment:
+      - PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros:/workspace/motor_control
     volumes:
       - ../:/workspace:rw
       - /dev:/dev
@@ -73,7 +87,104 @@ services:
         target: /run/powertrain
         bind:
           create_host_path: false
+      # install_powertrain_runtime_dir.sh provisions this persistent path.
+      - type: bind
+        source: /var/lib/powertrain
+        target: /var/lib/powertrain
+        bind:
+          create_host_path: false
     working_dir: /workspace
     stdin_open: true
     tty: true
     restart: "on-failure:5"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python3 -c "import powertrain_observability"
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # WP5.2 control-plane supervisor. This service must override the ROS image
+  # ENTRYPOINT because that entrypoint always starts the L515 Gateway.
+  powertrain_control:
+    image: powertrain-sw:ros
+    container_name: powertrain_control
+    network_mode: host
+    ipc: host
+    privileged: true                     # can0 access for chassis_node rollout
+    volumes:
+      - ../:/workspace:rw
+      - /dev:/dev
+      # Provision first with scripts/install_powertrain_runtime_dir.sh.
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
+      # install_powertrain_runtime_dir.sh provisions this persistent path.
+      - type: bind
+        source: /var/lib/powertrain
+        target: /var/lib/powertrain
+        bind:
+          create_host_path: false
+    working_dir: /workspace
+    entrypoint:
+      - /bin/bash
+      - -lc
+    command:
+      - |
+        set -e
+        source /opt/ros/humble/setup.bash
+        cd /workspace/ros2
+        colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
+        source install/setup.bash
+        exec ros2 run powertrain_ros teleop_command
+    restart: unless-stopped
+    healthcheck:
+      # ⚠️ cmdline grep 은 무력하다 — PID 1(bash -lc 래퍼)의 cmdline 에 스크립트 원문이
+      #    들어있어 노드가 crash-loop 여도 매치된다(2026-07-14 실측). 실제 생존 신호는
+      #    teleop_command 의 TCP :9000 리슨이다.
+      test:
+        - CMD-SHELL
+        - python3 -c "import socket; socket.create_connection(('127.0.0.1', 9000), 2).close()"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5m
+
+  # WP5.3 singleton observability journal/status daemon. The ROS image's
+  # default ENTRYPOINT starts the L515 Gateway, so this service must override it.
+  powertrain_observability:
+    image: powertrain-sw:ros
+    container_name: powertrain_observability
+    network_mode: host
+    environment:
+      - PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros:/workspace/motor_control
+    volumes:
+      - ../:/workspace:rw
+      # Provision both host paths with scripts/install_powertrain_runtime_dir.sh.
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/powertrain
+        target: /var/lib/powertrain
+        bind:
+          create_host_path: false
+    working_dir: /workspace
+    entrypoint:
+      - python3
+      - -m
+      - powertrain_observability.main
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python3 -c "from powertrain_observability.client import ObservabilityClient; ObservabilityClient(request_timeout_s=2).query()"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s

@@ -96,31 +96,15 @@ def build_corners(steer_factory, drive_factory, cfg: CornerConfig = None,
     return corners
 
 
-_CAN_LOCK = None            # 프로세스 수명 동안 유지되는 CAN 단독 소유권 (아래 설명)
-
-
 def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
-                       wheel_map=None, owner: str = None, lock: bool = True) -> dict:
+                       wheel_map=None) -> dict:
     """실기용 — AK 조향(CAN) + ODrive 구동(CAN) 코너 6개. 하드웨어 라이브러리는
     지연 import(무하드웨어 pytest 가 python-can/odrive 없이 이 모듈을 쓰게).
 
-    ★ **CAN 버스 단독 소유권을 여기서 강제한다.** `chassis_node`(ROS)와
-      `teleop_server`(직접 제어)가 둘 다 can0 을 열 수 있고, 동시에 띄우면 **같은 모터에
-      상반된 명령**이 50 Hz 로 번갈아 간다(socketcan 은 막지 않는다). 지금까지는 "동시에
-      띄우지 말 것"이라는 **운영 관례**로만 막고 있었다 — 사람이 실수하면 그대로 사고다.
-      이 함수가 실기 코너를 만드는 **유일한 진입점**이므로 여기서 잠근다.
-
-      락은 **프로세스 수명 동안** 유지돼야 하므로 모듈 전역에 소켓을 붙들어 둔다.
-      프로세스가 죽으면 커널이 소켓을 닫아 **자동 해제**된다(좀비 락이 안 남는다).
-      `lock=False` 는 테스트·진단 전용이다.
+    CAN 단독 소유권은 라이브러리 함수가 아니라 실물 실행 진입점의
+    ``chassis.runtime_lock.RealCanSession``이 이 함수 호출 전에 획득한다. Fake/MuJoCo
+    빌더가 이 함수와 lock에 결합되지 않도록 여기서는 버스 객체만 구성한다.
     """
-    global _CAN_LOCK
-    if lock:
-        from corner_module.can_lock import can_bus_lock
-        if _CAN_LOCK is None:
-            _CAN_LOCK = can_bus_lock(channel, owner=owner)
-            _CAN_LOCK.__enter__()                       # 프로세스 끝까지 붙들고 있는다
-
     from corner_module.steer_ak40 import SteerAk40
     from corner_module.drive_odrive_can import DriveOdriveCan   # WP1 완료 필요
     return build_corners(
@@ -312,6 +296,14 @@ class ChassisManager:
         self._interlock.set_estop_condition(
             "safety_topic_stale", bool(active), detail,
         )
+
+    def set_arm_motion_hold(self, active: bool, detail: str = "") -> None:
+        """Apply the robot-arm final drive gate and discard its old command."""
+        active = bool(active)
+        was_active = "robot_arm" in self._interlock.snapshot().hold_sources
+        if active and not was_active:
+            self._v = self._omega = 0.0
+        self._interlock.set_motion_hold("robot_arm", active, detail)
 
     def close(self) -> None:
         for c in self.corners.values():

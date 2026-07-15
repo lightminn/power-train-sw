@@ -1,5 +1,7 @@
 import can
+from pathlib import Path
 import struct
+import sys
 import time
 import logging
 
@@ -94,7 +96,7 @@ def wait_for_position(bus, target_pos, tolerance=0.05, timeout=5.0):
     logging.warning("⚠️ 타임아웃: 모터가 목표에 도달하지 못했습니다.")
     return False
 
-def main():
+def _run_owned_session():
     bus = None
     try:
         filters = [{"can_id": NODE_ID << 5, "can_mask": 0x7E0, "extended": False}]
@@ -142,8 +144,16 @@ def main():
             logging.info("🛑 안전 모드(IDLE) 전환 및 버스 종료")
             try:
                 send_can(bus, CMD_SET_STATE, struct.pack('<i', AXIS_STATE_IDLE))
+            finally:
                 bus.shutdown()
-            except: pass
+
+
+def main():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from chassis.runtime_lock import RealCanSession
+
+    with RealCanSession(channel=BUS_CHANNEL, owner="x2212_odrive_can_drive"):
+        _run_owned_session()
 
 if __name__ == "__main__":
     main()

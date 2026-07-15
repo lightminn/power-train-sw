@@ -9,14 +9,14 @@ WP5.2 command-authority path is opt-in with ``authority_enabled=true``:
 
 No ROS ``/cmd_vel`` message is republished by the embedded path.
 
-★ zero-confirmed handover: after a mode change, the selected source must send
-  a neutral command once before any command is accepted.  This prevents a
-  still-live full-speed command from taking effect at the handover instant.
+★ qualified handover: a moving source-to-source request first commands zero,
+  waits for the qualified six-wheel stop predicate, and only then changes
+  owner.  The selected source must still send a neutral command once before
+  nonzero output is accepted.  An unqualified predicate rejects the request.
 
-⚠️ A stale source calls no ``set()`` at all.  That deliberate absence works
-  with the existing ChassisManager command watchdog, which naturally drives
-  the command to zero.  Repeatedly setting zero here would keep that watchdog
-  alive and defeat the fail-silent boundary.
+⚠️ The tick that detects a stale source calls no ``set()`` and enters
+  ``MOTION_HOLD``.  Subsequent hold ticks explicitly command zero and require
+  the ``authority_clear_hold`` acknowledgement before another owner request.
 """
 
 import math
@@ -25,17 +25,24 @@ import sys
 import time
 
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
-from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.qos import (
+    DurabilityPolicy,
+    HistoryPolicy,
+    QoSProfile,
+    ReliabilityPolicy,
+)
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
 from std_msgs.msg import Bool, Header, String
-from std_srvs.srv import Trigger
+from std_srvs.srv import SetBool, Trigger
 
 from powertrain_msgs.msg import SafetyVerdict
 from powertrain_msgs.msg import WheelState, WheelStates
 from powertrain_ros import contract
+from powertrain_ros.arm_interlock import ArmInterlock
 from powertrain_ros.message_adapter import fill_wheel_states_message
 from robot_arm_msgs.msg import ArmStatus, ArrivalStatus, ChassisMode
 
@@ -54,6 +61,20 @@ MIN_SAFETY_TOPIC_TIMEOUT_S = (
     US100_NO_RESPONSE_WORST_CASE_S + SAFETY_TOPIC_SCHEDULING_MARGIN_S
 )
 DEFAULT_SAFETY_TOPIC_TIMEOUT_S = MIN_SAFETY_TOPIC_TIMEOUT_S
+ARM_GATE_PRODUCTION = "production"
+ARM_GATE_ABSENT_FIELD = "arm_absent_field"
+ARM_GATE_MODES = {ARM_GATE_PRODUCTION, ARM_GATE_ABSENT_FIELD}
+MISSION_OWNER_CHASSIS = "chassis_supervisor"
+MISSION_OWNER_LEGACY = "legacy_mission_node"
+MISSION_OWNERS = {MISSION_OWNER_CHASSIS, MISSION_OWNER_LEGACY}
+
+
+def default_wheel_stop_config_path():
+    return os.path.join(
+        get_package_share_directory("powertrain_ros"),
+        "config",
+        "wheel_stop.yaml",
+    )
 
 
 def validate_safety_topic_timeout(value):
@@ -68,10 +89,30 @@ def validate_safety_topic_timeout(value):
     return timeout_s
 
 
+def validate_arm_gate_mode(value):
+    mode = str(value)
+    if mode not in ARM_GATE_MODES:
+        raise ValueError(
+            "arm_gate_mode must be 'production' or 'arm_absent_field'"
+        )
+    return mode
+
+
+def validate_mission_contract_owner(value):
+    owner = str(value)
+    if owner not in MISSION_OWNERS:
+        raise ValueError(
+            "mission_contract_owner must be 'chassis_supervisor' or "
+            "'legacy_mission_node'"
+        )
+    return owner
+
+
 class ChassisNode(Node):
     def __init__(self):
         super().__init__("chassis_node")
         self.cm = None
+        self._can_session = None
         try:
             self._initialize()
         except BaseException:
@@ -96,6 +137,11 @@ class ChassisNode(Node):
         )
         self.declare_parameter("safety_startup_timeout", 1.0)
         self.declare_parameter("authority_enabled", False)
+        self.declare_parameter("contract_v2_verified", False)
+        self.declare_parameter("arm_gate_mode", "production")
+        self.declare_parameter("arm_override_ttl_s", 30.0)
+        self.declare_parameter("mission_contract_owner", MISSION_OWNER_CHASSIS)
+        self.declare_parameter("mission_id_path", "/var/lib/powertrain/mission_id")
 
         fake = bool(self.get_parameter("fake").value)
         channel = str(self.get_parameter("channel").value)
@@ -114,6 +160,32 @@ class ChassisNode(Node):
         self._authority_enabled = bool(
             self.get_parameter("authority_enabled").value
         )
+        self._contract_v2_verified = bool(
+            self.get_parameter("contract_v2_verified").value
+        )
+        self._arm_gate_mode = validate_arm_gate_mode(
+            self.get_parameter("arm_gate_mode").value
+        )
+        self._arm_override_ttl_s = float(
+            self.get_parameter("arm_override_ttl_s").value
+        )
+        if (
+            not math.isfinite(self._arm_override_ttl_s)
+            or self._arm_override_ttl_s <= 0.0
+        ):
+            raise ValueError("arm_override_ttl_s must be finite and positive")
+        self._mission_contract_owner = validate_mission_contract_owner(
+            self.get_parameter("mission_contract_owner").value
+        )
+        self._mission_supervisor_enabled = self._contract_v2_verified
+        if (
+            self._mission_supervisor_enabled
+            and self._mission_contract_owner != MISSION_OWNER_CHASSIS
+        ):
+            raise ValueError(
+                "contract_v2_verified=true requires "
+                "mission_contract_owner=chassis_supervisor"
+            )
 
         from chassis.chassis_manager import (
             ChassisConfig,
@@ -147,28 +219,72 @@ class ChassisNode(Node):
                 "FAKE mode: no real motors are controlled"
             )
         else:
-            # ★ CAN 단독 소유권 — teleop_server 가 이미 잡고 있으면 CanBusBusy 로 죽는다.
-            #   같은 모터에 상반된 명령이 가는 것보다 안 뜨는 게 낫다.
-            corners = build_real_corners(channel, owner="chassis_node",
-                                         wheel_map=wheel_map)
+            from chassis.runtime_lock import RealCanSession
+
+            # 실물 버스/코너를 만들기 전에 lock을 잡고 node cleanup까지 유지한다.
+            self._can_session = RealCanSession(
+                channel=channel,
+                owner="chassis_node",
+            )
+            self._can_session.__enter__()
+            corners = build_real_corners(channel, wheel_map=wheel_map)
             self.get_logger().info("Real chassis on %s" % channel)
 
         self.cm = ChassisManager(corners, cfg)
         self.cm.connect()
+        self._arm_interlock = ArmInterlock(timeout_s=0.5)
+        # arm_absent_field의 mock은 실제 sample/latch와 분리한다. publisher가
+        # 나타나는 tick부터 이 객체를 선택하지 않아 즉시 real default-deny로 복귀한다.
+        self._arm_absent_interlock = ArmInterlock(timeout_s=0.5)
+        self._arm_override_requested = False
+        self._arm_override_activated_s = None
+        self._arm_override_expired = False
+        # TODO(WP5.2 Task 7/remote gate): require a hold-to-run deadman and
+        # independent joint proof before production remote-arm enablement.
+        self._chassis_mode_intent = contract.MODE_STOW_REQUEST
+        self._last_arm_status = None
 
         self._authority = None
+        self._wheel_stop = None
+        self._authority_final_v = 0.0
+        self._authority_final_omega = 0.0
         self.pub_authority_state = None
         if self._authority_enabled:
             from chassis.authority import (
                 AUTO,
                 AUTO_SOURCE,
+                AuthorityConfig,
                 IDLE,
                 MANUAL,
                 MANUAL_SOURCE,
                 CommandAuthority,
             )
+            from powertrain_ros.wheel_stop import (
+                WheelStopPredicate,
+                load_wheel_stop_config,
+            )
 
-            self._authority = CommandAuthority()
+            self.declare_parameter(
+                "wheel_stop_config",
+                default_wheel_stop_config_path(),
+            )
+            self.declare_parameter("authority_handover_timeout_s", 2.0)
+            wheel_stop_config = load_wheel_stop_config(
+                str(self.get_parameter("wheel_stop_config").value)
+            )
+            self._wheel_stop = WheelStopPredicate(wheel_stop_config)
+
+            self._authority = CommandAuthority(
+                AuthorityConfig(
+                    handover_timeout_s=float(
+                        self.get_parameter(
+                            "authority_handover_timeout_s"
+                        ).value
+                    )
+                ),
+                wheel_stopped=lambda: self._wheel_stop.confirmed,
+                wheel_stop_qualified=lambda: self._wheel_stop.qualified,
+            )
             self._authority.set_mode(IDLE)
             self.create_subscription(
                 Twist,
@@ -180,6 +296,12 @@ class ChassisNode(Node):
                 Twist,
                 "/autonomy/cmd_vel",
                 lambda msg: self._on_authority_cmd(AUTO_SOURCE, msg),
+                10,
+            )
+            self.create_subscription(
+                WheelStates,
+                "/wheel_states",
+                self._on_wheel_states_for_stop,
                 10,
             )
             self.pub_authority_state = self.create_publisher(
@@ -211,6 +333,11 @@ class ChassisNode(Node):
                     response,
                 ),
             )
+            self.create_service(
+                Trigger,
+                "~/authority_clear_hold",
+                self._clear_authority_hold,
+            )
         else:
             # Deprecated: WP5.2 Task 4에서 authority 내장 경로로 대체 예정.
             self.create_subscription(
@@ -219,11 +346,34 @@ class ChassisNode(Node):
                 self._on_cmd_vel,
                 10,
             )
+
+        self._mission_supervisor = None
+        if self._mission_supervisor_enabled:
+            from chassis.mission import MissionSupervisor
+            from chassis.mission_id_store import MissionIdStore
+
+            self._mission_supervisor = MissionSupervisor(
+                MissionIdStore(
+                    str(self.get_parameter("mission_id_path").value)
+                ),
+                wheel_stop=self._wheel_stop,
+                authority_output_zero=lambda: (
+                    self._authority_final_v == 0.0
+                    and self._authority_final_omega == 0.0
+                ),
+                clear_grip_lost=self._arm_interlock.clear_grip_lost,
+            )
+        arm_status_qos = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.VOLATILE,
+        )
         self.create_subscription(
             ArmStatus,
             contract.TOPIC_ARM_STATUS,
             self._on_arm_status,
-            10,
+            arm_status_qos,
         )
         safety_qos = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
@@ -237,11 +387,15 @@ class ChassisNode(Node):
             safety_qos,
         )
         # ★ `/chassis_mode` 는 **팔과의 계약 토픽**이고 이 노드가 **단독 소유**한다.
-        #   미션 시퀀서는 `/mission/chassis_mode` 로 **요청**만 하고, 운동 상태(선회·험지)는
-        #   여기서 /odom·/imu 로 판단해 합친다. 두 노드가 쓰면 팔이 번갈아 받아
-        #   **우리가 정차 중인데 DRIVING 을 보고 팔이 움직인다.**
-        self.create_subscription(String, "/mission/chassis_mode",
-                                 self._on_mission_mode, 10)
+        # contract-v2에서는 이 노드가 순수 MissionSupervisor도 직접 소유하므로
+        # superseded mission_node의 v1 mode 요청을 아예 구독하지 않는다.
+        if not self._mission_supervisor_enabled:
+            self.create_subscription(
+                String,
+                "/mission/chassis_mode",
+                self._on_mission_mode,
+                10,
+            )
         # 앞 로봇 추종 중 → FOLLOW_LEAD (팔 자세 락. 앞 차 급정거 시 팔이 흔들린다)
         self.create_subscription(Bool, "/follow/active",
                                  lambda m: setattr(self, "_follow_lead", m.data), 10)
@@ -253,15 +407,27 @@ class ChassisNode(Node):
         self.pub_mode = self.create_publisher(
             ChassisMode,
             contract.TOPIC_CHASSIS_MODE,
-            10,
+            arm_status_qos,
         )
-        self.pub_arrival = self.create_publisher(
-            ArrivalStatus,
-            contract.TOPIC_ARRIVAL,
-            10,
+        arrival_qos = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.VOLATILE,
         )
+        if (
+            self._mission_supervisor_enabled
+            and self._arm_gate_mode != ARM_GATE_ABSENT_FIELD
+        ):
+            self.pub_arrival = self.create_publisher(
+                ArrivalStatus,
+                contract.TOPIC_ARRIVAL,
+                arrival_qos,
+            )
+        else:
+            self.pub_arrival = None
         self.pub_state = self.create_publisher(
-            ChassisMode,
+            String,
             "/chassis_state",
             10,
         )
@@ -279,11 +445,60 @@ class ChassisNode(Node):
             "~/reset_estop",
             self._srv_reset_estop,
         )
+        self.create_service(
+            SetBool,
+            "~/arm_lock_override",
+            self._srv_arm_lock_override,
+        )
+        if self._mission_supervisor_enabled:
+            self.create_service(
+                Trigger,
+                "~/mission_arrive_pickup",
+                lambda _request, response: self._request_supervisor_work(
+                    contract.ARRIVED_PICKUP,
+                    response,
+                ),
+            )
+            self.create_service(
+                Trigger,
+                "~/mission_arrive_drop",
+                lambda _request, response: self._request_supervisor_work(
+                    contract.ARRIVED_DROP,
+                    response,
+                ),
+            )
+            self.create_service(
+                Trigger,
+                "~/mission_skip",
+                lambda _request, response: self._resolve_mission_failure(
+                    "skip",
+                    response,
+                ),
+            )
+            self.create_service(
+                Trigger,
+                "~/mission_retry",
+                lambda _request, response: self._resolve_mission_failure(
+                    "retry",
+                    response,
+                ),
+            )
+            self.create_service(
+                Trigger,
+                "~/mission_regrasp_confirmed",
+                self._srv_mission_regrasp,
+            )
+            self.create_service(
+                SetBool,
+                "~/mission_clear_grip_lost",
+                self._srv_mission_clear_grip_lost,
+            )
 
-        self._last_arm_status = None
         self._started_ms = self._now_ms()
         self._last_safety_ms = None
         from chassis.chassis_mode import ChassisModeSelector
+        # v1 selector 코드는 보존하지만 contract-v2 supervisor(Task 5)가
+        # set_chassis_mode_intent()를 연결하기 전에는 호출하지 않는다.
         self._mode_sel = ChassisModeSelector()
         self._mission_mode = None
         self._follow_lead = False
@@ -304,15 +519,26 @@ class ChassisNode(Node):
                 "safety_required=false: BENCH/FAKE ONLY; safety topic "
                 "startup and freshness enforcement is disabled"
             )
+        if self._arm_gate_mode == ARM_GATE_ABSENT_FIELD:
+            self.get_logger().warning(
+                "arm_gate_mode=arm_absent_field ACTIVE: "
+                "/arm_status publisher가 "
+                "0일 때만 내부 STOWED_LOCKED mock으로 freshness를 대체합니다. "
+                "운영자는 바퀴 부양과 팔의 기계적 접힘·고정을 육안 확인하고 "
+                "확인자를 journal/운영 로그에 기록해야 합니다."
+            )
         self.get_logger().info(
             "chassis_node started (loop %.0f Hz, min_rev %.1f, "
-            "v_max %.1f, safety_required=%s, authority_enabled=%s)"
+            "v_max %.1f, safety_required=%s, authority_enabled=%s, "
+            "contract_v2_verified=%s, arm_gate_mode=%s)"
             % (
                 self.cm.cfg.loop_hz,
                 min_rev,
                 v_max,
                 self._safety_required,
                 self._authority_enabled,
+                self._contract_v2_verified,
+                self._arm_gate_mode,
             )
         )
 
@@ -334,6 +560,320 @@ class ChassisNode(Node):
     def _now_ms(self):
         return self.get_clock().now().nanoseconds / 1e6
 
+    def _now_s(self):
+        """The only clock domain used for every ArmInterlock call."""
+        return self._now_ms() / 1000.0
+
+    def _remote_owner_selected(self):
+        return (
+            self._authority_enabled
+            and self._authority is not None
+            # CommandAuthority normalizes to TELEOP.  MANUAL remains accepted
+            # only at this adapter boundary for older injected/test doubles.
+            and self._authority.mode in ("TELEOP", "MANUAL")
+        )
+
+    def _arm_gate_decision(self, now_s):
+        """Return ``(drive_allowed, detail)`` for the manager final gate."""
+        if self._arm_override_requested:
+            self._chassis_mode_intent = contract.MODE_STOW_REQUEST
+            activated_s = self._arm_override_activated_s
+            if (
+                self._arm_override_expired
+                or activated_s is None
+                or now_s - activated_s > self._arm_override_ttl_s
+            ):
+                self._arm_override_expired = True
+                return False, "operator_override_expired"
+            if not self._remote_owner_selected():
+                return False, "operator_override_remote_owner_required"
+            allowed = self._arm_interlock.drive_allowed(
+                "REMOTE_ARM_OVERRIDE",
+                now_s,
+                manual_override=True,
+            )
+            reason = self._arm_interlock.hold_reason(
+                "REMOTE_ARM_OVERRIDE",
+                now_s,
+                manual_override=True,
+            )
+            return allowed, "" if allowed else reason
+
+        gate = self._arm_interlock
+        if (
+            self._arm_gate_mode == "arm_absent_field"
+            and self.count_publishers(contract.TOPIC_ARM_STATUS) == 0
+        ):
+            # This profile replaces freshness only. A previously observed
+            # GRIP_LOST latch or contract violation must still block motion.
+            real_reason = self._arm_interlock.hold_reason(
+                "EMPTY_STOWED",
+                now_s,
+            )
+            if real_reason == "grip_lost_latched" or real_reason.startswith(
+                "arm_contract_violation:"
+            ):
+                return False, real_reason
+            self._arm_absent_interlock.update(
+                contract.ARM_STOWED_LOCKED,
+                0,
+                now_s,
+                now_s,
+            )
+            gate = self._arm_absent_interlock
+
+        # Task 5 will choose one qualified payload profile. Until then both
+        # approved locked postures are accepted so CARRYING_LOCKED stays
+        # usable.
+        allowed = (
+            gate.drive_allowed("EMPTY_STOWED", now_s)
+            or gate.drive_allowed("CARRYING_LOCKED", now_s)
+        )
+        if allowed:
+            return True, ""
+        return False, gate.hold_reason("EMPTY_STOWED", now_s)
+
+    def _tick_arm_gate(self, now_s):
+        allowed, detail = self._arm_gate_decision(now_s)
+        self.cm.set_arm_motion_hold(not allowed, detail)
+        return allowed
+
+    def _set_mission_motion_hold(self, active, detail=""):
+        """Use a distinct interlock source so arm-gate clears cannot erase it."""
+        active = bool(active)
+        if active:
+            self._authority_final_v = 0.0
+            self._authority_final_omega = 0.0
+        self.cm._interlock.set_motion_hold("mission", active, detail)
+
+    def _apply_mission_result(self, result):
+        if not self._mission_supervisor_enabled:
+            return False
+
+        if (
+            self._arm_gate_mode == "arm_absent_field"
+            and result.state in ("READY", "DRIVE", "RESUME", "COMPLETE")
+            and result.publish_arrival is None
+        ):
+            self.set_chassis_mode_intent(contract.MODE_STOW_REQUEST)
+            self._set_mission_motion_hold(False, "")
+            return False
+
+        if (
+            self._arm_gate_mode == "arm_absent_field"
+            and (
+                result.mode_intent == contract.MODE_MISSION_STOP
+                or result.publish_arrival is not None
+            )
+        ):
+            self.set_chassis_mode_intent(contract.MODE_STOW_REQUEST)
+            self._set_mission_motion_hold(
+                True,
+                "arm_absent_field_blocks_mission_work",
+            )
+            self.get_logger().warning(
+                "arm_absent_field blocked MISSION_STOP/ArrivalStatus"
+            )
+            return False
+
+        mode_applied = self.set_chassis_mode_intent(result.mode_intent)
+        detail = (
+            result.hold_reason
+            or result.operator_notice
+            or "mission_state:%s" % result.state
+        )
+        self._set_mission_motion_hold(not result.allow_drive, detail)
+
+        arrival_published = True
+        if result.publish_arrival is not None:
+            mission_id, status = result.publish_arrival
+            arrival_published = self.publish_arrival(mission_id, status)
+        return bool(mode_applied and arrival_published)
+
+    def _mission_supervisor_failure(self, detail):
+        if self._mission_supervisor is not None:
+            try:
+                self._mission_supervisor.abort_for_override(self._now_s())
+            except Exception:
+                pass
+        self.set_chassis_mode_intent(contract.MODE_STOW_REQUEST)
+        self._set_mission_motion_hold(True, detail)
+        self.get_logger().error("mission supervisor held: %s" % detail)
+        return False
+
+    def _tick_mission_supervisor(self, now_s):
+        if not self._mission_supervisor_enabled or self._mission_supervisor is None:
+            return False
+        try:
+            result = self._mission_supervisor.tick(now_s)
+            return self._apply_mission_result(result)
+        except Exception as exc:
+            return self._mission_supervisor_failure(
+                "mission_tick_exception:%s" % exc
+            )
+
+    def _request_supervisor_work(self, arrival_status, response):
+        if (
+            not self._mission_supervisor_enabled
+            or self._mission_supervisor is None
+            or self._arm_gate_mode == ARM_GATE_ABSENT_FIELD
+        ):
+            response.success = False
+            response.message = "mission work disabled by compatibility/arm_absent_field"
+            return response
+        try:
+            result = self._mission_supervisor.request_work(
+                arrival_status,
+                self._now_s(),
+            )
+            self._apply_mission_result(result)
+        except Exception as exc:
+            self._mission_supervisor_failure(
+                "mission_request_exception:%s" % exc
+            )
+            response.success = False
+            response.message = "mission request held"
+            return response
+        response.success = result.accepted
+        response.message = "%s|%s" % (result.state, result.hold_reason)
+        return response
+
+    def _resolve_mission_failure(self, action, response):
+        if not self._mission_supervisor_enabled or self._mission_supervisor is None:
+            response.success = False
+            response.message = "mission supervisor disabled"
+            return response
+        try:
+            result = self._mission_supervisor.resolve_failure(
+                action,
+                self._now_s(),
+            )
+            self._apply_mission_result(result)
+        except Exception as exc:
+            self._mission_supervisor_failure(
+                "mission_resolution_exception:%s" % exc
+            )
+            response.success = False
+            response.message = "mission resolution held"
+            return response
+        response.success = result.accepted
+        response.message = "%s|%s" % (result.state, result.hold_reason)
+        return response
+
+    def _srv_mission_regrasp(self, _request, response):
+        try:
+            result = self._mission_supervisor.confirm_regrasp(self._now_s())
+            self._apply_mission_result(result)
+        except Exception as exc:
+            self._mission_supervisor_failure(
+                "mission_regrasp_exception:%s" % exc
+            )
+            response.success = False
+            response.message = "regrasp confirmation held"
+            return response
+        response.success = result.accepted
+        response.message = "%s|%s" % (result.state, result.hold_reason)
+        return response
+
+    def _srv_mission_clear_grip_lost(self, request, response):
+        try:
+            result = self._mission_supervisor.operator_clear_grip_lost(
+                bool(request.data),
+                self._now_s(),
+            )
+            self._apply_mission_result(result)
+        except Exception as exc:
+            self._mission_supervisor_failure(
+                "mission_grip_clear_exception:%s" % exc
+            )
+            response.success = False
+            response.message = "grip-lost clear held"
+            return response
+        response.success = result.accepted
+        response.message = "%s|%s" % (result.state, result.hold_reason)
+        return response
+
+    def _discard_pending_command(self):
+        if self.cm.mode == "ARMED":
+            self.cm.set(0.0, 0.0)
+
+    def _override_activation_error(self, now_s):
+        if not self._contract_v2_verified:
+            return "contract_v2_verified_required"
+        if not self._remote_owner_selected():
+            return "remote_owner_required"
+
+        arm_reason = self._arm_interlock.hold_reason(
+            "REMOTE_ARM_OVERRIDE",
+            now_s,
+            manual_override=True,
+        )
+        if arm_reason:
+            if arm_reason == "operator_override_inhibited_by_fresh_arm":
+                return "arm_status_must_be_stale"
+            return arm_reason
+
+        state = self.cm.state()
+        safety = state["safety"]
+        if safety.estop_latched or safety.active_estop_sources:
+            return "estop_or_safety_condition_active"
+        other_holds = set(safety.hold_sources) - {"robot_arm"}
+        if other_holds:
+            return "other_motion_hold_active:%s" % ",".join(
+                sorted(other_holds)
+            )
+        if self.cm.mode != "IDLE" and "robot_arm" not in safety.hold_sources:
+            return "chassis_must_be_idle_or_arm_held"
+        if not self.cm.snapshot().healthy:
+            return "motor_health_not_ready"
+
+        return ""
+
+    def _srv_arm_lock_override(self, request, response):
+        if not request.data:
+            self._arm_override_requested = False
+            self._arm_override_activated_s = None
+            self._arm_override_expired = False
+            response.success = True
+            response.message = "arm lock override disabled"
+            return response
+
+        now_s = self._now_s()
+        error = self._override_activation_error(now_s)
+        if error:
+            response.success = False
+            response.message = "override rejected: %s" % error
+            return response
+
+        if getattr(self, "_mission_supervisor_enabled", False):
+            try:
+                aborted = self._mission_supervisor.abort_for_override(now_s)
+            except Exception as exc:
+                self._mission_supervisor_failure(
+                    "mission_override_abort_exception:%s" % exc
+                )
+                response.success = False
+                response.message = "override rejected: mission abort held"
+                return response
+            if (
+                not aborted
+                or self._mission_supervisor.arrival_republish_active
+            ):
+                response.success = False
+                response.message = "override rejected: mission abort not acknowledged"
+                return response
+        self.set_chassis_mode_intent(contract.MODE_STOW_REQUEST)
+        self._discard_pending_command()
+        self._arm_override_requested = True
+        self._arm_override_activated_s = now_s
+        self._arm_override_expired = False
+        response.success = True
+        response.message = (
+            "override requested: REMOTE_ARM_OVERRIDE only; "
+            "fresh ArmStatus immediately removes drive permission"
+        )
+        return response
+
     def _seed_initial_safety(self):
         if self._safety_required:
             self.cm.update_external_safety(
@@ -353,14 +893,49 @@ class ChassisNode(Node):
             self._now_ms() / 1000.0,
         )
 
+    def _on_wheel_states_for_stop(self, msg: WheelStates):
+        from powertrain_ros.wheel_stop import (
+            WheelStopSample,
+            WheelStopWheel,
+        )
+
+        stamp_s = (
+            float(msg.header.stamp.sec)
+            + float(msg.header.stamp.nanosec) * 1e-9
+        )
+        sample = WheelStopSample(
+            stamp_s=stamp_s,
+            healthy=bool(msg.healthy),
+            wheels=tuple(
+                WheelStopWheel(
+                    name=str(wheel.name),
+                    drive_turns_per_s=float(wheel.drive_turns_per_s),
+                    drive_stale=bool(wheel.drive_stale),
+                    steer_stale=bool(wheel.steer_stale),
+                    drive_axis_error=int(wheel.drive_axis_error),
+                    steer_fault=int(wheel.steer_fault),
+                )
+                for wheel in msg.wheels
+            ),
+            authority_v=self._authority_final_v,
+            authority_omega=self._authority_final_omega,
+        )
+        self._wheel_stop.update(sample, now_s=self._now_s())
+
     def _set_authority_mode(self, mode, response):
-        response.success = self._authority.set_mode(mode)
-        response.message = "mode=%s" % mode
+        result = self._authority.request_mode(mode, t=self._now_s())
+        response.success = result.accepted
+        response.message = "%s; state=%s" % (result.reason, result.state)
         if response.success:
             self.get_logger().warning(
-                "authority mode → %s (중립 확인 전까지 명령 전달 안 함)"
-                % mode
+                "authority request %s accepted: %s"
+                % (mode, response.message)
             )
+        return response
+
+    def _clear_authority_hold(self, _request, response):
+        response.success = self._authority.clear_hold()
+        response.message = self._authority.last_transition_reason
         return response
 
     def _tick_authority(self, now_s):
@@ -369,6 +944,8 @@ class ChassisNode(Node):
             String(data="%s|%s" % (self._authority.mode, command.reason))
         )
         if command.ok:
+            self._authority_final_v = command.v
+            self._authority_final_omega = command.omega
             self.cm.set(command.v, command.omega)
 
     def _on_safety_verdict(self, msg):
@@ -388,8 +965,9 @@ class ChassisNode(Node):
 
     def _tick(self):
         now_ms = self._now_ms()
+        now_s = now_ms / 1000.0
         if self._authority_enabled:
-            self._tick_authority(now_ms / 1000.0)
+            self._tick_authority(now_s)
         if self._safety_required:
             if self._last_safety_ms is None:
                 expired = (
@@ -415,6 +993,25 @@ class ChassisNode(Node):
                     stale,
                     "safety_topic_stale",
                 )
+
+        if not hasattr(self, "_tick_arm_gate"):
+            # Existing ROS adapter unit tests call this unbound method with a
+            # SimpleNamespace. A real manager still fails closed if a partial
+            # node ever reaches this path.
+            if hasattr(self.cm, "set_arm_motion_hold"):
+                self.cm.set_arm_motion_hold(True, "arm_gate_uninitialized")
+        else:
+            try:
+                self._tick_arm_gate(now_s)
+            except Exception as exc:
+                self.cm.set_arm_motion_hold(
+                    True,
+                    "arm_gate_exception:%s" % exc,
+                )
+                self.get_logger().error("arm gate evaluation failed: %s" % exc)
+
+        if getattr(self, "_mission_supervisor_enabled", False):
+            self._tick_mission_supervisor(now_s)
 
         started = time.monotonic()
         try:
@@ -466,32 +1063,52 @@ class ChassisNode(Node):
                                 1 - 2 * (q.x * q.x + q.y * q.y))
         self._pitch = math.asin(max(-1.0, min(1.0, 2 * (q.w * q.y - q.z * q.x))))
 
-    def _publish_mode(self):
-        """★ `/chassis_mode` 단독 발행 — 팔이 이걸 보고 자세를 락한다.
+    def set_chassis_mode_intent(self, mode: str):
+        allowed = contract.LOCK_MODES | {
+            contract.MODE_MISSION_STOP,
+            contract.MODE_STOW_REQUEST,
+        }
+        if mode not in allowed:
+            raise ValueError("unsupported chassis mode intent: %s" % mode)
+        if self._arm_override_requested and mode != contract.MODE_STOW_REQUEST:
+            self._chassis_mode_intent = contract.MODE_STOW_REQUEST
+            return False
+        self._chassis_mode_intent = mode
+        return True
 
-        우선순위: MISSION_STOP > FOLLOW_LEAD > ROUGH_TERRAIN > CORNERING > DRIVING.
-        ⚠️ 지금까지 **파라미터 값(항상 DRIVING)만 발행**하고 있었다 — 팔은 코너·험지에서도
-           DRIVING 만 받아 **자세를 락하지 않았다.** 계약은 있었지만 구현이 비어 있었다.
-        """
-        mode = self._mode_sel.update(
-            self._now_ms() / 1000.0,
-            omega=self._omega, roll=self._roll, pitch=self._pitch,
-            mission_mode=self._mission_mode, follow_lead=self._follow_lead,
-        )
+    def _effective_chassis_mode(self):
+        if not self._contract_v2_verified:
+            return contract.MODE_CORNERING
+        if self._arm_override_requested:
+            return contract.MODE_STOW_REQUEST
+        if (
+            self._arm_gate_mode == "arm_absent_field"
+            and self._chassis_mode_intent == contract.MODE_MISSION_STOP
+        ):
+            return contract.MODE_STOW_REQUEST
+        return self._chassis_mode_intent
+
+    def _publish_mode(self):
+        """Publish compatibility lock or the explicit contract-v2 intent."""
+        # ChassisModeSelector is v1 vocabulary. Keep its implementation for
+        # history, but do not call it until Task 5 maps supervisor state into
+        # set_chassis_mode_intent().
+        mode = self._effective_chassis_mode()
         msg = ChassisMode()
         msg.header = self._header()
         msg.mode = mode
         self.pub_mode.publish(msg)
 
     def _publish_state(self):
+        """Publish ``<mode> v=<m/s> w=<rad/s>`` as String diagnostics."""
         try:
             state = self.cm.state()
-            msg = ChassisMode()
-            msg.header = self._header()
-            msg.mode = "%s v=%.2f w=%.2f" % (
-                state["mode"],
-                state["v"],
-                state["omega"],
+            msg = String(
+                data="%s v=%.2f w=%.2f" % (
+                    state["mode"],
+                    state["v"],
+                    state["omega"],
+                )
             )
             self.pub_state.publish(msg)
         except Exception as exc:
@@ -500,6 +1117,15 @@ class ChassisNode(Node):
             )
 
     def publish_arrival(self, mission_id: int, status: str):
+        if (
+            not self._contract_v2_verified
+            or self._arm_gate_mode == "arm_absent_field"
+            or self.pub_arrival is None
+        ):
+            self.get_logger().warning(
+                "ArrivalStatus blocked by compatibility/arm_absent_field lock"
+            )
+            return False
         msg = ArrivalStatus()
         msg.header = self._header()
         msg.mission_id = int(mission_id)
@@ -508,18 +1134,48 @@ class ChassisNode(Node):
         self.get_logger().info(
             "arrival mission=%d status=%s" % (msg.mission_id, status)
         )
+        return True
+
+    def _arm_status_stamp_s(self, msg):
+        return (
+            float(msg.header.stamp.sec)
+            + float(msg.header.stamp.nanosec) / 1_000_000_000.0
+        )
 
     def _on_arm_status(self, msg: ArmStatus):
+        now_s = self._now_s()
+        accepted = self._arm_interlock.update(
+            msg.status,
+            msg.mission_id,
+            self._arm_status_stamp_s(msg),
+            now_s,
+        )
+        if not accepted:
+            self.get_logger().warning(
+                "arm status rejected mission=%d status=%s"
+                % (msg.mission_id, msg.status)
+            )
+            return
         if msg.status != self._last_arm_status:
             self.get_logger().info(
                 "arm status mission=%d status=%s"
                 % (msg.mission_id, msg.status)
             )
-            if msg.status == contract.ARM_DONE:
-                self.get_logger().info(
-                    "DONE received; WP8 sequencer may resume"
-                )
             self._last_arm_status = msg.status
+        if getattr(self, "_mission_supervisor_enabled", False):
+            try:
+                result = self._mission_supervisor.on_arm_status(
+                    msg.status,
+                    msg.mission_id,
+                    self._arm_status_stamp_s(msg),
+                    now_s,
+                )
+                self._apply_mission_result(result)
+            except Exception as exc:
+                self._mission_supervisor_failure(
+                    "mission_arm_status_exception:%s" % exc
+                )
+                return
 
     def _srv_arm(self, _request, response):
         response.success = self.cm.arm()
@@ -566,22 +1222,26 @@ class ChassisNode(Node):
     def close(self):
         manager = self.cm
         self.cm = None
-        if manager is None:
-            return
-        try:
-            manager.estop("node_shutdown", "chassis node cleanup")
-        except BaseException as exc:
-            self.get_logger().error(
-                "E-stop during cleanup failed: %s" % exc
-            )
-        for name, corner in manager.corners.items():
+        can_session = self._can_session
+        self._can_session = None
+        if manager is not None:
             try:
-                corner.close()
+                manager.estop("node_shutdown", "chassis node cleanup")
             except BaseException as exc:
                 self.get_logger().error(
-                    "corner %s close during cleanup failed: %s"
-                    % (name, exc)
+                    "E-stop during cleanup failed: %s" % exc
                 )
+            for name, corner in manager.corners.items():
+                try:
+                    corner.close()
+                except BaseException as exc:
+                    self.get_logger().error(
+                        "corner %s close during cleanup failed: %s"
+                        % (name, exc)
+                    )
+        # 모든 실물 bus/corner fd가 닫힌 뒤 owner flock fd를 놓는다.
+        if can_session is not None:
+            can_session.close()
 
 
 def main(argv=None):

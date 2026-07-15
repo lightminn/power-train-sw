@@ -1,5 +1,6 @@
-"""chassis.teleop_dualsense.map_chassis_input 순수 함수 단위 테스트 (무하드웨어)."""
+"""Chassis teleop input and direct-CAN diagnostic gate tests."""
 import pytest
+from chassis import teleop_dualsense, teleop_server
 from chassis.teleop_dualsense import map_chassis_input
 
 
@@ -79,3 +80,67 @@ def test_parse_bad_returns_none():
     assert parse_input_line("0 0 0") is None          # 필드 부족
     assert parse_input_line("a b c d e") is None       # 숫자 아님
     assert parse_input_line("") is None
+
+
+TELEOP_MODULES = (teleop_server, teleop_dualsense)
+DIRECT_CAN_NOTICE = (
+    "production 원격은 powertrain_control(teleop_command)+authority 경로. "
+    "이 도구는 진단 전용"
+)
+
+
+def _parse_args(module, argv, input_fn=None):
+    assert hasattr(module, "_parse_args"), (
+        f"{module.__name__} must gate direct-CAN arguments before hardware init"
+    )
+    return module._parse_args(argv, input_fn=input_fn)
+
+
+@pytest.mark.parametrize("module", TELEOP_MODULES)
+def test_direct_can_teleop_requires_explicit_diagnostic_flag(module, capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        _parse_args(module, [])
+
+    assert excinfo.value.code == 2
+    assert DIRECT_CAN_NOTICE in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("module", TELEOP_MODULES)
+def test_direct_can_teleop_accepts_exact_yes_confirmation(module):
+    prompts = []
+
+    args = _parse_args(
+        module,
+        ["--diagnostic-direct-can"],
+        input_fn=lambda prompt: prompts.append(prompt) or "yes",
+    )
+
+    assert args.diagnostic_direct_can is True
+    assert prompts == [
+        "로봇팔이 기계적으로 접혀 고정됐음을 확인했는가? "
+        "계속하려면 yes 입력: "
+    ]
+
+
+@pytest.mark.parametrize("module", TELEOP_MODULES)
+def test_direct_can_teleop_rejects_confirmation_refusal(module, capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        _parse_args(
+            module,
+            ["--diagnostic-direct-can"],
+            input_fn=lambda _prompt: "no",
+        )
+
+    assert excinfo.value.code == 2
+    assert "arm-stowed confirmation required" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("module", TELEOP_MODULES)
+def test_direct_can_teleop_noninteractive_confirmation_bypasses_prompt(module):
+    args = _parse_args(
+        module,
+        ["--diagnostic-direct-can", "--confirm-arm-stowed"],
+        input_fn=lambda _prompt: pytest.fail("prompt must be bypassed"),
+    )
+
+    assert args.confirm_arm_stowed is True

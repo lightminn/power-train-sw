@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
+from pathlib import Path
+import sys
 
 from .base import Transport, TransportError
 
@@ -60,18 +62,47 @@ class CanTransport(Transport):
         self._track = track
         self._bus = bus              # 주입 시 테스트용 (socketcan open 생략)
         self._owns_bus = bus is None
+        self._can_session = None
 
     def connect(self) -> None:
         if self._bus is None:
             import can
+            motor_control_dir = (
+                Path(__file__).resolve().parents[3] / "motor_control"
+            )
+            sys.path.insert(0, str(motor_control_dir))
+            from chassis.runtime_lock import RealCanSession
+
+            session = RealCanSession(
+                channel=self._channel,
+                owner=f"motor_gui_{self._track}",
+            )
+            session.__enter__()
             try:
                 self._bus = can.interface.Bus(channel=self._channel,
                                               interface="socketcan")
-            except OSError as e:
-                raise TransportError(
-                    f"{self._channel} open 실패 — 'bash scripts/can_setup.sh' 먼저 ({e})")
-        for d in self._devices:
-            d.attach(self._bus)
+            except BaseException as exc:
+                session.close()
+                if isinstance(exc, OSError):
+                    raise TransportError(
+                        f"{self._channel} open 실패 — "
+                        f"'bash scripts/can_setup.sh' 먼저 ({exc})"
+                    ) from exc
+                raise
+            self._can_session = session
+        try:
+            for d in self._devices:
+                d.attach(self._bus)
+        except BaseException:
+            if self._owns_bus and self._bus is not None:
+                try:
+                    self._bus.shutdown()
+                finally:
+                    self._bus = None
+            if self._can_session is not None:
+                self._can_session.close()
+                self._can_session = None
+            raise
 
     def sample(self) -> dict:
         for d in self._devices:
@@ -140,3 +171,6 @@ class CanTransport(Transport):
             except Exception:
                 pass
             self._bus = None   # reconnect 시 connect() 가 버스를 재오픈하도록
+        if self._can_session is not None:
+            self._can_session.close()
+            self._can_session = None

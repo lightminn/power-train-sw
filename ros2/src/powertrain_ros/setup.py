@@ -23,7 +23,12 @@ setup(
         ),
         (
             "share/" + package_name + "/config",
-            ["config/l515.yaml", "config/l515_tilt.rviz", "config/robot_viz.rviz"],
+            [
+                "config/l515.yaml",
+                "config/l515_tilt.rviz",
+                "config/robot_viz.rviz",
+                "config/wheel_stop.yaml",
+            ],
         ),
         (
             "share/" + package_name + "/urdf",
@@ -57,6 +62,8 @@ setup(
             "mission = powertrain_ros.mission_node:main",
             "wall_follower = powertrain_ros.wall_follower_node:main",
             "lead_follower = powertrain_ros.lead_follower_node:main",
+            "teleop_command = powertrain_ros.teleop_command_node:main",
+            "pdist80b_monitor = powertrain_ros.pdist80b_monitor_node:main",
         ],
     },
 )

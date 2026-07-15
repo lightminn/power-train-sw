@@ -279,6 +279,27 @@ def test_commands_received_during_motion_hold_are_discarded():
     m.set(0.7, 0.3)
     m.tick()
     assert m.snapshot().stop_state == "RUN"
+
+
+def test_arm_motion_hold_transition_discards_pending_command():
+    m = _armed_manager()
+    m.set(0.4, 0.4)
+    m.tick()
+    assert any(d != 0.0 for d in _drive_targets(m).values())
+
+    m.set_arm_motion_hold(True, "arm_status_stale")
+    m.tick()
+    assert all(d == 0.0 for d in _drive_targets(m).values())
+    assert m.state()["v"] == 0.0
+    assert m.state()["omega"] == 0.0
+
+    m.set_arm_motion_hold(False)
+    m.tick()
+    assert m.snapshot().stop_state == "RUN"
+    assert all(d == 0.0 for d in _drive_targets(m).values())
+
+    m.set(0.4, 0.4)
+    m.tick()
     assert any(d != 0.0 for d in _drive_targets(m).values())
 
 

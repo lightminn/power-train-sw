@@ -6,11 +6,46 @@
   ③ 유효한 DONE 이후에만 재출발
 """
 import pytest
+import chassis.mission as mission_module
+import ast
+from pathlib import Path
+from types import SimpleNamespace
 
 from chassis.mission import (
     ARM_DONE, DRIVE, FAILED, MODE_DRIVING, MODE_MISSION_STOP, STOPPING, WAIT_ARM,
     MissionConfig, MissionSequencer,
 )
+from chassis.mission import (
+    ARM_CARRYING_LOCKED,
+    ARM_EXECUTING,
+    ARM_FAILED,
+    ARM_GRIP_LOST,
+    ARM_PERCEIVING,
+    ARM_PLANNING,
+    ARM_STOWED_LOCKED,
+    ARM_WORK,
+    ARM_WORK_READY,
+    ARRIVED_DROP,
+    ARRIVED_PICKUP,
+    COMPLETE,
+    DROP,
+    DIAGNOSTIC_FAILURES,
+    EVENT_HOLD,
+    FAILED_HOLD,
+    GRIP_LOST_HOLD,
+    MODE_STOW_REQUEST,
+    PICKUP,
+    READY,
+    RESUME,
+    STOP_REQUESTED,
+    STOW_VERIFY,
+    SUPERVISOR_STATES,
+    MissionSupervisor,
+)
+
+
+def test_v2_mission_supervisor_exists_in_team_owned_pure_core():
+    assert hasattr(mission_module, "MissionSupervisor")
 
 
 def _seq(**kw):
@@ -194,3 +229,545 @@ def test_arrive_is_ignored_while_busy():
     assert s.arrive(7, "ARRIVED_PICKUP", t=0.0) is True
     assert s.arrive(8, "ARRIVED_DROP", t=0.1) is False
     assert s.mission_id == 7
+
+
+# ── WP5.2 contract-v2 MissionSupervisor ────────────────────────────────────
+
+
+class _Store:
+    def __init__(self, *mission_ids):
+        self.ids = list(mission_ids or (1,))
+        self.calls = 0
+
+    def allocate(self):
+        self.calls += 1
+        if not self.ids:
+            return SimpleNamespace(
+                accepted=False,
+                mission_id=None,
+                hold_reason="mission_id_store:exhausted_fixture",
+            )
+        return SimpleNamespace(
+            accepted=True,
+            mission_id=self.ids.pop(0),
+            hold_reason="",
+        )
+
+
+class _WheelStop:
+    def __init__(self, *, qualified=True, confirmed=True):
+        self.qualified = qualified
+        self.confirmed = confirmed
+        self.last_reject_reason = "fixture_pending"
+
+
+def _supervisor(
+    *,
+    mission_ids=(1,),
+    qualified=True,
+    confirmed=True,
+    authority_zero=True,
+    clear_grip_lost=None,
+):
+    store = _Store(*mission_ids)
+    stop = _WheelStop(qualified=qualified, confirmed=confirmed)
+    supervisor = MissionSupervisor(
+        store,
+        wheel_stop=stop,
+        authority_output_zero=lambda: authority_zero,
+        clear_grip_lost=clear_grip_lost,
+    )
+    return supervisor, store, stop
+
+
+def _locked(supervisor, status, *, mission_id=77, t=10.0):
+    return supervisor.on_arm_status(status, mission_id, t, t)
+
+
+def _request_and_publish(
+    supervisor,
+    arrival=ARRIVED_PICKUP,
+    *,
+    posture=ARM_STOWED_LOCKED,
+    t=10.0,
+):
+    _locked(supervisor, posture, mission_id=77, t=t)
+    requested = supervisor.request_work(arrival, t + 0.01)
+    assert requested.accepted is True
+    published = supervisor.tick(t + 0.02)
+    assert published.publish_arrival is not None
+    return published
+
+
+def _start_arm_work(
+    supervisor,
+    arrival=ARRIVED_PICKUP,
+    *,
+    posture=ARM_STOWED_LOCKED,
+    t=10.0,
+):
+    published = _request_and_publish(
+        supervisor,
+        arrival,
+        posture=posture,
+        t=t,
+    )
+    mission_id = published.publish_arrival[0]
+    result = supervisor.on_arm_status(
+        ARM_WORK_READY,
+        mission_id,
+        t + 0.03,
+        t + 0.03,
+    )
+    assert result.state == ARM_WORK
+    return mission_id
+
+
+def test_supervisor_state_vocabulary_is_exactly_contract_v2():
+    assert set(SUPERVISOR_STATES) == {
+        READY,
+        DRIVE,
+        STOP_REQUESTED,
+        EVENT_HOLD,
+        ARM_WORK,
+        STOW_VERIFY,
+        RESUME,
+        COMPLETE,
+        FAILED_HOLD,
+        GRIP_LOST_HOLD,
+    }
+
+
+def test_unqualified_stop_predicate_rejects_work_without_allocating_id():
+    supervisor, store, _stop = _supervisor(qualified=False)
+    _locked(supervisor, ARM_STOWED_LOCKED)
+
+    result = supervisor.request_work(ARRIVED_PICKUP, 10.01)
+
+    assert result.accepted is False
+    assert result.state == EVENT_HOLD
+    assert "unqualified" in result.hold_reason
+    assert result.publish_arrival is None
+    assert store.calls == 0
+
+
+def test_one_unstopped_wheel_keeps_stop_pending_without_work_permit():
+    supervisor, store, stop = _supervisor(confirmed=False)
+    _locked(supervisor, ARM_STOWED_LOCKED)
+    assert supervisor.request_work(ARRIVED_PICKUP, 10.01).accepted is True
+
+    pending = supervisor.tick(10.02)
+
+    assert pending.state == STOP_REQUESTED
+    assert pending.publish_arrival is None
+    assert pending.allow_drive is False
+    assert store.calls == 0
+    stop.confirmed = True
+    published = supervisor.tick(10.03)
+    assert published.publish_arrival == (1, ARRIVED_PICKUP)
+
+
+def test_authority_final_output_must_be_zero_before_mode_and_arrival():
+    zero = SimpleNamespace(value=False)
+    supervisor, store, _stop = _supervisor()
+    supervisor.authority_output_zero = lambda: zero.value
+    _locked(supervisor, ARM_STOWED_LOCKED)
+    supervisor.request_work(ARRIVED_PICKUP, 10.01)
+
+    pending = supervisor.tick(10.02)
+
+    assert pending.publish_arrival is None
+    assert pending.mode_intent == MODE_STOW_REQUEST
+    assert store.calls == 0
+    zero.value = True
+    published = supervisor.tick(10.03)
+    assert published.mode_intent == MODE_MISSION_STOP
+    assert published.publish_arrival == (1, ARRIVED_PICKUP)
+
+
+def test_pickup_and_drop_require_fresh_payload_specific_locked_posture():
+    pickup, pickup_store, _ = _supervisor()
+    _locked(pickup, ARM_CARRYING_LOCKED)
+    rejected_pickup = pickup.request_work(ARRIVED_PICKUP, 10.01)
+    assert rejected_pickup.accepted is False
+    assert pickup_store.calls == 0
+
+    drop, drop_store, _ = _supervisor()
+    _locked(drop, ARM_STOWED_LOCKED)
+    rejected_drop = drop.request_work(ARRIVED_DROP, 10.01)
+    assert rejected_drop.accepted is False
+    assert drop_store.calls == 0
+
+    stale, stale_store, _ = _supervisor()
+    _locked(stale, ARM_STOWED_LOCKED, t=1.0)
+    rejected_stale = stale.request_work(ARRIVED_PICKUP, 2.0)
+    assert rejected_stale.accepted is False
+    assert "fresh" in rejected_stale.hold_reason
+    assert stale_store.calls == 0
+
+
+def test_idle_locked_heartbeat_id_is_not_interpreted_for_new_work():
+    supervisor, _store, _stop = _supervisor(mission_ids=(88,))
+    _locked(supervisor, ARM_STOWED_LOCKED, mission_id=41)
+
+    result = supervisor.request_work(ARRIVED_PICKUP, 10.01)
+    published = supervisor.tick(10.02)
+
+    assert result.accepted is True
+    assert published.publish_arrival == (88, ARRIVED_PICKUP)
+
+
+def test_arrival_republishes_at_two_hz_for_less_than_two_seconds_then_holds():
+    supervisor, _store, _stop = _supervisor()
+    initial = _request_and_publish(supervisor)
+    assert initial.publish_arrival == (1, ARRIVED_PICKUP)
+
+    assert supervisor.tick(10.51).publish_arrival is None
+    assert supervisor.tick(10.52).publish_arrival == (1, ARRIVED_PICKUP)
+    assert supervisor.tick(11.02).publish_arrival == (1, ARRIVED_PICKUP)
+    assert supervisor.tick(11.52).publish_arrival == (1, ARRIVED_PICKUP)
+
+    timeout = supervisor.tick(12.02)
+    assert timeout.state == EVENT_HOLD
+    assert timeout.publish_arrival is None
+    assert supervisor.arrival_republish_active is False
+    assert "operator" in timeout.operator_notice
+    assert supervisor.tick(30.0).publish_arrival is None
+
+
+@pytest.mark.parametrize(
+    "accepted_status",
+    (ARM_WORK_READY, ARM_PERCEIVING, ARM_PLANNING, ARM_EXECUTING),
+)
+def test_same_id_work_accepted_status_stops_arrival_republish(accepted_status):
+    supervisor, _store, _stop = _supervisor()
+    initial = _request_and_publish(supervisor)
+    mission_id = initial.publish_arrival[0]
+
+    accepted = supervisor.on_arm_status(
+        accepted_status,
+        mission_id,
+        10.2,
+        10.2,
+    )
+
+    assert accepted.state == ARM_WORK
+    assert supervisor.arrival_republish_active is False
+    assert supervisor.work_start_count == 1
+    assert supervisor.tick(10.6).publish_arrival is None
+
+
+def test_duplicate_work_ack_for_same_id_starts_exactly_one_arm_job():
+    supervisor, _store, _stop = _supervisor()
+    initial = _request_and_publish(supervisor)
+    mission_id = initial.publish_arrival[0]
+
+    supervisor.on_arm_status(ARM_WORK_READY, mission_id, 10.2, 10.2)
+    supervisor.on_arm_status(ARM_EXECUTING, mission_id, 10.3, 10.3)
+
+    assert supervisor.state == ARM_WORK
+    assert supervisor.work_start_count == 1
+
+
+def test_wrong_or_previous_id_status_never_starts_or_resumes_work():
+    supervisor, _store, _stop = _supervisor()
+    initial = _request_and_publish(supervisor)
+    mission_id = initial.publish_arrival[0]
+
+    supervisor.on_arm_status(ARM_WORK_READY, mission_id - 1, 10.2, 10.2)
+    supervisor.on_arm_status(ARM_CARRYING_LOCKED, mission_id - 1, 10.3, 10.3)
+
+    assert supervisor.state == EVENT_HOLD
+    assert supervisor.work_start_count == 0
+    assert supervisor.tick(10.52).allow_drive is False
+
+
+def test_done_is_diagnostic_only_and_locked_success_ack_drives_resume():
+    supervisor, _store, _stop = _supervisor()
+    mission_id = _start_arm_work(supervisor)
+
+    done = supervisor.on_arm_status(ARM_DONE, mission_id, 10.1, 10.1)
+    assert done.state == ARM_WORK
+    assert done.allow_drive is False
+    assert supervisor.diagnostic_events[-1][0] == ARM_DONE
+
+    locked = supervisor.on_arm_status(
+        ARM_CARRYING_LOCKED,
+        mission_id,
+        10.2,
+        10.2,
+    )
+    assert locked.state == STOW_VERIFY
+    assert supervisor.tick(10.21).state == RESUME
+    assert supervisor.tick(10.22).state == COMPLETE
+    driving = supervisor.tick(10.23)
+    assert driving.state == DRIVE
+    assert driving.allow_drive is True
+    assert supervisor.last_completed_mission_id == mission_id
+
+
+def test_drop_success_requires_same_id_fresh_stowed_locked():
+    supervisor, _store, _stop = _supervisor()
+    mission_id = _start_arm_work(
+        supervisor,
+        ARRIVED_DROP,
+        posture=ARM_CARRYING_LOCKED,
+    )
+
+    supervisor.on_arm_status(ARM_CARRYING_LOCKED, mission_id, 10.2, 10.2)
+    assert supervisor.state == ARM_WORK
+    supervisor.on_arm_status(ARM_STOWED_LOCKED, mission_id, 10.3, 10.3)
+    assert supervisor.state == STOW_VERIFY
+
+
+def test_failed_hold_preserves_wire_evidence_and_pickup_operation_latch():
+    supervisor, _store, _stop = _supervisor()
+    mission_id = _start_arm_work(supervisor)
+
+    result = supervisor.on_arm_status(ARM_FAILED, mission_id, 10.4, 10.4)
+
+    assert result.state == FAILED_HOLD
+    assert result.mode_intent == MODE_STOW_REQUEST
+    assert supervisor.arrival_republish_active is False
+    assert supervisor.failure.wire_status == ARM_FAILED
+    assert supervisor.failure.mission_id == mission_id
+    assert supervisor.failure.stamp_s == 10.4
+    assert supervisor.failure.last_locked_posture == ARM_STOWED_LOCKED
+    assert supervisor.failure.operation == PICKUP
+    assert supervisor.failure.arm_latched is True
+
+
+@pytest.mark.parametrize("wire_status", sorted(DIAGNOSTIC_FAILURES))
+def test_optional_diagnostic_failure_causes_same_hold_and_preserves_wire_status(
+    wire_status,
+):
+    supervisor, _store, _stop = _supervisor()
+    mission_id = _start_arm_work(supervisor)
+
+    result = supervisor.on_arm_status(wire_status, mission_id, 10.4, 10.4)
+
+    assert result.state == FAILED_HOLD
+    assert supervisor.failure.wire_status == wire_status
+    assert supervisor.failure.operation == PICKUP
+
+
+def test_failed_during_arrival_ack_window_stops_republication_immediately():
+    supervisor, _store, _stop = _supervisor()
+    initial = _request_and_publish(supervisor)
+    mission_id = initial.publish_arrival[0]
+
+    result = supervisor.on_arm_status(ARM_FAILED, mission_id, 10.2, 10.2)
+
+    assert result.state == FAILED_HOLD
+    assert supervisor.arrival_republish_active is False
+    assert supervisor.tick(10.52).publish_arrival is None
+
+
+def test_pickup_failure_closes_only_after_release_to_stowed_and_explicit_skip():
+    supervisor, _store, _stop = _supervisor()
+    mission_id = _start_arm_work(supervisor)
+    supervisor.on_arm_status(ARM_FAILED, mission_id, 10.4, 10.4)
+
+    supervisor.on_arm_status(ARM_CARRYING_LOCKED, mission_id, 10.5, 10.5)
+    rejected = supervisor.resolve_failure("skip", 10.51)
+    assert rejected.state == FAILED_HOLD
+    assert rejected.accepted is False
+
+    supervisor.on_arm_status(ARM_STOWED_LOCKED, mission_id, 10.6, 10.6)
+    assert supervisor.state == FAILED_HOLD
+    closed = supervisor.resolve_failure("skip", 10.61)
+    assert closed.accepted is True
+    assert closed.state == COMPLETE
+
+
+def test_drop_failure_never_collapses_to_empty_stowed_locked():
+    supervisor, _store, _stop = _supervisor()
+    mission_id = _start_arm_work(
+        supervisor,
+        ARRIVED_DROP,
+        posture=ARM_CARRYING_LOCKED,
+    )
+    supervisor.on_arm_status(ARM_FAILED, mission_id, 10.4, 10.4)
+    assert supervisor.failure.operation == DROP
+
+    supervisor.on_arm_status(ARM_STOWED_LOCKED, mission_id, 10.5, 10.5)
+    rejected = supervisor.resolve_failure("skip", 10.51)
+    assert rejected.accepted is False
+    assert rejected.state == FAILED_HOLD
+
+    supervisor.on_arm_status(ARM_CARRYING_LOCKED, mission_id, 10.6, 10.6)
+    closed = supervisor.resolve_failure("skip", 10.61)
+    assert closed.accepted is True
+    assert closed.state == COMPLETE
+
+
+def test_failure_retry_allocates_a_new_id_and_never_replays_old_arrival():
+    supervisor, store, _stop = _supervisor(mission_ids=(5, 6))
+    mission_id = _start_arm_work(supervisor)
+    supervisor.on_arm_status(ARM_FAILED, mission_id, 10.4, 10.4)
+    supervisor.on_arm_status(ARM_STOWED_LOCKED, mission_id, 10.5, 10.5)
+
+    retry = supervisor.resolve_failure("retry", 10.51)
+
+    assert retry.accepted is True
+    assert retry.state == STOP_REQUESTED
+    assert retry.publish_arrival is None
+    new_attempt = supervisor.tick(10.52)
+    assert new_attempt.publish_arrival == (6, ARRIVED_PICKUP)
+    assert store.calls == 2
+
+
+def test_grip_lost_requires_explicit_bounded_regrasp_transition():
+    clear_calls = []
+    supervisor, _store, _stop = _supervisor(
+        clear_grip_lost=lambda authorized=False: clear_calls.append(authorized) or authorized,
+    )
+    mission_id = _start_arm_work(supervisor)
+    supervisor.on_arm_status(ARM_GRIP_LOST, mission_id, 10.4, 10.4)
+    assert supervisor.state == GRIP_LOST_HOLD
+
+    supervisor.on_arm_status(ARM_CARRYING_LOCKED, mission_id, 10.5, 10.5)
+    assert supervisor.state == GRIP_LOST_HOLD
+    assert supervisor.tick(99.0).state == GRIP_LOST_HOLD
+    supervisor.on_arm_status(ARM_CARRYING_LOCKED, mission_id, 99.1, 99.1)
+    assert supervisor.state == GRIP_LOST_HOLD
+
+    recovered = supervisor.confirm_regrasp(99.11)
+    assert recovered.accepted is True
+    assert recovered.state == STOW_VERIFY
+    assert clear_calls == [True]
+
+
+def test_bounded_regrasp_cannot_exit_if_interlock_clear_fails():
+    supervisor, _store, _stop = _supervisor(
+        clear_grip_lost=lambda authorized=False: False,
+    )
+    mission_id = _start_arm_work(supervisor)
+    supervisor.on_arm_status(ARM_GRIP_LOST, mission_id, 10.4, 10.4)
+    supervisor.on_arm_status(ARM_CARRYING_LOCKED, mission_id, 10.5, 10.5)
+
+    rejected = supervisor.confirm_regrasp(10.51)
+
+    assert rejected.accepted is False
+    assert supervisor.state == GRIP_LOST_HOLD
+    assert "interlock_clear" in rejected.hold_reason
+
+
+def test_grip_lost_during_carrying_drive_enters_supervisor_latch():
+    supervisor, _store, _stop = _supervisor(
+        clear_grip_lost=lambda authorized=False: authorized,
+    )
+    mission_id = _start_arm_work(supervisor)
+    supervisor.on_arm_status(ARM_CARRYING_LOCKED, mission_id, 10.2, 10.2)
+    supervisor.tick(10.21)
+    supervisor.tick(10.22)
+    assert supervisor.tick(10.23).state == DRIVE
+    assert supervisor.active_mission_id is None
+
+    lost = supervisor.on_arm_status(ARM_GRIP_LOST, mission_id, 10.3, 10.3)
+
+    assert lost.state == GRIP_LOST_HOLD
+    assert supervisor.active_mission_id == mission_id
+    assert supervisor.failure.operation == PICKUP
+    assert supervisor.tick(20.0).state == GRIP_LOST_HOLD
+
+
+def test_operator_grip_clear_requires_authorization_interlock_and_typed_lock():
+    clear_calls = []
+    supervisor, _store, _stop = _supervisor(
+        clear_grip_lost=lambda authorized=False: clear_calls.append(authorized) or authorized,
+    )
+    mission_id = _start_arm_work(supervisor)
+    supervisor.on_arm_status(ARM_GRIP_LOST, mission_id, 10.4, 10.4)
+    supervisor.on_arm_status(ARM_STOWED_LOCKED, mission_id, 10.5, 10.5)
+
+    unauthorized = supervisor.operator_clear_grip_lost(False, 10.51)
+    assert unauthorized.accepted is False
+    assert clear_calls == []
+    assert supervisor.state == GRIP_LOST_HOLD
+
+    cleared = supervisor.operator_clear_grip_lost(True, 10.52)
+    assert cleared.accepted is True
+    assert clear_calls == [True]
+    assert cleared.state == FAILED_HOLD
+
+
+def test_arm_restart_or_delayed_heartbeat_cannot_revive_pending_work():
+    old, _store, _stop = _supervisor()
+    initial = _request_and_publish(old)
+    mission_id = initial.publish_arrival[0]
+    old.tick(12.02)
+    old.on_arm_status(ARM_WORK_READY, mission_id, 12.03, 12.03)
+    assert old.state == EVENT_HOLD
+    assert old.arrival_republish_active is False
+
+    restarted, _new_store, _new_stop = _supervisor(mission_ids=(2,))
+    restarted.on_arm_status(ARM_WORK_READY, mission_id, 12.04, 12.04)
+    assert restarted.state == READY
+    assert restarted.arrival_republish_active is False
+
+
+def test_override_aborts_active_mission_stops_republish_then_requests_stow():
+    supervisor, _store, _stop = _supervisor()
+    _request_and_publish(supervisor)
+
+    assert supervisor.abort_for_override(10.2) is True
+    assert supervisor.arrival_republish_active is False
+    assert supervisor.mode_intent == MODE_STOW_REQUEST
+    assert supervisor.state == FAILED_HOLD
+    assert supervisor.failure.wire_status == "ABORT_OVERRIDE"
+    assert supervisor.tick(10.6).publish_arrival is None
+
+
+def test_override_before_id_allocation_cannot_revive_pending_arrival():
+    supervisor, store, stop = _supervisor(confirmed=False)
+    _locked(supervisor, ARM_STOWED_LOCKED)
+    assert supervisor.request_work(ARRIVED_PICKUP, 10.01).accepted is True
+    assert supervisor.state == STOP_REQUESTED
+
+    assert supervisor.abort_for_override(10.02) is True
+    stop.confirmed = True
+    later = supervisor.tick(20.0)
+
+    assert later.state == FAILED_HOLD
+    assert later.publish_arrival is None
+    assert supervisor.arrival_republish_active is False
+    assert store.calls == 0
+
+
+def test_callback_and_allocator_exceptions_become_hold_results_not_raises():
+    class _ExplodingStop:
+        @property
+        def qualified(self):
+            raise RuntimeError("qualification exploded")
+
+    supervisor, _store, _stop = _supervisor()
+    supervisor.wheel_stop = _ExplodingStop()
+    _locked(supervisor, ARM_STOWED_LOCKED)
+    rejected = supervisor.request_work(ARRIVED_PICKUP, 10.01)
+    assert rejected.state == EVENT_HOLD
+    assert "exception" in rejected.hold_reason
+
+    allocation, _store, _stop = _supervisor()
+    _locked(allocation, ARM_STOWED_LOCKED)
+    allocation.request_work(ARRIVED_PICKUP, 10.01)
+    allocation.mission_id_store.allocate = lambda: (_ for _ in ()).throw(
+        OSError("store exploded")
+    )
+    held = allocation.tick(10.02)
+    assert held.state == EVENT_HOLD
+    assert "mission_id_store_exception" in held.hold_reason
+
+
+def test_mission_supervisor_core_has_no_ros_imports():
+    source = Path(mission_module.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    imported_roots = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_roots.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_roots.add(node.module.split(".")[0])
+
+    assert "rclpy" not in imported_roots
+    assert "robot_arm_msgs" not in imported_roots
