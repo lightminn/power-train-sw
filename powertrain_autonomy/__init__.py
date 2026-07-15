@@ -1,0 +1,2 @@
+"""ROS-independent autonomy cores."""
+

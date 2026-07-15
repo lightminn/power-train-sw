@@ -1,0 +1,17 @@
+FROM dustynv/l4t-pytorch:r36.4.0
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/workspace \
+    AUTONOMY_ENABLED=false
+
+# NumPy, PyYAML, CUDA, and PyTorch come from the existing Jetson L4T base.
+# JAX is intentionally absent until the full-load Jetson qualification step.
+WORKDIR /workspace
+COPY powertrain_autonomy /workspace/powertrain_autonomy
+COPY scripts/l515_commissioning.py /workspace/scripts/l515_commissioning.py
+COPY ros2/src/powertrain_ros/config/l515_terrain.yaml \
+    /workspace/ros2/src/powertrain_ros/config/l515_terrain.yaml
+
+# WP6-B has no controller yet. The image therefore starts in a non-publishing idle state.
+CMD ["bash", "-lc", "echo 'WP6-B controller absent; no /autonomy/cmd_vel publisher'; exec sleep infinity"]

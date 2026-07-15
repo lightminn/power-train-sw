@@ -1,0 +1,18 @@
+# FAIL-CLOSED TEMPLATE: no production mounting or terrain values are approved yet.
+# The reproducible 20/25/30 degree bracket and reference plane are a mechanical-team handoff.
+# Software compares measured raw metrics and must not infer a production angle from a temporary mount.
+# Only scripts/l515_commissioning.py --mode commissioning may replace this file after explicit approval.
+# Production mode is measurement-only and must never modify this YAML while the robot is operating.
+schema_version: 1
+qualification:
+  status: unapproved
+  production_enabled: false
+  required_pitch_candidates_deg: [20, 25, 30]
+mount:
+  pitch_deg: null
+terrain:
+  backend: numpy
+  roi: null
+  depth_thresholds: null
+tf:
+  base_link_to_l515_link: null

@@ -188,3 +188,43 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+
+  # WP6-B autonomy skeleton. This service is intentionally excluded from the default profile
+  # and idle even when the profile is selected. Once WP6-B exists, this service must remain the
+  # only /autonomy/cmd_vel publisher; no controller or publisher is present in Task 4.
+  powertrain_autonomy:
+    profiles: ["autonomy"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.autonomy
+    image: powertrain-sw:autonomy
+    container_name: powertrain_autonomy
+    network_mode: host
+    runtime: nvidia
+    environment:
+      - PYTHONPATH=/workspace
+      - AUTONOMY_ENABLED=false
+    volumes:
+      - ../:/workspace:ro
+    working_dir: /workspace
+    entrypoint:
+      - /bin/bash
+      - -lc
+    command:
+      - |
+        set -eu
+        if [ "$${AUTONOMY_ENABLED:-false}" != "false" ]; then
+          echo "WP6-B controller absent; refusing enabled state" >&2
+          exit 64
+        fi
+        echo "idle: no /autonomy/cmd_vel publisher in WP5.3 Task 4"
+        exec sleep infinity
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test "$$AUTONOMY_ENABLED" = false && test "$$(cat /proc/1/comm)" = sleep
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
