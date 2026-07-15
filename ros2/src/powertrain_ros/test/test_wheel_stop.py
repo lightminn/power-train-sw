@@ -65,16 +65,21 @@ def _predicate(*, qualified=True, thresholds=None, dwell_ms=300):
     )
 
 
-def test_default_yaml_is_explicitly_unqualified_until_six_wheel_hil():
+def test_shipped_yaml_is_hil_qualified_with_sane_thresholds():
+    """2026-07-16 wheels-up HIL(전진·후진·피벗 정지 사이클)로 자격 부여 —
+    실측 정지 노이즈 max 0.047 rev/s 대비 마진, min-drive 플로어 1.0과 분리."""
     config = load_wheel_stop_config(CONFIG_PATH)
 
-    assert config.qualified is False
-    assert config.thresholds_rev_s == {}
-    assert config.dwell_ms == 300
-
-    predicate = WheelStopPredicate(config)
-    assert predicate.update(_sample(0.0), now_s=0.0) is False
-    assert predicate.last_reject_reason == "unqualified"
+    assert config.qualified is True
+    assert set(config.thresholds_rev_s) == {
+        "front_left", "front_right",
+        "mid_left", "mid_right",
+        "rear_left", "rear_right",
+    }
+    for name, threshold in config.thresholds_rev_s.items():
+        # 실측 노이즈 상한(0.047)보다 크고 주행 플로어(1.0)보다 훨씬 작아야 한다
+        assert 0.05 <= threshold <= 0.2, name
+    assert config.dwell_ms >= 300
 
 
 def test_qualified_six_wheel_sample_requires_continuous_dwell():
