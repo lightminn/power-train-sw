@@ -102,9 +102,10 @@ Defence_Robot/
 │   ├── laptop/           Laptop-side TCP teleop clients (DualSense → robot)
 │   └── pi/               Raspberry-Pi-side servers (paired 1:1 with laptop/)
 ├── motor_gui/            웹 진단 GUI (FastAPI + 트랜스포트 추상화, AK/ODrive CAN·USB)
+├── operator_console/     운용 PC read-only GTK 콘솔 (SRT 2화면 + UDP 텔레메트리, 명령 표면 없음)
 ├── docker/               Container definitions (x86 dev + Jetson Orin Nano deploy)
-├── scripts/              Host-side helpers (recv_stream.sh 저지연 네이티브 뷰어,
-│                         recv_yolo3d.py 좌표 오버레이 뷰어, can_setup.sh, can_watchdog.sh)
+├── scripts/              Host-side helpers (recv_stream.sh · recv_yolo3d.py · can_setup.sh ·
+│                         install_*.sh + systemd/ 유닛·udev·tmpfiles 아티팩트)
 └── docs/
     ├── specs/            Per-task design docs (requirements, interfaces)
     ├── plans/            Per-task implementation plans + verification logs

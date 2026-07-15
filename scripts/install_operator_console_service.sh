@@ -21,7 +21,7 @@ for variable in DISPLAY WAYLAND_DISPLAY XAUTHORITY; do
 done
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-unit_source="$repo_root/docker/powertrain-operator-console.service"
+unit_source="$repo_root/scripts/systemd/powertrain-operator-console.service"
 unit_dir="$HOME/.config/systemd/user"
 config_dir="$HOME/.config/powertrain"
 environment_file="$config_dir/operator-console.env"

@@ -20,7 +20,7 @@ case "$operator_host" in
 esac
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-unit_source="$repo_root/docker/powertrain-chassis-telemetry.service"
+unit_source="$repo_root/scripts/systemd/powertrain-chassis-telemetry.service"
 unit_destination=/etc/systemd/system/powertrain-chassis-telemetry.service
 environment_destination=/etc/default/powertrain-chassis-telemetry
 

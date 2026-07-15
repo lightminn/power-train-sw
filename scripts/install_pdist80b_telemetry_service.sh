@@ -20,8 +20,8 @@ case "$operator_host" in
 esac
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-unit_source="$repo_root/docker/powertrain-pdist80b-telemetry.service"
-udev_rule_source="$repo_root/docker/99-powertrain-pdist80b.rules"
+unit_source="$repo_root/scripts/systemd/powertrain-pdist80b-telemetry.service"
+udev_rule_source="$repo_root/scripts/systemd/99-powertrain-pdist80b.rules"
 sender="$repo_root/scripts/pdist80b_telemetry_sender.py"
 unit_destination=/etc/systemd/system/powertrain-pdist80b-telemetry.service
 environment_destination=/etc/default/powertrain-pdist80b-telemetry

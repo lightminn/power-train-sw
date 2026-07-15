@@ -12,7 +12,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly SOURCE="$SCRIPT_DIR/../docker/powertrain-gateway-tmpfiles.conf"
+readonly SOURCE="$SCRIPT_DIR/systemd/powertrain-gateway-tmpfiles.conf"
 readonly DESTINATION="/etc/tmpfiles.d/powertrain-gateway.conf"
 # Shared by the L515 gateway lock and the real SocketCAN owner locks.
 # This script remains the only authority that creates /run/powertrain.
