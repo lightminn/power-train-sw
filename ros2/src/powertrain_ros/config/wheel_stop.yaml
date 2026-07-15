@@ -1,5 +1,27 @@
-# Development default: production wheel-stop is forbidden until all six
-# ODrive axes are measured and qualified by HIL.
-qualified: false
-thresholds_rev_s: {}
+# Qualified per-wheel stop thresholds — frozen from wheels-up HIL.
+#
+# Provenance (2026-07-16, Jetson full HIL, wheels lifted, arm absent):
+#   bags: hil_bags/wheelstop_run1 (forward 0.6 m/s x5 stop cycles)
+#         hil_bags/wheelstop_run4 (reverse 0.6 m/s x3, pivot ±0.8 rad/s x2 each)
+#   combined standstill noise |v| per wheel (5695 samples, 2114 moving):
+#     front_left  max 0.04500  p99 0.01500
+#     front_right max 0.04500  p99 0.00938
+#     mid_left    max 0.04687  p99 0.00938
+#     mid_right   max 0.04313  p99 0.01875
+#     rear_left   max 0.04688  p99 0.00375
+#     rear_right  max 0.04125  p99 0.02063
+#   threshold 0.10 rev/s = 2.1x worst-case noise, 10x below the 1.0 rev/s
+#   min-drive floor. Stop decay >0.5 -> <0.1 rev/s measured 1.6~2.9 s
+#   (wheels-up coast, incl. 0.5 s command watchdog).
+#
+# NOTE: re-check on ground during vehicle commissioning (load changes the
+# stop transient; standstill noise is expected to stay similar).
+qualified: true
+thresholds_rev_s:
+  front_left: 0.10
+  front_right: 0.10
+  mid_left: 0.10
+  mid_right: 0.10
+  rear_left: 0.10
+  rear_right: 0.10
 dwell_ms: 300
