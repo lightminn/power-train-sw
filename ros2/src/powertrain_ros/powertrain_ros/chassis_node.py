@@ -113,6 +113,8 @@ class ChassisNode(Node):
         super().__init__("chassis_node")
         self.cm = None
         self._can_session = None
+        self._can_bus_sampler = None
+        self._observability_event_client = None
         try:
             self._initialize()
         except BaseException:
@@ -230,8 +232,28 @@ class ChassisNode(Node):
             corners = build_real_corners(channel, wheel_map=wheel_map)
             self.get_logger().info("Real chassis on %s" % channel)
 
-        self.cm = ChassisManager(corners, cfg)
+        owner_snapshot = (
+            None
+            if self._can_session is None
+            else self._can_session.owner_snapshot
+        )
+        self.cm = ChassisManager(
+            corners,
+            cfg,
+            wheel_map=wheel_map,
+            can_owner_snapshot=owner_snapshot,
+        )
         self.cm.connect()
+        if self._can_session is not None:
+            from chassis.telemetry import CanBusStatsSampler
+
+            self._can_bus_sampler = CanBusStatsSampler(channel)
+            self._can_bus_sampler.start()
+        from powertrain_observability.client import EventClient
+
+        self._observability_event_client = EventClient()
+        self._last_can_health_event_ns = 0
+        self._can_health_event_period_ns = 1_000_000_000
         self._arm_interlock = ArmInterlock(timeout_s=0.5)
         # arm_absent_field의 mock은 실제 sample/latch와 분리한다. publisher가
         # 나타나는 tick부터 이 객체를 선택하지 않아 즉시 real default-deny로 복귀한다.
@@ -1013,6 +1035,10 @@ class ChassisNode(Node):
         if getattr(self, "_mission_supervisor_enabled", False):
             self._tick_mission_supervisor(now_s)
 
+        bus_sampler = getattr(self, "_can_bus_sampler", None)
+        if bus_sampler is not None:
+            self.cm.set_can_bus_health(bus_sampler.snapshot())
+
         started = time.monotonic()
         try:
             self.cm.tick()
@@ -1021,11 +1047,13 @@ class ChassisNode(Node):
         duration_ms = (time.monotonic() - started) * 1000.0
         if duration_ms > 1000.0 / self.cm.cfg.loop_hz:
             self._overrun_count += 1
+        snapshot = None
         try:
+            snapshot = self.cm.snapshot()
             msg = WheelStates()
             fill_wheel_states_message(
                 msg,
-                self.cm.snapshot(),
+                snapshot,
                 self.get_clock().now().to_msg(),
                 duration_ms,
                 self._overrun_count,
@@ -1044,6 +1072,31 @@ class ChassisNode(Node):
             self._wheel_telemetry_failed = False
             if was_failed:
                 self.get_logger().info("wheel telemetry recovered")
+        if snapshot is not None:
+            emit_can_health = getattr(self, "_emit_can_health_event", None)
+            if emit_can_health is not None:
+                emit_can_health(snapshot)
+
+    def _emit_can_health_event(self, snapshot):
+        """Best-effort datagram emission; failure never escapes the tick."""
+        client = getattr(self, "_observability_event_client", None)
+        if client is None:
+            return False
+        now_ns = time.monotonic_ns()
+        previous_ns = getattr(self, "_last_can_health_event_ns", 0)
+        period_ns = getattr(self, "_can_health_event_period_ns", 1_000_000_000)
+        if previous_ns and now_ns - previous_ns < period_ns:
+            return False
+        self._last_can_health_event_ns = now_ns
+        try:
+            from chassis.telemetry import build_can_health_event
+
+            return bool(client.emit(build_can_health_event(
+                snapshot,
+                monotonic_ns=now_ns,
+            )))
+        except Exception:
+            return False
 
     def _header(self):
         header = Header()
@@ -1062,6 +1115,8 @@ class ChassisNode(Node):
         self._roll = math.atan2(2 * (q.w * q.x + q.y * q.z),
                                 1 - 2 * (q.x * q.x + q.y * q.y))
         self._pitch = math.asin(max(-1.0, min(1.0, 2 * (q.w * q.y - q.z * q.x))))
+        if hasattr(self.cm, "set_imu_yaw_rate"):
+            self.cm.set_imu_yaw_rate(msg.angular_velocity.z)
 
     def set_chassis_mode_intent(self, mode: str):
         allowed = contract.LOCK_MODES | {
@@ -1220,6 +1275,10 @@ class ChassisNode(Node):
         return response
 
     def close(self):
+        can_bus_sampler = getattr(self, "_can_bus_sampler", None)
+        self._can_bus_sampler = None
+        if can_bus_sampler is not None:
+            can_bus_sampler.stop()
         manager = self.cm
         self.cm = None
         can_session = self._can_session

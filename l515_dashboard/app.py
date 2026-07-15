@@ -76,6 +76,8 @@ class DashboardApp(App):
         mission=self._event_payload(recent,"MISSION")
         arm=self._event_payload(recent,"ARM_RESULT")
         channels=p.get("channel_health",{})
+        can_health=self._event_payload(recent,"CAN_HEALTH")
+        can_lines=self._format_can_health(can_health)
         text=(
             f"Observability: run={p.get('run_id','?')} health={health.get('status','?')} "
             f"drops={p.get('drop_count',0)}\n"
@@ -85,9 +87,65 @@ class DashboardApp(App):
             f"{fsm.get('to') or fsm.get('state') or '-'}\n"
             f"Mission result: {mission.get('result') or mission.get('state') or '-'}\n"
             f"Arm result: {arm.get('result') or arm.get('state') or '-'}\n"
-            f"Channel health: {dict(channels)}"
+            f"Channel health: {dict(channels)}\n"
+            f"{can_lines}"
         )
         self.query_one("#observability-status",Static).update(text)
+
+    @staticmethod
+    def _format_can_health(payload):
+        if not payload:
+            return "CAN matrix: -"
+        owner=payload.get("owner") or {}
+        bus=payload.get("bus") or {}
+        interlock=payload.get("interlock") or {}
+        consistency=payload.get("wheel_consistency") or {}
+        lines=[
+            "CAN owner: pid=%s process=%s lock=%s acquired=%s" % (
+                owner.get("pid","-"),owner.get("process_name","-"),
+                owner.get("lock_path","-"),owner.get("acquisition_time","-"),
+            ),
+            "CAN bus: rxΔ=%s txΔ=%s warning=%s passive=%s bus-offΔ=%s restarts=%s" % (
+                bus.get("rx_packet_delta",0),bus.get("tx_packet_delta",0),
+                bus.get("error_warning",False),bus.get("error_passive",False),
+                bus.get("bus_off_delta",0),bus.get("restart_count",0),
+            ),
+            "Interlock: holds=%s estops=%s reset-required=%s" % (
+                list(interlock.get("motion_hold_sources",())),
+                list(interlock.get("latched_estop_sources",())),
+                interlock.get("reset_required",False),
+            ),
+            "AK matrix:",
+        ]
+        for node in payload.get("ak_nodes",()):
+            lines.append(
+                "AK%s %s age=%s ms rate=%s Hz fault=%s stale=%s recovery=%s" % (
+                    node.get("can_id","?"),node.get("physical_wheel","?"),
+                    node.get("last_feedback_age_ms"),node.get("feedback_rate_hz"),
+                    node.get("steer_fault",0),node.get("stale",False),
+                    node.get("recovery_count",0),
+                )
+            )
+        lines.append("ODrive matrix:")
+        for node in payload.get("odrive_nodes",()):
+            lines.append(
+                "OD%s %s heartbeat-age=%s ms encoder-age=%s ms state=%s error=%s stale=%s recovery=%s" % (
+                    node.get("node_id","?"),node.get("physical_wheel","?"),
+                    node.get("last_heartbeat_age_ms"),node.get("last_encoder_age_ms"),
+                    node.get("axis_state",0),node.get("axis_error",0),
+                    node.get("stale",False),node.get("recovery_count",0),
+                )
+            )
+        warning_labels=[
+            "%s:%s" % (warning.get("severity","WARN"),warning.get("code","?"))
+            for warning in consistency.get("warnings",())
+        ]
+        lines.append(
+            "Wheel consistency: %s speed cap=%s" % (
+                warning_labels or ["OK"],consistency.get("terrain_speed_cap",1.0),
+            )
+        )
+        return "\n".join(lines)
 
     def _command(self,kind,payload=None):
         try:

@@ -22,7 +22,8 @@ from ak_control import AK40, PKT_STATUS_1  # noqa: E402
 
 
 class SteerAk40(SteerActuator):
-    def __init__(self, motor_id: int = 1, channel: str = "can0", stale_ms: float = 300.0):
+    def __init__(self, motor_id: int = 1, channel: str = "can0",
+                 stale_ms: float = 300.0, clock=None):
         self._motor_id = motor_id
         self._channel = channel
         self._stale_ms = stale_ms
@@ -30,6 +31,26 @@ class SteerAk40(SteerActuator):
         self._ak = None
         self._target_deg = 0.0
         self._last_rx_ms = None
+        self._now = time.monotonic if clock is None else clock
+        self._feedback_rate_hz = 0.0
+        self._rx_packets = 0
+        self._recovery_count = 0
+
+    def _now_ms(self) -> float:
+        return self._now() * 1000.0
+
+    def _record_feedback(self) -> None:
+        now_ms = self._now_ms()
+        previous_ms = self._last_rx_ms
+        if previous_ms is not None:
+            interval_ms = now_ms - previous_ms
+            if interval_ms > self._stale_ms:
+                self._recovery_count += 1
+                self._feedback_rate_hz = 0.0
+            elif interval_ms > 0.0:
+                self._feedback_rate_hz = 1000.0 / interval_ms
+        self._last_rx_ms = now_ms
+        self._rx_packets += 1
 
     def connect(self) -> None:
         # 자기 AK 의 STATUS_1(ext arb (41<<8)|id) 만 받는 필터 — 단일 can0 다중모터에서
@@ -49,7 +70,7 @@ class SteerAk40(SteerActuator):
         # poll 성공 시 수신시각 기록 → arm 직후 state()가 stale 로 오판해
         # CornerModule.tick() 첫 호출에서 estop 되는 것을 방지.
         if self._ak.poll(timeout=0.1):
-            self._last_rx_ms = time.monotonic() * 1000.0
+            self._record_feedback()
         self._target_deg = self._ak.pos_out_deg
 
     def disarm(self) -> None:
@@ -62,7 +83,7 @@ class SteerAk40(SteerActuator):
         self._ak.send_pos_out(self._target_deg)
         got = self._ak.poll(timeout=0.0)
         if got:
-            self._last_rx_ms = time.monotonic() * 1000.0
+            self._record_feedback()
 
     def state(self) -> dict:
         # stale 판정 전에 커널 버퍼에 쌓인 status 를 논블로킹 드레인해 최신 수신
@@ -72,17 +93,31 @@ class SteerAk40(SteerActuator):
         # 하게 트립해 버림 — connect() 의 CAN 필터 덕에 버퍼엔 자기 status(50Hz)
         # 만 쌓여 있어 timeout=0 드레인으로 즉시 회수된다.
         if self._ak is not None and self._ak.poll(timeout=0.0):
-            self._last_rx_ms = time.monotonic() * 1000.0
+            self._record_feedback()
+        return self.health_state()
+
+    def health_state(self) -> dict:
+        """Return cached health only; never receive or send CAN frames."""
+        age_ms = (
+            None
+            if self._last_rx_ms is None
+            else max(0.0, self._now_ms() - self._last_rx_ms)
+        )
         stale = (
-            self._last_rx_ms is None
-            or (time.monotonic() * 1000.0 - self._last_rx_ms) > self._stale_ms
+            age_ms is None
+            or age_ms > self._stale_ms
         )
         return {
+            "can_id": self._motor_id,
             "target_deg": self._target_deg,
             "actual_deg": self._ak.pos_out_deg if self._ak else 0.0,
             "cur_a": self._ak.cur_a if self._ak else 0.0,
             "fault": self._ak.fault if self._ak else 0,
             "stale": stale,
+            "last_feedback_age_ms": age_ms,
+            "feedback_rate_hz": self._feedback_rate_hz,
+            "rx_packets": self._rx_packets,
+            "recovery_count": self._recovery_count,
         }
 
     def estop(self) -> None:

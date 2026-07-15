@@ -20,7 +20,20 @@ from dataclasses import dataclass, field
 
 from chassis.kinematics import ChassisGeometry, default_geometry, solve
 from chassis.safety_interlock import RUN, SafetyInterlock
-from chassis.telemetry import ChassisSnapshot, WheelSnapshot
+from chassis.telemetry import (
+    AkNodeHealth,
+    CanBusHealth,
+    CanOwnerHealth,
+    ChassisSnapshot,
+    InterlockHealth,
+    OdriveNodeHealth,
+    WheelSnapshot,
+)
+from chassis.wheel_consistency import (
+    WheelConsistencyConfig,
+    WheelConsistencyMonitor,
+    WheelConsistencySample,
+)
 from corner_module.config import CornerConfig
 from corner_module.corner_module import CornerModule
 from corner_module.null_steer import NullSteer
@@ -41,6 +54,9 @@ class ChassisConfig:
     min_drive_turns_per_s: float = 0.0  # 최저 구동속도(turns/s). 0<|명령|<이 값이면
                                         # 부호 유지하고 이 값으로 끌어올림 → 저속 HALL
                                         # 코깅존(툭툭 끊김·기동지연 제각각) 회피. 0=off.
+    wheel_consistency: WheelConsistencyConfig = field(
+        default_factory=WheelConsistencyConfig
+    )
 
 
 @dataclass(frozen=True)
@@ -118,7 +134,8 @@ def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
 
 
 class ChassisManager:
-    def __init__(self, corners: dict, cfg: ChassisConfig = None, clock=None):
+    def __init__(self, corners: dict, cfg: ChassisConfig = None, clock=None,
+                 wheel_map=None, can_owner_snapshot=None):
         self.cfg = cfg or ChassisConfig()
         self.corners = corners             # {wheel_name: CornerModule}
         self.mode = "DISCONNECTED"
@@ -129,6 +146,30 @@ class ChassisManager:
         self._now = time.monotonic if clock is None else clock
         self._interlock = SafetyInterlock(clock=self._now)
         self._last_estop_error = None
+        configured_map = wheel_map or DEFAULT_WHEEL_MAP
+        self._wheel_map = tuple(
+            item for item in configured_map if item.wheel in self.corners
+        )
+        self._bus_health = CanBusHealth()
+        self._wheel_consistency = WheelConsistencyMonitor(
+            self.cfg.geometry,
+            self.cfg.wheel_consistency,
+        )
+        self._imu_yaw_rate_rad_s = None
+        self._can_owner_health = None
+        if can_owner_snapshot is not None:
+            acquired_at = can_owner_snapshot.acquired_at
+            acquisition_time = (
+                acquired_at.isoformat()
+                if hasattr(acquired_at, "isoformat")
+                else str(acquired_at)
+            )
+            self._can_owner_health = CanOwnerHealth(
+                pid=int(can_owner_snapshot.pid),
+                process_name=str(can_owner_snapshot.process_name),
+                lock_path=str(can_owner_snapshot.lock_path),
+                acquisition_time=acquisition_time,
+            )
 
         # 매핑 검증: geometry 의 모든 바퀴가 코너로 존재해야 (오배선 조기 발견)
         need = {w.name for w in self.cfg.geometry.wheels}
@@ -205,6 +246,21 @@ class ChassisManager:
            반사체에서 구멍이 나므로 단독으로 안전을 책임지지 않는다.
         """
         self._speed_scale = min(1.0, max(0.0, float(scale)))
+
+    def set_imu_yaw_rate(self, yaw_rate_rad_s) -> None:
+        self._imu_yaw_rate_rad_s = (
+            None if yaw_rate_rad_s is None else float(yaw_rate_rad_s)
+        )
+
+    def set_can_bus_health(self, health: CanBusHealth) -> None:
+        self._bus_health = CanBusHealth(
+            rx_packet_delta=max(0, int(health.rx_packet_delta)),
+            tx_packet_delta=max(0, int(health.tx_packet_delta)),
+            error_warning=bool(health.error_warning),
+            error_passive=bool(health.error_passive),
+            bus_off_delta=max(0, int(health.bus_off_delta)),
+            restart_count=max(0, int(health.restart_count)),
+        )
 
     def disarm(self) -> None:
         for c in self.corners.values():
@@ -364,13 +420,15 @@ class ChassisManager:
 
     def snapshot(self) -> ChassisSnapshot:
         wheels = []
+        corner_states = {}
         for wheel in self.cfg.geometry.wheels:
-            corner_state = self.corners[wheel.name].state()
-            drive_state = corner_state.get("drive", {})
-            steer_state = corner_state.get("steer", {})
+            corner = self.corners[wheel.name]
+            drive_state = self._cached_actuator_state(corner.drive)
+            steer_state = self._cached_actuator_state(corner.steer)
+            corner_states[wheel.name] = (corner, steer_state, drive_state)
             wheels.append(WheelSnapshot(
                 name=wheel.name,
-                corner_mode=str(corner_state.get("mode", "DISCONNECTED")),
+                corner_mode=str(corner.mode),
                 drive_turns_per_s=float(drive_state.get("actual_vel", 0.0)),
                 steer_deg=float(steer_state.get("actual_deg", 0.0)),
                 drive_current_a=float(drive_state.get("cur_a", 0.0)),
@@ -388,12 +446,91 @@ class ChassisManager:
             and wheel.steer_fault == 0
             for wheel in wheel_tuple
         )
+        ak_nodes = []
+        odrive_nodes = []
+        for item in self._wheel_map:
+            _corner, steer_state, drive_state = corner_states[item.wheel]
+            if item.steer_can_id is not None:
+                ak_nodes.append(AkNodeHealth(
+                    can_id=int(item.steer_can_id),
+                    physical_wheel=item.wheel,
+                    last_feedback_age_ms=self._optional_float(
+                        steer_state.get("last_feedback_age_ms")
+                    ),
+                    feedback_rate_hz=float(
+                        steer_state.get("feedback_rate_hz", 0.0)
+                    ),
+                    steer_fault=int(steer_state.get("fault", 0)),
+                    stale=bool(steer_state.get("stale", False)),
+                    recovery_count=int(steer_state.get("recovery_count", 0)),
+                ))
+            odrive_nodes.append(OdriveNodeHealth(
+                node_id=int(item.drive_node_id),
+                physical_wheel=item.wheel,
+                last_heartbeat_age_ms=self._optional_float(
+                    drive_state.get("last_heartbeat_age_ms")
+                ),
+                last_encoder_age_ms=self._optional_float(
+                    drive_state.get("last_encoder_age_ms")
+                ),
+                axis_state=int(drive_state.get("axis_state", 0)),
+                axis_error=int(drive_state.get("axis_error", 0)),
+                stale=bool(drive_state.get("stale", False)),
+                recovery_count=int(drive_state.get("recovery_count", 0)),
+            ))
+        safety = self._interlock.snapshot()
+        latched_sources = set(safety.active_estop_sources)
+        if safety.estop_latched and safety.first_source:
+            latched_sources.add(safety.first_source)
+        consistency_samples = tuple(
+            WheelConsistencySample(
+                name=wheel.name,
+                command_turns_per_s=float(
+                    corner_states[wheel.name][2].get("target_vel", 0.0)
+                ),
+                measured_turns_per_s=float(
+                    corner_states[wheel.name][2].get("actual_vel", 0.0)
+                ),
+                steer_deg=float(
+                    corner_states[wheel.name][1].get("actual_deg", 0.0)
+                ),
+                stale=bool(
+                    corner_states[wheel.name][2].get("stale", False)
+                ),
+            )
+            for wheel in self.cfg.geometry.wheels
+        )
+        consistency = self._wheel_consistency.evaluate(
+            consistency_samples,
+            imu_yaw_rate_rad_s=self._imu_yaw_rate_rad_s,
+        )
         return ChassisSnapshot(
             chassis_mode=self.mode,
-            stop_state=self._interlock.snapshot().state,
+            stop_state=safety.state,
             healthy=healthy,
             wheels=wheel_tuple,
+            ak_nodes=tuple(ak_nodes),
+            odrive_nodes=tuple(odrive_nodes),
+            bus=self._bus_health,
+            owner=self._can_owner_health,
+            interlock=InterlockHealth(
+                motion_hold_sources=safety.hold_sources,
+                latched_estop_sources=tuple(sorted(latched_sources)),
+                reset_required=safety.estop_latched,
+            ),
+            wheel_consistency=consistency,
         )
+
+    @staticmethod
+    def _optional_float(value):
+        return None if value is None else float(value)
+
+    @staticmethod
+    def _cached_actuator_state(actuator):
+        health_state = getattr(actuator, "health_state", None)
+        if health_state is not None:
+            return dict(health_state())
+        return dict(actuator.state())
 
     def state(self) -> dict:
         return {

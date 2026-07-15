@@ -6,6 +6,7 @@ kinematics 결과를 각 코너에 분배하고, estop 전파·안전 interlock�
 """
 import math
 from dataclasses import FrozenInstanceError
+from datetime import datetime, timezone
 
 import pytest
 
@@ -13,6 +14,12 @@ from chassis.kinematics import default_geometry, solve
 from chassis.chassis_manager import (
     ChassisManager, ChassisConfig, WheelMap, DEFAULT_WHEEL_MAP, build_corners,
 )
+from chassis.telemetry import (
+    CanBusHealth,
+    CanBusStatsSampler,
+    build_can_health_event,
+)
+from chassis.wheel_consistency import WheelConsistencyConfig
 from corner_module.config import CornerConfig
 from corner_module.corner_module import CornerModule
 from corner_module.fake import FakeSteer, FakeDrive
@@ -712,6 +719,212 @@ def test_drive_current_alone_does_not_add_python_health_threshold():
     snap = m.snapshot()
     assert snap.healthy is True
     assert snap.wheels[0].drive_current_a == 999.0
+
+
+def test_snapshot_has_immutable_ten_node_health_matrix_and_owner():
+    owner = type("Owner", (), {
+        "pid": 4321,
+        "process_name": "chassis_node",
+        "lock_path": "/run/powertrain/can0.lock",
+        "acquired_at": datetime(2026, 7, 15, tzinfo=timezone.utc),
+    })()
+    m = ChassisManager(
+        _fake_corners(),
+        can_owner_snapshot=owner,
+    )
+    m.connect()
+    assert m.arm() is True
+
+    snapshot = m.snapshot()
+
+    assert [(node.can_id, node.physical_wheel) for node in snapshot.ak_nodes] == [
+        (1, "front_left"),
+        (2, "front_right"),
+        (3, "rear_left"),
+        (4, "rear_right"),
+    ]
+    assert [(node.node_id, node.physical_wheel) for node in snapshot.odrive_nodes] == [
+        (11, "front_left"),
+        (12, "front_right"),
+        (13, "mid_left"),
+        (14, "mid_right"),
+        (15, "rear_left"),
+        (16, "rear_right"),
+    ]
+    assert snapshot.owner.pid == 4321
+    assert snapshot.owner.process_name == "chassis_node"
+    assert snapshot.owner.lock_path == "/run/powertrain/can0.lock"
+    assert snapshot.owner.acquisition_time == "2026-07-15T00:00:00+00:00"
+    assert snapshot.bus.rx_packet_delta == 0
+    assert snapshot.bus.tx_packet_delta == 0
+    assert snapshot.bus.error_warning is False
+    assert snapshot.bus.error_passive is False
+    assert snapshot.bus.bus_off_delta == 0
+    assert snapshot.bus.restart_count == 0
+    assert snapshot.interlock.motion_hold_sources == ()
+    assert snapshot.interlock.latched_estop_sources == ()
+    assert snapshot.interlock.reset_required is False
+
+    with pytest.raises(FrozenInstanceError):
+        snapshot.ak_nodes[0].stale = True
+    with pytest.raises(TypeError):
+        snapshot.ak_nodes[0]["stale"] = True
+
+
+def test_snapshot_health_matrix_reports_stale_fault_recovery_and_interlock():
+    m = _armed_manager()
+    front_left = m.corners["front_left"]
+    front_left.steer.stale_flag = True
+    front_left.steer.fault = 7
+    front_left.steer.state = lambda: {
+        "actual_deg": 0.0,
+        "fault": 7,
+        "stale": True,
+        "last_feedback_age_ms": 350.0,
+        "feedback_rate_hz": 0.0,
+        "recovery_count": 2,
+    }
+    front_left.drive.state = lambda: {
+        "actual_vel": 0.0,
+        "axis_error": 0x10,
+        "axis_state": 1,
+        "stale": True,
+        "last_heartbeat_age_ms": 250.0,
+        "last_encoder_age_ms": 275.0,
+        "recovery_count": 3,
+    }
+    m.set_arm_motion_hold(True, "arm stale")
+    m.estop("manual_service", "operator")
+
+    snapshot = m.snapshot()
+    ak = snapshot.ak_nodes[0]
+    odrive = snapshot.odrive_nodes[0]
+
+    assert ak.last_feedback_age_ms == 350.0
+    assert ak.feedback_rate_hz == 0.0
+    assert ak.steer_fault == 7
+    assert ak.stale is True
+    assert ak.recovery_count == 2
+    assert odrive.last_heartbeat_age_ms == 250.0
+    assert odrive.last_encoder_age_ms == 275.0
+    assert odrive.axis_state == 1
+    assert odrive.axis_error == 0x10
+    assert odrive.stale is True
+    assert odrive.recovery_count == 3
+    assert snapshot.interlock.motion_hold_sources == ("robot_arm",)
+    assert "manual_service" in snapshot.interlock.latched_estop_sources
+    assert snapshot.interlock.reset_required is True
+
+
+def test_snapshot_builds_wheel_consistency_from_one_cached_state_sample():
+    cfg = ChassisConfig(wheel_consistency=WheelConsistencyConfig(
+        same_side_delta_turns_per_s=0.25,
+        yaw_mismatch_rad_s=10.0,
+        spin_turns_per_s=10.0,
+        stopped_turns_per_s=0.05,
+        active_command_turns_per_s=0.5,
+        min_response_ratio=0.1,
+        max_response_ratio=10.0,
+        warn_speed_cap=0.4,
+    ))
+    m = _armed_manager(cfg)
+    for corner in m.corners.values():
+        corner.drive._target = 1.0
+        corner.drive._actual = 1.0
+    m.corners["mid_left"].drive._actual = 0.4
+    m.set_imu_yaw_rate(0.0)
+
+    snapshot = m.snapshot()
+
+    assert {warning.code for warning in snapshot.wheel_consistency.warnings} == {
+        "same_side_delta",
+    }
+    assert snapshot.wheel_consistency.terrain_speed_cap == 0.4
+    assert snapshot.wheel_consistency.imu_yaw_rate_rad_s == 0.0
+
+
+def test_snapshot_copies_injected_bus_health_without_io():
+    m = _armed_manager()
+    health = CanBusHealth(
+        rx_packet_delta=120,
+        tx_packet_delta=80,
+        error_warning=True,
+        error_passive=False,
+        bus_off_delta=2,
+        restart_count=3,
+    )
+
+    m.set_can_bus_health(health)
+
+    assert m.snapshot().bus == health
+
+
+def test_can_bus_sampler_parses_owner_process_ip_stats_as_deltas():
+    first = """
+    can state ERROR-ACTIVE (berr-counter tx 0 rx 0) restart-ms 100
+    re-started bus-errors arbit-lost error-warn error-pass bus-off
+    2 3 0 4 1 5
+    RX: bytes packets errors dropped missed mcast
+    1000 200 0 0 0 0
+    TX: bytes packets errors dropped carrier collsns
+    800 150 0 0 0 0
+    """
+    second = """
+    can state ERROR-PASSIVE (berr-counter tx 140 rx 2) restart-ms 100
+    re-started bus-errors arbit-lost error-warn error-pass bus-off
+    3 4 0 5 2 7
+    RX: bytes packets errors dropped missed mcast
+    1200 230 0 0 0 0
+    TX: bytes packets errors dropped carrier collsns
+    1000 170 0 0 0 0
+    """
+    sampler = CanBusStatsSampler("can0")
+
+    sampler.update_from_text(first)
+    assert sampler.snapshot().rx_packet_delta == 0
+    sampler.update_from_text(second)
+    health = sampler.snapshot()
+
+    assert health.rx_packet_delta == 30
+    assert health.tx_packet_delta == 20
+    assert health.error_warning is True
+    assert health.error_passive is True
+    assert health.bus_off_delta == 2
+    assert health.restart_count == 3
+
+
+def test_can_health_event_is_json_ready_warn_with_speed_cap_only():
+    cfg = ChassisConfig(wheel_consistency=WheelConsistencyConfig(
+        same_side_delta_turns_per_s=0.25,
+        yaw_mismatch_rad_s=10.0,
+        spin_turns_per_s=10.0,
+        stopped_turns_per_s=0.05,
+        active_command_turns_per_s=0.5,
+        min_response_ratio=0.1,
+        max_response_ratio=10.0,
+        warn_speed_cap=0.4,
+    ))
+    m = _armed_manager(cfg)
+    for corner in m.corners.values():
+        corner.drive._target = 1.0
+        corner.drive._actual = 1.0
+    m.corners["mid_left"].drive._actual = 0.4
+
+    event = build_can_health_event(
+        m.snapshot(),
+        wall_time_ns=10,
+        monotonic_ns=20,
+    )
+
+    assert event["event_type"] == "CAN_HEALTH"
+    assert event["severity"] == "WARN"
+    assert event["wall_time_ns"] == 10
+    assert event["monotonic_ns"] == 20
+    assert len(event["payload"]["ak_nodes"]) == 4
+    assert len(event["payload"]["odrive_nodes"]) == 6
+    assert event["payload"]["wheel_consistency"]["warnings"][0]["severity"] == "WARN"
+    assert event["payload"]["wheel_consistency"]["terrain_speed_cap"] == 0.4
+    assert "torque" not in repr(event).lower()
 
 
 def test_state_schema():

@@ -63,7 +63,7 @@ class DriveOdriveCan(DriveActuator):
     """
 
     def __init__(self, node_id: int = 11, channel: str = "can0",
-                 stale_ms: float = 200.0, bus=None):
+                 stale_ms: float = 200.0, bus=None, clock=None):
         self._node_id = node_id
         self._channel = channel
         self._stale_ms = stale_ms
@@ -75,12 +75,20 @@ class DriveOdriveCan(DriveActuator):
         self._axis_error = 0
         self._axis_state = 0
         self._last_rx_ms = None
+        self._last_heartbeat_ms = None
+        self._last_encoder_ms = None
+        self._now = time.monotonic if clock is None else clock
+        self._rx_packets = 0
+        self._recovery_count = 0
 
     # ------------------------------------------------------------------
     # 내부 헬퍼
     # ------------------------------------------------------------------
     def _arb(self, cmd: int) -> int:
         return (self._node_id << 5) | cmd
+
+    def _now_ms(self) -> float:
+        return self._now() * 1000.0
 
     def _send(self, cmd: int, data: bytes = b"", rtr: bool = False) -> None:
         # 노드가 버스에 없어 ACK 못 받으면 TX 큐가 차 ENOBUFS(CanOperationError) →
@@ -104,13 +112,27 @@ class DriveOdriveCan(DriveActuator):
         if cmd == _HEARTBEAT and len(m.data) >= 5:
             self._axis_error = struct.unpack("<I", m.data[0:4])[0]
             self._axis_state = m.data[4]
+            kind = "heartbeat"
         elif cmd == _GET_ENCODER_ESTIMATES and len(m.data) >= 8:
             self._actual_vel = struct.unpack("<ff", m.data[0:8])[1]
+            kind = "encoder"
         elif cmd == _GET_IQ and len(m.data) >= 8:
             self._cur_a = struct.unpack("<ff", m.data[0:8])[1]
+            kind = "iq"
         else:
             return False
-        self._last_rx_ms = time.monotonic() * 1000.0
+        now_ms = self._now_ms()
+        if (
+            self._last_rx_ms is not None
+            and now_ms - self._last_rx_ms > self._stale_ms
+        ):
+            self._recovery_count += 1
+        self._last_rx_ms = now_ms
+        if kind == "heartbeat":
+            self._last_heartbeat_ms = now_ms
+        elif kind == "encoder":
+            self._last_encoder_ms = now_ms
+        self._rx_packets += 1
         return True
 
     def _drain_available(self, max_frames: int = 16) -> int:
@@ -183,14 +205,31 @@ class DriveOdriveCan(DriveActuator):
         # 비블로킹·유한 드레인 후 최신 heartbeat를 반영한다.
         if self._bus is not None:
             self._drain_available()
-        stale = (self._last_rx_ms is None
-                 or (time.monotonic() * 1000.0 - self._last_rx_ms) > self._stale_ms)
+        return self.health_state()
+
+    def health_state(self) -> dict:
+        """Return cached health only; never receive or send CAN frames."""
+        now_ms = self._now_ms()
+
+        def age(timestamp_ms):
+            if timestamp_ms is None:
+                return None
+            return max(0.0, now_ms - timestamp_ms)
+
+        last_rx_age_ms = age(self._last_rx_ms)
+        stale = last_rx_age_ms is None or last_rx_age_ms > self._stale_ms
         return {
+            "node_id": self._node_id,
             "target_vel": self._target_vel,
             "actual_vel": self._actual_vel,
             "cur_a": self._cur_a,
             "axis_error": self._axis_error,
+            "axis_state": self._axis_state,
             "stale": stale,
+            "last_heartbeat_age_ms": age(self._last_heartbeat_ms),
+            "last_encoder_age_ms": age(self._last_encoder_ms),
+            "rx_packets": self._rx_packets,
+            "recovery_count": self._recovery_count,
         }
 
     def estop(self) -> None:

@@ -119,3 +119,52 @@ def test_quit_and_confirmed_gateway_stop_never_command_observability():
     assert gateway.commands == [("stop_gateway",{})]
     assert observability.commands == []
   asyncio.run(scenario())
+
+
+def test_observability_renders_ten_node_can_matrix_and_consistency_warns():
+  async def scenario():
+    app=DashboardApp(Client(),poll_interval_s=60)
+    payload={
+      "run_id":"run-can", "drop_count":0, "health":{"status":"OK"},
+      "recent_events":{"CAN_HEALTH":{"payload":{
+        "ak_nodes":[
+          {"can_id":1,"physical_wheel":"front_left","last_feedback_age_ms":12.5,
+           "feedback_rate_hz":49.8,"steer_fault":0,"stale":False,"recovery_count":1},
+          {"can_id":2,"physical_wheel":"front_right","last_feedback_age_ms":13.0,
+           "feedback_rate_hz":49.7,"steer_fault":0,"stale":False,"recovery_count":0},
+          {"can_id":3,"physical_wheel":"rear_left","last_feedback_age_ms":400.0,
+           "feedback_rate_hz":0.0,"steer_fault":7,"stale":True,"recovery_count":2},
+          {"can_id":4,"physical_wheel":"rear_right","last_feedback_age_ms":15.0,
+           "feedback_rate_hz":49.9,"steer_fault":0,"stale":False,"recovery_count":0},
+        ],
+        "odrive_nodes":[
+          {"node_id":node,"physical_wheel":wheel,"last_heartbeat_age_ms":20.0,
+           "last_encoder_age_ms":18.0,"axis_state":8,"axis_error":0,
+           "stale":False,"recovery_count":0}
+          for node,wheel in zip(range(11,17),(
+            "front_left","front_right","mid_left","mid_right","rear_left","rear_right"))
+        ],
+        "bus":{"rx_packet_delta":120,"tx_packet_delta":80,"error_warning":True,
+               "error_passive":False,"bus_off_delta":1,"restart_count":3},
+        "owner":{"pid":4321,"process_name":"chassis_node",
+                 "lock_path":"/run/powertrain/can0.lock",
+                 "acquisition_time":"2026-07-15T00:00:00+00:00"},
+        "interlock":{"motion_hold_sources":["robot_arm"],
+                     "latched_estop_sources":[],"reset_required":False},
+        "wheel_consistency":{"warnings":[
+          {"severity":"WARN","code":"same_side_delta","wheels":["rear_left"],
+           "value":0.6,"threshold":0.25}],"terrain_speed_cap":0.4,
+          "wheel_yaw_rate_rad_s":0.1,"imu_yaw_rate_rad_s":0.0},
+      }}},
+      "channel_health":{},
+    }
+    async with app.run_test() as pilot:
+      app.show_observability_status(payload); await pilot.pause()
+      text=app.query_one("#observability-status").render().plain
+      for value in (
+        "AK1 front_left","AK4 rear_right","OD11 front_left","OD16 rear_right",
+        "rxΔ=120","txΔ=80","bus-offΔ=1","chassis_node","4321",
+        "robot_arm","same_side_delta","speed cap=0.4",
+      ):
+        assert value in text
+  asyncio.run(scenario())
