@@ -176,26 +176,26 @@ ROS 실행·토픽·서비스 표는 [`ros2/README.md`](ros2/README.md), HIL 전
 
 | 레포 영역 | Notion 문서 |
 | --- | --- |
-| `parameter_calc/` 파라미터 최적화 (v4) | [로커보기 파라미터 최적화 결과 (v4) + 주행 애니메이션](https://app.notion.com/p/36b2d27b08d3819b9303d1f8554b0425) |
+| `parameter_calc/` 파라미터 최적화 (v4) | [로커보기 파라미터 최적화 v4 — 결과·주행 애니메이션](https://app.notion.com/p/36b2d27b08d3819b9303d1f8554b0425) |
 | `motor_control/drive/bl70200/` ODrive 구동 셋업 | [ODrive(BL70200) 셋업 — 공장초기화→구동](https://app.notion.com/p/3882d27b08d381fcbe3cd0c829687c3a) |
 | `motor_control/drive`+`steering/` 단일 CAN 버스 10모터 (AK45-36 ×4 + ODrive ×6) | [단일 CAN 버스 다중모터 독립제어 — AK45-36 조향 ×4 + ODrive 구동 ×6](https://app.notion.com/p/3882d27b08d381efa56bd5fe310e3198) |
-| `corner_module/can_watchdog.py`+`docker/` CAN 자동복구 워치독 (PWM 노이즈→TX 웻지) | [CAN 자동복구 워치독 — 모터 PWM 노이즈 → TX 먹통(웻지) 해결](https://app.notion.com/p/3952d27b08d381308d0eeafa8242e509) |
-| `motor_control/corner_module/` 코너 모듈 (조향+구동 통합) | [코너 모듈 컨트롤러 — 조향+구동 통합 제어 API (HIL 검증)](https://app.notion.com/p/36b2d27b08d381818b04c1d194bcade1) |
-| `motor_control/chassis/kinematics.py` 4WS 애커만 키네마틱스 (WP2) | [4WS 애커만 키네마틱스 — 차체 (v, ω) → 바퀴별 조향각·속도](https://app.notion.com/p/3912d27b08d381a0a452fa4afdc61c45) |
-| `motor_control/chassis/` 4WS 차체 통합 제어 (ChassisManager, WP3 — 실기 HIL 완료) | [차체 통합 제어 (ChassisManager) — 코너 6개를 하나의 차체로 (4WS)](https://app.notion.com/p/3912d27b08d381e79716e04398e34bd2) |
-| `chassis/teleop_server.py`+`laptop/laptop_client_chassis.py` 무선 원격주행 (DualSense 텔레옵) | [무선 원격주행 — DualSense → 노트북 → 젯슨 → 10모터 (4WS 텔레옵)](https://app.notion.com/p/39b2d27b08d38140bf8df53fe7661c6c) |
+| `corner_module/can_watchdog.py`+`docker/` CAN 자동복구 워치독 (PWM 노이즈→TX 웻지) | [CAN 자동복구 워치독 — PWM 노이즈 TX 웻지 해결](https://app.notion.com/p/3952d27b08d381308d0eeafa8242e509) |
+| `motor_control/corner_module/` 코너 모듈 (조향+구동 통합) | [코너 모듈 컨트롤러 — 조향+구동 통합 제어 API](https://app.notion.com/p/36b2d27b08d381818b04c1d194bcade1) |
+| `motor_control/chassis/kinematics.py` 4WS 애커만 키네마틱스 (WP2) | [4WS 애커만 키네마틱스 — 차체 명령(v, ω) → 바퀴 조향·속도](https://app.notion.com/p/3912d27b08d381a0a452fa4afdc61c45) |
+| `motor_control/chassis/` 4WS 차체 통합 제어 (ChassisManager, WP3 — 실기 HIL 완료) | [차체 통합 제어 ChassisManager — 코너 6개를 하나의 4WS 차체로](https://app.notion.com/p/3912d27b08d381e79716e04398e34bd2) |
+| `chassis/teleop_server.py`+`laptop/laptop_client_chassis.py` 무선 원격주행 (DualSense 텔레옵) | [무선 원격주행 — DualSense→노트북→젯슨→10모터 4WS](https://app.notion.com/p/39b2d27b08d38140bf8df53fe7661c6c) |
 | `docs/plans/2026-07-12-defense-robot-autonomy-software-plan.md` 자율주행 전체 계획 (**정본**) | [2026 국방로봇 자율주행 SW 전체 개발계획](https://app.notion.com/p/39c2d27b08d381728c1ade21cc72216b) — 이력: [착수 계획(~07-11)](https://app.notion.com/p/3912d27b08d381af9e8ed16fb08b0840) |
-| `l515_dashboard/` L515 Gateway·TUI | [L515 Gateway·TUI 원격주행 — 비동기 RGB 30 fps·SRT HIL](https://app.notion.com/p/39a2d27b08d381eb8307fa7d136ad374) |
-| `ros2/` RViz 시각화 (벤치 자산) | [RViz 로봇 시각화 — 오도메트리·IMU 기울임·장애물 감지](https://app.notion.com/p/39b2d27b08d3815da7c6f46e173d7a8a) |
-| `scripts/recv_*` + 운용 콘솔 | [통신 GUI·스트리밍·전원 텔레메트리 통합 현황](https://app.notion.com/p/39d2d27b08d3815c907ae8aa338c5fa8) |
-| `motor_control/vision/` 기존 D435i 실험·로봇팔 인식 참고 | [RGB-D 카메라(RealSense D435i) 켜는 법](https://app.notion.com/p/3752d27b08d381619d73d6bc19fc02d2) |
-| `motor_control/vision/` YOLO + Depth 3D 좌표 | [YOLO + Depth 융합 — 검출 물체 3D 좌표 추출](https://app.notion.com/p/37b2d27b08d38147b9aceb16268615a8) |
-| `motor_control/sensors`+`safety_us100/` US-100 거리 + 충돌방지 | [US100 초음파 센서 UART 거리 측정](https://app.notion.com/p/35d2d27b08d380f591b9d6553c6a320d) |
+| `l515_dashboard/` L515 Gateway·TUI | [L515 Gateway·TUI — 카메라 단일 소유·SRT 원격주행](https://app.notion.com/p/39a2d27b08d381eb8307fa7d136ad374) |
+| `ros2/` RViz 시각화 (벤치 자산) | [RViz 로봇 시각화 — 오도메트리·IMU·장애물 감지](https://app.notion.com/p/39b2d27b08d3815da7c6f46e173d7a8a) |
+| `scripts/recv_*` + 운용 콘솔 | [통신 GUI·스트리밍·전원 텔레메트리 — 통합 현황](https://app.notion.com/p/39d2d27b08d3815c907ae8aa338c5fa8) |
+| `motor_control/vision/` 기존 D435i 실험·로봇팔 인식 참고 | [RGB-D 카메라 D435i 켜는 법 — 로봇팔 인식용 참고](https://app.notion.com/p/3752d27b08d381619d73d6bc19fc02d2) |
+| `motor_control/vision/` YOLO + Depth 3D 좌표 | [YOLO+Depth 융합 — 검출 물체 3D 좌표 추출](https://app.notion.com/p/37b2d27b08d38147b9aceb16268615a8) |
+| `motor_control/sensors`+`safety_us100/` US-100 거리 + 충돌방지 | [US-100 초음파 센서 — UART 거리 측정](https://app.notion.com/p/35d2d27b08d380f591b9d6553c6a320d) |
 | `motor_gui/` 웹 진단·튜닝 GUI | [motor_gui — 웹 모터 진단·튜닝 GUI](https://app.notion.com/p/3892d27b08d3811eb174e787808db3c2) |
-| (Firmware) ODrive 펌웨어 플래시 | [ODrive 세팅](https://app.notion.com/p/33a2d27b08d38002b0f7d21fda39e8d2) |
-| (네트워크) GL-SFT1200 전용 AP — 노트북↔젯슨 링크 | [무선 라우터(GL-SFT1200) — 노트북↔젯슨 전용망 셋업](https://app.notion.com/p/38e2d27b08d38122942bff3f12534e58) |
+| (Firmware) ODrive 펌웨어 플래시 | [ODrive 펌웨어 플래시 — 보드당 1회](https://app.notion.com/p/33a2d27b08d38002b0f7d21fda39e8d2) |
+| (네트워크) GL-SFT1200 전용 AP — 노트북↔젯슨 링크 | [무선 라우터 GL-SFT1200 — 노트북↔젯슨 전용망 셋업](https://app.notion.com/p/38e2d27b08d38122942bff3f12534e58) |
 
-> **구버전(Archive)** — 아래는 위 정본으로 대체됨: [CAN 모터 제어 on Jetson](https://app.notion.com/p/35d2d27b08d38062bf19f53e5f1c78cf)(AK40-10/SN65HVD230) · [YOLO 실습](https://app.notion.com/p/33a2d27b08d380dfb71bd86f0e3e7aeb)(YOLOv8/x86 PoC) · [모터 원격제어 및 영상 스트리밍](https://app.notion.com/p/34f2d27b08d380a89272cc20dfcd0f04)(Pi/gstreamer) · [Odrive CAN 제어](https://app.notion.com/p/3622d27b08d38054a4cafb7d9ca78b02)(X2212 엔코더 테스트모터 — BL70200 도입으로 폐기; ODrive CAN 일반은 「AK + ODrive 동시 CAN」 정본).
+> **구버전(Archive)** — 아래는 위 정본으로 대체됨: [Jetson CAN 모터 제어](https://app.notion.com/p/35d2d27b08d38062bf19f53e5f1c78cf)(AK40-10/SN65HVD230) · [YOLO 실습](https://app.notion.com/p/33a2d27b08d380dfb71bd86f0e3e7aeb)(YOLOv8/x86 PoC) · [모터 원격제어·영상 스트리밍](https://app.notion.com/p/34f2d27b08d380a89272cc20dfcd0f04)(Pi/gstreamer) · [ODrive CAN 제어](https://app.notion.com/p/3622d27b08d38054a4cafb7d9ca78b02)(X2212 엔코더 테스트모터 — BL70200 도입으로 폐기; ODrive CAN 일반은 「AK + ODrive 동시 CAN」 정본).
 
 코드 단위 상세는 레포 in-repo README 도 참고 — `safety_us100/README.md`(충돌방지 모듈 코드).
 
