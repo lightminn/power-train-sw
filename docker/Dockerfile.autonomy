@@ -7,8 +7,9 @@ ENV PYTHONUNBUFFERED=1 \
 
 # NumPy, PyYAML, CUDA, and PyTorch come from the existing Jetson L4T base.
 # JAX is intentionally absent until the full-load Jetson qualification step.
-# pytest is required by the plan's in-image Verify command.
-RUN pip3 install --no-cache-dir pytest
+# pytest is required by the plan's in-image Verify command. The dustynv base
+# pins pip to a dead jetson mirror, so point at standard PyPI explicitly.
+RUN pip3 install --no-cache-dir --index-url https://pypi.org/simple pytest
 
 WORKDIR /workspace
 COPY powertrain_autonomy /workspace/powertrain_autonomy
