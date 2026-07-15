@@ -97,16 +97,26 @@ def test_stale_wheel_is_excluded():
 
 
 def test_imu_yaw_overrides_wheel_omega():
-    """★ 원칙 '바퀴=거리, IMU=회전' — IMU 가 있으면 회전은 IMU 를 따른다."""
+    """★ 원칙 '바퀴=거리, IMU=회전' — fresh IMU 스트림이 있으면 회전은 IMU 를 따른다.
+
+    WP6-A 코어 전환으로 단일 IMU 샘플의 rate 를 무기한 유지하지 않는다(stale 재생 금지
+    독트린). 대신 fresh 스트림 동안 IMU 적분이 바퀴 ω(0)를 override 함을 고정한다 —
+    바퀴 정지 + 큰 각속도는 bias 가 아니라 실회전이다(빙판 슬립 시나리오)."""
     n = OdometryNode()
     try:
         geom = n.geom
-        imu = Imu()
-        imu.orientation.w = 1.0
-        imu.angular_velocity.z = 0.5              # IMU: 돌고 있다
-        n._on_imu(imu)
-
-        _drive_for(n, geom, 0.0, secs=1.0)        # 바퀴는 "안 돈다"고 말한다
+        dt = 0.02
+        for i in range(51):                       # 1.0 s, 바퀴·IMU 동시 스트림
+            m = _straight(geom, 0.0)              # 바퀴는 "안 돈다"고 말한다
+            m.header.stamp.sec = 0
+            m.header.stamp.nanosec = int(i * dt * 1e9)
+            n._on_wheels(m)
+            imu = Imu()
+            imu.orientation.w = 1.0
+            imu.angular_velocity.z = 0.5          # IMU: 돌고 있다
+            imu.header.stamp.sec = 0
+            imu.header.stamp.nanosec = int(i * dt * 1e9)
+            n._on_imu(imu)
         _, _, yaw = n.odo.pose()
         assert yaw == pytest.approx(0.5 * 1.0, rel=0.05)   # IMU 를 따라 1초에 0.5 rad
     finally:

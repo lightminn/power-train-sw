@@ -47,6 +47,42 @@ US-100 UART
             └─ /wheel_states (50 Hz)
 ```
 
+## WP6-A Wheel+IMU 상태 추정
+
+`powertrain_ros/state_estimation.py`가 ROS import 없는 순수 코어다. 절대 위치나 전역
+`map` 추정기가 아니라 수 초 범위의 연속 거리·방향·자세를 제공한다. ROS 노드는 값 변환과
+기존 wire 계약만 담당한다.
+
+```text
+/l515/accel/sample ─┐
+/l515/gyro/sample  ─┴─> imu_tilt_node ─> /imu/filtered ┐
+                                                        ├─> odometry_node ─> /odom + odom→base_link TF
+/wheel_states ──────────────────────────────────────────┘                  └─> ~/reset
+```
+
+- 바퀴 실측값은 기존 `chassis.odometry.solve_twist`를 통해 병진 속도·거리로 적분하고,
+  gyro-z는 정지 중 추정한 bias를 뺀 뒤 yaw에 적분한다. accel은 저역통과 후 roll/pitch를
+  만든다. IMU가 NaN이거나 stale일 때만 조향각을 포함한 wheel odometry yaw를 보조 입력으로
+  쓴다.
+- 코어 출력은 pose(x, y, yaw), 누적 이동거리, velocity, tilt(roll, pitch), yaw source,
+  slip/stuck·one-wheel mismatch 진단, wheel/IMU stale 상태를 묶은 immutable snapshot이다.
+- stamp 0·미래·동일·역행 sample은 폐기한다. wheel 입력이 끊기면 pose를 freeze하고 stale로
+  전이한다. 재연결 첫 sample은 시간 기준만 다시 잡아 단절 구간을 적분하지 않으며, 다음
+  sample부터 누적을 재개한다.
+- slip/stuck 임계값과 wheel별 원인 판정은 새로 구현하지 않는다. 코어는 기존
+  `chassis.wheel_consistency.WheelConsistencyMonitor`를 소비하며 terrain profile 경고와
+  진단 flag만 낸다. wheel별 토크 재분배 API는 없다. 현 `WheelState.msg`에는 command 값이
+  없으므로 ROS adapter는 향후 additive `command_turns_per_s`를 `getattr`로 소비하고, 필드가
+  없을 때는 오탐 방지를 위해 측정값을 neutral command로 넣는다. 현재 실차 command/encoder
+  진단의 권위본은 `ChassisManager.snapshot().wheel_consistency`다.
+- `/odom` 누적거리 하나만으로 미션 도착을 판정하지 않는다. event·perception·정지 확인 등
+  별도 조건과 함께 사용해야 한다.
+
+합성 직진(등속·가감속), 회전, 정지 bias, 잘못된 stamp, stale/reconnect, command 불일치,
+한 바퀴 정지, IMU NaN/stale fallback은 host 단위시험 범위다. 평탄면 5 m 직진 오차 ±5%,
+제자리 90° 회전, 험지 slip/stuck 검출률은 차체 조립 뒤 수행할 **남은 HIL 항목**이며
+WP6-A 소프트웨어 구현 완료 조건과 분리한다.
+
 ## 환경
 
 - 실행 위치: Jetson Orin Nano의 `powertrain_ros` 컨테이너
