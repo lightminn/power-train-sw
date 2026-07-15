@@ -58,3 +58,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY powertrain_ros_entrypoint.sh /usr/local/bin/powertrain_ros_entrypoint
 WORKDIR /workspace/ros2
 ENTRYPOINT ["/usr/local/bin/powertrain_ros_entrypoint"]
+
+# Keep this runtime-only smoke check after every expensive build layer. Compose
+# bind-mounts the repository at /workspace before the healthcheck executes.
+ENV PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros:/workspace/motor_control
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+    CMD python3 -c "import powertrain_observability" || exit 1

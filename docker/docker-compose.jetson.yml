@@ -76,6 +76,8 @@ services:
                                          # 양 컨테이너에 동일 이름 fastrtps_* 세그먼트 각자 존재).
                                          # 로봇팔 ros2_humble 도 ipc:host 여야 효과가 있다.
     privileged: true                     # can0 socketcan (WP5)
+    environment:
+      - PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros:/workspace/motor_control
     volumes:
       - ../:/workspace:rw
       - /dev:/dev
@@ -95,6 +97,13 @@ services:
     stdin_open: true
     tty: true
     restart: "on-failure:5"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python3 -c "import powertrain_observability"
+      interval: 30s
+      timeout: 3s
+      retries: 3
 
   # WP5.2 control-plane supervisor. This service must override the ROS image
   # ENTRYPOINT because that entrypoint always starts the L515 Gateway.
