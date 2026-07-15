@@ -254,6 +254,9 @@ class ChassisNode(Node):
         self._observability_event_client = EventClient()
         self._last_can_health_event_ns = 0
         self._can_health_event_period_ns = 1_000_000_000
+        self._last_arm_result_event_ns = 0
+        self._last_arm_result_event_key = None
+        self._arm_result_event_period_ns = 1_000_000_000
         self._arm_interlock = ArmInterlock(timeout_s=0.5)
         # arm_absent_field의 mock은 실제 sample/latch와 분리한다. publisher가
         # 나타나는 tick부터 이 객체를 선택하지 않아 즉시 real default-deny로 복귀한다.
@@ -265,6 +268,7 @@ class ChassisNode(Node):
         # independent joint proof before production remote-arm enablement.
         self._chassis_mode_intent = contract.MODE_STOW_REQUEST
         self._last_arm_status = None
+        self._last_arm_posture = ""
 
         self._authority = None
         self._wheel_stop = None
@@ -1100,6 +1104,125 @@ class ChassisNode(Node):
         except Exception:
             return False
 
+    def _emit_arm_result_event(self, msg, accepted, result=None):
+        """Best-effort adapter emission after WP5.2 has made its decision."""
+        try:
+            from powertrain_observability.arm_adapter import (
+                ArmObservation,
+                POSTURE_STATUSES,
+                build_arm_events,
+            )
+
+            raw_status = str(msg.status)
+            posture = str(getattr(self, "_last_arm_posture", "") or "")
+            if accepted and raw_status in POSTURE_STATUSES:
+                posture = raw_status
+                self._last_arm_posture = raw_status
+
+            supervisor = getattr(self, "_mission_supervisor", None)
+            failure = (
+                None
+                if supervisor is None
+                else getattr(supervisor, "failure", None)
+            )
+            failure_posture = getattr(failure, "last_locked_posture", "")
+            if failure_posture and raw_status not in POSTURE_STATUSES:
+                posture = str(failure_posture)
+
+            current_mission_id = (
+                None
+                if supervisor is None
+                else getattr(supervisor, "active_mission_id", None)
+            )
+            if current_mission_id is None:
+                current_mission_id = getattr(failure, "mission_id", None)
+            if current_mission_id is None:
+                current_mission_id = int(msg.mission_id)
+
+            hold_reason = str(getattr(result, "hold_reason", "") or "")
+            contract_violation = False
+            if not accepted and not hold_reason:
+                interlock = getattr(self, "_arm_interlock", None)
+                violation = getattr(
+                    interlock,
+                    "last_contract_violation",
+                    None,
+                )
+                violation_text = "" if violation is None else str(violation)
+                contract_violation = (
+                    violation_text == raw_status
+                    or violation_text.startswith("stamp_domain:")
+                )
+                if contract_violation:
+                    hold_reason = "arm_contract_violation:%s" % violation_text
+
+            detail_parts = []
+            state = getattr(result, "state", "")
+            if state:
+                detail_parts.append("state=%s" % state)
+            elif contract_violation:
+                detail_parts.append("state=CONTRACT_VIOLATION")
+            operation = getattr(failure, "operation", "")
+            if operation:
+                detail_parts.append("operation=%s" % operation)
+            notice = getattr(result, "operator_notice", "")
+            if notice:
+                detail_parts.append("notice=%s" % notice)
+
+            observation = ArmObservation(
+                raw_status=raw_status,
+                source_mission_id=int(msg.mission_id),
+                stamp_sec=int(msg.header.stamp.sec),
+                stamp_nanosec=int(msg.header.stamp.nanosec),
+                accepted=bool(accepted),
+                contract_violation=contract_violation,
+                current_mission_id=int(current_mission_id),
+                arm_posture=posture,
+                hold_reason=hold_reason,
+                source_detail=";".join(detail_parts),
+            )
+            now_ns = time.monotonic_ns()
+            events = build_arm_events(
+                observation,
+                monotonic_ns=now_ns,
+            )
+            if not events:
+                return False
+
+            event_key = (
+                raw_status,
+                int(current_mission_id),
+                events[0]["event_type"],
+            )
+            previous_key = getattr(self, "_last_arm_result_event_key", None)
+            previous_ns = getattr(self, "_last_arm_result_event_ns", 0)
+            period_ns = getattr(
+                self,
+                "_arm_result_event_period_ns",
+                1_000_000_000,
+            )
+            if (
+                event_key == previous_key
+                and previous_ns
+                and now_ns - previous_ns < period_ns
+            ):
+                return False
+
+            client = getattr(self, "_observability_event_client", None)
+            if client is None:
+                return False
+            self._last_arm_result_event_key = event_key
+            self._last_arm_result_event_ns = now_ns
+            emitted = False
+            for event in events:
+                try:
+                    emitted = bool(client.emit(event)) or emitted
+                except Exception:
+                    pass
+            return emitted
+        except Exception:
+            return False
+
     def _header(self):
         header = Header()
         header.stamp = self.get_clock().now().to_msg()
@@ -1201,13 +1324,20 @@ class ChassisNode(Node):
 
     def _on_arm_status(self, msg: ArmStatus):
         now_s = self._now_s()
+        stamp_s = self._arm_status_stamp_s(msg)
         accepted = self._arm_interlock.update(
             msg.status,
             msg.mission_id,
-            self._arm_status_stamp_s(msg),
+            stamp_s,
             now_s,
         )
+        emit_arm_result = getattr(self, "_emit_arm_result_event", None)
         if not accepted:
+            if emit_arm_result is not None:
+                try:
+                    emit_arm_result(msg, False, None)
+                except Exception:
+                    pass
             self.get_logger().warning(
                 "arm status rejected mission=%d status=%s"
                 % (msg.mission_id, msg.status)
@@ -1219,12 +1349,13 @@ class ChassisNode(Node):
                 % (msg.mission_id, msg.status)
             )
             self._last_arm_status = msg.status
+        result = None
         if getattr(self, "_mission_supervisor_enabled", False):
             try:
                 result = self._mission_supervisor.on_arm_status(
                     msg.status,
                     msg.mission_id,
-                    self._arm_status_stamp_s(msg),
+                    stamp_s,
                     now_s,
                 )
                 self._apply_mission_result(result)
@@ -1232,7 +1363,17 @@ class ChassisNode(Node):
                 self._mission_supervisor_failure(
                     "mission_arm_status_exception:%s" % exc
                 )
+                if emit_arm_result is not None:
+                    try:
+                        emit_arm_result(msg, True, None)
+                    except Exception:
+                        pass
                 return
+        if emit_arm_result is not None:
+            try:
+                emit_arm_result(msg, True, result)
+            except Exception:
+                pass
 
     def _srv_arm(self, _request, response):
         response.success = self.cm.arm()

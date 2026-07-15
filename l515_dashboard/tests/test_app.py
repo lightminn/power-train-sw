@@ -1,4 +1,10 @@
 import asyncio
+import os
+import socket
+import time
+import uuid
+
+import pytest
 
 from l515_dashboard.app import DashboardApp
 
@@ -168,3 +174,120 @@ def test_observability_renders_ten_node_can_matrix_and_consistency_warns():
       ):
         assert value in text
   asyncio.run(scenario())
+
+
+def test_observability_arm_row_renders_raw_status_mission_and_hold_reason():
+  from powertrain_observability.arm_adapter import (
+    ArmObservation,
+    build_arm_events,
+  )
+
+  async def scenario():
+    observation=ArmObservation(
+      raw_status="FAILED", source_mission_id=12,
+      stamp_sec=123, stamp_nanosec=456_000_000, accepted=True,
+      contract_violation=False,
+      current_mission_id=41, arm_posture="STOWED_LOCKED",
+      hold_reason="arm_failure:FAILED",
+      source_detail="state=FAILED_HOLD;operation=PICKUP",
+    )
+    event,=build_arm_events(observation)
+    app=DashboardApp(Client(),poll_interval_s=60)
+    payload={
+      "run_id":"run-arm", "drop_count":0, "health":{"status":"OK"},
+      "recent_events":{"ARM_RESULT":event}, "channel_health":{},
+    }
+    async with app.run_test() as pilot:
+      app.show_observability_status(payload); await pilot.pause()
+      text=app.query_one("#observability-status").render().plain
+      for value in (
+        "FAILED","stamp=123.456000000","mission_id=41","arm_failure:FAILED",
+      ):
+        assert value in text
+  asyncio.run(scenario())
+
+
+def test_arm_fixtures_cross_real_daemon_socket_and_reach_tui(tmp_path):
+  from powertrain_observability.arm_adapter import (
+    ArmObservation,
+    build_arm_events,
+  )
+  from powertrain_observability.client import EventClient, ObservabilityClient
+  from powertrain_observability.server import ObservabilityServer
+
+  probe=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM)
+  try:
+    probe.setsockopt(socket.SOL_SOCKET,socket.SO_PASSCRED,1)
+    probe.bind("\0test-t5-app-probe-"+uuid.uuid4().hex)
+  except PermissionError as exc:
+    pytest.skip(f"sandbox blocks AF_UNIX abstract sockets/SO_PASSCRED: {exc}")
+  finally:
+    probe.close()
+
+  def wait_for(predicate,timeout=2.0):
+    deadline=time.monotonic()+timeout
+    while time.monotonic()<deadline:
+      value=predicate()
+      if value: return value
+      time.sleep(0.01)
+    return predicate()
+
+  fixtures=(
+    ("FUTURE_ARM_STATUS",False,"arm_contract_violation:FUTURE_ARM_STATUS"),
+    ("FAILED",True,"arm_failure:FAILED"),
+    ("GRIP_LOST",True,"grip_lost_latched"),
+  )
+  for index,(raw_status,accepted,hold_reason) in enumerate(fixtures):
+    suffix=f"{os.getpid()}-{index}-{uuid.uuid4().hex}"
+    event_socket=f"@test-t5-app-events-{suffix}"
+    status_socket=f"@test-t5-app-status-{suffix}"
+    server=ObservabilityServer(
+      event_socket=event_socket,status_socket=status_socket,
+      lock_path=tmp_path/f"observability-{index}.lock",
+      run_directory=tmp_path/f"runs-{index}",run_id=f"task5-app-{index}",
+    )
+    server.start()
+    try:
+      observation=ArmObservation(
+        raw_status=raw_status,source_mission_id=12,
+        stamp_sec=123,stamp_nanosec=456_000_000,accepted=accepted,
+        contract_violation=not accepted,
+        current_mission_id=41,arm_posture="STOWED_LOCKED",
+        hold_reason=hold_reason,
+        source_detail="state=FAILED_HOLD;operation=PICKUP",
+      )
+      producer=EventClient(event_socket)
+      assert all(producer.emit(event) for event in build_arm_events(observation))
+      consumer=ObservabilityClient(status_socket,request_timeout_s=0.2)
+
+      def received():
+        snapshot=consumer.poll()
+        if snapshot is None: return None
+        recent=snapshot.payload["recent_events"]
+        if "ARM_RESULT" not in recent: return None
+        if not accepted and "CONTRACT_VIOLATION" not in recent: return None
+        return snapshot
+
+      observed=wait_for(received)
+      assert observed is not None
+      if not accepted:
+        violation=observed.payload["recent_events"]["CONTRACT_VIOLATION"]
+        assert violation["payload"]["raw_status"]==raw_status
+        assert violation["payload"]["stamp"]=={
+          "sec":123,"nanosec":456_000_000,
+        }
+
+      async def scenario():
+        app=DashboardApp(
+          Client(),observability_client=consumer,poll_interval_s=60,
+        )
+        async with app.run_test() as pilot:
+          app.refresh_status(); await pilot.pause()
+          text=app.query_one("#observability-status").render().plain
+          for value in (
+            raw_status,"stamp=123.456000000","mission_id=41",hold_reason,
+          ):
+            assert value in text
+      asyncio.run(scenario())
+    finally:
+      server.stop()
