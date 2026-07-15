@@ -318,6 +318,13 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 
 ## Task 6: dual-camera network profile과 semi-auto remote assist
 
+> **2026-07-15 추가 정합 항목**: PR #2로 병합된 read-only operator console
+> (`operator_console/` + `chassis_telemetry_sender_node`)은 자체 RX 전용 can0 관찰로
+> CAN 상태를 표시한다(검사기 allowlist + no-send 계약 테스트로 봉인). 이는 "CAN health는
+> 실제 flock owner가 측정한 값만 권위 있게 표시한다"는 Global constraint와 표시 소스가
+> 이원화되는 지점이므로, Task 6에서 콘솔의 CAN/chassis 표시를 observability daemon status
+> 조회(Task 2)로 일원화하고 노드의 직접 can0 관찰을 제거하는 마이그레이션을 포함한다.
+
 **Files:**
 
 - Create: `l515_dashboard/network_profiles.py`
