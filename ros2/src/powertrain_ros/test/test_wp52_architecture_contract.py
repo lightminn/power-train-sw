@@ -349,3 +349,11 @@ def test_real_can_session_replaces_temporary_abstract_socket_lock():
     )
     assert "can_lock" not in manager
     assert "_CAN_LOCK" not in manager
+
+
+def test_chassis_node_sets_motion_holds_through_manager_wrapper():
+    """hold를 interlock에 직접 걸면 command_recovery가 안 걸려 pre-hold 명령이
+    해제 순간 재생된다(2026-07-15 실측). 반드시 ChassisManager.set_motion_hold 경유."""
+    source = (NODES / "chassis_node.py").read_text(encoding="utf-8")
+    assert "cm._interlock.set_motion_hold" not in source
+    assert 'self.cm.set_motion_hold("mission"' in source

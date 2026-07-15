@@ -666,7 +666,9 @@ class ChassisNode(Node):
         if active:
             self._authority_final_v = 0.0
             self._authority_final_omega = 0.0
-        self.cm._interlock.set_motion_hold("mission", active, detail)
+        # ChassisManager.set_motion_hold routes through the command_recovery
+        # hold so a pre-hold command is never replayed when mission clears.
+        self.cm.set_motion_hold("mission", active, detail)
 
     def _apply_mission_result(self, result):
         if not self._mission_supervisor_enabled:

@@ -118,7 +118,8 @@ def test_apply_result_sets_mission_hold_and_mode_before_arrival_publish():
     node = Node()
     node._mission_supervisor_enabled = True
     node._arm_gate_mode = "production"
-    node.cm = SimpleNamespace(_interlock=_Interlock())
+    interlock = _Interlock()
+    node.cm = SimpleNamespace(_interlock=interlock, set_motion_hold=interlock.set_motion_hold)
     node._authority_final_v = 0.4
     node._authority_final_omega = -0.2
     events = []
@@ -160,7 +161,8 @@ def test_arm_absent_field_never_applies_mission_stop_or_arrival():
     node = Node()
     node._mission_supervisor_enabled = True
     node._arm_gate_mode = "arm_absent_field"
-    node.cm = SimpleNamespace(_interlock=_Interlock())
+    interlock = _Interlock()
+    node.cm = SimpleNamespace(_interlock=interlock, set_motion_hold=interlock.set_motion_hold)
     node._authority_final_v = 0.0
     node._authority_final_omega = 0.0
     modes = []
@@ -215,7 +217,8 @@ def test_arm_absent_field_idle_supervisor_does_not_block_powertrain_only_drive()
     node = Node()
     node._mission_supervisor_enabled = True
     node._arm_gate_mode = "arm_absent_field"
-    node.cm = SimpleNamespace(_interlock=_Interlock())
+    interlock = _Interlock()
+    node.cm = SimpleNamespace(_interlock=interlock, set_motion_hold=interlock.set_motion_hold)
     node._authority_final_v = 0.2
     node._authority_final_omega = 0.0
     modes = []
@@ -249,7 +252,8 @@ def test_supervisor_exception_is_converted_to_hold_without_escaping_tick():
     node._mission_supervisor = SimpleNamespace(
         tick=lambda _now: (_ for _ in ()).throw(RuntimeError("injected"))
     )
-    node.cm = SimpleNamespace(_interlock=_Interlock())
+    interlock = _Interlock()
+    node.cm = SimpleNamespace(_interlock=interlock, set_motion_hold=interlock.set_motion_hold)
     node._authority_final_v = 0.3
     node._authority_final_omega = 0.1
     node.set_chassis_mode_intent = lambda _mode: True
