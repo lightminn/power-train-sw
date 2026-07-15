@@ -238,7 +238,7 @@ def test_pivot_drives_mid_wheels_opposite():
 
 # ── 안전 interlock (hold → 구동 0, ESTOP → 전체 정지) ─────────────────────
 
-def test_checking_is_auto_clearing_motion_hold_without_disarm():
+def test_checking_auto_clears_but_requires_fresh_command_without_disarm():
     m = _armed_manager()
     m.set(0.4, 0.4)
     m.update_external_safety("CHECKING", False, "warming up")
@@ -251,8 +251,35 @@ def test_checking_is_auto_clearing_motion_hold_without_disarm():
     m.update_external_safety("VALID", False, "clear")
     m.tick()
     assert m.mode == "ARMED"
+    assert m.snapshot().stop_state == "MOTION_HOLD"
+    assert all(d == 0.0 for d in _drive_targets(m).values())
+    assert m.corners["front_left"].state()["steer"]["target_deg"] > 0
+
+    m.set(0.4, 0.4)
+    m.tick()
     assert m.snapshot().stop_state == "RUN"
     assert m.corners["front_left"].state()["drive"]["target_vel"] != 0.0
+
+
+def test_commands_received_during_motion_hold_are_discarded():
+    m = _armed_manager()
+    m.set_motion_hold("network", True, "link down")
+    m.set(0.7, 0.3)
+    m.tick()
+
+    assert m.mode == "ARMED"
+    assert m.snapshot().stop_state == "MOTION_HOLD"
+    assert all(d == 0.0 for d in _drive_targets(m).values())
+
+    m.set_motion_hold("network", False, "link restored")
+    m.tick()
+    assert m.snapshot().stop_state == "MOTION_HOLD"
+    assert all(d == 0.0 for d in _drive_targets(m).values())
+
+    m.set(0.7, 0.3)
+    m.tick()
+    assert m.snapshot().stop_state == "RUN"
+    assert any(d != 0.0 for d in _drive_targets(m).values())
 
 
 def test_external_estop_latches_after_condition_clears():

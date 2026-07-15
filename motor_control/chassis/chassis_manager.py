@@ -26,6 +26,7 @@ from corner_module.corner_module import CornerModule
 from corner_module.null_steer import NullSteer
 
 logger = logging.getLogger(__name__)
+_COMMAND_RECOVERY_HOLD = "command_recovery"
 
 
 # ── 설정 · 매핑 표 ────────────────────────────────────────────────────────
@@ -186,9 +187,26 @@ class ChassisManager:
         if self.mode != "ARMED":
             logger.warning("set() 무시: ARMED 아님 (mode=%s)", self.mode)
             return
+        safety = self._interlock.snapshot()
+        blocking_holds = set(safety.hold_sources) - {
+            "cmd_watchdog",
+            _COMMAND_RECOVERY_HOLD,
+        }
+        if blocking_holds:
+            # HOLD 중 들어온 명령으로 현재 조향 목표를 덮으면 센서/링크가 회복되는
+            # 순간 운전자의 새 의사 확인 없이 과거 명령이 재생될 수 있다. 입력의
+            # 생존 시각만 갱신하고 명령은 폐기한다. cmd_watchdog HOLD와 내부
+            # command_recovery HOLD는 새 set() 자체가 복구 신호이므로 예외다.
+            self._last_set_ms = self._now_ms()
+            logger.info(
+                "set() 폐기: MOTION_HOLD 활성 (sources=%s)",
+                ",".join(sorted(blocking_holds)),
+            )
+            return
         self._v = v_mps
         self._omega = omega_rad_s
         self._last_set_ms = self._now_ms()
+        self._interlock.set_motion_hold(_COMMAND_RECOVERY_HOLD, False)
 
     def set_speed_scale(self, scale: float) -> None:
         """전방 감속 힌트 [0,1]. **인지 계층**(depth 장애물)이 주는 배율이다.
@@ -270,12 +288,25 @@ class ChassisManager:
         return True
 
     def update_external_safety(self, status, estop_required, detail="") -> None:
-        self._interlock.set_motion_hold(
-            "us100_checking", status == "CHECKING", detail,
-        )
+        self.set_motion_hold("us100_checking", status == "CHECKING", detail)
         self._interlock.set_estop_condition(
             "us100", bool(estop_required), detail,
         )
+
+    def set_motion_hold(self, source, active, detail="") -> None:
+        """자동복구 가능한 정지 원인을 갱신한다.
+
+        HOLD 진입 시 현재 조향 목표는 유지하되 구동 명령은 재사용 불가로 표시한다.
+        원인이 사라진 뒤 새 set()이 오면 자동으로 RUN으로 돌아간다. E-stop의
+        reset/arm 절차와 달리 재무장은 요구하지 않는다.
+        """
+        self._interlock.set_motion_hold(source, bool(active), detail)
+        if active:
+            self._interlock.set_motion_hold(
+                _COMMAND_RECOVERY_HOLD,
+                True,
+                "fresh command required after motion hold",
+            )
 
     def set_safety_link_stale(self, active, detail="") -> None:
         self._interlock.set_estop_condition(
