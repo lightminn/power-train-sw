@@ -1,0 +1,14 @@
+[Unit]
+Description=Powertrain read-only operator console
+After=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/power-train-sw
+EnvironmentFile=%h/.config/powertrain/operator-console.env
+ExecStart=/usr/bin/python3 -m operator_console.app --host ${OPERATOR_HOST}
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target
