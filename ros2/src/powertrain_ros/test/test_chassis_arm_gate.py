@@ -500,3 +500,29 @@ def test_hardware_launch_and_readme_expose_fail_closed_arm_gate_defaults():
     assert "arm_absent_field" in readme
     assert "contract_v2_verified" in readme
     assert "STOW_REQUEST" in readme
+
+
+def test_srv_arm_refreshes_safety_freshness_baseline():
+    """cm.arm()이 executor를 ~0.8s 블로킹해 verdict 콜백이 밀리는 동안
+    freshness가 거짓 stale로 래치되던 실기 결함(2026-07-16: age 783ms 래치,
+    직후 rx gap 800ms) — arm 종료 시점으로 기준선을 당겨야 한다."""
+    ArmNode = _node_class("_srv_arm")
+    node = ArmNode()
+    node.cm = SimpleNamespace(
+        arm=lambda: True,
+        state=lambda: {"safety": SimpleNamespace(estop_latched=False)},
+        mode="ARMED",
+    )
+    node._now_ms = lambda: 100_000.0
+    node._last_safety_ms = 99_000.0          # arm 블로킹 동안 1s 낡음
+    node.get_logger = lambda: SimpleNamespace(info=lambda *_a, **_k: None)
+    response = SimpleNamespace(success=None, message=None)
+    node._srv_arm(None, response)
+    assert response.success is True
+    assert node._last_safety_ms == 100_000.0  # 기준선 재설정
+
+    # 아직 verdict를 한 번도 못 받은 상태(None)에서는 재설정하지 않는다 —
+    # startup timeout 경로의 의미를 바꾸면 안 된다.
+    node._last_safety_ms = None
+    node._srv_arm(None, response)
+    assert node._last_safety_ms is None

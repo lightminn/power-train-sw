@@ -989,7 +989,16 @@ class ChassisNode(Node):
             msg.detail,
         )
         self.cm.set_safety_link_stale(False)
-        self._last_safety_ms = self._now_ms()
+        now_ms = self._now_ms()
+        if (
+            self._last_safety_ms is not None
+            and now_ms - self._last_safety_ms > 500.0
+        ):
+            self.get_logger().warning(
+                "safety verdict rx gap: age_ms=%.0f"
+                % (now_ms - self._last_safety_ms)
+            )
+        self._last_safety_ms = now_ms
 
     def _tick(self):
         now_ms = self._now_ms()
@@ -1017,6 +1026,18 @@ class ChassisNode(Node):
                     now_ms - self._last_safety_ms
                     > self._safety_topic_timeout * 1000.0
                 )
+                if stale and not getattr(
+                    self, "_safety_stale_active", False
+                ):
+                    self.get_logger().error(
+                        "safety topic stale latch: age_ms=%.0f "
+                        "(timeout %.0f ms)"
+                        % (
+                            now_ms - self._last_safety_ms,
+                            self._safety_topic_timeout * 1000.0,
+                        )
+                    )
+                self._safety_stale_active = stale
                 self.cm.set_safety_link_stale(
                     stale,
                     "safety_topic_stale",
@@ -1377,6 +1398,13 @@ class ChassisNode(Node):
 
     def _srv_arm(self, _request, response):
         response.success = self.cm.arm()
+        # cm.arm()은 코너 6개의 폐루프 진입·피드백 대기로 single-threaded
+        # executor를 ~0.8s 블로킹한다. 그동안 verdict 콜백이 큐에 밀려
+        # freshness가 거짓 stale로 래치되므로(2026-07-16 실기 재현: age 783ms,
+        # 직후 rx gap 800ms 일괄 처리) 기준선을 arm 종료 시점으로 당긴다.
+        # 링크가 실제로 죽었다면 다음 tick부터 0.75s 뒤 정상 래치된다.
+        if getattr(self, "_last_safety_ms", None) is not None:
+            self._last_safety_ms = self._now_ms()
         state = self.cm.state()
         safety = state["safety"]
         if response.success:
