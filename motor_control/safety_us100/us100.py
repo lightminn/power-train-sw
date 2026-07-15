@@ -35,7 +35,12 @@ class Us100Sensor:
 
     def open(self):
         try:
-            self._ser = serial.Serial(self._port, self._baud, timeout=self._timeout)
+            self._ser = serial.Serial(
+                self._port,
+                self._baud,
+                timeout=self._timeout,
+                write_timeout=0.1,
+            )
             self._owns_serial_port = True
         except serial.SerialException as e:
             raise RuntimeError(
@@ -68,7 +73,7 @@ class Us100Sensor:
                     "temperature_alive",
                 )
             return SensorReading(NO_RESPONSE, None, "liveness_timeout")
-        except serial.SerialException:
+        except (serial.SerialTimeoutException, serial.SerialException):
             return SensorReading(NO_RESPONSE, None, "serial_error")
 
     def close(self):

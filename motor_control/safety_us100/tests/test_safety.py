@@ -217,6 +217,21 @@ def test_sensor_maps_serial_exception_to_no_response():
     assert ser.read_sizes == [2]
 
 
+def test_sensor_maps_serial_write_timeout_to_no_response():
+    class FailingWriteSerial(FakeSerial):
+        def write(self, data):
+            self.writes.append(bytes(data))
+            raise serial.SerialTimeoutException("write timed out")
+
+    ser = FailingWriteSerial([])
+    sensor = Us100Sensor(serial_port=ser, sleeper=lambda _: None)
+
+    reading = sensor.read()
+
+    assert reading == SensorReading(NO_RESPONSE, None, "serial_error")
+    assert ser.writes == [b"\xff" * 8 + b"\x55"]
+
+
 def test_sensor_reports_no_response_when_port_is_closed():
     sensor = Us100Sensor(sleeper=lambda _: None)
     assert sensor.read() == SensorReading(NO_RESPONSE, None, "port_closed")
@@ -236,8 +251,8 @@ def test_close_closes_sensor_opened_port(monkeypatch):
     ser = FakeSerial([])
     opened_with = []
 
-    def open_serial(port, baud, timeout):
-        opened_with.append((port, baud, timeout))
+    def open_serial(port, baud, timeout, write_timeout):
+        opened_with.append((port, baud, timeout, write_timeout))
         return ser
 
     monkeypatch.setattr("safety_us100.us100.serial.Serial", open_serial)
@@ -246,6 +261,6 @@ def test_close_closes_sensor_opened_port(monkeypatch):
 
     sensor.close()
 
-    assert opened_with == [("/dev/test-us100", 19200, 0.25)]
+    assert opened_with == [("/dev/test-us100", 19200, 0.25, 0.1)]
     assert ser.close_count == 1
     assert sensor.read() == SensorReading(NO_RESPONSE, None, "port_closed")
