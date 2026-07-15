@@ -1,0 +1,18 @@
+[Unit]
+Description=Powertrain read-only chassis telemetry sender
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/powertrain-chassis-telemetry
+ExecStart=/usr/bin/docker exec -e OPERATOR_HOST -e OPERATOR_PORT powertrain_ros bash -lc 'source /opt/ros/humble/setup.bash && source /workspace/ros2/install/setup.bash && exec python3 /workspace/ros2/src/powertrain_ros/powertrain_ros/chassis_telemetry_sender_node.py --ros-args -p operator_host:=$OPERATOR_HOST -p operator_port:=$OPERATOR_PORT'
+ExecStop=/usr/bin/docker exec powertrain_ros sh -lc 'pkill -f chassis_telemetry_sender_node.py || true'
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

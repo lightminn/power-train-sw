@@ -52,6 +52,7 @@ setup(
             "bringup = powertrain_ros.bringup_node:main",
             "chassis = powertrain_ros.chassis_node:main",
             "us100_safety = powertrain_ros.us100_safety_node:main",
+            "pdist80b_monitor = powertrain_ros.pdist80b_monitor_node:main",
             "l515_cloud = powertrain_ros.l515_cloud_node:main",
             "imu_tilt = powertrain_ros.imu_tilt_node:main",
             "joint_state_bridge = powertrain_ros.joint_state_bridge_node:main",

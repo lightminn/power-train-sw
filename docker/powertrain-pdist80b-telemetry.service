@@ -1,0 +1,19 @@
+[Unit]
+Description=Powertrain PDIST80B read-only operator telemetry
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=zetin
+Group=dialout
+EnvironmentFile=/etc/default/powertrain-pdist80b-telemetry
+WorkingDirectory=/home/zetin/power-train-sw
+ExecStart=/bin/sh -c 'exec /usr/bin/python3 scripts/pdist80b_telemetry_sender.py --operator-host "$OPERATOR_HOST" --operator-port "$OPERATOR_PORT" --port "$PDIST_PORT" --device-id "$PDIST_DEVICE_ID" --hz "$PDIST_HZ"'
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

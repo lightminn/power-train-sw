@@ -1,0 +1,185 @@
+"""Versioned read-only robot telemetry contract for the operator console."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+import json
+import socket
+import threading
+import time
+from typing import Any
+
+
+@dataclass(frozen=True)
+class WheelStatus:
+    """Read-only per-wheel summary mirrored from `/wheel_states`."""
+    name: str
+    mode: str
+    drive_turns_per_s: float | None
+    steer_deg: float | None
+    stale: bool
+    drive_axis_error: int
+    steer_fault: int
+
+
+@dataclass(frozen=True)
+class TelemetrySnapshot:
+    sequence: int
+    odometry_source: str
+    x_m: float | None
+    y_m: float | None
+    yaw_rad: float | None
+    voltage_v: float | None
+    current_a: float | None
+    power_w: float | None
+    drive_state: str
+    can_state: str
+    l515_state: str
+    l515_detail: str
+    l515_mode: str
+    l515_color_hz: float | None
+    l515_depth_hz: float | None
+    l515_submitted_hz: float | None
+    l515_sent_hz: float | None
+    l515_drop_hz: float | None
+    l515_ros_topic_rates_hz: tuple[tuple[str, float], ...]
+    l515_aligned_depth_age_ms: float | None
+    l515_process_cpu_percent: float | None
+    l515_process_rss_bytes: int | None
+    pdist_soc_percent: int | None
+    pdist_battery_flags: int | None
+    pdist_protection_flags: int | None
+    pdist_charge_current_a: float | None
+    rs485_state: str
+    rs485_consecutive_failures: int | None
+    rs485_detail: str
+    safety_status: str
+    safety_distance_mm: float | None
+    safety_estop_required: bool | None
+    safety_consecutive_failures: int | None
+    safety_detail: str
+    wheel_count: int | None
+    wheel_fault_count: int | None
+    wheel_stale_count: int | None
+    wheel_axis_error_count: int | None
+    wheel_steer_fault_count: int | None
+    wheel_statuses: tuple[WheelStatus, ...]
+    received_monotonic_s: float
+
+
+def _optional_number(payload: dict[str, Any], name: str) -> float | None:
+    value = payload.get(name)
+    return None if value is None else float(value)
+
+
+def _optional_int(payload: dict[str, Any], name: str) -> int | None:
+    value = payload.get(name)
+    return None if value is None else int(value)
+
+
+def _wheel_statuses(payload: dict[str, Any]) -> tuple[WheelStatus, ...]:
+    raw_statuses = payload.get("wheel_statuses", [])
+    if not isinstance(raw_statuses, list) or len(raw_statuses) > 6:
+        raise ValueError("invalid wheel_statuses")
+    statuses: list[WheelStatus] = []
+    for raw in raw_statuses:
+        if not isinstance(raw, dict):
+            raise ValueError("invalid wheel status")
+        statuses.append(WheelStatus(
+            name=str(raw["name"]), mode=str(raw["mode"]),
+            drive_turns_per_s=_optional_number(raw, "drive_turns_per_s"),
+            steer_deg=_optional_number(raw, "steer_deg"), stale=bool(raw.get("stale", False)),
+            drive_axis_error=int(raw.get("drive_axis_error", 0)),
+            steer_fault=int(raw.get("steer_fault", 0)),
+        ))
+    return tuple(statuses)
+
+
+def _l515_ros_topic_rates(payload: dict[str, Any]) -> tuple[tuple[str, float], ...]:
+    """Keep the Gateway's per-topic rates scalar and bounded for UDP v1."""
+    raw_rates = payload.get("l515_ros_topic_rates_hz", {})
+    if not isinstance(raw_rates, dict) or len(raw_rates) > 6:
+        raise ValueError("invalid l515_ros_topic_rates_hz")
+    return tuple(sorted((str(topic), float(rate)) for topic, rate in raw_rates.items()))
+
+
+def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> TelemetrySnapshot:
+    """Validate telemetry v1; a missing physical source remains explicit None."""
+    if len(raw) > 2048:
+        raise ValueError("oversize telemetry")
+    payload: dict[str, Any] = json.loads(raw.decode("utf-8"))
+    if payload.get("schema_version") != 1:
+        raise ValueError("unsupported schema")
+    return TelemetrySnapshot(
+        sequence=int(payload["sequence"]),
+        odometry_source=str(payload.get("odometry_source", "unavailable")),
+        x_m=_optional_number(payload, "x_m"), y_m=_optional_number(payload, "y_m"),
+        yaw_rad=_optional_number(payload, "yaw_rad"), voltage_v=_optional_number(payload, "voltage_v"),
+        current_a=_optional_number(payload, "current_a"), power_w=_optional_number(payload, "power_w"),
+        drive_state=str(payload.get("drive_state", "unavailable")),
+        can_state=str(payload.get("can_state", "unavailable")),
+        l515_state=str(payload.get("l515_state", "unavailable")),
+        l515_detail=str(payload.get("l515_detail", "")),
+        l515_mode=str(payload.get("l515_mode", "-")),
+        l515_color_hz=_optional_number(payload, "l515_color_hz"),
+        l515_depth_hz=_optional_number(payload, "l515_depth_hz"),
+        l515_submitted_hz=_optional_number(payload, "l515_submitted_hz"),
+        l515_sent_hz=_optional_number(payload, "l515_sent_hz"),
+        l515_drop_hz=_optional_number(payload, "l515_drop_hz"),
+        l515_ros_topic_rates_hz=_l515_ros_topic_rates(payload),
+        l515_aligned_depth_age_ms=_optional_number(payload, "l515_aligned_depth_age_ms"),
+        l515_process_cpu_percent=_optional_number(payload, "l515_process_cpu_percent"),
+        l515_process_rss_bytes=_optional_int(payload, "l515_process_rss_bytes"),
+        pdist_soc_percent=_optional_int(payload, "pdist_soc_percent"),
+        pdist_battery_flags=_optional_int(payload, "pdist_battery_flags"),
+        pdist_protection_flags=_optional_int(payload, "pdist_protection_flags"),
+        pdist_charge_current_a=_optional_number(payload, "pdist_charge_current_a"),
+        rs485_state=str(payload.get("rs485_state", "unavailable")),
+        rs485_consecutive_failures=_optional_int(payload, "rs485_consecutive_failures"),
+        rs485_detail=str(payload.get("rs485_detail", "")),
+        safety_status=str(payload.get("safety_status", "unavailable")),
+        safety_distance_mm=_optional_number(payload, "safety_distance_mm"),
+        safety_estop_required=(None if payload.get("safety_estop_required") is None
+                               else bool(payload["safety_estop_required"])),
+        safety_consecutive_failures=_optional_int(payload, "safety_consecutive_failures"),
+        safety_detail=str(payload.get("safety_detail", "")),
+        wheel_count=_optional_int(payload, "wheel_count"),
+        wheel_fault_count=_optional_int(payload, "wheel_fault_count"),
+        wheel_stale_count=_optional_int(payload, "wheel_stale_count"),
+        wheel_axis_error_count=_optional_int(payload, "wheel_axis_error_count"),
+        wheel_steer_fault_count=_optional_int(payload, "wheel_steer_fault_count"),
+        wheel_statuses=_wheel_statuses(payload),
+        received_monotonic_s=time.monotonic() if received_monotonic_s is None else received_monotonic_s,
+    )
+
+
+class LatestTelemetryReceiver:
+    """Latest-only UDP receiver. It cannot affect robot control."""
+    def __init__(self, port: int) -> None:
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._socket.bind(("0.0.0.0", port))
+        self._latest: TelemetrySnapshot | None = None
+        self._lock = threading.Lock()
+        self._stopping = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="robot-telemetry", daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        self._socket.settimeout(0.2)
+        while not self._stopping.is_set():
+            try:
+                raw, _address = self._socket.recvfrom(4096)
+                snapshot = parse_telemetry(raw)
+            except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            with self._lock:
+                self._latest = snapshot
+
+    def latest(self) -> TelemetrySnapshot | None:
+        with self._lock:
+            return self._latest
+
+    def close(self) -> None:
+        self._stopping.set()
+        self._socket.close()
+        self._thread.join(timeout=1.0)
