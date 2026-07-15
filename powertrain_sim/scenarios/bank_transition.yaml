@@ -1,0 +1,94 @@
+schema_version: 1
+scenario_id: bank_transition
+description: Accelerate and decelerate through a bank transition with deterministic degradations.
+units:
+  distance: m
+  angle: rad
+  time: s
+  linear_velocity: m/s
+  angular_velocity: rad/s
+  acceleration: m/s^2
+  curvature: 1/m
+  friction: '1'
+  depth: mm
+frames:
+  world: map
+  body: base_link
+  depth: l515_depth_optical_frame
+  imu: l515_imu_link
+clock:
+  start_s: 1.0
+  dt_s: 0.02
+  duration_s: 8.0
+prng:
+  algorithm: PCG64
+  seed: 6003
+  seed_class: stress
+track:
+  centerline_m:
+    - [0.0, 0.0, 0.4]
+    - [1.793739111, 0.0, 0.55]
+    - [3.587478222, 0.0, 0.4]
+  width_m: [1.2, 1.1, 1.2]
+  height_m: [0.4, 0.55, 0.4]
+  bank_rad: [0.0, 0.17453292519943295, 0.0]
+  curvature_per_m: [0.0, 0.0, 0.0]
+  friction_coefficient: [0.8, 0.65, 0.8]
+  drop_boundaries:
+    - {left: true, right: true}
+    - {left: true, right: true}
+    - {left: true, right: true}
+motion:
+  profile: trapezoidal_speed
+  max_linear_speed_m_s: 0.6
+  linear_acceleration_m_s2: 0.3
+  yaw_rate_rad_s: 0.0
+sensors:
+  wheel_states:
+    sample_every_n_steps: 1
+    noise_std_turns_per_s: 0.002
+    wheel_names: [front_left, front_right, mid_left, mid_right, rear_left, rear_right]
+  imu:
+    sample_every_n_steps: 1
+    gyro_bias_rad_s: [0.001, -0.001, 0.003]
+    gyro_noise_std_rad_s: 0.002
+    accel_bias_m_s2: [0.01, -0.01, 0.02]
+    accel_noise_std_m_s2: 0.01
+    gravity_m_s2: 9.81
+  depth:
+    sample_every_n_steps: 5
+    shape_px: [40, 60]
+    depth_scale_m: 0.001
+    base_depth_m: 1.5
+    noise_std_m: 0.003
+    bank_depth_span_m: 0.08
+    intrinsics_px: {fx: 420.0, fy: 420.0, cx: 29.5, cy: 19.5}
+faults:
+  wheel_slip:
+    - wheel: rear_right
+      start_s: 3.0
+      end_s: 4.0
+      measurement_scale: 0.5
+  sensor_dropouts:
+    - stream: imu
+      start_s: 6.0
+      end_s: 6.2
+  depth_holes:
+    - start_s: 2.0
+      end_s: 2.4
+      rows: [15, 25]
+      cols: [25, 35]
+  depth_spikes:
+    - start_s: 5.0
+      end_s: 5.2
+      row: 20
+      col: 30
+      offset_m: 2.5
+expected_metrics:
+  completion: true
+  min_clearance_m: 0.15
+  edge_overrun_count: 0
+  false_hold_count: 0
+  fail_open_count: 0
+  max_recovery_time_s: 0.5
+  max_estimator_runtime_ms: 5.0

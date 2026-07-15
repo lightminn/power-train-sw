@@ -1,0 +1,73 @@
+schema_version: 1
+scenario_id: pivot_90deg
+description: Counter-clockwise ninety-degree pivot regression.
+units:
+  distance: m
+  angle: rad
+  time: s
+  linear_velocity: m/s
+  angular_velocity: rad/s
+  acceleration: m/s^2
+  curvature: 1/m
+  friction: '1'
+  depth: mm
+frames:
+  world: map
+  body: base_link
+  depth: l515_depth_optical_frame
+  imu: l515_imu_link
+clock:
+  start_s: 1.0
+  dt_s: 0.02
+  duration_s: 1.0
+prng:
+  algorithm: PCG64
+  seed: 6002
+  seed_class: regression
+track:
+  centerline_m: [[0.0, 0.0, 0.4], [1.0, 0.0, 0.4]]
+  width_m: [1.4, 1.4]
+  height_m: [0.4, 0.4]
+  bank_rad: [0.0, 0.0]
+  curvature_per_m: [0.0, 0.0]
+  friction_coefficient: [0.9, 0.9]
+  drop_boundaries:
+    - {left: true, right: true}
+    - {left: true, right: true}
+motion:
+  profile: pivot
+  target_yaw_rad: 1.5707963267948966
+  yaw_rate_rad_s: 1.5707963267948966
+sensors:
+  wheel_states:
+    sample_every_n_steps: 1
+    noise_std_turns_per_s: 0.0
+    wheel_names: [front_left, front_right, mid_left, mid_right, rear_left, rear_right]
+  imu:
+    sample_every_n_steps: 1
+    gyro_bias_rad_s: [0.0, 0.0, 0.0]
+    gyro_noise_std_rad_s: 0.001
+    accel_bias_m_s2: [0.0, 0.0, 0.0]
+    accel_noise_std_m_s2: 0.002
+    gravity_m_s2: 9.81
+  depth:
+    sample_every_n_steps: 5
+    shape_px: [40, 60]
+    depth_scale_m: 0.001
+    base_depth_m: 1.5
+    noise_std_m: 0.002
+    bank_depth_span_m: 0.04
+    intrinsics_px: {fx: 420.0, fy: 420.0, cx: 29.5, cy: 19.5}
+faults:
+  wheel_slip: []
+  sensor_dropouts: []
+  depth_holes: []
+  depth_spikes: []
+expected_metrics:
+  completion: true
+  min_clearance_m: 0.2
+  edge_overrun_count: 0
+  false_hold_count: 0
+  fail_open_count: 0
+  max_recovery_time_s: 0.0
+  max_estimator_runtime_ms: 5.0
