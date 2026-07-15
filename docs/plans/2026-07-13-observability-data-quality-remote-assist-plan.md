@@ -1,5 +1,13 @@
 # Observability, Data Quality, and Remote Assist Implementation Plan
 
+> **상태 (2026-07-16)**: **Task 1~5 구현·검증·젯슨 배포 완료** — Task 1 `a16a5fe`,
+> Task 2 `4c0885a`, Task 3 `12fe45d`, Task 4 `8dd2b54`(+`9aec6eb`), Task 5 `ce6368d`.
+> 검증 3환경(호스트 실소켓 / dev / ros colcon install-space) + Task 4는 젯슨
+> `powertrain-sw:autonomy` 이미지 내 27 passed. `powertrain_observability` 서비스
+> healthy·라이브 status 조회 확인. Task 6은 WP6-B/C 뒤(+ PR #2 콘솔 CAN 표시 일원화
+> 항목 포함), Task 7~8은 P0/P1 simulation·replay 뒤. 상세:
+> `docs/reports/2026-07-16-wp53-observability-implementation.md`.
+
 > **For Codex:** 이 계획은 테스트 우선으로 한 Task씩 구현하고, 각 Task의 검증 명령과 실제 출력이
 > 확인된 뒤 다음 Task로 이동한다. 실물 HIL은 소프트웨어·simulation fault injection이 모두 끝난
 > 마지막 단계에서 한 번에 수행한다.
