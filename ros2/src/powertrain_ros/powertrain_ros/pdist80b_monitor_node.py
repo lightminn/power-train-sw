@@ -34,7 +34,7 @@ class Pdist80bMonitorNode(Node):
                                      timeout=0.15, write_timeout=0.15)
         self._publisher = self.create_publisher(String, "/power/pdist80b", 10)
         self.create_timer(1.0 / poll_hz, self._poll)
-        self.get_logger().info("PDIST80B read-only monitor active on %s", port)
+        self.get_logger().info(f"PDIST80B read-only monitor active on {port}")
 
     def _poll(self) -> None:
         try:
@@ -44,7 +44,9 @@ class Pdist80bMonitorNode(Node):
             response = self._serial.read(18)
             status = parse_bms_monitor_response(response, self._device_id)
         except (OSError, ValueError) as exc:
-            self.get_logger().warning("PDIST80B read failed: %s", exc, throttle_duration_sec=5.0)
+            self.get_logger().warning(
+                f"PDIST80B read failed: {exc}", throttle_duration_sec=5.0
+            )
             return
         message = String()
         message.data = json.dumps({
