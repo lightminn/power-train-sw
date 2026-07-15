@@ -506,7 +506,7 @@ def test_srv_arm_refreshes_safety_freshness_baseline():
     """cm.arm()이 executor를 ~0.8s 블로킹해 verdict 콜백이 밀리는 동안
     freshness가 거짓 stale로 래치되던 실기 결함(2026-07-16: age 783ms 래치,
     직후 rx gap 800ms) — arm 종료 시점으로 기준선을 당겨야 한다."""
-    ArmNode = _node_class("_srv_arm")
+    ArmNode = _node_class("_refresh_safety_baseline", "_srv_arm")
     node = ArmNode()
     node.cm = SimpleNamespace(
         arm=lambda: True,
@@ -526,3 +526,17 @@ def test_srv_arm_refreshes_safety_freshness_baseline():
     node._last_safety_ms = None
     node._srv_arm(None, response)
     assert node._last_safety_ms is None
+
+
+def test_srv_disarm_refreshes_safety_freshness_baseline():
+    """disarm도 arm과 같은 클래스 — 15분 소크 종료 disarm 직후 age 1264ms
+    거짓 래치 실측(2026-07-16). 4개 블로킹 서비스 공통 헬퍼를 고정한다."""
+    DisarmNode = _node_class("_refresh_safety_baseline", "_srv_disarm")
+    node = DisarmNode()
+    node.cm = SimpleNamespace(disarm=lambda: None, mode="IDLE")
+    node._now_ms = lambda: 200_000.0
+    node._last_safety_ms = 198_500.0
+    response = SimpleNamespace(success=None, message=None)
+    node._srv_disarm(None, response)
+    assert response.success is True
+    assert node._last_safety_ms == 200_000.0

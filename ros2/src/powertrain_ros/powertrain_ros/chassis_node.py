@@ -1396,15 +1396,21 @@ class ChassisNode(Node):
             except Exception:
                 pass
 
-    def _srv_arm(self, _request, response):
-        response.success = self.cm.arm()
-        # cm.arm()은 코너 6개의 폐루프 진입·피드백 대기로 single-threaded
-        # executor를 ~0.8s 블로킹한다. 그동안 verdict 콜백이 큐에 밀려
-        # freshness가 거짓 stale로 래치되므로(2026-07-16 실기 재현: age 783ms,
-        # 직후 rx gap 800ms 일괄 처리) 기준선을 arm 종료 시점으로 당긴다.
-        # 링크가 실제로 죽었다면 다음 tick부터 0.75s 뒤 정상 래치된다.
+    def _refresh_safety_baseline(self):
+        """executor를 블로킹하는 cm 서비스(arm/disarm/estop/reset) 직후 호출.
+
+        블로킹 동안 verdict 콜백이 큐에 밀려 freshness가 거짓 stale로
+        래치된다(2026-07-16 실기: arm 후 age 783ms, disarm 후 age 1264ms).
+        기준선을 서비스 종료 시점으로 당긴다 — 링크가 실제로 죽었다면
+        다음 tick부터 0.75s 뒤 정상 래치된다. 최초 verdict 미수신(None)
+        상태는 startup timeout 의미를 지키기 위해 그대로 둔다.
+        """
         if getattr(self, "_last_safety_ms", None) is not None:
             self._last_safety_ms = self._now_ms()
+
+    def _srv_arm(self, _request, response):
+        response.success = self.cm.arm()
+        self._refresh_safety_baseline()
         state = self.cm.state()
         safety = state["safety"]
         if response.success:
@@ -1422,12 +1428,14 @@ class ChassisNode(Node):
 
     def _srv_disarm(self, _request, response):
         self.cm.disarm()
+        self._refresh_safety_baseline()
         response.success = True
         response.message = "mode=%s" % self.cm.mode
         return response
 
     def _srv_estop(self, _request, response):
         self.cm.estop("manual_service", "~/estop")
+        self._refresh_safety_baseline()
         response.success = True
         response.message = "estop latched: mode=%s" % self.cm.mode
         self.get_logger().warning("manual E-stop latched")
@@ -1435,6 +1443,7 @@ class ChassisNode(Node):
 
     def _srv_reset_estop(self, _request, response):
         response.success = self.cm.reset_estop()
+        self._refresh_safety_baseline()
         if response.success:
             response.message = "mode=IDLE; explicit arm required"
         else:
