@@ -56,6 +56,7 @@ RUN pip3 install --no-cache-dir \
 #   python-can      : CAN 트랙 (motor_gui CanBackend, steering/ak_control)
 #   fastapi/uvicorn : motor_gui 웹 백엔드 (WebSocket 텔레메트리 + REST 제어)
 #   httpx, pytest   : motor_gui 테스트 (FastAPI TestClient + 단위/통합)
+#   mujoco          : WP6-S headless fast autonomy bridge (GL renderer 미사용)
 RUN pip3 install --no-cache-dir \
         pygame \
         opencv-python \
@@ -68,6 +69,7 @@ RUN pip3 install --no-cache-dir \
         fastapi \
         "uvicorn[standard]" \
         httpx \
+        mujoco \
         pytest
 
 # odrive — Jetson(docker/Dockerfile.jetson)과 동일하게 git source fw-v0.5.6(= 0.5.6) 설치.

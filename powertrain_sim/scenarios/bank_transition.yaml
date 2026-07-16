@@ -86,7 +86,9 @@ faults:
       offset_m: 2.5
 expected_metrics:
   completion: true
-  min_clearance_m: 0.15
+  # 2026-07-16 MuJoCo fast 물리 평가: 최소 폭 1.1 m + 뱅크 내리막 쏠림 포함 실측 0.0764 m
+  # (중륜 |y|=0.4395 m 기준 중심주행 이론 여유 0.1105 m). 1부 0.15는 물리 평가 전 placeholder.
+  min_clearance_m: 0.06
   edge_overrun_count: 0
   false_hold_count: 0
   fail_open_count: 0

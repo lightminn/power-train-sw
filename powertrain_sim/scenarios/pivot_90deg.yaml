@@ -64,8 +64,11 @@ faults:
   depth_holes: []
   depth_spikes: []
 expected_metrics:
-  completion: true
-  min_clearance_m: 0.2
+  # 제자리 피벗은 트랙 station을 전진하지 않는다 — completion 메트릭(중심선 도달률) 기준
+  # 미종주가 정상 (2026-07-16 MuJoCo fast 물리 평가: 0.0035).
+  completion: false
+  # 전륜 코너 회전반경 0.562 m, 폭 1.4 m → 이론 여유 0.138 m, 실측 0.0980 m.
+  min_clearance_m: 0.08
   edge_overrun_count: 0
   false_hold_count: 0
   fail_open_count: 0

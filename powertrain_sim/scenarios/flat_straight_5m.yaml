@@ -65,7 +65,9 @@ faults:
   depth_spikes: []
 expected_metrics:
   completion: true
-  min_clearance_m: 0.2
+  # 2026-07-16 MuJoCo fast 물리 평가로 캘리브레이션: production 기하(중륜 |y|=0.4395 m,
+  # 폭 1.2 m → 이론 최대 여유 0.1605 m)에서 실측 0.1404 m. 1부의 0.2는 물리 평가 전 placeholder.
+  min_clearance_m: 0.12
   edge_overrun_count: 0
   false_hold_count: 0
   fail_open_count: 0

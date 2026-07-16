@@ -43,6 +43,41 @@ Representative contracts live in `scenarios/`:
 - `bank_transition.yaml`: acceleration/deceleration, bank, slip, IMU dropout,
   depth hole and reflection-spike injection.
 
+## Procedural elevated tracks
+
+`procedural.py` creates a complete scenario document from an explicit frozen
+`GenerationParameters`, an integer seed and a seed class. It instantiates only
+`numpy.random.Generator(PCG64(seed))`; no host clock, global NumPy RNG or dict
+iteration order controls an output. Length, width, elevation, bank magnitude,
+curvature, station spacing, friction, motion profile, speed and acceleration
+ranges are all parameters. Every generated track has aligned station arrays,
+`height_m[i] == centerline_m[i][2]`, and left/right drop boundaries. The
+terrain family is flat, constant bank or bank transition. Dropout, hole and
+spike schedules are always declared, while `stress` adds all-stream dropout
+and wheel measurement slip with longer or stronger intervals.
+
+```python
+from powertrain_sim.procedural import (
+    GenerationParameters,
+    dump_scenario_yaml,
+    generate_scenario,
+)
+
+document = generate_scenario(
+    GenerationParameters(),
+    seed=20260716,
+    seed_class="dev",
+)
+dump_scenario_yaml(document, "generated.yaml")
+```
+
+The YAML helper runs the part-one `parse_scenario` validator before writing.
+Canonical JSON SHA-256 for regression seed drift is available through
+`canonical_json_sha256`. Tune only with `dev` and `regression`; a
+`hidden_evaluation` seed is generated and validated for completion evidence
+only. Do not inspect its generated content or tune any algorithm or parameter
+against it.
+
 ## Analytic fixtures
 
 ```python
@@ -109,6 +144,87 @@ Replayer(run).replay(
     detections=detection_callback,
 )
 ```
+
+## MuJoCo fast autonomy bridge
+
+`powertrain_sim.mujoco_fast` is the optional, headless P0 physics bridge. The
+third-party `mujoco` package is imported only inside that subpackage, so
+`scenario`, `fixtures` and `recording` continue to import on a ROS container
+without MuJoCo. The bridge never imports `rclpy` and never creates a GL, EGL or
+OSMesa renderer.
+
+The MJCF builder uses one thin, slightly overlapping box per centreline
+segment. This choice preserves each segment's centreline, elevation, width,
+bank and friction while avoiding a mesh-wide single friction coefficient. A
+large static floor at z=0 lies below the elevated boxes, so leaving a declared
+left/right edge produces a physical fall and depth rays can see the lower
+floor. Short start/finish aprons support the rover footprint while completion
+is still measured only against the declared centreline stations.
+
+The rover is a free rigid chassis with four nested steering/drive wheel bodies
+and two fixed-steer drive wheel bodies. Wheel x/y positions, 0.10 m radius,
+steering limit and drive limit come from production
+`chassis.kinematics.default_geometry()`. `apply_command(v, omega)` calls the
+production `solve()` exactly once and only converts its steering degrees to
+radians and drive turns/s to joint rad/s. Fast mode intentionally omits
+rocker-bogie articulation: its purpose is rapid autonomy and estimator
+closed-loop regression; suspension fidelity belongs to later vcan/full-stack
+simulation and physical HIL.
+
+The IMU site is rigidly attached to the scenario's named IMU frame at the fast
+model mount (x=0.12 m, z=0.18 m from the simulated base), and the depth site is
+at x=0.30 m, z=0.18 m with a fixed 25 degree downward optical axis. These
+mounts are fast-model inputs, not a claim about the final unmeasured L515
+extrinsic. Gyro, accelerometer, frame position and frame quaternion are native
+MuJoCo sensors. Depth uses `mj_multiRay` over the declared ROI and pinhole
+intrinsics. A miss or a hit beyond 6.0 m is raw depth zero; valid ray ranges
+are converted to optical-axis Z (the real L515 depth-image convention, so
+pinhole reconstruction with the declared intrinsics is geometrically exact)
+and rounded with the scenario `depth_scale_m`. Declared dropout creates an actual
+stream gap, and hole/spike faults are applied to the ray result with the same
+half-open interval and ROI rules as analytic fixtures.
+
+Wheel slip uses measurement-side injection. That preserves the part-one
+`measurement_scale` contract exactly and deterministically while station
+friction still controls baseline physical contact. A later physical-slip
+scenario needs a distinct schema field rather than silently changing this
+fault's meaning.
+
+```bash
+PYTHONPATH=ros2/src/powertrain_ros:motor_control \
+python -m powertrain_sim.mujoco_fast \
+  powertrain_sim/scenarios/flat_straight_5m.yaml /tmp/w6s_run_demo
+```
+
+The default command source reuses the analytic fixture `_motion` profile. A
+caller may inject `command_source(t_s, latest_estimate) -> (v, omega)` for a
+future WP6-B controller. `hold_state_source(t_s, latest_estimate) ->
+(actual_hold, should_hold)` is the independent policy-report hook used to
+score false-hold, fail-open and release-to-recovery time without changing the
+command callback contract.
+
+Every run is written by `RunWriter`; ground truth remains in its isolated
+stream and is never passed through `Replayer`. `metrics.json` and the printed
+`MetricsReport` define:
+
+- completion: maximum chassis centreline station divided by track length;
+- wheel clearance: minimum wheel contact-point distance to the active drop
+  boundary;
+- edge overrun: count of outside-boundary footprint entry episodes, not the
+  number of samples spent outside;
+- false hold / fail-open: policy mismatch episode counts from the hold hook;
+- recovery: longest declared-hold release to actual-hold release interval;
+- runtime: total wall-clock run time plus maximum production estimator update
+  time (the only wall-clock measurements in simulation logic).
+
+The report compares completion, minimum clearance, maximum episode counts,
+maximum recovery and maximum estimator time with `scenario.expected_metrics`
+and returns an explicit pass flag and reason list. The CLI exit code is 0 only
+when the report passes, 1 otherwise. Distance and yaw estimator error ratios
+are diagnostic fields used by the flat and pivot regressions; a relative yaw
+error against a near-zero true yaw (flat, bank) is not meaningful. The shipped
+scenario `expected_metrics` were calibrated against the 2026-07-16 MuJoCo fast
+physical evaluation with production geometry (see comments in each YAML).
 
 ## Host verification
 
