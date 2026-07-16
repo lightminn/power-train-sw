@@ -47,6 +47,7 @@ def connect(host, port, retries=0):
             s.connect((host, port))
             # 무음 끊김(WiFi 블립) 을 send 에러로 드러나게 — 자동 재연결 트리거
             s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)  # Nagle 뭉침 방지
             if hasattr(socket, "TCP_USER_TIMEOUT"):
                 s.setsockopt(socket.IPPROTO_TCP, socket.TCP_USER_TIMEOUT, 5000)
             s.setblocking(False)          # 상태회신(recv) 논블로킹 폴링용

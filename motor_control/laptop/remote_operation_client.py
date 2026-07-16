@@ -237,6 +237,9 @@ def open_gateway_socket(host, port):
         sock.settimeout(3.0)
         sock.connect((host, int(port)))
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        # Nagle+지연 ACK가 30 Hz 소형 프레임을 Wi-Fi에서 ~11 Hz 버스트로 뭉쳐
+        # gateway 신선도(0.2 s)와 authority stale(0.3 s)을 뚫는다(07-17 벤치 실증).
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         if hasattr(socket, "TCP_USER_TIMEOUT"):
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_USER_TIMEOUT, 5000)
         sock.setblocking(False)

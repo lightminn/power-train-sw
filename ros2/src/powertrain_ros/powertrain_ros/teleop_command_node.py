@@ -126,6 +126,8 @@ class TeleopCommandNode(Node):
     def _serve_client(self, connection):
         connection.settimeout(0.20)
         connection.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        # 상태 회신도 Nagle에 뭉치면 클라이언트 표시가 늦는다 — 양단 NODELAY.
+        connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self._decoder.start_connection()
         self._events.put(("connect", None))
         last_status_s = 0.0
