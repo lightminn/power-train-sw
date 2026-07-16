@@ -24,10 +24,11 @@
 | WP4 (ROS2 왕복 DDS) | ✅ | 로봇팔 실물 그래프와 양방향 |
 | WP5/5.1 (`/cmd_vel` 체인 + 안전 코어) | ✅ HIL | 50.000 Hz, US-100 latch 시나리오 통과 |
 | WP5.2 (팔 협업 안전: 계약 v2·ArmInterlock·CommandAuthority·원격 gateway·MissionSupervisor) | ✅ Task 1~6 + 감사갭 4건 | 07-14. 실기 원격 E2E 스모크만 벤치 잔여 |
-| WP5.3 (관측성: journal/데몬/CAN health/depth 품질/팔 결과 adapter) | ✅ Task 1~5 배포 | Task 6-A ✅ `f9d01df`, 6-B 순수코어 ✅ `e6a2b24`(gateway 배선은 팀원 WIP 뒤), 6-C 1부 ✅ `f41730f`; 6-C 2부(뷰어)·7은 goal 진행 중, 8은 실기 |
+| WP5.3 (관측성: journal/데몬/CAN health/depth 품질/팔 결과 adapter) | ✅ Task 1~7 SW | 6-A `f9d01df`·6-B `e6a2b24`(gateway 배선은 팀원 WIP 뒤)·6-C `f41730f`+`0198830`·7 `0d28552`. Task 8(최종 HIL)과 fault matrix 실 kill은 벤치 |
 | **WheelStopPredicate 실측 자격화** | ✅ 오늘 HIL | `wheel_stop.yaml qualified: true`, 임계 0.10 rev/s |
 | WP6-A (wheel+IMU 상태 추정 코어) | ✅ SW 완료 | `dfdfb32`. 실측 5 m ±5%·90°는 **차체 조립 후** |
 | WP6-S P0 1부 (scenario 계약·analytic fixture·recorded replay) | ✅ | `9a5f37f`. production 추정기 합성 5 m 오차 0%, 피벗 yaw 0.0008% |
+| WP6-S P1 (hidden-seed 폐루프) | ✅ | `d30ace1`. production terrain+controller 폐루프, hidden_eval CLI, 정직한 완주 의미론(fail-closed 종단 정지) |
 | WP6-S P0 2부 (절차 생성 트랙 + MuJoCo fast 브리지) | ✅ | `e22e364`. 헤드리스 mj_multiRay depth(광축 Z), production solve() 직결, MuJoCo→replay→추정기 flat 거리 0.106%·피벗 yaw 0.199%, CLI 3/3 PASS(기대 메트릭 물리 캘리브레이션) |
 | WP6-B (bank-aware NumPy terrain 코어) | ✅ SW 완료 | `eba8b74`. 54 tests + 광FOV MuJoCo 정량 통합. corridor/FOV-한계 낙하 경계 의미론, fail-closed. **잔여 게이트**: 장착각 20/25/30° HIL, JAX 자격화(x86 31 ms/프레임 — Jetson 30 ms 게이트는 JAX 몫) |
 | WP6-C (autonomy controller + command authority) | ✅ SW 완료 | `c744936`. 순수 `powertrain_autonomy/controller`(BLOCKED vs CONTROLLED_HOLD vs TRACKING) + 단일 프로세스 `autonomy_controller` 노드(`guidance:=terrain`), `/odom_diagnostics`. authority는 WP5.2 것 그대로. **잔여**: 프로파일 잠정값 HIL(제동·뱅크·경사), 실기 terrain 유도 스모크 |
@@ -49,6 +50,10 @@
 | `09cb606` | US-100 발행-UART 결합 해소(리더 스레드) |
 | `e22e364` | **WP6-S P0 2부** 절차 생성 고가 트랙 + 헤드리스 MuJoCo fast 브리지(광축 Z depth·production solve() 직결·metric 6종·기대 메트릭 물리 캘리브레이션, dev 이미지 mujoco 추가) |
 | `eba8b74` | **WP6-B** bank-aware NumPy terrain 코어(고정 shape 5 cm grid·corridor/FOV-한계 낙하 경계·footprint erosion·fail-closed, 54 tests + 광FOV MuJoCo 정량 통합, autonomy 이미지에 chassis 동봉). ⚠️ Codex 위임분을 검토자가 낙하 경계 의미론·성능(107→31 ms) 근본 재설계 |
+| `d30ace1` | **WP6-S P1** hidden-seed 폐루프 — MuJoCo fast → production TerrainEstimator → AutonomyController → plant. `python -m powertrain_sim.hidden_eval <seed> <dir>`(sha256 기록, exit=passed). 폐루프 생성 문서는 `expected_completion=False`(fail-closed 정지가 전방 코너 반경 0.55 m 앞 = 정답, 95% 완주 물리 불가), hold 계측은 결정이 소비한 terrain 기준(1-tick 위상 아티팩트 제거). ⚠️ Codex 태스크 중지→검토자 인수 마무리 |
+| `0d28552` | **WP5.3 Task 7** 환경 regression manifest(9항목, sha256) + `run_autonomy_regression.py`(backend 교차비교·명시적 SKIPPED) + 채널 9종 fault matrix 계획 코어·벤치 래퍼(승인 게이트, 실 kill은 벤치 몫) |
+| `3c1e098` | **health matrix 유휴 플래핑 근본수정** — 비ARMED `CornerModule.tick()`이 반응 없는 RX 서비스 수행(캐시 실시간화). 실기 유휴 확인만 잔여 |
+| `0198830` | **WP5.3 Task 6-C 2부** 노트북 recv_remote_operation 듀얼영상 뷰어 — SRT 2채널 stall-재기동, OVERLAY_STALE 규칙, :5006 역방향 피드백(1 Hz, Jetson 파서와 왕복 테스트), DualSense 단일 오픈·요청/ACK 분리 표시 |
 | `e6a2b24` | **WP5.3 Task 6-B** network profile·receiver feedback·remote_video 순수 코어(신규 파일만 — gateway 배선은 팀원 l515 WIP landing 뒤). NORMAL/CONGESTED/EMERGENCY_REMOTE 고정 프리셋+불변식, receiver-authoritative 상태머신, D435i metadata 수신 계약(OVERLAY_STALE=로컬 monotonic TTL만). 부수: 콘솔 재배치 때 깨진 stale 테스트 2건 수리(tmpfiles 경로, docker CLI 호스트 전용 skip) |
 | `f41730f` | **WP5.3 Task 6-C 1부** remote assist — 순수 `chassis/remote_assist.compose()`(TELEOP 선택 후 합성, \|v\| 불증가·부호 불변, bypass/correction stale=fail-closed), 원격 입력 **스키마 v2**(`assist_bypass`, R1 hold 초기 후보, v1 거부), `/autonomy/assist_correction` 발행, chassis_node `assist_enabled`(기본 off)+REMOTE_ASSIST 이벤트 |
 | `f9d01df` | **WP5.3 Task 6-A** 콘솔 CAN 표시 일원화 — sender의 passive can0 RX/sysfs 제거, daemon 캐시 `CAN_HEALTH`(owner 측정) → 순수 `console_can_status.can_status_text`, allowlist 축소. ⚠️ 젯슨 ros 스위트에서 1/366 비재현 타이밍 플레이크 1회 관측(재실행 2회 GREEN — 감시 항목) |
@@ -104,12 +109,15 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace/ros2 pow
   source /tmp/i/setup.bash && python3 -m pytest src/powertrain_ros/test -q'
 ```
 
-기준선(07-17 새벽, Task 6-C 1부 `f41730f` 후): dev 컨테이너 820(표준 목록에
-`remote_video` 추가, 이미지에 mujoco 포함) / ros 컨테이너 377 + l515_dashboard·
-remote_video 329+2skip / 젯슨 ros 컨테이너 377(일회용 컨테이너, 라이브 스택 무중단;
-07-16 1회 비재현 플레이크 감시) / 젯슨 autonomy 이미지 98 passed + 2 skipped —
-skip 2건은 정상(MuJoCo 통합 1건: 이미지에 sim·mujoco 없음, 이미지 계약 1건:
-docker/ 미동봉).
+기준선(07-17, Task 7 `0d28552` 후): dev 컨테이너 861+1skip(표준 목록 =
+motor_control motor_gui powertrain_observability powertrain_autonomy powertrain_sim
+remote_video **tests**, 이미지에 mujoco 포함; skip=jsonschema 호스트 전용) /
+ros 컨테이너 377 + l515_dashboard·remote_video·tests 362+3skip / 젯슨 ros 컨테이너
+377(일회용 컨테이너, 라이브 스택 무중단; 07-16 1회 비재현 플레이크 감시) /
+젯슨 autonomy 이미지 98 passed + 2 skipped — skip 2건은 정상(MuJoCo 통합 1건:
+이미지에 sim·mujoco 없음, 이미지 계약 1건: docker/ 미동봉). 환경 회귀 러너:
+`scripts/run_autonomy_regression.py --manifest tests/fixtures/environment/manifest.yaml`
+= 9 PASS / 0 FAIL / 0 SKIPPED.
 MuJoCo CLI 스모크: 3 시나리오 전부 PASS(exit 0). ⚠️ 젯슨 docker build 가 buildkit
 snapshot 오류를 내면 `docker builder prune -f` 후 재시도(07-16 실측 복구). **테스트 실행과 commit/push는 반드시 `&&`
 체인**(0a89098에서 비체인 스크립트가 1 failed를 그대로 커밋한 사고 있음 — fe67096로 수습).
