@@ -135,6 +135,11 @@ class TeleopCommandNode(Node):
                     data = connection.recv(4096)
                 except socket.timeout:
                     data = None
+                except OSError:
+                    # 클라이언트 RST(예: 강제 종료·Wi-Fi 단절)는 이 연결만의
+                    # 종료다 — accept 루프까지 전파되면 서버가 영구 사망해
+                    # 원격이 노드 재시작 전까지 불능이 된다(2026-07-17 벤치 실증).
+                    break
                 if data == b"":
                     break
                 if data:

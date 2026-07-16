@@ -21,6 +21,15 @@ SCHEMA_VERSION = 2
 MAX_RECORD_BYTES = 2 * 1024
 MODE_CHORD_HOLD_NS = 1_000_000_000
 TRIGGER_DEADZONE = 0.03
+# 실측 DualSense 휴지 드리프트 left_x -0.0118 / right_y +0.0431 (2026-07-17 벤치).
+# 게이트웨이 중립 게이트는 정확히 0.0을 요구하므로(계약 유지) 입력 정형화는
+# 어댑터 몫이다 — 데드존이 없으면 영원히 DISCONNECTED에 갇힌다.
+STICK_DEADZONE = 0.08
+
+
+def normalize_stick(raw):
+    value = _finite_clamped(raw, -1.0, 1.0)
+    return value if abs(value) > STICK_DEADZONE else 0.0
 
 
 # SDL GUID-specific, versioned configuration.  The wildcard is the measured
@@ -160,15 +169,11 @@ class DualSenseInputAdapter:
         return ClientInput(
             requested_mode=self.requested_mode,
             deadman=self._button("deadman_button"),
-            left_x=_finite_clamped(
-                self.joystick.get_axis(self.mapping["left_x_axis"]),
-                -1.0,
-                1.0,
+            left_x=normalize_stick(
+                self.joystick.get_axis(self.mapping["left_x_axis"])
             ),
-            right_y=_finite_clamped(
-                self.joystick.get_axis(self.mapping["right_y_axis"]),
-                -1.0,
-                1.0,
+            right_y=normalize_stick(
+                self.joystick.get_axis(self.mapping["right_y_axis"])
             ),
             left_trigger=normalize_trigger(
                 self.joystick.get_axis(self.mapping["left_trigger_axis"])

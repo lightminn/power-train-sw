@@ -232,3 +232,14 @@ def test_reconnect_callback_replaces_preserved_arm_mode_before_send():
     assert wire["mode"] == "DRIVE"
     assert wire["deadman"] is False
     assert reconnects == [1, 1]
+
+
+def test_stick_deadzone_zeroes_measured_rest_drift_but_passes_real_input():
+    # 2026-07-17 벤치 실측 휴지 드리프트: left_x -0.0118, right_y +0.0431.
+    # 게이트웨이 중립 게이트(정확히 0.0)를 어댑터 정형화로 통과해야 한다.
+    assert client.normalize_stick(-0.0118) == 0.0
+    assert client.normalize_stick(0.0431) == 0.0
+    assert client.normalize_stick(client.STICK_DEADZONE) == 0.0
+    assert client.normalize_stick(0.3) == 0.3
+    assert client.normalize_stick(-0.9) == -0.9
+    assert client.normalize_stick(float("nan")) == 0.0
