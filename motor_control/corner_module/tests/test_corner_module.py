@@ -114,6 +114,52 @@ def test_set_ignored_when_not_armed():
     assert cm.state()["steer"]["target_deg"] == 0.0
 
 
+@pytest.mark.parametrize("mode", ["IDLE", "FAULT"])
+def test_non_armed_tick_services_receive_without_reacting_to_faults(mode):
+    steer = FakeSteer()
+    drive = FakeDrive()
+    cm = _make_cm(steer=steer, drive=drive)
+    cm.connect()
+    if mode == "FAULT":
+        cm.estop()
+
+    # Production SteerAk40/DriveOdriveCan state() methods only drain bounded,
+    # nonblocking RX and update caches; their driver tests below assert no TX.
+    steer.fault = 5
+    steer.stale_flag = True
+    drive.stale_flag = True
+    drive.axis_error = 0x10
+    steer.state = Mock(wraps=steer.state)
+    drive.state = Mock(wraps=drive.state)
+    cm.estop = Mock(wraps=cm.estop)
+
+    for _ in range(3):
+        cm.tick()
+
+    assert steer.state.call_count == 3
+    assert drive.state.call_count == 3
+    cm.estop.assert_not_called()
+    assert cm.mode == mode
+
+
+def test_non_armed_receive_service_is_best_effort(caplog):
+    steer = FakeSteer()
+    drive = FakeDrive()
+    cm = _make_cm(steer=steer, drive=drive)
+    cm.connect()
+    steer.state = Mock(side_effect=RuntimeError("steer receive failed"))
+    drive.state = Mock(side_effect=RuntimeError("drive receive failed"))
+
+    with caplog.at_level("DEBUG", logger="corner_module.corner_module"):
+        cm.tick()
+
+    steer.state.assert_called_once_with()
+    drive.state.assert_called_once_with()
+    assert cm.mode == "IDLE"
+    assert "steer" in caplog.text
+    assert "drive" in caplog.text
+
+
 class FakeClock:
     def __init__(self):
         self.t = 0.0
@@ -483,6 +529,7 @@ def test_can_drive_state_self_heals_from_buffered_heartbeat():
     assert state["axis_error"] == 0
     assert bus.recv_timeouts
     assert set(bus.recv_timeouts) == {0.0}
+    assert bus.sent == []  # idle receive service contract: state() never transmits
 
 
 def test_can_drive_estop_commands_idle():
@@ -554,6 +601,7 @@ class _StubAk:
     def __init__(self, poll_result):
         self._poll_result = poll_result
         self.poll_timeouts = []
+        self.position_commands = []
         self.pos_out_deg = 5.0
         self.cur_a = 0.1
         self.fault = 0
@@ -565,6 +613,7 @@ class _StubAk:
         return self._poll_result
 
     def send_pos_out(self, deg):
+        self.position_commands.append(deg)
         self.pos_out_deg = deg
 
     def send_rpm_out(self, rpm):
@@ -591,6 +640,7 @@ def test_steer_ak40_state_self_heals_from_buffered_status():
     s._ak = _StubAk(poll_result=True)          # 버퍼에 status 있음
     assert s._last_rx_ms is None               # 마지막 수신기록 없음(stale 조건)
     assert s.state()["stale"] is False
+    assert s._ak.position_commands == []       # idle state() 는 RX-only, 위치 TX 없음
 
 
 def test_steer_ak40_state_stale_when_no_frames():

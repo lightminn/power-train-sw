@@ -91,8 +91,18 @@ class CornerModule:
         self.drive.close()
         self.mode = "DISCONNECTED"
 
+    def _service_receive(self) -> None:
+        for name, actuator in (("steer", self.steer), ("drive", self.drive)):
+            try:
+                actuator.state()
+            except Exception:
+                logger.debug("%s 유휴 수신 서비스 실패", name, exc_info=True)
+
     def tick(self) -> None:
         if self.mode != "ARMED":
+            # IDLE/FAULT에서도 수신 버퍼를 drain해 health 캐시가 실시간을 반영한다.
+            # 반응(estop/fault 판정)은 ARMED 전용 — 여기서는 캐시 갱신만.
+            self._service_receive()
             return
 
         st = self.steer.state()

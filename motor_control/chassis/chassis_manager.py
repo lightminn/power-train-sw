@@ -381,7 +381,7 @@ class ChassisManager:
 
         if self.mode != "ARMED":
             for c in self.corners.values():
-                c.tick()                        # 비무장이어도 코너 통신 서비스
+                c.tick()                        # 비무장 코너도 유휴 RX를 서비스
             return
 
         # estop 전파(사전): 이미 트립한 코너가 있으면 전체 정지

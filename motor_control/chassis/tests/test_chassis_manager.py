@@ -110,6 +110,36 @@ class ResetScriptCorner:
         return self._wrapped.reset_fault()
 
 
+class HeartbeatCacheDrive(FakeDrive):
+    """Fake RX drain: state() consumes heartbeat, health_state() is cache-only."""
+
+    def __init__(self):
+        super().__init__()
+        self.stale_flag = True
+        self._heartbeat_pending = False
+        self.state_calls = 0
+
+    def inject_heartbeat(self):
+        self._heartbeat_pending = True
+
+    def state(self):
+        self.state_calls += 1
+        if self._heartbeat_pending:
+            self._heartbeat_pending = False
+            self.stale_flag = False
+        return self.health_state()
+
+    def health_state(self):
+        state = super().state()
+        state.update({
+            "last_heartbeat_age_ms": None if self.stale_flag else 0.0,
+            "last_encoder_age_ms": None,
+            "axis_state": 1,
+            "recovery_count": 0,
+        })
+        return state
+
+
 # ── 매핑·라이프사이클 ────────────────────────────────────────────────────
 
 def test_requires_every_geometry_wheel_mapped():
@@ -649,6 +679,25 @@ def test_snapshot_has_six_wheels_in_geometry_order():
         "mid_right", "rear_left", "rear_right",
     ]
     assert snap.healthy is True
+
+
+def test_idle_tick_drains_corner_receive_before_cached_health_snapshot():
+    corners = _fake_corners()
+    drive = HeartbeatCacheDrive()
+    corners["front_left"] = CornerModule(FakeSteer(), drive, CornerConfig())
+    m = ChassisManager(corners)
+    m.connect()
+
+    # snapshot() must stay cache-only: the queued heartbeat is not consumed here.
+    assert m.snapshot().odrive_nodes[0].stale is True
+    drive.inject_heartbeat()
+
+    m.tick()
+    snapshot = m.snapshot()
+
+    assert m.mode == "IDLE"
+    assert drive.state_calls == 1
+    assert snapshot.odrive_nodes[0].stale is False
 
 
 @pytest.mark.parametrize(
