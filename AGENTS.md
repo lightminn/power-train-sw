@@ -25,7 +25,8 @@ These notes were migrated from Claude Code project memory. Treat them as durable
   Jetson), WP6-A state-estimation core (`dfdfb32`), WP6-S P0 part 1 (`powertrain_sim`
   scenario/fixtures/replay, `9a5f37f`) and part 2 (procedural elevated tracks + headless
   MuJoCo fast bridge, `e22e364`), WP6-B bank-aware NumPy terrain estimator core
-  (`eba8b74` — mount-angle HIL and JAX qualification gates deferred). Wheel-stop
+  (`eba8b74` — mount-angle HIL and JAX qualification gates deferred), WP6-C terrain
+  autonomy controller (`c744936`). Wheel-stop
   thresholds are HIL-qualified (`wheel_stop.yaml qualified: true`, 0.10 rev/s,
   dwell 300 ms) — see `docs/reports/2026-07-16-full-hil-safety-fixes.md`.
 - The first FULL HIL session (2026-07-16) found and root-fixed two real safety defects:
@@ -36,7 +37,11 @@ These notes were migrated from Claude Code project memory. Treat them as durable
   checks); all commands are driven by the agent over SSH. Motor motion needs prior physical
   confirmation. The chassis is NOT assembled (bench motors, arm absent) — ground measurements
   (odometry 5 m/90°, `stop_mm` commissioning) wait for vehicle assembly.
-- Next development: WP6-C (autonomy controller + command authority), then WP5.3 Task 6. Open backlog: ~530 ms
+- WP6-C is complete (`c744936`): pure `powertrain_autonomy/controller` core (BLOCKED vs
+  CONTROLLED_HOLD vs TRACKING) + one-process `autonomy_controller` node (`guidance:=terrain`,
+  `/odom_diagnostics`); command authority stays the WP5.2 `chassis_node` CommandAuthority.
+  Profile presets are provisional before braking/bank/slope HIL.
+- Next development: WP5.3 Task 6, then WP6-S P1 hidden-seed closed loop. Open backlog: ~530 ms
   periodic executor stalls while ARMED idle (sub-threshold, cause unknown); Task 3
   health-matrix false-stale flapping at idle.
 

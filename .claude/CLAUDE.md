@@ -70,12 +70,14 @@ historical context.
   It supersedes the 2026-07-10 project-state report and older status banners on conflict.
 - **Complete: WP1–WP5.3 (Tasks 1–5), WP6-A core, WP6-S P0 (part 1 + part 2 MuJoCo fast
   bridge, `e22e364`), WP6-B NumPy terrain core (`eba8b74` — mount-angle HIL and JAX
-  qualification gates deferred).** Wheel-stop thresholds are HIL-qualified
-  (`wheel_stop.yaml qualified: true`, 0.10 rev/s, dwell 300 ms). The first FULL HIL
-  session (2026-07-16) root-fixed two real safety defects (blocking-service false stale
-  latch → `_refresh_safety_baseline`; US-100 publish/UART coupling → reader thread);
-  see `docs/reports/2026-07-16-full-hil-safety-fixes.md`. Next: **WP6-C (autonomy
-  controller + chassis authority)**, then WP5.3 Task 6.
+  qualification gates deferred), WP6-C terrain autonomy controller (`c744936` — pure
+  `powertrain_autonomy/controller` + one-process `autonomy_controller` node,
+  `guidance:=terrain`, profile presets provisional before HIL).** Wheel-stop thresholds
+  are HIL-qualified (`wheel_stop.yaml qualified: true`, 0.10 rev/s, dwell 300 ms). The
+  first FULL HIL session (2026-07-16) root-fixed two real safety defects
+  (blocking-service false stale latch → `_refresh_safety_baseline`; US-100 publish/UART
+  coupling → reader thread); see `docs/reports/2026-07-16-full-hil-safety-fixes.md`.
+  Next: **WP5.3 Task 6**, then WP6-S P1 hidden-seed closed loop.
   `MISSION_STOP`, unlock ordering, and one full handshake remain open.
 - **FULL HIL mode**: the user performs physical actions only (power, lifts, visual checks);
   all commands run via agent SSH. Motor motion needs prior physical confirmation. The chassis
