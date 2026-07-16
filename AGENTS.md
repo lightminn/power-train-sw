@@ -23,7 +23,8 @@ These notes were migrated from Claude Code project memory. Treat them as durable
   override below and the 2026-07-10 project-state report when they conflict.
 - Complete: WP5.2 (Tasks 1–6 + audit gaps), WP5.3 Tasks 1–5 (observability daemon deployed on
   Jetson), WP6-A state-estimation core (`dfdfb32`), WP6-S P0 part 1 (`powertrain_sim`
-  scenario/fixtures/replay, `9a5f37f`). Wheel-stop thresholds are HIL-qualified
+  scenario/fixtures/replay, `9a5f37f`) and part 2 (procedural elevated tracks + headless
+  MuJoCo fast bridge, `e22e364`). Wheel-stop thresholds are HIL-qualified
   (`wheel_stop.yaml qualified: true`, 0.10 rev/s, dwell 300 ms) — see
   `docs/reports/2026-07-16-full-hil-safety-fixes.md`.
 - The first FULL HIL session (2026-07-16) found and root-fixed two real safety defects:
@@ -34,7 +35,7 @@ These notes were migrated from Claude Code project memory. Treat them as durable
   checks); all commands are driven by the agent over SSH. Motor motion needs prior physical
   confirmation. The chassis is NOT assembled (bench motors, arm absent) — ground measurements
   (odometry 5 m/90°, `stop_mm` commissioning) wait for vehicle assembly.
-- Next development: WP6-S P0 part 2 (MuJoCo fast bridge), then WP6-B. Open backlog: ~530 ms
+- Next development: WP6-B (NumPy terrain, consumes Task 4 outputs). Open backlog: ~530 ms
   periodic executor stalls while ARMED idle (sub-threshold, cause unknown); Task 3
   health-matrix false-stale flapping at idle.
 

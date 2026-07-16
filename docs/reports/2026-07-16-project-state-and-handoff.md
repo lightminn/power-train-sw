@@ -28,8 +28,8 @@
 | **WheelStopPredicate 실측 자격화** | ✅ 오늘 HIL | `wheel_stop.yaml qualified: true`, 임계 0.10 rev/s |
 | WP6-A (wheel+IMU 상태 추정 코어) | ✅ SW 완료 | `dfdfb32`. 실측 5 m ±5%·90°는 **차체 조립 후** |
 | WP6-S P0 1부 (scenario 계약·analytic fixture·recorded replay) | ✅ | `9a5f37f`. production 추정기 합성 5 m 오차 0%, 피벗 yaw 0.0008% |
-| **WP6-S P0 2부 (MuJoCo fast 브리지)** | 🔜 **다음 개발 항목** | 1부 산출물이 입력 계약 |
-| WP6-B (NumPy terrain, Task 4 소비) | 대기 | P0 뒤 |
+| WP6-S P0 2부 (절차 생성 트랙 + MuJoCo fast 브리지) | ✅ | `e22e364`. 헤드리스 mj_multiRay depth(광축 Z), production solve() 직결, MuJoCo→replay→추정기 flat 거리 0.106%·피벗 yaw 0.199%, CLI 3/3 PASS(기대 메트릭 물리 캘리브레이션) |
+| **WP6-B (NumPy terrain, Task 4 소비)** | 🔜 **다음 개발 항목** | P0 완료로 착수 가능 |
 | L515 경량 파이프라인 | ✅ | 29.91 fps RGB SRT, raw depth 10 Hz |
 | 원격운용 (teleop 유/무선 + operator_console) | ✅ | 콘솔은 팀원 PR #2 병합·정합화 |
 | WP8 미션 시퀀서·풀 핸드셰이크 | 미착수 | `MISSION_STOP`·언락 순서 크로스팀 계약 포함 |
@@ -46,6 +46,7 @@
 | `0a89098` `fe67096` `dc7ebc8` | wheel-stop 자격화(YAML·고정 테스트·원천 bag) |
 | `9a5f37f` | **WP6-S P0 1부** `powertrain_sim/`(scenario·fixtures·recording, 42 tests) |
 | `09cb606` | US-100 발행-UART 결합 해소(리더 스레드) |
+| `e22e364` | **WP6-S P0 2부** 절차 생성 고가 트랙 + 헤드리스 MuJoCo fast 브리지(광축 Z depth·production solve() 직결·metric 6종·기대 메트릭 물리 캘리브레이션, dev 이미지 mujoco 추가) |
 
 WP6-A 코어의 검토자 수정 2건(다른 세션에서 알아야 할 설계 결정):
 - `max_bias_rad_s=0.05` **bias 타당성 게이트** — 바퀴 정지 중 큰 gyro는 bias가 아니라
@@ -97,8 +98,9 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace/ros2 pow
   source /tmp/i/setup.bash && python3 -m pytest src/powertrain_ros/test -q'
 ```
 
-기준선(07-16): 호스트 332+92+65(sim 42+state_estimation 23) / dev 컨테이너 ~700 /
-ros 컨테이너 ~310 / 젯슨 autonomy 이미지 27. **테스트 실행과 commit/push는 반드시 `&&`
+기준선(07-16 저녁, P0 2부 `e22e364` 후): 호스트 332+92+84(sim 61+state_estimation 23) /
+dev 컨테이너 696(이미지에 mujoco 포함 — 리빌드 필요) / ros 컨테이너 334 /
+젯슨 autonomy 이미지 27. MuJoCo CLI 스모크: 3 시나리오 전부 PASS(exit 0). **테스트 실행과 commit/push는 반드시 `&&`
 체인**(0a89098에서 비체인 스크립트가 1 failed를 그대로 커밋한 사고 있음 — fe67096로 수습).
 
 **젯슨 배포 절차**: `git pull --ff-only` →
@@ -119,14 +121,14 @@ ros 컨테이너 ~310 / 젯슨 autonomy 이미지 27. **테스트 실행과 comm
 
 ## 6. 다음 작업 (우선순위 순)
 
-1. **WP6-S P0 2부 — MuJoCo fast 브리지**: 절차 생성 고가 트랙·다리(bridge)·hidden seed.
-   1부의 scenario/기록 계약을 소비. 스펙 초안 참고:
-   세션 스크래치 `wp6s_p0a_spec.md` 패턴(정본은 마스터 계획 §WP6-S).
+1. **WP6-B — NumPy terrain 기준 구현**(Task 4 산출물 + P0 fixture/replay/MuJoCo 소비).
+   완료 후 WP5.3 Task 6(콘솔 CAN 표시 일원화 포함).
+   (WP6-S P0 2부는 `e22e364`로 완료 — `powertrain_sim/README.md`가 절차 생성기·fast
+   브리지 계약 정본. hidden seed 폐루프 at scale은 P1로, WP6-B/C 뒤.)
 2. **D 런북 — WP5.2 원격 E2E 실기 스모크**: authority_enabled 경로 launch 플래그,
    wheel-stop 자격화 완료로 핸드오버 시험 가능해짐. FULL HIL 벤치 항목.
-3. WP6-B(NumPy terrain, Task 4 산출물 소비) → WP5.3 Task 6(콘솔 CAN 표시 일원화 포함).
-4. 기술 백로그: ARMED 유휴 ~530 ms 주기 스톨(원인 미상), health matrix 유휴 플래핑.
-5. WP8·`MISSION_STOP`·언락 순서·풀 핸드셰이크 1사이클(크로스팀).
+3. 기술 백로그: ARMED 유휴 ~530 ms 주기 스톨(원인 미상), health matrix 유휴 플래핑.
+4. WP8·`MISSION_STOP`·언락 순서·풀 핸드셰이크 1사이클(크로스팀).
 
 ## 7. 크로스팀 상태 (로봇팔, `extreme-robot`)
 
