@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import math
 
+import pytest
 import yaml
 
 from powertrain_sim.procedural import (
@@ -103,5 +105,27 @@ def test_representative_dev_seed_canonical_json_hash_is_pinned():
     # Reviewed golden document: this catches silent PCG64 draw-order or schema drift.
     assert json.loads(json.dumps(document, sort_keys=True)) == document
     assert canonical_json_sha256(document) == (
-        "82a7ac48cc653b6af7f515270ed34c7bc1e58bf51e9af1757e62a2e3c180f04f"
+        "9f97356d6b5cee3b2ffac8b772740b3c155d1d7a23d4bda221a8e53278fc00b3"
     )
+
+
+def test_generated_depth_roi_preserves_l515_wide_field_of_view():
+    document = generate_scenario(
+        GenerationParameters(),
+        seed=5,
+        seed_class="dev",
+    )
+
+    depth = document["sensors"]["depth"]
+    height, width = depth["shape_px"]
+    intrinsics = depth["intrinsics_px"]
+    horizontal_fov_deg = math.degrees(
+        2.0 * math.atan(width / (2.0 * intrinsics["fx"]))
+    )
+    vertical_fov_deg = math.degrees(
+        2.0 * math.atan(height / (2.0 * intrinsics["fy"]))
+    )
+
+    assert depth["shape_px"] == [60, 80]
+    assert horizontal_fov_deg == pytest.approx(70.0, abs=1.0)
+    assert vertical_fov_deg == pytest.approx(55.0, abs=1.0)

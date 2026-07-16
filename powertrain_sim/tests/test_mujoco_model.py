@@ -107,6 +107,16 @@ def test_physics_timestep_is_at_most_five_ms_and_divides_scenario_clock():
     )
 
 
+def test_plant_starts_settled_with_static_gravity_on_the_imu():
+    plant = MujocoFastPlant(_load())
+
+    _, acceleration = plant.imu_raw()
+
+    assert plant.data.time == 0.0
+    assert np.linalg.norm(acceleration) == pytest.approx(9.81, abs=0.05)
+    assert np.linalg.norm(plant.data.qvel[:6]) < 1e-4
+
+
 def test_value_sensors_reuse_part_one_types_and_fault_schedule_semantics():
     scenario = _load("bank_transition.yaml")
     plant = MujocoFastPlant(scenario)

@@ -226,6 +226,30 @@ error against a near-zero true yaw (flat, bank) is not meaningful. The shipped
 scenario `expected_metrics` were calibrated against the 2026-07-16 MuJoCo fast
 physical evaluation with production geometry (see comments in each YAML).
 
+## P1 hidden-seed closed loop
+
+`closed_loop.TerrainAutonomyDriver` wires the fast plant to the production
+WP6-B `TerrainEstimator` and WP6-C `AutonomyController` through the
+`run_scenario` `command_source`/`hold_state_source`/`depth_tap` callbacks.
+Everything runs in scenario time (no wall clock), tilt and SE(2) odometry
+deltas come from the production `StateSnapshot` (never ground truth), the
+depth-pose reference advances only after a successful terrain update, and the
+arm gate is fabricated as a fresh `STOWED_LOCKED` heartbeat — a documented
+simulation assumption. The camera extrinsic is derived from the fast-model
+mount constants plus the spawn height, not the provisional production 0.60 m.
+
+`python -m powertrain_sim.hidden_eval <seed> <run_dir>` generates one
+procedural scenario (canonical sha256 recorded into `scenario.yaml`), runs the
+closed loop, and exits 0/1 from `MetricsReport.passed`. Closed-loop documents
+are generated with `expected_completion=False`: a fail-closed terrain
+controller must stop about 0.55 m (the front-corner radius) before the
+terminal drop of an elevated track, so the 95 % completion boolean is
+physically unreachable and the honest acceptance is no fail-open, expected
+clearance, and hold behaviour. `hold_state` compares the controller state
+against the terrain reference the decision actually consumed, so hold metrics
+carry no one-tick instrumentation phase artifact and recovery after an input
+dropout is measured as same-tick (0.0 s).
+
 ## Host verification
 
 ```bash

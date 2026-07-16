@@ -13,6 +13,9 @@ from ..scenario import Scenario
 from .model_builder import build_mjcf
 
 
+INITIAL_SETTLE_S = 0.5
+
+
 def _id(model: mujoco.MjModel, object_type: mujoco.mjtObj, name: str) -> int:
     identifier = int(mujoco.mj_name2id(model, object_type, name))
     if identifier < 0:
@@ -113,6 +116,11 @@ class MujocoFastPlant:
         )
         self._last_solve_result: SolveResult | None = None
         mujoco.mj_forward(self.model, self.data)
+        settle_steps = int(math.ceil(INITIAL_SETTLE_S / self.physics_dt_s))
+        for _ in range(settle_steps):
+            mujoco.mj_step(self.model, self.data)
+        # Settling is an initialization detail, outside the scenario clock.
+        self.data.time = 0.0
 
     @property
     def last_solve_result(self) -> SolveResult | None:
@@ -210,4 +218,4 @@ class MujocoFastPlant:
         return output
 
 
-__all__ = ("MujocoFastPlant",)
+__all__ = ("INITIAL_SETTLE_S", "MujocoFastPlant")

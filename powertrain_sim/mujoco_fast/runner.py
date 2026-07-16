@@ -18,7 +18,7 @@ from powertrain_ros.state_estimation import (
     StateSnapshot,
 )
 
-from ..fixtures import GroundTruthFrame, _motion
+from ..fixtures import DepthFrame, GroundTruthFrame, _motion
 from ..recording import RunWriter
 from ..scenario import Scenario
 from .model_builder import WHEEL_HALF_WIDTH_M
@@ -28,6 +28,7 @@ from .sensors import FastSensorSuite
 
 CommandSource = Callable[[float, StateSnapshot | None], tuple[float, float]]
 HoldStateSource = Callable[[float, StateSnapshot | None], tuple[bool, bool]]
+DepthTap = Callable[[DepthFrame], None]
 
 
 @dataclass(frozen=True)
@@ -300,6 +301,7 @@ def run_scenario(
     *,
     command_source: CommandSource | None = None,
     hold_state_source: HoldStateSource | None = None,
+    depth_tap: DepthTap | None = None,
     geometry: ChassisGeometry | None = None,
 ) -> MetricsReport:
     """Execute, record, replay-compatible sample, and score one fast-mode run."""
@@ -354,6 +356,8 @@ def run_scenario(
                     raise RuntimeError(f"production estimator rejected IMU sample: {decision.reason}")
             if depth is not None:
                 writer.write_depth(depth)
+                if depth_tap is not None:
+                    depth_tap(depth)
             writer.write_ground_truth(truth)
 
             latest_estimate = estimator.snapshot(now_s=truth.stamp_s)
@@ -405,6 +409,7 @@ def run_scenario(
 
 __all__ = (
     "CommandSource",
+    "DepthTap",
     "HoldMetricsTracker",
     "HoldStateSource",
     "MetricsReport",

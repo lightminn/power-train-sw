@@ -25,6 +25,8 @@ from .scenario import PRNG_ALGORITHM, REQUIRED_UNITS, SEED_CLASSES, parse_scenar
 
 TERRAIN_FAMILIES = ("flat", "bank", "bank_transition")
 MOTION_PROFILES = ("constant_speed", "trapezoidal_speed")
+L515_DEPTH_HORIZONTAL_FOV_RAD = math.radians(70.0)
+L515_DEPTH_VERTICAL_FOV_RAD = math.radians(55.0)
 
 
 def _range(
@@ -64,8 +66,13 @@ class GenerationParameters:
     terrain_families: tuple[str, ...] = TERRAIN_FAMILIES
     motion_profiles: tuple[str, ...] = MOTION_PROFILES
     clock_dt_s: float = 0.02
-    depth_shape_px: tuple[int, int] = (40, 60)
+    depth_shape_px: tuple[int, int] = (60, 80)
     depth_sample_every_n_steps: int = 5
+    # 개루프(스크립트 모션) 검증은 트랙 끝까지 가므로 True가 기본이다.
+    # 폐루프(P1)는 고가 트랙 종단 낙하 앞 ~0.55 m(≈전방 코너 반경)에서
+    # fail-closed 정지하는 것이 옳으므로 95% 완주가 물리적으로 불가 — False로
+    # 생성한다(정지 여유가 5%를 넘는 모든 기본 트랙 길이에서 성립).
+    expected_completion: bool = True
 
     def __post_init__(self) -> None:
         _range(self.track_length_range_m, "track_length_range_m", minimum=1.0)
@@ -345,6 +352,8 @@ def generate_scenario(
     expected_clearance = max(0.0, min(width) / 2.0 - geometric_margin)
     height_values = [point[2] for point in centerline]
     height_px, width_px = parameters.depth_shape_px
+    depth_fx_px = width_px / (2.0 * math.tan(L515_DEPTH_HORIZONTAL_FOV_RAD / 2.0))
+    depth_fy_px = height_px / (2.0 * math.tan(L515_DEPTH_VERTICAL_FOV_RAD / 2.0))
     document: dict[str, Any] = {
         "schema_version": 1,
         "scenario_id": f"procedural_{seed_class}_{seed}_{family}",
@@ -402,8 +411,8 @@ def generate_scenario(
                 "noise_std_m": 0.002,
                 "bank_depth_span_m": 0.08,
                 "intrinsics_px": {
-                    "fx": 420.0,
-                    "fy": 420.0,
+                    "fx": _rounded(depth_fx_px),
+                    "fy": _rounded(depth_fy_px),
                     "cx": _rounded((width_px - 1) / 2.0),
                     "cy": _rounded((height_px - 1) / 2.0),
                 },
@@ -411,7 +420,7 @@ def generate_scenario(
         },
         "faults": faults,
         "expected_metrics": {
-            "completion": True,
+            "completion": bool(parameters.expected_completion),
             "min_clearance_m": _rounded(expected_clearance),
             "edge_overrun_count": 0,
             "false_hold_count": 0,
