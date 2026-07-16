@@ -68,17 +68,18 @@ historical context.
   authority (bootstrap reading order, WP status table, verification recipes, deploy steps,
   backlog). Then the master plan `docs/plans/2026-07-12-defense-robot-autonomy-software-plan.md`.
   It supersedes the 2026-07-10 project-state report and older status banners on conflict.
-- **Complete: WP1–WP5.3 (Tasks 1–5), WP6-A core, WP6-S P0 (part 1 + part 2 MuJoCo fast
-  bridge, `e22e364`), WP6-B NumPy terrain core (`eba8b74` — mount-angle HIL and JAX
-  qualification gates deferred), WP6-C terrain autonomy controller (`c744936` — pure
-  `powertrain_autonomy/controller` + one-process `autonomy_controller` node,
-  `guidance:=terrain`, profile presets provisional before HIL).** Wheel-stop thresholds
-  are HIL-qualified (`wheel_stop.yaml qualified: true`, 0.10 rev/s, dwell 300 ms). The
-  first FULL HIL session (2026-07-16) root-fixed two real safety defects
-  (blocking-service false stale latch → `_refresh_safety_baseline`; US-100 publish/UART
-  coupling → reader thread); see `docs/reports/2026-07-16-full-hil-safety-fixes.md`.
-  Next: **WP5.3 Task 6**, then WP6-S P1 hidden-seed closed loop.
-  `MISSION_STOP`, unlock ordering, and one full handshake remain open.
+- **Complete (vehicle-free software, as of 2026-07-17): WP1–WP5.3 (Tasks 1–7 SW),
+  WP6-A core, WP6-S P0+P1 (`e22e364`, closed loop `d30ace1` + hidden_eval CLI),
+  WP6-B NumPy terrain core (`eba8b74`) + JAX kernels/equivalence (`5a415e9`),
+  WP6-C terrain autonomy controller (`c744936`), remote assist + protocol v2
+  (`f41730f`), laptop dual-video viewer (`0198830`), console CAN unification
+  (`f9d01df`), idle-drain flapping fix (`3c1e098`), WP7 follow controller
+  (`158b863`), WP8 section-supervisor skeleton (`72ec7e4`).** Wheel-stop thresholds
+  are HIL-qualified. Remaining work is hardware/bench gates (mount-angle HIL,
+  profile-preset HIL, JAX Jetson full-load qualification, D-runbook remote E2E
+  smoke, live-stack ~530 ms stall observation) and cross-team contracts (gateway
+  wiring after the teammate's l515 WIP lands, WP8 real perception-event topics,
+  `MISSION_STOP` unlock ordering, one full handshake). See the handoff report §6.
 - **FULL HIL mode**: the user performs physical actions only (power, lifts, visual checks);
   all commands run via agent SSH. Motor motion needs prior physical confirmation. The chassis
   is NOT assembled (bench motors, arm absent) — ground measurements (odometry 5 m/90°,

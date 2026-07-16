@@ -21,14 +21,17 @@ These notes were migrated from Claude Code project memory. Treat them as durable
 - Newest authority: `docs/reports/2026-07-16-project-state-and-handoff.md` (bootstrap reading
   order, WP status table, verification recipes, deploy steps, backlog). It supersedes every
   override below and the 2026-07-10 project-state report when they conflict.
-- Complete: WP5.2 (Tasks 1–6 + audit gaps), WP5.3 Tasks 1–5 (observability daemon deployed on
-  Jetson), WP6-A state-estimation core (`dfdfb32`), WP6-S P0 part 1 (`powertrain_sim`
-  scenario/fixtures/replay, `9a5f37f`) and part 2 (procedural elevated tracks + headless
-  MuJoCo fast bridge, `e22e364`), WP6-B bank-aware NumPy terrain estimator core
-  (`eba8b74` — mount-angle HIL and JAX qualification gates deferred), WP6-C terrain
-  autonomy controller (`c744936`). Wheel-stop
-  thresholds are HIL-qualified (`wheel_stop.yaml qualified: true`, 0.10 rev/s,
-  dwell 300 ms) — see `docs/reports/2026-07-16-full-hil-safety-fixes.md`.
+- Complete (vehicle-free software, 2026-07-17): WP5.2 (Tasks 1–6 + audit gaps),
+  WP5.3 Tasks 1–7 SW (6-A console CAN unification `f9d01df`, 6-B profile/feedback/
+  remote_video cores `e6a2b24`, 6-C remote assist + protocol v2 `f41730f` + laptop
+  dual-video viewer `0198830`, 7 regression manifest + fault matrix `0d28552`),
+  WP6-A core (`dfdfb32`), WP6-S P0 (`9a5f37f`, `e22e364`) + P1 closed loop
+  (`d30ace1`, hidden_eval CLI), WP6-B NumPy terrain core (`eba8b74`) + JAX kernels/
+  equivalence (`5a415e9`), WP6-C controller (`c744936`), idle-drain flapping fix
+  (`3c1e098`), WP7 follow controller (`158b863`), WP8 section-supervisor skeleton
+  (`72ec7e4`). Wheel-stop thresholds are HIL-qualified (`wheel_stop.yaml
+  qualified: true`, 0.10 rev/s, dwell 300 ms) —
+  see `docs/reports/2026-07-16-full-hil-safety-fixes.md`.
 - The first FULL HIL session (2026-07-16) found and root-fixed two real safety defects:
   blocking chassis services caused false safety-stale latches (`_refresh_safety_baseline`,
   `a191116`+`149302e`), and US-100 publishing was coupled to blocking UART I/O (node-owned
@@ -41,9 +44,13 @@ These notes were migrated from Claude Code project memory. Treat them as durable
   CONTROLLED_HOLD vs TRACKING) + one-process `autonomy_controller` node (`guidance:=terrain`,
   `/odom_diagnostics`); command authority stays the WP5.2 `chassis_node` CommandAuthority.
   Profile presets are provisional before braking/bank/slope HIL.
-- Next development: WP5.3 Task 6, then WP6-S P1 hidden-seed closed loop. Open backlog: ~530 ms
-  periodic executor stalls while ARMED idle (sub-threshold, cause unknown); Task 3
-  health-matrix false-stale flapping at idle.
+- Next: hardware/bench gates and cross-team contracts only (handoff report §6) —
+  mount-angle/profile HIL, JAX Jetson full-load qualification, D-runbook remote E2E
+  smoke, gateway wiring after the teammate's l515 WIP lands, WP8 real
+  perception-event topics + MISSION_STOP unlock ordering. The ~530 ms ARMED-idle
+  stall is chassis_node-innocent (isolated 30-min soak clean); observe the live
+  stack at the next bench session. The idle flapping root cause is fixed
+  (`3c1e098`), pending an idle-bench confirmation.
 
 ## CURRENT STATE OVERRIDE — 2026-07-11 L515 LIGHTWEIGHT PIPELINE
 
