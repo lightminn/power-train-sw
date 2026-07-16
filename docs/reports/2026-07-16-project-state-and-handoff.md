@@ -100,10 +100,12 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace/ros2 pow
   source /tmp/i/setup.bash && python3 -m pytest src/powertrain_ros/test -q'
 ```
 
-기준선(07-16 밤, WP6-B `eba8b74` 후): 호스트 180(autonomy 54 + sim/observability 126) /
-dev 컨테이너 723(이미지에 mujoco 포함 — 리빌드 필요) / ros 컨테이너 334 /
-젯슨 autonomy 이미지 재빌드 필요(chassis COPY 추가; sim·mujoco 없는 이미지에선
-MuJoCo 통합 테스트 1건 skip 이 정상). MuJoCo CLI 스모크: 3 시나리오 전부 PASS(exit 0). **테스트 실행과 commit/push는 반드시 `&&`
+기준선(07-16 밤, WP6-B `eba8b74`+`069a33e` 후): 호스트 180(autonomy 54 +
+sim/observability 126) / dev 컨테이너 723(이미지에 mujoco 포함) / ros 컨테이너 334 /
+젯슨 autonomy 이미지(chassis COPY 포함 재빌드됨) 52 passed + 2 skipped — skip 2건은
+정상(MuJoCo 통합 1건: 이미지에 sim·mujoco 없음, 이미지 계약 1건: docker/ 미동봉).
+MuJoCo CLI 스모크: 3 시나리오 전부 PASS(exit 0). ⚠️ 젯슨 docker build 가 buildkit
+snapshot 오류를 내면 `docker builder prune -f` 후 재시도(07-16 실측 복구). **테스트 실행과 commit/push는 반드시 `&&`
 체인**(0a89098에서 비체인 스크립트가 1 failed를 그대로 커밋한 사고 있음 — fe67096로 수습).
 
 **젯슨 배포 절차**: `git pull --ff-only` →
