@@ -6,6 +6,7 @@ converts messages and preserves the existing ``/odom``, TF, and ``~/reset``
 contracts.  Relative odometry is never a sole mission-arrival condition.
 """
 
+import json
 import math
 import os
 import sys
@@ -16,6 +17,7 @@ from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu
+from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from tf2_ros import TransformBroadcaster
 
@@ -67,6 +69,11 @@ class OdometryNode(Node):
 
         self.tf = TransformBroadcaster(self)
         self.pub = self.create_publisher(Odometry, "/odom", 10)
+        self.pub_diagnostics = self.create_publisher(
+            String,
+            "/odom_diagnostics",
+            10,
+        )
         self.create_subscription(
             WheelStates,
             "/wheel_states",
@@ -162,7 +169,26 @@ class OdometryNode(Node):
 
     def _publish(self):
         now = self.get_clock().now()
-        state = self.estimator.snapshot(now_s=now.nanoseconds * 1e-9)
+        now_s = now.nanoseconds * 1e-9
+        state = self.estimator.snapshot(now_s=now_s)
+        speed_cap = state.diagnostics.terrain_speed_cap
+        self.pub_diagnostics.publish(
+            String(
+                data=json.dumps(
+                    {
+                        "stamp_s": now_s,
+                        "slip_candidate": state.diagnostics.slip_candidate,
+                        "stuck_candidate": state.diagnostics.stuck_candidate,
+                        "terrain_profile": state.diagnostics.terrain_profile,
+                        "speed_cap_m_s": (
+                            speed_cap if math.isfinite(speed_cap) else None
+                        ),
+                    },
+                    separators=(",", ":"),
+                    allow_nan=False,
+                )
+            )
+        )
         qx, qy, qz, qw = _quat(
             state.tilt.roll_rad,
             state.tilt.pitch_rad,

@@ -694,8 +694,15 @@ def test_autonomy_readme_records_dependency_shape_and_deferred_scope_contracts()
         "RGB",
         "JAX",
         "WP6-C",
+        "The controller core lives here",
+        "autonomy_controller_node",
     ):
         assert phrase in text
+    assert (
+        "ROS subscriptions, controller policy, and `/autonomy/cmd_vel` "
+        "publication belong to WP6-C and are not part of this package."
+        not in text
+    )
 
 
 def test_estimator_core_has_no_ros_or_simulator_dependency():

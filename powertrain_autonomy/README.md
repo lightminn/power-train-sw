@@ -2,7 +2,7 @@
 
 `powertrain_autonomy` contains value-based NumPy computation. It has no ROS,
 `rclpy`, hardware, or simulator branch. In particular, powertrain_autonomy does not import powertrain_ros.
-A WP6-C adapter will translate WP6-A `TiltSnapshot`
+The WP6-C adapter translates WP6-A `TiltSnapshot`
 and `PoseSnapshot` values into the local `BodyTilt` and `OdometryDelta`
 dataclasses. This keeps the dependency direction from ROS adapters toward pure
 cores and avoids a package cycle. The terrain core reads production wheel
@@ -107,6 +107,31 @@ jump, missing connected support, unobserved drop evidence, or empty erosion
 returns `path_available=False` with explicit reject reasons and zero confidence.
 The estimator does not reuse a prior path as a motion basis.
 
+## WP6-C controller core
+
+`controller.AutonomyController` consumes an immutable WP6-B `TerrainEstimate`,
+a WP6-A-derived `MotionState`, a required-arm-status `ProfileGate`, and optional
+`DriveDiagnostics`. Each injected `now_s` call returns a frozen
+`ControllerDecision` with finite, nonnegative forward speed, bounded yaw rate,
+state, and explicit hold or slowdown reasons. The core reads no wall clock and
+does not subscribe or publish.
+
+`BLOCKED` is reserved for the arm collaboration gate: a missing, stale, future,
+or profile-mismatched arm status forces immediate zero and resets the slew
+origin. `CONTROLLED_HOLD` covers missing or stale terrain/motion, unavailable or
+low-confidence path, clearance/tilt limits, and a fresh stuck diagnostic. It
+ramps the last output to zero at the active profile's deceleration and yaw-slew
+limits, then automatically resumes from zero when inputs recover. Stale or
+missing diagnostics only remove their optional slip and speed-cap constraints.
+
+The `EMPTY_STOWED` preset is provisionally limited to 0.8 m/s, 0.5 m/s²
+acceleration, 0.8 m/s² deceleration, 0.8 rad/s yaw rate, 15° bank, and 15°
+slope. `CARRYING_LOCKED` is provisionally more conservative at 0.5 m/s,
+0.3 m/s² acceleration, 0.6 m/s² deceleration, 0.5 rad/s yaw rate, 10° bank,
+and 12° slope. These values are HIL candidates, not production-qualified limits.
+The controller core lives here; ROS subscriptions and `/autonomy/cmd_vel` publication live in `powertrain_ros` `autonomy_controller_node`.
+Final command selection remains the existing `chassis_node` CommandAuthority.
+
 ## Provisional extrinsic and deferred work
 
 The default camera height 0.60 m and downward pitch 25 degrees are provisional,
@@ -116,6 +141,5 @@ degree comparison and a measured `base_link→l515_link` transform.
 
 RGB auxiliary confidence is explicitly deferred. JAX kernels, NumPy/JAX
 equivalence, Jetson qualification, and backend selection are also deferred;
-NumPy is the only implementation here. ROS subscriptions, controller policy,
-and `/autonomy/cmd_vel` publication belong to WP6-C and are not part of this
-package.
+NumPy is the only terrain-estimator implementation here. The WP6-C controller
+is backend-neutral and consumes the immutable estimator result.

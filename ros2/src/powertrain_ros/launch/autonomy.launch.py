@@ -29,8 +29,8 @@
    · `teleop_server` 가 안 떠 있는가 (can0 락이 막지만, 확인이 먼저다)
    · ODrive 재캘리를 했는가 (전원 사이클마다 필요 — 안 하면 arm 은 되는데 안 돈다)
 
-🛑 **레인과 벽 추종은 동시에 켜지 않는다** — 둘 다 `/autonomy/cmd_vel` 를 쓴다.
-   `guidance:=lane` (흰 선 구간) 또는 `guidance:=wall` (복도·터널) 중 하나.
+🛑 **유도 소스는 동시에 켜지 않는다** — 모두 `/autonomy/cmd_vel` 를 쓴다.
+   `guidance:=lane|wall|follow|terrain` 중 하나만 선택한다.
 
 ⚠️ 주행을 켜도 **바로 안 움직인다.** `chassis_node` 내장 authority가 기본 IDLE이다:
        ros2 service call /chassis_node/authority_auto std_srvs/srv/Trigger
@@ -57,13 +57,14 @@ def generate_launch_description():
     lane_on = PythonExpression(["'", guidance, "' == 'lane'"])
     wall_on = PythonExpression(["'", guidance, "' == 'wall'"])
     follow_on = PythonExpression(["'", guidance, "' == 'follow'"])
+    terrain_on = PythonExpression(["'", guidance, "' == 'terrain'"])
 
     args = [
         DeclareLaunchArgument("stride", default_value="2",
                               description="점군 픽셀 간격 (2=45k점, 4=9k점)"),
         DeclareLaunchArgument(
             "guidance", default_value="none",
-            description="유도 방식 택일: none | lane | wall | follow. "
+            description="유도 방식 택일: none | lane | wall | follow | terrain. "
                         "🛑 동시에 켜지 않는다 (전부 /autonomy/cmd_vel 를 쓴다)"),
         DeclareLaunchArgument(
             "chassis", default_value="false",
@@ -73,7 +74,7 @@ def generate_launch_description():
         DeclareLaunchArgument("min_rev", default_value="1.0",
                               description="⚠️ 코깅존 플로어. docs/specs/2026-07-13-min-rev-speed-range.md"),
         DeclareLaunchArgument("propose", default_value="false",
-                              description="레인/벽이 /autonomy/cmd_vel 로 제안까지 한다"),
+                              description="선택한 유도 노드가 /autonomy/cmd_vel 로 제안한다"),
     ]
 
     # ── 상태 (항상) ──
@@ -113,6 +114,10 @@ def generate_launch_description():
         Node(package="powertrain_ros", executable="lead_follower",
              name="lead_follower", output="screen",
              condition=IfCondition(follow_on),
+             parameters=[{"enabled": LaunchConfiguration("propose")}]),
+        Node(package="powertrain_ros", executable="autonomy_controller",
+             name="autonomy_controller", output="screen",
+             condition=IfCondition(terrain_on),
              parameters=[{"enabled": LaunchConfiguration("propose")}]),
     ]
 

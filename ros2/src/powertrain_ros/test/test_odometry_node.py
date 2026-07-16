@@ -3,11 +3,15 @@
 계산 자체는 순수 코어(`motor_control/chassis/odometry.py`, pytest 22종)가 담보한다.
 여기서는 **래퍼가 제대로 옮기는지**만 본다 — 메시지 → 코어 자료형 → 메시지.
 """
+import dataclasses
+import json
 import math
 
 import pytest
 import rclpy
+from rclpy.executors import SingleThreadedExecutor
 from sensor_msgs.msg import Imu
+from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
 from powertrain_msgs.msg import WheelState, WheelStates
@@ -135,6 +139,56 @@ def test_reset_service_zeroes_pose():
         assert n.odo.pose() == (0.0, 0.0, 0.0)
     finally:
         n.destroy_node()
+
+
+def test_odometry_publishes_controller_diagnostics_json():
+    n = OdometryNode()
+    snapshot = n.estimator.snapshot
+
+    def snapshot_with_unlimited_cap(*, now_s):
+        state = snapshot(now_s=now_s)
+        return dataclasses.replace(
+            state,
+            diagnostics=dataclasses.replace(
+                state.diagnostics,
+                terrain_speed_cap=math.inf,
+            ),
+        )
+
+    n.estimator.snapshot = snapshot_with_unlimited_cap
+    observer = rclpy.create_node("odometry_diagnostics_test_observer")
+    messages = []
+    observer.create_subscription(
+        String,
+        "/odom_diagnostics",
+        lambda message: messages.append(json.loads(message.data)),
+        10,
+    )
+    executor = SingleThreadedExecutor()
+    executor.add_node(n)
+    executor.add_node(observer)
+    try:
+        for _ in range(20):
+            executor.spin_once(timeout_sec=0.02)
+            if messages:
+                break
+        assert messages
+        assert set(messages[-1]) == {
+            "stamp_s",
+            "slip_candidate",
+            "stuck_candidate",
+            "terrain_profile",
+            "speed_cap_m_s",
+        }
+        assert isinstance(messages[-1]["slip_candidate"], bool)
+        assert isinstance(messages[-1]["stuck_candidate"], bool)
+        assert messages[-1]["speed_cap_m_s"] is None
+    finally:
+        executor.remove_node(n)
+        executor.remove_node(observer)
+        n.destroy_node()
+        observer.destroy_node()
+        executor.shutdown()
 
 
 # ── joint_state_bridge ───────────────────────────────────────────────────
