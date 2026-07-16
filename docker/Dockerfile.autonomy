@@ -13,6 +13,9 @@ ENV PYTHONUNBUFFERED=1 \
 RUN pip3 install --no-cache-dir --index-url https://pypi.org/simple pytest pyyaml
 
 WORKDIR /workspace
+# WP6-B terrain core는 production 바퀴 기하를 chassis.kinematics 에서 읽는다.
+# chassis 서브패키지는 stdlib 전용(순수 계산)이라 이미지 무게에 영향 없음.
+COPY motor_control/chassis /workspace/chassis
 COPY powertrain_autonomy /workspace/powertrain_autonomy
 COPY scripts/l515_commissioning.py /workspace/scripts/l515_commissioning.py
 COPY ros2/src/powertrain_ros/config/l515_terrain.yaml \
