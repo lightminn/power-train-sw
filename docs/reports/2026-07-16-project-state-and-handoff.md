@@ -24,7 +24,7 @@
 | WP4 (ROS2 왕복 DDS) | ✅ | 로봇팔 실물 그래프와 양방향 |
 | WP5/5.1 (`/cmd_vel` 체인 + 안전 코어) | ✅ HIL | 50.000 Hz, US-100 latch 시나리오 통과 |
 | WP5.2 (팔 협업 안전: 계약 v2·ArmInterlock·CommandAuthority·원격 gateway·MissionSupervisor) | ✅ Task 1~6 + 감사갭 4건 | 07-14. 실기 원격 E2E 스모크만 벤치 잔여 |
-| WP5.3 (관측성: journal/데몬/CAN health/depth 품질/팔 결과 adapter) | ✅ Task 1~5 배포 | Task 6는 WP6-B/C 뒤, 7~8은 sim 뒤 |
+| WP5.3 (관측성: journal/데몬/CAN health/depth 품질/팔 결과 adapter) | ✅ Task 1~5 배포 | Task 6-A(콘솔 CAN 일원화) ✅ `f9d01df`; 6-B/C·7은 goal 진행 중, 8은 실기 |
 | **WheelStopPredicate 실측 자격화** | ✅ 오늘 HIL | `wheel_stop.yaml qualified: true`, 임계 0.10 rev/s |
 | WP6-A (wheel+IMU 상태 추정 코어) | ✅ SW 완료 | `dfdfb32`. 실측 5 m ±5%·90°는 **차체 조립 후** |
 | WP6-S P0 1부 (scenario 계약·analytic fixture·recorded replay) | ✅ | `9a5f37f`. production 추정기 합성 5 m 오차 0%, 피벗 yaw 0.0008% |
@@ -49,6 +49,7 @@
 | `09cb606` | US-100 발행-UART 결합 해소(리더 스레드) |
 | `e22e364` | **WP6-S P0 2부** 절차 생성 고가 트랙 + 헤드리스 MuJoCo fast 브리지(광축 Z depth·production solve() 직결·metric 6종·기대 메트릭 물리 캘리브레이션, dev 이미지 mujoco 추가) |
 | `eba8b74` | **WP6-B** bank-aware NumPy terrain 코어(고정 shape 5 cm grid·corridor/FOV-한계 낙하 경계·footprint erosion·fail-closed, 54 tests + 광FOV MuJoCo 정량 통합, autonomy 이미지에 chassis 동봉). ⚠️ Codex 위임분을 검토자가 낙하 경계 의미론·성능(107→31 ms) 근본 재설계 |
+| `f9d01df` | **WP5.3 Task 6-A** 콘솔 CAN 표시 일원화 — sender의 passive can0 RX/sysfs 제거, daemon 캐시 `CAN_HEALTH`(owner 측정) → 순수 `console_can_status.can_status_text`, allowlist 축소. ⚠️ 젯슨 ros 스위트에서 1/366 비재현 타이밍 플레이크 1회 관측(재실행 2회 GREEN — 감시 항목) |
 | `c744936` | **WP6-C** terrain autonomy controller: 순수 코어(`controller/core.py` — BLOCKED=팔 게이트 즉시 0+slew 리셋 / CONTROLLED_HOLD=stale·경로상실 profile 감속 ramp·자동복구 / TRACKING=clearance·bank·slope·confidence·slip·speed-cap 스케일+곡률 감속+slew, EMPTY_STOWED·CARRYING_LOCKED 잠정 프리셋+보수 불변식) + 단일 프로세스 ROS 어댑터 `autonomy_controller`(첫 CameraInfo에 60×80 중앙크롭 격자 고정, odometry delta는 terrain 성공 후에만 전진(검토자 수정), hold도 0 발행 유지, 첫 estimate 전 발행 금지) + `/odom_diagnostics` + WP6-C 소유권 계약 테스트 |
 
 WP6-A 코어의 검토자 수정 2건(다른 세션에서 알아야 할 설계 결정):
@@ -101,11 +102,11 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace/ros2 pow
   source /tmp/i/setup.bash && python3 -m pytest src/powertrain_ros/test -q'
 ```
 
-기준선(07-16 심야, WP6-C `c744936` 후): 호스트 223(autonomy 97 +
-sim/observability 126) / dev 컨테이너 766(이미지에 mujoco 포함) / ros 컨테이너 349 /
-젯슨 ros 컨테이너 349(일회용 컨테이너, 라이브 스택 무중단) / 젯슨 autonomy 이미지
-95 passed + 2 skipped — skip 2건은 정상(MuJoCo 통합 1건: 이미지에 sim·mujoco 없음,
-이미지 계약 1건: docker/ 미동봉).
+기준선(07-16 심야, Task 6-A `f9d01df` 후): 호스트 223(autonomy 97 +
+sim/observability 126) / dev 컨테이너 766(이미지에 mujoco 포함) / ros 컨테이너 366 /
+젯슨 ros 컨테이너 366(일회용 컨테이너, 라이브 스택 무중단; 1회 비재현 플레이크 감시) /
+젯슨 autonomy 이미지 95 passed + 2 skipped — skip 2건은 정상(MuJoCo 통합 1건: 이미지에
+sim·mujoco 없음, 이미지 계약 1건: docker/ 미동봉).
 MuJoCo CLI 스모크: 3 시나리오 전부 PASS(exit 0). ⚠️ 젯슨 docker build 가 buildkit
 snapshot 오류를 내면 `docker builder prune -f` 후 재시도(07-16 실측 복구). **테스트 실행과 commit/push는 반드시 `&&`
 체인**(0a89098에서 비체인 스크립트가 1 failed를 그대로 커밋한 사고 있음 — fe67096로 수습).
