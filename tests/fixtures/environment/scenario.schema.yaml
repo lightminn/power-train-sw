@@ -1,0 +1,245 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Powertrain simulator-neutral scenario v1
+description: Documentation schema; powertrain_sim/scenario.py is authoritative.
+type: object
+additionalProperties: false
+required:
+  - schema_version
+  - scenario_id
+  - description
+  - units
+  - frames
+  - clock
+  - prng
+  - track
+  - motion
+  - sensors
+  - faults
+  - expected_metrics
+properties:
+  schema_version: {const: 1}
+  scenario_id: {type: string, minLength: 1}
+  description: {type: string, minLength: 1}
+  units:
+    type: object
+    additionalProperties: false
+    required: [distance, angle, time, linear_velocity, angular_velocity, acceleration, curvature, friction, depth]
+    properties:
+      distance: {const: m}
+      angle: {const: rad}
+      time: {const: s}
+      linear_velocity: {const: m/s}
+      angular_velocity: {const: rad/s}
+      acceleration: {const: m/s^2}
+      curvature: {const: 1/m}
+      friction: {const: '1'}
+      depth: {const: mm}
+  frames:
+    type: object
+    additionalProperties: false
+    required: [world, body, depth, imu]
+    properties:
+      world: {type: string, minLength: 1}
+      body: {type: string, minLength: 1}
+      depth: {type: string, minLength: 1}
+      imu: {type: string, minLength: 1}
+  clock:
+    type: object
+    additionalProperties: false
+    required: [start_s, dt_s, duration_s]
+    properties:
+      start_s: {type: number, exclusiveMinimum: 0}
+      dt_s: {type: number, exclusiveMinimum: 0}
+      duration_s: {type: number, exclusiveMinimum: 0}
+  prng:
+    type: object
+    additionalProperties: false
+    required: [algorithm, seed, seed_class]
+    properties:
+      algorithm: {const: PCG64}
+      seed: {type: integer, minimum: 0}
+      seed_class: {enum: [dev, regression, hidden_evaluation, stress]}
+  track:
+    type: object
+    additionalProperties: false
+    required: [centerline_m, width_m, height_m, bank_rad, curvature_per_m, friction_coefficient, drop_boundaries]
+    properties:
+      centerline_m:
+        type: array
+        minItems: 2
+        items:
+          type: array
+          prefixItems: [{type: number}, {type: number}, {type: number}]
+          minItems: 3
+          maxItems: 3
+      width_m: {$ref: '#/$defs/number_profile'}
+      height_m: {$ref: '#/$defs/number_profile'}
+      bank_rad: {$ref: '#/$defs/number_profile'}
+      curvature_per_m: {$ref: '#/$defs/number_profile'}
+      friction_coefficient: {$ref: '#/$defs/number_profile'}
+      drop_boundaries:
+        type: array
+        minItems: 2
+        items:
+          type: object
+          additionalProperties: false
+          required: [left, right]
+          properties:
+            left: {type: boolean}
+            right: {type: boolean}
+  motion:
+    oneOf:
+      - type: object
+        additionalProperties: false
+        required: [profile, linear_speed_m_s, yaw_rate_rad_s]
+        properties:
+          profile: {const: constant_speed}
+          linear_speed_m_s: {type: number}
+          yaw_rate_rad_s: {type: number}
+      - type: object
+        additionalProperties: false
+        required: [profile, max_linear_speed_m_s, linear_acceleration_m_s2, yaw_rate_rad_s]
+        properties:
+          profile: {const: trapezoidal_speed}
+          max_linear_speed_m_s: {type: number}
+          linear_acceleration_m_s2: {type: number}
+          yaw_rate_rad_s: {type: number}
+      - type: object
+        additionalProperties: false
+        required: [profile, target_yaw_rad, yaw_rate_rad_s]
+        properties:
+          profile: {const: pivot}
+          target_yaw_rad: {type: number}
+          yaw_rate_rad_s: {type: number}
+  sensors:
+    type: object
+    additionalProperties: false
+    required: [wheel_states, imu, depth]
+    properties:
+      wheel_states: {$ref: '#/$defs/wheel_sensor'}
+      imu: {$ref: '#/$defs/imu_sensor'}
+      depth: {$ref: '#/$defs/depth_sensor'}
+  faults:
+    type: object
+    additionalProperties: false
+    required: [wheel_slip, sensor_dropouts, depth_holes, depth_spikes]
+    properties:
+      wheel_slip: {type: array, items: {$ref: '#/$defs/wheel_slip'}}
+      sensor_dropouts: {type: array, items: {$ref: '#/$defs/dropout'}}
+      depth_holes: {type: array, items: {$ref: '#/$defs/depth_hole'}}
+      depth_spikes: {type: array, items: {$ref: '#/$defs/depth_spike'}}
+  expected_metrics:
+    type: object
+    additionalProperties: false
+    required: [completion, min_clearance_m, edge_overrun_count, false_hold_count, fail_open_count, max_recovery_time_s, max_estimator_runtime_ms]
+    properties:
+      completion: {type: boolean}
+      min_clearance_m: {type: number, minimum: 0}
+      edge_overrun_count: {type: integer, minimum: 0}
+      false_hold_count: {type: integer, minimum: 0}
+      fail_open_count: {type: integer, minimum: 0}
+      max_recovery_time_s: {type: number, minimum: 0}
+      max_estimator_runtime_ms: {type: number, minimum: 0}
+$defs:
+  number_profile:
+    type: array
+    minItems: 2
+    items: {type: number}
+  positive_integer: {type: integer, minimum: 1}
+  vector3:
+    type: array
+    prefixItems: [{type: number}, {type: number}, {type: number}]
+    minItems: 3
+    maxItems: 3
+  wheel_sensor:
+    type: object
+    additionalProperties: false
+    required: [sample_every_n_steps, noise_std_turns_per_s, wheel_names]
+    properties:
+      sample_every_n_steps: {$ref: '#/$defs/positive_integer'}
+      noise_std_turns_per_s: {type: number, minimum: 0}
+      wheel_names: {type: array, minItems: 1, uniqueItems: true, items: {type: string, minLength: 1}}
+  imu_sensor:
+    type: object
+    additionalProperties: false
+    required: [sample_every_n_steps, gyro_bias_rad_s, gyro_noise_std_rad_s, accel_bias_m_s2, accel_noise_std_m_s2, gravity_m_s2]
+    properties:
+      sample_every_n_steps: {$ref: '#/$defs/positive_integer'}
+      gyro_bias_rad_s: {$ref: '#/$defs/vector3'}
+      gyro_noise_std_rad_s: {type: number, minimum: 0}
+      accel_bias_m_s2: {$ref: '#/$defs/vector3'}
+      accel_noise_std_m_s2: {type: number, minimum: 0}
+      gravity_m_s2: {type: number, exclusiveMinimum: 0}
+  depth_sensor:
+    type: object
+    additionalProperties: false
+    required: [sample_every_n_steps, shape_px, depth_scale_m, base_depth_m, noise_std_m, bank_depth_span_m, intrinsics_px]
+    properties:
+      sample_every_n_steps: {$ref: '#/$defs/positive_integer'}
+      shape_px:
+        type: array
+        prefixItems: [{type: integer, minimum: 3}, {type: integer, minimum: 3}]
+        minItems: 2
+        maxItems: 2
+      depth_scale_m: {type: number, exclusiveMinimum: 0}
+      base_depth_m: {type: number, exclusiveMinimum: 0}
+      noise_std_m: {type: number, minimum: 0}
+      bank_depth_span_m: {type: number, minimum: 0}
+      intrinsics_px:
+        type: object
+        additionalProperties: false
+        required: [fx, fy, cx, cy]
+        properties:
+          fx: {type: number, exclusiveMinimum: 0}
+          fy: {type: number, exclusiveMinimum: 0}
+          cx: {type: number, minimum: 0}
+          cy: {type: number, minimum: 0}
+  interval:
+    type: object
+    required: [start_s, end_s]
+    properties:
+      start_s: {type: number, minimum: 0}
+      end_s: {type: number, exclusiveMinimum: 0}
+  wheel_slip:
+    allOf:
+      - {$ref: '#/$defs/interval'}
+      - type: object
+        additionalProperties: false
+        required: [wheel, start_s, end_s, measurement_scale]
+        properties:
+          wheel: {type: string, minLength: 1}
+          start_s: {type: number, minimum: 0}
+          end_s: {type: number, exclusiveMinimum: 0}
+          measurement_scale: {type: number, minimum: 0}
+  dropout:
+    type: object
+    additionalProperties: false
+    required: [stream, start_s, end_s]
+    properties:
+      stream: {enum: [wheel, imu, depth]}
+      start_s: {type: number, minimum: 0}
+      end_s: {type: number, exclusiveMinimum: 0}
+  depth_hole:
+    type: object
+    additionalProperties: false
+    required: [start_s, end_s, rows, cols]
+    properties:
+      start_s: {type: number, minimum: 0}
+      end_s: {type: number, exclusiveMinimum: 0}
+      rows: {$ref: '#/$defs/index_range'}
+      cols: {$ref: '#/$defs/index_range'}
+  depth_spike:
+    type: object
+    additionalProperties: false
+    required: [start_s, end_s, row, col, offset_m]
+    properties:
+      start_s: {type: number, minimum: 0}
+      end_s: {type: number, exclusiveMinimum: 0}
+      row: {type: integer, minimum: 0}
+      col: {type: integer, minimum: 0}
+      offset_m: {type: number}
+  index_range:
+    type: array
+    prefixItems: [{type: integer, minimum: 0}, {type: integer, minimum: 1}]
+    minItems: 2
+    maxItems: 2

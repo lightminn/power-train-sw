@@ -1,0 +1,76 @@
+manifest_version: 1
+fixtures:
+  - id: flat-straight-5m
+    source: analytic
+    scenario: powertrain_sim/scenarios/flat_straight_5m.yaml
+    fixture_class: shadow_backlight
+    expected: {passed: true}
+    tolerance: {completion: 0.0, min_clearance: 0.03}
+    sensor_contract_version: 1
+    checksum: 21ca714196161480d26242f306e0e409d0ec74aa368a2b127c8fe993d36e56a6
+  - id: flat-straight-5m
+    source: replay
+    scenario: powertrain_sim/scenarios/flat_straight_5m.yaml
+    fixture_class: shadow_backlight
+    expected: {passed: true}
+    tolerance: {completion: 0.0, min_clearance: 0.03}
+    sensor_contract_version: 1
+    checksum: 21ca714196161480d26242f306e0e409d0ec74aa368a2b127c8fe993d36e56a6
+  - id: pivot-90deg
+    source: replay
+    scenario: powertrain_sim/scenarios/pivot_90deg.yaml
+    fixture_class: marker_duplicate
+    expected: {passed: true}
+    tolerance: {completion: 0.02, min_clearance: 0.03}
+    sensor_contract_version: 1
+    checksum: 11a2d8980283080ea3c820db22bb3ba0d30fe29e923b0ebb328303cd25fac2f2
+  - id: bank-transition
+    source: mujoco
+    scenario: powertrain_sim/scenarios/bank_transition.yaml
+    fixture_class: bank_transition
+    expected: {passed: true}
+    tolerance: {completion: 0.02, min_clearance: 0.03}
+    sensor_contract_version: 1
+    checksum: 70c8815289ab4253b6b25233d91ff73e6c4e844dc610af79ed786df6b4049ac6
+  - id: wide-fov-drop
+    source: closed_loop
+    scenario: powertrain_sim/scenarios/wide_fov_drop_track.yaml
+    fixture_class: below_floor
+    expected: {passed: true}
+    tolerance: {completion: 0.02, min_clearance: 0.03}
+    sensor_contract_version: 1
+    checksum: 4c476bbecd7aee309463dc832d5f53f814cdee5b74d4c3db314d5caca1b2b0f9
+  - id: procedural-dev-0
+    source: analytic
+    scenario: procedural:dev:0
+    fixture_class: bank_transition
+    expected: {passed: true}
+    tolerance: {completion: 0.02, min_clearance: 0.03}
+    sensor_contract_version: 1
+    checksum: d2cc13ad2e53e4ee820082008957dc3a140b0940cdaaf374da583d6498515e5d
+  - id: procedural-dev-1
+    source: mujoco
+    scenario: procedural:dev:1
+    fixture_class: bank_transition
+    expected: {passed: true}
+    tolerance: {completion: 0.02, min_clearance: 0.03}
+    sensor_contract_version: 1
+    checksum: ca4667c4709d4ef58873c2f2690886988d4769efc02abaca3f7afa03f05e8316
+  - id: depth-hole-bank
+    source: analytic
+    scenario: powertrain_sim/scenarios/bank_transition.yaml
+    fixture_class: depth_hole_jump
+    expected:
+      reject_reasons: [zero_depth, depth_hole]
+    tolerance: {completion: 0.02, min_clearance: 0.03}
+    sensor_contract_version: 1
+    checksum: 70c8815289ab4253b6b25233d91ff73e6c4e844dc610af79ed786df6b4049ac6
+  - id: reflective-bank
+    source: analytic
+    scenario: powertrain_sim/scenarios/bank_transition.yaml
+    fixture_class: reflective_surface
+    expected:
+      reject_reasons: [isolated_spike]
+    tolerance: {completion: 0.02, min_clearance: 0.03}
+    sensor_contract_version: 1
+    checksum: 70c8815289ab4253b6b25233d91ff73e6c4e844dc610af79ed786df6b4049ac6
