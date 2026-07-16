@@ -286,9 +286,85 @@ def test_controlled_hold_decelerates_to_zero_and_recovers_with_slew_limits():
         previous_now = now_s
     assert decision.v_m_s == 0.0
 
-    recovered = decide_fresh(controller, 3.85)
+    dwell_one = decide_fresh(controller, 3.85)
+    dwell_two = decide_fresh(controller, 3.95)
+    recovered = decide_fresh(controller, 4.05)
+    assert dwell_one.state == dwell_two.state == "CONTROLLED_HOLD"
+    assert dwell_one.v_m_s == dwell_two.v_m_s == 0.0
     assert recovered.state == "TRACKING"
     assert 0.0 < recovered.v_m_s <= EMPTY_STOWED.max_accel_m_s2 * 0.1 + 1e-12
+
+
+def test_controlled_hold_recovery_requires_three_consecutive_fresh_ticks():
+    controller = AutonomyController(EMPTY_STOWED)
+    assert decide_fresh(controller, 0.0).state == "TRACKING"
+    held = controller.decide(
+        1.0,
+        terrain=terrain(0.0),
+        motion=motion(1.0),
+        gate=gate(1.0),
+        diagnostics=None,
+    )
+    assert held.state == "CONTROLLED_HOLD"
+    assert "terrain_stale" in held.reasons
+
+    first = decide_fresh(controller, 1.1)
+    second = decide_fresh(controller, 1.2)
+    third = decide_fresh(controller, 1.3)
+
+    assert first.state == second.state == "CONTROLLED_HOLD"
+    assert first.reasons == second.reasons == ("recovery_dwell",)
+    assert third.state == "TRACKING"
+
+
+def test_recovery_dwell_reduces_threshold_flap_transitions():
+    def states(recovery_ticks):
+        controller = AutonomyController(
+            EMPTY_STOWED,
+            AutonomyControllerConfig(recovery_ticks=recovery_ticks),
+        )
+        result = []
+        for index, age_s in enumerate((0.451, 0.449) * 4):
+            now_s = 1.0 + index * 0.05
+            decision = controller.decide(
+                now_s,
+                terrain=terrain(now_s - age_s),
+                motion=motion(now_s),
+                gate=gate(now_s),
+                diagnostics=None,
+            )
+            result.append(decision.state)
+        return result
+
+    immediate = states(1)
+    conservative = states(3)
+    immediate_transitions = sum(a != b for a, b in zip(immediate, immediate[1:]))
+    conservative_transitions = sum(a != b for a, b in zip(conservative, conservative[1:]))
+
+    assert conservative_transitions < immediate_transitions
+    assert set(conservative) == {"CONTROLLED_HOLD"}
+
+
+def test_blocked_recovery_semantics_remain_immediate_without_hold_dwell():
+    controller = AutonomyController(EMPTY_STOWED)
+    controller.decide(
+        1.0,
+        terrain=terrain(0.0),
+        motion=motion(1.0),
+        gate=gate(1.0),
+        diagnostics=None,
+    )
+    blocked = controller.decide(
+        1.1,
+        terrain=terrain(1.1),
+        motion=motion(1.1),
+        gate=gate(1.1, "EXECUTING"),
+        diagnostics=None,
+    )
+    resumed = decide_fresh(controller, 1.2)
+
+    assert blocked.state == "BLOCKED"
+    assert resumed.state == "TRACKING"
 
 
 def test_blocked_is_immediate_and_resets_slew_origin():
@@ -474,6 +550,10 @@ def test_blocked_rollback_does_not_move_slew_origin_back():
         ("confidence_floor_scale", 1.1),
         ("slip_scale", 0.0),
         ("slip_scale", 1.1),
+        ("recovery_ticks", 0),
+        ("recovery_ticks", -1),
+        ("recovery_ticks", 1.5),
+        ("recovery_ticks", True),
     ),
 )
 def test_invalid_controller_config_raises_value_error(field, value):

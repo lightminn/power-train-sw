@@ -186,3 +186,20 @@ def test_record_limit_includes_newline_and_encoder_boundary_is_strict():
 
     result = _one(decoder, b" " * MAX_RECORD_BYTES + b"\n")
     _assert_violation(result, "2 KiB")
+
+
+def test_one_chunk_has_bounded_results_and_summarizes_newline_flood():
+    decoder = RemoteInputDecoder()
+    decoder.start_connection()
+
+    results = decoder.feed(b"\n" * 4096, receive_monotonic_s=1.0)
+
+    assert len(results) <= 64
+    assert results[-1].frame is None
+    assert "suppressed" in results[-1].reason
+
+    # The flood is fully consumed; the next valid frame is not poisoned by a
+    # retained suffix from the oversized result batch.
+    accepted = decoder.feed(_record(sequence=0), receive_monotonic_s=1.1)
+    assert len(accepted) == 1
+    assert accepted[0].frame is not None

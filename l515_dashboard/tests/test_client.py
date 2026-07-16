@@ -79,6 +79,30 @@ def test_stale_status_is_rejected(tmp_path):
     server.close()
 
 
+def test_poll_swallows_request_id_mismatch_and_records_last_error(monkeypatch):
+    client = GatewayClient("@unused", request_timeout_s=.5)
+    def mismatch(_kind):
+        client.state = ClientState.DISCONNECTED
+        client.last_error = "response request_id does not match current request"
+        raise StaleStatusError(client.last_error)
+    monkeypatch.setattr(client, "request", mismatch)
+    assert client.poll() is None
+    assert "request_id" in client.last_error
+    assert client.state is ClientState.DISCONNECTED
+
+
+def test_poll_swallows_gateway_error_response_and_records_last_error(monkeypatch):
+    client = GatewayClient("@unused", request_timeout_s=.5)
+    def gateway_error(_kind):
+        client.state = ClientState.DISCONNECTED
+        client.last_error = "camera failed"
+        raise RuntimeError(client.last_error)
+    monkeypatch.setattr(client, "request", gateway_error)
+    assert client.poll() is None
+    assert client.last_error == "camera failed"
+    assert client.state is ClientState.DISCONNECTED
+
+
 def test_poll_reconnects_after_server_appears(tmp_path):
     path = endpoint(); client = GatewayClient(path, request_timeout_s=.1)
     assert client.poll() is None and client.state is ClientState.DISCONNECTED

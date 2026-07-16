@@ -21,6 +21,7 @@ edge판정·map·ChassisManager.tick. ChassisManager 는 제어 스레드만 만
   옵션: --port 9000 --v-max 1.5 --omega-max 1.2 --min-rev 1.0 --channel can0
 노트북: python3 laptop/laptop_client_chassis.py --host <젯슨IP>
 """
+import math
 import socket
 import threading
 import time
@@ -242,6 +243,8 @@ def parse_input_line(text):
         lx, rt, lt = float(parts[0]), float(parts[1]), float(parts[2])
         sq, ci = int(parts[3]), int(parts[4])
     except ValueError:
+        return None
+    if not all(math.isfinite(value) for value in (lx, rt, lt, sq, ci)):
         return None
     lx = max(-1.0, min(1.0, lx))
     rt = max(0.0, min(1.0, rt))

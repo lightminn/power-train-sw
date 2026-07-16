@@ -28,6 +28,10 @@ from powertrain_ros.remote_input_gateway import (
 
 DEFAULT_PORT = 9000
 ARM_OUTPUT_ENABLED = False
+CLIENT_IDLE_TIMEOUT_S = 5.0
+MAX_EVENTS_PER_TICK = 256
+MAX_VIOLATION_EVENTS_PER_S = 50
+VIOLATION_LOG_PERIOD_S = 1.0
 
 
 def make_status_line(output):
@@ -82,6 +86,12 @@ class TeleopCommandNode(Node):
         self._server_socket = None
         self._closed = False
         self._input_was_fresh = False
+        self._violation_rate_lock = threading.Lock()
+        self._violation_window_start_s = time.monotonic()
+        self._violation_events_in_window = 0
+        self._violation_events_suppressed = 0
+        self._violation_events_reported = 0
+        self._last_violation_log_s = None
 
         self.pub_drive = self.create_publisher(
             Twist,
@@ -112,11 +122,26 @@ class TeleopCommandNode(Node):
             % (self._port, ARM_OUTPUT_ENABLED)
         )
 
-    def _queue_decoder_results(self, results):
+    def _queue_decoder_results(self, results, now_s=None):
+        event_now_s = time.monotonic() if now_s is None else float(now_s)
         for result in results:
             if result.frame is not None:
                 self._events.put(("frame", result.frame))
             else:
+                with self._violation_rate_lock:
+                    if (
+                        event_now_s < self._violation_window_start_s
+                        or event_now_s - self._violation_window_start_s >= 1.0
+                    ):
+                        self._violation_window_start_s = event_now_s
+                        self._violation_events_in_window = 0
+                    if (
+                        self._violation_events_in_window
+                        >= MAX_VIOLATION_EVENTS_PER_S
+                    ):
+                        self._violation_events_suppressed += 1
+                        continue
+                    self._violation_events_in_window += 1
                 self._events.put(("violation", result.reason))
 
     def _current_status(self):
@@ -131,6 +156,7 @@ class TeleopCommandNode(Node):
         self._decoder.start_connection()
         self._events.put(("connect", None))
         last_status_s = 0.0
+        last_data_s = time.monotonic()
         try:
             while not self._stop_event.is_set():
                 try:
@@ -144,14 +170,17 @@ class TeleopCommandNode(Node):
                     break
                 if data == b"":
                     break
+                now_s = time.monotonic()
                 if data:
+                    last_data_s = now_s
                     self._queue_decoder_results(
                         self._decoder.feed(
                             data,
-                            receive_monotonic_s=time.monotonic(),
+                            receive_monotonic_s=now_s,
                         )
                     )
-                now_s = time.monotonic()
+                elif now_s - last_data_s > CLIENT_IDLE_TIMEOUT_S:
+                    break
                 if data or now_s - last_status_s >= 0.25:
                     try:
                         connection.sendall(self._current_status())
@@ -192,12 +221,27 @@ class TeleopCommandNode(Node):
             except OSError:
                 pass
 
-    def _drain_events(self):
-        while True:
+    def _log_violation_throttled(self, message, now_s):
+        last_log_s = getattr(self, "_last_violation_log_s", None)
+        if (
+            last_log_s is not None
+            and now_s >= last_log_s
+            and now_s - last_log_s < VIOLATION_LOG_PERIOD_S
+        ):
+            return False
+        self.get_logger().error(message)
+        self._last_violation_log_s = now_s
+        return True
+
+    def _drain_events(self, max_events=MAX_EVENTS_PER_TICK, now_s=None):
+        drain_now_s = time.monotonic() if now_s is None else float(now_s)
+        processed = 0
+        while processed < max_events:
             try:
                 event, payload = self._events.get_nowait()
             except queue.Empty:
-                return
+                break
+            processed += 1
             if event == "connect":
                 self._gateway.begin_connection()
             elif event == "disconnect":
@@ -206,12 +250,22 @@ class TeleopCommandNode(Node):
                 self._gateway.submit(payload)
             elif event == "violation":
                 self._gateway.contract_violation(payload)
-                self.get_logger().error(payload)
+                self._log_violation_throttled(payload, drain_now_s)
             elif event == "server_error":
                 self._gateway.contract_violation(
                     "CONTRACT_VIOLATION: TCP server failed: %s" % payload
                 )
                 self.get_logger().error("TCP server failed: %s" % payload)
+        suppressed = getattr(self, "_violation_events_suppressed", 0)
+        reported = getattr(self, "_violation_events_reported", 0)
+        unreported = max(0, suppressed - reported)
+        if unreported and self._log_violation_throttled(
+            "CONTRACT_VIOLATION: %d decoder violations suppressed"
+            % unreported,
+            drain_now_s,
+        ):
+            self._violation_events_reported = suppressed
+        return processed
 
     def _publish_drive(self, output):
         message = Twist()

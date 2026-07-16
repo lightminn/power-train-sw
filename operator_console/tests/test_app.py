@@ -1,5 +1,9 @@
+import importlib
+import json
+
 from operator_console.pipelines import pipeline_description, srt_uri
 from operator_console.metadata import parse_metadata
+from operator_console import telemetry
 from operator_console.telemetry import parse_telemetry
 
 
@@ -93,3 +97,98 @@ def test_telemetry_contract_retains_complete_l515_gateway_status():
     assert frame.l515_aligned_depth_age_ms == 12.5
     assert frame.l515_process_cpu_percent == 77.2
     assert frame.l515_process_rss_bytes == 12345678
+
+
+def test_chassis_rows_become_stale_when_snapshot_age_exceeds_one_second():
+    state_fn = getattr(telemetry, "chassis_component_states", None)
+    assert state_fn is not None, "chassis component freshness helper is missing"
+    snapshot = parse_telemetry(
+        b'{"schema_version":1,"sequence":17,"odometry_source":"wheel+imu",'
+        b'"drive_state":"ARMED/RUNNING","can_state":"HEALTHY"}',
+        received_monotonic_s=10.0,
+    )
+
+    assert state_fn(snapshot, now_s=10.5) == ("LIVE", "LIVE", "LIVE")
+    assert state_fn(snapshot, now_s=11.01) == ("STALE", "STALE", "STALE")
+
+
+def _payload_encoder():
+    try:
+        module = importlib.import_module("powertrain_ros.chassis_telemetry")
+    except ModuleNotFoundError:
+        return None
+    return getattr(module, "encode_telemetry_payload", None)
+
+
+def _six_wheels(*, name_size=12):
+    return [
+        {
+            "name": (f"wheel-{index}-" + "w" * name_size),
+            "mode": "IDLE",
+            "drive_turns_per_s": 0.0,
+            "steer_deg": 1.5,
+            "stale": False,
+            "drive_axis_error": 0,
+            "steer_fault": 0,
+        }
+        for index in range(6)
+    ]
+
+
+def test_long_details_and_six_wheels_encode_within_console_receive_contract():
+    encode = _payload_encoder()
+    assert encode is not None, "bounded chassis telemetry encoder is missing"
+    raw = encode({
+        "schema_version": 1,
+        "sequence": 18,
+        "l515_detail": "g" * 5000,
+        "safety_detail": "s" * 5000,
+        "wheel_statuses": _six_wheels(),
+    })
+
+    assert len(raw) <= 4096
+    decoded = json.loads(raw)
+    assert len(decoded["l515_detail"]) == 256
+    assert len(decoded["safety_detail"]) == 256
+    snapshot = parse_telemetry(raw, received_monotonic_s=10.0)
+    assert len(snapshot.wheel_statuses) == 6
+
+
+def test_over_4096_payload_omits_wheels_and_marks_truncated_instead_of_dropping():
+    encode = _payload_encoder()
+    assert encode is not None, "bounded chassis telemetry encoder is missing"
+    raw = encode({
+        "schema_version": 1,
+        "sequence": 19,
+        "l515_detail": "g" * 5000,
+        "safety_detail": "s" * 5000,
+        "wheel_statuses": _six_wheels(name_size=1000),
+    })
+
+    assert len(raw) <= 4096
+    decoded = json.loads(raw)
+    assert decoded["truncated"] is True
+    assert "wheel_statuses" not in decoded
+    snapshot = parse_telemetry(raw, received_monotonic_s=10.0)
+    assert snapshot.truncated is True
+    assert snapshot.wheel_statuses == ()
+
+
+def test_bounded_encoder_never_exceeds_4096_with_multibyte_free_text():
+    encode = _payload_encoder()
+    assert encode is not None, "bounded chassis telemetry encoder is missing"
+    payload = {
+        "schema_version": 1,
+        "sequence": 20,
+        "wheel_statuses": _six_wheels(name_size=1000),
+    }
+    for key in (
+        "odometry_source", "drive_state", "can_state", "l515_state",
+        "l515_detail", "l515_mode", "safety_status", "safety_detail",
+    ):
+        payload[key] = "오류🚫" * 2000
+
+    raw = encode(payload)
+
+    assert len(raw) <= 4096
+    assert json.loads(raw)["truncated"] is True

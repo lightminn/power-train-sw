@@ -6,6 +6,11 @@ import socket
 import time
 import pygame
 
+try:
+    from laptop.socket_options import configure_command_socket
+except ModuleNotFoundError:  # direct script execution
+    from socket_options import configure_command_socket
+
 PI_HOST      = '192.168.1.91'   # Pi IP 주소
 COMMAND_PORT = 9000
 MAX_VELOCITY = 5.0
@@ -29,6 +34,7 @@ print(f"🎮 게임패드 연결 성공: {joystick.get_name()}")
 print(f"📡 Pi({PI_HOST}:{COMMAND_PORT}) 연결 중...")
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.connect((PI_HOST, COMMAND_PORT))
+configure_command_socket(sock)
 print("✅ 연결 성공!")
 print("  [RT] 시계 방향  [LT] 반시계 방향  [O 버튼] 종료")
 

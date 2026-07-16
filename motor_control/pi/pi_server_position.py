@@ -1,4 +1,7 @@
 """
+⛔ DEPRECATED: 정본은 teleop_command/:9000 경로다.
+이 스크립트는 구 Raspberry Pi 데모용이며 실모터 사용을 권장하지 않는다.
+
 Pi에서 실행: ODrive 포지션 제어 서버
 실행: python3 robot_server_pos.py
 
@@ -7,12 +10,18 @@ Pi에서 실행: ODrive 포지션 제어 서버
   트리거 놓으면 현재 위치 홀딩 (속도 0 = 위치 유지)
 """
 import logging
+import math
 import os
 import socket
 import threading
 import time
 import odrive
 from odrive.enums import *
+
+try:
+    from pi.legacy_command import serve_command_connection
+except ModuleNotFoundError:  # direct script execution
+    from legacy_command import serve_command_connection
 
 # ── 설정 ──────────────────────────────────────────
 COMMAND_PORT = 9000
@@ -50,15 +59,26 @@ log = setup_logger()
 _target_vel  = 0.0
 _target_lock = threading.Lock()
 _running     = True
+_hold_position_requested = threading.Event()
 
 def set_target(vel):
     global _target_vel
+    vel = float(vel)
+    if not math.isfinite(vel):
+        return False
     with _target_lock:
-        _target_vel = max(-MAX_VEL, min(MAX_VEL, float(vel)))
+        _target_vel = max(-MAX_VEL, min(MAX_VEL, vel))
+    return True
 
 def get_target():
     with _target_lock:
         return _target_vel
+
+
+def hold_current_position():
+    """Stop velocity integration and snap the hold target to measured position."""
+    set_target(0.0)
+    _hold_position_requested.set()
 
 
 # ── ODrive 유틸 ───────────────────────────────────
@@ -247,7 +267,10 @@ def control_loop(drv_box, ax_box):
                 continue
 
             # ── 위치 초기화 ──
-            if pos_sp is None:
+            if _hold_position_requested.is_set():
+                pos_sp = ax.encoder.pos_estimate
+                _hold_position_requested.clear()
+            elif pos_sp is None:
                 pos_sp = ax.encoder.pos_estimate
 
             # ── 속도 적분 → 위치 setpoint ──
@@ -303,25 +326,17 @@ def main():
         while True:
             conn, addr = server.accept()
             log.info(f"클라이언트 연결: {addr}")
-            buf = b''
             try:
-                while True:
-                    data = conn.recv(64)
-                    if not data:
-                        break
-                    buf += data
-                    while b'\n' in buf:
-                        line, buf = buf.split(b'\n', 1)
-                        try:
-                            vel = float(line.decode().strip())
-                            log.debug(f"[recv] vel={vel:+.3f}")
-                            set_target(vel)
-                        except ValueError:
-                            pass
+                serve_command_connection(
+                    connection=conn,
+                    apply_command=set_target,
+                    hold_command=hold_current_position,
+                    max_abs=MAX_VEL,
+                )
             except OSError:
                 pass
             finally:
-                set_target(0.0)
+                hold_current_position()
                 conn.close()
                 log.info("클라이언트 연결 해제 — 속도 0 (위치 홀딩)")
 

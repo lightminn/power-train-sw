@@ -8,7 +8,6 @@ unavailable fields.
 """
 from __future__ import annotations
 
-import json
 import math
 import socket
 import time
@@ -21,6 +20,10 @@ from l515_dashboard.client import GatewayClient
 from powertrain_msgs.msg import SafetyVerdict, WheelStates
 from powertrain_observability.client import ObservabilityClient
 from powertrain_ros import console_can_status
+from powertrain_ros.chassis_telemetry import (
+    LatestPollWorker,
+    encode_telemetry_payload,
+)
 
 
 SAFETY_STATUS = {
@@ -56,11 +59,21 @@ class ChassisTelemetrySender(Node):
         self._observability = ObservabilityClient(request_timeout_s=0.5)
         self._can_health_record: object | None = None
         self._observability_error: str | None = None
+        self._gateway_worker = LatestPollWorker(
+            self._poll_l515,
+            error=lambda: self._gateway.last_error,
+            period_s=1.0,
+            name="l515-status-poll",
+        )
+        self._observability_worker = LatestPollWorker(
+            self._poll_observability,
+            error=lambda: self._observability.last_error,
+            period_s=1.0,
+            name="observability-status-poll",
+        )
         self.create_subscription(WheelStates, "/wheel_states", self._on_wheels, 10)
         self.create_subscription(Odometry, "/odom", self._on_odom, 10)
         self.create_subscription(SafetyVerdict, "/safety_verdict", self._on_safety, 10)
-        self.create_timer(1.0, self._poll_l515)
-        self.create_timer(1.0, self._poll_observability)
         self.create_timer(1.0 / hz, self._send)
 
     def _on_wheels(self, message: WheelStates) -> None:
@@ -75,10 +88,21 @@ class ChassisTelemetrySender(Node):
         self._safety = message
         self._safety_at = time.monotonic()
 
-    def _poll_l515(self) -> None:
-        snapshot = self._gateway.poll()
+    def _poll_l515(self):
+        try:
+            return self._gateway.poll()
+        except Exception as exc:
+            self._gateway.last_error = f"{type(exc).__name__}: {exc}"
+            return None
+
+    def _refresh_l515_cache(self) -> None:
+        cached = self._gateway_worker.latest()
+        snapshot = cached.value
         if snapshot is None:
-            self._l515 = {"state": "UNAVAILABLE", "detail": self._gateway.last_error or "no response"}
+            self._l515 = {
+                "state": "UNAVAILABLE",
+                "detail": cached.error or "no response",
+            }
             return
         payload = snapshot.payload
         sdk = payload.get("sdk", {})
@@ -100,12 +124,14 @@ class ChassisTelemetrySender(Node):
             "process_rss_bytes": system.get("current_rss_bytes"),
         }
 
-    def _poll_observability(self) -> None:
-        snapshot = self._observability.poll()
+    def _poll_observability(self):
+        return self._observability.poll()
+
+    def _refresh_observability_cache(self) -> None:
+        cached = self._observability_worker.latest()
+        snapshot = cached.value
         if snapshot is None:
-            self._observability_error = (
-                self._observability.last_error or "no response"
-            )
+            self._observability_error = cached.error or "no response"
             return
         self._observability_error = None
         try:
@@ -127,6 +153,8 @@ class ChassisTelemetrySender(Node):
         return at is not None and now - at <= 1.0
 
     def _send(self) -> None:
+        self._refresh_l515_cache()
+        self._refresh_observability_cache()
         now = time.monotonic()
         wheels = self._wheels if self._fresh(self._wheels_at, now) else None
         odom = self._odom if self._fresh(self._odom_at, now) else None
@@ -196,7 +224,7 @@ class ChassisTelemetrySender(Node):
             "wheel_statuses": wheel_statuses,
         }
         try:
-            self._udp.sendto(json.dumps(payload, separators=(",", ":")).encode(), self._endpoint)
+            self._udp.sendto(encode_telemetry_payload(payload), self._endpoint)
             self._sequence += 1
         except OSError as exc:
             self.get_logger().warning(
@@ -204,6 +232,12 @@ class ChassisTelemetrySender(Node):
             )
 
     def destroy_node(self):
+        if not self._gateway_worker.close(join_timeout_s=1.0):
+            self.get_logger().warning("L515 poll worker did not stop within 1 s")
+        if not self._observability_worker.close(join_timeout_s=1.0):
+            self.get_logger().warning(
+                "observability poll worker did not stop within 1 s"
+            )
         self._udp.close()
         return super().destroy_node()
 

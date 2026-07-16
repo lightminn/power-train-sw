@@ -21,7 +21,11 @@ gi.require_version("Gst", "1.0")
 from gi.repository import Gdk, GLib, Gst, Gtk, Pango  # noqa: E402
 
 from .metadata import LatestMetadataReceiver, MetadataFrame
-from .telemetry import LatestTelemetryReceiver, TelemetrySnapshot
+from .telemetry import (
+    LatestTelemetryReceiver,
+    TelemetrySnapshot,
+    chassis_component_states,
+)
 
 
 class MetadataCanvas(Gtk.DrawingArea):
@@ -485,7 +489,9 @@ class ChassisTelemetryPanel(Gtk.Frame):
                         "WHEELS",
                         f"stale {health_key[0]} · axis error {health_key[1]} · steer fault {health_key[2]}",
                     )
-        if not snapshot.wheel_statuses:
+        if snapshot.truncated and not snapshot.wheel_statuses:
+            self._labels["wheels"].set_text("TRUNCATED · per-wheel rows omitted")
+        elif not snapshot.wheel_statuses:
             self._labels["wheels"].set_text("UNAVAILABLE")
         else:
             lines = []
@@ -587,9 +593,7 @@ class OperatorConsole(Gtk.Window):
             yolo = "STALE" if time.monotonic() - metadata.received_monotonic_s > 0.25 else "LIVE"
         telemetry = self._telemetry_state(snapshot)
         chassis_state = self._telemetry_state(chassis_snapshot)
-        odom = "LIVE" if chassis_snapshot is not None and chassis_snapshot.odometry_source != "unavailable" else "UNAVAILABLE"
-        drive = "LIVE" if chassis_snapshot is not None and chassis_snapshot.drive_state != "unavailable" else "UNAVAILABLE"
-        can = "LIVE" if chassis_snapshot is not None and chassis_snapshot.can_state != "unavailable" else "UNAVAILABLE"
+        odom, drive, can = chassis_component_states(chassis_snapshot)
         if chassis_state != "LIVE" or chassis_snapshot is None:
             safety = "SAFETY UNAVAILABLE"
             safety_color = "#d97706"

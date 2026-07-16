@@ -1,4 +1,7 @@
 """
+⛔ DEPRECATED: 정본은 teleop_command/:9000 경로다.
+이 스크립트는 구 Raspberry Pi 데모용이며 실모터 사용을 권장하지 않는다.
+
 Pi에서 실행: python3 robot_pi.py
   - GStreamer: 카메라 영상 TCP 스트리밍 (포트 5000)
   - ODrive:    속도 명령 수신 및 모터 제어 (포트 9000)
@@ -9,6 +12,11 @@ import subprocess
 import time
 import odrive
 from odrive.enums import *
+
+try:
+    from pi.legacy_command import serve_command_connection
+except ModuleNotFoundError:  # direct ``python pi_server_video.py`` execution
+    from legacy_command import serve_command_connection
 
 COMMAND_PORT = 9000
 VIDEO_PORT   = 5000
@@ -80,21 +88,13 @@ try:
     while True:
         conn, addr = server.accept()
         print(f"🎮 클라이언트 연결: {addr}")
-        buf = b''
         try:
-            while True:
-                data = conn.recv(64)
-                if not data:
-                    break
-                buf += data
-                while b'\n' in buf:
-                    line, buf = buf.split(b'\n', 1)
-                    try:
-                        vel = float(line.decode().strip())
-                        vel = max(-MAX_VEL, min(MAX_VEL, vel))
-                        ax.controller.input_vel = vel
-                    except ValueError:
-                        pass
+            serve_command_connection(
+                connection=conn,
+                apply_command=lambda vel: setattr(ax.controller, "input_vel", vel),
+                hold_command=lambda: setattr(ax.controller, "input_vel", 0.0),
+                max_abs=MAX_VEL,
+            )
         except OSError:
             pass
         finally:

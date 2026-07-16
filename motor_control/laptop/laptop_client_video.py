@@ -8,6 +8,11 @@ import subprocess
 import time
 import pygame
 
+try:
+    from laptop.socket_options import configure_command_socket
+except ModuleNotFoundError:  # direct script execution
+    from socket_options import configure_command_socket
+
 PI_HOST      = '192.168.1.91'   # Pi IP 주소
 COMMAND_PORT = 9000
 VIDEO_PORT   = 5000
@@ -41,6 +46,7 @@ while True:
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((PI_HOST, COMMAND_PORT))
+        configure_command_socket(sock)
         break
     except ConnectionRefusedError:
         sock.close()

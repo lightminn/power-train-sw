@@ -8,6 +8,8 @@ import threading
 import time
 from typing import Any
 
+from .udp_source import SourceSequenceGate
+
 
 @dataclass(frozen=True)
 class WheelStatus:
@@ -63,6 +65,7 @@ class TelemetrySnapshot:
     wheel_axis_error_count: int | None
     wheel_steer_fault_count: int | None
     wheel_statuses: tuple[WheelStatus, ...]
+    truncated: bool
     received_monotonic_s: float
 
 
@@ -104,7 +107,7 @@ def _l515_ros_topic_rates(payload: dict[str, Any]) -> tuple[tuple[str, float], .
 
 def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> TelemetrySnapshot:
     """Validate telemetry v1; a missing physical source remains explicit None."""
-    if len(raw) > 2048:
+    if len(raw) > 8192:
         raise ValueError("oversize telemetry")
     payload: dict[str, Any] = json.loads(raw.decode("utf-8"))
     if payload.get("schema_version") != 1:
@@ -148,7 +151,26 @@ def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> Te
         wheel_axis_error_count=_optional_int(payload, "wheel_axis_error_count"),
         wheel_steer_fault_count=_optional_int(payload, "wheel_steer_fault_count"),
         wheel_statuses=_wheel_statuses(payload),
+        truncated=payload.get("truncated") is True,
         received_monotonic_s=time.monotonic() if received_monotonic_s is None else received_monotonic_s,
+    )
+
+
+def chassis_component_states(
+    snapshot: TelemetrySnapshot | None,
+    *,
+    now_s: float | None = None,
+) -> tuple[str, str, str]:
+    """Return ODOM/DRIVE/CAN health with the shared 1 s receive-age gate."""
+    if snapshot is None:
+        return "UNAVAILABLE", "UNAVAILABLE", "UNAVAILABLE"
+    current_s = time.monotonic() if now_s is None else float(now_s)
+    if current_s - snapshot.received_monotonic_s > 1.0:
+        return "STALE", "STALE", "STALE"
+    return (
+        "LIVE" if snapshot.odometry_source != "unavailable" else "UNAVAILABLE",
+        "LIVE" if snapshot.drive_state != "unavailable" else "UNAVAILABLE",
+        "LIVE" if snapshot.can_state != "unavailable" else "UNAVAILABLE",
     )
 
 
@@ -161,6 +183,7 @@ class LatestTelemetryReceiver:
         self._latest: TelemetrySnapshot | None = None
         self._lock = threading.Lock()
         self._stopping = threading.Event()
+        self._source_gate = SourceSequenceGate(stale_after_s=2.0)
         self._thread = threading.Thread(target=self._run, name="robot-telemetry", daemon=True)
         self._thread.start()
 
@@ -168,9 +191,16 @@ class LatestTelemetryReceiver:
         self._socket.settimeout(0.2)
         while not self._stopping.is_set():
             try:
-                raw, _address = self._socket.recvfrom(4096)
-                snapshot = parse_telemetry(raw)
+                raw, address = self._socket.recvfrom(8192)
+                received_s = time.monotonic()
+                snapshot = parse_telemetry(raw, received_monotonic_s=received_s)
             except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if not self._source_gate.accept(
+                address,
+                snapshot.sequence,
+                now_s=received_s,
+            ):
                 continue
             with self._lock:
                 self._latest = snapshot

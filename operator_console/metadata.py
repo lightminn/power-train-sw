@@ -8,6 +8,8 @@ import threading
 import time
 from typing import Any
 
+from .udp_source import SourceSequenceGate
+
 
 @dataclass(frozen=True)
 class Detection:
@@ -62,6 +64,7 @@ class LatestMetadataReceiver:
         self._latest: MetadataFrame | None = None
         self._lock = threading.Lock()
         self._stopping = threading.Event()
+        self._source_gate = SourceSequenceGate(stale_after_s=2.0)
         self._thread = threading.Thread(target=self._run, name="d435-metadata", daemon=True)
         self._thread.start()
 
@@ -69,9 +72,16 @@ class LatestMetadataReceiver:
         self._socket.settimeout(0.2)
         while not self._stopping.is_set():
             try:
-                raw, _address = self._socket.recvfrom(4096)
-                frame = parse_metadata(raw)
+                raw, address = self._socket.recvfrom(4096)
+                received_s = time.monotonic()
+                frame = parse_metadata(raw, received_monotonic_s=received_s)
             except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if not self._source_gate.accept(
+                address,
+                frame.sequence,
+                now_s=received_s,
+            ):
                 continue
             with self._lock:
                 self._latest = frame

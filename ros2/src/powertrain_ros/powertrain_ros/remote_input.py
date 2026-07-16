@@ -14,6 +14,7 @@ import uuid
 
 SCHEMA_VERSION = 2
 MAX_RECORD_BYTES = 2 * 1024
+MAX_RESULTS_PER_FEED = 64
 DEFAULT_INPUT_TIMEOUT_S = 0.20
 CONTRACT_VIOLATION = "CONTRACT_VIOLATION:"
 MODES = ("DRIVE", "ARM")
@@ -200,6 +201,22 @@ class RemoteInputDecoder:
         self._buffer.extend(data)
         results = []
         while True:
+            if len(results) >= MAX_RESULTS_PER_FEED - 1:
+                suppressed_records = self._buffer.count(b"\n")
+                if suppressed_records:
+                    last_newline = self._buffer.rfind(b"\n")
+                    del self._buffer[: last_newline + 1]
+                    self._discard_oversize = False
+                    results.append(
+                        _violation(
+                            "%d additional records suppressed in one feed"
+                            % suppressed_records
+                        )
+                    )
+                    if len(self._buffer) > MAX_RECORD_BYTES:
+                        self._buffer.clear()
+                        self._discard_oversize = True
+                    break
             newline = self._buffer.find(b"\n")
             if newline < 0:
                 if len(self._buffer) > MAX_RECORD_BYTES:

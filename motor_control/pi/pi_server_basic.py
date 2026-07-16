@@ -1,4 +1,7 @@
 """
+⛔ DEPRECATED: 정본은 teleop_command/:9000 경로다.
+이 스크립트는 구 Raspberry Pi 데모용이며 실모터 사용을 권장하지 않는다.
+
 Pi에서 실행: python3 robot_server2.py
 노트북 robot_client2.py에서 속도값 수신 → ODrive input_vel 직접 전달
 """
@@ -6,6 +9,11 @@ import socket
 import time
 import odrive
 from odrive.enums import *
+
+try:
+    from pi.legacy_command import serve_command_connection
+except ModuleNotFoundError:  # direct ``python pi_server_basic.py`` execution
+    from legacy_command import serve_command_connection
 
 COMMAND_PORT = 9000
 AXIS_NUM     = 1
@@ -52,21 +60,13 @@ try:
     while True:
         conn, addr = server.accept()
         print(f"🎮 클라이언트 연결: {addr}")
-        buf = b''
         try:
-            while True:
-                data = conn.recv(64)
-                if not data:
-                    break
-                buf += data
-                while b'\n' in buf:
-                    line, buf = buf.split(b'\n', 1)
-                    try:
-                        vel = float(line.decode().strip())
-                        vel = max(-MAX_VEL, min(MAX_VEL, vel))
-                        ax.controller.input_vel = vel
-                    except ValueError:
-                        pass
+            serve_command_connection(
+                connection=conn,
+                apply_command=lambda vel: setattr(ax.controller, "input_vel", vel),
+                hold_command=lambda: setattr(ax.controller, "input_vel", 0.0),
+                max_abs=MAX_VEL,
+            )
         except OSError:
             pass
         finally:

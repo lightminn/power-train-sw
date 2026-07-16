@@ -126,6 +126,8 @@ low-confidence path, clearance/tilt limits, and a fresh stuck diagnostic. It
 ramps the last output to zero at the active profile's deceleration and yaw-slew
 limits, then automatically resumes from zero when inputs recover. Stale or
 missing diagnostics only remove their optional slip and speed-cap constraints.
+Recovery from `CONTROLLED_HOLD` requires three consecutive fresh controller ticks;
+the entry thresholds and immediate `BLOCKED` semantics are unchanged.
 
 The `EMPTY_STOWED` preset is provisionally limited to 0.8 m/s, 0.5 m/s²
 acceleration, 0.8 m/s² deceleration, 0.8 rad/s yaw rate, 15° bank, and 15°

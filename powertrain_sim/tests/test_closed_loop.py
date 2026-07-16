@@ -104,9 +104,10 @@ def test_initial_depth_loss_holds_then_recovers_without_fail_open(tmp_path):
     )
     assert report.fail_open_count == 0
     assert math.isfinite(report.max_recovery_time_s)
-    # should_hold와 decision이 같은 terrain 참조를 쓰므로(위상 아티팩트 제거)
-    # 입력 회복 tick에 컨트롤러도 같은 tick에 TRACKING으로 복귀한다 — 지연 0.
-    assert report.max_recovery_time_s == 0.0
+    # 입력 회복 뒤 컨트롤러는 recovery_ticks(기본 3) 연속 fresh를 요구한다
+    # (2차 리뷰 flap 억제 dwell) — 회복 지연 = (3-1) tick × dt 0.02 s = 0.04 s.
+    # tracker는 이 꼬리를 false hold가 아닌 recovery로 집계한다.
+    assert report.max_recovery_time_s == pytest.approx(0.04, abs=1e-9)
 
 
 def test_hidden_evaluation_cli_records_hash_and_matches_report_exit(tmp_path):

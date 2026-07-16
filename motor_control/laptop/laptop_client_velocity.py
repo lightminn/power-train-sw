@@ -9,6 +9,11 @@ import socket
 import time
 import sys
 
+try:
+    from laptop.socket_options import configure_command_socket
+except ModuleNotFoundError:  # direct script execution
+    from socket_options import configure_command_socket
+
 # ── 설정 ──────────────────────────────────────────
 PI_HOST      = '192.168.1.91'   # Pi IP 주소
 COMMAND_PORT = 9000
@@ -50,6 +55,7 @@ def connect_to_pi(host, port, retries=5):
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(3.0)
             sock.connect((host, port))
+            configure_command_socket(sock)
             sock.settimeout(None)
             print(f"Pi 연결됨: {host}:{port}")
             return sock

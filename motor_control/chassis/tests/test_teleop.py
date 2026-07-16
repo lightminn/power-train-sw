@@ -82,6 +82,20 @@ def test_parse_bad_returns_none():
     assert parse_input_line("") is None
 
 
+@pytest.mark.parametrize(
+    "line",
+    (
+        "nan 0 0 0 0",
+        "inf 0 0 0 0",
+        "-inf 0 0 0 0",
+        "0 nan 0 0 0",
+        "0 0 inf 0 0",
+    ),
+)
+def test_parse_rejects_nonfinite_numeric_fields(line):
+    assert parse_input_line(line) is None
+
+
 TELEOP_MODULES = (teleop_server, teleop_dualsense)
 DIRECT_CAN_NOTICE = (
     "production 원격은 powertrain_control(teleop_command)+authority 경로. "

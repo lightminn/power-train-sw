@@ -44,6 +44,7 @@ class AutonomyControllerConfig:
     motion_stale_s: float = 0.30
     gate_stale_s: float = 0.50
     diagnostics_stale_s: float = 1.0
+    recovery_ticks: int = 3
     kp_heading: float = 1.2
     kp_offset: float = 0.8
     curvature_slow_k: float = 1.0
@@ -55,6 +56,12 @@ class AutonomyControllerConfig:
     slip_scale: float = 0.5
 
     def __post_init__(self) -> None:
+        if (
+            isinstance(self.recovery_ticks, bool)
+            or not isinstance(self.recovery_ticks, int)
+            or self.recovery_ticks <= 0
+        ):
+            raise ValueError("recovery_ticks must be a positive integer")
         positive = (
             "terrain_stale_s",
             "motion_stale_s",
@@ -196,6 +203,8 @@ class AutonomyController:
         self._last_stamp_s: float | None = None
         self._v_m_s = 0.0
         self._omega_rad_s = 0.0
+        self._recovering_from_hold = False
+        self._recovery_fresh_ticks = 0
 
     def _dt(self, now_s: float) -> float:
         if self._last_stamp_s is None:
@@ -217,11 +226,40 @@ class AutonomyController:
     def _blocked(self, now_s: float, reasons) -> ControllerDecision:
         self._v_m_s = 0.0
         self._omega_rad_s = 0.0
+        self._recovering_from_hold = False
+        self._recovery_fresh_ticks = 0
         if self._last_stamp_s is None:
             self._last_stamp_s = now_s
         else:
             self._last_stamp_s = max(self._last_stamp_s, now_s)
         return self._decision(now_s, "BLOCKED", reasons)
+
+    def _controlled_hold(
+        self,
+        now_s: float,
+        reasons,
+        dt: float,
+        *,
+        reset_recovery: bool,
+    ) -> ControllerDecision:
+        if reset_recovery:
+            self._recovering_from_hold = True
+            self._recovery_fresh_ticks = 0
+        self._v_m_s = _slew(
+            self._v_m_s,
+            0.0,
+            self.profile.max_accel_m_s2,
+            self.profile.max_decel_m_s2,
+            dt,
+        )
+        self._omega_rad_s = _slew(
+            self._omega_rad_s,
+            0.0,
+            self.profile.max_yaw_accel_rad_s2,
+            self.profile.max_yaw_accel_rad_s2,
+            dt,
+        )
+        return self._decision(now_s, "CONTROLLED_HOLD", reasons)
 
     def decide(
         self,
@@ -323,21 +361,24 @@ class AutonomyController:
             hold_reasons.append("stuck_candidate")
 
         if hold_reasons:
-            self._v_m_s = _slew(
-                self._v_m_s,
-                0.0,
-                self.profile.max_accel_m_s2,
-                self.profile.max_decel_m_s2,
+            return self._controlled_hold(
+                now_s,
+                hold_reasons,
                 dt,
+                reset_recovery=True,
             )
-            self._omega_rad_s = _slew(
-                self._omega_rad_s,
-                0.0,
-                self.profile.max_yaw_accel_rad_s2,
-                self.profile.max_yaw_accel_rad_s2,
-                dt,
-            )
-            return self._decision(now_s, "CONTROLLED_HOLD", hold_reasons)
+
+        if self._recovering_from_hold:
+            self._recovery_fresh_ticks += 1
+            if self._recovery_fresh_ticks < self.config.recovery_ticks:
+                return self._controlled_hold(
+                    now_s,
+                    ("recovery_dwell",),
+                    dt,
+                    reset_recovery=False,
+                )
+            self._recovering_from_hold = False
+            self._recovery_fresh_ticks = 0
 
         reasons: list[str] = []
         clearance = min(
@@ -402,21 +443,12 @@ class AutonomyController:
             + self.config.kp_offset * terrain.path_offset_m
         )
         if not math.isfinite(omega_raw):
-            self._v_m_s = _slew(
-                self._v_m_s,
-                0.0,
-                self.profile.max_accel_m_s2,
-                self.profile.max_decel_m_s2,
+            return self._controlled_hold(
+                now_s,
+                ("control_nonfinite",),
                 dt,
+                reset_recovery=True,
             )
-            self._omega_rad_s = _slew(
-                self._omega_rad_s,
-                0.0,
-                self.profile.max_yaw_accel_rad_s2,
-                self.profile.max_yaw_accel_rad_s2,
-                dt,
-            )
-            return self._decision(now_s, "CONTROLLED_HOLD", ("control_nonfinite",))
         omega_target = _clamp(
             omega_raw,
             -self.profile.max_yaw_rate_rad_s,

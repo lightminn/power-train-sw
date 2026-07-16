@@ -66,4 +66,4 @@ class GatewayClient:
 
     def poll(self):
         try: return self.request("get_status")
-        except (OSError, ConnectionError, TimeoutError): return None
+        except Exception: return None
