@@ -140,6 +140,10 @@ ros 컨테이너 ~310 / 젯슨 autonomy 이미지 27. **테스트 실행과 comm
 
 - `docs/defence_docs/초안.docx`(팀 원본)·`초안_v2.docx`(07-16 갱신본 — wheel-stop 자격화,
   안전 장기시험, WP6-A/S 반영) — **의도적 미커밋**(원본이 사용자 영역). 커밋 여부는 사용자 판단.
+- **젯슨 워킹트리 미커밋 WIP(2026-07-16 새벽 발견, 팀원 작업)**: L515 정렬 depth의 ROS
+  발행 경로(`l515_dashboard/gateway*.py` + 테스트, opt-in `L515_ALIGNED_DEPTH_ROS=1` —
+  RTAB-Map RGB-D SLAM 준비) + `urdf/jetin_rover.urdf.xacro` 확장. 방향은 타당해 보이나
+  진행 중 — **보존하고 임의 커밋 금지**, 완료 시 검증(3환경) 후 통합.
 - 팀원 노트북에만 있는 미푸시 4종: `scripts/extract_geometry_from_cad_urdf.py`,
   `parameter_calc/python_gpu_triangle/export_chassis_geometry.py`,
   `docs/specs/2026-07-13-min-rev-speed-range.md` 등 — `kinematics.py` docstring이 첫
