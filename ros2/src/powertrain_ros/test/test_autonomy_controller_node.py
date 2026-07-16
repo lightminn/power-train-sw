@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import threading
 import time
 
 import numpy as np
@@ -114,10 +115,13 @@ class Harness:
         self.odom = self.node.create_publisher(Odometry, "/odom", 10)
         self.arm = self.node.create_publisher(ArmStatus, "/arm_status", 10)
         self.commands = []
+        self.command_times = []
         self.controller_states = []
         self.terrain_states = []
         self.assist_corrections = []
-        self.node.create_subscription(Twist, "/autonomy/cmd_vel", self.commands.append, 10)
+        self.node.create_subscription(
+            Twist, "/autonomy/cmd_vel", self._record_command, 10
+        )
         self.node.create_subscription(
             String, "/autonomy/controller_state", self.controller_states.append, 10
         )
@@ -133,6 +137,10 @@ class Harness:
         self.executor = SingleThreadedExecutor()
         self.executor.add_node(controller)
         self.executor.add_node(self.node)
+
+    def _record_command(self, message):
+        self.commands.append(message)
+        self.command_times.append(time.monotonic())
 
     def spin_for(self, seconds):
         deadline = time.monotonic() + seconds
@@ -220,6 +228,164 @@ def test_no_command_is_published_before_first_terrain_estimate():
         harness.close(controller)
 
 
+def test_slow_terrain_update_does_not_starve_command_timer(monkeypatch):
+    controller = _controller(enabled=True)
+    harness = Harness(controller)
+    try:
+        harness.spin_for(0.10)
+        harness.publish_complete_frame(controller)
+        harness.spin_until(
+            lambda: any(message.linear.x > 0.0 for message in harness.commands)
+        )
+
+        real_update = controller.estimator.update
+        slow_entered = threading.Event()
+        slow_completed = threading.Event()
+
+        def slow_update(*args, **kwargs):
+            slow_entered.set()
+            time.sleep(0.20)
+            result = real_update(*args, **kwargs)
+            slow_completed.set()
+            return result
+
+        monkeypatch.setattr(controller.estimator, "update", slow_update)
+        harness.commands.clear()
+        harness.command_times.clear()
+
+        deadline = time.monotonic() + 1.40
+        next_publish = 0.0
+        while time.monotonic() < deadline:
+            now = time.monotonic()
+            if now >= next_publish:
+                harness.publish_motion_gate(controller)
+                harness.depth.publish(_depth(controller))
+                next_publish = now + 0.03
+            harness.executor.spin_once(timeout_sec=0.005)
+
+        assert slow_entered.is_set()
+        assert slow_completed.is_set()
+        assert len(harness.command_times) >= 15
+        intervals = np.diff(harness.command_times)
+        assert np.percentile(intervals, 95) <= 2.0 / 20.0
+    finally:
+        harness.close(controller)
+
+
+def test_depth_burst_processes_first_and_latest_frames_only(monkeypatch):
+    controller = _controller(enabled=False)
+    release = threading.Event()
+    try:
+        controller._on_camera_info(_camera_info(controller))
+        controller._on_imu(_imu(controller))
+        controller._on_odom(_odom(controller))
+
+        entered = threading.Event()
+        processed_stamps = []
+        real_update = controller.estimator.update
+
+        def blocking_first_update(frame, **kwargs):
+            processed_stamps.append(frame.stamp_s)
+            if len(processed_stamps) == 1:
+                entered.set()
+                assert release.wait(timeout=1.0)
+            return real_update(frame, **kwargs)
+
+        monkeypatch.setattr(
+            controller.estimator, "update", blocking_first_update
+        )
+
+        base = controller.get_clock().now().nanoseconds
+        frames = []
+        expected_stamps = []
+        for index in range(5):
+            message = _depth(controller)
+            stamp_ns = base + index * 1_000_000
+            message.header.stamp.sec = stamp_ns // 1_000_000_000
+            message.header.stamp.nanosec = stamp_ns % 1_000_000_000
+            frames.append(message)
+            expected_stamps.append(stamp_ns * 1e-9)
+
+        controller._on_depth(frames[0])
+        assert entered.wait(timeout=1.0)
+        for message in frames[1:]:
+            controller._on_depth(message)
+        release.set()
+
+        deadline = time.monotonic() + 1.0
+        while (
+            controller._terrain_update_count < 2
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.01)
+
+        assert controller._terrain_update_count == 2
+        assert processed_stamps == pytest.approx(
+            [expected_stamps[0], expected_stamps[-1]],
+            rel=0.0,
+            abs=1e-6,
+        )
+        assert controller._depth_overwrite_count == len(frames) - 2
+    finally:
+        release.set()
+        controller.destroy_node()
+
+
+def test_destroy_node_stops_depth_worker():
+    controller = _controller(enabled=False)
+    worker = controller._depth_worker_thread
+    assert worker.is_alive()
+
+    controller.destroy_node()
+
+    assert not worker.is_alive()
+
+
+def test_destroy_timeout_suppresses_late_worker_error_publish(monkeypatch):
+    controller = _controller(enabled=False)
+    release = threading.Event()
+    entered = threading.Event()
+    unavailable_reasons = []
+    destroyed = False
+    try:
+        controller._on_camera_info(_camera_info(controller))
+        controller._on_imu(_imu(controller))
+        controller._on_odom(_odom(controller))
+        controller._depth_worker_join_timeout_s = 0.05
+
+        def blocked_error(*args, **kwargs):
+            entered.set()
+            assert release.wait(timeout=1.0)
+            raise ValueError("late estimator failure")
+
+        monkeypatch.setattr(controller.estimator, "update", blocked_error)
+        monkeypatch.setattr(
+            controller,
+            "_publish_terrain_unavailable",
+            unavailable_reasons.append,
+        )
+        controller._on_depth(_depth(controller))
+        assert entered.wait(timeout=1.0)
+
+        started = time.monotonic()
+        controller.destroy_node()
+        destroyed = True
+        elapsed = time.monotonic() - started
+
+        assert elapsed < 0.20
+        assert controller._depth_worker_thread.is_alive()
+        release.set()
+        controller._depth_worker_thread.join(timeout=1.0)
+        assert not controller._depth_worker_thread.is_alive()
+        assert unavailable_reasons == []
+    finally:
+        release.set()
+        if controller._depth_worker_thread.is_alive():
+            controller._depth_worker_thread.join(timeout=1.0)
+        if not destroyed:
+            controller.destroy_node()
+
+
 def test_disabled_node_publishes_diagnostics_but_no_command():
     controller = _controller(enabled=False)
     harness = Harness(controller)
@@ -301,12 +467,14 @@ def test_changed_camera_info_resolution_and_matching_frame_are_ignored():
         controller._on_odom(_odom(controller))
         controller._on_arm_status(_arm(controller))
         controller._on_camera_info(_camera_info(controller))
-        controller._on_depth(_depth(controller))
+        controller._process_depth_now(_depth(controller))
         count = controller._terrain_update_count
 
         controller._on_camera_info(_camera_info(controller, width=160, height=120))
         resized = np.zeros((120, 160), dtype=np.uint16)
-        controller._on_depth(_depth(controller, resized, width=160, height=120))
+        controller._process_depth_now(
+            _depth(controller, resized, width=160, height=120)
+        )
 
         assert controller._grid_source_shape == (60, 80)
         assert controller._terrain_update_count == count

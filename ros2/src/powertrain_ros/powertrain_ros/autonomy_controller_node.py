@@ -10,6 +10,7 @@ import json
 import math
 import os
 import sys
+import threading
 
 import numpy as np
 import rclpy
@@ -152,13 +153,22 @@ class AutonomyControllerNode(Node):
         self._row_indices: np.ndarray | None = None
         self._col_indices: np.ndarray | None = None
         self._intrinsics: CameraIntrinsics | None = None
+        self._grid_snapshot = None
         self._tilt: BodyTilt | None = None
         self._imu_stamp_s: float | None = None
         self._odom = None
+        self._motion_snapshot = (None, None, None)
         self._previous_depth_pose = None
         self._terrain = None
         self._terrain_seen = False
+        self._terrain_snapshot = (None, False)
         self._terrain_update_count = 0
+        self._terrain_state_lock = threading.Lock()
+        self._depth_condition = threading.Condition()
+        self._depth_slot: tuple[Image, float] | None = None
+        self._depth_stop = False
+        self._depth_overwrite_count = 0
+        self._depth_worker_join_timeout_s = 1.0
         self._gate: ProfileGate | None = None
         self._diagnostics: DriveDiagnostics | None = None
 
@@ -226,6 +236,12 @@ class AutonomyControllerNode(Node):
             10,
         )
         self.create_timer(1.0 / tick_hz, self._tick)
+        self._depth_worker_thread = threading.Thread(
+            target=self._depth_worker_loop,
+            name="autonomy-depth-worker",
+            daemon=True,
+        )
+        self._depth_worker_thread.start()
 
         mode = "ON" if self._enabled else "OFF (diagnostics only)"
         self.get_logger().info(
@@ -236,18 +252,26 @@ class AutonomyControllerNode(Node):
     def _now_s(self) -> float:
         return self.get_clock().now().nanoseconds * 1e-9
 
-    def _publish_terrain_unavailable(self, reason: str) -> None:
+    def _depth_is_stopping(self) -> bool:
+        with self._depth_condition:
+            return self._depth_stop
+
+    def _publish_terrain_unavailable(self, reason: str) -> bool:
+        if self._depth_is_stopping():
+            return False
         self.pub_terrain_state.publish(
             String(data="False|0.000000|0.000000|0.000000|" + reason)
         )
+        return True
 
     def _on_camera_info(self, message: CameraInfo) -> None:
         shape = (int(message.height), int(message.width))
-        if self._grid_source_shape is not None:
-            if shape != self._grid_source_shape:
+        grid_snapshot = self._grid_snapshot
+        if grid_snapshot is not None:
+            if shape != grid_snapshot[0]:
                 self.get_logger().warning(
                     "CameraInfo resolution changed %s -> %s; fixed grid retained"
-                    % (self._grid_source_shape, shape)
+                    % (grid_snapshot[0], shape)
                 )
             return
         height, width = shape
@@ -272,19 +296,30 @@ class AutonomyControllerNode(Node):
         except (IndexError, TypeError, ValueError) as exc:
             self.get_logger().error("invalid depth CameraInfo: %s" % exc)
             return
+        row_indices = row_start + stride * np.arange(_TARGET_HEIGHT)
+        col_indices = col_start + stride * np.arange(_TARGET_WIDTH)
         self._grid_source_shape = shape
-        self._row_indices = row_start + stride * np.arange(_TARGET_HEIGHT)
-        self._col_indices = col_start + stride * np.arange(_TARGET_WIDTH)
+        self._row_indices = row_indices
+        self._col_indices = col_indices
         self._intrinsics = intrinsics
+        self._grid_snapshot = (
+            shape,
+            row_indices,
+            col_indices,
+            intrinsics,
+        )
 
     def _on_imu(self, message: Imu) -> None:
         roll, pitch, _ = _rpy(message.orientation)
-        self._tilt = BodyTilt(roll_rad=roll, pitch_rad=pitch)
-        self._imu_stamp_s = _stamp_s(message.header.stamp)
+        tilt = BodyTilt(roll_rad=roll, pitch_rad=pitch)
+        imu_stamp_s = _stamp_s(message.header.stamp)
+        self._tilt = tilt
+        self._imu_stamp_s = imu_stamp_s
+        self._motion_snapshot = (self._odom, tilt, imu_stamp_s)
 
     def _on_odom(self, message: Odometry) -> None:
         _, _, yaw = _rpy(message.pose.pose.orientation)
-        self._odom = (
+        odom = (
             float(message.pose.pose.position.x),
             float(message.pose.pose.position.y),
             yaw,
@@ -292,6 +327,8 @@ class AutonomyControllerNode(Node):
             float(message.twist.twist.angular.z),
             _stamp_s(message.header.stamp),
         )
+        self._odom = odom
+        self._motion_snapshot = (odom, self._tilt, self._imu_stamp_s)
 
     def _on_arm_status(self, message: ArmStatus) -> None:
         self._gate = ProfileGate(
@@ -330,13 +367,14 @@ class AutonomyControllerNode(Node):
         array = array.reshape(int(message.height), row_width)
         return array[:, : int(message.width)].astype(np.uint16, copy=False)
 
-    def _odometry_delta(self) -> OdometryDelta:
+    @staticmethod
+    def _odometry_delta(odom, previous_depth_pose) -> OdometryDelta:
         # 기준 pose 전진은 estimator.update 성공 후에만 한다 — 실패 프레임의
         # 이동이 grid 이력 warp에서 누락되면 캐리 셀이 조용히 어긋난다.
-        x_m, y_m, yaw_rad = self._odom[:3]
-        if self._previous_depth_pose is None:
+        x_m, y_m, yaw_rad = odom[:3]
+        if previous_depth_pose is None:
             return OdometryDelta(0.0, 0.0, 0.0)
-        prev_x, prev_y, prev_yaw = self._previous_depth_pose
+        prev_x, prev_y, prev_yaw = previous_depth_pose
         global_x = x_m - prev_x
         global_y = y_m - prev_y
         cosine = math.cos(prev_yaw)
@@ -348,54 +386,113 @@ class AutonomyControllerNode(Node):
         )
 
     def _on_depth(self, message: Image) -> None:
-        if self._grid_source_shape is None:
+        received_at_s = self._now_s()
+        with self._depth_condition:
+            if self._depth_stop:
+                return
+            if self._depth_slot is not None:
+                self._depth_overwrite_count += 1
+            self._depth_slot = (message, received_at_s)
+            self._depth_condition.notify()
+
+    def _depth_worker_loop(self) -> None:
+        while True:
+            with self._depth_condition:
+                while self._depth_slot is None and not self._depth_stop:
+                    self._depth_condition.wait()
+                if self._depth_stop:
+                    return
+                message, received_at_s = self._depth_slot
+                self._depth_slot = None
+            self._process_depth_now(message, received_at_s)
+
+    def _process_depth_now(
+        self,
+        message: Image,
+        received_at_s: float | None = None,
+    ) -> None:
+        if received_at_s is None:
+            received_at_s = self._now_s()
+        if self._depth_is_stopping():
+            return
+        grid_snapshot = self._grid_snapshot
+        if grid_snapshot is None:
             self._publish_terrain_unavailable("waiting_camera_info")
             return
+        grid_source_shape, row_indices, col_indices, intrinsics = grid_snapshot
         shape = (int(message.height), int(message.width))
-        if shape != self._grid_source_shape:
-            self.get_logger().warning(
-                "depth resolution %s ignored; fixed source is %s"
-                % (shape, self._grid_source_shape)
-            )
+        if shape != grid_source_shape:
+            if not self._depth_is_stopping():
+                self.get_logger().warning(
+                    "depth resolution %s ignored; fixed source is %s"
+                    % (shape, grid_source_shape)
+                )
             return
-        if self._tilt is None or self._odom is None:
+        odom, tilt, _ = self._motion_snapshot
+        if tilt is None or odom is None:
             self._publish_terrain_unavailable("waiting_motion")
             return
         try:
             raw = self._decode_depth(message)
         except ValueError as exc:
-            self._terrain = None
-            self._publish_terrain_unavailable("invalid_depth")
-            self.get_logger().warning("depth frame ignored: %s" % exc)
+            with self._depth_condition:
+                if self._depth_stop:
+                    return
+                with self._terrain_state_lock:
+                    _, terrain_seen = self._terrain_snapshot
+                    self._terrain = None
+                    self._terrain_snapshot = (None, terrain_seen)
+            if self._publish_terrain_unavailable("invalid_depth"):
+                self.get_logger().warning("depth frame ignored: %s" % exc)
             return
-        sampled = raw[np.ix_(self._row_indices, self._col_indices)].copy()
+        sampled = raw[np.ix_(row_indices, col_indices)].copy()
         frame = TerrainFrame(
             depth_roi=sampled,
             depth_scale_m=0.001,
-            intrinsics=self._intrinsics,
+            intrinsics=intrinsics,
             stamp_s=_stamp_s(message.header.stamp),
         )
+        with self._terrain_state_lock:
+            previous_depth_pose = self._previous_depth_pose
         try:
             estimate = self.estimator.update(
                 frame,
-                tilt=self._tilt,
+                tilt=tilt,
                 extrinsic=self.extrinsic,
-                odometry_delta=self._odometry_delta(),
-                now_s=self._now_s(),
+                odometry_delta=self._odometry_delta(
+                    odom,
+                    previous_depth_pose,
+                ),
+                now_s=received_at_s,
             )
         except ValueError as exc:
-            self._terrain = None
-            self._publish_terrain_unavailable("value_error")
-            self.get_logger().error("terrain update rejected: %s" % exc)
+            with self._depth_condition:
+                if self._depth_stop:
+                    return
+                with self._terrain_state_lock:
+                    _, terrain_seen = self._terrain_snapshot
+                    self._terrain = None
+                    self._terrain_snapshot = (None, terrain_seen)
+            if self._publish_terrain_unavailable("value_error"):
+                self.get_logger().error(
+                    "terrain update rejected: %s" % exc
+                )
             return
-        self._previous_depth_pose = (
-            float(self._odom[0]),
-            float(self._odom[1]),
-            float(self._odom[2]),
-        )
-        self._terrain = estimate
-        self._terrain_seen = True
-        self._terrain_update_count += 1
+        with self._depth_condition:
+            if self._depth_stop:
+                return
+            with self._terrain_state_lock:
+                self._previous_depth_pose = (
+                    float(odom[0]),
+                    float(odom[1]),
+                    float(odom[2]),
+                )
+                self._terrain = estimate
+                self._terrain_seen = True
+                self._terrain_snapshot = (estimate, True)
+                self._terrain_update_count += 1
+        if self._depth_is_stopping():
+            return
         reject = ",".join(estimate.reject_reasons)
         self.pub_terrain_state.publish(
             String(
@@ -411,9 +508,10 @@ class AutonomyControllerNode(Node):
         )
 
     def _motion_state(self, now_s: float) -> MotionState | None:
-        if self._odom is None or self._tilt is None or self._imu_stamp_s is None:
+        odom, tilt, imu_stamp_s = self._motion_snapshot
+        if odom is None or tilt is None or imu_stamp_s is None:
             return None
-        stamps = (self._odom[5], self._imu_stamp_s)
+        stamps = (odom[5], imu_stamp_s)
         if not all(math.isfinite(stamp) for stamp in stamps):
             stamp_s = math.nan
         elif max(stamps) > now_s + 0.1:
@@ -422,16 +520,17 @@ class AutonomyControllerNode(Node):
             stamp_s = min(stamps)
         return MotionState(
             stamp_s=stamp_s,
-            forward_m_s=self._odom[3],
-            yaw_rate_rad_s=self._odom[4],
-            roll_rad=self._tilt.roll_rad,
-            pitch_rad=self._tilt.pitch_rad,
+            forward_m_s=odom[3],
+            yaw_rate_rad_s=odom[4],
+            roll_rad=tilt.roll_rad,
+            pitch_rad=tilt.pitch_rad,
         )
 
     def _tick(self) -> None:
         now_s = self._now_s()
+        terrain, terrain_seen = self._terrain_snapshot
         assist = assist_correction_from_terrain(
-            self._terrain,
+            terrain,
             self.controller.config,
         )
         if assist is not None:
@@ -440,7 +539,7 @@ class AutonomyControllerNode(Node):
                 String(
                     data=json.dumps(
                         {
-                            "stamp_s": float(self._terrain.stamp_s),
+                            "stamp_s": float(terrain.stamp_s),
                             "omega_correction_rad_s": omega_correction,
                             "speed_cap_m_s": speed_cap,
                             "confidence": confidence,
@@ -453,7 +552,7 @@ class AutonomyControllerNode(Node):
             )
         decision = self.controller.decide(
             now_s,
-            terrain=self._terrain,
+            terrain=terrain,
             motion=self._motion_state(now_s),
             gate=self._gate,
             diagnostics=self._diagnostics,
@@ -469,12 +568,34 @@ class AutonomyControllerNode(Node):
                 )
             )
         )
-        if not self._enabled or not self._terrain_seen:
+        if not self._enabled or not terrain_seen:
             return
         command = Twist()
         command.linear.x = decision.v_m_s
         command.angular.z = decision.omega_rad_s
         self.pub_cmd.publish(command)
+
+    def destroy_node(self):
+        condition = getattr(self, "_depth_condition", None)
+        if condition is not None:
+            with condition:
+                self._depth_stop = True
+                self._depth_slot = None
+                condition.notify_all()
+        worker = getattr(self, "_depth_worker_thread", None)
+        if (
+            worker is not None
+            and worker is not threading.current_thread()
+            and worker.is_alive()
+        ):
+            worker.join(
+                timeout=getattr(
+                    self,
+                    "_depth_worker_join_timeout_s",
+                    1.0,
+                )
+            )
+        return super().destroy_node()
 
 
 def main():

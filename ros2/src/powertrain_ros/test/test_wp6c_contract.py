@@ -89,3 +89,74 @@ def test_terrain_guidance_launches_one_process_controller_and_estimator():
     assert "autonomy_controller = powertrain_ros.autonomy_controller_node:main" in setup
     assert "TerrainEstimator" in node
     assert "AutonomyController" in node
+
+
+def test_depth_callback_only_enqueues_and_worker_owns_processing():
+    tree = ast.parse(CONTROLLER_NODE.read_text(encoding="utf-8"))
+    methods = {
+        item.name: item
+        for item in next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef)
+            and node.name == "AutonomyControllerNode"
+        ).body
+        if isinstance(item, ast.FunctionDef)
+    }
+
+    callback_calls = {
+        node.func.attr
+        for node in ast.walk(methods["_on_depth"])
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+    }
+    callback_name_calls = {
+        node.func.id
+        for node in ast.walk(methods["_on_depth"])
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+    }
+    processor_calls = {
+        node.func.attr
+        for node in ast.walk(methods["_process_depth_now"])
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+    }
+
+    assert "_decode_depth" not in callback_calls
+    assert "update" not in callback_calls
+    assert callback_calls <= {"_now_s", "notify"}
+    assert callback_name_calls == set()
+    assert "_decode_depth" in processor_calls
+    assert "update" in processor_calls
+
+
+def test_worker_and_tick_consume_atomic_reference_snapshots():
+    tree = ast.parse(CONTROLLER_NODE.read_text(encoding="utf-8"))
+    methods = {
+        item.name: item
+        for item in next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef)
+            and node.name == "AutonomyControllerNode"
+        ).body
+        if isinstance(item, ast.FunctionDef)
+    }
+
+    processor_attrs = {
+        node.attr
+        for node in ast.walk(methods["_process_depth_now"])
+        if isinstance(node, ast.Attribute)
+    }
+    tick_attrs = {
+        node.attr
+        for node in ast.walk(methods["_tick"])
+        if isinstance(node, ast.Attribute)
+    }
+
+    assert "_grid_snapshot" in processor_attrs
+    assert "_grid_source_shape" not in processor_attrs
+    assert "_terrain_snapshot" in tick_attrs
+    assert "_terrain" not in tick_attrs
+    assert "_terrain_seen" not in tick_attrs
