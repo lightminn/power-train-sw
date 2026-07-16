@@ -5,6 +5,8 @@ import math
 
 
 _FUTURE_TOLERANCE_S = 0.1
+_NEUTRAL_LINEAR_M_S = 0.02
+_NEUTRAL_ANGULAR_RAD_S = 0.05
 
 
 @dataclass(frozen=True)
@@ -154,8 +156,6 @@ def compose(
     if not enabled:
         return _raw(operator_v, operator_omega, "assist_disabled")
 
-    if bypass_active:
-        return _raw(operator_v, operator_omega, "assist_bypass")
     if bypass_stamp_s is None:
         return _raw(operator_v, operator_omega, "bypass_unknown")
     try:
@@ -170,6 +170,14 @@ def compose(
         or bypass_age_s < -_FUTURE_TOLERANCE_S
     ):
         return _raw(operator_v, operator_omega, "bypass_unknown")
+    if bypass_active:
+        return _raw(operator_v, operator_omega, "assist_bypass")
+
+    if (
+        abs(operator_v) <= _NEUTRAL_LINEAR_M_S
+        and abs(operator_omega) <= _NEUTRAL_ANGULAR_RAD_S
+    ):
+        return _raw(operator_v, operator_omega, "operator_neutral")
 
     if correction is None:
         return _degraded(

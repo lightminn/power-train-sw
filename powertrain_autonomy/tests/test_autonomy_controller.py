@@ -131,8 +131,22 @@ def decide_fresh(controller, now_s, *, estimate=None, state=None, arm_gate=None,
 
 def steady_decision(*, profile=EMPTY_STOWED, estimate=None, state=None, diag=None):
     controller = AutonomyController(profile)
-    decide_fresh(controller, 0.0, estimate=estimate, state=state, diag=diag)
-    return decide_fresh(controller, 10.0, estimate=estimate, state=state, diag=diag)
+    decision = decide_fresh(
+        controller,
+        0.0,
+        estimate=estimate,
+        state=state,
+        diag=diag,
+    )
+    for tick in range(1, 41):
+        decision = decide_fresh(
+            controller,
+            tick * 0.25,
+            estimate=estimate,
+            state=state,
+            diag=diag,
+        )
+    return decision
 
 
 def test_profiles_are_frozen_exact_provisional_presets():
@@ -250,14 +264,15 @@ def test_required_input_loss_matrix(kind, variant, reason, expected_state):
 
 def test_controlled_hold_decelerates_to_zero_and_recovers_with_slew_limits():
     controller = AutonomyController(EMPTY_STOWED)
-    for now_s in (0.0, 1.0, 2.0):
+    for tick in range(9):
+        now_s = tick * 0.25
         decision = decide_fresh(controller, now_s)
     assert decision.v_m_s == pytest.approx(0.8)
 
     stale = terrain(1.0)
     previous = decision.v_m_s
     previous_now = 2.0
-    for now_s in (2.1, 2.2, 2.5, 3.0, 3.5):
+    for now_s in (2.1, 2.2, 2.5, 3.0, 3.5, 3.75):
         decision = controller.decide(
             now_s,
             terrain=stale,
@@ -271,14 +286,15 @@ def test_controlled_hold_decelerates_to_zero_and_recovers_with_slew_limits():
         previous_now = now_s
     assert decision.v_m_s == 0.0
 
-    recovered = decide_fresh(controller, 3.6)
+    recovered = decide_fresh(controller, 3.85)
     assert recovered.state == "TRACKING"
     assert 0.0 < recovered.v_m_s <= EMPTY_STOWED.max_accel_m_s2 * 0.1 + 1e-12
 
 
 def test_blocked_is_immediate_and_resets_slew_origin():
     controller = AutonomyController(EMPTY_STOWED)
-    for now_s in (0.0, 1.0, 2.0):
+    for tick in range(9):
+        now_s = tick * 0.25
         moving = decide_fresh(controller, now_s)
     assert moving.v_m_s == pytest.approx(0.8)
 
@@ -349,20 +365,19 @@ def test_fresh_diagnostics_hold_scale_and_cap_but_stale_diagnostics_are_ignored(
     assert "speed_cap" in capped.reasons
 
     controller = AutonomyController(EMPTY_STOWED)
-    controller.decide(
-        0.0,
-        terrain=terrain(0.0),
-        motion=motion(0.0),
-        gate=gate(0.0),
-        diagnostics=diagnostics(-1.01, slip_candidate=True, speed_cap_m_s=0.1),
-    )
-    stale = controller.decide(
-        10.0,
-        terrain=terrain(10.0),
-        motion=motion(10.0),
-        gate=gate(10.0),
-        diagnostics=diagnostics(8.99, slip_candidate=True, speed_cap_m_s=0.1),
-    )
+    for tick in range(41):
+        now_s = tick * 0.25
+        stale = controller.decide(
+            now_s,
+            terrain=terrain(now_s),
+            motion=motion(now_s),
+            gate=gate(now_s),
+            diagnostics=diagnostics(
+                now_s - 1.01,
+                slip_candidate=True,
+                speed_cap_m_s=0.1,
+            ),
+        )
     assert stale.v_m_s == pytest.approx(baseline.v_m_s)
     assert "slip_candidate" not in stale.reasons
     assert "speed_cap" not in stale.reasons
@@ -406,6 +421,39 @@ def test_same_input_sequence_is_deterministic_and_time_regression_holds_slew():
     assert first == second
     assert first[3].v_m_s == first[2].v_m_s
     assert first[3].omega_rad_s == first[2].omega_rad_s
+
+
+def test_time_rollback_never_moves_dt_origin_back_and_recovery_dt_is_clamped():
+    controller = AutonomyController(EMPTY_STOWED)
+
+    initial = decide_fresh(controller, 0.0)
+    advanced = decide_fresh(controller, 0.2)
+    rollback = decide_fresh(controller, 0.0)
+    recovered = decide_fresh(controller, 2.0)
+
+    assert initial.v_m_s == 0.0
+    assert rollback.v_m_s == advanced.v_m_s
+    assert recovered.v_m_s - rollback.v_m_s <= (
+        EMPTY_STOWED.max_accel_m_s2 * 0.25 + 1e-12
+    )
+
+
+def test_blocked_rollback_does_not_move_slew_origin_back():
+    controller = AutonomyController(EMPTY_STOWED)
+    decide_fresh(controller, 0.0)
+    decide_fresh(controller, 0.2)
+
+    blocked = controller.decide(
+        0.0,
+        terrain=terrain(0.0),
+        motion=motion(0.0),
+        gate=gate(0.0, "EXECUTING"),
+        diagnostics=None,
+    )
+    recovered_before_origin = decide_fresh(controller, 0.1)
+
+    assert blocked.state == "BLOCKED"
+    assert recovered_before_origin.v_m_s == 0.0
 
 
 @pytest.mark.parametrize(

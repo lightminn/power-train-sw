@@ -2,6 +2,8 @@
 
 ★ 단순 PID 로 목표 거리를 맞추면, 앞 로봇이 급정거할 때 우리는 관성으로 밀고 들어간다.
 """
+import math
+
 import pytest
 
 from chassis.follow import FollowConfig, LeadFollower
@@ -245,6 +247,31 @@ def test_reacquire_rejects_position_jump_and_resets_confirmation():
     assert not first_again.ok and "1/2" in first_again.reason
 
 
+def test_reacquire_alternating_candidate_identities_never_confirm():
+    follower = _f(
+        kd=0.0,
+        lost_grace_s=1.0,
+        reacquire_pos_m=0.5,
+        reacquire_confirm_n=2,
+    )
+    _, last_t = _settle(follower, 3.0, n=5)
+    follower.update([], last_t + 0.1)
+
+    results = [
+        follower.update(_det(3.0, lat=lat), last_t + stamp_offset)
+        for lat, stamp_offset in (
+            (-0.4, 0.2),
+            (0.4, 0.3),
+            (-0.4, 0.4),
+            (0.4, 0.5),
+        )
+    ]
+
+    assert all(not result.ok for result in results)
+    assert all(result.state == "REACQUIRING" for result in results)
+    assert all("1/2" in result.reason for result in results)
+
+
 @pytest.mark.parametrize("area", [500.0, 2500.0])
 def test_reacquire_rejects_bbox_size_jump(area):
     f = _f(kd=0.0, lost_grace_s=1.0)
@@ -323,6 +350,74 @@ def test_low_confidence_ignored():
     f = _f(min_confidence=0.5)
     r = f.update(_det(2.0, conf=0.2), 0.0)
     assert not r.ok
+
+
+@pytest.mark.parametrize("field", ["conf", "dist", "lat", "area"])
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
+def test_nonfinite_detection_fields_never_create_a_target(field, value):
+    values = {
+        "name": "robot",
+        "conf": 0.9,
+        "dist": 3.0,
+        "lat": 0.2,
+        "area": 1200.0,
+    }
+    values[field] = value
+    detection = [(
+        values["name"],
+        values["conf"],
+        values["dist"],
+        values["lat"],
+        values["area"],
+    )]
+
+    result = _f().update(detection, 0.0)
+
+    assert result.ok is False
+    assert result.state == "LOST"
+    assert (result.v, result.omega) == (0.0, 0.0)
+
+
+@pytest.mark.parametrize("field", ["conf", "dist", "lat", "area"])
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
+def test_nonfinite_detection_does_not_contaminate_existing_target(field, value):
+    follower = _f(ema=1.0, kd=0.0)
+    follower.update(_det(3.0, lat=0.2, area=1200.0), 0.0)
+    tracked = follower.update(_det(3.0, lat=0.2, area=1200.0), 0.1)
+    target_state = (
+        follower._d,
+        follower._t,
+        follower._t_seen,
+        follower._lat,
+        follower._area,
+    )
+    values = {
+        "name": "robot",
+        "conf": 0.9,
+        "dist": 3.0,
+        "lat": 0.2,
+        "area": 1200.0,
+    }
+    values[field] = value
+
+    rejected = follower.update([(
+        values["name"],
+        values["conf"],
+        values["dist"],
+        values["lat"],
+        values["area"],
+    )], 0.2)
+
+    assert rejected.state != "TRACKING"
+    assert (follower._d, follower._t, follower._t_seen,
+            follower._lat, follower._area) == target_state
+    assert all(math.isfinite(number) for number in (
+        tracked.v,
+        tracked.omega,
+        follower._d,
+        follower._lat,
+        follower._area,
+    ))
 
 
 def test_wrong_class_ignored():

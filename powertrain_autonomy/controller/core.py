@@ -198,10 +198,11 @@ class AutonomyController:
         self._omega_rad_s = 0.0
 
     def _dt(self, now_s: float) -> float:
-        dt = 0.0
-        if self._last_stamp_s is not None and now_s >= self._last_stamp_s:
-            dt = now_s - self._last_stamp_s
-        self._last_stamp_s = now_s
+        if self._last_stamp_s is None:
+            self._last_stamp_s = now_s
+            return 0.0
+        dt = min(0.25, max(0.0, now_s - self._last_stamp_s))
+        self._last_stamp_s = max(self._last_stamp_s, now_s)
         return dt
 
     def _decision(self, now_s: float, state: str, reasons) -> ControllerDecision:
@@ -216,7 +217,10 @@ class AutonomyController:
     def _blocked(self, now_s: float, reasons) -> ControllerDecision:
         self._v_m_s = 0.0
         self._omega_rad_s = 0.0
-        self._last_stamp_s = now_s
+        if self._last_stamp_s is None:
+            self._last_stamp_s = now_s
+        else:
+            self._last_stamp_s = max(self._last_stamp_s, now_s)
         return self._decision(now_s, "BLOCKED", reasons)
 
     def decide(

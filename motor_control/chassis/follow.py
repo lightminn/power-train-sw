@@ -76,6 +76,7 @@ class LeadFollower:
         self._last_omega = 0.0
         self._area = None
         self._reacquire_count = 0
+        self._reacquire_candidate = None
         self._had_loss = False
         self._stop_emitted = False
 
@@ -89,6 +90,7 @@ class LeadFollower:
         self._last_omega = 0.0
         self._area = None
         self._reacquire_count = 0
+        self._reacquire_candidate = None
         self._had_loss = False
         self._stop_emitted = False
 
@@ -162,6 +164,7 @@ class LeadFollower:
 
         self._had_loss = True
         self._reacquire_count = 0
+        self._reacquire_candidate = None
         elapsed = max(0.0, t - self._t_seen)
         prediction_window = min(c.lost_grace_s, c.predict_limit_s)
         predicted_d = max(0.0, self._d - self._closing * elapsed)
@@ -194,13 +197,18 @@ class LeadFollower:
         candidate, rejected = self._pick_reacquire(detections, predicted_d)
         if candidate is None:
             self._reacquire_count = 0
+            self._reacquire_candidate = None
             return FollowResult(
                 False, distance_m=predicted_d, closing_mps=self._closing,
                 reason=f"재검출 심사 — {rejected}", state="REACQUIRING",
             )
 
-        self._reacquire_count += 1
         _, _, dist, lat, area = candidate
+        if self._candidate_continues(candidate):
+            self._reacquire_count += 1
+        else:
+            self._reacquire_count = 1
+        self._reacquire_candidate = candidate
         needed = max(1, int(c.reacquire_confirm_n))
         if self._reacquire_count < needed:
             return FollowResult(
@@ -217,12 +225,26 @@ class LeadFollower:
         self._area = area
         self._last_v = self._last_omega = 0.0
         self._reacquire_count = 0
+        self._reacquire_candidate = None
         self._had_loss = False
         self._stop_emitted = False
         return FollowResult(
             False, distance_m=dist, reason="재검출 수락 — 초기화",
             state="REACQUIRING",
         )
+
+    def _candidate_continues(self, candidate):
+        previous = self._reacquire_candidate
+        if previous is None:
+            return False
+        _, _, previous_dist, previous_lat, previous_area = previous
+        _, _, dist, lat, area = candidate
+        if math.hypot(dist - previous_dist, lat - previous_lat) > self.cfg.reacquire_pos_m:
+            return False
+        if previous_area <= 0.0 or area <= 0.0:
+            return False
+        ratio = area / previous_area
+        return self.cfg.reacquire_size_ratio[0] <= ratio <= self.cfg.reacquire_size_ratio[1]
 
     def _pick_reacquire(self, detections, predicted_d):
         c = self.cfg
@@ -260,6 +282,8 @@ class LeadFollower:
                 area = 0.0
             else:
                 name, conf, dist, lat, area = detection
+            if not all(math.isfinite(value) for value in (conf, dist, lat, area)):
+                continue
             if name != c.class_name or conf < c.min_confidence:
                 continue
             if not (0.0 < dist < c.max_m):

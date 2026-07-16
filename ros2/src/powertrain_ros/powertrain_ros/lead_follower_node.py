@@ -112,6 +112,7 @@ class LeadFollowerNode(Node):
         self.tf_listener = TransformListener(self.tf_buf, self)
         self._allow_drive = True
         self._last = None
+        self._command_was_publishable = False
 
         self.create_subscription(DetectedObjectArray, contract.TOPIC_DETECTED,
                                  self._on_detections, 10)
@@ -187,13 +188,21 @@ class LeadFollowerNode(Node):
         ]))
         self.pub_active.publish(Bool(data=bool(r.ok)))
 
-        # ⚠️ 놓치면 아무것도 발행하지 않는다 — 없는 로봇을 따라 계속 달리면 안 된다.
-        if (allow_command and r.ok and self._allow_drive
-                and bool(self.get_parameter("enabled").value)):
+        command_publishable = bool(
+            allow_command
+            and r.ok
+            and self._allow_drive
+            and bool(self.get_parameter("enabled").value)
+        )
+        if command_publishable:
             cmd = Twist()
             cmd.linear.x = r.v
             cmd.angular.z = r.omega
             self.pub_cmd.publish(cmd)
+            self._command_was_publishable = True
+        elif self._command_was_publishable:
+            self.pub_cmd.publish(Twist())
+            self._command_was_publishable = False
 
     def _log(self):
         if self._last is None:

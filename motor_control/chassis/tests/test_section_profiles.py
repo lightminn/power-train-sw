@@ -113,7 +113,8 @@ def test_relief_red_green_hold_resume_and_work_request_hint():
     assert arrival.work_request == "ARRIVED_PICKUP"
     assert supervisor.tick(3.1).work_request is None
 
-    done = _tick(supervisor, SECTION_EXIT, 4.0)
+    _tick(supervisor, LIGHT_GREEN, 4.0)
+    done = _tick(supervisor, SECTION_EXIT, 5.0)
     assert done.complete is True
 
 
@@ -257,6 +258,45 @@ def test_operator_hold_blocks_section_completion_until_operator_resume():
     _tick(supervisor, OPERATOR_RESUME, 3.0)
     complete = _tick(supervisor, SECTION_EXIT, 4.0)
     assert complete.complete is True
+
+
+def test_retrograde_operator_resume_is_ignored_and_journaled():
+    supervisor = SectionSupervisor(RELIEF_PROFILE)
+    _tick(supervisor, OPERATOR_HOLD, 2.0)
+    supervisor.submit(_event(OPERATOR_RESUME, 1.0))
+
+    state = supervisor.tick(3.0)
+
+    assert state.drive_hold_hint is True
+    assert "operator_hold" in state.notices
+    assert state.journal_events[-1].accepted is False
+    assert state.journal_events[-1].reason == "stale_event_ignored"
+
+
+def test_ice_recovery_blocks_section_exit_with_notice():
+    supervisor = SectionSupervisor(ICE_PROFILE)
+    _tick(supervisor, STUCK_DETECTED, 1.0)
+
+    blocked = _tick(supervisor, SECTION_EXIT, 2.0)
+
+    assert blocked.complete is False
+    assert blocked.phase == "RECOVERY_REQUESTED"
+    assert blocked.drive_hold_hint is True
+    assert "section_exit_blocked:recovery_requested" in blocked.notices
+    assert blocked.journal_events[-1].reason == "recovery_requested"
+
+
+def test_relief_red_hold_blocks_section_exit_with_notice():
+    supervisor = SectionSupervisor(RELIEF_PROFILE)
+    _tick(supervisor, LIGHT_RED, 1.0)
+
+    blocked = _tick(supervisor, SECTION_EXIT, 2.0)
+
+    assert blocked.complete is False
+    assert blocked.phase == "EVENT_HOLD"
+    assert blocked.drive_hold_hint is True
+    assert "section_exit_blocked:profile_hold" in blocked.notices
+    assert blocked.journal_events[-1].reason == "profile_hold_active"
 
 
 def test_unknown_event_is_ignored_and_recorded_in_journal():

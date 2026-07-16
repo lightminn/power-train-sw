@@ -55,6 +55,7 @@ def test_disabled_returns_raw_operator_intent():
     ("bypass_active", "bypass_stamp_s", "reason"),
     [
         (True, 10.0, "assist_bypass"),
+        (True, 9.49, "bypass_unknown"),
         (False, None, "bypass_unknown"),
         (False, 9.49, "bypass_unknown"),
         (False, 10.100001, "bypass_unknown"),
@@ -117,6 +118,29 @@ def test_low_confidence_removes_correction_and_degrades_speed():
     assert result.omega_rad_s == -0.3
     assert result.applied is False
     assert result.reasons == ("low_confidence",)
+
+
+def test_neutral_operator_intent_returns_exact_raw_zero_before_correction():
+    result = _compose(
+        operator_v=0.02,
+        operator_omega=-0.05,
+        correction=_correction(omega_correction_rad_s=0.4),
+    )
+
+    assert (result.v_m_s, result.omega_rad_s) == (0.02, -0.05)
+    assert result.applied is False
+    assert result.reasons == ("operator_neutral",)
+
+
+def test_moving_operator_intent_still_composes_fresh_correction():
+    result = _compose(
+        operator_v=0.3,
+        operator_omega=0.0,
+        correction=_correction(omega_correction_rad_s=0.2),
+    )
+
+    assert (result.v_m_s, result.omega_rad_s) == pytest.approx((0.3, 0.2))
+    assert result.applied is True
 
 
 @pytest.mark.parametrize(

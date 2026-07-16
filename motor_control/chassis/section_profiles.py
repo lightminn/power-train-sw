@@ -463,6 +463,7 @@ class SectionSupervisor:
         self._relief_work_requested = False
         self._smog_arm_results = set()
         self._odom_distance_m = None
+        self._last_event_stamp_s = None
 
     @property
     def unique_markers(self) -> int:
@@ -486,7 +487,14 @@ class SectionSupervisor:
         ready = [event for event in self._queue if event.stamp_s <= now_s]
         self._queue = [event for event in self._queue if event.stamp_s > now_s]
         for event in ready:
-            accepted, reason = self._process(event)
+            if (
+                self._last_event_stamp_s is not None
+                and event.stamp_s < self._last_event_stamp_s
+            ):
+                accepted, reason = False, "stale_event_ignored"
+            else:
+                accepted, reason = self._process(event)
+                self._last_event_stamp_s = event.stamp_s
             self._journal.append(
                 SectionJournalEvent(
                     event_type=event.type,
@@ -545,7 +553,14 @@ class SectionSupervisor:
             return True, "section_enter"
         if event.type == SECTION_EXIT:
             if self._operator_hold:
+                self._add_notice("section_exit_blocked:operator_hold")
                 return False, "operator_hold_active"
+            if self._recovery_requested:
+                self._add_notice("section_exit_blocked:recovery_requested")
+                return False, "recovery_requested"
+            if self._profile_hold:
+                self._add_notice("section_exit_blocked:profile_hold")
+                return False, "profile_hold_active"
             return self._finish_section()
 
         section = self.profile.section

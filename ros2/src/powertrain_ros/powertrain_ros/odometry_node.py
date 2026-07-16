@@ -171,6 +171,12 @@ class OdometryNode(Node):
         now = self.get_clock().now()
         now_s = now.nanoseconds * 1e-9
         state = self.estimator.snapshot(now_s=now_s)
+        if state.stale:
+            self.get_logger().warning(
+                "wheel snapshot stale — /odom, diagnostics, TF 발행 생략",
+                throttle_duration_sec=1.0,
+            )
+            return
         speed_cap = state.diagnostics.terrain_speed_cap
         self.pub_diagnostics.publish(
             String(

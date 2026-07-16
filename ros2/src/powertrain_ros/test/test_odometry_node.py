@@ -6,6 +6,7 @@
 import dataclasses
 import json
 import math
+import time
 
 import pytest
 import rclpy
@@ -156,6 +157,7 @@ def test_odometry_publishes_controller_diagnostics_json():
         )
 
     n.estimator.snapshot = snapshot_with_unlimited_cap
+    n._on_wheels(_wheel_states(n.geom, t=n._now_s()))
     observer = rclpy.create_node("odometry_diagnostics_test_observer")
     messages = []
     observer.create_subscription(
@@ -189,6 +191,54 @@ def test_odometry_publishes_controller_diagnostics_json():
         n.destroy_node()
         observer.destroy_node()
         executor.shutdown()
+
+
+def test_stale_wheel_snapshot_stops_all_publication_until_fresh_input_resumes():
+    class Publisher:
+        def __init__(self):
+            self.messages = []
+
+        def publish(self, message):
+            self.messages.append(message)
+
+    class TransformRecorder:
+        def __init__(self):
+            self.messages = []
+
+        def sendTransform(self, message):
+            self.messages.append(message)
+
+    n = OdometryNode()
+    n.pub = Publisher()
+    n.pub_diagnostics = Publisher()
+    n.tf = TransformRecorder()
+    try:
+        n._on_wheels(_wheel_states(n.geom, t=n._now_s()))
+        n._publish()
+        assert tuple(map(len, (
+            n.pub.messages,
+            n.pub_diagnostics.messages,
+            n.tf.messages,
+        ))) == (1, 1, 1)
+
+        time.sleep(0.30)
+        n._publish()
+        n._publish()
+        assert tuple(map(len, (
+            n.pub.messages,
+            n.pub_diagnostics.messages,
+            n.tf.messages,
+        ))) == (1, 1, 1)
+
+        n._on_wheels(_wheel_states(n.geom, t=n._now_s()))
+        n._publish()
+        assert tuple(map(len, (
+            n.pub.messages,
+            n.pub_diagnostics.messages,
+            n.tf.messages,
+        ))) == (2, 2, 2)
+    finally:
+        n.destroy_node()
 
 
 # ── joint_state_bridge ───────────────────────────────────────────────────

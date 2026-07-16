@@ -81,6 +81,7 @@ class TeleopCommandNode(Node):
         self._stop_event = threading.Event()
         self._server_socket = None
         self._closed = False
+        self._input_was_fresh = False
 
         self.pub_drive = self.create_publisher(
             Twist,
@@ -242,10 +243,14 @@ class TeleopCommandNode(Node):
         with self._status_lock:
             self._status_line = make_status_line(output).encode("utf-8")
 
-        # Once input is stale or the TCP stream is gone, publish nothing.
-        # Chassis authority/watchdog freshness owns the eventual stop; repeated
-        # zeros here would incorrectly keep the teleop source fresh forever.
+        input_was_fresh = self._input_was_fresh
+        self._input_was_fresh = bool(output.input_fresh)
+        # On the fresh→stale edge, publish one explicit zero so authority stops
+        # on this tick.  Silence after that preserves source-freshness expiry.
         if not output.input_fresh:
+            if input_was_fresh:
+                self._publish_drive(output)
+                self._publish_arm(output)
             return
         self._publish_drive(output)
         self._publish_arm(output)

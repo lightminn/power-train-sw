@@ -7,6 +7,7 @@ GStreamer, or pygame.  Runtime I/O dependencies are loaded only by ``main``.
 
 import argparse
 from collections import deque
+from dataclasses import dataclass
 import json
 import math
 from numbers import Real
@@ -170,6 +171,44 @@ def should_draw_bboxes(overlay_state):
     raise ValueError("unknown overlay_state: %r" % (overlay_state,))
 
 
+@dataclass(frozen=True)
+class OverlayRenderDecision:
+    draw_bboxes: bool
+    source_frame_sequence: int | None
+    age_ms: float | None
+    provenance_text: str | None
+
+
+def overlay_render_decision(
+    overlay_state,
+    packet,
+    *,
+    now_monotonic_ns,
+    received_monotonic_ns,
+):
+    """Return display-only overlay provenance from receiver-local time.
+
+    The decoded raw video carries no source frame ID, so the metadata sequence
+    cannot prove true frame correlation.  It only lets the operator recognize
+    a likely lag or mismatch while viewing the overlay.
+    """
+
+    draw_bboxes = should_draw_bboxes(overlay_state)
+    if not draw_bboxes or packet is None or received_monotonic_ns is None:
+        return OverlayRenderDecision(False, None, None, None)
+    age_ms = max(
+        0.0,
+        (int(now_monotonic_ns) - int(received_monotonic_ns)) / 1_000_000.0,
+    )
+    source_sequence = int(packet.source_frame_sequence)
+    return OverlayRenderDecision(
+        draw_bboxes=True,
+        source_frame_sequence=source_sequence,
+        age_ms=age_ms,
+        provenance_text="seq=%d age=%.1fms" % (source_sequence, age_ms),
+    )
+
+
 class StatusPanel:
     """Convert console state into display-only text rows."""
 
@@ -327,7 +366,7 @@ class _MetadataReceiver:
             if self._last_received_ns is not None:
                 effective_now_ns = max(effective_now_ns, self._last_received_ns)
             state = self._tracker.overlay_state(effective_now_ns)
-            return state, self._tracker.latest
+            return state, self._tracker.latest, self._last_received_ns
 
     def _accept_packet(self, packet, *, received_monotonic_ns):
         with self._lock:
@@ -787,10 +826,10 @@ def _open_teleop(host, port, stop_event, status):
     return pygame, joystick, adapter, transmitter
 
 
-def _draw_metadata(cv2, frame, overlay_state, packet):
+def _draw_metadata(cv2, frame, decision, packet):
     green = (0, 255, 0)
     orange = (0, 165, 255)
-    if not should_draw_bboxes(overlay_state):
+    if not decision.draw_bboxes:
         cv2.putText(
             frame,
             "OVERLAY_STALE",
@@ -801,6 +840,25 @@ def _draw_metadata(cv2, frame, overlay_state, packet):
             2,
         )
         return
+
+    cv2.putText(
+        frame,
+        decision.provenance_text,
+        (10, 28),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.48,
+        (0, 0, 0),
+        3,
+    )
+    cv2.putText(
+        frame,
+        decision.provenance_text,
+        (10, 28),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.48,
+        green,
+        1,
+    )
 
     height, width = frame.shape[:2]
     for detection in packet.detections if packet is not None else ():
@@ -986,7 +1044,15 @@ def run_viewer(args):
 
             l515_metrics = channels["l515_rgb"].metrics(now_s=now_s)
             d435i_metrics = channels["d435i_rgb"].metrics(now_s=now_s)
-            overlay_state, packet = metadata.snapshot(now_monotonic_ns=now_ns)
+            overlay_state, packet, metadata_received_ns = metadata.snapshot(
+                now_monotonic_ns=now_ns
+            )
+            overlay_decision = overlay_render_decision(
+                overlay_state,
+                packet,
+                now_monotonic_ns=now_ns,
+                received_monotonic_ns=metadata_received_ns,
+            )
             status = teleop_status.snapshot()
             panel_lines = StatusPanel.render_lines(
                 status["requested_mode"],
@@ -1013,7 +1079,7 @@ def run_viewer(args):
                         now_s=now_s,
                     )
                 if channel == "d435i_rgb":
-                    _draw_metadata(cv2, frame, overlay_state, packet)
+                    _draw_metadata(cv2, frame, overlay_decision, packet)
                 _draw_status(cv2, frame, panel_lines)
                 cv2.imshow(windows[channel], frame)
 

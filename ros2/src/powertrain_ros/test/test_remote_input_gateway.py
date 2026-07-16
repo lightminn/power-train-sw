@@ -1,3 +1,6 @@
+import ast
+from contextlib import nullcontext
+from types import SimpleNamespace
 import uuid
 from pathlib import Path
 
@@ -468,3 +471,65 @@ def test_ros_wrapper_exposes_explicit_hold_ack_and_never_imports_pygame():
     assert tick_source.index("if not output.input_fresh:") < tick_source.index(
         "self._publish_assist_bypass(output)"
     )
+
+
+def test_ros_wrapper_publishes_one_zero_on_each_fresh_to_stale_edge():
+    source_path = (
+        Path(__file__).resolve().parents[1]
+        / "powertrain_ros"
+        / "teleop_command_node.py"
+    )
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    node_class = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "TeleopCommandNode"
+    )
+    tick = next(
+        node
+        for node in node_class.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_tick"
+    )
+    namespace = {
+        "time": SimpleNamespace(monotonic=lambda: 10.0),
+        "make_status_line": lambda _output: "status",
+    }
+    module = ast.Module(body=[tick], type_ignores=[])
+    ast.fix_missing_locations(module)
+    exec(compile(module, str(source_path), "exec"), namespace)
+
+    def output(input_fresh, value):
+        return SimpleNamespace(
+            input_fresh=input_fresh,
+            drive=SimpleNamespace(linear=value, angular=value),
+            arm=SimpleNamespace(joint_velocity=value, gripper=value),
+        )
+
+    fresh_one = output(True, 0.4)
+    stale_one = output(False, 0.0)
+    stale_two = output(False, 0.0)
+    fresh_two = output(True, 0.2)
+    stale_three = output(False, 0.0)
+    outputs = iter((fresh_one, stale_one, stale_two, fresh_two, stale_three))
+    published = {"drive": [], "arm": [], "bypass": []}
+    node = SimpleNamespace(
+        _drain_events=lambda: None,
+        _gateway=SimpleNamespace(tick=lambda _now: next(outputs)),
+        _status_lock=nullcontext(),
+        _input_was_fresh=False,
+        _publish_drive=published["drive"].append,
+        _publish_arm=published["arm"].append,
+        _publish_assist_bypass=published["bypass"].append,
+    )
+
+    for _ in range(5):
+        namespace["_tick"](node)
+
+    assert published["drive"] == [
+        fresh_one,
+        stale_one,
+        fresh_two,
+        stale_three,
+    ]
+    assert published["arm"] == published["drive"]
+    assert published["bypass"] == [fresh_one, fresh_two]

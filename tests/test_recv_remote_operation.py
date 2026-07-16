@@ -5,6 +5,7 @@ import subprocess
 import sys
 import queue
 import threading
+from types import SimpleNamespace
 
 import pytest
 
@@ -26,6 +27,7 @@ from scripts.recv_remote_operation import (
     build_feedback_report,
     parse_args,
     parse_status_line,
+    overlay_render_decision,
     should_draw_bboxes,
 )
 
@@ -108,10 +110,13 @@ def test_metadata_snapshot_tolerates_update_after_caller_captured_time():
     )
     receiver._accept_packet(packet, received_monotonic_ns=2_000_000_000)
 
-    overlay_state, latest = receiver.snapshot(now_monotonic_ns=1_000_000_000)
+    overlay_state, latest, received_ns = receiver.snapshot(
+        now_monotonic_ns=1_000_000_000
+    )
 
     assert overlay_state == "FRESH"
     assert latest == packet
+    assert received_ns == 2_000_000_000
 
 
 def test_worker_error_remains_visible_after_worker_requests_stop():
@@ -241,6 +246,72 @@ def test_stale_overlay_hides_bboxes_without_hiding_raw_frame():
 
     with pytest.raises(ValueError, match="overlay_state"):
         should_draw_bboxes("UNKNOWN")
+
+
+def test_overlay_render_decision_exposes_source_sequence_and_local_age():
+    from remote_video.metadata import MetadataPacket
+
+    packet = MetadataPacket(
+        schema_version=1,
+        session_id="session",
+        sequence=9,
+        source_frame_sequence=270,
+        capture_stamp_ns=123,
+        detections=(),
+    )
+
+    decision = overlay_render_decision(
+        "FRESH",
+        packet,
+        now_monotonic_ns=2_125_000_000,
+        received_monotonic_ns=2_000_000_000,
+    )
+
+    assert decision.draw_bboxes is True
+    assert decision.source_frame_sequence == 270
+    assert decision.age_ms == pytest.approx(125.0)
+    assert decision.provenance_text == "seq=270 age=125.0ms"
+
+
+def test_draw_metadata_always_renders_fresh_overlay_provenance_text():
+    from remote_video.metadata import MetadataPacket
+
+    packet = MetadataPacket(
+        schema_version=1,
+        session_id="session",
+        sequence=9,
+        source_frame_sequence=270,
+        capture_stamp_ns=123,
+        detections=(),
+    )
+    decision = overlay_render_decision(
+        "FRESH",
+        packet,
+        now_monotonic_ns=2_125_000_000,
+        received_monotonic_ns=2_000_000_000,
+    )
+
+    class FakeCv2:
+        FONT_HERSHEY_SIMPLEX = 0
+
+        def __init__(self):
+            self.texts = []
+
+        def putText(self, _frame, text, *_args):
+            self.texts.append(text)
+
+        def rectangle(self, *_args):
+            raise AssertionError("empty detection packet must not draw boxes")
+
+    cv2 = FakeCv2()
+    viewer._draw_metadata(
+        cv2,
+        SimpleNamespace(shape=(720, 1280, 3)),
+        decision,
+        packet,
+    )
+
+    assert "seq=270 age=125.0ms" in cv2.texts
 
 
 @pytest.mark.parametrize(

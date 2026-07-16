@@ -154,6 +154,18 @@ def test_teleop_selection_composes_fresh_correction_after_authority():
     )
 
 
+def test_neutral_teleop_selection_stays_exactly_zero_with_fresh_correction():
+    node = _node()
+    node._authority.submit(MANUAL_SOURCE, 0.0, 0.0, 10.0)
+
+    node._tick_authority(10.0)
+
+    assert node.cm.commands == [(0.0, 0.0)]
+    assert (node._authority_final_v, node._authority_final_omega) == (0.0, 0.0)
+    event = node._observability_event_client.events[-1]
+    assert event["payload"]["reasons"] == ["operator_neutral"]
+
+
 def test_bypass_true_returns_raw_teleop_on_the_next_authority_tick():
     node = _node(bypass=True)
 

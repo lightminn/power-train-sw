@@ -21,6 +21,7 @@ from powertrain_ros.lead_follower_node import (
     LeadFollowerNode,
     _apply_tf,
 )
+from chassis.follow import FollowResult
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -198,3 +199,66 @@ def test_stale_detection_stamp_is_rejected_even_with_static_tf():
         assert "stale" in follower._last.reason
     finally:
         harness.close(follower)
+
+
+def test_ok_to_not_ok_edge_publishes_one_zero_and_rearms_after_resume():
+    class Publisher:
+        def __init__(self):
+            self.messages = []
+
+        def publish(self, message):
+            self.messages.append(message)
+
+    follower = _node()
+    follower.pub_cmd = Publisher()
+    follower.pub_state = Publisher()
+    follower.pub_active = Publisher()
+    tracking = FollowResult(True, 0.3, 0.1, state="TRACKING")
+    lost = FollowResult(False, state="LOST")
+    try:
+        follower._publish_result(tracking)
+        follower._publish_result(lost)
+        follower._publish_result(lost)
+        follower._publish_result(tracking)
+        follower._publish_result(lost)
+
+        commands = follower.pub_cmd.messages
+        assert [(message.linear.x, message.angular.z) for message in commands] == [
+            (0.3, 0.1),
+            (0.0, 0.0),
+            (0.3, 0.1),
+            (0.0, 0.0),
+        ]
+    finally:
+        follower.destroy_node()
+
+
+def test_frame_gate_transition_publishes_one_zero_until_command_resumes():
+    class Publisher:
+        def __init__(self):
+            self.messages = []
+
+        def publish(self, message):
+            self.messages.append(message)
+
+    follower = _node()
+    follower.pub_cmd = Publisher()
+    follower.pub_state = Publisher()
+    follower.pub_active = Publisher()
+    tracking = FollowResult(True, 0.3, 0.1, state="TRACKING")
+    try:
+        follower._publish_result(tracking)
+        follower._publish_result(tracking, allow_command=False)
+        follower._publish_result(tracking, allow_command=False)
+        follower._publish_result(tracking)
+        follower._publish_result(tracking, allow_command=False)
+
+        commands = follower.pub_cmd.messages
+        assert [(message.linear.x, message.angular.z) for message in commands] == [
+            (0.3, 0.1),
+            (0.0, 0.0),
+            (0.3, 0.1),
+            (0.0, 0.0),
+        ]
+    finally:
+        follower.destroy_node()

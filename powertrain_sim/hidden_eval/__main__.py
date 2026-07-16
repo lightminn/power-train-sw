@@ -15,6 +15,16 @@ from ..procedural import (
 from ..scenario import SEED_CLASSES, parse_scenario
 
 
+def evaluate_report(report) -> tuple[bool, str]:
+    """Apply hidden-evaluation guards without mutating the metrics report."""
+
+    if not report.passed:
+        return False, "metrics_failed"
+    if report.completion_ratio <= 0.05:
+        return False, "no_progress"
+    return True, "passed"
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("seed", type=int, help="PCG64 scenario seed")
@@ -41,8 +51,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         encoding="utf-8",
     )
     report = run_closed_loop(parse_scenario(document), output)
+    passed, reason = evaluate_report(report)
     print(report.summary())
-    return 0 if report.passed else 1
+    if reason == "no_progress":
+        print("hidden_eval=no_progress")
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":

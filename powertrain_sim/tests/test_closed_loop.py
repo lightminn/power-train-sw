@@ -6,8 +6,11 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
+
+from powertrain_sim.hidden_eval.__main__ import evaluate_report
 
 
 pytest.importorskip("mujoco")
@@ -127,6 +130,27 @@ def test_hidden_evaluation_cli_records_hash_and_matches_report_exit(tmp_path):
         (run_directory / "metrics.json").read_text(encoding="utf-8")
     )
     scenario_text = (run_directory / "scenario.yaml").read_text(encoding="utf-8")
-    assert completed.returncode == (0 if metrics["passed"] else 1)
+    expected_pass = metrics["passed"] and metrics["completion_ratio"] > 0.05
+    assert completed.returncode == (0 if expected_pass else 1)
     assert completed.stdout.strip().startswith("MetricsReport[")
     assert re.search(r"^# canonical_json_sha256: [0-9a-f]{64}$", scenario_text, re.MULTILINE)
+
+
+def test_hidden_evaluation_rejects_passed_report_without_progress():
+    report = SimpleNamespace(passed=True, completion_ratio=0.05)
+
+    assert evaluate_report(report) == (False, "no_progress")
+
+
+@pytest.mark.parametrize(
+    ("report", "expected"),
+    [
+        (SimpleNamespace(passed=True, completion_ratio=0.8), (True, "passed")),
+        (
+            SimpleNamespace(passed=False, completion_ratio=0.8),
+            (False, "metrics_failed"),
+        ),
+    ],
+)
+def test_hidden_evaluation_preserves_normal_report_verdict(report, expected):
+    assert evaluate_report(report) == expected
