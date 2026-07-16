@@ -49,6 +49,16 @@ def generate_launch_description():
                     "before explicit service reactivation is required"
                 ),
             ),
+            DeclareLaunchArgument(
+                "authority_enabled",
+                default_value="false",
+                choices=["true", "false"],
+                description=(
+                    "Embedded CommandAuthority path (/teleop/cmd_vel + "
+                    "/autonomy/cmd_vel selection); false keeps the "
+                    "deprecated external /cmd_vel subscription"
+                ),
+            ),
             SetParameter(
                 name="contract_v2_verified",
                 value=ParameterValue(
@@ -65,6 +75,13 @@ def generate_launch_description():
                 value=ParameterValue(
                     LaunchConfiguration("arm_override_ttl_s"),
                     value_type=float,
+                ),
+            ),
+            SetParameter(
+                name="authority_enabled",
+                value=ParameterValue(
+                    LaunchConfiguration("authority_enabled"),
+                    value_type=bool,
                 ),
             ),
             Node(
