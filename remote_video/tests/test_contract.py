@@ -1,0 +1,44 @@
+from l515_dashboard.receiver_feedback import (
+    D435I_UNAVAILABLE_VERDICT as DASHBOARD_D435I_UNAVAILABLE_VERDICT,
+    L515_UNAVAILABLE_VERDICT as DASHBOARD_L515_UNAVAILABLE_VERDICT,
+)
+from remote_video.contract import (
+    D435I_METADATA_UDP_PORT,
+    D435I_RGB_FPS,
+    D435I_RGB_HEIGHT,
+    D435I_RGB_SRT_PORT,
+    D435I_RGB_WIDTH,
+    D435I_UNAVAILABLE_VERDICT,
+    L515_RGB_FPS,
+    L515_RGB_HEIGHT,
+    L515_RGB_SRT_PORT,
+    L515_RGB_WIDTH,
+    L515_UNAVAILABLE_VERDICT,
+    MAX_METADATA_BYTES,
+    METADATA_SCHEMA_VERSION,
+)
+
+
+def test_dual_video_and_metadata_channel_contract_values():
+    assert (L515_RGB_SRT_PORT, L515_RGB_WIDTH, L515_RGB_HEIGHT, L515_RGB_FPS) == (
+        5000,
+        1280,
+        720,
+        30,
+    )
+    assert (
+        D435I_RGB_SRT_PORT,
+        D435I_RGB_WIDTH,
+        D435I_RGB_HEIGHT,
+        D435I_RGB_FPS,
+    ) == (5002, 848, 480, 30)
+    assert D435I_METADATA_UDP_PORT == 5003
+    assert METADATA_SCHEMA_VERSION == 1
+    assert MAX_METADATA_BYTES == 16 * 1024
+
+
+def test_remote_video_is_verdict_authority_for_future_dashboard_wiring():
+    assert L515_UNAVAILABLE_VERDICT == "REMOTE_DRIVE_VIDEO_UNAVAILABLE"
+    assert D435I_UNAVAILABLE_VERDICT == "REMOTE_ARM_VIDEO_UNAVAILABLE"
+    assert DASHBOARD_L515_UNAVAILABLE_VERDICT == L515_UNAVAILABLE_VERDICT
+    assert DASHBOARD_D435I_UNAVAILABLE_VERDICT == D435I_UNAVAILABLE_VERDICT
