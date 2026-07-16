@@ -404,6 +404,10 @@ def test_repository_terrain_yaml_is_fail_closed_until_real_qualification():
 
 
 def test_autonomy_image_and_compose_service_are_profile_gated_and_idle():
+    if not (ROOT / "docker/Dockerfile.autonomy").exists():
+        # 레포 수준 계약: docker/ 를 담지 않는 배포 이미지 안(in-image verify)
+        # 에서는 검사 대상이 없다 — 호스트/dev 실행이 이 계약을 강제한다.
+        pytest.skip("docker/ context is not shipped inside the autonomy image")
     dockerfile = (ROOT / "docker/Dockerfile.autonomy").read_text(encoding="utf-8")
     compose = yaml.safe_load(
         (ROOT / "docker/docker-compose.jetson.yml").read_text(encoding="utf-8")
