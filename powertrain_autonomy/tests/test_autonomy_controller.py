@@ -15,6 +15,7 @@ from powertrain_autonomy.controller import (
     DriveProfile,
     MotionState,
     ProfileGate,
+    assist_correction_from_terrain,
     profile_by_name,
     validate_carrying_profile_invariant,
 )
@@ -54,6 +55,52 @@ def motion(stamp_s=0.0, **overrides):
 
 def gate(stamp_s=0.0, status="STOWED_LOCKED"):
     return ProfileGate(stamp_s=stamp_s, status=status)
+
+
+def test_assist_correction_requires_an_available_finite_path():
+    config = AutonomyControllerConfig()
+
+    assert assist_correction_from_terrain(None, config) is None
+    assert assist_correction_from_terrain(
+        terrain(path_available=False),
+        config,
+    ) is None
+    assert assist_correction_from_terrain(
+        terrain(path_offset_m=math.nan),
+        config,
+    ) is None
+
+
+def test_assist_correction_uses_separate_yaw_clamp_and_empty_speed_cap():
+    config = AutonomyControllerConfig()
+    estimate = terrain(
+        path_offset_m=1.0,
+        heading_error_rad=1.0,
+        left_wheel_clearance_m=0.175,
+        right_wheel_clearance_m=0.175,
+        bank_angle_rad=math.radians(11.0),
+        longitudinal_slope_rad=math.radians(12.0),
+        confidence=0.425,
+    )
+
+    correction = assist_correction_from_terrain(estimate, config)
+
+    assert correction is not None
+    omega, speed_cap, confidence = correction
+    assert omega == pytest.approx(0.4)
+    assert speed_cap == pytest.approx(0.096)
+    assert confidence == pytest.approx(0.425)
+
+
+def test_assist_speed_cap_is_empty_stowed_max_on_clear_confident_path():
+    omega, speed_cap, confidence = assist_correction_from_terrain(
+        terrain(path_offset_m=-0.1, heading_error_rad=0.05),
+        AutonomyControllerConfig(),
+    )
+
+    assert omega == pytest.approx(-0.02)
+    assert speed_cap == pytest.approx(EMPTY_STOWED.max_speed_m_s)
+    assert confidence == pytest.approx(0.9)
 
 
 def diagnostics(stamp_s=0.0, **overrides):

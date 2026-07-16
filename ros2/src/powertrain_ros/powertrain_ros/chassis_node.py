@@ -19,6 +19,7 @@ No ROS ``/cmd_vel`` message is republished by the embedded path.
   the ``authority_clear_hold`` acknowledgement before another owner request.
 """
 
+import json
 import math
 import os
 import sys
@@ -51,6 +52,8 @@ sys.path.insert(
     0,
     os.environ.get("MOTOR_CONTROL_PATH", "/workspace/motor_control"),
 )
+
+from chassis import remote_assist  # noqa: E402
 
 
 # A no-response US-100 transaction can consume two 0.2 s request paths.
@@ -139,6 +142,7 @@ class ChassisNode(Node):
         )
         self.declare_parameter("safety_startup_timeout", 1.0)
         self.declare_parameter("authority_enabled", False)
+        self.declare_parameter("assist_enabled", False)
         self.declare_parameter("contract_v2_verified", False)
         self.declare_parameter("arm_gate_mode", "production")
         self.declare_parameter("arm_override_ttl_s", 30.0)
@@ -162,6 +166,10 @@ class ChassisNode(Node):
         self._authority_enabled = bool(
             self.get_parameter("authority_enabled").value
         )
+        self._assist_enabled = bool(
+            self.get_parameter("assist_enabled").value
+        ) and self._authority_enabled
+        self._profile_max_speed_m_s = v_max
         self._contract_v2_verified = bool(
             self.get_parameter("contract_v2_verified").value
         )
@@ -257,6 +265,17 @@ class ChassisNode(Node):
         self._last_arm_result_event_ns = 0
         self._last_arm_result_event_key = None
         self._arm_result_event_period_ns = 1_000_000_000
+        self._assist_config = remote_assist.AssistConfig()
+        # TODO(WP7/WP8): lead-distance cap and work-point alignment belong to
+        # their qualified target contracts, not this terrain-only first part.
+        self._assist_correction = None
+        self._assist_bypass_active = False
+        self._assist_bypass_stamp_s = None
+        self._last_assist_parse_warning_ns = 0
+        self._assist_parse_warning_period_ns = 1_000_000_000
+        self._last_remote_assist_event_ns = 0
+        self._last_remote_assist_event_state = None
+        self._remote_assist_event_period_ns = 1_000_000_000
         self._arm_interlock = ArmInterlock(timeout_s=0.5)
         # arm_absent_field의 mock은 실제 sample/latch와 분리한다. publisher가
         # 나타나는 tick부터 이 객체를 선택하지 않아 즉시 real default-deny로 복귀한다.
@@ -322,6 +341,18 @@ class ChassisNode(Node):
                 Twist,
                 "/autonomy/cmd_vel",
                 lambda msg: self._on_authority_cmd(AUTO_SOURCE, msg),
+                10,
+            )
+            self.create_subscription(
+                String,
+                "/autonomy/assist_correction",
+                self._on_assist_correction,
+                10,
+            )
+            self.create_subscription(
+                Bool,
+                "/teleop/assist_bypass",
+                self._on_assist_bypass,
                 10,
             )
             self.create_subscription(
@@ -921,6 +952,54 @@ class ChassisNode(Node):
             self._now_ms() / 1000.0,
         )
 
+    def _on_assist_correction(self, msg: String):
+        try:
+            payload = json.loads(msg.data)
+            fields = {
+                "stamp_s",
+                "omega_correction_rad_s",
+                "speed_cap_m_s",
+                "confidence",
+            }
+            if not isinstance(payload, dict) or set(payload) != fields:
+                raise ValueError("assist correction fields do not match contract")
+            if any(isinstance(payload[name], bool) for name in fields):
+                raise ValueError("assist correction values must be numeric")
+            correction = remote_assist.AssistCorrection(
+                stamp_s=float(payload["stamp_s"]),
+                omega_correction_rad_s=float(
+                    payload["omega_correction_rad_s"]
+                ),
+                speed_cap_m_s=float(payload["speed_cap_m_s"]),
+                confidence=float(payload["confidence"]),
+            )
+        except (
+            json.JSONDecodeError,
+            KeyError,
+            OverflowError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            now_ns = time.monotonic_ns()
+            previous_ns = getattr(self, "_last_assist_parse_warning_ns", 0)
+            period_ns = getattr(
+                self,
+                "_assist_parse_warning_period_ns",
+                1_000_000_000,
+            )
+            if not previous_ns or now_ns - previous_ns >= period_ns:
+                self._last_assist_parse_warning_ns = now_ns
+                self.get_logger().warning(
+                    "malformed /autonomy/assist_correction ignored: %s" % exc
+                )
+            return False
+        self._assist_correction = correction
+        return True
+
+    def _on_assist_bypass(self, msg: Bool):
+        self._assist_bypass_active = bool(msg.data)
+        self._assist_bypass_stamp_s = self._now_s()
+
     def _on_wheel_states_for_stop(self, msg: WheelStates):
         from powertrain_ros.wheel_stop import (
             WheelStopSample,
@@ -968,13 +1047,51 @@ class ChassisNode(Node):
 
     def _tick_authority(self, now_s):
         command = self._authority.select(now_s)
+        final_v = command.v
+        final_omega = command.omega
+        assist_suffix = ""
+        if (
+            getattr(self, "_assist_enabled", False)
+            and self._authority.mode == "TELEOP"
+        ):
+            assist_suffix = "|assist=off"
+            if command.ok:
+                result = remote_assist.compose(
+                    command.v,
+                    command.omega,
+                    now_s=now_s,
+                    correction=self._assist_correction,
+                    bypass_active=self._assist_bypass_active,
+                    bypass_stamp_s=self._assist_bypass_stamp_s,
+                    enabled=True,
+                    config=self._assist_config,
+                    profile_max_speed_m_s=self._profile_max_speed_m_s,
+                )
+                final_v = result.v_m_s
+                final_omega = result.omega_rad_s
+                assist_suffix = (
+                    "|assist=on" if result.applied else "|assist=off"
+                )
+                assist_state = (
+                    "engaged"
+                    if result.applied
+                    else (
+                        "bypassed"
+                        if "assist_bypass" in result.reasons
+                        else "degraded"
+                    )
+                )
+                self._emit_remote_assist_event(assist_state, result)
         self.pub_authority_state.publish(
-            String(data="%s|%s" % (self._authority.mode, command.reason))
+            String(
+                data="%s|%s%s"
+                % (self._authority.mode, command.reason, assist_suffix)
+            )
         )
         if command.ok:
-            self._authority_final_v = command.v
-            self._authority_final_omega = command.omega
-            self.cm.set(command.v, command.omega)
+            self._authority_final_v = final_v
+            self._authority_final_omega = final_omega
+            self.cm.set(final_v, final_omega)
 
     def _on_safety_verdict(self, msg):
         status_name = {
@@ -1122,6 +1239,49 @@ class ChassisNode(Node):
                 snapshot,
                 monotonic_ns=now_ns,
             )))
+        except Exception:
+            return False
+
+    def _emit_remote_assist_event(self, state, result):
+        """Emit assist state transitions at most once per second."""
+        if state == getattr(self, "_last_remote_assist_event_state", None):
+            return False
+        now_ns = time.monotonic_ns()
+        previous_ns = getattr(self, "_last_remote_assist_event_ns", 0)
+        period_ns = getattr(
+            self,
+            "_remote_assist_event_period_ns",
+            1_000_000_000,
+        )
+        if previous_ns and now_ns - previous_ns < period_ns:
+            return False
+        self._last_remote_assist_event_ns = now_ns
+        self._last_remote_assist_event_state = state
+        client = getattr(self, "_observability_event_client", None)
+        if client is None:
+            return False
+        try:
+            return bool(
+                client.emit(
+                    {
+                        "schema_version": 1,
+                        "wall_time_ns": time.time_ns(),
+                        "monotonic_ns": now_ns,
+                        "source": "chassis_node",
+                        "event_type": "REMOTE_ASSIST",
+                        "severity": (
+                            "WARN" if state == "degraded" else "INFO"
+                        ),
+                        "payload": {
+                            "state": state,
+                            "applied": bool(result.applied),
+                            "reasons": list(result.reasons),
+                            "v_m_s": float(result.v_m_s),
+                            "omega_rad_s": float(result.omega_rad_s),
+                        },
+                    }
+                )
+            )
         except Exception:
             return False
 

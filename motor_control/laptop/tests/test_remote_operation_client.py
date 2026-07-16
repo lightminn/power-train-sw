@@ -1,13 +1,15 @@
 import json
 import sys
 
+import pytest
+
 from motor_control.laptop import remote_operation_client as client
 
 
 class FakeController:
     def __init__(self):
         self.axes = {0: -0.25, 2: -1.0, 3: 0.5, 5: 1.0}
-        self.buttons = {1: 0, 3: 0, 4: 1, 8: 0, 9: 0}
+        self.buttons = {1: 0, 3: 0, 4: 1, 5: 0, 8: 0, 9: 0}
         self.hat = (0, 0)
 
     def get_axis(self, index):
@@ -51,6 +53,7 @@ def test_module_import_and_encoding_do_not_require_pygame():
         dpad_y=0,
         mode_chord=False,
         estop_edge=False,
+        assist_bypass=True,
     )
     payload = client.encode_frame(
         sample,
@@ -59,9 +62,10 @@ def test_module_import_and_encoding_do_not_require_pygame():
         client_monotonic_ns=123,
     )
     wire = json.loads(payload)
-    assert wire["schema_version"] == 1
+    assert wire["schema_version"] == 2
     assert wire["sequence"] == 7
     assert wire["axes"]["right_trigger"] == 0.75
+    assert wire["assist_bypass"] is True
 
     assert payload.endswith(b"\n")
     assert len(payload) <= 2 * 1024
@@ -74,7 +78,16 @@ def test_default_guid_mapping_uses_measured_dualsense_indices():
     assert mapping["left_trigger_axis"] == 2
     assert mapping["square_button"] == 3
     assert mapping["circle_button"] == 1
-    assert mapping["config_version"] == "v1-initial-candidate"
+    assert mapping["assist_bypass_button"] == 5
+    assert mapping["config_version"] == "v2-initial-candidate"
+
+
+def test_v2_client_rejects_legacy_mapping_without_assist_bypass_button():
+    with pytest.raises(ValueError, match="assist_bypass"):
+        client.mapping_for_guid(
+            "unknown-guid",
+            config_version="v1-initial-candidate",
+        )
 
 
 def test_fake_controller_maps_raw_input_and_emits_estop_edge_only_once():
@@ -93,6 +106,21 @@ def test_fake_controller_maps_raw_input_and_emits_estop_edge_only_once():
     joystick.buttons[1] = 1
     assert reader.sample(now_ns=1).estop_edge is True
     assert reader.sample(now_ns=2).estop_edge is False
+
+
+def test_r1_hold_maps_directly_to_assist_bypass():
+    joystick = FakeController()
+    reader = client.DualSenseInputAdapter(
+        joystick,
+        client.mapping_for_guid("fake-guid"),
+    )
+
+    assert reader.sample(now_ns=0).assist_bypass is False
+    joystick.buttons[5] = 1
+    assert reader.sample(now_ns=1).assist_bypass is True
+    assert reader.sample(now_ns=2).assist_bypass is True
+    joystick.buttons[5] = 0
+    assert reader.sample(now_ns=3).assist_bypass is False
 
 
 def test_mode_chord_must_be_held_for_one_second_before_request_changes():

@@ -48,6 +48,7 @@ class GatewayOutput:
     arm: ArmOutput
     reason: str = ""
     input_fresh: bool = False
+    assist_bypass: bool = False
 
 
 def gated_arm_output(output, *, enabled=False):
@@ -109,6 +110,11 @@ class RemoteInputGateway:
             arm=ArmOutput(joint_name=JOINT_NAMES[self._selected_joint]),
             reason=self._last_reason if reason is None else reason,
             input_fresh=fresh,
+            assist_bypass=(
+                bool(self._frame.assist_bypass)
+                if fresh and self._frame is not None
+                else False
+            ),
         )
 
     def begin_connection(self):
@@ -284,6 +290,7 @@ class RemoteInputGateway:
             arm=ArmOutput(joint_name=JOINT_NAMES[self._selected_joint]),
             reason=self._last_reason,
             input_fresh=True,
+            assist_bypass=bool(frame.assist_bypass),
         )
 
     def _arm_output(self, frame):
@@ -319,6 +326,7 @@ class RemoteInputGateway:
             ),
             reason=self._last_reason,
             input_fresh=True,
+            assist_bypass=bool(frame.assist_bypass),
         )
 
     def tick(self, now_s):

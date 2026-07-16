@@ -12,7 +12,7 @@ import math
 import uuid
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MAX_RECORD_BYTES = 2 * 1024
 DEFAULT_INPUT_TIMEOUT_S = 0.20
 CONTRACT_VIOLATION = "CONTRACT_VIOLATION:"
@@ -29,6 +29,7 @@ _TOP_LEVEL_FIELDS = {
     "dpad",
     "mode_chord",
     "estop_edge",
+    "assist_bypass",
 }
 _AXIS_FIELDS = {
     "left_x",
@@ -65,6 +66,7 @@ class RemoteInputFrame:
     dpad: DPad
     mode_chord: bool
     estop_edge: bool
+    assist_bypass: bool
     received_monotonic_s: float
     input_timeout_s: float = DEFAULT_INPUT_TIMEOUT_S
 
@@ -250,6 +252,10 @@ class RemoteInputDecoder:
                 payload["estop_edge"],
                 "estop_edge",
             )
+            assist_bypass = _strict_bool(
+                payload["assist_bypass"],
+                "assist_bypass",
+            )
 
             axes = payload["axes"]
             _exact_fields(axes, _AXIS_FIELDS, "axes")
@@ -310,6 +316,7 @@ class RemoteInputDecoder:
                 dpad=parsed_dpad,
                 mode_chord=mode_chord,
                 estop_edge=estop_edge,
+                assist_bypass=assist_bypass,
                 received_monotonic_s=received_s,
                 input_timeout_s=self.input_timeout_s,
             )

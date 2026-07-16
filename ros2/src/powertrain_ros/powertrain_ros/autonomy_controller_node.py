@@ -42,6 +42,7 @@ from powertrain_autonomy.controller import (  # noqa: E402
     DriveDiagnostics,
     MotionState,
     ProfileGate,
+    assist_correction_from_terrain,
     profile_by_name,
 )
 from powertrain_autonomy.terrain import (  # noqa: E402
@@ -174,6 +175,11 @@ class AutonomyControllerNode(Node):
         self.pub_terrain_state = self.create_publisher(
             String,
             "/autonomy/terrain_state",
+            10,
+        )
+        self.pub_assist_correction = self.create_publisher(
+            String,
+            "/autonomy/assist_correction",
             10,
         )
 
@@ -424,6 +430,27 @@ class AutonomyControllerNode(Node):
 
     def _tick(self) -> None:
         now_s = self._now_s()
+        assist = assist_correction_from_terrain(
+            self._terrain,
+            self.controller.config,
+        )
+        if assist is not None:
+            omega_correction, speed_cap, confidence = assist
+            self.pub_assist_correction.publish(
+                String(
+                    data=json.dumps(
+                        {
+                            "stamp_s": float(self._terrain.stamp_s),
+                            "omega_correction_rad_s": omega_correction,
+                            "speed_cap_m_s": speed_cap,
+                            "confidence": confidence,
+                        },
+                        allow_nan=False,
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    )
+                )
+            )
         decision = self.controller.decide(
             now_s,
             terrain=self._terrain,

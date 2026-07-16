@@ -15,6 +15,7 @@ from control_msgs.msg import JointJog
 from geometry_msgs.msg import Twist
 import rclpy
 from rclpy.node import Node
+from std_msgs.msg import Bool
 from std_srvs.srv import Trigger
 
 from powertrain_ros.remote_input import RemoteInputDecoder
@@ -89,6 +90,11 @@ class TeleopCommandNode(Node):
         self.pub_arm = self.create_publisher(
             JointJog,
             "/arm/teleop_jog",
+            10,
+        )
+        self.pub_assist_bypass = self.create_publisher(
+            Bool,
+            "/teleop/assist_bypass",
             10,
         )
         self.create_service(Trigger, "~/clear_hold", self._clear_hold)
@@ -216,6 +222,11 @@ class TeleopCommandNode(Node):
         message.velocities = [float(arm.joint_velocity)]
         self.pub_arm.publish(message)
 
+    def _publish_assist_bypass(self, output):
+        message = Bool()
+        message.data = bool(output.assist_bypass)
+        self.pub_assist_bypass.publish(message)
+
     def _clear_hold(self, _request, response):
         response.success = self._gateway.clear_hold()
         response.message = (
@@ -238,6 +249,7 @@ class TeleopCommandNode(Node):
             return
         self._publish_drive(output)
         self._publish_arm(output)
+        self._publish_assist_bypass(output)
 
     def close(self):
         if self._closed:

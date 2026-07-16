@@ -17,7 +17,7 @@ import uuid
 DEFAULT_HOST = "192.168.8.106"
 DEFAULT_PORT = 9000
 SEND_HZ = 30.0
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MAX_RECORD_BYTES = 2 * 1024
 MODE_CHORD_HOLD_NS = 1_000_000_000
 TRIGGER_DEADZONE = 0.03
@@ -41,6 +41,22 @@ SDL_GUID_CONFIGS = {
             "create_button": 8,        # initial candidate
             "options_button": 9,       # initial candidate
             "dpad_hat": 0,
+        },
+        # Versioned initial candidate: R1 hold bypasses assist.  This may
+        # change only through a new mapping after HIL and operator feedback.
+        "v2-initial-candidate": {
+            "config_version": "v2-initial-candidate",
+            "left_x_axis": 0,          # measured LX
+            "right_y_axis": 3,         # initial candidate; verify per GUID
+            "right_trigger_axis": 5,   # measured RT
+            "left_trigger_axis": 2,    # measured LT
+            "square_button": 3,        # measured square; reserved
+            "circle_button": 1,        # measured circle / E-stop
+            "deadman_button": 4,       # L1 initial candidate
+            "assist_bypass_button": 5,  # R1 hold initial candidate
+            "create_button": 8,        # initial candidate
+            "options_button": 9,       # initial candidate
+            "dpad_hat": 0,
         }
     }
 }
@@ -58,6 +74,7 @@ class ClientInput:
     dpad_y: int = 0
     mode_chord: bool = False
     estop_edge: bool = False
+    assist_bypass: bool = False
 
 
 def mapping_for_guid(guid, config_version=None):
@@ -68,12 +85,18 @@ def mapping_for_guid(guid, config_version=None):
     if config_version is None:
         config_version = next(reversed(versions))
     try:
-        return dict(versions[config_version])
+        mapping = dict(versions[config_version])
     except KeyError:
         raise ValueError(
             "unknown mapping version %r for SDL GUID %s"
             % (config_version, guid)
         ) from None
+    if SCHEMA_VERSION >= 2 and "assist_bypass_button" not in mapping:
+        raise ValueError(
+            "mapping version %r has no assist_bypass button for schema v2"
+            % config_version
+        )
+    return mapping
 
 
 def _finite_clamped(value, low, high):
@@ -157,6 +180,7 @@ class DualSenseInputAdapter:
             dpad_y=int(max(-1, min(1, dpad_y))),
             mode_chord=chord,
             estop_edge=estop_edge,
+            assist_bypass=self._button("assist_bypass_button"),
         )
 
 
@@ -183,6 +207,7 @@ def encode_frame(
         "dpad": {"x": int(sample.dpad_x), "y": int(sample.dpad_y)},
         "mode_chord": bool(sample.mode_chord),
         "estop_edge": bool(sample.estop_edge),
+        "assist_bypass": bool(sample.assist_bypass),
     }
     try:
         record = (

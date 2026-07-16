@@ -31,10 +31,11 @@ def _frame(
     dpad_x=0,
     mode_chord=False,
     estop_edge=False,
+    assist_bypass=False,
     session_id=None,
 ):
     return RemoteInputFrame(
-        schema_version=1,
+        schema_version=2,
         session_id=session_id or str(uuid.uuid4()),
         sequence=sequence,
         client_monotonic_ns=0,
@@ -49,6 +50,7 @@ def _frame(
         dpad=DPad(x=dpad_x, y=0),
         mode_chord=mode_chord,
         estop_edge=estop_edge,
+        assist_bypass=assist_bypass,
         received_monotonic_s=received_s,
         input_timeout_s=0.20,
     )
@@ -106,6 +108,29 @@ def test_30hz_drive_stops_on_stale_and_hold_clear_never_restores_command():
     assert gateway.clear_hold()
     assert gateway.state == DISCONNECTED
     _assert_zero(gateway.tick(now_s + 0.21))
+
+
+def test_assist_bypass_is_unmodified_only_while_input_is_fresh():
+    gateway = RemoteInputGateway()
+    session_id = _connect_drive(gateway)
+    gateway.submit(
+        _frame(
+            sequence=1,
+            received_s=0.01,
+            deadman=True,
+            right_trigger=0.4,
+            assist_bypass=True,
+            session_id=session_id,
+        )
+    )
+
+    fresh = gateway.tick(0.01)
+    assert fresh.input_fresh is True
+    assert fresh.assist_bypass is True
+
+    stale = gateway.tick(0.210001)
+    assert stale.input_fresh is False
+    assert stale.assist_bypass is False
 
 
 def test_deadman_release_and_estop_edge_zero_on_the_next_tick():
@@ -434,5 +459,12 @@ def test_ros_wrapper_exposes_explicit_hold_ack_and_never_imports_pygame():
     )
     source = source_path.read_text(encoding="utf-8")
     assert '"~/clear_hold"' in source
+    assert '"/teleop/assist_bypass"' in source
     assert "ARM_OUTPUT_ENABLED = False" in source
     assert "import pygame" not in source
+    tick_source = source[source.index("    def _tick(self):") : source.index(
+        "    def close(self):"
+    )]
+    assert tick_source.index("if not output.input_fresh:") < tick_source.index(
+        "self._publish_assist_bypass(output)"
+    )

@@ -5,13 +5,14 @@ from dataclasses import dataclass
 import math
 from typing import TYPE_CHECKING
 
-from .profiles import DriveProfile
+from .profiles import EMPTY_STOWED, DriveProfile
 
 if TYPE_CHECKING:
     from ..terrain import TerrainEstimate
 
 
 _FUTURE_TOLERANCE_S = 0.1
+ASSIST_MAX_OMEGA_CORRECTION_RAD_S = 0.4
 
 
 @dataclass(frozen=True)
@@ -113,6 +114,75 @@ def _slew(current: float, target: float, rise_rate: float, fall_rate: float, dt:
     if target >= current:
         return min(target, current + rise_rate * dt)
     return max(target, current - fall_rate * dt)
+
+
+def assist_correction_from_terrain(
+    terrain: TerrainEstimate | None,
+    config: AutonomyControllerConfig,
+) -> tuple[float, float, float] | None:
+    """Return bounded heading correction, conservative cap, and confidence."""
+    if terrain is None or not terrain.path_available:
+        return None
+    values = (
+        terrain.stamp_s,
+        terrain.path_offset_m,
+        terrain.heading_error_rad,
+        terrain.left_wheel_clearance_m,
+        terrain.right_wheel_clearance_m,
+        terrain.bank_angle_rad,
+        terrain.longitudinal_slope_rad,
+        terrain.confidence,
+    )
+    if not _finite(values) or not 0.0 <= terrain.confidence <= 1.0:
+        return None
+
+    clearance = min(
+        terrain.left_wheel_clearance_m,
+        terrain.right_wheel_clearance_m,
+    )
+    clearance_scale = _clamp(
+        (clearance - config.clearance_hold_m)
+        / (config.clearance_full_m - config.clearance_hold_m),
+        0.0,
+        1.0,
+    )
+    bank_scale = _scale_down(
+        abs(terrain.bank_angle_rad),
+        EMPTY_STOWED.soft_bank_rad,
+        EMPTY_STOWED.max_bank_rad,
+    )
+    slope_scale = _scale_down(
+        abs(terrain.longitudinal_slope_rad),
+        EMPTY_STOWED.soft_slope_rad,
+        EMPTY_STOWED.max_slope_rad,
+    )
+    confidence_scale = 1.0
+    if terrain.confidence < config.full_confidence:
+        fraction = (
+            terrain.confidence - config.min_confidence
+        ) / (config.full_confidence - config.min_confidence)
+        confidence_scale = config.confidence_floor_scale + (
+            1.0 - config.confidence_floor_scale
+        ) * _clamp(fraction, 0.0, 1.0)
+
+    omega_raw = (
+        config.kp_heading * terrain.heading_error_rad
+        + config.kp_offset * terrain.path_offset_m
+    )
+    omega_correction = _clamp(
+        omega_raw,
+        -ASSIST_MAX_OMEGA_CORRECTION_RAD_S,
+        ASSIST_MAX_OMEGA_CORRECTION_RAD_S,
+    )
+    # Manual assist has no payload profile; EMPTY_STOWED is the conservative
+    # fixed basis until braking, bank, and slope HIL qualifies another cap.
+    speed_cap = EMPTY_STOWED.max_speed_m_s * (
+        clearance_scale
+        * bank_scale
+        * slope_scale
+        * confidence_scale
+    )
+    return omega_correction, speed_cap, terrain.confidence
 
 
 class AutonomyController:

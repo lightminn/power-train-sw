@@ -1,6 +1,7 @@
 """ROS adapter tests for the one-process WP6-B/WP6-C node."""
 from __future__ import annotations
 
+import json
 import math
 import time
 
@@ -115,12 +116,19 @@ class Harness:
         self.commands = []
         self.controller_states = []
         self.terrain_states = []
+        self.assist_corrections = []
         self.node.create_subscription(Twist, "/autonomy/cmd_vel", self.commands.append, 10)
         self.node.create_subscription(
             String, "/autonomy/controller_state", self.controller_states.append, 10
         )
         self.node.create_subscription(
             String, "/autonomy/terrain_state", self.terrain_states.append, 10
+        )
+        self.node.create_subscription(
+            String,
+            "/autonomy/assist_correction",
+            self.assist_corrections.append,
+            10,
         )
         self.executor = SingleThreadedExecutor()
         self.executor.add_node(controller)
@@ -180,6 +188,18 @@ def test_synthetic_flat_track_inputs_publish_valid_twist_when_enabled():
         assert math.isfinite(command.linear.x)
         assert math.isfinite(command.angular.z)
         assert command.linear.x >= 0.0
+        harness.spin_until(lambda: bool(harness.assist_corrections))
+        payload = json.loads(harness.assist_corrections[-1].data)
+        assert set(payload) == {
+            "stamp_s",
+            "omega_correction_rad_s",
+            "speed_cap_m_s",
+            "confidence",
+        }
+        assert all(math.isfinite(float(value)) for value in payload.values())
+        assert abs(payload["omega_correction_rad_s"]) <= 0.4
+        assert 0.0 <= payload["speed_cap_m_s"] <= 0.8
+        assert 0.0 <= payload["confidence"] <= 1.0
     finally:
         harness.close(controller)
 
@@ -192,6 +212,7 @@ def test_no_command_is_published_before_first_terrain_estimate():
         harness.publish_motion_gate(controller)
         harness.spin_for(0.20)
         assert harness.commands == []
+        assert harness.assist_corrections == []
         assert harness.controller_states
     finally:
         harness.close(controller)
@@ -206,6 +227,9 @@ def test_disabled_node_publishes_diagnostics_but_no_command():
         harness.spin_until(lambda: bool(harness.terrain_states))
         harness.spin_until(lambda: bool(harness.controller_states))
         assert harness.commands == []
+        harness.spin_until(lambda: bool(harness.assist_corrections))
+        payload = json.loads(harness.assist_corrections[-1].data)
+        assert math.isfinite(payload["omega_correction_rad_s"])
     finally:
         harness.close(controller)
 

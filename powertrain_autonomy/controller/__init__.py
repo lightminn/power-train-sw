@@ -7,6 +7,7 @@ from .core import (
     DriveDiagnostics,
     MotionState,
     ProfileGate,
+    assist_correction_from_terrain,
 )
 from .profiles import (
     CARRYING_LOCKED,
@@ -26,6 +27,7 @@ __all__ = [
     "EMPTY_STOWED",
     "MotionState",
     "ProfileGate",
+    "assist_correction_from_terrain",
     "profile_by_name",
     "validate_carrying_profile_invariant",
 ]

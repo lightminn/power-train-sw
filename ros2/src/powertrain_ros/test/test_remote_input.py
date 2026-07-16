@@ -12,7 +12,7 @@ from powertrain_ros.remote_input import (
 
 def _record(session_id=None, sequence=0, **overrides):
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "session_id": session_id or str(uuid.uuid4()),
         "sequence": sequence,
         "client_monotonic_ns": 10,
@@ -27,6 +27,7 @@ def _record(session_id=None, sequence=0, **overrides):
         "dpad": {"x": 0, "y": 0},
         "mode_chord": False,
         "estop_edge": False,
+        "assist_bypass": False,
     }
     payload.update(overrides)
     return (json.dumps(payload, separators=(",", ":")) + "\n").encode()
@@ -45,7 +46,7 @@ def _assert_violation(result, detail=None):
         assert detail in result.reason
 
 
-def test_accepts_30hz_v1_frames_and_uses_jetson_receive_age_only():
+def test_accepts_30hz_v2_frames_and_uses_jetson_receive_age_only():
     session_id = str(uuid.uuid4())
     decoder = RemoteInputDecoder(input_timeout_s=0.20)
     decoder.start_connection()
@@ -63,6 +64,7 @@ def test_accepts_30hz_v1_frames_and_uses_jetson_receive_age_only():
         )
         assert result.reason == ""
         assert result.frame.sequence == sequence
+        assert result.frame.assist_bypass is False
 
     frame = result.frame
     assert frame.is_fresh(frame.received_monotonic_s + 0.20)
@@ -85,7 +87,7 @@ def test_rejects_duplicate_and_rollback_sequences(sequence):
 @pytest.mark.parametrize(
     "override, detail",
     [
-        ({"schema_version": 2}, "schema_version"),
+        ({"schema_version": 1}, "schema_version"),
         ({"mode": "FLY"}, "mode"),
         (
             {
@@ -121,6 +123,7 @@ def test_rejects_duplicate_and_rollback_sequences(sequence):
             "axis",
         ),
         ({"dpad": {"x": True, "y": 0}}, "dpad"),
+        ({"assist_bypass": 1}, "assist_bypass"),
     ],
 )
 def test_rejects_unknown_contract_values_and_invalid_axes(override, detail):
