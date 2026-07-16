@@ -139,7 +139,9 @@ class Harness:
         while time.monotonic() < deadline:
             self.executor.spin_once(timeout_sec=0.02)
 
-    def spin_until(self, predicate, timeout=2.0):
+    # 젯슨이 이미지 빌드 직후 등 부하 상태면 depth→terrain→tick 체인이 2 s를
+    # 넘겨 플레이크가 된다(07-16·07-17 각 1회 관측, 재실행 GREEN) — 여유 상향.
+    def spin_until(self, predicate, timeout=5.0):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             self.executor.spin_once(timeout_sec=0.02)

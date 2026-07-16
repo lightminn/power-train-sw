@@ -51,6 +51,7 @@
 | `09cb606` | US-100 발행-UART 결합 해소(리더 스레드) |
 | `e22e364` | **WP6-S P0 2부** 절차 생성 고가 트랙 + 헤드리스 MuJoCo fast 브리지(광축 Z depth·production solve() 직결·metric 6종·기대 메트릭 물리 캘리브레이션, dev 이미지 mujoco 추가) |
 | `eba8b74` | **WP6-B** bank-aware NumPy terrain 코어(고정 shape 5 cm grid·corridor/FOV-한계 낙하 경계·footprint erosion·fail-closed, 54 tests + 광FOV MuJoCo 정량 통합, autonomy 이미지에 chassis 동봉). ⚠️ Codex 위임분을 검토자가 낙하 경계 의미론·성능(107→31 ms) 근본 재설계 |
+| `dcd5d11` | **독립 리뷰 하드닝 9건** — Codex 독립 리뷰(H2/M6/L2)+검토자 이음새 패스. H: follow 비유한 검출 차단, odometry stale 재스탬프 금지(발행 생략으로 freshness 전파). 검토자 발견: **assist operator-중립 게이트**(중립 조종자에 ω 주입 금지 — 의도 없는 피벗·wheel-stop 차단 방지). M: 클럭 롤백 dt 클램프, 재획득 identity 귀속, 전이 에지 zero 1회, hidden_eval no_progress 게이트. L: 섹션 이벤트 역행/EXIT 가드, overlay seq/age. 유지 판정: bypass-unknown→raw(advisory 설계), overlay 프레임 상관(물리 불가) |
 | `72ec7e4` | **WP8** 5구간 section supervisor SW 골격 — 순수 `section_profiles.py`(스모그/구호/마커5종 dedup/빙판 stuck/추종) + fake 계약 어댑터 노드, 모터 명령 없음. 크로스팀 계약 확정 뒤 배선 |
 | `5a415e9` | **WP6-B JAX** 고정 shape terrain 커널(`terrain/kernel.py` 공용 경계 + `jax_backend.py` JIT·warmup·재컴파일 가드·CPU 경계 검증) + NumPy 동등성 테스트(importorskip). NumPy 수치 불변(x86 29.8 ms/프레임), Jetson 자격화·backend 선택은 실기 게이트 |
 | `158b863` | **WP7** 선도 추종 완성 — 팀원 코어 확장(2.0 m 목표·1.5~2.5 band·1.5 m hard stop·가림 예측 감속·예측 한계 1회 0 명령·2-frame 재획득 게이트), 노드 TF 게이트(base_link 변환, frame/TF 부재·stale 시 미발행 — 광학 프레임 가정 제거) |
@@ -113,7 +114,10 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace/ros2 pow
   source /tmp/i/setup.bash && python3 -m pytest src/powertrain_ros/test -q'
 ```
 
-기준선(07-17, WP8 `72ec7e4` 후): dev 컨테이너 894+2skip(표준 목록 =
+기준선(07-17, 리뷰 하드닝 `dcd5d11` 후): dev 컨테이너 932+2skip / ros 컨테이너 395 /
+젯슨 ros 395 / 젯슨 autonomy 이미지 101+3skip. ⚠️ 젯슨 rclpy 노드 테스트는 부하 시
+spin 타임아웃 플레이크 2회 관측(재실행 GREEN — spin_until 5 s로 상향함).
+(이전 기준선, WP8 `72ec7e4` 후: dev 컨테이너 894+2skip(표준 목록 =
 motor_control motor_gui powertrain_observability powertrain_autonomy powertrain_sim
 remote_video **tests**, 이미지에 mujoco 포함; skip=jsonschema·jax 호스트 전용) /
 ros 컨테이너 390 + l515_dashboard·remote_video·tests 362+3skip / 젯슨 ros 컨테이너
@@ -122,7 +126,7 @@ ros 컨테이너 390 + l515_dashboard·remote_video·tests 362+3skip / 젯슨 ro
 JAX 미설치). 환경 회귀 러너:
 `scripts/run_autonomy_regression.py --manifest tests/fixtures/environment/manifest.yaml`
 = 9 PASS / 0 FAIL / 0 SKIPPED. 호스트 conda base에 CPU jax 0.10.2 설치됨(동등성
-테스트용).
+테스트용).)
 MuJoCo CLI 스모크: 3 시나리오 전부 PASS(exit 0). ⚠️ 젯슨 docker build 가 buildkit
 snapshot 오류를 내면 `docker builder prune -f` 후 재시도(07-16 실측 복구). **테스트 실행과 commit/push는 반드시 `&&`
 체인**(0a89098에서 비체인 스크립트가 1 failed를 그대로 커밋한 사고 있음 — fe67096로 수습).
