@@ -229,6 +229,24 @@ def test_public_values_are_immutable_and_grid_shape_is_fixed():
         estimate(make_estimator(), float_frame)
 
 
+def test_estimator_routes_numpy_projection_and_scatter_through_pure_kernel(monkeypatch):
+    from powertrain_autonomy.terrain import estimator as estimator_module
+    from powertrain_autonomy.terrain.kernel import build_terrain_grid_numpy
+
+    calls = []
+
+    def recording_kernel(*args, **kwargs):
+        calls.append((args, kwargs))
+        return build_terrain_grid_numpy(*args, **kwargs)
+
+    monkeypatch.setattr(estimator_module, "build_terrain_grid_numpy", recording_kernel)
+
+    result = estimate(make_estimator(), render_track_depth(width_m=1.5))
+
+    assert result.path_available, result.reject_reasons
+    assert len(calls) == 1
+
+
 def test_flat_track_produces_central_available_path_and_near_zero_bank():
     estimator = make_estimator()
     frame = render_track_depth(width_m=1.4)
@@ -696,8 +714,12 @@ def test_autonomy_readme_records_dependency_shape_and_deferred_scope_contracts()
         "WP6-C",
         "The controller core lives here",
         "autonomy_controller_node",
+        "fixed-shape JAX kernels and NumPy/JAX grid equivalence are implemented",
+        "NumPy is the only production authority",
+        "Jetson qualification and backend selection remain deferred",
     ):
         assert phrase in text
+    assert "JAX kernels, NumPy/JAX equivalence" not in text
     assert (
         "ROS subscriptions, controller policy, and `/autonomy/cmd_vel` "
         "publication belong to WP6-C and are not part of this package."

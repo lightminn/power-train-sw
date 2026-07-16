@@ -16,6 +16,7 @@ from .depth_quality import (
     analyze_depth_quality,
 )
 from .grid import ElevationGrid, build_elevation_grid, empty_grid, warp_and_fuse_grid
+from .kernel import TerrainKernelConfig, build_terrain_grid_numpy
 
 
 @dataclass(frozen=True)
@@ -343,10 +344,22 @@ class TerrainEstimator:
         camera[..., 0] = (cols_px - intrinsics.cx) * depth_m / intrinsics.fx
         camera[..., 1] = (rows_px - intrinsics.cy) * depth_m / intrinsics.fy
         camera[..., 2] = depth_m
-        base = camera @ self._camera_to_base_rotation(extrinsic).T
-        base += np.array((extrinsic.x_m, extrinsic.y_m, extrinsic.z_m))
-        gravity_rotation = self._rotation_y(tilt.pitch_rad) @ self._rotation_x(tilt.roll_rad)
-        return base @ gravity_rotation.T
+        rotation, translation = self._projection_transform(extrinsic, tilt)
+        return camera @ rotation.T + translation
+
+    def _projection_transform(
+        self,
+        extrinsic: BaseToCameraExtrinsic,
+        tilt: BodyTilt,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        gravity_rotation = self._rotation_y(tilt.pitch_rad) @ self._rotation_x(
+            tilt.roll_rad
+        )
+        rotation = gravity_rotation @ self._camera_to_base_rotation(extrinsic)
+        translation = gravity_rotation @ np.array(
+            (extrinsic.x_m, extrinsic.y_m, extrinsic.z_m), dtype=float
+        )
+        return rotation, translation
 
     def _point_side_evidence(
         self,
@@ -722,16 +735,23 @@ class TerrainEstimator:
             self._reset(clear_quality=False)
             return self._reject(frame.stamp_s, *sorted(fatal), degradation=reasons)
 
-        sampled_rows, sampled_cols = np.meshgrid(row_indices, col_indices, indexing="ij")
         depth_m = depth.astype(float, copy=False) * frame.depth_scale_m
-        points = self._deproject(
-            depth_m,
-            intrinsics=frame.intrinsics,
-            rows_px=sampled_rows,
-            cols_px=sampled_cols,
-            extrinsic=extrinsic,
-            tilt=tilt,
+        rotation, translation = self._projection_transform(extrinsic, tilt)
+        kernel_result = build_terrain_grid_numpy(
+            depth,
+            point_mask=classification_mask,
+            point_confidence=point_confidence,
+            depth_scale_m=frame.depth_scale_m,
+            fx=quality_intrinsics.fx,
+            fy=quality_intrinsics.fy,
+            cx=quality_intrinsics.cx,
+            cy=quality_intrinsics.cy,
+            rotation=rotation,
+            translation_m=translation,
+            stamp_s=frame.stamp_s,
+            config=TerrainKernelConfig.from_estimator_config(self.config),
         )
+        points = kernel_result.points_m
         depth_observable = (
             np.isfinite(depth_m)
             & (depth_m >= self.config.min_depth_m)
@@ -744,6 +764,7 @@ class TerrainEstimator:
             classification_mask,
             point_confidence,
             support_point_mask=support_mask,
+            kernel_result=kernel_result,
             stamp_s=frame.stamp_s,
             shape=self.grid_shape,
             resolution_m=self.config.grid_resolution_m,

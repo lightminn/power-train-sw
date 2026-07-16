@@ -1,7 +1,8 @@
 # Powertrain autonomy pure cores
 
-`powertrain_autonomy` contains value-based NumPy computation. It has no ROS,
-`rclpy`, hardware, or simulator branch. In particular, powertrain_autonomy does not import powertrain_ros.
+`powertrain_autonomy` contains the value-based NumPy production authority and
+an optional fixed-shape JAX terrain kernel. It has no ROS, `rclpy`, hardware,
+or simulator branch. In particular, powertrain_autonomy does not import powertrain_ros.
 The WP6-C adapter translates WP6-A `TiltSnapshot`
 and `PoseSnapshot` values into the local `BodyTilt` and `OdometryDelta`
 dataclasses. This keeps the dependency direction from ROS adapters toward pure
@@ -30,8 +31,9 @@ raw depth + CameraInfo
 intrinsics, and a monotonic seconds stamp. ROI bounds and stride are fixed in
 `TerrainEstimatorConfig`. The sampled shape and the elevation grid are fixed shape
 for the lifetime of an estimator; invalid cells remain a mask and never
-shrink an array. That is the current NumPy contract and the later JAX port must
-retain it unchanged.
+shrink an array. The optional JAX kernel retains that NumPy contract unchanged;
+the shared NumPy/JAX kernel boundary enforces the same array contract before
+the branch-heavy terrain classifications.
 
 The estimator calls `terrain.depth_quality` for frame and fixed sub-ROI valid
 ratio, median/MAD/percentile, pixel connectivity, normal consistency,
@@ -79,9 +81,10 @@ only one side is real, so the 5 cm grid quantization does not dominate the
 heading fit.
 
 Runtime on the x86 dev host is ~31 ms mean per 60x80 frame (74x60 grid). The
-Jetson full-load gate (terrain p99 <= 30 ms) is expected to need the planned
-JAX backend; the NumPy authority here is the correctness reference for that
-port.
+fixed-shape JAX kernels and NumPy/JAX grid equivalence are implemented for
+depth deprojection, gravity-aligned coordinate transformation, masked
+elevation scatter, per-cell median/MAD, and slope. NumPy remains the
+correctness reference for this candidate backend.
 
 ## Grid history and footprint contract
 
@@ -139,7 +142,12 @@ unmeasured configuration candidates. They must not be used as evidence for
 production completion. Production requires the planned physical 20/25/30
 degree comparison and a measured `base_link→l515_link` transform.
 
-RGB auxiliary confidence is explicitly deferred. JAX kernels, NumPy/JAX
-equivalence, Jetson qualification, and backend selection are also deferred;
-NumPy is the only terrain-estimator implementation here. The WP6-C controller
-is backend-neutral and consumes the immutable estimator result.
+RGB auxiliary confidence is explicitly deferred.
+NumPy is the only production authority for terrain estimation. The optional
+JAX module provides `warmup(config)`,
+rejects shape/dtype drift before JIT dispatch, and validates device results at
+the CPU boundary, but it is not selected by the estimator or any launch
+profile. Jetson qualification and backend selection remain deferred, including
+the full-load latency/resource gate, accelerator version pinning, and launch
+memory policy such as `XLA_PYTHON_CLIENT_PREALLOCATE=false`. The WP6-C
+controller is backend-neutral and consumes the immutable estimator result.

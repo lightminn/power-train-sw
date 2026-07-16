@@ -6,6 +6,12 @@ import math
 
 import numpy as np
 
+from .kernel import (
+    TerrainKernelResult,
+    cell_statistics_numpy,
+    finite_differences_numpy,
+)
+
 
 @dataclass(frozen=True)
 class ElevationGrid:
@@ -30,34 +36,12 @@ def _cell_statistics(
     shape: tuple[int, int],
     stamp_s: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    size = shape[0] * shape[1]
-    counts = np.bincount(cell_ids, minlength=size).astype(np.int32)
-    occupied = np.flatnonzero(counts)
-
-    def grouped_median(values: np.ndarray, *, fill: float) -> np.ndarray:
-        output = np.full(size, fill, dtype=float)
-        order = np.lexsort((values, cell_ids))
-        sorted_values = values[order]
-        occupied_counts = counts[occupied]
-        stops = np.cumsum(occupied_counts)
-        starts = stops - occupied_counts
-        lower = starts + (occupied_counts - 1) // 2
-        upper = starts + occupied_counts // 2
-        output[occupied] = 0.5 * (sorted_values[lower] + sorted_values[upper])
-        return output
-
-    height = grouped_median(heights_m, fill=np.nan)
-    absolute_deviation = np.abs(heights_m - height[cell_ids])
-    roughness = grouped_median(absolute_deviation, fill=np.nan)
-    confidence = grouped_median(point_confidence, fill=0.0)
-    stamps = np.full(size, np.nan, dtype=float)
-    stamps[occupied] = stamp_s
-    return (
-        height.reshape(shape),
-        counts.reshape(shape),
-        roughness.reshape(shape),
-        confidence.reshape(shape),
-        stamps.reshape(shape),
+    return cell_statistics_numpy(
+        cell_ids,
+        heights_m,
+        point_confidence,
+        shape=shape,
+        stamp_s=stamp_s,
     )
 
 
@@ -117,20 +101,7 @@ def _finite_differences(
     mask: np.ndarray,
     resolution_m: float,
 ) -> tuple[np.ndarray, np.ndarray]:
-    slope_x = np.full(height_m.shape, np.nan, dtype=float)
-    slope_y = np.full(height_m.shape, np.nan, dtype=float)
-    for axis, output in ((0, slope_x), (1, slope_y)):
-        plus_height = _shift(height_m, -1 if axis == 0 else 0, -1 if axis == 1 else 0, np.nan)
-        minus_height = _shift(height_m, 1 if axis == 0 else 0, 1 if axis == 1 else 0, np.nan)
-        plus_mask = _shift(mask, -1 if axis == 0 else 0, -1 if axis == 1 else 0, False)
-        minus_mask = _shift(mask, 1 if axis == 0 else 0, 1 if axis == 1 else 0, False)
-        central = mask & plus_mask & minus_mask
-        output[central] = (plus_height[central] - minus_height[central]) / (2.0 * resolution_m)
-        forward = mask & plus_mask & ~minus_mask
-        output[forward] = (plus_height[forward] - height_m[forward]) / resolution_m
-        backward = mask & minus_mask & ~plus_mask
-        output[backward] = (height_m[backward] - minus_height[backward]) / resolution_m
-    return slope_x, slope_y
+    return finite_differences_numpy(height_m, mask, resolution_m)
 
 
 def _local_obstacle_mask(
@@ -211,6 +182,7 @@ def build_elevation_grid(
     point_confidence: np.ndarray,
     *,
     support_point_mask: np.ndarray | None = None,
+    kernel_result: TerrainKernelResult | None = None,
     stamp_s: float,
     shape: tuple[int, int],
     resolution_m: float,
@@ -248,7 +220,25 @@ def build_elevation_grid(
         & (y_index < shape[1])
     )
     support_inside = inside & flat_support_mask
-    if np.any(inside):
+    if kernel_result is not None:
+        if np.asarray(kernel_result.points_m).shape != np.asarray(points_m).shape:
+            raise ValueError("kernel_result points must match point_mask")
+        for name in (
+            "height_m",
+            "observed_count",
+            "roughness_m",
+            "confidence",
+            "valid_mask",
+            "stamp_s",
+        ):
+            if np.asarray(getattr(kernel_result, name)).shape != shape:
+                raise ValueError(f"kernel_result {name} must match grid shape")
+        height = np.asarray(kernel_result.height_m)
+        counts = np.asarray(kernel_result.observed_count)
+        roughness = np.asarray(kernel_result.roughness_m)
+        confidence = np.asarray(kernel_result.confidence)
+        stamps = np.asarray(kernel_result.stamp_s)
+    elif np.any(inside):
         cell_ids = x_index[inside] * shape[1] + y_index[inside]
         height, counts, roughness, confidence, stamps = _cell_statistics(
             cell_ids,
