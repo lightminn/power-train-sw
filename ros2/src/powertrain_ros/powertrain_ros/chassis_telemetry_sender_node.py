@@ -1,9 +1,10 @@
-"""Read-only `/wheel_states` and `/odom` snapshot sender for the operator console.
+"""Send read-only chassis and observability snapshots to the operator console.
 
-This node never opens CAN or a motor device.  It only mirrors the chassis
-owner's already-published ROS messages to a distinct best-effort UDP channel.
-Power telemetry remains on UDP :5004; chassis telemetry uses :5005 so one
-source cannot erase another source's unavailable fields.
+This node never opens CAN or a motor device.  CAN status comes from the
+observability daemon's cached chassis-owner measurements; ROS state is mirrored
+to a distinct best-effort UDP channel.  Power telemetry remains on UDP :5004;
+chassis telemetry uses :5005 so one source cannot erase another source's
+unavailable fields.
 """
 from __future__ import annotations
 
@@ -12,14 +13,14 @@ import math
 import socket
 import time
 
-import can
-
 import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 
-from powertrain_msgs.msg import SafetyVerdict, WheelStates
 from l515_dashboard.client import GatewayClient
+from powertrain_msgs.msg import SafetyVerdict, WheelStates
+from powertrain_observability.client import ObservabilityClient
+from powertrain_ros import console_can_status
 
 
 SAFETY_STATUS = {
@@ -50,22 +51,16 @@ class ChassisTelemetrySender(Node):
         self._odom_at: float | None = None
         self._safety: SafetyVerdict | None = None
         self._safety_at: float | None = None
-        self._can_bus: can.BusABC | None = None
-        self._can_error = ""
-        self._odrive_heartbeats: dict[int, float] = {}
         self._gateway = GatewayClient("@powertrain-l515-gateway", request_timeout_s=0.5)
         self._l515: dict[str, object] = {}
-        try:
-            # Separate SocketCAN receive sockets get their own copy of frames.  This
-            # observer never transmits and does not contend with ChassisManager.
-            self._can_bus = can.interface.Bus(channel="can0", interface="socketcan")
-        except can.CanError as exc:
-            self._can_error = str(exc)
+        self._observability = ObservabilityClient(request_timeout_s=0.5)
+        self._can_health_record: object | None = None
+        self._observability_error: str | None = None
         self.create_subscription(WheelStates, "/wheel_states", self._on_wheels, 10)
         self.create_subscription(Odometry, "/odom", self._on_odom, 10)
         self.create_subscription(SafetyVerdict, "/safety_verdict", self._on_safety, 10)
-        self.create_timer(0.1, self._poll_can)
         self.create_timer(1.0, self._poll_l515)
+        self.create_timer(1.0, self._poll_observability)
         self.create_timer(1.0 / hz, self._send)
 
     def _on_wheels(self, message: WheelStates) -> None:
@@ -79,22 +74,6 @@ class ChassisTelemetrySender(Node):
     def _on_safety(self, message: SafetyVerdict) -> None:
         self._safety = message
         self._safety_at = time.monotonic()
-
-    def _poll_can(self) -> None:
-        if self._can_bus is None:
-            return
-        try:
-            for _ in range(128):
-                message = self._can_bus.recv(timeout=0.0)
-                if message is None:
-                    break
-                if (not message.is_extended_id
-                        and (message.arbitration_id & 0x1F) == 0x01):
-                    node_id = message.arbitration_id >> 5
-                    if 11 <= node_id <= 16:
-                        self._odrive_heartbeats[node_id] = time.monotonic()
-        except can.CanError as exc:
-            self._can_error = str(exc)
 
     def _poll_l515(self) -> None:
         snapshot = self._gateway.poll()
@@ -121,21 +100,27 @@ class ChassisTelemetrySender(Node):
             "process_rss_bytes": system.get("current_rss_bytes"),
         }
 
-    def _can_status(self, now: float) -> str:
-        if self._can_bus is None:
-            return f"UNAVAILABLE · {self._can_error or 'socket open failed'}"
+    def _poll_observability(self) -> None:
+        snapshot = self._observability.poll()
+        if snapshot is None:
+            self._observability_error = (
+                self._observability.last_error or "no response"
+            )
+            return
+        self._observability_error = None
         try:
-            with open("/sys/class/net/can0/carrier", encoding="ascii") as source:
-                link_up = source.read().strip() == "1"
-        except OSError:
-            return "UNAVAILABLE · can0 not present"
-        alive = sorted(node for node, at in self._odrive_heartbeats.items()
-                       if now - at <= 1.0)
-        missing = [node for node in range(11, 17) if node not in alive]
-        link = "LINK_UP" if link_up else "LINK_DOWN"
-        if missing:
-            return f"{link} · ODrive HB {len(alive)}/6 (missing {','.join(map(str, missing))})"
-        return f"{link} · ODrive HB 6/6"
+            recent_events = snapshot.payload.get("recent_events", {})
+            self._can_health_record = recent_events.get("CAN_HEALTH")
+        except (AttributeError, TypeError):
+            self._can_health_record = {}
+
+    def _can_status(self) -> str:
+        if self._observability_error is not None:
+            return f"UNAVAILABLE · observability {self._observability_error}"
+        return console_can_status.can_status_text(
+            self._can_health_record,
+            time.monotonic_ns(),
+        )
 
     @staticmethod
     def _fresh(at: float | None, now: float) -> bool:
@@ -177,9 +162,9 @@ class ChassisTelemetrySender(Node):
             "x_m": x_m, "y_m": y_m, "yaw_rad": yaw_rad,
             "voltage_v": None, "current_a": None, "power_w": None,
             "drive_state": drive_state,
-            # This is link state plus passive ODrive heartbeat presence, not a
-            # controller error-counter authority.
-            "can_state": self._can_status(now),
+            # CAN health is measured by the flock-owning chassis process and
+            # relayed here through the observability daemon.
+            "can_state": self._can_status(),
             "l515_state": self._l515.get("state", "unavailable"),
             "l515_detail": self._l515.get("detail", ""),
             "l515_mode": self._l515.get("mode", "-"),
@@ -219,8 +204,6 @@ class ChassisTelemetrySender(Node):
             )
 
     def destroy_node(self):
-        if self._can_bus is not None:
-            self._can_bus.shutdown()
         self._udp.close()
         return super().destroy_node()
 

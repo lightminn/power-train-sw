@@ -359,9 +359,13 @@ def test_chassis_node_sets_motion_holds_through_manager_wrapper():
     assert 'self.cm.set_motion_hold("mission"' in source
 
 
-def test_chassis_telemetry_sender_is_a_pure_can_observer():
-    """allowlist에 등재된 근거: RX 전용. TX·ROS 발행이 생기면 RealCanSession 경유로 재설계."""
-    source = (NODES / "chassis_telemetry_sender_node.py").read_text(encoding="utf-8")
-    assert "_can_bus.send" not in source
-    assert "bus.send" not in source
+def test_chassis_telemetry_sender_has_no_direct_can_access():
+    """2026-07-13 관측성 계획 Task 6: CAN owner 측정값 일원화 계약."""
+    source = (NODES / "chassis_telemetry_sender_node.py").read_text(
+        encoding="utf-8"
+    )
+    assert "\nimport can\n" not in source
+    assert "can.interface" not in source
+    assert "/sys/class/net" not in source
     assert "create_publisher" not in source
+    assert "ObservabilityClient" in source
