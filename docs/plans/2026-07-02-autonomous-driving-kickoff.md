@@ -5,6 +5,13 @@
 > 방침: **로봇팔 팀이 확정한 인터페이스(메시지 5종)에 우리가 맞춘다.**
 > 이 문서는 "무엇을, 어떤 도구로, 어떤 파일에, 어떻게 테스트하는지"까지 내려간 실행 계획이다.
 >
+> **📌 최신 상태 (2026-07-16): 정본 = `docs/reports/2026-07-16-project-state-and-handoff.md`.**
+> WP5.2·WP5.3(Task 1~5)·WP6-A 코어·WP6-S P0 1부 완료. wheel-stop 임계 실기 자격화
+> (`wheel_stop.yaml qualified: true`, 0.10 rev/s). 첫 FULL HIL 세션에서 안전 결함 2건
+> 근본수정(`docs/reports/2026-07-16-full-hil-safety-fixes.md`). 다음 = WP6-S P0 2부
+> (MuJoCo fast 브리지). 실차체 미조립 — 지상 실측류(오도메트리 5 m/90°·stop_mm)는 차체
+> 조립 후. **아래 배너들은 전부 이력이다.**
+>
 > **📌 WP5.1 최신 상태 (2026-07-11): HIL 완료.** 아래
 > 2026-07-07 WP5 `/cmd_vel → 10모터` HIL은 기존 차체 경로의 유효한 이력이다. 이후 추가한
 > 순수 Python 안전 코어·비블로킹 50 Hz 제어·별도 US-100 ROS 노드·`/safety_verdict`·

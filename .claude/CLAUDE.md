@@ -62,13 +62,22 @@ historical context.
   Jetson ROS raw XML is `/home/zetin/power-train-sw/ros2/build/powertrain_ros/pytest.xml`.
   The FAKE summary remains the distinct 49831bb observation without a preserved raw log.
 
-## Current Source of Truth (2026-07-10)
+## Current Source of Truth (2026-07-16)
 
-- Read `docs/reports/2026-07-10-project-and-jetson-state.md` and the latest status banner in
-  `docs/plans/2026-07-02-autonomous-driving-kickoff.md` before relying on older plans/reports.
-- **WP1–WP5 are complete**: 10-motor 4WS HIL, bidirectional WP4 DDS, and WP5
-  `/cmd_vel → ChassisManager → 10 motors` real HIL. Next is WP6 odometry or WP8 mission
-  sequencing. `MISSION_STOP`, unlock ordering, and one full handshake remain unresolved.
+- Read `docs/reports/2026-07-16-project-state-and-handoff.md` first — it is the handoff
+  authority (bootstrap reading order, WP status table, verification recipes, deploy steps,
+  backlog). Then the master plan `docs/plans/2026-07-12-defense-robot-autonomy-software-plan.md`.
+  It supersedes the 2026-07-10 project-state report and older status banners on conflict.
+- **Complete: WP1–WP5.3 (Tasks 1–5), WP6-A core, WP6-S P0 part 1.** Wheel-stop thresholds
+  are HIL-qualified (`wheel_stop.yaml qualified: true`, 0.10 rev/s, dwell 300 ms). The first
+  FULL HIL session (2026-07-16) root-fixed two real safety defects (blocking-service false
+  stale latch → `_refresh_safety_baseline`; US-100 publish/UART coupling → reader thread);
+  see `docs/reports/2026-07-16-full-hil-safety-fixes.md`. Next: **WP6-S P0 part 2 (MuJoCo
+  fast bridge)**, then WP6-B. `MISSION_STOP`, unlock ordering, and one full handshake remain open.
+- **FULL HIL mode**: the user performs physical actions only (power, lifts, visual checks);
+  all commands run via agent SSH. Motor motion needs prior physical confirmation. The chassis
+  is NOT assembled (bench motors, arm absent) — ground measurements (odometry 5 m/90°,
+  `stop_mm` commissioning) wait for vehicle assembly.
 - Sensors: **L515=powertrain RGB/depth/IMU, D435i=robot-arm exclusive, US-100=independent safety**.
 - ODrive authority: pp10/cpr60/bw30/vg0.12/vi0.2, node11–16. Use `bl70200_setup.py` and
   `can_calibrate_all.py`; never use legacy single-axis pp5 `odrive_calibration.py` on real hardware.
