@@ -168,6 +168,42 @@ class Harness:
         self.spin_for(0.05)
         self.depth.publish(_depth(controller))
 
+    def settle(self):
+        """직전 테스트 노드의 비행 중 메시지를 흡수하고 버퍼를 비운다.
+
+        느린 호스트(젯슨)에서는 파괴된 노드의 마지막 발행이 다음 테스트의
+        구독으로 배달돼 '발행 없음' 단언을 오염시킨다(07-17 실측).
+        """
+        self.spin_for(0.25)
+        self.commands.clear()
+        self.command_times.clear()
+        self.controller_states.clear()
+        self.terrain_states.clear()
+        self.assist_corrections.clear()
+
+    def pump_terrain_until(
+        self, controller, predicate, *, status="STOWED_LOCKED", timeout=8.0
+    ):
+        """실스트림처럼 입력을 반복 발행하며 predicate를 기다린다.
+
+        워커 스레드는 executor와 독립이라, 느린 호스트에서는 단발 depth가
+        camera_info/모션 콜백 처리 전에 소비돼 폐기될 수 있다(실스트림은
+        다음 프레임으로 자가 치유 — 테스트도 같은 형태여야 한다).
+        """
+        deadline = time.monotonic() + timeout
+        next_publish = 0.0
+        while time.monotonic() < deadline:
+            now = time.monotonic()
+            if now >= next_publish:
+                self.info.publish(_camera_info(controller))
+                self.publish_motion_gate(controller, status)
+                self.depth.publish(_depth(controller))
+                next_publish = now + 0.10
+            self.executor.spin_once(timeout_sec=0.02)
+            if predicate():
+                return
+        raise AssertionError("condition did not become true before timeout")
+
     def close(self, controller):
         self.executor.remove_node(controller)
         self.executor.remove_node(self.node)
@@ -189,10 +225,10 @@ def test_synthetic_flat_track_inputs_publish_valid_twist_when_enabled():
     controller = _controller(enabled=True)
     harness = Harness(controller)
     try:
-        harness.spin_for(0.10)
-        harness.publish_complete_frame(controller)
-        harness.spin_until(
-            lambda: any(message.linear.x > 0.0 for message in harness.commands)
+        harness.settle()
+        harness.pump_terrain_until(
+            controller,
+            lambda: any(message.linear.x > 0.0 for message in harness.commands),
         )
         command = next(message for message in harness.commands if message.linear.x > 0.0)
         assert math.isfinite(command.linear.x)
@@ -218,7 +254,7 @@ def test_no_command_is_published_before_first_terrain_estimate():
     controller = _controller(enabled=True)
     harness = Harness(controller)
     try:
-        harness.spin_for(0.10)
+        harness.settle()
         harness.publish_motion_gate(controller)
         harness.spin_for(0.20)
         assert harness.commands == []
@@ -232,10 +268,10 @@ def test_slow_terrain_update_does_not_starve_command_timer(monkeypatch):
     controller = _controller(enabled=True)
     harness = Harness(controller)
     try:
-        harness.spin_for(0.10)
-        harness.publish_complete_frame(controller)
-        harness.spin_until(
-            lambda: any(message.linear.x > 0.0 for message in harness.commands)
+        harness.settle()
+        harness.pump_terrain_until(
+            controller,
+            lambda: any(message.linear.x > 0.0 for message in harness.commands),
         )
 
         real_update = controller.estimator.update
@@ -390,9 +426,10 @@ def test_disabled_node_publishes_diagnostics_but_no_command():
     controller = _controller(enabled=False)
     harness = Harness(controller)
     try:
-        harness.spin_for(0.10)
-        harness.publish_complete_frame(controller)
-        harness.spin_until(lambda: bool(harness.terrain_states))
+        harness.settle()
+        harness.pump_terrain_until(
+            controller, lambda: bool(harness.terrain_states)
+        )
         harness.spin_until(lambda: bool(harness.controller_states))
         assert harness.commands == []
         harness.spin_until(lambda: bool(harness.assist_corrections))
@@ -406,10 +443,10 @@ def test_depth_loss_ramps_to_zero_and_keeps_publishing_zero():
     controller = _controller(enabled=True)
     harness = Harness(controller)
     try:
-        harness.spin_for(0.10)
-        harness.publish_complete_frame(controller)
-        harness.spin_until(
-            lambda: any(message.linear.x > 0.0 for message in harness.commands)
+        harness.settle()
+        harness.pump_terrain_until(
+            controller,
+            lambda: any(message.linear.x > 0.0 for message in harness.commands),
         )
         deadline = time.monotonic() + 1.5
         while time.monotonic() < deadline:
@@ -435,10 +472,10 @@ def test_arm_loss_or_mismatch_blocks_immediately(mode):
     controller = _controller(enabled=True)
     harness = Harness(controller)
     try:
-        harness.spin_for(0.10)
-        harness.publish_complete_frame(controller)
-        harness.spin_until(
-            lambda: any(message.linear.x > 0.0 for message in harness.commands)
+        harness.settle()
+        harness.pump_terrain_until(
+            controller,
+            lambda: any(message.linear.x > 0.0 for message in harness.commands),
         )
         if mode == "mismatch":
             harness.publish_motion_gate(controller, status="EXECUTING")
