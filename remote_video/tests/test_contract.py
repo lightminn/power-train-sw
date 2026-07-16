@@ -16,6 +16,8 @@ from remote_video.contract import (
     L515_UNAVAILABLE_VERDICT,
     MAX_METADATA_BYTES,
     METADATA_SCHEMA_VERSION,
+    RECEIVER_FEEDBACK_SCHEMA_VERSION,
+    RECEIVER_FEEDBACK_UDP_PORT,
 )
 
 
@@ -33,7 +35,14 @@ def test_dual_video_and_metadata_channel_contract_values():
         D435I_RGB_FPS,
     ) == (5002, 848, 480, 30)
     assert D435I_METADATA_UDP_PORT == 5003
+    assert RECEIVER_FEEDBACK_UDP_PORT == 5006
+    assert RECEIVER_FEEDBACK_UDP_PORT not in {
+        D435I_METADATA_UDP_PORT,
+        5004,  # power telemetry
+        5005,  # chassis telemetry
+    }
     assert METADATA_SCHEMA_VERSION == 1
+    assert RECEIVER_FEEDBACK_SCHEMA_VERSION == 1
     assert MAX_METADATA_BYTES == 16 * 1024
 
 

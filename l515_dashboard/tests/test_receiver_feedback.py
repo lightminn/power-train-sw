@@ -10,8 +10,10 @@ from l515_dashboard.receiver_feedback import (
     FeedbackError,
     FeedbackTracker,
     ReceiverReport,
+    SCHEMA_VERSION,
     parse_report,
 )
+from remote_video.contract import RECEIVER_FEEDBACK_SCHEMA_VERSION
 
 
 NS = 1_000_000_000
@@ -78,6 +80,11 @@ def test_parse_report_accepts_v1_and_stamps_local_receive_time():
     )
     with pytest.raises(FrozenInstanceError):
         parsed.sequence = 8
+
+
+def test_parser_schema_matches_remote_video_contract_authority():
+    assert SCHEMA_VERSION == RECEIVER_FEEDBACK_SCHEMA_VERSION
+    assert report_payload()["schema_version"] == RECEIVER_FEEDBACK_SCHEMA_VERSION
 
 
 def test_parse_report_rejects_oversize_payload():

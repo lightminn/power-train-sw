@@ -5,8 +5,12 @@ import json
 import math
 from numbers import Real
 
+from remote_video.contract import RECEIVER_FEEDBACK_SCHEMA_VERSION
 
-SCHEMA_VERSION = 1
+
+# Compatibility name retained for existing dashboard callers.  The shared
+# remote-video contract is the schema authority used by the laptop sender.
+SCHEMA_VERSION = RECEIVER_FEEDBACK_SCHEMA_VERSION
 CHANNELS = ("l515_rgb", "d435i_rgb")
 L515_UNAVAILABLE_VERDICT = "REMOTE_DRIVE_VIDEO_UNAVAILABLE"
 D435I_UNAVAILABLE_VERDICT = "REMOTE_ARM_VIDEO_UNAVAILABLE"
