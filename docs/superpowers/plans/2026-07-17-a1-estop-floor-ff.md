@@ -35,7 +35,7 @@
 - Consumes: 기존 `DriveOdriveCan(node_id, channel, stale_ms, bus, clock)` 계약.
 - Produces: `DriveOdriveCan(..., friction_ff: float = 0.0, v_knee: float = 0.5)` — Task 2의 `build_real_corners`가 이 두 kwargs를 사용한다. `tick()`이 `0 < |target_vel| < v_knee`일 때 `sign(target_vel)*friction_ff`를 Set_Input_Vel의 tq_ff로 전송.
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 `motor_control/corner_module/tests/test_drive_friction_ff.py` 신규 (FakeCanBus 패턴은 `test_driver_health_fields.py`와 동일):
 
@@ -113,12 +113,12 @@ def test_arm_disarm_estop_always_send_zero_ff():
         assert ff == pytest.approx(0.0)
 ```
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
 Run: `PYTHONPATH=ros2/src/powertrain_ros:motor_control:. /home/light/anaconda3/bin/python -m pytest motor_control/corner_module/tests/test_drive_friction_ff.py -v`
 Expected: FAIL — `TypeError: __init__() got an unexpected keyword argument 'friction_ff'`
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 `drive_odrive_can.py` 생성자 시그니처·본문 (기존 `:65-82` 교체):
 
@@ -169,12 +169,12 @@ docstring Parameters에 추가:
 
 `arm()`/`disarm()`/`estop()`의 명시적 `struct.pack("<ff", 0.0, 0.0)`은 그대로 둔다(정지 지령 ff=0 계약).
 
-- [ ] **Step 4: 통과 확인**
+- [x] **Step 4: 통과 확인**
 
 Run: `PYTHONPATH=ros2/src/powertrain_ros:motor_control:. /home/light/anaconda3/bin/python -m pytest motor_control/corner_module/tests/ -v`
 Expected: 신규 7개 PASS + 기존 corner_module 테스트 전부 PASS
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add motor_control/corner_module/drive_odrive_can.py motor_control/corner_module/tests/test_drive_friction_ff.py
@@ -202,7 +202,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: Task 1의 `DriveOdriveCan(..., friction_ff, v_knee)`.
 - Produces: `build_real_corners(channel, cfg=None, wheel_map=None, friction_ff: float = 0.0, v_knee_turns_s: float = 0.5)`. CLI `--friction-ff`/`--v-knee`(teleop 2종), ROS 파라미터 `friction_ff`/`friction_v_knee`(chassis_node).
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 `motor_control/chassis/tests/test_friction_ff_plumbing.py` 신규:
 
@@ -281,12 +281,12 @@ def test_chassis_node_declares_friction_parameters():
     assert "v_knee_turns_s=friction_v_knee" in CHASSIS_NODE
 ```
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
 Run: `PYTHONPATH=ros2/src/powertrain_ros:motor_control:. /home/light/anaconda3/bin/python -m pytest motor_control/chassis/tests/test_friction_ff_plumbing.py -v`
 Expected: FAIL — `TypeError: build_real_corners() got an unexpected keyword argument 'friction_ff'`
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 `chassis_manager.py` — `build_real_corners` 교체:
 
@@ -368,12 +368,12 @@ def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
             )
 ```
 
-- [ ] **Step 4: 통과 확인**
+- [x] **Step 4: 통과 확인**
 
 Run: `PYTHONPATH=ros2/src/powertrain_ros:motor_control:. /home/light/anaconda3/bin/python -m pytest motor_control/chassis/tests/test_friction_ff_plumbing.py motor_control/chassis/tests/ -q`
 Expected: 신규 4개 포함 전부 PASS
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add motor_control/chassis/chassis_manager.py motor_control/chassis/teleop_server.py motor_control/chassis/teleop_dualsense.py ros2/src/powertrain_ros/powertrain_ros/chassis_node.py motor_control/chassis/tests/test_friction_ff_plumbing.py
@@ -397,7 +397,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: 없음 (기본값 변경만 — `ChassisConfig.min_drive_turns_per_s` dataclass 기본은 이미 0.0).
 - Produces: 모든 진입점의 min_rev 기본 = 0.0. 기존 `test_chassis_manager.py`의 명시적 `min_drive_turns_per_s=1.0` 테스트들은 메커니즘 검증이므로 그대로 둔다.
 
-- [ ] **Step 1: 실패하는 테스트 추가**
+- [x] **Step 1: 실패하는 테스트 추가**
 
 `test_friction_ff_plumbing.py` 말미에 추가:
 
@@ -422,12 +422,12 @@ def test_min_rev_floor_is_abolished_to_zero_defaults():
     ), "autonomy.launch: min_rev default must be 0.0"
 ```
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
 Run: `PYTHONPATH=ros2/src/powertrain_ros:motor_control:. /home/light/anaconda3/bin/python -m pytest motor_control/chassis/tests/test_friction_ff_plumbing.py::test_min_rev_floor_is_abolished_to_zero_defaults -v`
 Expected: FAIL — `default=1.0` 매칭 실패
 
-- [ ] **Step 3: 구현 (기본값·도움말·독스트링 4개 사이트)**
+- [x] **Step 3: 구현 (기본값·도움말·독스트링 4개 사이트)**
 
 `teleop_server.py:279-280`:
 
@@ -470,12 +470,12 @@ Expected: FAIL — `default=1.0` 매칭 실패
                                           "재도입은 커미셔닝 재량. 이력: docs/specs/2026-07-13-min-rev-speed-range.md"),
 ```
 
-- [ ] **Step 4: 통과 확인 (플로어 메커니즘 회귀 포함)**
+- [x] **Step 4: 통과 확인 (플로어 메커니즘 회귀 포함)**
 
 Run: `PYTHONPATH=ros2/src/powertrain_ros:motor_control:. /home/light/anaconda3/bin/python -m pytest motor_control/chassis/tests/ motor_control/corner_module/tests/ -q`
 Expected: 전부 PASS (기존 `test_chassis_manager.py`의 명시적 1.0 테스트 포함 — 기본값 변경은 이를 건드리지 않음)
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add motor_control/chassis/teleop_server.py motor_control/chassis/teleop_dualsense.py ros2/src/powertrain_ros/powertrain_ros/chassis_node.py ros2/src/powertrain_ros/launch/autonomy.launch.py motor_control/chassis/tests/test_friction_ff_plumbing.py
@@ -499,7 +499,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: `RemoteInputFrame.estop_edge`(기존 디코더 산출).
 - Produces: 토픽 `/teleop/estop` — `std_msgs/String`, JSON `{"event_id": "<hex>", "stamp_s": <float>}`, QoS = RELIABLE + **TRANSIENT_LOCAL** + depth 1, edge 시점부터 **1.0초간 매 틱 동일 event_id 재발행**. Task 5의 chassis_node가 구독.
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 `ros2/src/powertrain_ros/test/test_teleop_estop_topic.py` 신규:
 
@@ -628,13 +628,13 @@ def test_rebroadcast_stops_after_window(monkeypatch):
         node.destroy_node()
 ```
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
 ros 컨테이너 레시피(Global Constraints)로:
 Run: `python3 -m pytest src/powertrain_ros/test/test_teleop_estop_topic.py -v`
 Expected: FAIL — `AttributeError: ... no attribute 'pub_estop'` (혹은 토픽 미수신)
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 `teleop_command_node.py` import에 추가:
 
@@ -722,12 +722,12 @@ ESTOP_REBROADCAST_S = 1.0
                 self._estop_event = None
 ```
 
-- [ ] **Step 4: 통과 확인**
+- [x] **Step 4: 통과 확인**
 
 Run: `python3 -m pytest src/powertrain_ros/test/test_teleop_estop_topic.py src/powertrain_ros/test/test_teleop_command_node.py -v` (ros 컨테이너)
 Expected: 신규 3개 + 기존 teleop 테스트 전부 PASS
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add ros2/src/powertrain_ros/powertrain_ros/teleop_command_node.py ros2/src/powertrain_ros/test/test_teleop_estop_topic.py
@@ -752,7 +752,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: Task 4의 `/teleop/estop` JSON 계약·QoS.
 - Produces: `ChassisNode._on_teleop_estop(msg)` — 유효 payload면 최초 1회 `self.cm.estop("remote_operator", "teleop circle edge event_id=<id>")`. `self._teleop_estop_seen`: `collections.OrderedDict` (최대 32 event_id 보존).
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 `ros2/src/powertrain_ros/test/test_teleop_estop_latch.py` 신규 (AST 추출 패턴 — `test_chassis_arm_gate.py`와 동일 스타일, ROS 노드 생성 없음):
 
@@ -873,12 +873,12 @@ def test_subscription_is_unconditional_and_transient_local():
     assert "DurabilityPolicy.TRANSIENT_LOCAL" in SOURCE
 ```
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
 Run: `python3 -m pytest src/powertrain_ros/test/test_teleop_estop_latch.py -v` (ros 컨테이너; 이 테스트는 rclpy 초기화가 없어 호스트에서도 동작: `PYTHONPATH=ros2/src/powertrain_ros:motor_control:. /home/light/anaconda3/bin/python -m pytest ros2/src/powertrain_ros/test/test_teleop_estop_latch.py -v`)
 Expected: FAIL — `StopIteration` (`_on_teleop_estop` 메서드 없음)
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 `chassis_node.py` — 파일 상단 import에 `collections`가 없으면 추가하고, rclpy QoS import 추가:
 
@@ -940,12 +940,12 @@ from rclpy.qos import (
         )
 ```
 
-- [ ] **Step 4: 통과 확인**
+- [x] **Step 4: 통과 확인**
 
 Run: `python3 -m pytest src/powertrain_ros/test/test_teleop_estop_latch.py src/powertrain_ros/test/test_chassis_arm_gate.py -v` (ros 컨테이너)
 Expected: 신규 6개 + 기존 arm-gate 테스트 전부 PASS
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add ros2/src/powertrain_ros/powertrain_ros/chassis_node.py ros2/src/powertrain_ros/test/test_teleop_estop_latch.py
@@ -971,7 +971,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: Task 1~5의 커밋 해시.
 - Produces: 문서 정합. 코드 변경 없음.
 
-- [ ] **Step 1: `.claude/CLAUDE.md` 갱신**
+- [x] **Step 1: `.claude/CLAUDE.md` 갱신**
 
 chassis 절의 `**`min_drive_turns_per_s` 최저 구동속도 플로어**(0=off; 0<|명령|<이 값이면 부호 유지 상향 → 저속 HALL 코깅존 회피)` 서술 뒤에 추가하고, `기본 min-rev 1.0` 문구를 `기본 min-rev 0(플로어 폐지)` 로 교체:
 
@@ -981,7 +981,7 @@ DriveOdriveCan friction_ff/v_knee(torque_ff 피드포워드, 기본 off) —
 스펙 docs/superpowers/specs/2026-07-17-abc-program-design.md §2.2/§2.2b.)
 ```
 
-- [ ] **Step 2: `docs/specs/2026-07-13-min-rev-speed-range.md` 상단에 결정 배너 추가**
+- [x] **Step 2: `docs/specs/2026-07-13-min-rev-speed-range.md` 상단에 결정 배너 추가**
 
 ```markdown
 > **⛔ 2026-07-17 결정(D3/D4)**: min_rev 플로어는 **폐지**(기본값 전면 0) —
@@ -991,7 +991,7 @@ DriveOdriveCan friction_ff/v_knee(torque_ff 피드포워드, 기본 off) —
 > 아래 본문은 플로어 도입 당시의 이력 문서다.
 ```
 
-- [ ] **Step 3: 핸드오프 보고서 §2 커밋 체인에 A1 줄 추가** (커밋 해시는 Task 1~5 실제 해시)
+- [x] **Step 3: 핸드오프 보고서 §2 커밋 체인에 A1 줄 추가** (커밋 해시는 Task 1~5 실제 해시)
 
 ```markdown
 - A1 (○ E-stop 전역 latch + 플로어 폐지 D3 + friction_ff D4): <task1>..<task5>
@@ -999,7 +999,7 @@ DriveOdriveCan friction_ff/v_knee(torque_ff 피드포워드, 기본 off) —
   min_rev 기본 0, DriveOdriveCan friction_ff/v_knee(기본 off).
 ```
 
-- [ ] **Step 4: 3환경 전체 회귀**
+- [x] **Step 4: 3환경 전체 회귀**
 
 Run (호스트): `PYTHONPATH=ros2/src/powertrain_ros:motor_control:. /home/light/anaconda3/bin/python -m pytest motor_control -q`
 Expected: 기존 240 + 신규(Task 1: 7, Task 2/3: 5) 전부 PASS
@@ -1010,7 +1010,7 @@ Expected: 979+신규 passed, 2 skipped, 실패 0
 Run (ros 컨테이너): 핸드오프 §4 레시피
 Expected: 410+신규(Task 4: 3, Task 5: 6) passed, 실패 0
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add .claude/CLAUDE.md docs/specs/2026-07-13-min-rev-speed-range.md docs/reports/2026-07-16-project-state-and-handoff.md
