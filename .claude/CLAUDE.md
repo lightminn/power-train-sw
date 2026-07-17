@@ -235,7 +235,12 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   v-max 1.5). **무선판**(DualSense→노트북→젯슨→모터): `teleop_server.py`(젯슨,
   `python3 -m chassis.teleop_server --no-us100`) ↔ `laptop/laptop_client_chassis.py`(노트북 —
   DualSense **raw 입력**만 TCP:9000 송신, 매핑·속도한계·min_drive·피벗은 전부 서버쪽; □arm/○estop,
-  끊기면 구동0). 프로토콜 `"left_x rt lt sq ci\n"`. ⚠️ 빈/죽은 CAN 버스여도 서버 안 죽게 강건화
+  끊기면 구동0). 프로토콜 `"left_x rt lt sq ci\n"`. **ops 채널 :9001**(A2a, 2026-07-18):
+  복구·운용 명령 단일 게이트 `ops_broker` 노드 — 역할 토큰(`/etc/powertrain/ops_*.token`,
+  서버가 토큰→역할 매핑), 4상태 ACK(PENDING/FINAL_*/OUTCOME_UNKNOWN)·멱등 재전송·비상
+  2단계 서버 검증(reset 5s/arm 3s), 복구 chord = `recovery-v1-initial-candidate`(⚠️ 전부
+  임시: □+CREATE 2s=hold해제, D-pad↓/↑=권한, L1+R1+□/△=비상 reset/arm). 배포 =
+  `control.launch.py`(teleop+broker)를 powertrain_control 서비스가 실행. ⚠️ 빈/죽은 CAN 버스여도 서버 안 죽게 강건화
   (`DriveOdriveCan._send` CanError 흡수 + 제어루프 try/except). 단위테스트 34. **실기 10모터 협조
   4WS HIL 통과(2026-07-05, 실물 확인) + 무선 엔드투엔드 검증(2026-07-06: 유선판과 동일 코드경로 —
   전진 4축 2.40~2.42 rev/s 균일, 좌회전 애커만 차동 좌1.46<우2.01 실측, arm/estop/끊김 동작)**.
