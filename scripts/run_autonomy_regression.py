@@ -53,12 +53,14 @@ ENTRY_KEYS = frozenset(
         "source",
         "scenario",
         "fixture_class",
+        "contract",
         "expected",
         "tolerance",
         "sensor_contract_version",
         "checksum",
     }
 )
+CONTRACT_MODES = frozenset({"executable", "declared-only"})
 COMPARABLE_METRICS = frozenset(
     {"completion", "min_clearance", "fail_open", "false_hold"}
 )
@@ -74,12 +76,109 @@ class BackendSkipped(RuntimeError):
     """An explicitly optional backend is not installed or implemented."""
 
 
+def _depth_defect_contract(scenario: Scenario) -> str | None:
+    rows, cols = (int(value) for value in scenario.sensors["depth"]["shape_px"])
+    pixel_count = rows * cols
+    for hole in scenario.faults["depth_holes"]:
+        row_start, row_stop = (int(value) for value in hole["rows"])
+        col_start, col_stop = (int(value) for value in hole["cols"])
+        area_ratio = (
+            (row_stop - row_start) * (col_stop - col_start) / pixel_count
+        )
+        if float(hole["end_s"]) > float(hole["start_s"]) and area_ratio >= 0.01:
+            return None
+    for spike in scenario.faults["depth_spikes"]:
+        if (
+            float(spike["end_s"]) > float(spike["start_s"])
+            and abs(float(spike["offset_m"])) >= 1.0
+        ):
+            return None
+    return (
+        "requires a depth-hole interval covering at least 1% of the ROI "
+        "or a scheduled spike jump of at least 1 m"
+    )
+
+
+def _occlusion_contract(scenario: Scenario) -> str | None:
+    for dropout in scenario.faults["sensor_dropouts"]:
+        if (
+            dropout["stream"] == "depth"
+            and float(dropout["end_s"]) > float(dropout["start_s"])
+        ):
+            return None
+    return "requires a non-empty depth visibility-loss interval"
+
+
+def _below_floor_contract(scenario: Scenario) -> str | None:
+    if any(height < 0.0 for height in scenario.track.height_m):
+        return None
+    return "requires negative-elevation samples; this scenario contains none"
+
+
+def _bank_transition_contract(scenario: Scenario) -> str | None:
+    bank = scenario.track.bank_rad
+    if (
+        len(bank) >= 3
+        and abs(bank[0]) <= 1e-12
+        and abs(bank[-1]) <= 1e-12
+        and max(abs(value) for value in bank[1:-1]) > 1e-6
+        and max(bank) - min(bank) > 1e-6
+    ):
+        return None
+    return "requires zero-bank endpoints and a non-zero varying interior"
+
+
+def _slip_stuck_contract(scenario: Scenario) -> str | None:
+    for slip in scenario.faults["wheel_slip"]:
+        if (
+            float(slip["end_s"]) > float(slip["start_s"])
+            and float(slip["measurement_scale"]) < 1.0
+        ):
+            return None
+    return "requires a non-empty wheel-slip interval with measurement loss"
+
+
+def _required_depth_model(field: str) -> Callable[[Scenario], str | None]:
+    def validate(scenario: Scenario) -> str | None:
+        if field in scenario.sensors["depth"]:
+            return None
+        return f"requires sensors.depth.{field}, which is absent"
+
+    return validate
+
+
+def _required_fault_group(field: str) -> Callable[[Scenario], str | None]:
+    def validate(scenario: Scenario) -> str | None:
+        if scenario.faults.get(field):
+            return None
+        return f"requires faults.{field}, which is absent"
+
+    return validate
+
+
+FIXTURE_CLASS_CONTRACTS: Mapping[
+    str, Callable[[Scenario], str | None]
+] = {
+    "fog_smoke": _depth_defect_contract,
+    "shadow_backlight": _required_depth_model("shadow_backlight_model"),
+    "reflective_surface": _required_depth_model("reflective_surface_model"),
+    "occlusion": _occlusion_contract,
+    "depth_hole_jump": _depth_defect_contract,
+    "below_floor": _below_floor_contract,
+    "lead_occlusion": _required_fault_group("lead_occlusion"),
+    "marker_duplicate": _required_fault_group("marker_duplicates"),
+    "bank_transition": _bank_transition_contract,
+    "slip_stuck": _slip_stuck_contract,
+}
+
+
 @dataclass(frozen=True)
 class ManifestEntry:
     id: str
     source: str
     scenario_reference: str
     fixture_class: str
+    contract: str
     expected: Mapping[str, Any]
     tolerance: Mapping[str, float]
     sensor_contract_version: int
@@ -175,6 +274,22 @@ def _validate_tolerance(value: Any, label: str) -> dict[str, float]:
     return output
 
 
+def _validate_fixture_contract(
+    *,
+    fixture_class: str,
+    contract: str,
+    scenario: Scenario,
+    label: str,
+) -> None:
+    if contract == "declared-only":
+        return
+    violation = FIXTURE_CLASS_CONTRACTS[fixture_class](scenario)
+    if violation is not None:
+        raise ManifestError(
+            f"{label}.contract violation for {fixture_class}: {violation}"
+        )
+
+
 def load_manifest(
     manifest_path: str | Path,
     *,
@@ -211,6 +326,7 @@ def load_manifest(
         fixture_id = entry["id"]
         source = entry["source"]
         fixture_class = entry["fixture_class"]
+        contract = entry["contract"]
         reference = entry["scenario"]
         checksum = entry["checksum"]
         if not isinstance(fixture_id, str) or not _ID_PATTERN.fullmatch(fixture_id):
@@ -223,6 +339,10 @@ def load_manifest(
         seen_pairs.add(pair)
         if fixture_class not in FIXTURE_CLASSES:
             raise ManifestError(f"{label}.fixture_class is unsupported")
+        if contract not in CONTRACT_MODES:
+            raise ManifestError(
+                f"{label}.contract must be executable or declared-only"
+            )
         if not isinstance(reference, str) or not reference:
             raise ManifestError(f"{label}.scenario must be non-empty")
         if entry["sensor_contract_version"] != 1:
@@ -248,12 +368,19 @@ def load_manifest(
                 f"checksum mismatch for {fixture_id}/{source}: "
                 f"expected {checksum}, got {actual_checksum}"
             )
+        _validate_fixture_contract(
+            fixture_class=str(fixture_class),
+            contract=str(contract),
+            scenario=scenario,
+            label=label,
+        )
         entries.append(
             ManifestEntry(
                 id=fixture_id,
                 source=str(source),
                 scenario_reference=reference,
                 fixture_class=str(fixture_class),
+                contract=str(contract),
                 expected=expected,
                 tolerance=tolerance,
                 sensor_contract_version=1,
@@ -471,6 +598,7 @@ def _execute_entry(
         "source": entry.source,
         "scenario": entry.scenario_reference,
         "fixture_class": entry.fixture_class,
+        "contract": entry.contract,
         "checksum": entry.checksum,
     }
     try:
@@ -628,4 +756,3 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

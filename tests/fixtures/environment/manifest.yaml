@@ -4,6 +4,7 @@ fixtures:
     source: analytic
     scenario: powertrain_sim/scenarios/flat_straight_5m.yaml
     fixture_class: shadow_backlight
+    contract: declared-only
     expected: {passed: true}
     tolerance: {completion: 0.0, min_clearance: 0.03}
     sensor_contract_version: 1
@@ -12,6 +13,7 @@ fixtures:
     source: replay
     scenario: powertrain_sim/scenarios/flat_straight_5m.yaml
     fixture_class: shadow_backlight
+    contract: declared-only
     expected: {passed: true}
     tolerance: {completion: 0.0, min_clearance: 0.03}
     sensor_contract_version: 1
@@ -20,6 +22,7 @@ fixtures:
     source: replay
     scenario: powertrain_sim/scenarios/pivot_90deg.yaml
     fixture_class: marker_duplicate
+    contract: declared-only
     expected: {passed: true}
     tolerance: {completion: 0.02, min_clearance: 0.03}
     sensor_contract_version: 1
@@ -28,6 +31,7 @@ fixtures:
     source: mujoco
     scenario: powertrain_sim/scenarios/bank_transition.yaml
     fixture_class: bank_transition
+    contract: executable
     expected: {passed: true}
     tolerance: {completion: 0.02, min_clearance: 0.03}
     sensor_contract_version: 1
@@ -36,14 +40,16 @@ fixtures:
     source: closed_loop
     scenario: powertrain_sim/scenarios/wide_fov_drop_track.yaml
     fixture_class: below_floor
+    contract: declared-only
     expected: {passed: true}
     tolerance: {completion: 0.02, min_clearance: 0.03}
     sensor_contract_version: 1
-    checksum: 4c476bbecd7aee309463dc832d5f53f814cdee5b74d4c3db314d5caca1b2b0f9
+    checksum: b580f10824c2df356914d84d4c2f6fcff70a54371a6c0762a0a7103c59c5d703
   - id: procedural-dev-0
     source: analytic
     scenario: procedural:dev:0
     fixture_class: bank_transition
+    contract: executable
     expected: {passed: true}
     tolerance: {completion: 0.02, min_clearance: 0.03}
     sensor_contract_version: 1
@@ -52,6 +58,7 @@ fixtures:
     source: mujoco
     scenario: procedural:dev:1
     fixture_class: bank_transition
+    contract: declared-only
     expected: {passed: true}
     tolerance: {completion: 0.02, min_clearance: 0.03}
     sensor_contract_version: 1
@@ -60,6 +67,7 @@ fixtures:
     source: analytic
     scenario: powertrain_sim/scenarios/bank_transition.yaml
     fixture_class: depth_hole_jump
+    contract: executable
     expected:
       reject_reasons: [zero_depth, depth_hole]
     tolerance: {completion: 0.02, min_clearance: 0.03}
@@ -69,6 +77,7 @@ fixtures:
     source: analytic
     scenario: powertrain_sim/scenarios/bank_transition.yaml
     fixture_class: reflective_surface
+    contract: declared-only
     expected:
       reject_reasons: [isolated_spike]
     tolerance: {completion: 0.02, min_clearance: 0.03}

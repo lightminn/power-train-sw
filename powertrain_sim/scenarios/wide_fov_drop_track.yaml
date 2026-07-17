@@ -72,5 +72,6 @@ expected_metrics:
   edge_overrun_count: 0
   false_hold_count: 0
   fail_open_count: 0
-  max_recovery_time_s: 0.0
+  # A3 dwell(ticks AND >=0.15 s AND 표본 3) 이후 결정론적 회복 꼬리 = 0.20 s.
+  max_recovery_time_s: 0.2
   max_estimator_runtime_ms: 5.0
