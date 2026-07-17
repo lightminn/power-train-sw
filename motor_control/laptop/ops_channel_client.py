@@ -223,8 +223,26 @@ class OpsChannelClient:
             pending.last_sent_s = now_s
         return True
 
-    def submit(self, action, *, params=None, phase=None):
-        request_id = str(uuid.uuid4())
+    def submit(
+        self,
+        action,
+        *,
+        params=None,
+        phase=None,
+        request_id=None,
+        expected_state_revision=None,
+    ):
+        request_id = (
+            str(uuid.uuid4()) if request_id is None else str(request_id)
+        )
+        if not request_id:
+            raise ValueError("request_id must be non-empty")
+        if expected_state_revision is not None and (
+            not isinstance(expected_state_revision, int)
+            or isinstance(expected_state_revision, bool)
+            or expected_state_revision < 0
+        ):
+            raise ValueError("expected_state_revision must be >= 0 int")
         now_s = float(self.clock())
         payload = {
             "schema_version": OPS_SCHEMA_VERSION,
@@ -235,6 +253,8 @@ class OpsChannelClient:
             "params": dict(params or {}),
             "stamp_s": now_s,
         }
+        if expected_state_revision is not None:
+            payload["expected_state_revision"] = expected_state_revision
         if phase is not None:
             payload["phase"] = str(phase)
         self._next_sequence += 1
