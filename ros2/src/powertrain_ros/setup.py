@@ -66,6 +66,7 @@ setup(
             "lead_follower = powertrain_ros.lead_follower_node:main",
             "section_supervisor = powertrain_ros.section_supervisor_node:main",
             "teleop_command = powertrain_ros.teleop_command_node:main",
+            "ops_broker = powertrain_ros.ops_broker_node:main",
             "chassis_telemetry = powertrain_ros.chassis_telemetry_sender_node:main",
         ],
     },
