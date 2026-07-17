@@ -28,7 +28,54 @@ from .sensors import FastSensorSuite
 
 CommandSource = Callable[[float, StateSnapshot | None], tuple[float, float]]
 HoldStateSource = Callable[[float, StateSnapshot | None], tuple[bool, bool]]
+Detection = tuple[str, float, float, float, float]
+DetectionsSource = Callable[[float, GroundTruthFrame], list[Detection]]
 DepthTap = Callable[[DepthFrame], None]
+
+
+def _validate_detections(value: object) -> list[Detection]:
+    if not isinstance(value, list):
+        raise ValueError("detections_source must return a list")
+    normalized = []
+    for detection in value:
+        if not isinstance(detection, tuple) or len(detection) != 5:
+            raise ValueError("each detection must be a follow 5-tuple")
+        name, confidence, forward_m, left_m, bbox_area_px = detection
+        if not isinstance(name, str) or not name:
+            raise ValueError("detection class_name must be a non-empty string")
+        numeric = tuple(
+            float(item)
+            for item in (confidence, forward_m, left_m, bbox_area_px)
+        )
+        if not all(math.isfinite(item) for item in numeric):
+            raise ValueError("detection values must be finite")
+        normalized.append((name, *numeric))
+    return normalized
+
+
+def _lead_recording_channels(
+    detections_source: DetectionsSource,
+    command_source: CommandSource | None,
+    detections: list[Detection],
+) -> tuple[float | None, str]:
+    owners = (
+        getattr(command_source, "__self__", command_source),
+        getattr(detections_source, "__self__", detections_source),
+    )
+    lead_distance_m = None
+    follow_state = None
+    for owner in owners:
+        if owner is None:
+            continue
+        if lead_distance_m is None:
+            lead_distance_m = getattr(owner, "lead_distance_m", None)
+        if follow_state is None:
+            follow_state = getattr(owner, "follow_state", None)
+    if lead_distance_m is None and detections:
+        lead_distance_m = math.hypot(detections[0][2], detections[0][3])
+    if follow_state is None:
+        follow_state = "TRACKING" if detections else "LOST"
+    return lead_distance_m, str(follow_state)
 
 
 def _apply_depth_degradation(
@@ -358,6 +405,7 @@ def run_scenario(
     *,
     command_source: CommandSource | None = None,
     hold_state_source: HoldStateSource | None = None,
+    detections_source: DetectionsSource | None = None,
     depth_tap: DepthTap | None = None,
     geometry: ChassisGeometry | None = None,
 ) -> MetricsReport:
@@ -382,6 +430,15 @@ def run_scenario(
     with RunWriter(output, run_id=scenario.scenario_id) as writer:
         for index in range(scenario.clock.sample_count):
             elapsed_s = index * scenario.clock.dt_s
+            truth = sensors.sample_ground_truth(index)
+            detections = None
+            if detections_source is not None:
+                # Closed-loop ordering is deliberate and safety-relevant:
+                # synthesize the observation from the current robot pose,
+                # decide the follow command, then step the physical plant.
+                detections = _validate_detections(
+                    detections_source(elapsed_s, truth)
+                )
             if command_source is None:
                 v_m_s, omega_rad_s = _motion(scenario, elapsed_s)
             else:
@@ -401,7 +458,6 @@ def run_scenario(
                     faults=scenario.faults.get("depth_degradation", ()),
                     rng=degradation_rng,
                 )
-            truth = sensors.sample_ground_truth(index)
             if wheel is not None:
                 writer.write_wheel(wheel)
                 estimator_started_ns = time.perf_counter_ns()
@@ -428,6 +484,29 @@ def run_scenario(
                 writer.write_depth(depth)
                 if depth_tap is not None:
                     depth_tap(depth)
+            if detections is not None:
+                lead_distance_m, follow_state = _lead_recording_channels(
+                    detections_source,
+                    command_source,
+                    detections,
+                )
+                writer.write_detections(
+                    stamp_s=truth.stamp_s,
+                    frame_id=scenario.frames["body"],
+                    detections=tuple(
+                        {
+                            "class_name": name,
+                            "confidence": confidence,
+                            "forward_m": forward_m,
+                            "left_m": left_m,
+                            "bbox_area_px": bbox_area_px,
+                        }
+                        for name, confidence, forward_m, left_m, bbox_area_px
+                        in detections
+                    ),
+                    lead_distance_m=lead_distance_m,
+                    follow_state=follow_state,
+                )
             writer.write_ground_truth(truth)
 
             latest_estimate = estimator.snapshot(now_s=truth.stamp_s)
@@ -479,6 +558,7 @@ def run_scenario(
 
 __all__ = (
     "CommandSource",
+    "DetectionsSource",
     "DepthTap",
     "HoldMetricsTracker",
     "HoldStateSource",

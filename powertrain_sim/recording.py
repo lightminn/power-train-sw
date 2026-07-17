@@ -29,6 +29,8 @@ class DetectionFrame:
     stamp_s: float
     frame_id: str
     detections: tuple[Mapping[str, Any], ...]
+    lead_distance_m: float | None = None
+    follow_state: str | None = None
 
 
 @dataclass(frozen=True)
@@ -192,6 +194,8 @@ class RunWriter:
         stamp_s: float,
         frame_id: str,
         detections: Sequence[Mapping[str, Any]],
+        lead_distance_m: float | None = None,
+        follow_state: str | None = None,
     ) -> None:
         if not isinstance(frame_id, str) or not frame_id:
             raise ValueError("frame_id must be a non-empty string")
@@ -200,11 +204,17 @@ class RunWriter:
             if not isinstance(detection, Mapping):
                 raise ValueError("each detection must be a mapping")
             normalized.append(dict(detection))
-        self._append(
-            "detections",
-            stamp_s,
-            {"frame_id": frame_id, "detections": normalized},
-        )
+        payload = {"frame_id": frame_id, "detections": normalized}
+        if lead_distance_m is not None:
+            lead_distance_m = float(lead_distance_m)
+            if not math.isfinite(lead_distance_m) or lead_distance_m < 0.0:
+                raise ValueError("lead_distance_m must be finite and nonnegative")
+            payload["lead_distance_m"] = lead_distance_m
+        if follow_state is not None:
+            if not isinstance(follow_state, str) or not follow_state:
+                raise ValueError("follow_state must be a non-empty string")
+            payload["follow_state"] = follow_state
+        self._append("detections", stamp_s, payload)
 
     def write_ground_truth(self, frame: GroundTruthFrame) -> None:
         self._append(
@@ -344,6 +354,16 @@ class RecordedRun:
                 stamp_s=stamp_s,
                 frame_id=str(payload["frame_id"]),
                 detections=tuple(dict(item) for item in payload["detections"]),
+                lead_distance_m=(
+                    None
+                    if payload.get("lead_distance_m") is None
+                    else float(payload["lead_distance_m"])
+                ),
+                follow_state=(
+                    None
+                    if payload.get("follow_state") is None
+                    else str(payload["follow_state"])
+                ),
             )
         return GroundTruthFrame(
             stamp_s=stamp_s,
