@@ -16,12 +16,17 @@ from powertrain_sim.hidden_eval.__main__ import evaluate_report
 pytest.importorskip("mujoco")
 
 from powertrain_sim.closed_loop import TerrainAutonomyDriver, run_closed_loop
+from powertrain_sim.mujoco_fast.model_builder import WHEEL_HALF_WIDTH_M
 from powertrain_sim.mujoco_fast.runner import run_scenario
-from powertrain_sim.procedural import GenerationParameters, generate_scenario
+from powertrain_sim.procedural import GenerationParameters, PinchSpec, generate_scenario
 from powertrain_sim.scenario import parse_scenario
 
 
 DEV_SEED = 0
+# CAD URDF wheel centres in chassis.kinematics.default_geometry() have their
+# widest |y| at 0.4395 m; model_builder gives each wheel 0.035 m half-width.
+# The simulated physical footprint is therefore 2 * (0.4395 + 0.035) = 0.949 m.
+ROBOT_FOOTPRINT_WIDTH_M = 0.949
 
 
 def _flat_document(*, seed: int = DEV_SEED):
@@ -47,6 +52,75 @@ def _deterministic_metrics(report):
     values.pop("wall_clock_runtime_s")
     values.pop("max_estimator_runtime_ms")
     return values
+
+
+def _pinch_document(*, width_m: float):
+    document = generate_scenario(
+        GenerationParameters(
+            track_length_range_m=(2.5, 2.5),
+            track_width_range_m=(1.3, 1.3),
+            track_height_range_m=(0.5, 0.5),
+            curvature_range_per_m=(0.0, 0.0),
+            station_spacing_range_m=(0.20, 0.20),
+            linear_speed_range_m_s=(0.45, 0.45),
+            terrain_families=("flat",),
+            motion_profiles=("constant_speed",),
+            pinch=PinchSpec(center_ratio=0.45, length_m=0.5, width_m=width_m),
+            # Completion means the expected fail-closed endpoint, while the
+            # assertions below separately prove whether the pinch was passed.
+            expected_completion=False,
+        ),
+        seed=DEV_SEED,
+        seed_class="dev",
+    )
+    # Isolate the width-family acceptance from the deterministic random fault
+    # schedule, and leave enough time for clearance-based proportional slowing.
+    document["clock"]["duration_s"] = 12.0
+    document["faults"] = {name: [] for name in document["faults"]}
+    return document
+
+
+def _clothoid_document():
+    document = generate_scenario(
+        GenerationParameters(
+            track_length_range_m=(2.5, 2.5),
+            track_width_range_m=(1.4, 1.4),
+            track_height_range_m=(0.5, 0.5),
+            curvature_range_per_m=(-0.08, 0.08),
+            station_spacing_range_m=(0.35, 0.35),
+            linear_speed_range_m_s=(0.45, 0.45),
+            terrain_families=("flat",),
+            motion_profiles=("constant_speed",),
+            curvature_mode="clothoid",
+            expected_completion=False,
+        ),
+        seed=DEV_SEED,
+        seed_class="dev",
+    )
+    document["clock"]["duration_s"] = 12.0
+    document["faults"] = {name: [] for name in document["faults"]}
+    return document
+
+
+def _undulating_document():
+    document = generate_scenario(
+        GenerationParameters(
+            track_length_range_m=(2.5, 2.5),
+            track_width_range_m=(1.4, 1.4),
+            track_height_range_m=(0.5, 0.5),
+            curvature_range_per_m=(0.0, 0.0),
+            station_spacing_range_m=(0.40, 0.40),
+            linear_speed_range_m_s=(0.45, 0.45),
+            terrain_families=("undulating",),
+            motion_profiles=("constant_speed",),
+            expected_completion=False,
+        ),
+        seed=DEV_SEED,
+        seed_class="dev",
+    )
+    document["clock"]["duration_s"] = 12.0
+    document["faults"] = {name: [] for name in document["faults"]}
+    return document
 
 
 def test_dev_seed_closed_loop_moves_without_fail_open_and_is_deterministic(tmp_path):
@@ -111,6 +185,66 @@ def test_initial_depth_loss_holds_then_recovers_without_fail_open(tmp_path):
     # — 회복 지연 0.20 s. tracker는 이 꼬리를 false hold가 아닌 recovery로
     # 집계한다.
     assert report.max_recovery_time_s == pytest.approx(0.20, abs=1e-6)
+
+
+def test_wide_pinch_is_traversed_without_fail_open(tmp_path):
+    document = _pinch_document(width_m=ROBOT_FOOTPRINT_WIDTH_M + 0.15)
+    report = run_closed_loop(parse_scenario(document), tmp_path / "wide-pinch")
+    pinch_end_ratio = 0.45 + 0.5 / 2.0 / 2.5
+
+    assert report.completion_ratio > pinch_end_ratio
+    assert report.fail_open_count == 0
+    assert report.edge_overrun_count == 0
+    assert report.passed, report.reasons
+
+
+def test_too_narrow_pinch_stops_before_the_drop_boundary(tmp_path):
+    document = _pinch_document(width_m=ROBOT_FOOTPRINT_WIDTH_M - 0.049)
+    report = run_closed_loop(parse_scenario(document), tmp_path / "narrow-pinch")
+    pinch_start_ratio = 0.45 - 0.5 / 2.0 / 2.5
+
+    assert report.completion_ratio < pinch_start_ratio
+    assert report.fail_open_count == 0
+    assert report.edge_overrun_count == 0
+    assert report.passed, report.reasons
+
+
+def test_clothoid_closed_loop_stays_bounded_without_fail_open(tmp_path):
+    document = _clothoid_document()
+    report = run_closed_loop(parse_scenario(document), tmp_path / "clothoid")
+
+    assert report.completion_ratio > 0.30
+    assert report.fail_open_count == 0
+    assert report.edge_overrun_count == 0
+    assert report.min_wheel_clearance_m > WHEEL_HALF_WIDTH_M
+    assert report.passed, report.reasons
+
+
+def test_undulating_closed_loop_keeps_pitch_finite_without_fail_open(tmp_path):
+    scenario = parse_scenario(_undulating_document())
+    driver = TerrainAutonomyDriver(scenario)
+    pitch_samples = []
+
+    def capture_pitch(elapsed_s, snapshot):
+        if snapshot is not None:
+            pitch_samples.append(snapshot.tilt.pitch_rad)
+        return driver.command(elapsed_s, snapshot)
+
+    report = run_scenario(
+        scenario,
+        tmp_path / "undulating",
+        command_source=capture_pitch,
+        hold_state_source=driver.hold_state,
+        depth_tap=driver.on_depth,
+    )
+
+    assert report.completion_ratio > 0.30
+    assert report.fail_open_count == 0
+    assert report.edge_overrun_count == 0
+    assert pitch_samples
+    assert all(math.isfinite(value) for value in pitch_samples)
+    assert max(abs(value) for value in pitch_samples) < math.pi / 2.0
+    assert report.passed, report.reasons
 
 
 def test_hidden_evaluation_cli_records_hash_and_matches_report_exit(tmp_path):

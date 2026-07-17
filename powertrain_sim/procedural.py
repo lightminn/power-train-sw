@@ -23,8 +23,11 @@ from chassis.kinematics import default_geometry
 from .scenario import PRNG_ALGORITHM, REQUIRED_UNITS, SEED_CLASSES, parse_scenario
 
 
-TERRAIN_FAMILIES = ("flat", "bank", "bank_transition")
+DEFAULT_TERRAIN_FAMILIES = ("flat", "bank", "bank_transition")
+TERRAIN_FAMILIES = DEFAULT_TERRAIN_FAMILIES + ("undulating",)
 MOTION_PROFILES = ("constant_speed", "trapezoidal_speed")
+CURVATURE_MODES = ("constant", "clothoid")
+MAX_CLOTHOID_RATE_PER_M2 = 0.08
 L515_DEPTH_HORIZONTAL_FOV_RAD = math.radians(70.0)
 L515_DEPTH_VERTICAL_FOV_RAD = math.radians(55.0)
 
@@ -51,6 +54,35 @@ def _range(
 
 
 @dataclass(frozen=True)
+class PinchSpec:
+    """One deterministic narrowed interval along the generated centreline."""
+
+    center_ratio: float
+    length_m: float
+    width_m: float
+
+    def __post_init__(self) -> None:
+        values = {
+            "center_ratio": self.center_ratio,
+            "length_m": self.length_m,
+            "width_m": self.width_m,
+        }
+        if any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            for value in values.values()
+        ):
+            raise ValueError("pinch values must be finite numbers")
+        if not 0.0 <= float(self.center_ratio) <= 1.0:
+            raise ValueError("pinch center_ratio must be within [0, 1]")
+        if float(self.length_m) <= 0.0:
+            raise ValueError("pinch length_m must be positive")
+        if float(self.width_m) <= 0.0:
+            raise ValueError("pinch width_m must be positive")
+
+
+@dataclass(frozen=True)
 class GenerationParameters:
     """All tunable ranges used by the PCG64 procedural generator."""
 
@@ -63,7 +95,7 @@ class GenerationParameters:
     station_spacing_range_m: tuple[float, float] = (0.25, 0.45)
     linear_speed_range_m_s: tuple[float, float] = (0.35, 0.60)
     linear_acceleration_range_m_s2: tuple[float, float] = (0.20, 0.40)
-    terrain_families: tuple[str, ...] = TERRAIN_FAMILIES
+    terrain_families: tuple[str, ...] = DEFAULT_TERRAIN_FAMILIES
     motion_profiles: tuple[str, ...] = MOTION_PROFILES
     clock_dt_s: float = 0.02
     depth_shape_px: tuple[int, int] = (60, 80)
@@ -73,6 +105,10 @@ class GenerationParameters:
     # fail-closed 정지하는 것이 옳으므로 95% 완주가 물리적으로 불가 — False로
     # 생성한다(정지 여유가 5%를 넘는 모든 기본 트랙 길이에서 성립).
     expected_completion: bool = True
+    pinch: PinchSpec | None = None
+    curvature_mode: str = "constant"
+    undulation_amplitude_m: float = 0.05
+    undulation_wavelength_m: float = 2.0
 
     def __post_init__(self) -> None:
         _range(self.track_length_range_m, "track_length_range_m", minimum=1.0)
@@ -122,6 +158,28 @@ class GenerationParameters:
             or self.depth_sample_every_n_steps < 1
         ):
             raise ValueError("depth_sample_every_n_steps must be a positive integer")
+        if self.pinch is not None and not isinstance(self.pinch, PinchSpec):
+            raise ValueError("pinch must be PinchSpec or None")
+        if self.curvature_mode not in CURVATURE_MODES:
+            raise ValueError(f"curvature_mode must come from {CURVATURE_MODES}")
+        for name, value, allow_zero in (
+            ("undulation_amplitude_m", self.undulation_amplitude_m, True),
+            ("undulation_wavelength_m", self.undulation_wavelength_m, False),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                or (float(value) < 0.0 if allow_zero else float(value) <= 0.0)
+            ):
+                qualifier = "nonnegative" if allow_zero else "positive"
+                raise ValueError(f"{name} must be a finite {qualifier} number")
+        if float(self.undulation_amplitude_m) > float(
+            self.track_height_range_m[0]
+        ):
+            raise ValueError(
+                "undulation_amplitude_m must not exceed the minimum track height"
+            )
 
 
 def _draw(rng: np.random.Generator, values: tuple[float, float]) -> float:
@@ -283,27 +341,79 @@ def generate_scenario(
     speed_m_s = _draw(rng, parameters.linear_speed_range_m_s)
     acceleration_m_s2 = _draw(rng, parameters.linear_acceleration_range_m_s2)
 
-    if motion_profile == "trapezoidal_speed":
-        curvature = 0.0
+    if parameters.curvature_mode == "clothoid":
+        start_curvature, requested_end_curvature = (
+            float(value) for value in parameters.curvature_range_per_m
+        )
+        maximum_change = MAX_CLOTHOID_RATE_PER_M2 * length_m
+        curvature_change = float(
+            np.clip(
+                requested_end_curvature - start_curvature,
+                -maximum_change,
+                maximum_change,
+            )
+        )
+        end_curvature = start_curvature + curvature_change
+        raw_curvature_profile = np.linspace(
+            start_curvature,
+            end_curvature,
+            station_count,
+        )
+        curvature_profile = [
+            _rounded(value) for value in raw_curvature_profile
+        ]
+        motion_curvature = 0.5 * (start_curvature + end_curvature)
     else:
-        curvature = _draw(rng, parameters.curvature_range_per_m)
-    curvature_profile = [_rounded(curvature)] * station_count
+        if motion_profile == "trapezoidal_speed":
+            curvature = 0.0
+        else:
+            curvature = _draw(rng, parameters.curvature_range_per_m)
+        raw_curvature_profile = np.full(station_count, curvature, dtype=float)
+        curvature_profile = [_rounded(curvature)] * station_count
+        motion_curvature = curvature
     heading = 0.0
     x_m = 0.0
     y_m = 0.0
     elevation_m = _draw(rng, parameters.track_height_range_m)
-    centerline = [[0.0, 0.0, _rounded(elevation_m)]]
-    for left_station, right_station in zip(stations, stations[1:]):
+    if family == "undulating":
+        elevation_profile = [
+            _rounded(
+                elevation_m
+                + float(parameters.undulation_amplitude_m)
+                * math.sin(
+                    2.0
+                    * math.pi
+                    * float(station)
+                    / float(parameters.undulation_wavelength_m)
+                )
+            )
+            for station in stations
+        ]
+    else:
+        elevation_profile = [_rounded(elevation_m)] * station_count
+    centerline = [[0.0, 0.0, elevation_profile[0]]]
+    for index, (left_station, right_station) in enumerate(
+        zip(stations, stations[1:])
+    ):
         ds = float(right_station - left_station)
-        midpoint_heading = heading + 0.5 * curvature * ds
+        if parameters.curvature_mode == "constant":
+            segment_curvature = curvature
+        else:
+            segment_curvature = 0.5 * (
+                float(raw_curvature_profile[index])
+                + float(raw_curvature_profile[index + 1])
+            )
+        midpoint_heading = heading + 0.5 * segment_curvature * ds
         x_m += ds * math.cos(midpoint_heading)
         y_m += ds * math.sin(midpoint_heading)
-        heading += curvature * ds
-        centerline.append([_rounded(x_m), _rounded(y_m), _rounded(elevation_m)])
+        heading += segment_curvature * ds
+        centerline.append(
+            [_rounded(x_m), _rounded(y_m), elevation_profile[index + 1]]
+        )
 
     bank_magnitude = _draw(rng, parameters.bank_magnitude_range_rad)
     bank_sign = -1.0 if int(rng.integers(0, 2)) == 0 else 1.0
-    if family == "flat":
+    if family in {"flat", "undulating"}:
         bank = [0.0] * station_count
     elif family == "bank":
         bank = [_rounded(bank_sign * bank_magnitude)] * station_count
@@ -316,6 +426,15 @@ def generate_scenario(
         bank[-1] = 0.0
 
     width = _smooth_profile(rng, station_count, parameters.track_width_range_m)
+    if parameters.pinch is not None:
+        centre_m = float(parameters.pinch.center_ratio) * length_m
+        half_length_m = float(parameters.pinch.length_m) / 2.0
+        width = [
+            _rounded(parameters.pinch.width_m)
+            if abs(float(station) - centre_m) <= half_length_m + 1e-12
+            else value
+            for station, value in zip(stations, width)
+        ]
     friction = _smooth_profile(rng, station_count, parameters.friction_range)
     duration_s = _duration_for_motion(
         motion_profile,
@@ -337,7 +456,7 @@ def generate_scenario(
         motion: dict[str, Any] = {
             "profile": motion_profile,
             "linear_speed_m_s": _rounded(speed_m_s),
-            "yaw_rate_rad_s": _rounded(curvature * speed_m_s),
+            "yaw_rate_rad_s": _rounded(motion_curvature * speed_m_s),
         }
     else:
         motion = {
@@ -467,6 +586,7 @@ def dump_scenario_yaml(document: dict[str, Any], path: str | Path) -> None:
 
 __all__ = (
     "GenerationParameters",
+    "PinchSpec",
     "canonical_json_bytes",
     "canonical_json_sha256",
     "dump_scenario_yaml",
