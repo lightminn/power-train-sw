@@ -60,15 +60,24 @@ class DriveOdriveCan(DriveActuator):
     bus:
         미리 연 ``can.BusABC`` 를 주입하면 ``connect()`` 가 이를 재사용한다
         (주로 단위 테스트용 — 각 드라이버가 독립 소켓을 갖는 게 기본).
+    friction_ff:
+        저속 마찰/코깅 보상 피드포워드(raw torque_ff 단위 — fw 0.5.1 벤치 확정 전).
+        0 < |target| < v_knee 일 때만 부호 추종으로 Set_Input_Vel 2번째 필드에 실린다.
+        0.0(기본) = off. 스펙 r6 §2.2b(D4).
+    v_knee:
+        friction_ff 적용 상한(turns/s, 기본 0.5). 경계값은 포함하지 않는다.
     """
 
     def __init__(self, node_id: int = 11, channel: str = "can0",
-                 stale_ms: float = 200.0, bus=None, clock=None):
+                 stale_ms: float = 200.0, bus=None, clock=None,
+                 friction_ff: float = 0.0, v_knee: float = 0.5):
         self._node_id = node_id
         self._channel = channel
         self._stale_ms = stale_ms
         self._bus = bus
         self._owns_bus = bus is None
+        self._friction_ff = max(0.0, float(friction_ff))
+        self._v_knee = max(0.0, float(v_knee))
         self._target_vel = 0.0
         self._actual_vel = 0.0
         self._cur_a = 0.0
@@ -190,10 +199,17 @@ class DriveOdriveCan(DriveActuator):
         """다음 tick() 에 전송할 목표 속도(turns/s)."""
         self._target_vel = turns_per_s
 
+    def _friction_torque_ff(self) -> float:
+        t = self._target_vel
+        if self._friction_ff > 0.0 and 0.0 < abs(t) < self._v_knee:
+            return self._friction_ff if t > 0.0 else -self._friction_ff
+        return 0.0
+
     def tick(self) -> None:
-        """제어 루프마다: 목표 속도 전송 + RTR 로 속도/전류 폴링."""
+        """제어 루프마다: 목표 속도(+저속 마찰 보상 ff) 전송 + RTR 폴링."""
         self._drain_available()
-        self._send(_SET_INPUT_VEL, struct.pack("<ff", self._target_vel, 0.0))
+        self._send(_SET_INPUT_VEL,
+                   struct.pack("<ff", self._target_vel, self._friction_torque_ff()))
         self._send(_GET_ENCODER_ESTIMATES, rtr=True)
         self._send(_GET_IQ, rtr=True)
 
