@@ -517,6 +517,7 @@ def test_ros_wrapper_publishes_one_zero_on_each_fresh_to_stale_edge():
         _gateway=SimpleNamespace(tick=lambda _now: next(outputs)),
         _status_lock=nullcontext(),
         _input_was_fresh=False,
+        _estop_event=None,          # A1: ○ E-stop 재발행 상태 (없으면 _tick AttributeError)
         _publish_drive=published["drive"].append,
         _publish_arm=published["arm"].append,
         _publish_assist_bypass=published["bypass"].append,

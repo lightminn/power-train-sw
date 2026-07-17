@@ -6,16 +6,24 @@ adapter or the arm adapter.  ARM output is intentionally hard-disabled until
 the five-axis controller, Servo, video feedback, and joint HIL gates pass.
 """
 
+import json
 import queue
 import socket
 import threading
 import time
+import uuid
 
 from control_msgs.msg import JointJog
 from geometry_msgs.msg import Twist
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Bool
+from rclpy.qos import (
+    DurabilityPolicy,
+    HistoryPolicy,
+    QoSProfile,
+    ReliabilityPolicy,
+)
+from std_msgs.msg import Bool, String
 from std_srvs.srv import Trigger
 
 from powertrain_ros.remote_input import RemoteInputDecoder
@@ -31,6 +39,10 @@ ARM_OUTPUT_ENABLED = False
 CLIENT_IDLE_TIMEOUT_S = 5.0
 MAX_EVENTS_PER_TICK = 256
 MAX_VIOLATION_EVENTS_PER_S = 50
+# ○ E-stop 전역 latch(스펙 r6 §2.1): edge 시점부터 이 시간 동안 매 틱 재발행.
+# 발행 자체는 TRANSIENT_LOCAL latched 라 재발행은 구독자 프로세스 재시작
+# '창'에 대한 보험이다.
+ESTOP_REBROADCAST_S = 1.0
 VIOLATION_LOG_PERIOD_S = 1.0
 
 
@@ -108,6 +120,18 @@ class TeleopCommandNode(Node):
             "/teleop/assist_bypass",
             10,
         )
+        estop_qos = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+        )
+        self.pub_estop = self.create_publisher(
+            String,
+            "/teleop/estop",
+            estop_qos,
+        )
+        self._estop_event = None
         self.create_service(Trigger, "~/clear_hold", self._clear_hold)
         self.create_timer(1.0 / 30.0, self._tick)
 
@@ -247,6 +271,8 @@ class TeleopCommandNode(Node):
             elif event == "disconnect":
                 self._gateway.end_connection()
             elif event == "frame":
+                if payload.estop_edge:
+                    self._begin_estop_event(drain_now_s)
                 self._gateway.submit(payload)
             elif event == "violation":
                 self._gateway.contract_violation(payload)
@@ -266,6 +292,27 @@ class TeleopCommandNode(Node):
         ):
             self._violation_events_reported = suppressed
         return processed
+
+    def _begin_estop_event(self, now_s):
+        self._estop_event = {
+            "event_id": uuid.uuid4().hex,
+            "stamp_s": float(now_s),
+            "until_s": float(now_s) + ESTOP_REBROADCAST_S,
+        }
+        self._publish_estop_event()
+
+    def _publish_estop_event(self):
+        if self._estop_event is None:
+            return
+        message = String()
+        message.data = json.dumps(
+            {
+                "event_id": self._estop_event["event_id"],
+                "stamp_s": self._estop_event["stamp_s"],
+            },
+            separators=(",", ":"),
+        )
+        self.pub_estop.publish(message)
 
     def _publish_drive(self, output):
         message = Twist()
@@ -300,6 +347,11 @@ class TeleopCommandNode(Node):
 
     def _tick(self):
         self._drain_events()
+        if self._estop_event is not None:
+            if time.monotonic() < self._estop_event["until_s"]:
+                self._publish_estop_event()
+            else:
+                self._estop_event = None
         output = self._gateway.tick(time.monotonic())
         with self._status_lock:
             self._status_line = make_status_line(output).encode("utf-8")
