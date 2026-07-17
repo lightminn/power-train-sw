@@ -1,0 +1,17 @@
+[Unit]
+Description=Powertrain bring-up CAN and environment preflight
+Wants=network-online.target
+After=network-online.target
+Before=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=/etc/powertrain/powertrain.env
+Environment=PYTHONPATH=/home/zetin/power-train-sw/ros2/src/powertrain_ros
+WorkingDirectory=/home/zetin/power-train-sw
+ExecStart=/usr/bin/bash scripts/can_setup.sh
+ExecStart=/usr/bin/python3 -m powertrain_ros.preflight
+
+[Install]
+WantedBy=multi-user.target

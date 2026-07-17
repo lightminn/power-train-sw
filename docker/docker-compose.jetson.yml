@@ -142,6 +142,7 @@ services:
     command:
       - |
         set -e
+        PYTHONPATH=/workspace/ros2/src/powertrain_ros python3 -m powertrain_ros.preflight || exit 1
         source /opt/ros/humble/setup.bash
         cd /workspace/ros2
         colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros

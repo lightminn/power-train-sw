@@ -74,6 +74,22 @@ def test_telemetry_contract_keeps_rs485_failure_reason():
     assert frame.rs485_detail == "timeout"
 
 
+def test_telemetry_contract_keeps_bringup_beacon_status():
+    frame = parse_telemetry(
+        b'{"schema_version":1,"sequence":16,'
+        b'"unit_status":{"powertrain-bringup-preflight.service":"active"},'
+        b'"compose_status":{"powertrain_control":"healthy"},'
+        b'"journal_tail":["bring-up ready"]}',
+        received_monotonic_s=10.0,
+    )
+
+    assert frame.unit_status == (
+        ("powertrain-bringup-preflight.service", "active"),
+    )
+    assert frame.compose_status == (("powertrain_control", "healthy"),)
+    assert frame.journal_tail == ("bring-up ready",)
+
+
 def test_telemetry_contract_exposes_individual_wheel_statuses():
     frame = parse_telemetry(
         b'{"schema_version":1,"sequence":14,"wheel_statuses":['

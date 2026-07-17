@@ -54,6 +54,9 @@ class TelemetrySnapshot:
     rs485_state: str
     rs485_consecutive_failures: int | None
     rs485_detail: str
+    unit_status: tuple[tuple[str, str], ...]
+    compose_status: tuple[tuple[str, str], ...]
+    journal_tail: tuple[str, ...]
     safety_status: str
     safety_distance_mm: float | None
     safety_estop_required: bool | None
@@ -105,6 +108,24 @@ def _l515_ros_topic_rates(payload: dict[str, Any]) -> tuple[tuple[str, float], .
     return tuple(sorted((str(topic), float(rate)) for topic, rate in raw_rates.items()))
 
 
+def _status_mapping(payload: dict[str, Any], name: str) -> tuple[tuple[str, str], ...]:
+    raw_status = payload.get(name)
+    if raw_status is None:
+        return ()
+    if not isinstance(raw_status, dict) or len(raw_status) > 16:
+        raise ValueError(f"invalid {name}")
+    return tuple(sorted((str(key), str(value)) for key, value in raw_status.items()))
+
+
+def _journal_tail(payload: dict[str, Any]) -> tuple[str, ...]:
+    raw_tail = payload.get("journal_tail")
+    if raw_tail is None:
+        return ()
+    if not isinstance(raw_tail, list) or len(raw_tail) > 100:
+        raise ValueError("invalid journal_tail")
+    return tuple(str(line) for line in raw_tail)
+
+
 def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> TelemetrySnapshot:
     """Validate telemetry v1; a missing physical source remains explicit None."""
     if len(raw) > 8192:
@@ -139,6 +160,9 @@ def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> Te
         rs485_state=str(payload.get("rs485_state", "unavailable")),
         rs485_consecutive_failures=_optional_int(payload, "rs485_consecutive_failures"),
         rs485_detail=str(payload.get("rs485_detail", "")),
+        unit_status=_status_mapping(payload, "unit_status"),
+        compose_status=_status_mapping(payload, "compose_status"),
+        journal_tail=_journal_tail(payload),
         safety_status=str(payload.get("safety_status", "unavailable")),
         safety_distance_mm=_optional_number(payload, "safety_distance_mm"),
         safety_estop_required=(None if payload.get("safety_estop_required") is None

@@ -1,4 +1,4 @@
-from powertrain_ros.preflight import PreflightResult, check_preflight
+from powertrain_ros.preflight import PreflightResult, check_preflight, load_env_file
 
 
 def _env(stop_mm="200", provenance="COMMISSIONED"):
@@ -82,3 +82,18 @@ def test_no_ops_token_is_a_failure():
 
     assert result.ok is False
     assert any("token" in failure.lower() for failure in result.failures)
+
+
+def test_load_env_file_parses_comments_and_quoted_values(tmp_path):
+    env_file = tmp_path / "powertrain.env"
+    env_file.write_text(
+        "# Commissioned stop distance\n"
+        "STOP_MM = 200\n"
+        'STOP_MM_PROVENANCE="COMMISSIONED"\n',
+        encoding="utf-8",
+    )
+
+    assert load_env_file(env_file) == {
+        "STOP_MM": "200",
+        "STOP_MM_PROVENANCE": "COMMISSIONED",
+    }

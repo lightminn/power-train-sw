@@ -314,7 +314,8 @@ class TelemetryPanel(Gtk.Frame):
         self._last_sequence: int | None = None
         self._labels: dict[str, Gtk.Label] = {}
         grid = Gtk.Grid(column_spacing=12, row_spacing=7, margin=10)
-        rows = (("link", "Link"), ("rs485", "RS485"), ("power", "PDIST80B"))
+        rows = (("link", "Link"), ("rs485", "RS485"), ("power", "PDIST80B"),
+                ("bringup", "Bring-up"))
         for row, (key, title) in enumerate(rows):
             name = Gtk.Label(label=title)
             name.set_xalign(0.0)
@@ -419,6 +420,11 @@ class TelemetryPanel(Gtk.Frame):
             f"battery {self._hex(snapshot.pdist_battery_flags)} · "
             f"protection {self._hex(snapshot.pdist_protection_flags)}\n"
             f"{self._power_health_text(snapshot.pdist_battery_flags, snapshot.pdist_protection_flags)}"
+        )
+        self._labels["bringup"].set_text(
+            f"units {dict(snapshot.unit_status) or 'N/A'} · "
+            f"compose {dict(snapshot.compose_status) or 'N/A'}\n"
+            f"journal {snapshot.journal_tail[-1] if snapshot.journal_tail else 'N/A'}"
         )
         self._report_power_health(snapshot.pdist_battery_flags, snapshot.pdist_protection_flags)
         return True
