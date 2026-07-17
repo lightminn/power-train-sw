@@ -18,7 +18,7 @@ edge판정·map·ChassisManager.tick. ChassisManager 는 제어 스레드만 만
 실행 (젯슨 컨테이너, motor_control/ 에서 · can0 UP · 6축 캘리):
   python3 -m chassis.teleop_server --diagnostic-direct-can --no-us100
   비대화형 확인: 위 명령에 --confirm-arm-stowed 추가
-  옵션: --port 9000 --v-max 1.5 --omega-max 1.2 --min-rev 1.0 --channel can0
+  옵션: --port 9000 --v-max 1.5 --omega-max 1.2 --min-rev 0 --channel can0
 노트북: python3 laptop/laptop_client_chassis.py --host <젯슨IP>
 """
 import math
@@ -276,8 +276,9 @@ def _parse_args(argv=None, input_fn=None):
                    help="🛠️ 중륜 2개(ODrive node 13/14) 없이 4륜만으로 돌린다. "
                         "중간 보드를 부하모터(다이나모)에 쓸 때. "
                         "⚠️ 임시 구성 — 바퀴 띄운 벤치용")
-    p.add_argument("--min-rev", type=float, default=1.0,
-                   help="최저 구동속도 turns/s (저속 코깅존 회피, 0=off)")
+    p.add_argument("--min-rev", type=float, default=0.0,
+                   help="최저 구동속도 turns/s (0=off 기본 — 플로어 폐지 D3; "
+                        "저속 보상은 --friction-ff 사용)")
     p.add_argument("--friction-ff", type=float, default=0.0,
                    help="저속 마찰/코깅 보상 torque_ff (raw 단위, 0=off — 스펙 r6 §2.2b)")
     p.add_argument("--v-knee", type=float, default=0.5,

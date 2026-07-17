@@ -71,8 +71,9 @@ def generate_launch_description():
             description="🛑 실차 모터 제어. 바퀴 상태·E-stop·재캘리를 확인하고 켤 것"),
         DeclareLaunchArgument("fake_chassis", default_value="false",
                               description="가짜 모터로 chassis_node 를 띄운다 (벤치)"),
-        DeclareLaunchArgument("min_rev", default_value="1.0",
-                              description="⚠️ 코깅존 플로어. docs/specs/2026-07-13-min-rev-speed-range.md"),
+        DeclareLaunchArgument("min_rev", default_value="0.0",
+                              description="코깅존 플로어 — 폐지(기본 0, 스펙 r6 §2.2 D3). "
+                                          "재도입은 커미셔닝 재량. 이력: docs/specs/2026-07-13-min-rev-speed-range.md"),
         DeclareLaunchArgument("propose", default_value="false",
                               description="선택한 유도 노드가 /autonomy/cmd_vel 로 제안한다"),
     ]

@@ -70,3 +70,23 @@ def test_chassis_node_declares_friction_parameters():
     assert '"friction_v_knee", 0.5' in CHASSIS_NODE
     assert "friction_ff=friction_ff" in CHASSIS_NODE
     assert "v_knee_turns_s=friction_v_knee" in CHASSIS_NODE
+
+
+def test_min_rev_floor_is_abolished_to_zero_defaults():
+    """D3(스펙 r6 §2.2): 플로어 기본값 전면 0 — 메커니즘은 opt-in 노브로만 보존."""
+    for source, label in (
+        (TELEOP_SERVER, "teleop_server"),
+        (TELEOP_DUALSENSE, "teleop_dualsense"),
+    ):
+        assert re.search(
+            r'"--min-rev",\s*type=float,\s*default=0\.0', source
+        ), f"{label}: --min-rev default must be 0.0 (floor abolished)"
+    assert '"min_rev", 0.0' in CHASSIS_NODE
+
+    launch = (
+        CHASSIS_DIR.parents[1]
+        / "ros2/src/powertrain_ros/launch/autonomy.launch.py"
+    ).read_text(encoding="utf-8")
+    assert re.search(
+        r'"min_rev",\s*default_value="0\.0"', launch
+    ), "autonomy.launch: min_rev default must be 0.0"

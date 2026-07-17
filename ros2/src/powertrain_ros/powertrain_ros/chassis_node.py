@@ -131,7 +131,7 @@ class ChassisNode(Node):
         # 🛠️ 중륜 2개(ODrive node 13/14) 없이 4륜만. 중간 보드를 부하모터에 쓸 때.
         #    ⚠️ 임시 구성 — 없으면 node 13/14 stale → 코너 FAULT → 전체 estop.
         self.declare_parameter("four_wheel", False)
-        self.declare_parameter("min_rev", 1.0)
+        self.declare_parameter("min_rev", 0.0)
         self.declare_parameter("friction_ff", 0.0)
         self.declare_parameter("friction_v_knee", 0.5)
         self.declare_parameter("v_max", 1.5)
