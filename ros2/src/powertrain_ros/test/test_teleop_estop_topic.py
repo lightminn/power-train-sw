@@ -14,6 +14,7 @@ from rclpy.qos import (
 )
 from std_msgs.msg import String
 
+from powertrain_ros import teleop_command_node
 from powertrain_ros.remote_input import DPad, NormalizedAxes, RemoteInputFrame
 from powertrain_ros.teleop_command_node import TeleopCommandNode
 
@@ -23,6 +24,18 @@ def ros():
     rclpy.init()
     yield
     rclpy.shutdown()
+
+
+@pytest.fixture(autouse=True)
+def _isolated_port(monkeypatch):
+    """라이브 :9000 점유(powertrain_control)와의 충돌 격리 — 에페메랄 포트."""
+    import socket
+
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    port = probe.getsockname()[1]
+    probe.close()
+    monkeypatch.setattr(teleop_command_node, "DEFAULT_PORT", port)
 
 
 def _estop_frame(sequence=0):

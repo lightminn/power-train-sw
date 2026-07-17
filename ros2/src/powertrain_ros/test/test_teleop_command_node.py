@@ -24,6 +24,18 @@ def ros():
     rclpy.shutdown()
 
 
+@pytest.fixture(autouse=True)
+def _isolated_port(monkeypatch):
+    """로봇 위에서 스위트를 돌리면 라이브 powertrain_control이 :9000을 점유해
+    테스트 노드 bind가 EADDRINUSE로 죽고 테스트가 **라이브 서버**에 붙는다
+    (§9-0 DDS 도메인 누수의 TCP판). 테스트마다 에페메랄 포트로 격리한다."""
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    port = probe.getsockname()[1]
+    probe.close()
+    monkeypatch.setattr(teleop_command_node, "DEFAULT_PORT", port)
+
+
 def _connect(port, timeout=3.0):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
