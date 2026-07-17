@@ -15,9 +15,6 @@ axis1, HALL, 48V, CAN node 11. 검증된 최적 NVM 설정을 한 곳에 모았�
 import argparse
 import time
 
-import odrive
-from odrive.enums import *
-
 # 검증된 최적 NVM 설정 (2026-06-25 초기값 / 2026-07-04 vel_gain 재튜닝)
 # vel_gain 0.06→0.12: 자유회전(무부하 연속) 상태 다중 시나리오 스윕으로 재측정.
 # ±1바퀴 제약을 벗어나니 gain을 더 올릴 수 있었고, 정속 리플 ~2×↓·가감속
@@ -50,15 +47,38 @@ def read(ax, odrv):
              odrv.config.brake_resistance, ax.motor.is_calibrated, ax.encoder.is_ready))
 
 
-def apply(ax, odrv):
+def _load_odrive():
+    import odrive
+
+    return odrive
+
+
+def _load_enums():
+    from odrive import enums
+
+    return enums
+
+
+def find_odrive(odrive_module, *, serial=None, timeout=20):
+    """Find one board, selecting an exact serial when one is supplied."""
+
+    kwargs = {"timeout": timeout}
+    if serial is not None:
+        kwargs["serial_number"] = serial
+    return odrive_module.find_any(**kwargs)
+
+
+def apply(ax, odrv, *, node=None, enums=None, save=True):
+    enums = enums or _load_enums()
+    node = CFG["node"] if node is None else node
     m, e, c = ax.motor.config, ax.encoder.config, ax.controller.config
-    m.motor_type = MOTOR_TYPE_HIGH_CURRENT
+    m.motor_type = enums.MOTOR_TYPE_HIGH_CURRENT
     m.pole_pairs = CFG["pole_pairs"]
     m.current_lim = CFG["current_lim"]
     m.calibration_current = CFG["calibration_current"]
     m.resistance_calib_max_voltage = CFG["resistance_calib_max_voltage"]
     m.torque_constant = CFG["torque_constant"]
-    e.mode = ENCODER_MODE_HALL
+    e.mode = enums.ENCODER_MODE_HALL
     e.cpr = CFG["cpr"]
     e.bandwidth = CFG["bandwidth"]
     e.calib_scan_omega = CFG["calib_scan_omega"]
@@ -70,30 +90,32 @@ def apply(ax, odrv):
     c.input_filter_bandwidth = CFG["input_filter_bandwidth"]
     c.vel_limit = CFG["vel_limit"]
     c.vel_ramp_rate = CFG["vel_ramp_rate"]
-    c.control_mode = CONTROL_MODE_VELOCITY_CONTROL
-    c.input_mode = INPUT_MODE_VEL_RAMP
+    c.control_mode = enums.CONTROL_MODE_VELOCITY_CONTROL
+    c.input_mode = enums.INPUT_MODE_VEL_RAMP
     odrv.config.dc_bus_undervoltage_trip_level = CFG["uv"]
     odrv.config.dc_bus_overvoltage_trip_level = CFG["ov"]
     odrv.config.brake_resistance = CFG["brake"]
     odrv.can.set_baud_rate(CFG["baud"])              # config.baud_rate 직접쓰기 불가
     try:
-        ax.config.can_node_id = CFG["node"]
+        ax.config.can_node_id = node
     except AttributeError:
-        ax.config.can.node_id = CFG["node"]          # 이 빌드 폴백
+        ax.config.can.node_id = node                 # 이 빌드 폴백
     ax.config.startup_motor_calibration = False      # 부팅 자동진입 금지
     ax.config.startup_encoder_offset_calibration = False
     ax.config.startup_closed_loop_control = False
-    odrv.save_configuration()                        # 리부팅 → 캘리 소실
-    print("적용 + NVM 저장 완료 (리부팅됨 → --calibrate 로 재캘리)")
+    if save:
+        odrv.save_configuration()                    # 리부팅 → 캘리 소실
+        print("적용 + NVM 저장 완료 (리부팅됨 → --calibrate 로 재캘리)")
 
 
-def calibrate(ax):
+def calibrate(ax, *, enums=None):
+    enums = enums or _load_enums()
     ax.error = ax.motor.error = ax.encoder.error = ax.controller.error = 0
     ax.motor.config.current_lim = 20.0               # 캘리 헤드룸
     print("FULL_CAL... (⚠️ 출력축 자유, ~55s 양방향 회전)")
-    ax.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
+    ax.requested_state = enums.AXIS_STATE_FULL_CALIBRATION_SEQUENCE
     t0 = time.time()
-    while ax.current_state != AXIS_STATE_IDLE:
+    while ax.current_state != enums.AXIS_STATE_IDLE:
         if time.time() - t0 > 120:
             print("  타임아웃")
             break
@@ -103,23 +125,121 @@ def calibrate(ax):
           % (ax.motor.is_calibrated, ax.encoder.is_ready, hex(ax.error), time.time() - t0))
 
 
-if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description="BL70200 ODrive 셋업 (axis1)")
+def _selected_axes(odrv, axis):
+    if axis == "0":
+        return ((0, odrv.axis0),)
+    if axis == "1":
+        return ((1, odrv.axis1),)
+    return ((0, odrv.axis0), (1, odrv.axis1))
+
+
+def _axis_calibration_ok(ax):
+    return (
+        bool(ax.motor.is_calibrated)
+        and bool(ax.encoder.is_ready)
+        and int(getattr(ax, "error", 0)) == 0
+        and int(getattr(ax.motor, "error", 0)) == 0
+        and int(getattr(ax.encoder, "error", 0)) == 0
+    )
+
+
+def persist_calibration(odrv):
+    """Persist both calibrated axes as one fw 0.5.1 board transaction.
+
+    This function never initiates calibration.  It only checks the completed
+    state, sets the supported pre-calibrated flags, and saves once.  HALL
+    polarity state from newer firmware is intentionally not used as evidence.
+    """
+
+    axes = ((0, odrv.axis0), (1, odrv.axis1))
+    failed = [axis for axis, ax in axes if not _axis_calibration_ok(ax)]
+    if failed:
+        raise ValueError(f"calibration not successful on axes: {failed}")
+
+    for _, ax in axes:
+        ax.motor.config.pre_calibrated = True
+        ax.encoder.config.pre_calibrated = True
+    odrv.save_configuration()
+
+
+def verify_persisted_calibration(odrv):
+    """Verify the non-rotating calibration flags after board re-enumeration."""
+
+    failed = []
+    for axis, ax in ((0, odrv.axis0), (1, odrv.axis1)):
+        if not (
+            bool(ax.motor.config.pre_calibrated)
+            and bool(ax.encoder.config.pre_calibrated)
+            and _axis_calibration_ok(ax)
+        ):
+            failed.append(axis)
+    if failed:
+        raise ValueError(f"persisted calibration verification failed on axes: {failed}")
+
+
+def build_parser():
+    ap = argparse.ArgumentParser(description="BL70200 ODrive 셋업 (fw 0.5.1)")
     ap.add_argument("--read", action="store_true", help="현재 NVM 설정 출력")
     ap.add_argument("--apply", action="store_true", help="최적값 적용 + 저장 (리부팅)")
     ap.add_argument("--calibrate", action="store_true", help="풀캘리 (출력축 자유)")
     ap.add_argument("--node", type=int, default=CFG["node"],
-                    help="CAN node_id (기본 11; 새 보드는 13 등 충돌 안 나게 지정)")
-    a = ap.parse_args()
-    CFG["node"] = a.node
+                    help="CAN node_id (기본 11; both이면 axis1은 다음 번호)")
+    ap.add_argument("--serial", help="ODrive 보드 시리얼 (정확히 이 보드만 연결)")
+    ap.add_argument("--axis", choices=("0", "1", "both"), default="1",
+                    help="대상 축 (기본 1; 양축은 both)")
+    ap.add_argument(
+        "--persist-calibration",
+        action="store_true",
+        help="양축 성공 확인 후 pre_calibrated 저장 + 재열거 대조",
+    )
+    return ap
 
-    odrv = odrive.find_any(timeout=20)
-    ax = odrv.axis1
-    if a.apply:
-        apply(ax, odrv)
-        time.sleep(8)                                # 리부팅 대기
-        odrv = odrive.find_any(timeout=20)
-        ax = odrv.axis1
-    if a.calibrate:
-        calibrate(ax)
-    read(ax, odrv)
+
+def parse_args(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.persist_calibration and not args.serial:
+        parser.error("--persist-calibration requires --serial")
+    return args
+
+
+def run(args, *, odrive_module=None, sleep_fn=time.sleep):
+    odrive_module = odrive_module or _load_odrive()
+    odrv = find_odrive(odrive_module, serial=args.serial)
+
+    if args.apply:
+        enums = _load_enums()
+        selected = _selected_axes(odrv, args.axis)
+        for offset, (_, ax) in enumerate(selected):
+            apply(ax, odrv, node=args.node + offset, enums=enums, save=False)
+        odrv.save_configuration()
+        print("적용 + NVM 저장 완료 (리부팅됨 → --calibrate 로 재캘리)")
+        sleep_fn(8)
+        odrv = find_odrive(odrive_module, serial=args.serial)
+
+    if args.calibrate:
+        enums = _load_enums()
+        for _, ax in _selected_axes(odrv, args.axis):
+            calibrate(ax, enums=enums)
+
+    if args.persist_calibration:
+        persist_calibration(odrv)
+        sleep_fn(8)
+        odrv = find_odrive(odrive_module, serial=args.serial)
+        verify_persisted_calibration(odrv)
+        axes_to_read = _selected_axes(odrv, "both")
+    else:
+        axes_to_read = _selected_axes(odrv, args.axis)
+
+    for axis, ax in axes_to_read:
+        print(f"=== axis{axis} ===")
+        read(ax, odrv)
+    return 0
+
+
+def main(argv=None, *, odrive_module=None):
+    return run(parse_args(argv), odrive_module=odrive_module)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
