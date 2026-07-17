@@ -1,7 +1,8 @@
 # Operator Console
 
-Native read-only GTK/GStreamer operator console. It embeds L515 driving RGB
-SRT (`:5000`) and D435i raw RGB SRT (`:5002`) with per-channel receiver health.
+Native GTK/GStreamer operator console. Observation is RX-only; operator
+actions travel only through the token-gated ops channel. It embeds L515 driving
+RGB SRT (`:5000`) and D435i raw RGB SRT (`:5002`) with per-channel receiver health.
 It also listens for D435i YOLO metadata JSON on UDP `:5003`; stale metadata is
 hidden rather than delaying raw video. Robot health snapshots use UDP `:5004`.
 The console shows `UNAVAILABLE` until an approved data owner
@@ -29,5 +30,12 @@ camera to fill it.
 python3 -m operator_console.app --host 192.168.8.106
 ```
 
-It is a caller-only receiver: it never opens D435i/L515, writes CAN, or sends
-drive commands.
+The ops broker defaults to the same host on TCP `:9001`, with its token read
+from `~/.config/powertrain/ops_console.token`. Override these independently
+with `--ops-host`, `--ops-port`, and `--ops-token-file`. If the token file is
+absent or empty, the command panel is disabled while every observation channel
+continues normally.
+
+Observation remains caller/receiver-only: it never opens D435i/L515 or writes
+CAN. Commands are possible only through the authenticated ops client and every
+panel action passes state-revision revalidation plus its confirmation gesture.

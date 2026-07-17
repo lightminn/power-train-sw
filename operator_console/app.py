@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""GTK/GStreamer operator console — first slice: D435i raw SRT monitoring.
+"""GTK console with RX-only observation and token-gated ops commands.
 
-This program is intentionally read-only.  It does not open a camera, publish
-ROS commands, or communicate with CAN.  The robot remains the SRT listener;
-the operator laptop is an SRT caller.
+Observation never opens robot hardware or transmits on its receive channels.
+Operator actions travel only through the authenticated ops channel; the robot
+remains the SRT listener and the operator laptop remains an SRT caller.
 """
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 import time
 from collections.abc import Callable
 
@@ -21,11 +22,22 @@ gi.require_version("Gst", "1.0")
 from gi.repository import Gdk, GLib, Gst, Gtk, Pango  # noqa: E402
 
 from .metadata import LatestMetadataReceiver, MetadataFrame
+from .ops_client import ConsoleOpsClient
+from .ops_panel import (
+    GESTURE_HOLD,
+    GESTURE_SPACER,
+    PANEL_ACTIONS,
+    ConfirmFlow,
+    PanelAction,
+)
 from .telemetry import (
     LatestTelemetryReceiver,
     TelemetrySnapshot,
     chassis_component_states,
 )
+
+
+DEFAULT_OPS_TOKEN_FILE = "~/.config/powertrain/ops_console.token"
 
 
 class MetadataCanvas(Gtk.DrawingArea):
@@ -518,9 +530,253 @@ class ChassisTelemetryPanel(Gtk.Frame):
         return True
 
 
+class OpsPanel(Gtk.Frame):
+    """Token-gated commands with inline two-step confirmation only."""
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        token_file: str,
+        *,
+        event_sink: Callable[[str, str], None],
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        super().__init__(label="Operations (token-gated)")
+        self._event_sink = event_sink
+        self._clock = clock
+        self._client: ConsoleOpsClient | None = None
+        self._flow: ConfirmFlow | None = None
+        self._active_action: PanelAction | None = None
+        self._hold_started_s: float | None = None
+        self._pending_requests: dict[str, str] = {}
+
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        body.set_border_width(8)
+        self.add(body)
+
+        token = self._read_token(token_file)
+        if token is None:
+            disabled = Gtk.Label(label="ops token absent — panel disabled")
+            disabled.set_xalign(0.0)
+            disabled.set_line_wrap(True)
+            body.pack_start(disabled, False, False, 0)
+            return
+
+        self._state_label = Gtk.Label(label=f"ops {host}:{port} · waiting for state")
+        self._state_label.set_xalign(0.0)
+        self._state_label.set_line_wrap(True)
+        body.pack_start(self._state_label, False, False, 0)
+
+        for action in PANEL_ACTIONS:
+            if action.gesture == GESTURE_SPACER:
+                spacer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+                spacer.pack_start(Gtk.Separator(), False, False, 0)
+                note = Gtk.Label(label=action.label)
+                note.set_xalign(0.0)
+                note.set_line_wrap(True)
+                spacer.pack_start(note, False, False, 0)
+                body.pack_start(spacer, False, False, 3)
+                continue
+
+            button = Gtk.Button(label=action.label)
+            button.set_hexpand(True)
+            if action.gesture == GESTURE_HOLD:
+                button.connect("button-press-event", self._on_hold_press, action)
+                button.connect("button-release-event", self._on_hold_release, action)
+            else:
+                button.connect("clicked", self._on_action_clicked, action)
+            body.pack_start(button, False, False, 0)
+
+        self._confirm_strip = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=6,
+        )
+        self._confirm_strip.set_border_width(6)
+        self._confirm_strip.set_no_show_all(True)
+        self._confirm_copy = Gtk.Label()
+        self._confirm_copy.set_xalign(0.0)
+        self._confirm_copy.set_line_wrap(True)
+        self._confirm_state = Gtk.Label()
+        self._confirm_state.set_xalign(0.0)
+        self._confirm_state.set_line_wrap(True)
+        self._confirm_button = Gtk.Button(label="Confirm")
+        self._confirm_button.connect("clicked", self._on_confirm_clicked)
+        cancel = Gtk.Button(label="Cancel")
+        cancel.connect("clicked", self._on_cancel_clicked)
+        controls = Gtk.Box(spacing=6)
+        controls.pack_start(self._confirm_button, True, True, 0)
+        controls.pack_start(cancel, False, False, 0)
+        self._confirm_strip.pack_start(self._confirm_copy, False, False, 0)
+        self._confirm_strip.pack_start(self._confirm_state, False, False, 0)
+        self._confirm_strip.pack_start(controls, False, False, 0)
+        body.pack_start(self._confirm_strip, False, False, 4)
+
+        self._client = ConsoleOpsClient(
+            host,
+            port,
+            token,
+            submit_sink=self._on_submit_response,
+            state_sink=self._on_state,
+        )
+        self._flow = ConfirmFlow(
+            clock=self._clock,
+            state_provider=self._client.latest_state,
+        )
+
+    @staticmethod
+    def _read_token(token_file: str) -> str | None:
+        try:
+            token = Path(token_file).expanduser().read_text(encoding="utf-8").strip()
+        except OSError:
+            return None
+        return token or None
+
+    @staticmethod
+    def _state_text(state: dict) -> str:
+        sources = state.get("active_estop_sources") or []
+        source_text = ", ".join(str(source) for source in sources) or "none"
+        return (
+            f"revision {state.get('revision', 'N/A')} · "
+            f"authority {state.get('authority_mode', 'UNKNOWN')} · "
+            f"E-stop {'LATCHED' if state.get('estop_latched') else 'clear'}\n"
+            f"sources {source_text} · "
+            f"wheels stopped {state.get('wheels_stopped', 'UNKNOWN')}"
+        )
+
+    def _emit(self, message: str) -> None:
+        self._event_sink("OPS", message)
+
+    def _begin(self, action: PanelAction) -> bool:
+        if self._flow is None:
+            self._emit(f"{action.action}: rejected — panel disabled")
+            return False
+        try:
+            pending = self._flow.begin(action.action)
+        except (RuntimeError, ValueError) as exc:
+            self._emit(f"{action.action}: rejected — {exc}")
+            self._hide_confirmation()
+            return False
+        self._active_action = action
+        self._confirm_copy.set_markup(
+            "<b>{}</b>".format(GLib.markup_escape_text(action.confirm_text))
+        )
+        self._confirm_state.set_text(
+            "State snapshot: " + self._state_text(pending.state_snapshot)
+        )
+        self._confirm_button.set_label(f"Confirm {action.label}")
+        self._confirm_button.set_visible(action.gesture != GESTURE_HOLD)
+        self._confirm_strip.set_no_show_all(False)
+        self._confirm_strip.show_all()
+        if action.gesture == GESTURE_HOLD:
+            self._confirm_button.hide()
+        return True
+
+    def _on_action_clicked(self, _button: Gtk.Button, action: PanelAction) -> None:
+        self._begin(action)
+
+    def _on_hold_press(
+        self,
+        _button: Gtk.Button,
+        _event: Gdk.EventButton,
+        action: PanelAction,
+    ) -> bool:
+        if not self._begin(action):
+            self._hold_started_s = None
+            return False
+        self._hold_started_s = self._clock()
+        return False
+
+    def _on_hold_release(
+        self,
+        _button: Gtk.Button,
+        _event: Gdk.EventButton,
+        action: PanelAction,
+    ) -> bool:
+        started_s = self._hold_started_s
+        self._hold_started_s = None
+        if started_s is None or self._flow is None:
+            return False
+        held_s = max(0.0, self._clock() - started_s)
+        submit_kwargs = self._flow.confirm(action.action, held_s=held_s)
+        if submit_kwargs is None:
+            self._flow.reset()
+            self._emit(
+                f"{action.action}: rejected — hold {held_s:.2f} s; "
+                "1.50 s and an unchanged revision are required"
+            )
+            self._hide_confirmation()
+            return False
+        self._submit(submit_kwargs)
+        return False
+
+    def _on_confirm_clicked(self, _button: Gtk.Button) -> None:
+        action = self._active_action
+        if action is None or self._flow is None:
+            return
+        submit_kwargs = self._flow.confirm(action.action)
+        if submit_kwargs is None:
+            self._emit(
+                f"{action.action}: rejected — state revision changed; begin again"
+            )
+            self._hide_confirmation()
+            return
+        self._submit(submit_kwargs)
+
+    def _submit(self, submit_kwargs: dict) -> None:
+        action = str(submit_kwargs["action"])
+        if self._client is None:
+            self._emit(f"{action}: rejected — ops client unavailable")
+            self._hide_confirmation()
+            return
+        try:
+            request_id = self._client.submit(**submit_kwargs)
+        except RuntimeError as exc:
+            self._emit(f"{action}: rejected — {exc}")
+        else:
+            self._pending_requests[request_id] = action
+            self._emit(f"{action}: submitted · request {request_id}")
+        self._hide_confirmation()
+
+    def _on_cancel_clicked(self, _button: Gtk.Button) -> None:
+        if self._flow is not None:
+            self._flow.reset()
+        self._emit("confirmation cancelled")
+        self._hide_confirmation()
+
+    def _hide_confirmation(self) -> None:
+        self._active_action = None
+        self._hold_started_s = None
+        strip = getattr(self, "_confirm_strip", None)
+        if strip is not None:
+            strip.hide()
+            strip.set_no_show_all(True)
+
+    def _on_state(self, state: dict) -> None:
+        self._state_label.set_text("OPS LIVE · " + self._state_text(state))
+
+    def _on_submit_response(self, response: dict) -> None:
+        request_id = str(response.get("request_id", "unknown"))
+        action = self._pending_requests.get(request_id, "unknown action")
+        status = str(response.get("status", "UNKNOWN"))
+        detail = str(response.get("detail", ""))
+        message = f"{action}: {status} · request {request_id}"
+        if detail:
+            message += f" · {detail}"
+        self._emit(message)
+        if status.startswith("FINAL_") or status == "OUTCOME_UNKNOWN":
+            self._pending_requests.pop(request_id, None)
+
+    def close(self) -> None:
+        if self._client is not None:
+            self._client.close()
+
+
 class OperatorConsole(Gtk.Window):
     def __init__(self, host: str, d435_port: int, l515_port: int, metadata_port: int,
-                 latency_ms: int, telemetry_port: int, chassis_telemetry_port: int) -> None:
+                 latency_ms: int, telemetry_port: int, chassis_telemetry_port: int,
+                 ops_host: str | None = None, ops_port: int = 9001,
+                 ops_token_file: str = DEFAULT_OPS_TOKEN_FILE) -> None:
         super().__init__(title="Powertrain Operator Console")
         # Keep the two live video panels and safety sidebar visible without
         # covering the operator desktop.  The user can still maximize with
@@ -560,16 +816,23 @@ class OperatorConsole(Gtk.Window):
                                    event_sink=self._events.add_event)
         chassis = ChassisTelemetryPanel(self._chassis_receiver, chassis_telemetry_port,
                                         event_sink=self._events.add_event)
+        self._ops_panel = OpsPanel(
+            host if ops_host is None else ops_host,
+            ops_port,
+            ops_token_file,
+            event_sink=self._events.add_event,
+        )
         side = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        side.set_size_request(280, -1)
+        side.set_size_request(320, -1)
         side.pack_start(telemetry, False, True, 0)
         side.pack_start(chassis, False, True, 0)
+        side.pack_start(self._ops_panel, False, True, 0)
         # Right-side telemetry can legitimately be taller than a compact
         # operator window (six wheel rows plus Gateway detail). Keep it in
         # one narrow column with vertical scrolling instead of clipping it.
         side_scroll = Gtk.ScrolledWindow()
         side_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        side_scroll.set_size_request(296, -1)
+        side_scroll.set_size_request(336, -1)
         side_scroll.add(side)
         content.pack_start(side_scroll, False, True, 0)
         layout.pack_start(content, True, True, 0)
@@ -624,7 +887,7 @@ class OperatorConsole(Gtk.Window):
             self._events.add_event("L515", l515_transport)
             self._last_l515_transport = l515_transport
         health = (
-            "READ-ONLY CONSOLE  |  "
+            "OBSERVE: RX-ONLY  |  OPS: TOKEN-GATED  |  "
             f"L515 {self._l515.health_state()}  ·  D435i {self._d435.health_state()}  ·  "
             f"YOLO {yolo}  ·  POWER {telemetry}  ·  CHASSIS {chassis_state}  ·  "
             f"ODOM {odom}  ·  DRIVE {drive}  ·  CAN {can}"
@@ -642,6 +905,7 @@ class OperatorConsole(Gtk.Window):
         self._metadata_receiver.close()
         self._telemetry_receiver.close()
         self._chassis_receiver.close()
+        self._ops_panel.close()
         Gtk.main_quit()
 
     def _on_key_press(self, _widget: Gtk.Window, event: Gdk.EventKey) -> bool:
@@ -665,12 +929,22 @@ def main() -> None:
     parser.add_argument("--metadata-port", type=int, default=5003)
     parser.add_argument("--telemetry-port", type=int, default=5004)
     parser.add_argument("--chassis-telemetry-port", type=int, default=5005)
+    parser.add_argument(
+        "--ops-host",
+        default=None,
+        help="ops broker host (default: same value as --host)",
+    )
+    parser.add_argument("--ops-port", type=int, default=9001)
+    parser.add_argument("--ops-token-file", default=DEFAULT_OPS_TOKEN_FILE)
     parser.add_argument("--latency-ms", type=int, default=60)
     args = parser.parse_args()
     Gst.init(None)
     console = OperatorConsole(args.host, args.d435_port, args.l515_port,
                               args.metadata_port, args.latency_ms, args.telemetry_port,
-                              args.chassis_telemetry_port)
+                              args.chassis_telemetry_port,
+                              ops_host=args.host if args.ops_host is None else args.ops_host,
+                              ops_port=args.ops_port,
+                              ops_token_file=args.ops_token_file)
     console.show_all()
     Gtk.main()
 

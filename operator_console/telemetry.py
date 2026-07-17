@@ -1,4 +1,4 @@
-"""Versioned read-only robot telemetry contract for the operator console."""
+"""RX-only telemetry observation; commands use only the gated ops channel."""
 from __future__ import annotations
 
 from dataclasses import dataclass
