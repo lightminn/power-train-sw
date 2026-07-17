@@ -19,6 +19,7 @@ No ROS ``/cmd_vel`` message is republished by the embedded path.
   the ``authority_clear_hold`` acknowledgement before another owner request.
 """
 
+import collections
 import json
 import math
 import os
@@ -259,6 +260,21 @@ class ChassisNode(Node):
             can_owner_snapshot=owner_snapshot,
         )
         self.cm.connect()
+        # ○ E-stop 전역 latch(스펙 r6 §2.1): authority 와 무관한 고정 안전 계약.
+        # TRANSIENT_LOCAL — 이 노드가 발행 후 재시작해도 latch 이벤트를 놓치지 않는다.
+        self._teleop_estop_seen = collections.OrderedDict()
+        teleop_estop_qos = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+        )
+        self.create_subscription(
+            String,
+            "/teleop/estop",
+            self._on_teleop_estop,
+            teleop_estop_qos,
+        )
         if self._can_session is not None:
             from chassis.telemetry import CanBusStatsSampler
 
@@ -1599,6 +1615,29 @@ class ChassisNode(Node):
         response.success = True
         response.message = "mode=%s" % self.cm.mode
         return response
+
+    def _on_teleop_estop(self, msg):
+        try:
+            payload = json.loads(msg.data)
+            event_id = str(payload["event_id"])
+            stamp_s = float(payload["stamp_s"])
+        except (KeyError, TypeError, ValueError):
+            self.get_logger().error("invalid /teleop/estop payload; ignored")
+            return
+        if event_id in self._teleop_estop_seen:
+            return
+        self._teleop_estop_seen[event_id] = stamp_s
+        while len(self._teleop_estop_seen) > 32:
+            self._teleop_estop_seen.popitem(last=False)
+        # 물리 정지까지 포함한 정본 진입점(cm.estop) — raw interlock trip 금지
+        # (다음 50 Hz 틱까지 모터가 돈다). 스펙 r6 §2.1.
+        self.cm.estop(
+            "remote_operator",
+            "teleop circle edge event_id=%s" % event_id,
+        )
+        self.get_logger().error(
+            "REMOTE E-STOP latched (event_id=%s)" % event_id
+        )
 
     def _srv_estop(self, _request, response):
         self.cm.estop("manual_service", "~/estop")
