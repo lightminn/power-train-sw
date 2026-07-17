@@ -132,6 +132,8 @@ class ChassisNode(Node):
         #    ⚠️ 임시 구성 — 없으면 node 13/14 stale → 코너 FAULT → 전체 estop.
         self.declare_parameter("four_wheel", False)
         self.declare_parameter("min_rev", 1.0)
+        self.declare_parameter("friction_ff", 0.0)
+        self.declare_parameter("friction_v_knee", 0.5)
         self.declare_parameter("v_max", 1.5)
         self.declare_parameter("cmd_timeout", 0.5)
         self.declare_parameter("mode", contract.MODE_DRIVING)
@@ -152,6 +154,8 @@ class ChassisNode(Node):
         fake = bool(self.get_parameter("fake").value)
         channel = str(self.get_parameter("channel").value)
         min_rev = float(self.get_parameter("min_rev").value)
+        friction_ff = float(self.get_parameter("friction_ff").value)
+        friction_v_knee = float(self.get_parameter("friction_v_knee").value)
         v_max = float(self.get_parameter("v_max").value)
         self._cmd_timeout = float(self.get_parameter("cmd_timeout").value)
         self._safety_required = bool(
@@ -237,7 +241,10 @@ class ChassisNode(Node):
                 owner="chassis_node",
             )
             self._can_session.__enter__()
-            corners = build_real_corners(channel, wheel_map=wheel_map)
+            corners = build_real_corners(
+                channel, wheel_map=wheel_map,
+                friction_ff=friction_ff, v_knee_turns_s=friction_v_knee,
+            )
             self.get_logger().info("Real chassis on %s" % channel)
 
         owner_snapshot = (

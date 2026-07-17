@@ -113,19 +113,26 @@ def build_corners(steer_factory, drive_factory, cfg: CornerConfig = None,
 
 
 def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
-                       wheel_map=None) -> dict:
+                       wheel_map=None, friction_ff: float = 0.0,
+                       v_knee_turns_s: float = 0.5) -> dict:
     """실기용 — AK 조향(CAN) + ODrive 구동(CAN) 코너 6개. 하드웨어 라이브러리는
     지연 import(무하드웨어 pytest 가 python-can/odrive 없이 이 모듈을 쓰게).
+
+    friction_ff/v_knee_turns_s 는 저속 마찰/코깅 보상 노브(스펙 r6 §2.2b, 기본 off)
+    — DriveOdriveCan 으로 그대로 전달된다.
 
     CAN 단독 소유권은 라이브러리 함수가 아니라 실물 실행 진입점의
     ``chassis.runtime_lock.RealCanSession``이 이 함수 호출 전에 획득한다. Fake/MuJoCo
     빌더가 이 함수와 lock에 결합되지 않도록 여기서는 버스 객체만 구성한다.
     """
-    from corner_module.steer_ak40 import SteerAk40
-    from corner_module.drive_odrive_can import DriveOdriveCan   # WP1 완료 필요
+    import corner_module.steer_ak40 as steer_mod
+    import corner_module.drive_odrive_can as drive_mod   # WP1 완료 필요
     return build_corners(
-        steer_factory=lambda cid: SteerAk40(motor_id=cid, channel=channel),
-        drive_factory=lambda nid: DriveOdriveCan(node_id=nid, channel=channel),
+        steer_factory=lambda cid: steer_mod.SteerAk40(motor_id=cid, channel=channel),
+        drive_factory=lambda nid: drive_mod.DriveOdriveCan(
+            node_id=nid, channel=channel,
+            friction_ff=friction_ff, v_knee=v_knee_turns_s,
+        ),
         cfg=cfg, wheel_map=wheel_map,
     )
 

@@ -145,6 +145,10 @@ def _parse_args(argv=None, input_fn=None):
     parser.add_argument("--omega-max", type=float, default=1.2, help="최대 요레이트 rad/s (기본 1.2)")
     parser.add_argument("--min-rev", type=float, default=1.0,
                         help="최저 구동속도 turns/s (기본 1.0 — 저속 코깅존 회피, 0=off)")
+    parser.add_argument("--friction-ff", type=float, default=0.0,
+                        help="저속 마찰/코깅 보상 torque_ff (raw 단위, 0=off — 스펙 r6 §2.2b)")
+    parser.add_argument("--v-knee", type=float, default=0.5,
+                        help="friction-ff 적용 상한 turns/s (기본 0.5)")
     args = parser.parse_args(argv)
     require_diagnostic_direct_can(parser, args, input_fn=input_fn)
     return args
@@ -189,7 +193,10 @@ def main(argv=None):
             background.start()
 
         can_session.__enter__()
-        corners = build_real_corners(args.channel)
+        corners = build_real_corners(
+            args.channel,
+            friction_ff=args.friction_ff, v_knee_turns_s=args.v_knee,
+        )
         cfg = ChassisConfig(min_drive_turns_per_s=args.min_rev)
         # v_max 만큼 낼 수 있게 kinematics 속도상한도 함께 올림.
         cfg.geometry.drive_limit_mps = max(

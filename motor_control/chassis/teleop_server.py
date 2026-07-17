@@ -278,6 +278,10 @@ def _parse_args(argv=None, input_fn=None):
                         "⚠️ 임시 구성 — 바퀴 띄운 벤치용")
     p.add_argument("--min-rev", type=float, default=1.0,
                    help="최저 구동속도 turns/s (저속 코깅존 회피, 0=off)")
+    p.add_argument("--friction-ff", type=float, default=0.0,
+                   help="저속 마찰/코깅 보상 torque_ff (raw 단위, 0=off — 스펙 r6 §2.2b)")
+    p.add_argument("--v-knee", type=float, default=0.5,
+                   help="friction-ff 적용 상한 turns/s (기본 0.5)")
     args = p.parse_args(argv)
     require_diagnostic_direct_can(p, args, input_fn=input_fn)
     return args
@@ -320,7 +324,10 @@ def main(argv=None):
             from chassis.chassis_manager import FOUR_WHEEL_MAP
             wheel_map = FOUR_WHEEL_MAP
             print("🛠️ 4륜 모드 — 중륜(node 13/14) 없이 앞뒤 4륜만 구동한다 (임시 구성)")
-        corners = build_real_corners(args.channel, wheel_map=wheel_map)
+        corners = build_real_corners(
+            args.channel, wheel_map=wheel_map,
+            friction_ff=args.friction_ff, v_knee_turns_s=args.v_knee,
+        )
 
         cfg = ChassisConfig(min_drive_turns_per_s=args.min_rev)
         if args.four_wheel:
