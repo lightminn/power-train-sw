@@ -1,4 +1,4 @@
-# A/B/C 개선 프로그램 통합 설계 (2026-07-17, r3)
+# A/B/C 개선 프로그램 통합 설계 (2026-07-17, r4)
 
 아이디어 세션(Codex + agy×2 + Claude 서브에이전트×3, 6소스)의 수렴 결과를
 계획 정본(§10 중단 기준·§11 금지 목록)·트랙 정책·크로스팀 경계로 필터링해 확정한
@@ -6,8 +6,9 @@
 
 개정 이력: r1(fdbed5a) → 6개 검증원(Codex 25건·레드팀·실현성·계획정합·agy Pro/
 Flash) → r2(29db46e, 사용자 결정 D1 비상 chord·D2 extraction) → Codex 재검토
-(해소16/부분9/신규9) → **r3(본 판): 신규 9건 전량 반영 + 배치 재배열 + 계약표
-스펙 내재화.**
+(해소16/부분9/신규9) → r3(a74dad9, 신규 9건 전량 반영 + 배치 재배열 + 계약표
+내재화) → **r4(본 판, 사용자 결정 D3): min_rev 플로어 폐지 — 기본값 전면 0(off),
+Codex #28의 저속 구간 차단 모순 근본 소멸.**
 
 정본 관계: 이 문서는 `docs/plans/2026-07-12-defense-robot-autonomy-software-plan.md`
 (마스터플랜)의 하위 실행 설계다. 본 프로그램이 **명시적으로 개정하는 정본 항목**:
@@ -36,7 +37,7 @@ Flash) → r2(29db46e, 사용자 결정 D1 비상 chord·D2 extraction) → Code
 
 | 배치 | 내용 | 규모 |
 |---|---|---|
-| A1 | ○ E-stop 전역 latch 정합 + min_rev 플로어 발동 텔레메트리 | S |
+| A1 | ○ E-stop 전역 latch 정합 + min_rev 플로어 폐지(기본 0) | S |
 | A2a | ops broker(:9001) + 인증 + chord (조종기 클라이언트) | M |
 | A2b | 콘솔 운용 패널 + 햅틱/LED | M |
 | A2c | 브링업 무SSH (systemd·비콘·캘리 영속화·부팅 자격화) | M |
@@ -47,8 +48,8 @@ Flash) → r2(29db46e, 사용자 결정 D1 비상 chord·D2 extraction) → Code
 | C1 | WP9 degradation FSM + 지령속 계약 + 문서 정합 | M~L |
 
 A2a/A2b/A2c는 독립 롤백 단위(Codex 34). C0은 A2 완료 즉시 착수(벤치 HIL 선행
-조건은 §6.1). **A3의 section enforcement는 §2.2 플로어 결정이 재자격화로 해소될
-때까지 강제 off로 출하**한다.
+조건은 §6.1). A3의 section enforcement는 파라미터 기본 off로 출하하고 벤치
+검증 후 활성한다(r4: 플로어 폐지로 r3의 "재자격화까지 강제 off" 게이트는 소멸).
 
 ## 2. A1 — 의미론 정합
 
@@ -67,21 +68,25 @@ A2a/A2b/A2c는 독립 롤백 단위(Codex 34). C0은 A2 완료 즉시 착수(벤
   표면은 콘솔(평시) + 비상 chord(§3.2, broker 권위 검증).
 - §11 준수: 통신 단절은 E-stop 승격 금지 — 명시적 ○ edge만 trip.
 
-### 2.2 min_rev 플로어: 텔레메트리(A1) + 저속 구간 결정(프로그램 차원)
+### 2.2 min_rev 플로어 폐지 (r4, 사용자 결정 D3)
 
-- 현재: 플로어(1.0 turns/s = 0.628 m/s, `chassis_manager.py:404-410`)가 캡과
-  무대조. CARRYING_LOCKED 0.5 m/s(`profiles.py:39-51`), smog 0.25/ice 0.15
-  (`section_profiles.py:370-371`)와 충돌.
-- A1: 플로어 발동 바퀴별 카운트를 `WheelSnapshot` 확장으로 노출, journal 기록.
-- **저속 구간 결정(Codex 28 해소)**: 플로어 하향 없이는 SMOG(0.4 rev/s)·ICE
-  (0.24 rev/s)·CARRYING(0.8 rev/s) 속도가 플로어 아래다. 본 프로그램은
-  **"hold-only pending 재자격화"를 채택**한다: A3 enforcement는 힌트<플로어면
-  0/hold(fail-close)이고, C1의 스모그 저속 통과는 **플로어 지상 재자격화
-  (실차 커미셔닝, 목표 ≤0.4~0.5 rev/s) 이후에만 활성**. ICE 0.15 m/s(0.24 rev/s)
-  는 HALL 코깅존(<0.3 rev/s) 내부라 재자격화로도 불가할 수 있음 — 그 경우 ICE
-  저속은 별도 결정 안건으로 회부. 근거: 코깅존 주행은 "정지한 채 텔레메트리만
-  그럴듯한" 실측 이력이 있어(2026-07-05 HIL) 인지 열화 구간에서 hold보다 위험.
-- **하지 않음**: 플로어 수치 하향(지상 재자격화 몫). extraction(§6.1)만 예외.
+- 배경: 플로어(1.0 turns/s = 0.628 m/s, `chassis_manager.py:404-410`)가
+  CARRYING_LOCKED 0.5 m/s(`profiles.py:39-51`)·smog 0.25/ice 0.15
+  (`section_profiles.py:370-371`)와 결정론적 충돌(Codex 28, 프리모템 8).
+  사용자 판정: 1.0은 애초에 임의값이고 실차 조립 후 저속 특성은 달라진다 —
+  **폐지한다.**
+- A1 변경: **기본값을 전면 0(off)으로** — `chassis_node` param `min_rev`
+  (`:134`), `teleop_server.py --min-rev`(`:279`), `teleop_dualsense.py
+  --min-rev`(`:146`), `autonomy.launch.py`(`:74`) 및 문서(프로젝트 CLAUDE.md·
+  핸드오프·Notion)의 1.0 기본 서술 동기 갱신. **메커니즘
+  (`min_drive_turns_per_s`, 0=off)은 삭제하지 않고** 커미셔닝 때 실측으로
+  재도입 가능한 opt-in 노브로 보존한다.
+- 결과: SMOG/ICE/CARRYING 저속 힌트가 더 이상 차단되지 않는다(Codex 28 모순
+  소멸). §4.1의 "힌트<플로어 → fail-close" 규칙은 **플로어가 재도입된 경우에만
+  작동하는 휴면 정합 가드**로 유지.
+- ⚠️ 잔여 위험 재배치: HALL 코깅존(<0.3 rev/s)에서 "바퀴 정지 + 텔레메트리
+  정상"(2026-07-05 HIL 실측) 위험이 플로어 대신 **C1 WP9 stuck 감지**와 실차
+  커미셔닝 튜닝의 몫이 된다 — §9 리스크에 명시.
 
 ### 2.3 폐기된 후보 (근거 기록)
 
@@ -239,9 +244,10 @@ A2a/A2b/A2c는 독립 롤백 단위(Codex 34). C0은 A2 완료 즉시 착수(벤
 
 1. **WP8 힌트→집행**: `/section/state` → versioned SectionState(session/sequence/
    stamp/TTL). chassis_node `section_enforcement` 파라미터(기본 off,
-   `authority_enabled` 필요, **§2.2 플로어 재자격화 전 강제 off**).
+   `authority_enabled` 필요).
    집행: `speed_hint` → v 클램프; `hold_hint` → v·ω=0; stale·미래·역행 → hold;
-   **힌트<플로어 환산속도 → 0/hold fail-close + WARN**(플로어로 승격 금지) —
+   **휴면 정합 가드**: 플로어가 재도입(>0)됐는데 힌트<플로어 환산속도면
+   0/hold fail-close + WARN(플로어로 승격 금지, §2.2) —
    `CornerModule.set()` 입력 기준 캡 준수 테스트. `work_request`·마커는 콘솔
    표시만.
 2. **마커 ledger**: 후보→확정 2단계(N=2 tracklet) + 후보 TTL·최대 수·공간/ID
@@ -296,7 +302,7 @@ A2a/A2b/A2c는 독립 롤백 단위(Codex 34). C0은 A2 완료 즉시 착수(벤
 | 진입 | **`latched_sources == {us100}` 단독일 때만** 콘솔 `extraction_grant`(강확인) 수락. 다른 E-stop 원인 공존 시 거부 |
 | 명령 소유 | DualSense **deadman 유지 + fresh TELEOP 프레임**만. autonomy·기타 소스 무시 |
 | 최종 clamp | **chassis 최종단**에서 −0.2 m/s ≤ v ≤ 0, ω = 0 강제(kinematics 이전이 아니라 CornerModule 입력 기준) |
-| 플로어 | min_rev 적용 예외(코깅 감수 — 탈출 목적) |
+| 플로어 | 폐지(기본 0, §2.2)로 무관 — 재도입되더라도 extraction은 적용 예외 |
 | budget | grant당 TTL 3 s(단조 시계) + latch당 누적 후진 ≤1.0 m·grant ≤3회 |
 | 중단 | TTL 만료·deadman 해제·타 fault 발생·budget 소진 → 즉시 정지 + **원래 US-100 ESTOP latch 유지**(자동 reset 아님) |
 | 종료 | 후진으로 거리 확보 → US-100 active 해제 → 통상 reset→arm 흐름 |
@@ -314,8 +320,9 @@ A2a/A2b/A2c는 독립 롤백 단위(Codex 34). C0은 A2 완료 즉시 착수(벤
    hysteresis·시도/거리/시간 budget·복구 명령·원격 핸드오버 대기 상태 + 출력
    계약(속도 스케일·hold 요청·handover 요청). bounded auto-recovery는 계획 §6
    :855-856 직접 규정.
-3. **스모그 저속 통과**: §2.2 결정에 따라 **플로어 지상 재자격화 이후 활성**.
-   재자격화 전에는 SMOG 저속 구간 = hold + 원격 핸드오버 대기가 정책이다.
+3. **스모그 저속 통과**: 플로어 폐지(§2.2)로 즉시 설계 가능 — SMOG 힌트와
+   결합한 저속 정책. ⚠️ ICE 0.15 m/s(0.24 rev/s)는 HALL 코깅존 내부라 실주행
+   신뢰성은 커미셔닝 실측 몫이며, 코깅존 정지는 FSM의 stuck 감지가 잡는다.
 4. **문서**: 핸드오프 WP표 WP9 행 추가, §0 명시 개정 4건 동기, Notion 동기.
 
 ## 7. 검증 전략
@@ -339,8 +346,8 @@ A2a/A2b/A2c는 독립 롤백 단위(Codex 34). C0은 A2 완료 즉시 착수(벤
 
 ## 8. 하지 않는 것 (범위 밖)
 
-- min_rev 플로어 수치 하향(지상 재자격화 몫 — §2.2 결정으로 저속 구간은 그때까지
-  hold-only), `stop_mm` 구간별 값(커미셔닝).
+- min_rev 플로어 재도입 여부·수치(커미셔닝 실측 재량 — 기본 0=off 유지, §2.2),
+  `stop_mm` 구간별 값(커미셔닝).
 - gateway/authority hold 자동복구 의미론 변경(§2.3).
 - `work_request` 자동 집행, 팔 협업 계약, 팀원 gateway WIP 접촉.
 - 크랩 조향, 서멀 쿨다운, 자동 타임박싱 강등(안건 보존).
@@ -359,3 +366,7 @@ A2a/A2b/A2c는 독립 롤백 단위(Codex 34). C0은 A2 완료 즉시 착수(벤
 - extraction 오남용: §6.1 상태표(단독 원인·deadman·budget·타 fault 즉시 차단) +
   벤치 HIL 선행 + feature-flag.
 - 명령 경합: 단일 mutation 직렬화 + revision/predicate 이중 검증 + journal.
+- **플로어 폐지의 잔여 위험(D3)**: 초저속 지령(코깅존 <0.3 rev/s)에서 바퀴가
+  정지한 채 텔레메트리는 정상으로 보일 수 있음(2026-07-05 HIL 실측) — C1 WP9
+  stuck 감지가 1차 방어, 실차 저속 튜닝(플로어 재도입 포함)은 커미셔닝 재량.
+  C1 전까지 저속 자율 프로파일 운용은 벤치 검증 범위로 한정.
