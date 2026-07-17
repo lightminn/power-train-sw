@@ -88,6 +88,24 @@ def test_estop_reset_and_arm_use_distinct_gestures_with_spacer_between():
     assert PANEL_ACTIONS[reset_index + 1].gesture == GESTURE_SPACER
 
 
+def test_extraction_grant_is_strip_below_arm_with_strong_warning_copy():
+    action = _action("extraction_grant")
+    arm_index = next(
+        index for index, item in enumerate(PANEL_ACTIONS)
+        if item.action == "arm"
+    )
+    extraction_index = next(
+        index for index, item in enumerate(PANEL_ACTIONS)
+        if item.action == "extraction_grant"
+    )
+    warning = "US-100 단독 latch에서만 · 후진 −0.2 m/s · TTL 3 s"
+
+    assert action.gesture == GESTURE_STRIP
+    assert warning in action.label
+    assert warning in action.confirm_text
+    assert extraction_index == arm_index + 1
+
+
 def test_arm_lock_override_requires_bool_param_and_strong_confirmation_copy():
     action = _action("arm_lock_override")
     source = StateSource({"revision": 11})

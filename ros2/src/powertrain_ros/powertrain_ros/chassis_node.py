@@ -145,6 +145,7 @@ class ChassisNode(Node):
             DEFAULT_SAFETY_TOPIC_TIMEOUT_S,
         )
         self.declare_parameter("safety_startup_timeout", 1.0)
+        self.declare_parameter("extraction_enabled", False)
         self.declare_parameter("authority_enabled", False)
         self.declare_parameter("assist_enabled", False)
         self.declare_parameter("contract_v2_verified", False)
@@ -169,6 +170,9 @@ class ChassisNode(Node):
         )
         self._safety_startup_timeout = float(
             self.get_parameter("safety_startup_timeout").value
+        )
+        extraction_enabled = bool(
+            self.get_parameter("extraction_enabled").value
         )
         self._authority_enabled = bool(
             self.get_parameter("authority_enabled").value
@@ -218,6 +222,7 @@ class ChassisNode(Node):
         cfg = ChassisConfig(
             watchdog_ms=self._cmd_timeout * 1000.0,
             min_drive_turns_per_s=min_rev,
+            extraction_enabled=extraction_enabled,
         )
         wheel_map = None
         if four_wheel:
@@ -540,6 +545,11 @@ class ChassisNode(Node):
             Trigger,
             "~/reset_estop",
             self._srv_reset_estop,
+        )
+        self.create_service(
+            Trigger,
+            "~/extraction_grant",
+            self._srv_extraction_grant,
         )
         self.create_service(
             SetBool,
@@ -1835,6 +1845,17 @@ class ChassisNode(Node):
             response.message = (
                 "reset rejected: mode=%s active=%s"
                 % (self.cm.mode, list(safety.active_estop_sources))
+            )
+        return response
+
+    def _srv_extraction_grant(self, _request, response):
+        response.success = self.cm.extraction_grant()
+        snapshot = self.cm.snapshot()
+        if response.success:
+            response.message = "mode=%s" % snapshot.chassis_mode
+        else:
+            response.message = "extraction rejected: %s" % (
+                snapshot.last_extraction_reject
             )
         return response
 

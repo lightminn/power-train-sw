@@ -73,10 +73,13 @@ ACTIONS = {
         _CONSOLE, "service_setbool",
         ("/chassis_node/arm_lock_override",),
     ),
+    "extraction_grant": ActionSpec(
+        _CONSOLE, "service", ("/chassis_node/extraction_grant",)
+    ),
     "operator_hold": ActionSpec(_CONSOLE, "publish", ("/section_events",)),
     "operator_resume": ActionSpec(_CONSOLE, "publish", ("/section_events",)),
     "status_query": ActionSpec(_BOTH, "local"),
-    # A2c: calibration_* / C0: extraction_grant
+    # A2c: calibration_*
 }
 for _name in _MISSIONS:
     ACTIONS[_name] = ActionSpec(

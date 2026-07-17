@@ -74,6 +74,13 @@ def test_arm_lock_override_is_console_only_setbool():
     assert spec.target == ("/chassis_node/arm_lock_override",)
 
 
+def test_extraction_grant_is_console_only_chassis_service():
+    spec = oc.ACTIONS["extraction_grant"]
+    assert spec.roles == frozenset({oc.ROLE_CONSOLE})
+    assert spec.kind == "service"
+    assert spec.target == ("/chassis_node/extraction_grant",)
+
+
 def test_encode_response_is_newline_json():
     raw = oc.encode_response(
         request_id="r-1", status=oc.STATUS_PENDING, state_revision=4,

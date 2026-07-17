@@ -79,6 +79,15 @@ PANEL_ACTIONS: tuple[PanelAction, ...] = (
         confirm_text="Hold for 1.5 seconds to arm after reviewing the live state.",
     ),
     PanelAction(
+        "extraction_grant",
+        "Extraction grant — US-100 단독 latch에서만 · 후진 −0.2 m/s · TTL 3 s",
+        GESTURE_STRIP,
+        confirm_text=(
+            "US-100 단독 latch에서만 · 후진 −0.2 m/s · TTL 3 s — "
+            "grant extraction recovery?"
+        ),
+    ),
+    PanelAction(
         "disarm",
         "Disarm",
         GESTURE_STRIP,
