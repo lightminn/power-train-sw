@@ -9,13 +9,22 @@ import argparse
 from dataclasses import dataclass
 import json
 import math
+import os
 import socket
+import sys
 import time
+from types import SimpleNamespace
 import uuid
+
+try:
+    from . import ops_channel_client as ops_channel
+except ImportError:  # Direct execution from motor_control/laptop.
+    import ops_channel_client as ops_channel
 
 
 DEFAULT_HOST = "192.168.8.106"
 DEFAULT_PORT = 9000
+DEFAULT_OPS_TOKEN_FILE = "~/.config/powertrain/ops_controller.token"
 SEND_HZ = 30.0
 SCHEMA_VERSION = 2
 MAX_RECORD_BYTES = 2 * 1024
@@ -60,6 +69,8 @@ SDL_GUID_CONFIGS = {
             "right_trigger_axis": 5,   # measured RT
             "left_trigger_axis": 2,    # measured LT
             "square_button": 3,        # measured square; reserved
+            # measured triangle; emergency arm chord용, ⚠️ 임시.
+            "triangle_button": 2,
             "circle_button": 1,        # measured circle / E-stop
             "deadman_button": 4,       # L1 initial candidate
             "assist_bypass_button": 5,  # R1 hold initial candidate
@@ -140,6 +151,17 @@ class DualSenseInputAdapter:
 
     def _button(self, name):
         return bool(self.joystick.get_button(self.mapping[name]))
+
+    def button(self, name):
+        """Expose recovery chord buttons without leaking pygame to the detector."""
+        key = {
+            "square": "square_button",
+            "triangle": "triangle_button",
+            "create": "create_button",
+            "l1": "deadman_button",
+            "r1": "assist_bypass_button",
+        }[name]
+        return self._button(key)
 
     def sample(self, *, now_ns):
         now_ns = int(now_ns)
@@ -367,6 +389,8 @@ def main(argv=None):
     )
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument("--ops-port", type=int, default=ops_channel.OPS_DEFAULT_PORT)
+    parser.add_argument("--ops-token-file", default=DEFAULT_OPS_TOKEN_FILE)
     parser.add_argument("--mapping-version", default=None)
     args = parser.parse_args(argv)
 
@@ -397,6 +421,27 @@ def main(argv=None):
         args.port,
         on_reconnect=input_after_reconnect,
     )
+    ops = None
+    detector = None
+    token_path = os.path.expanduser(args.ops_token_file)
+    try:
+        with open(token_path, "r", encoding="utf-8") as handle:
+            ops_token = handle.readline().strip()
+    except OSError:
+        ops_token = ""
+    if not ops_token:
+        print(
+            "warning: ops channel disabled; token file unavailable: %s"
+            % token_path,
+            file=sys.stderr,
+        )
+    else:
+        ops = ops_channel.OpsChannelClient(
+            args.host,
+            args.ops_port,
+            ops_token,
+        )
+        detector = ops_channel.RecoveryChordDetector()
     interval_s = 1.0 / SEND_HZ
 
     print(
@@ -413,11 +458,29 @@ def main(argv=None):
         while True:
             started = time.monotonic()
             pygame.event.pump()
-            sample = adapter.sample(now_ns=time.monotonic_ns())
+            now_ns = time.monotonic_ns()
+            sample = adapter.sample(now_ns=now_ns)
             transmitter.send(
                 sample,
-                client_monotonic_ns=time.monotonic_ns(),
+                client_monotonic_ns=now_ns,
             )
+            if ops is not None:
+                recovery_sample = SimpleNamespace(
+                    button=adapter.button,
+                    dpad_y=sample.dpad_y,
+                )
+                for event in detector.update(recovery_sample, now_ns=now_ns):
+                    ops.submit(
+                        event["action"],
+                        params=event.get("params"),
+                        phase=event.get("phase"),
+                    )
+                for response in ops.pump():
+                    print(
+                        "ops %s"
+                        % json.dumps(response, sort_keys=True),
+                        file=sys.stderr,
+                    )
             for status in transmitter.receive_status():
                 if status.startswith("S "):
                     print("\r%s" % status, end="", flush=True)
@@ -427,6 +490,8 @@ def main(argv=None):
     except KeyboardInterrupt:
         pass
     finally:
+        if ops is not None:
+            ops.close()
         transmitter.close()
         pygame.quit()
         print()

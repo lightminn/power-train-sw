@@ -77,6 +77,7 @@ def test_default_guid_mapping_uses_measured_dualsense_indices():
     assert mapping["right_trigger_axis"] == 5
     assert mapping["left_trigger_axis"] == 2
     assert mapping["square_button"] == 3
+    assert mapping["triangle_button"] == 2
     assert mapping["circle_button"] == 1
     assert mapping["assist_bypass_button"] == 5
     assert mapping["config_version"] == "v2-initial-candidate"
