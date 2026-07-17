@@ -20,10 +20,9 @@ import struct
 import sys
 import time
 
-import can
-
 CMD_HEARTBEAT, CMD_SET_STATE, CMD_CLEAR_ERRORS = 0x01, 0x07, 0x18
 S_IDLE, S_FULL_CAL = 1, 3                     # AxisState
+S_MOTOR_CAL, S_OFFSET_CAL = 4, 7
 CAL_STATES = (3, 4, 6, 7)                     # FULL/MOTOR/INDEX/OFFSET (진행 중)
 DRIVE_NODES = [11, 12, 13, 14, 15, 16]
 
@@ -50,48 +49,109 @@ def heartbeat(bus, node, timeout=2.0):
     return None
 
 
+def _can_message(**kwargs):
+    import can
+
+    return can.Message(**kwargs)
+
+
 def send_state(bus, node, state):
-    bus.send(can.Message(arbitration_id=arb(node, CMD_SET_STATE),
-                         data=struct.pack("<I", state) + bytes(4), is_extended_id=False))
+    bus.send(_can_message(arbitration_id=arb(node, CMD_SET_STATE),
+                          data=struct.pack("<I", state) + bytes(4), is_extended_id=False))
 
 
 def clear_errors(bus, node):
-    bus.send(can.Message(arbitration_id=arb(node, CMD_CLEAR_ERRORS), data=bytes(8), is_extended_id=False))
+    bus.send(_can_message(arbitration_id=arb(node, CMD_CLEAR_ERRORS),
+                          data=bytes(8), is_extended_id=False))
+
+
+def _run_state(bus, node, state, *, timeout, accepted_states):
+    """Request one calibration state and monitor entry then IDLE completion."""
+
+    send_state(bus, node, state)
+    t0, seen, states = time.time(), False, []
+    while time.time() - t0 < timeout:
+        r = heartbeat(bus, node, 2.0)
+        if r is None:
+            continue
+        err, current = r
+        if current not in states:
+            states.append(current)
+        if current in accepted_states:
+            seen = True
+        if seen and current == S_IDLE:
+            return err == 0, True, states
+        if not seen and (time.time() - t0) > 8:
+            return False, False, states
+        time.sleep(0.05)
+    return False, seen, states
 
 
 def calibrate(bus, node, timeout=90.0):
-    """FULL_CAL 요청 후 heartbeat 로 완료 감시. 성공(IDLE 복귀 err0)=True."""
+    """Calibrate one axis, retaining the fw 0.5.1 split-state fallback."""
+
     clear_errors(bus, node)
     time.sleep(0.3)
     drain(bus)
     r = heartbeat(bus, node, 2.0)
     print("  node %-2d 시작 err=%s state=%s → FULL_CAL(3)"
           % (node, hex(r[0]) if r else "?", r[1] if r else "?"))
-    send_state(bus, node, S_FULL_CAL)
-    t0, seen, states, err = time.time(), False, [], None
-    while time.time() - t0 < timeout:
-        r = heartbeat(bus, node, 2.0)
-        if r is None:
-            continue
-        err, st = r
-        if st not in states:
-            states.append(st)
-        if st in CAL_STATES:
-            seen = True
-        if seen and st == S_IDLE:
-            ok = (err == 0)
-            print("     완료 err=%s (%.0fs) 전이=%s → %s"
-                  % (hex(err), time.time() - t0, states, "OK" if ok else "FAIL"))
-            return ok
-        if not seen and (time.time() - t0) > 8:
-            print("     캘리 진입 실패 state=%d err=%s (state3 거부/무응답)" % (st, hex(err)))
-            return False
-        time.sleep(0.05)
-    print("     타임아웃 %.0fs 전이=%s" % (time.time() - t0, states))
-    return False
+    started = time.time()
+    ok, entered, states = _run_state(
+        bus, node, S_FULL_CAL, timeout=timeout, accepted_states=CAL_STATES
+    )
+    if entered:
+        print("     완료 (%.0fs) 전이=%s → %s"
+              % (time.time() - started, states, "OK" if ok else "FAIL"))
+        return ok
+
+    print("     FULL_CAL(3) 진입 거부/무응답 전이=%s → 분리 캘리" % states)
+    clear_errors(bus, node)
+    time.sleep(0.3)
+    drain(bus)
+
+    remaining = max(0.0, timeout - (time.time() - started))
+    motor_ok, motor_entered, motor_states = _run_state(
+        bus,
+        node,
+        S_MOTOR_CAL,
+        timeout=remaining,
+        accepted_states=(S_MOTOR_CAL,),
+    )
+    if not (motor_entered and motor_ok):
+        print("     MOTOR_CAL(4) 실패 전이=%s" % motor_states)
+        return False
+
+    remaining = max(0.0, timeout - (time.time() - started))
+    offset_ok, offset_entered, offset_states = _run_state(
+        bus,
+        node,
+        S_OFFSET_CAL,
+        timeout=remaining,
+        accepted_states=(S_OFFSET_CAL,),
+    )
+    ok = offset_entered and offset_ok
+    print("     분리 완료 (%.0fs) motor=%s offset=%s → %s"
+          % (time.time() - started, motor_states, offset_states, "OK" if ok else "FAIL"))
+    return ok
+
+
+def calibrate_nodes(bus, nodes, *, observe=None):
+    """Calibrate nodes sequentially on an injected bus and return per-node results."""
+
+    results = {}
+    for node in nodes:
+        ok = calibrate(bus, node)
+        results[node] = ok
+        if observe is not None:
+            observe(node, ok)
+        time.sleep(0.6)
+    return results
 
 
 def main():
+    import can
+
     ap = argparse.ArgumentParser(description="구동 ODrive 다축 CAN 풀캘리")
     ap.add_argument("--nodes", type=int, nargs="+", default=DRIVE_NODES,
                     help="캘리할 CAN node id (기본 11~16)")
@@ -105,10 +165,7 @@ def main():
         bus = can.Bus(channel=args.channel, interface="socketcan")
         try:
             print("=== 구동 %d축 CAN 풀캘리 (순차, 각 ~55s) — 바퀴 자유 필수 ===" % len(args.nodes))
-            res = {}
-            for n in args.nodes:
-                res[n] = calibrate(bus, n)
-                time.sleep(0.6)
+            res = calibrate_nodes(bus, args.nodes)
         finally:
             bus.shutdown()
 
