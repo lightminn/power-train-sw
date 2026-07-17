@@ -25,6 +25,7 @@ import math
 import os
 import sys
 import time
+import uuid
 
 import rclpy
 from nav_msgs.msg import Odometry
@@ -110,6 +111,8 @@ class SectionSupervisorNode(Node):
         self._odom_distance_m = 0.0
         self._last_follow_active = None
         self._last_stuck = False
+        self._section_session_id = uuid.uuid4().hex
+        self._section_sequence = 0
 
         self.tf_buf = Buffer()
         self.tf_listener = TransformListener(self.tf_buf, self)
@@ -278,11 +281,18 @@ class SectionSupervisorNode(Node):
             )
 
     def _tick(self):
-        state = self.supervisor.tick(self._now_s())
+        now_s = self._now_s()
+        state = self.supervisor.tick(now_s)
+        self._section_sequence += 1
         self.pub_state.publish(
             String(
                 data=json.dumps(
                     {
+                        "schema_version": 1,
+                        "session_id": self._section_session_id,
+                        "sequence": self._section_sequence,
+                        "stamp_s": now_s,
+                        "ttl_s": self.supervisor.config.state_ttl_s,
                         "section": state.section,
                         "phase": state.phase,
                         "hold_hint": state.drive_hold_hint,

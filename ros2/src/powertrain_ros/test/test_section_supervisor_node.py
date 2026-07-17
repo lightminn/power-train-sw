@@ -8,6 +8,8 @@ import time
 
 import pytest
 
+from chassis.section_profiles import SectionConfig
+
 
 PACKAGE = Path(__file__).resolve().parents[1]
 MODULE = PACKAGE / "powertrain_ros" / "section_supervisor_node.py"
@@ -242,6 +244,26 @@ def test_disabled_node_publishes_state_without_observability_side_effect():
 
 
 @requires_ros
+def test_versioned_state_has_fixed_session_and_increasing_sequence():
+    section_node = _node("FOLLOW", enabled=False, event_client=EventClient())
+    harness = Harness(section_node)
+    try:
+        harness.spin_until(lambda: len(harness.states) >= 2)
+
+        first, second = harness.states[-2:]
+        assert first["schema_version"] == 1
+        assert len(first["session_id"]) == 32
+        assert int(first["session_id"], 16) >= 0
+        assert second["session_id"] == first["session_id"]
+        assert second["sequence"] > first["sequence"]
+        assert second["stamp_s"] >= first["stamp_s"]
+        assert first["ttl_s"] == pytest.approx(0.6)
+        assert second["ttl_s"] == pytest.approx(0.6)
+    finally:
+        harness.close(section_node)
+
+
+@requires_ros
 def test_stale_marker_stamp_is_ignored_even_when_tf_exists():
     section_node = _node("MARKERS", enabled=False, event_client=EventClient())
     harness = Harness(section_node)
@@ -286,3 +308,13 @@ def test_node_source_marks_fake_contract_and_has_no_chassis_control_topics():
     assert "/autonomy/cmd_vel" not in source
     assert "/cmd_vel" not in source
     assert "request_work(" not in source
+
+
+def test_versioned_state_source_and_default_ttl_contract():
+    source = MODULE.read_text(encoding="utf-8")
+    assert SectionConfig().state_ttl_s == pytest.approx(0.6)
+    assert "uuid.uuid4().hex" in source
+    assert "self._section_sequence += 1" in source
+    assert '"schema_version": 1' in source
+    for field in ("session_id", "sequence", "stamp_s", "ttl_s"):
+        assert f'"{field}"' in source

@@ -371,6 +371,7 @@ class SectionConfig:
     ice_speed_hint: float = 0.15
     relief_work_request: str = "ARRIVED_PICKUP"
     odom_gate_m: float | None = None
+    state_ttl_s: float = 0.6
 
     def __post_init__(self) -> None:
         if (
@@ -394,6 +395,7 @@ class SectionConfig:
             "min_confidence",
             "smog_speed_hint",
             "ice_speed_hint",
+            "state_ttl_s",
         ):
             _finite(getattr(self, name), name)
         if self.odom_gate_m is not None:
