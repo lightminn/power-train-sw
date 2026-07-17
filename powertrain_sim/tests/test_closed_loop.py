@@ -25,43 +25,22 @@ from powertrain_sim.hidden_eval.__main__ import evaluate_report
 pytest.importorskip("mujoco")
 
 from powertrain_sim.closed_loop import TerrainAutonomyDriver, run_closed_loop
+from powertrain_sim.family_scenarios import (
+    ROBOT_FOOTPRINT_WIDTH_M,
+    clothoid_document as _clothoid_document,
+    depth_degradation_document as _depth_degradation_document,
+    flat_document as _flat_document,
+    follow_document as _follow_document,
+    friction_document as _friction_document,
+    pinch_document as _pinch_document,
+    undulating_document as _undulating_document,
+)
 from powertrain_sim.follow_loop import FollowDriver
 from powertrain_sim.lead_target import LeadTargetPlant, LeadTargetSpec
 from powertrain_sim.mujoco_fast.model_builder import WHEEL_HALF_WIDTH_M
 from powertrain_sim.mujoco_fast.runner import run_scenario
-from powertrain_sim.procedural import (
-    FrictionPatchSpec,
-    GenerationParameters,
-    PinchSpec,
-    generate_scenario,
-)
 from powertrain_sim.scenario import parse_scenario
 from powertrain_sim.recording import DetectionFrame, RecordedRun
-
-
-DEV_SEED = 0
-# CAD URDF wheel centres in chassis.kinematics.default_geometry() have their
-# widest |y| at 0.4395 m; model_builder gives each wheel 0.035 m half-width.
-# The simulated physical footprint is therefore 2 * (0.4395 + 0.035) = 0.949 m.
-ROBOT_FOOTPRINT_WIDTH_M = 0.949
-
-
-def _flat_document(*, seed: int = DEV_SEED):
-    return generate_scenario(
-        GenerationParameters(
-            track_length_range_m=(2.5, 2.5),
-            track_width_range_m=(1.4, 1.4),
-            track_height_range_m=(0.5, 0.5),
-            curvature_range_per_m=(0.0, 0.0),
-            linear_speed_range_m_s=(0.45, 0.45),
-            terrain_families=("flat",),
-            motion_profiles=("constant_speed",),
-            # 폐루프는 종단 낙하 앞 fail-closed 정지가 정답 — 95% 완주 불가.
-            expected_completion=False,
-        ),
-        seed=seed,
-        seed_class="dev",
-    )
 
 
 def _deterministic_metrics(report):
@@ -87,147 +66,6 @@ def _snapshot_with_diagnostics(diagnostics: DiagnosticSnapshot) -> StateSnapshot
         yaw_source="wheel",
         gyro_bias_rad_s=(0.0, 0.0, 0.0),
     )
-
-
-def _pinch_document(*, width_m: float):
-    document = generate_scenario(
-        GenerationParameters(
-            track_length_range_m=(2.5, 2.5),
-            track_width_range_m=(1.3, 1.3),
-            track_height_range_m=(0.5, 0.5),
-            curvature_range_per_m=(0.0, 0.0),
-            station_spacing_range_m=(0.20, 0.20),
-            linear_speed_range_m_s=(0.45, 0.45),
-            terrain_families=("flat",),
-            motion_profiles=("constant_speed",),
-            pinch=PinchSpec(center_ratio=0.45, length_m=0.5, width_m=width_m),
-            # Completion means the expected fail-closed endpoint, while the
-            # assertions below separately prove whether the pinch was passed.
-            expected_completion=False,
-        ),
-        seed=DEV_SEED,
-        seed_class="dev",
-    )
-    # Isolate the width-family acceptance from the deterministic random fault
-    # schedule, and leave enough time for clearance-based proportional slowing.
-    document["clock"]["duration_s"] = 12.0
-    document["faults"] = {name: [] for name in document["faults"]}
-    return document
-
-
-def _friction_document():
-    document = generate_scenario(
-        GenerationParameters(
-            track_length_range_m=(2.5, 2.5),
-            track_width_range_m=(1.4, 1.4),
-            track_height_range_m=(0.5, 0.5),
-            curvature_range_per_m=(0.0, 0.0),
-            friction_range=(0.8, 0.8),
-            linear_speed_range_m_s=(0.45, 0.45),
-            terrain_families=("flat",),
-            motion_profiles=("constant_speed",),
-            friction_patch=FrictionPatchSpec(
-                center_ratio=0.5,
-                length_m=0.8,
-                mu=0.3,
-            ),
-            expected_completion=False,
-        ),
-        seed=DEV_SEED,
-        seed_class="dev",
-    )
-    document["faults"] = {name: [] for name in document["faults"]}
-    return document
-
-
-def _depth_degradation_document():
-    document = _flat_document(seed=2)
-    document["faults"] = {name: [] for name in document["faults"]}
-    document["faults"]["depth_degradation"] = [
-        {
-            "start_s": 0.8,
-            "end_s": 2.4,
-            "dropout_ratio_start": 0.0,
-            "dropout_ratio_end": 0.6,
-            "noise_std_m": 0.02,
-        }
-    ]
-    return document
-
-
-def _clothoid_document():
-    document = generate_scenario(
-        GenerationParameters(
-            track_length_range_m=(2.5, 2.5),
-            track_width_range_m=(1.4, 1.4),
-            track_height_range_m=(0.5, 0.5),
-            curvature_range_per_m=(-0.08, 0.08),
-            station_spacing_range_m=(0.35, 0.35),
-            linear_speed_range_m_s=(0.45, 0.45),
-            terrain_families=("flat",),
-            motion_profiles=("constant_speed",),
-            curvature_mode="clothoid",
-            expected_completion=False,
-        ),
-        seed=DEV_SEED,
-        seed_class="dev",
-    )
-    document["clock"]["duration_s"] = 12.0
-    document["faults"] = {name: [] for name in document["faults"]}
-    return document
-
-
-def _undulating_document():
-    document = generate_scenario(
-        GenerationParameters(
-            track_length_range_m=(2.5, 2.5),
-            track_width_range_m=(1.4, 1.4),
-            track_height_range_m=(0.5, 0.5),
-            curvature_range_per_m=(0.0, 0.0),
-            station_spacing_range_m=(0.40, 0.40),
-            linear_speed_range_m_s=(0.45, 0.45),
-            terrain_families=("undulating",),
-            motion_profiles=("constant_speed",),
-            expected_completion=False,
-        ),
-        seed=DEV_SEED,
-        seed_class="dev",
-    )
-    document["clock"]["duration_s"] = 12.0
-    document["faults"] = {name: [] for name in document["faults"]}
-    return document
-
-
-def _follow_document(*, curve: bool, duration_s: float, seed: int):
-    track_length_m = 40.0 if not curve else 16.0
-    document = generate_scenario(
-        GenerationParameters(
-            track_length_range_m=(track_length_m, track_length_m),
-            track_width_range_m=(1.8, 1.8),
-            track_height_range_m=(0.5, 0.5),
-            curvature_range_per_m=(0.0, 0.0),
-            station_spacing_range_m=(0.5, 0.5),
-            linear_speed_range_m_s=(0.5, 0.5),
-            terrain_families=("flat",),
-            motion_profiles=("constant_speed",),
-            expected_completion=False,
-        ),
-        seed=seed,
-        seed_class="dev",
-    )
-    document["clock"]["duration_s"] = duration_s
-    document["faults"] = {name: [] for name in document["faults"]}
-    if curve:
-        curvature_per_m = 0.025
-        points = document["track"]["centerline_m"]
-        for index, point in enumerate(points):
-            station_m = min(index * 0.5, track_length_m)
-            point[0] = math.sin(curvature_per_m * station_m) / curvature_per_m
-            point[1] = (1.0 - math.cos(curvature_per_m * station_m)) / curvature_per_m
-        document["track"]["curvature_per_m"] = [
-            curvature_per_m for _ in points
-        ]
-    return document
 
 
 def _run_follow_case(document, run_directory, *, path, occlusions=()):
