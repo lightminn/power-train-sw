@@ -7,7 +7,7 @@ the five-axis controller, Servo, video feedback, and joint HIL gates pass.
 """
 
 import json
-import queue
+from collections import deque
 import socket
 import threading
 import time
@@ -40,9 +40,11 @@ ARM_OUTPUT_ENABLED = False
 CLIENT_IDLE_TIMEOUT_S = 5.0
 MAX_EVENTS_PER_TICK = 256
 MAX_VIOLATION_EVENTS_PER_S = 50
-# ○ E-stop 전역 latch(스펙 r6 §2.1): edge 시점부터 이 시간 동안 매 틱 재발행.
-# 발행 자체는 TRANSIENT_LOCAL latched 라 재발행은 구독자 프로세스 재시작
-# '창'에 대한 보험이다.
+MAX_LIFECYCLE_EVENTS = 8
+MAX_VIOLATION_KINDS = 64
+# ○ E-stop 전역 latch(스펙 r6 §2.1): 수신 스레드가 edge를 즉시 durable
+# 슬롯에 기록하고, 다음 ROS tick부터 이 시간 동안 재발행한다. 발행 자체는
+# TRANSIENT_LOCAL latched 라 재발행은 구독자 프로세스 재시작 '창'의 보험이다.
 ESTOP_REBROADCAST_S = 1.0
 VIOLATION_LOG_PERIOD_S = 1.0
 
@@ -92,7 +94,11 @@ class TeleopCommandNode(Node):
             stow_confirmed=lambda: False,
         )
 
-        self._events = queue.SimpleQueue()
+        self._events_lock = threading.Lock()
+        self._motion_frame = None
+        self._motion_frames_dropped = 0
+        self._lifecycle_events = deque(maxlen=MAX_LIFECYCLE_EVENTS)
+        self._violation_events = deque(maxlen=MAX_VIOLATION_KINDS)
         self._status_lock = threading.Lock()
         self._status_line = b"S DISCONNECTED +0.000 +0.000\n"
         self._stop_event = threading.Event()
@@ -138,6 +144,7 @@ class TeleopCommandNode(Node):
             "/teleop/estop",
             estop_qos,
         )
+        self._estop_lock = threading.Lock()
         self._estop_event = None
         self.create_service(Trigger, "~/clear_hold", self._clear_hold)
         self.create_timer(1.0 / 30.0, self._tick)
@@ -153,27 +160,110 @@ class TeleopCommandNode(Node):
             % (self._port, ARM_OUTPUT_ENABLED)
         )
 
+    def _queue_motion_frame(self, frame):
+        lock = getattr(self, "_events_lock", None)
+        if lock is None:
+            lock = threading.Lock()
+            self._events_lock = lock
+        with lock:
+            if getattr(self, "_motion_frame", None) is not None:
+                self._motion_frames_dropped = (
+                    getattr(self, "_motion_frames_dropped", 0) + 1
+                )
+            self._motion_frame = frame
+
+    def _queue_lifecycle_event(self, event, session_id):
+        lock = getattr(self, "_events_lock", None)
+        if lock is None:
+            lock = threading.Lock()
+            self._events_lock = lock
+        overflow = False
+        with lock:
+            events = getattr(self, "_lifecycle_events", None)
+            if events is None:
+                events = deque(maxlen=MAX_LIFECYCLE_EVENTS)
+                self._lifecycle_events = events
+            retained = [
+                item for item in events if item[1] != session_id
+            ]
+            overflow = len(retained) >= events.maxlen
+            if overflow:
+                retained.pop(0)
+            retained.append((event, session_id))
+            events.clear()
+            events.extend(retained)
+            if event == "disconnect":
+                # A closed TCP session cannot leave its last motion frame to
+                # be accepted after the next session's connect event.
+                self._motion_frame = None
+        if overflow:
+            self._queue_violation(
+                "CONTRACT_VIOLATION: event overflow"
+            )
+
+    def _queue_violation(self, reason, *, count=1):
+        reason = str(reason)
+        count = max(1, int(count))
+        lock = getattr(self, "_events_lock", None)
+        if lock is None:
+            lock = threading.Lock()
+            self._events_lock = lock
+        with lock:
+            events = getattr(self, "_violation_events", None)
+            if events is None:
+                events = deque(maxlen=MAX_VIOLATION_KINDS)
+                self._violation_events = events
+            for index, (queued_reason, queued_count) in enumerate(events):
+                if queued_reason == reason:
+                    events[index] = (
+                        queued_reason,
+                        queued_count + count,
+                    )
+                    break
+            else:
+                events.append((reason, count))
+
     def _queue_decoder_results(self, results, now_s=None):
         event_now_s = time.monotonic() if now_s is None else float(now_s)
         for result in results:
             if result.frame is not None:
-                self._events.put(("frame", result.frame))
+                if result.frame.estop_edge:
+                    # Do this before the overwritable motion slot.  The TCP
+                    # thread only sets a lock-protected flag; ROS publication
+                    # stays on _tick and TRANSIENT_LOCAL keeps the event
+                    # durable for late subscribers.
+                    self._begin_estop_event(event_now_s)
+                self._queue_motion_frame(result.frame)
             else:
-                with self._violation_rate_lock:
+                rate_lock = getattr(self, "_violation_rate_lock", None)
+                if rate_lock is None:
+                    rate_lock = threading.Lock()
+                    self._violation_rate_lock = rate_lock
+                with rate_lock:
+                    window_start_s = getattr(
+                        self,
+                        "_violation_window_start_s",
+                        event_now_s,
+                    )
                     if (
-                        event_now_s < self._violation_window_start_s
-                        or event_now_s - self._violation_window_start_s >= 1.0
+                        event_now_s < window_start_s
+                        or event_now_s - window_start_s >= 1.0
                     ):
                         self._violation_window_start_s = event_now_s
                         self._violation_events_in_window = 0
                     if (
-                        self._violation_events_in_window
+                        getattr(self, "_violation_events_in_window", 0)
                         >= MAX_VIOLATION_EVENTS_PER_S
                     ):
-                        self._violation_events_suppressed += 1
+                        self._violation_events_suppressed = (
+                            getattr(self, "_violation_events_suppressed", 0)
+                            + 1
+                        )
                         continue
-                    self._violation_events_in_window += 1
-                self._events.put(("violation", result.reason))
+                    self._violation_events_in_window = (
+                        getattr(self, "_violation_events_in_window", 0) + 1
+                    )
+                self._queue_violation(result.reason)
 
     def _current_status(self):
         with self._status_lock:
@@ -185,7 +275,8 @@ class TeleopCommandNode(Node):
         # 상태 회신도 Nagle에 뭉치면 클라이언트 표시가 늦는다 — 양단 NODELAY.
         connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self._decoder.start_connection()
-        self._events.put(("connect", None))
+        connection_session_id = uuid.uuid4().hex
+        self._queue_lifecycle_event("connect", connection_session_id)
         last_status_s = 0.0
         last_data_s = time.monotonic()
         try:
@@ -220,7 +311,10 @@ class TeleopCommandNode(Node):
                     last_status_s = now_s
         finally:
             self._queue_decoder_results(self._decoder.end_connection())
-            self._events.put(("disconnect", None))
+            self._queue_lifecycle_event(
+                "disconnect",
+                connection_session_id,
+            )
 
     def _serve(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -245,7 +339,9 @@ class TeleopCommandNode(Node):
                     connection.close()
         except BaseException as exc:
             if not self._stop_event.is_set():
-                self._events.put(("server_error", repr(exc)))
+                self._queue_violation(
+                    "CONTRACT_VIOLATION: TCP server failed: %s" % repr(exc)
+                )
         finally:
             try:
                 server.close()
@@ -268,29 +364,54 @@ class TeleopCommandNode(Node):
         drain_now_s = time.monotonic() if now_s is None else float(now_s)
         processed = 0
         while processed < max_events:
-            try:
-                event, payload = self._events.get_nowait()
-            except queue.Empty:
-                break
-            processed += 1
-            if event == "connect":
-                self._gateway.begin_connection()
-            elif event == "disconnect":
-                self._gateway.end_connection()
-                self._last_frame = None
-            elif event == "frame":
-                self._last_frame = payload
-                if payload.estop_edge:
-                    self._begin_estop_event(drain_now_s)
-                self._gateway.submit(payload)
-            elif event == "violation":
-                self._gateway.contract_violation(payload)
-                self._log_violation_throttled(payload, drain_now_s)
-            elif event == "server_error":
-                self._gateway.contract_violation(
-                    "CONTRACT_VIOLATION: TCP server failed: %s" % payload
+            lock = getattr(self, "_events_lock", None)
+            if lock is None:
+                lock = threading.Lock()
+                self._events_lock = lock
+            with lock:
+                lifecycle_events = getattr(
+                    self,
+                    "_lifecycle_events",
+                    None,
                 )
-                self.get_logger().error("TCP server failed: %s" % payload)
+                violation_events = getattr(
+                    self,
+                    "_violation_events",
+                    None,
+                )
+                if lifecycle_events:
+                    lifecycle, session_id = lifecycle_events.popleft()
+                    event = "lifecycle"
+                    payload = (lifecycle, session_id)
+                elif violation_events:
+                    event = "violation"
+                    payload = violation_events.popleft()
+                elif getattr(self, "_motion_frame", None) is not None:
+                    event = "frame"
+                    payload = self._motion_frame
+                    self._motion_frame = None
+                else:
+                    break
+            processed += 1
+            if event == "lifecycle":
+                lifecycle, _session_id = payload
+                if lifecycle == "connect":
+                    self._gateway.begin_connection()
+                elif lifecycle == "disconnect":
+                    self._gateway.end_connection()
+                    self._last_frame = None
+            elif event == "frame":
+                if self._gateway.submit(payload):
+                    self._last_frame = payload
+            elif event == "violation":
+                reason, count = payload
+                message = (
+                    reason
+                    if count == 1
+                    else "%s (%d occurrences)" % (reason, count)
+                )
+                self._gateway.contract_violation(message)
+                self._log_violation_throttled(message, drain_now_s)
         suppressed = getattr(self, "_violation_events_suppressed", 0)
         reported = getattr(self, "_violation_events_reported", 0)
         unreported = max(0, suppressed - reported)
@@ -303,25 +424,44 @@ class TeleopCommandNode(Node):
         return processed
 
     def _begin_estop_event(self, now_s):
-        self._estop_event = {
+        event = {
             "event_id": uuid.uuid4().hex,
             "stamp_s": float(now_s),
             "until_s": float(now_s) + ESTOP_REBROADCAST_S,
+            "published": False,
         }
-        self._publish_estop_event()
+        lock = getattr(self, "_estop_lock", None)
+        if lock is None:
+            lock = threading.Lock()
+            self._estop_lock = lock
+        with lock:
+            self._estop_event = event
 
     def _publish_estop_event(self):
-        if self._estop_event is None:
-            return
+        lock = getattr(self, "_estop_lock", None)
+        if lock is None:
+            lock = threading.Lock()
+            self._estop_lock = lock
+        with lock:
+            event = getattr(self, "_estop_event", None)
+            if event is None:
+                return False
+            event_id = event["event_id"]
+            stamp_s = event["stamp_s"]
         message = String()
         message.data = json.dumps(
             {
-                "event_id": self._estop_event["event_id"],
-                "stamp_s": self._estop_event["stamp_s"],
+                "event_id": event_id,
+                "stamp_s": stamp_s,
             },
             separators=(",", ":"),
         )
         self.pub_estop.publish(message)
+        with lock:
+            current = getattr(self, "_estop_event", None)
+            if current is not None and current["event_id"] == event_id:
+                current["published"] = True
+        return True
 
     def _publish_drive(self, output):
         message = Twist()
@@ -355,13 +495,42 @@ class TeleopCommandNode(Node):
         return response
 
     def _tick(self):
+        tick_now_s = time.monotonic()
         self._drain_events()
-        if self._estop_event is not None:
-            if time.monotonic() < self._estop_event["until_s"]:
+        estop_event = getattr(self, "_estop_event", None)
+        estop_lock = getattr(self, "_estop_lock", None)
+        if estop_event is None:
+            estop_snapshot = None
+        elif estop_lock is None:
+            estop_snapshot = dict(estop_event)
+        else:
+            with estop_lock:
+                estop_snapshot = dict(self._estop_event)
+        if estop_snapshot is not None:
+            if (
+                not estop_snapshot["published"]
+                or tick_now_s < estop_snapshot["until_s"]
+            ):
                 self._publish_estop_event()
-            else:
-                self._estop_event = None
-        output = self._gateway.tick(time.monotonic())
+            if tick_now_s >= estop_snapshot["until_s"]:
+                if estop_lock is None:
+                    current = getattr(self, "_estop_event", None)
+                    if (
+                        current is not None
+                        and current["event_id"]
+                        == estop_snapshot["event_id"]
+                    ):
+                        self._estop_event = None
+                else:
+                    with estop_lock:
+                        current = getattr(self, "_estop_event", None)
+                        if (
+                            current is not None
+                            and current["event_id"]
+                            == estop_snapshot["event_id"]
+                        ):
+                            self._estop_event = None
+        output = self._gateway.tick(tick_now_s)
         with self._status_lock:
             self._status_line = make_status_line(output).encode("utf-8")
 
@@ -374,7 +543,7 @@ class TeleopCommandNode(Node):
                     self._last_frame is not None
                     and frame_is_neutral(self._last_frame)
                 ),
-                "stamp_s": time.monotonic(),
+                "stamp_s": tick_now_s,
             },
             separators=(",", ":"),
         )

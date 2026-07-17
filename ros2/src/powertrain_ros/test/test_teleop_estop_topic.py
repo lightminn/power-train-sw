@@ -15,7 +15,12 @@ from rclpy.qos import (
 from std_msgs.msg import String
 
 from powertrain_ros import teleop_command_node
-from powertrain_ros.remote_input import DPad, NormalizedAxes, RemoteInputFrame
+from powertrain_ros.remote_input import (
+    DPad,
+    NormalizedAxes,
+    ParseResult,
+    RemoteInputFrame,
+)
 from powertrain_ros.teleop_command_node import TeleopCommandNode
 
 
@@ -74,7 +79,8 @@ def _latched_listener(received):
 def test_estop_edge_publishes_latched_event_visible_to_late_joiner():
     node = TeleopCommandNode()
     try:
-        node._events.put(("frame", _estop_frame()))
+        node._queue_decoder_results([ParseResult(frame=_estop_frame())])
+        assert node._estop_event is not None
         node._tick()
 
         # 발행 **이후** 구독을 만들어도(late join) TRANSIENT_LOCAL 로 수신돼야 한다
@@ -86,7 +92,9 @@ def test_estop_edge_publishes_latched_event_visible_to_late_joiner():
             while not received and time.monotonic() < deadline:
                 rclpy.spin_once(listener, timeout_sec=0.05)
                 rclpy.spin_once(node, timeout_sec=0.0)
-            assert received, "late-joining subscriber did not get latched estop"
+            assert received, (
+                "late-joining subscriber did not get latched estop"
+            )
             payload = json.loads(received[0])
             assert set(payload) == {"event_id", "stamp_s"}
             assert isinstance(payload["event_id"], str) and payload["event_id"]
@@ -104,7 +112,7 @@ def test_rebroadcast_reuses_same_event_id_within_window():
         received = []
         listener = _latched_listener(received)
         try:
-            node._events.put(("frame", _estop_frame()))
+            node._queue_decoder_results([ParseResult(frame=_estop_frame())])
             node._tick()
             node._tick()
             deadline = time.monotonic() + 3.0
@@ -127,7 +135,7 @@ def test_rebroadcast_stops_after_window(monkeypatch):
     monkeypatch.setattr(module, "ESTOP_REBROADCAST_S", 0.0)
     node = TeleopCommandNode()
     try:
-        node._events.put(("frame", _estop_frame()))
+        node._queue_decoder_results([ParseResult(frame=_estop_frame())])
         node._tick()          # edge 시점 1회 발행 후, 창(0초) 만료로 즉시 정리
         assert node._estop_event is None
     finally:
