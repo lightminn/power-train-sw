@@ -18,8 +18,12 @@ import uuid
 
 try:
     from . import ops_channel_client as ops_channel
+    from .dualsense_output import DualSenseOutput
+    from .haptic_arbiter import HapticArbiter
 except ImportError:  # Direct execution from motor_control/laptop.
     import ops_channel_client as ops_channel
+    from dualsense_output import DualSenseOutput
+    from haptic_arbiter import HapticArbiter
 
 
 DEFAULT_HOST = "192.168.8.106"
@@ -383,7 +387,7 @@ class RemoteOperationTransmitter:
         self._drop()
 
 
-def main(argv=None):
+def build_arg_parser():
     parser = argparse.ArgumentParser(
         description="WP5.2 DRIVE/ARM remote operation client"
     )
@@ -392,7 +396,51 @@ def main(argv=None):
     parser.add_argument("--ops-port", type=int, default=ops_channel.OPS_DEFAULT_PORT)
     parser.add_argument("--ops-token-file", default=DEFAULT_OPS_TOKEN_FILE)
     parser.add_argument("--mapping-version", default=None)
-    args = parser.parse_args(argv)
+    haptics = parser.add_mutually_exclusive_group()
+    haptics.add_argument(
+        "--haptics",
+        dest="haptics",
+        action="store_true",
+        default=True,
+    )
+    haptics.add_argument(
+        "--no-haptics",
+        dest="haptics",
+        action="store_false",
+    )
+    parser.add_argument(
+        "--trigger-fx",
+        action="store_true",
+        default=False,
+        help="enable authority-lock trigger resistance (experimental)",
+    )
+    return parser
+
+
+def feed_ops_haptics(arbiter, ops_client, responses, *, received_s):
+    """Route one pump batch into the pure arbiter using local receive time."""
+    if arbiter is None:
+        return
+    if any(
+        isinstance(response, dict)
+        and response.get("push") == "ops_state"
+        for response in responses
+    ):
+        state = ops_client.latest_ops_state()
+        if state is not None:
+            arbiter.feed_ops_state(state, received_s=received_s)
+    for response in responses:
+        if not isinstance(response, dict):
+            continue
+        status = response.get("status")
+        if status == "FINAL_SUCCESS":
+            arbiter.feed_event("ack", status)
+        elif status in ("FINAL_REJECTED", "OUTCOME_UNKNOWN"):
+            arbiter.feed_event("nack", status)
+
+
+def main(argv=None):
+    args = build_arg_parser().parse_args(argv)
 
     # pygame belongs only to the laptop executable path.
     import pygame
@@ -410,6 +458,17 @@ def main(argv=None):
     )
     mapping = mapping_for_guid(guid, args.mapping_version)
     adapter = DualSenseInputAdapter(joystick, mapping)
+
+    haptic_arbiter = None
+    haptic_output = None
+    if args.haptics:
+        haptic_arbiter = HapticArbiter(clock=time.monotonic)
+        haptic_output = DualSenseOutput(
+            haptic_arbiter,
+            clock=time.monotonic,
+            trigger_fx=args.trigger_fx,
+        )
+        haptic_output.start()
 
     def input_after_reconnect():
         adapter.reset_for_new_connection()
@@ -470,12 +529,25 @@ def main(argv=None):
                     dpad_y=sample.dpad_y,
                 )
                 for event in detector.update(recovery_sample, now_ns=now_ns):
+                    if haptic_arbiter is not None:
+                        haptic_arbiter.feed_event(
+                            "chord_progress",
+                            "%s:%s"
+                            % (event["action"], event.get("phase", "complete")),
+                        )
                     ops.submit(
                         event["action"],
                         params=event.get("params"),
                         phase=event.get("phase"),
                     )
-                for response in ops.pump():
+                responses = ops.pump()
+                feed_ops_haptics(
+                    haptic_arbiter,
+                    ops,
+                    responses,
+                    received_s=time.monotonic(),
+                )
+                for response in responses:
                     print(
                         "ops %s"
                         % json.dumps(response, sort_keys=True),
@@ -490,6 +562,8 @@ def main(argv=None):
     except KeyboardInterrupt:
         pass
     finally:
+        if haptic_output is not None:
+            haptic_output.close()
         if ops is not None:
             ops.close()
         transmitter.close()

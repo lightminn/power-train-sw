@@ -38,8 +38,29 @@ class FakeSocket:
         self.closed = True
 
 
+class FakeHapticArbiter:
+    def __init__(self):
+        self.states = []
+        self.events = []
+
+    def feed_ops_state(self, state, received_s):
+        self.states.append((state, received_s))
+
+    def feed_event(self, kind, detail=""):
+        self.events.append((kind, detail))
+
+
+class FakeOpsStateClient:
+    def __init__(self, state):
+        self.state = state
+
+    def latest_ops_state(self):
+        return dict(self.state)
+
+
 def test_module_import_and_encoding_do_not_require_pygame():
     assert "pygame" not in client.__dict__
+    assert "pydualsense" not in client.__dict__
     assert "pygame" not in sys.modules or sys.modules["pygame"] is not client
 
     sample = client.ClientInput(
@@ -69,6 +90,41 @@ def test_module_import_and_encoding_do_not_require_pygame():
 
     assert payload.endswith(b"\n")
     assert len(payload) <= 2 * 1024
+
+
+def test_haptic_cli_flags_default_on_with_trigger_fx_opt_in():
+    parser = client.build_arg_parser()
+
+    defaults = parser.parse_args([])
+    assert defaults.haptics is True
+    assert defaults.trigger_fx is False
+    assert parser.parse_args(["--no-haptics"]).haptics is False
+    assert parser.parse_args(["--haptics", "--trigger-fx"]).haptics is True
+    assert parser.parse_args(["--haptics", "--trigger-fx"]).trigger_fx is True
+
+
+def test_ops_feedback_feeds_latest_state_and_ack_patterns():
+    arbiter = FakeHapticArbiter()
+    state = {"push": "ops_state", "revision": 9, "authority_mode": "TELEOP"}
+    ops = FakeOpsStateClient(state)
+    responses = [
+        state,
+        {"request_id": "ok", "status": "FINAL_SUCCESS"},
+        {"request_id": "no", "status": "FINAL_REJECTED"},
+    ]
+
+    client.feed_ops_haptics(
+        arbiter,
+        ops,
+        responses,
+        received_s=12.5,
+    )
+
+    assert arbiter.states == [(state, 12.5)]
+    assert arbiter.events == [
+        ("ack", "FINAL_SUCCESS"),
+        ("nack", "FINAL_REJECTED"),
+    ]
 
 
 def test_default_guid_mapping_uses_measured_dualsense_indices():
