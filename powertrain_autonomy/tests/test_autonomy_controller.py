@@ -321,7 +321,13 @@ def test_recovery_dwell_reduces_threshold_flap_transitions():
     def states(recovery_ticks):
         controller = AutonomyController(
             EMPTY_STOWED,
-            AutonomyControllerConfig(recovery_ticks=recovery_ticks),
+            # A3 dwell의 시간·표본 조건은 중립화 — 이 테스트는 틱 수 효과만
+            # 격리해 비교한다(신규 조건은 전용 테스트가 커버).
+            AutonomyControllerConfig(
+                recovery_ticks=recovery_ticks,
+                recovery_min_elapsed_s=0.0,
+                recovery_min_samples=1,
+            ),
         )
         result = []
         for index, age_s in enumerate((0.451, 0.449) * 4):
@@ -570,3 +576,82 @@ def test_nonfinite_now_is_rejected_before_a_nonfinite_decision_can_escape():
             gate=gate(),
             diagnostics=None,
         )
+
+
+def test_recovery_dwell_requires_min_elapsed_time_not_just_ticks():
+    """A3: 부하로 틱이 빨리 돌아도 최소 경과 시간(0.15 s) 전엔 복귀 금지."""
+    controller = AutonomyController(EMPTY_STOWED)
+    decide_fresh(controller, 0.0)
+    held = controller.decide(
+        1.0, terrain=terrain(0.0), motion=motion(1.0), gate=gate(1.0),
+        diagnostics=None,
+    )
+    assert held.state == "CONTROLLED_HOLD"
+
+    # 0.02 s 간격 4틱: ticks(3)·samples(3) 충족, 경과 0.08 s < 0.15 s
+    for step in range(1, 5):
+        decision = decide_fresh(controller, 1.0 + 0.02 * step)
+        assert decision.state == "CONTROLLED_HOLD"
+        assert decision.reasons == ("recovery_dwell",)
+
+    # 첫 fresh 틱(1.02) 기준 경과 0.14 s → 아직 dwell
+    assert decide_fresh(controller, 1.16).state == "CONTROLLED_HOLD"
+    # 경과 0.16 s → 복귀
+    assert decide_fresh(controller, 1.18).state == "TRACKING"
+
+
+def test_recovery_dwell_requires_tick_count_even_when_time_elapsed():
+    controller = AutonomyController(EMPTY_STOWED)
+    decide_fresh(controller, 0.0)
+    controller.decide(
+        1.0, terrain=terrain(0.0), motion=motion(1.0), gate=gate(1.0),
+        diagnostics=None,
+    )
+
+    # 0.2 s 간격 2틱: 경과는 충족하나 ticks 2 < 3
+    assert decide_fresh(controller, 1.2).state == "CONTROLLED_HOLD"
+    assert decide_fresh(controller, 1.4).state == "CONTROLLED_HOLD"
+    assert decide_fresh(controller, 1.6).state == "TRACKING"
+
+
+def test_recovery_dwell_requires_distinct_terrain_samples():
+    """같은 terrain 스탬프 재사용은 표본으로 안 센다 — 데이터 정체 시 복귀 금지."""
+    controller = AutonomyController(EMPTY_STOWED)
+    decide_fresh(controller, 0.0)
+    controller.decide(
+        1.0, terrain=terrain(0.0), motion=motion(1.0), gate=gate(1.0),
+        diagnostics=None,
+    )
+
+    frozen = terrain(1.5)
+    for step in range(1, 11):          # 10틱·경과 0.2 s, 표본은 1개뿐
+        decision = controller.decide(
+            1.5 + 0.02 * step,
+            terrain=frozen,
+            motion=motion(1.5 + 0.02 * step),
+            gate=gate(1.5 + 0.02 * step),
+            diagnostics=None,
+        )
+    assert decision.state == "CONTROLLED_HOLD"
+
+    # 신선한 표본 2개 더 → 전 조건 충족 → 복귀
+    decide_fresh(controller, 1.72)
+    assert decide_fresh(controller, 1.74).state == "TRACKING"
+
+
+def test_recovery_dwell_all_conditions_met_returns_tracking():
+    controller = AutonomyController(
+        EMPTY_STOWED,
+        AutonomyControllerConfig(
+            recovery_ticks=2,
+            recovery_min_elapsed_s=0.05,
+            recovery_min_samples=2,
+        ),
+    )
+    decide_fresh(controller, 0.0)
+    controller.decide(
+        1.0, terrain=terrain(0.0), motion=motion(1.0), gate=gate(1.0),
+        diagnostics=None,
+    )
+    assert decide_fresh(controller, 1.1).state == "CONTROLLED_HOLD"
+    assert decide_fresh(controller, 1.2).state == "TRACKING"

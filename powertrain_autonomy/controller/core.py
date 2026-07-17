@@ -45,6 +45,10 @@ class AutonomyControllerConfig:
     gate_stale_s: float = 0.50
     diagnostics_stale_s: float = 1.0
     recovery_ticks: int = 3
+    # A3(스펙 r6 §4.4): 복귀는 틱 수 AND 최소 경과시간 AND 신선 표본 수를
+    # 모두 요구한다 — 부하로 틱 주기가 변해도 dwell 의미가 보존된다.
+    recovery_min_elapsed_s: float = 0.15
+    recovery_min_samples: int = 3
     kp_heading: float = 1.2
     kp_offset: float = 0.8
     curvature_slow_k: float = 1.0
@@ -62,6 +66,23 @@ class AutonomyControllerConfig:
             or self.recovery_ticks <= 0
         ):
             raise ValueError("recovery_ticks must be a positive integer")
+        if (
+            isinstance(self.recovery_min_samples, bool)
+            or not isinstance(self.recovery_min_samples, int)
+            or self.recovery_min_samples <= 0
+        ):
+            raise ValueError(
+                "recovery_min_samples must be a positive integer"
+            )
+        if (
+            not isinstance(self.recovery_min_elapsed_s, (int, float))
+            or isinstance(self.recovery_min_elapsed_s, bool)
+            or not math.isfinite(float(self.recovery_min_elapsed_s))
+            or float(self.recovery_min_elapsed_s) < 0.0
+        ):
+            raise ValueError(
+                "recovery_min_elapsed_s must be a finite non-negative number"
+            )
         positive = (
             "terrain_stale_s",
             "motion_stale_s",
@@ -205,6 +226,9 @@ class AutonomyController:
         self._omega_rad_s = 0.0
         self._recovering_from_hold = False
         self._recovery_fresh_ticks = 0
+        self._recovery_started_s: float | None = None
+        self._recovery_samples = 0
+        self._recovery_last_sample_stamp: float | None = None
 
     def _dt(self, now_s: float) -> float:
         if self._last_stamp_s is None:
@@ -228,6 +252,9 @@ class AutonomyController:
         self._omega_rad_s = 0.0
         self._recovering_from_hold = False
         self._recovery_fresh_ticks = 0
+        self._recovery_started_s = None
+        self._recovery_samples = 0
+        self._recovery_last_sample_stamp = None
         if self._last_stamp_s is None:
             self._last_stamp_s = now_s
         else:
@@ -245,6 +272,9 @@ class AutonomyController:
         if reset_recovery:
             self._recovering_from_hold = True
             self._recovery_fresh_ticks = 0
+            self._recovery_started_s = None
+            self._recovery_samples = 0
+            self._recovery_last_sample_stamp = None
         self._v_m_s = _slew(
             self._v_m_s,
             0.0,
@@ -370,7 +400,20 @@ class AutonomyController:
 
         if self._recovering_from_hold:
             self._recovery_fresh_ticks += 1
-            if self._recovery_fresh_ticks < self.config.recovery_ticks:
+            if self._recovery_started_s is None:
+                self._recovery_started_s = now_s
+            if terrain.stamp_s != self._recovery_last_sample_stamp:
+                self._recovery_last_sample_stamp = terrain.stamp_s
+                self._recovery_samples += 1
+            elapsed_ok = (
+                now_s - self._recovery_started_s
+                >= self.config.recovery_min_elapsed_s
+            )
+            if not (
+                self._recovery_fresh_ticks >= self.config.recovery_ticks
+                and elapsed_ok
+                and self._recovery_samples >= self.config.recovery_min_samples
+            ):
                 return self._controlled_hold(
                     now_s,
                     ("recovery_dwell",),
@@ -379,6 +422,9 @@ class AutonomyController:
                 )
             self._recovering_from_hold = False
             self._recovery_fresh_ticks = 0
+            self._recovery_started_s = None
+            self._recovery_samples = 0
+            self._recovery_last_sample_stamp = None
 
         reasons: list[str] = []
         clearance = min(

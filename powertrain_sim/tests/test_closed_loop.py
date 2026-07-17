@@ -55,10 +55,12 @@ def test_dev_seed_closed_loop_moves_without_fail_open_and_is_deterministic(tmp_p
     first = run_closed_loop(scenario, tmp_path / "first")
     second = run_closed_loop(scenario, tmp_path / "second")
 
-    # Measured WP6-S P1 regression anchor (0.805 on the 2.5 m dev seed: the
-    # fail-closed stop leaves ~0.55 m ≈ the front-corner radius before the
-    # terminal drop).  Change only after reviewing a dev seed run.
-    assert first.completion_ratio > 0.75
+    # Measured WP6-S P1 regression anchor. 0.805 → 0.709 after the A3
+    # recovery-dwell hardening (ticks AND >=0.15 s AND 3 fresh samples):
+    # each hold/recovery episode holds ~0.16 s longer, so the fixed-length
+    # run covers less track. Fail-closed endpoint semantics unchanged
+    # (passed=True, fail_open=0). Change only after reviewing a dev seed run.
+    assert first.completion_ratio > 0.70
     assert first.fail_open_count == 0
     assert _deterministic_metrics(first) == _deterministic_metrics(second)
     assert first.passed, first.reasons
@@ -104,10 +106,11 @@ def test_initial_depth_loss_holds_then_recovers_without_fail_open(tmp_path):
     )
     assert report.fail_open_count == 0
     assert math.isfinite(report.max_recovery_time_s)
-    # 입력 회복 뒤 컨트롤러는 recovery_ticks(기본 3) 연속 fresh를 요구한다
-    # (2차 리뷰 flap 억제 dwell) — 회복 지연 = (3-1) tick × dt 0.02 s = 0.04 s.
-    # tracker는 이 꼬리를 false hold가 아닌 recovery로 집계한다.
-    assert report.max_recovery_time_s == pytest.approx(0.04, abs=1e-9)
+    # A3 dwell: 복귀는 ticks(3) AND 경과 >=0.15 s AND 신선 표본 3개를 모두
+    # 요구한다. depth 표본 주기 0.1 s(5 step)라 표본 3개 = 0.2 s가 지배 조건
+    # — 회복 지연 0.20 s. tracker는 이 꼬리를 false hold가 아닌 recovery로
+    # 집계한다.
+    assert report.max_recovery_time_s == pytest.approx(0.20, abs=1e-6)
 
 
 def test_hidden_evaluation_cli_records_hash_and_matches_report_exit(tmp_path):
