@@ -106,10 +106,14 @@ class SocketReader:
         self.sock = sock
         self.buffer = b""
 
-    def read_for(self, nodes, duration_s):
+    def read_for(self, nodes, duration_s, keep_fresh=None):
         lines = []
         deadline = time.monotonic() + duration_s
         while time.monotonic() < deadline:
+            # 느린 호스트(젯슨)에서 상태 신선도(0.5 s)가 루프 중 만료되지 않게
+            # 매 반복 재발행한다 — 0cff49e "stream-shaped" 교훈과 동일.
+            if keep_fresh is not None:
+                keep_fresh()
             for node in nodes:
                 rclpy.spin_once(node, timeout_sec=0.002)
             try:
@@ -124,11 +128,11 @@ class SocketReader:
                 lines.append(json.loads(line))
         return lines
 
-    def read_until(self, nodes, predicate, timeout_s=3.0):
+    def read_until(self, nodes, predicate, timeout_s=3.0, keep_fresh=None):
         lines = []
         deadline = time.monotonic() + timeout_s
         while not predicate(lines) and time.monotonic() < deadline:
-            lines.extend(self.read_for(nodes, 0.05))
+            lines.extend(self.read_for(nodes, 0.05, keep_fresh=keep_fresh))
         return lines
 
 
@@ -248,6 +252,7 @@ def test_authority_manual_round_trip_calls_target_service(token_dir):
                 _has_request(lines, "r-1", "PENDING")
                 and _has_request(lines, "r-1", "FINAL_SUCCESS")
             ),
+            keep_fresh=feeder.publish,
         )
         statuses = [
             item["status"] for item in replies
