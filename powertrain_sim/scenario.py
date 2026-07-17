@@ -467,11 +467,17 @@ def _parse_faults(
     depth_shape: Sequence[int],
 ) -> Mapping[str, Any]:
     faults = _mapping(document["faults"], "faults")
-    groups = ("wheel_slip", "sensor_dropouts", "depth_holes", "depth_spikes")
-    _required(faults, groups, "faults")
+    required_groups = (
+        "wheel_slip",
+        "sensor_dropouts",
+        "depth_holes",
+        "depth_spikes",
+    )
+    groups = required_groups + ("depth_degradation",)
+    _required(faults, required_groups, "faults")
     _no_unknown(faults, groups, "faults")
     for group in groups:
-        entries = _sequence(faults[group], f"faults.{group}")
+        entries = _sequence(faults.get(group, ()), f"faults.{group}")
         for index, raw_entry in enumerate(entries):
             path = f"faults.{group}[{index}]"
             entry = _mapping(raw_entry, path)
@@ -510,7 +516,7 @@ def _parse_faults(
                             f"{path}.{key}",
                             "bounds must fit sensors.depth.shape_px",
                         )
-            else:
+            elif group == "depth_spikes":
                 fields = ("row", "col", "offset_m", "start_s", "end_s")
                 _required(entry, fields, path)
                 _no_unknown(entry, fields, path)
@@ -521,6 +527,28 @@ def _parse_faults(
                         path, "row and col must fit sensors.depth.shape_px"
                     )
                 _finite_number(entry["offset_m"], f"{path}.offset_m")
+            else:
+                fields = (
+                    "start_s",
+                    "end_s",
+                    "dropout_ratio_start",
+                    "dropout_ratio_end",
+                    "noise_std_m",
+                )
+                _required(entry, fields, path)
+                _no_unknown(entry, fields, path)
+                for key in ("dropout_ratio_start", "dropout_ratio_end"):
+                    ratio = _finite_number(entry[key], f"{path}.{key}")
+                    if not 0.0 <= ratio <= 1.0:
+                        raise _error(f"{path}.{key}", "must be within [0, 1]")
+                if _finite_number(
+                    entry["noise_std_m"],
+                    f"{path}.noise_std_m",
+                ) < 0.0:
+                    raise _error(
+                        f"{path}.noise_std_m",
+                        "must be nonnegative",
+                    )
     return _freeze(faults)
 
 

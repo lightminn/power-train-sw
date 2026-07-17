@@ -267,6 +267,54 @@ def test_fault_identifiers_and_depth_coordinates_fail_during_load(fault_kind):
         module.parse_scenario(document)
 
 
+def test_depth_degradation_ramp_is_an_additive_fault_group():
+    module = _scenario_module()
+    document = deepcopy(_valid_document())
+    document["faults"]["depth_degradation"] = [
+        {
+            "start_s": 0.4,
+            "end_s": 1.4,
+            "dropout_ratio_start": 0.0,
+            "dropout_ratio_end": 0.6,
+            "noise_std_m": 0.03,
+        }
+    ]
+
+    scenario = module.parse_scenario(document)
+
+    fault = scenario.faults["depth_degradation"][0]
+    assert fault["start_s"] == 0.4
+    assert fault["end_s"] == 1.4
+    assert fault["dropout_ratio_start"] == 0.0
+    assert fault["dropout_ratio_end"] == 0.6
+    assert fault["noise_std_m"] == 0.03
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("dropout_ratio_start", -0.01),
+        ("dropout_ratio_end", 1.01),
+        ("noise_std_m", -0.001),
+    ),
+)
+def test_depth_degradation_ratios_and_noise_are_bounded(field, value):
+    module = _scenario_module()
+    document = deepcopy(_valid_document())
+    fault = {
+        "start_s": 0.4,
+        "end_s": 1.4,
+        "dropout_ratio_start": 0.0,
+        "dropout_ratio_end": 0.6,
+        "noise_std_m": 0.03,
+    }
+    fault[field] = value
+    document["faults"]["depth_degradation"] = [fault]
+
+    with pytest.raises(module.ScenarioValidationError, match=field):
+        module.parse_scenario(document)
+
+
 @pytest.mark.parametrize(
     "filename",
     ("flat_straight_5m.yaml", "pivot_90deg.yaml", "bank_transition.yaml"),

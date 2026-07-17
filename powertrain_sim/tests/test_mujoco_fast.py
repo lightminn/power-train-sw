@@ -3,14 +3,18 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+import numpy as np
 import pytest
 import yaml
 
 from chassis.kinematics import default_geometry
+from powertrain_autonomy.terrain.depth_quality import CameraIntrinsics
 from powertrain_ros.state_estimation import StateEstimator, StateEstimatorConfig
+from powertrain_sim.fixtures import DepthFrame
 from powertrain_sim.mujoco_fast.runner import (
     HoldMetricsTracker,
     _TrackProjector,
+    _apply_depth_degradation,
     run_scenario,
 )
 from powertrain_sim.procedural import GenerationParameters, generate_scenario
@@ -108,6 +112,87 @@ def test_two_runs_have_byte_identical_jsonl_and_npz_recordings(tmp_path):
     assert first_files
     for relative_path in first_files:
         assert (first / relative_path).read_bytes() == (second / relative_path).read_bytes()
+
+
+def test_depth_degradation_ramp_mask_and_noise_are_seed_deterministic():
+    raw = np.full((20, 20), 1000, dtype=np.uint16)
+    raw.setflags(write=False)
+    frame = DepthFrame(
+        stamp_s=1.5,
+        depth_roi=raw,
+        depth_scale_m=0.001,
+        intrinsics=CameraIntrinsics(20.0, 20.0, 9.5, 9.5),
+        frame_id="l515_depth_optical_frame",
+    )
+    faults = (
+        {
+            "start_s": 0.0,
+            "end_s": 1.0,
+            "dropout_ratio_start": 0.2,
+            "dropout_ratio_end": 0.6,
+            "noise_std_m": 0.01,
+        },
+    )
+
+    first = _apply_depth_degradation(
+        frame,
+        elapsed_s=0.5,
+        faults=faults,
+        rng=np.random.Generator(np.random.PCG64(77).jumped()),
+    )
+    second = _apply_depth_degradation(
+        frame,
+        elapsed_s=0.5,
+        faults=faults,
+        rng=np.random.Generator(np.random.PCG64(77).jumped()),
+    )
+
+    np.testing.assert_array_equal(first.depth_roi, second.depth_roi)
+    assert np.count_nonzero(first.depth_roi == 0) == 160
+    assert np.any(first.depth_roi[first.depth_roi > 0] != 1000)
+    assert not first.depth_roi.flags.writeable
+    assert np.all(frame.depth_roi == 1000)
+
+
+def test_depth_degradation_runner_repeats_identical_depth_bytes_from_scenario_seed(
+    tmp_path,
+):
+    document = generate_scenario(
+        GenerationParameters(
+            track_length_range_m=(1.5, 1.5),
+            track_width_range_m=(1.4, 1.4),
+            track_height_range_m=(0.5, 0.5),
+            curvature_range_per_m=(0.0, 0.0),
+            linear_speed_range_m_s=(0.5, 0.5),
+            terrain_families=("flat",),
+            motion_profiles=("constant_speed",),
+        ),
+        seed=45,
+        seed_class="dev",
+    )
+    document["faults"] = {name: [] for name in document["faults"]}
+    document["faults"]["depth_degradation"] = [
+        {
+            "start_s": 0.0,
+            "end_s": document["clock"]["duration_s"],
+            "dropout_ratio_start": 0.2,
+            "dropout_ratio_end": 0.6,
+            "noise_std_m": 0.01,
+        }
+    ]
+    scenario = parse_scenario(document)
+    first = tmp_path / "degraded-first"
+    second = tmp_path / "degraded-second"
+
+    run_scenario(scenario, first)
+    run_scenario(scenario, second)
+
+    first_depth = sorted((first / "depth").glob("*.npz"))
+    second_depth = sorted((second / "depth").glob("*.npz"))
+    assert len(first_depth) == len(second_depth) > 0
+    assert [path.read_bytes() for path in first_depth] == [
+        path.read_bytes() for path in second_depth
+    ]
 
 
 def test_procedural_dev_scenario_runs_end_to_end_and_command_hook_gets_estimate(

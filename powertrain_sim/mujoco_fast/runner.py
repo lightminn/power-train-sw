@@ -31,6 +31,63 @@ HoldStateSource = Callable[[float, StateSnapshot | None], tuple[bool, bool]]
 DepthTap = Callable[[DepthFrame], None]
 
 
+def _apply_depth_degradation(
+    frame: DepthFrame,
+    *,
+    elapsed_s: float,
+    faults,
+    rng: np.random.Generator,
+) -> DepthFrame:
+    """Apply active ramped dropout/noise faults without mutating sensor RNG state."""
+    active = tuple(
+        fault
+        for fault in faults
+        if fault["start_s"] <= elapsed_s < fault["end_s"]
+    )
+    if not active:
+        return frame
+
+    scale_m = float(frame.depth_scale_m)
+    depth_m = np.asarray(frame.depth_roi, dtype=float).copy() * scale_m
+    for fault in active:
+        progress = (float(elapsed_s) - float(fault["start_s"])) / (
+            float(fault["end_s"]) - float(fault["start_s"])
+        )
+        dropout_ratio = float(fault["dropout_ratio_start"]) + progress * (
+            float(fault["dropout_ratio_end"])
+            - float(fault["dropout_ratio_start"])
+        )
+        valid_flat = np.flatnonzero(depth_m.ravel() > 0.0)
+        dropout_count = min(
+            len(valid_flat),
+            max(0, int(round(dropout_ratio * len(valid_flat)))),
+        )
+        if dropout_count:
+            dropped = rng.choice(valid_flat, size=dropout_count, replace=False)
+            depth_m.ravel()[dropped] = 0.0
+
+        noise_std_m = float(fault["noise_std_m"])
+        valid = depth_m > 0.0
+        if noise_std_m and np.any(valid):
+            depth_m[valid] += rng.normal(
+                0.0,
+                noise_std_m,
+                size=np.count_nonzero(valid),
+            )
+
+    raw = np.rint(
+        np.clip(depth_m / scale_m, 0.0, np.iinfo(np.uint16).max)
+    ).astype(np.uint16)
+    raw.setflags(write=False)
+    return DepthFrame(
+        stamp_s=frame.stamp_s,
+        depth_roi=raw,
+        depth_scale_m=frame.depth_scale_m,
+        intrinsics=frame.intrinsics,
+        frame_id=frame.frame_id,
+    )
+
+
 @dataclass(frozen=True)
 class MetricsReport:
     scenario_id: str
@@ -309,6 +366,12 @@ def run_scenario(
     geometry = geometry or default_geometry()
     plant = MujocoFastPlant(scenario, geometry=geometry)
     sensors = FastSensorSuite(scenario, plant)
+    # A jumped stream is derived from the scenario seed but isolated from the
+    # established FastSensorSuite draw order. Existing families consume no new
+    # draws when depth_degradation is absent.
+    degradation_rng = np.random.Generator(
+        np.random.PCG64(scenario.prng.seed).jumped()
+    )
     estimator = StateEstimator(geometry, StateEstimatorConfig(bias_samples=0))
     metrics = _MetricsAccumulator(scenario, geometry)
     hold = HoldMetricsTracker()
@@ -331,6 +394,13 @@ def run_scenario(
             wheel = sensors.sample_wheel(index)
             imu = sensors.sample_imu(index)
             depth = sensors.sample_depth(index)
+            if depth is not None:
+                depth = _apply_depth_degradation(
+                    depth,
+                    elapsed_s=elapsed_s,
+                    faults=scenario.faults.get("depth_degradation", ()),
+                    rng=degradation_rng,
+                )
             truth = sensors.sample_ground_truth(index)
             if wheel is not None:
                 writer.write_wheel(wheel)
