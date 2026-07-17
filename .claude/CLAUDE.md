@@ -226,9 +226,12 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   애커만+조향/속도 자동 클램프), `chassis_manager.py`(`ChassisManager` — 코너 6개 통합,
   `DEFAULT_WHEEL_MAP` = AK id 1~4 조향 + ODrive node 11~16 구동, estop 전파·US-100 게이팅·차체
   워치독, **`min_drive_turns_per_s` 최저 구동속도 플로어**(0=off; 0<|명령|<이 값이면 부호 유지
-  상향 → 저속 HALL 코깅존 회피); `build_real_corners("can0")` 로 실기 코너 생성),
+  상향 → 저속 HALL 코깅존 회피. **2026-07-17 D3/D4: 기본값 전면 0 = 폐지** — 저속 코깅
+  대응은 `DriveOdriveCan`의 `friction_ff`/`v_knee`(torque_ff 피드포워드, 기본 off, 값 튜닝은
+  벤치)로 대체, 스펙 docs/superpowers/specs/2026-07-17-abc-program-design.md §2.2/§2.2b);
+  `build_real_corners("can0", friction_ff=, v_knee_turns_s=)` 로 실기 코너 생성),
   **`teleop_dualsense.py`**(`python3 -m chassis.teleop_dualsense [--no-us100]` — DualSense →
-  (v,ω) → 10모터 4WS 수동주행; RT/LT=전후진, 좌스틱X=회전, 트리거0+스틱=피벗; 기본 min-rev 1.0·
+  (v,ω) → 10모터 4WS 수동주행; RT/LT=전후진, 좌스틱X=회전, 트리거0+스틱=피벗; 기본 min-rev 0·
   v-max 1.5). **무선판**(DualSense→노트북→젯슨→모터): `teleop_server.py`(젯슨,
   `python3 -m chassis.teleop_server --no-us100`) ↔ `laptop/laptop_client_chassis.py`(노트북 —
   DualSense **raw 입력**만 TCP:9000 송신, 매핑·속도한계·min_drive·피벗은 전부 서버쪽; □arm/○estop,
