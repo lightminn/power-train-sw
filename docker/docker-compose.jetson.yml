@@ -139,15 +139,15 @@ services:
         cd /workspace/ros2
         colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
         source install/setup.bash
-        exec ros2 run powertrain_ros teleop_command
+        exec ros2 launch powertrain_ros control.launch.py
     restart: unless-stopped
     healthcheck:
       # ⚠️ cmdline grep 은 무력하다 — PID 1(bash -lc 래퍼)의 cmdline 에 스크립트 원문이
       #    들어있어 노드가 crash-loop 여도 매치된다(2026-07-14 실측). 실제 생존 신호는
-      #    teleop_command 의 TCP :9000 리슨이다.
+      #    teleop_command :9000 + ops_broker :9001 TCP 리슨이다.
       test:
         - CMD-SHELL
-        - python3 -c "import socket; socket.create_connection(('127.0.0.1', 9000), 2).close()"
+        - python3 -c "import socket; [socket.create_connection(('127.0.0.1', port), 2).close() for port in (9000, 9001)]"
       interval: 10s
       timeout: 3s
       retries: 3
