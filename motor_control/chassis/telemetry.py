@@ -199,6 +199,11 @@ class ChassisSnapshot:
     wheel_consistency: WheelConsistencyResult = WheelConsistencyResult(
         (), 1.0, None, None
     )
+    extraction_active: bool = False
+    extraction_remaining_s: float = 0.0
+    extraction_budget_left_m: float = 0.0
+    extraction_grants_left: int = 0
+    last_extraction_reject: str = ""
 
 
 def build_can_health_event(

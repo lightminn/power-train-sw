@@ -57,6 +57,11 @@ class ChassisConfig:
     wheel_consistency: WheelConsistencyConfig = field(
         default_factory=WheelConsistencyConfig
     )
+    extraction_enabled: bool = False
+    extraction_ttl_s: float = 3.0
+    extraction_budget_m: float = 1.0
+    extraction_max_grants: int = 3
+    extraction_v_limit: float = 0.2
 
 
 @dataclass(frozen=True)
@@ -155,6 +160,12 @@ class ChassisManager:
         self._now = time.monotonic if clock is None else clock
         self._interlock = SafetyInterlock(clock=self._now)
         self._last_estop_error = None
+        self._extraction_started_s = None
+        self._extraction_last_tick_s = None
+        self._extraction_applied_v_mps = 0.0
+        self._extraction_distance_m = 0.0
+        self._extraction_grants = 0
+        self._last_extraction_reject = ""
         configured_map = wheel_map or DEFAULT_WHEEL_MAP
         self._wheel_map = tuple(
             item for item in configured_map if item.wheel in self.corners
@@ -238,8 +249,8 @@ class ChassisManager:
         return True
 
     def set(self, v_mps: float, omega_rad_s: float) -> None:
-        if self.mode != "ARMED":
-            logger.warning("set() 무시: ARMED 아님 (mode=%s)", self.mode)
+        if self.mode not in {"ARMED", "EXTRACTION"}:
+            logger.warning("set() 무시: ARMED/EXTRACTION 아님 (mode=%s)", self.mode)
             return
         safety = self._interlock.snapshot()
         blocking_holds = set(safety.hold_sources) - {
@@ -261,6 +272,56 @@ class ChassisManager:
         self._omega = omega_rad_s
         self._last_set_ms = self._now_ms()
         self._interlock.set_motion_hold(_COMMAND_RECOVERY_HOLD, False)
+
+    def extraction_grant(self) -> bool:
+        """Enter the bounded reverse-only escape state without clearing E-stop."""
+        if not self.cfg.extraction_enabled:
+            self._last_extraction_reject = "disabled"
+            return False
+
+        safety = self._interlock.snapshot()
+        if not safety.estop_latched:
+            self._last_extraction_reject = "estop_not_latched"
+            return False
+        if set(safety.active_estop_sources) != {"us100"}:
+            self._last_extraction_reject = (
+                "active_estop_sources_not_us100_only"
+            )
+            return False
+        now_s = self._now()
+        if self.mode == "EXTRACTION":
+            self._integrate_extraction_distance(now_s)
+        if self._extraction_grants >= self.cfg.extraction_max_grants:
+            self._last_extraction_reject = "grant_limit_exhausted"
+            return False
+        if self._extraction_distance_m >= self.cfg.extraction_budget_m:
+            if self.mode == "EXTRACTION":
+                self.estop(
+                    "extraction_budget_exhausted",
+                    "distance budget exhausted",
+                )
+            self._last_extraction_reject = "distance_budget_exhausted"
+            return False
+
+        for name, corner in self.corners.items():
+            try:
+                corner.arm()
+            except BaseException as exc:
+                detail = f"{name}: {type(exc).__name__}: {exc}"
+                self.estop("extraction_arm_failure", detail)
+                self._last_extraction_reject = "extraction_arm_failure"
+                return False
+
+        now_s = self._now()
+        self._v = self._omega = 0.0
+        self._last_set_ms = now_s * 1000.0
+        self._extraction_started_s = now_s
+        self._extraction_last_tick_s = now_s
+        self._extraction_applied_v_mps = 0.0
+        self._extraction_grants += 1
+        self._last_extraction_reject = ""
+        self.mode = "EXTRACTION"
+        return True
 
     def set_speed_scale(self, scale: float) -> None:
         """전방 감속 힌트 [0,1]. **인지 계층**(depth 장애물)이 주는 배율이다.
@@ -309,6 +370,9 @@ class ChassisManager:
                     first_error = exc
         if self._last_estop_error is None and first_error is not None:
             self._last_estop_error = first_error
+        self._extraction_started_s = None
+        self._extraction_last_tick_s = None
+        self._extraction_applied_v_mps = 0.0
         self.mode = "ESTOP"
 
     def reset_estop(self) -> bool:
@@ -317,6 +381,12 @@ class ChassisManager:
             return False
         if safety.active_estop_sources:
             return False
+
+        # EXTRACTION re-arms corners while deliberately preserving the latch.
+        # Return them to FAULT first so the established reset_fault path still
+        # leaves every corner IDLE and reset never implicitly arms the chassis.
+        if self.mode == "EXTRACTION":
+            self.estop("extraction_complete", "active extraction condition cleared")
 
         reset_failed = False
         failure_detail = ""
@@ -353,6 +423,12 @@ class ChassisManager:
             return False
 
         self._last_estop_error = None
+        self._extraction_started_s = None
+        self._extraction_last_tick_s = None
+        self._extraction_applied_v_mps = 0.0
+        self._extraction_distance_m = 0.0
+        self._extraction_grants = 0
+        self._last_extraction_reject = ""
         self.mode = "IDLE"
         return True
 
@@ -401,12 +477,18 @@ class ChassisManager:
 
     # ── 50Hz 루프 ─────────────────────────────────────────────────────
     def tick(self) -> None:
+        now_s = self._now()
         timed_out = (
             self._last_set_ms is not None
-            and self._now_ms() - self._last_set_ms > self.cfg.watchdog_ms
+            and now_s * 1000.0 - self._last_set_ms > self.cfg.watchdog_ms
         )
         self._interlock.set_motion_hold("cmd_watchdog", timed_out, "set timeout")
         safety = self._interlock.snapshot()
+
+        if self.mode == "EXTRACTION":
+            self._tick_extraction(now_s, safety)
+            return
+
         if safety.estop_latched:
             if self.mode != "ESTOP":
                 self.estop(safety.first_source or "estop", safety.first_detail)
@@ -450,6 +532,79 @@ class ChassisManager:
         faulted = [name for name, c in self.corners.items() if c.mode == "FAULT"]
         if faulted:
             self.estop("corner_fault", ",".join(faulted))
+
+    def _tick_extraction(self, now_s, safety) -> None:
+        """Run one reverse-only tick while leaving the interlock latch intact."""
+        self._integrate_extraction_distance(now_s)
+        if self._extraction_distance_m >= self.cfg.extraction_budget_m:
+            self.estop("extraction_budget_exhausted", "distance budget exhausted")
+            return
+
+        blocking_estops = set(safety.active_estop_sources) - {"us100"}
+        if blocking_estops:
+            self.estop(
+                "extraction_estop_source",
+                ",".join(sorted(blocking_estops)),
+            )
+            return
+
+        # Same pre/post fault propagation shape as the normal ARMED branch.
+        faulted = [name for name, corner in self.corners.items()
+                   if corner.mode == "FAULT"]
+        if faulted:
+            self.estop("corner_fault", ",".join(faulted))
+            return
+
+        if (
+            self._extraction_started_s is None
+            or now_s - self._extraction_started_s >= self.cfg.extraction_ttl_s
+        ):
+            self.estop("extraction_ttl_expired", "grant TTL expired")
+            return
+
+        drive_enabled = not safety.hold_sources
+        v_eff = min(
+            0.0,
+            max(-self.cfg.extraction_v_limit, self._v),
+        )
+        result = solve(self.cfg.geometry, v_eff, 0.0)
+        mn = self.cfg.min_drive_turns_per_s
+        for wheel in self.cfg.geometry.wheels:
+            wheel_command = result.wheels[wheel.name]
+            drive = wheel_command.drive_turns_per_s if drive_enabled else 0.0
+            if mn > 0.0 and 0.0 < abs(drive) < mn:
+                drive = mn if drive > 0.0 else -mn
+            self.corners[wheel.name].set(wheel_command.steer_deg, drive)
+
+        for corner in self.corners.values():
+            corner.tick()
+
+        self._extraction_applied_v_mps = v_eff if drive_enabled else 0.0
+
+        faulted = [name for name, corner in self.corners.items()
+                   if corner.mode == "FAULT"]
+        if faulted:
+            self.estop("corner_fault", ",".join(faulted))
+
+    def _integrate_extraction_distance(self, now_s) -> None:
+        """Account for the reverse command applied since the previous tick."""
+        if self._extraction_started_s is None:
+            return
+        last_tick_s = (
+            self._extraction_started_s
+            if self._extraction_last_tick_s is None
+            else self._extraction_last_tick_s
+        )
+        grant_expiry_s = (
+            self._extraction_started_s + self.cfg.extraction_ttl_s
+        )
+        interval_end_s = min(now_s, grant_expiry_s)
+        if interval_end_s > last_tick_s:
+            self._extraction_distance_m += (
+                abs(self._extraction_applied_v_mps)
+                * (interval_end_s - last_tick_s)
+            )
+            self._extraction_last_tick_s = interval_end_s
 
     def snapshot(self) -> ChassisSnapshot:
         wheels = []
@@ -537,6 +692,15 @@ class ChassisManager:
             consistency_samples,
             imu_yaw_rate_rad_s=self._imu_yaw_rate_rad_s,
         )
+        extraction_active = self.mode == "EXTRACTION"
+        if extraction_active and self._extraction_started_s is not None:
+            extraction_remaining_s = max(
+                0.0,
+                self.cfg.extraction_ttl_s
+                - (self._now() - self._extraction_started_s),
+            )
+        else:
+            extraction_remaining_s = 0.0
         return ChassisSnapshot(
             chassis_mode=self.mode,
             stop_state=safety.state,
@@ -552,6 +716,17 @@ class ChassisManager:
                 reset_required=safety.estop_latched,
             ),
             wheel_consistency=consistency,
+            extraction_active=extraction_active,
+            extraction_remaining_s=extraction_remaining_s,
+            extraction_budget_left_m=max(
+                0.0,
+                self.cfg.extraction_budget_m - self._extraction_distance_m,
+            ),
+            extraction_grants_left=max(
+                0,
+                self.cfg.extraction_max_grants - self._extraction_grants,
+            ),
+            last_extraction_reject=self._last_extraction_reject,
         )
 
     @staticmethod
