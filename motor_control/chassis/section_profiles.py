@@ -103,6 +103,7 @@ class MarkerObservationRecord:
     stamp_s: float
     accepted: bool
     reason: str
+    stage: str
 
 
 @dataclass(frozen=True)
@@ -113,41 +114,83 @@ class _MarkerIdentity:
     position: tuple
     first_seen_s: float
     last_seen_s: float
+    observations: int
+    stage: str
 
 
 @dataclass(frozen=True)
 class MarkerDedup:
-    """Count novel markers using ID first, then class/3-D clustering.
+    """Confirm novel markers using ID first, then class/3-D clustering.
 
-    ``observe`` returns ``True`` only when a new unique marker is created.
-    Duplicate and rejected observations return ``False`` and are preserved in
-    ``failures``; new marker records are preserved in ``successes``.
+    ``observe`` returns ``True`` when an observation creates or advances a
+    candidate.  Only records that reach ``marker_confirm_observations`` count
+    as unique.  Duplicate and rejected observations return ``False`` and are
+    preserved in ``failures``; candidate/confirmation progress is preserved in
+    ``successes``.
     """
 
     cluster_m: float = 1.0
     min_reobserve_s: float = 1.0
     min_confidence: float = 0.5
+    marker_confirm_observations: int = 2
+    marker_candidate_ttl_s: float = 5.0
+    marker_max_candidates: int = 16
     _records: dict = field(default_factory=dict, init=False, repr=False)
     _successes: list = field(default_factory=list, init=False, repr=False)
     _failures: list = field(default_factory=list, init=False, repr=False)
+    _last_observation_stamp_s: float | None = field(
+        default=None,
+        init=False,
+        repr=False,
+    )
+    _next_marker_index: int = field(default=1, init=False, repr=False)
 
     def __post_init__(self) -> None:
         cluster_m = _finite(self.cluster_m, "cluster_m")
         min_reobserve_s = _finite(self.min_reobserve_s, "min_reobserve_s")
         min_confidence = _finite(self.min_confidence, "min_confidence")
+        candidate_ttl_s = _finite(
+            self.marker_candidate_ttl_s,
+            "marker_candidate_ttl_s",
+        )
         if cluster_m < 0.0:
             raise ValueError("cluster_m must be non-negative")
         if min_reobserve_s < 0.0:
             raise ValueError("min_reobserve_s must be non-negative")
         if not 0.0 <= min_confidence <= 1.0:
             raise ValueError("min_confidence must be in [0, 1]")
+        if (
+            isinstance(self.marker_confirm_observations, bool)
+            or not isinstance(self.marker_confirm_observations, int)
+            or self.marker_confirm_observations < 2
+        ):
+            raise ValueError(
+                "marker_confirm_observations must be at least 2"
+            )
+        if candidate_ttl_s < min_reobserve_s:
+            raise ValueError(
+                "marker_candidate_ttl_s must be at least min_reobserve_s"
+            )
+        if (
+            isinstance(self.marker_max_candidates, bool)
+            or not isinstance(self.marker_max_candidates, int)
+            or self.marker_max_candidates <= 0
+        ):
+            raise ValueError("marker_max_candidates must be positive")
         object.__setattr__(self, "cluster_m", cluster_m)
         object.__setattr__(self, "min_reobserve_s", min_reobserve_s)
         object.__setattr__(self, "min_confidence", min_confidence)
+        object.__setattr__(
+            self,
+            "marker_candidate_ttl_s",
+            candidate_ttl_s,
+        )
 
     @property
     def unique_count(self) -> int:
-        return len(self._records)
+        return sum(
+            record.stage == "confirmed" for record in self._records.values()
+        )
 
     @property
     def successes(self) -> tuple:
@@ -199,6 +242,7 @@ class MarkerDedup:
                 ),
                 accepted=False,
                 reason=f"invalid_observation:{exc}",
+                stage="candidate",
             )
             return False
 
@@ -221,6 +265,19 @@ class MarkerDedup:
                 stamp_s,
             )
 
+        last_stamp_s = self._last_observation_stamp_s
+        if last_stamp_s is not None and stamp_s < last_stamp_s:
+            return self._reject(
+                "stale_observation",
+                normalized_id,
+                class_name,
+                position,
+                confidence,
+                stamp_s,
+            )
+        object.__setattr__(self, "_last_observation_stamp_s", stamp_s)
+        self._expire_candidates(stamp_s)
+
         matched, duplicate_reason = self._match(
             normalized_id,
             class_name,
@@ -236,7 +293,37 @@ class MarkerDedup:
                     confidence,
                     stamp_s,
                     marker_key=matched.marker_key,
+                    stage=matched.stage,
                 )
+            if matched.stage == "candidate":
+                observations = matched.observations + 1
+                stage = (
+                    "confirmed"
+                    if observations >= self.marker_confirm_observations
+                    else "candidate"
+                )
+                self._records[matched.marker_key] = replace(
+                    matched,
+                    last_seen_s=stamp_s,
+                    observations=observations,
+                    stage=stage,
+                )
+                self._record(
+                    marker_key=matched.marker_key,
+                    class_id=normalized_id,
+                    class_name=class_name,
+                    position=position,
+                    confidence=confidence,
+                    stamp_s=stamp_s,
+                    accepted=True,
+                    reason=(
+                        "marker_confirmed"
+                        if stage == "confirmed"
+                        else "marker_candidate_progress"
+                    ),
+                    stage=stage,
+                )
+                return True
             self._records[matched.marker_key] = replace(
                 matched,
                 last_seen_s=stamp_s,
@@ -249,12 +336,21 @@ class MarkerDedup:
                 confidence,
                 stamp_s,
                 marker_key=matched.marker_key,
+                stage="confirmed",
             )
 
+        self._evict_oldest_candidate_if_full()
         if normalized_id is not None:
             marker_key = f"class_id:{normalized_id}"
         else:
-            marker_key = f"class_name:{class_name}:{len(self._records) + 1}"
+            marker_key = (
+                f"class_name:{class_name}:{self._next_marker_index}"
+            )
+            object.__setattr__(
+                self,
+                "_next_marker_index",
+                self._next_marker_index + 1,
+            )
         identity = _MarkerIdentity(
             marker_key=marker_key,
             class_id=normalized_id,
@@ -262,6 +358,8 @@ class MarkerDedup:
             position=position,
             first_seen_s=stamp_s,
             last_seen_s=stamp_s,
+            observations=1,
+            stage="candidate",
         )
         self._records[marker_key] = identity
         self._record(
@@ -272,9 +370,34 @@ class MarkerDedup:
             confidence=confidence,
             stamp_s=stamp_s,
             accepted=True,
-            reason="new_marker",
+            reason="marker_candidate",
+            stage="candidate",
         )
         return True
+
+    def _expire_candidates(self, stamp_s) -> None:
+        expired = [
+            marker_key
+            for marker_key, record in self._records.items()
+            if record.stage == "candidate"
+            and stamp_s - record.last_seen_s > self.marker_candidate_ttl_s
+        ]
+        for marker_key in expired:
+            del self._records[marker_key]
+
+    def _evict_oldest_candidate_if_full(self) -> None:
+        candidates = [
+            record
+            for record in self._records.values()
+            if record.stage == "candidate"
+        ]
+        if len(candidates) < self.marker_max_candidates:
+            return
+        oldest = min(
+            candidates,
+            key=lambda record: (record.first_seen_s, record.marker_key),
+        )
+        del self._records[oldest.marker_key]
 
     @staticmethod
     def _normalize_class_id(class_id) -> int | None:
@@ -317,6 +440,7 @@ class MarkerDedup:
         stamp_s,
         *,
         marker_key="",
+        stage="candidate",
     ) -> bool:
         self._record(
             marker_key=marker_key,
@@ -327,6 +451,7 @@ class MarkerDedup:
             stamp_s=stamp_s,
             accepted=False,
             reason=reason,
+            stage=stage,
         )
         return False
 
@@ -366,6 +491,9 @@ class SectionConfig:
     min_reobserve_s: float = 1.0
     min_confidence: float = 0.5
     marker_target_count: int = 5
+    marker_confirm_observations: int = 2
+    marker_candidate_ttl_s: float = 5.0
+    marker_max_candidates: int = 16
     smog_arm_result_count: int = 2
     smog_speed_hint: float = 0.25
     ice_speed_hint: float = 0.15
@@ -380,6 +508,20 @@ class SectionConfig:
         ):
             raise ValueError("marker_target_count must be positive")
         if (
+            isinstance(self.marker_confirm_observations, bool)
+            or not isinstance(self.marker_confirm_observations, int)
+            or self.marker_confirm_observations < 2
+        ):
+            raise ValueError(
+                "marker_confirm_observations must be at least 2"
+            )
+        if (
+            isinstance(self.marker_max_candidates, bool)
+            or not isinstance(self.marker_max_candidates, int)
+            or self.marker_max_candidates <= 0
+        ):
+            raise ValueError("marker_max_candidates must be positive")
+        if (
             isinstance(self.smog_arm_result_count, bool)
             or self.smog_arm_result_count <= 0
         ):
@@ -393,11 +535,19 @@ class SectionConfig:
             "cluster_m",
             "min_reobserve_s",
             "min_confidence",
+            "marker_candidate_ttl_s",
             "smog_speed_hint",
             "ice_speed_hint",
             "state_ttl_s",
         ):
             _finite(getattr(self, name), name)
+        if (
+            float(self.marker_candidate_ttl_s)
+            < float(self.min_reobserve_s)
+        ):
+            raise ValueError(
+                "marker_candidate_ttl_s must be at least min_reobserve_s"
+            )
         if self.odom_gate_m is not None:
             gate = _finite(self.odom_gate_m, "odom_gate_m")
             if gate < 0.0:
@@ -451,6 +601,11 @@ class SectionSupervisor:
             cluster_m=self.config.cluster_m,
             min_reobserve_s=self.config.min_reobserve_s,
             min_confidence=self.config.min_confidence,
+            marker_confirm_observations=(
+                self.config.marker_confirm_observations
+            ),
+            marker_candidate_ttl_s=self.config.marker_candidate_ttl_s,
+            marker_max_candidates=self.config.marker_max_candidates,
         )
         self._queue = []
         self._journal = []
@@ -626,15 +781,15 @@ class SectionSupervisor:
         if event.type != MARKER_DETECTED:
             return False, "event_not_used_by_profile"
         payload = event.payload
-        is_new = self.marker_dedup.observe(
+        accepted = self.marker_dedup.observe(
             class_id=payload.get("class_id"),
             class_name=payload.get("class_name", ""),
             position=payload.get("position", ()),
             confidence=payload.get("confidence", 0.0),
             stamp_s=event.stamp_s,
         )
-        if is_new:
-            return True, "new_marker"
+        if accepted:
+            return True, self.marker_dedup.successes[-1].reason
         return False, self.marker_dedup.failures[-1].reason
 
     def _process_ice(self, event):

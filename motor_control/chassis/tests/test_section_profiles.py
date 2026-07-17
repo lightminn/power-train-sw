@@ -118,33 +118,82 @@ def test_relief_red_green_hold_resume_and_work_request_hint():
     assert done.complete is True
 
 
-def test_marker_dedup_rejects_low_confidence_and_fast_reobservation():
+def test_first_marker_observation_is_candidate_without_unique_count():
+    dedup = MarkerDedup()
+
+    assert _marker(dedup, stamp_s=1.0, class_id=7) is True
+
+    assert dedup.unique_count == 0
+    assert dedup.successes[-1].stage == "candidate"
+    assert dedup.successes[-1].reason == "marker_candidate"
+
+
+def test_second_observation_after_minimum_reobserve_confirms_marker():
+    dedup = MarkerDedup(min_reobserve_s=1.0)
+
+    assert _marker(dedup, stamp_s=1.0, class_id=7) is True
+    assert _marker(dedup, stamp_s=2.0, class_id=7) is True
+
+    assert dedup.unique_count == 1
+    assert [record.stage for record in dedup.successes] == [
+        "candidate",
+        "confirmed",
+    ]
+    assert dedup.successes[-1].reason == "marker_confirmed"
+
+
+def test_candidate_expires_after_ttl_and_reobservation_starts_new_candidate():
+    dedup = MarkerDedup(
+        min_reobserve_s=1.0,
+        marker_candidate_ttl_s=2.0,
+    )
+
+    assert _marker(dedup, stamp_s=1.0, class_id=7) is True
+    assert _marker(dedup, stamp_s=3.1, class_id=7) is True
+
+    assert dedup.unique_count == 0
+    assert [record.stage for record in dedup.successes] == [
+        "candidate",
+        "candidate",
+    ]
+
+
+def test_candidate_cap_evicts_oldest_unconfirmed_identity():
+    dedup = MarkerDedup(
+        min_reobserve_s=1.0,
+        marker_max_candidates=2,
+    )
+
+    assert _marker(dedup, stamp_s=1.0, class_id=1) is True
+    assert _marker(dedup, stamp_s=1.1, class_id=2) is True
+    assert _marker(dedup, stamp_s=1.2, class_id=3) is True
+
+    assert set(dedup._records) == {"class_id:2", "class_id:3"}
+    assert dedup.unique_count == 0
+
+
+def test_fast_reobservation_is_rejected_without_candidate_progress():
     dedup = MarkerDedup(min_confidence=0.5, min_reobserve_s=1.0)
 
     assert _marker(dedup, confidence=0.49) is False
-    assert _marker(dedup, stamp_s=2.0) is True
-    assert _marker(dedup, stamp_s=2.5, position=(0.2, 0.0, 0.0)) is False
+    assert _marker(dedup, stamp_s=2.0, class_id=7) is True
+    assert _marker(
+        dedup,
+        stamp_s=2.5,
+        class_id=7,
+        position=(0.2, 0.0, 0.0),
+    ) is False
 
-    assert dedup.unique_count == 1
-    assert [record.reason for record in dedup.failures] == (
-        ["low_confidence", "min_reobserve"]
-    )
+    assert dedup.unique_count == 0
+    assert [record.reason for record in dedup.failures] == [
+        "low_confidence",
+        "min_reobserve",
+    ]
     assert len(dedup.successes) == 1
 
 
-def test_marker_dedup_clusters_position_after_minimum_reobservation():
-    dedup = MarkerDedup(cluster_m=1.0, min_reobserve_s=1.0)
-
-    assert _marker(dedup, stamp_s=1.0, position=(0.0, 0.0, 0.0)) is True
-    assert _marker(dedup, stamp_s=2.0, position=(0.9, 0.0, 0.0)) is False
-    assert _marker(dedup, stamp_s=3.0, position=(1.01, 0.0, 0.0)) is True
-
-    assert dedup.unique_count == 2
-    assert dedup.failures[-1].reason == "duplicate_cluster"
-
-
 def test_marker_dedup_prefers_class_id_over_name_and_position():
-    dedup = MarkerDedup(cluster_m=0.1, min_reobserve_s=0.0)
+    dedup = MarkerDedup(cluster_m=0.1, min_reobserve_s=1.0)
 
     assert _marker(
         dedup,
@@ -158,7 +207,7 @@ def test_marker_dedup_prefers_class_id_over_name_and_position():
         class_id=7,
         class_name="renamed",
         position=(20.0, 0.0, 0.0),
-    ) is False
+    ) is True
     assert _marker(
         dedup,
         stamp_s=3.0,
@@ -167,32 +216,65 @@ def test_marker_dedup_prefers_class_id_over_name_and_position():
         position=(0.0, 0.0, 0.0),
     ) is True
 
-    assert dedup.unique_count == 2
-    assert dedup.failures[-1].reason == "duplicate_class_id"
+    assert dedup.unique_count == 1
+    assert dedup.successes[-2].stage == "confirmed"
+    assert dedup.successes[-2].marker_key == "class_id:7"
 
 
-def test_nonpositive_class_id_uses_name_and_position_fallback():
-    dedup = MarkerDedup(cluster_m=0.1, min_reobserve_s=0.0)
+def test_nonpositive_class_id_uses_name_and_spatial_cluster_continuity():
+    dedup = MarkerDedup(cluster_m=0.5, min_reobserve_s=1.0)
 
     assert _marker(dedup, class_id=0, position=(0.0, 0.0, 0.0)) is True
     assert _marker(
         dedup,
         stamp_s=2.0,
         class_id=0,
+        position=(0.2, 0.0, 0.0),
+    ) is True
+    assert dedup.unique_count == 1
+    assert dedup.successes[-1].stage == "confirmed"
+
+    assert _marker(
+        dedup,
+        stamp_s=3.0,
+        class_id=0,
         position=(1.0, 0.0, 0.0),
     ) is True
 
-    assert dedup.unique_count == 2
+    assert dedup.unique_count == 1
+    assert dedup.successes[-1].stage == "candidate"
 
 
-def test_markers_complete_after_five_unique_markers_and_section_exit():
+def test_two_stage_marker_config_rejects_impossible_or_unbounded_values():
+    with pytest.raises(ValueError, match="marker_confirm_observations"):
+        SectionConfig(marker_confirm_observations=1)
+    with pytest.raises(ValueError, match="marker_candidate_ttl_s"):
+        SectionConfig(min_reobserve_s=2.0, marker_candidate_ttl_s=1.0)
+    with pytest.raises(ValueError, match="marker_max_candidates"):
+        SectionConfig(marker_max_candidates=0)
+
+
+def test_markers_complete_after_five_confirmed_markers_and_section_exit():
     supervisor = SectionSupervisor(MARKERS_PROFILE)
 
     for class_id in range(1, 6):
+        # A3 Task 3 changes target progress from one sighting to two
+        # time-separated observations of the same physical marker.
+        candidate_stamp_s = float(class_id * 2 - 1)
+        confirmed_stamp_s = float(class_id * 2)
+        _tick(
+            supervisor,
+            MARKER_DETECTED,
+            candidate_stamp_s,
+            class_id=class_id,
+            class_name=f"marker_{class_id}",
+            position=(float(class_id), 0.0, 0.0),
+            confidence=0.9,
+        )
         state = _tick(
             supervisor,
             MARKER_DETECTED,
-            float(class_id),
+            confirmed_stamp_s,
             class_id=class_id,
             class_name=f"marker_{class_id}",
             position=(float(class_id), 0.0, 0.0),
@@ -201,7 +283,7 @@ def test_markers_complete_after_five_unique_markers_and_section_exit():
 
     assert supervisor.unique_markers == 5
     assert state.complete is False
-    complete = _tick(supervisor, SECTION_EXIT, 6.0)
+    complete = _tick(supervisor, SECTION_EXIT, 11.0)
     assert complete.complete is True
 
 

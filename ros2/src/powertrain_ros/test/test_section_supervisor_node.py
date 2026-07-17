@@ -190,9 +190,21 @@ def test_marker_detection_uses_timestamped_tf_before_dedup():
         harness.publish_static_translation(section_node)
 
         harness.detections.publish(_detection(section_node))
+        harness.spin_until(
+            lambda: section_node.supervisor.marker_dedup.successes
+            and section_node.supervisor.marker_dedup.successes[-1].stage
+            == "candidate"
+        )
+        assert section_node.supervisor.unique_markers == 0
+
+        # A3 Task 3 changes marker progress from one sighting to a confirmed
+        # two-observation tracklet separated by the re-observation interval.
+        harness.spin_for(1.05)
+        harness.detections.publish(_detection(section_node))
         harness.spin_until(lambda: section_node.supervisor.unique_markers == 1)
 
         record = section_node.supervisor.marker_dedup.successes[-1]
+        assert record.stage == "confirmed"
         assert record.position == pytest.approx((3.0, 0.0, 0.0))
         assert record.class_id == 7
         harness.spin_until(
