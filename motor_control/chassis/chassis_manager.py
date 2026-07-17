@@ -142,9 +142,11 @@ def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
 
 class ChassisManager:
     def __init__(self, corners: dict, cfg: ChassisConfig = None, clock=None,
-                 wheel_map=None, can_owner_snapshot=None):
+                 wheel_map=None, can_owner_snapshot=None,
+                 qualification_gate=None):
         self.cfg = cfg or ChassisConfig()
         self.corners = corners             # {wheel_name: CornerModule}
+        self._qualification_gate = qualification_gate
         self.mode = "DISCONNECTED"
         self._v = 0.0
         self._omega = 0.0
@@ -201,6 +203,26 @@ class ChassisManager:
     def arm(self) -> bool:
         if self.mode != "IDLE" or self._interlock.snapshot().estop_latched:
             return False
+        if self._qualification_gate is not None:
+            result = self._qualification_gate()
+            if result is None:
+                self.estop(
+                    "boot_qualification",
+                    "qualification_gate returned None",
+                )
+                return False
+            if result.qualified is False:
+                reasons = [
+                    f"node_id={node_id}:{reason}"
+                    for node_id, reason in result.disqualified_axes
+                ]
+                if result.voltage_ok is False:
+                    reasons.append("voltage_ok=false")
+                self.estop(
+                    "boot_qualification",
+                    "; ".join(reasons) or "qualified=false",
+                )
+                return False
         for name, c in self.corners.items():
             try:
                 c.arm()

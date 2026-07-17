@@ -148,6 +148,7 @@ class ChassisNode(Node):
         self.declare_parameter("authority_enabled", False)
         self.declare_parameter("assist_enabled", False)
         self.declare_parameter("contract_v2_verified", False)
+        self.declare_parameter("boot_qualification_enabled", False)
         self.declare_parameter("arm_gate_mode", "production")
         self.declare_parameter("arm_override_ttl_s", 30.0)
         self.declare_parameter("mission_contract_owner", MISSION_OWNER_CHASSIS)
@@ -179,6 +180,9 @@ class ChassisNode(Node):
         self._contract_v2_verified = bool(
             self.get_parameter("contract_v2_verified").value
         )
+        self._boot_qualification_enabled = bool(
+            self.get_parameter("boot_qualification_enabled").value
+        )
         self._arm_gate_mode = validate_arm_gate_mode(
             self.get_parameter("arm_gate_mode").value
         )
@@ -206,6 +210,7 @@ class ChassisNode(Node):
         from chassis.chassis_manager import (
             ChassisConfig,
             ChassisManager,
+            DEFAULT_WHEEL_MAP,
             build_real_corners,
         )
 
@@ -259,6 +264,11 @@ class ChassisNode(Node):
             cfg,
             wheel_map=wheel_map,
             can_owner_snapshot=owner_snapshot,
+            qualification_gate=self._build_boot_qualification_gate(
+                corners,
+                fake=fake,
+                wheel_map=wheel_map or DEFAULT_WHEEL_MAP,
+            ),
         )
         self.cm.connect()
         # ○ E-stop 전역 latch(스펙 r6 §2.1): authority 와 무관한 고정 안전 계약.
@@ -643,6 +653,141 @@ class ChassisNode(Node):
                 cfg.corner,
             )
         return corners
+
+    def _build_boot_qualification_gate(self, corners, *, fake, wheel_map):
+        if not self._boot_qualification_enabled:
+            return None
+
+        from chassis.boot_qualification import (
+            AxisReport,
+            QualificationResult,
+            qualify_axes,
+        )
+
+        if fake:
+            def qualify_fake():
+                return QualificationResult(True, (), True)
+
+            return qualify_fake
+
+        fallback_node_ids = {
+            wheel.wheel: int(wheel.drive_node_id)
+            for wheel in wheel_map
+        }
+        report_fields = (
+            "node_id",
+            "pre_calibrated",
+            "is_calibrated",
+            "encoder_ready",
+            "axis_error",
+            "board_serial",
+            "config_crc",
+        )
+
+        def qualify_current_axes():
+            reports = []
+            collection_failures = []
+            voltage_samples = []
+
+            for wheel_name, corner in corners.items():
+                axis_id = fallback_node_ids[wheel_name]
+                try:
+                    state = corner.drive.state()
+                except Exception as exc:
+                    collection_failures.append(
+                        (axis_id, f"state_error={type(exc).__name__}")
+                    )
+                    continue
+
+                if not isinstance(state, dict):
+                    collection_failures.append((axis_id, "state_not_mapping"))
+                    continue
+
+                reasons = []
+                missing = [
+                    field
+                    for field in report_fields
+                    if field not in state or state[field] is None
+                ]
+                if missing:
+                    reasons.append("missing=" + ",".join(missing))
+
+                if state.get("stale") is not False:
+                    reasons.append(
+                        "stale=missing" if "stale" not in state else "stale=true"
+                    )
+
+                voltage = state.get("voltage_v")
+                try:
+                    voltage = float(voltage)
+                except (TypeError, ValueError):
+                    voltage = float("nan")
+                if math.isfinite(voltage):
+                    voltage_samples.append(voltage)
+                else:
+                    reasons.append("voltage_v=missing_or_nonfinite")
+
+                report = None
+                if not missing:
+                    try:
+                        if not all(
+                            isinstance(state[field], bool)
+                            for field in (
+                                "pre_calibrated",
+                                "is_calibrated",
+                                "encoder_ready",
+                            )
+                        ):
+                            raise ValueError("qualification flag is not bool")
+                        node_id = state["node_id"]
+                        if isinstance(node_id, bool) or not isinstance(node_id, int):
+                            raise ValueError("node_id is not int")
+                        if node_id != axis_id:
+                            raise ValueError(
+                                f"node_id mismatch: expected {axis_id}, "
+                                f"got {node_id}"
+                            )
+                        axis_error = int(state["axis_error"])
+                        board_serial = str(state["board_serial"])
+                        config_crc = str(state["config_crc"])
+                        if not board_serial or not config_crc:
+                            raise ValueError("empty fingerprint field")
+                        report = AxisReport(
+                            node_id=node_id,
+                            pre_calibrated=state["pre_calibrated"],
+                            is_calibrated=state["is_calibrated"],
+                            encoder_ready=state["encoder_ready"],
+                            axis_error=axis_error,
+                            board_serial=board_serial,
+                            config_crc=config_crc,
+                        )
+                    except (TypeError, ValueError) as exc:
+                        reasons.append(f"invalid_report={exc}")
+
+                if report is not None:
+                    reports.append(report)
+                    axis_id = report.node_id
+                if reasons:
+                    collection_failures.append((axis_id, ";".join(reasons)))
+
+            voltage_v = (
+                min(voltage_samples)
+                if len(voltage_samples) == len(corners)
+                else float("-inf")
+            )
+            result = qualify_axes(
+                reports,
+                expected_fingerprints={},
+                voltage_v=voltage_v,
+            )
+            failures = tuple(collection_failures) + result.disqualified_axes
+            return QualificationResult(
+                qualified=result.qualified and not collection_failures,
+                disqualified_axes=failures,
+                voltage_ok=result.voltage_ok,
+            )
+
+        return qualify_current_axes
 
     def _now_ms(self):
         return self.get_clock().now().nanoseconds / 1e6

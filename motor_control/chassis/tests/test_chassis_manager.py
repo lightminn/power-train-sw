@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from chassis.boot_qualification import QualificationResult
 from chassis.kinematics import default_geometry, solve
 from chassis.chassis_manager import (
     ChassisManager, ChassisConfig, WheelMap, DEFAULT_WHEEL_MAP, build_corners,
@@ -183,6 +184,57 @@ def test_arm_only_succeeds_from_idle_and_repeated_arm_is_noop():
     assert m.arm() is False
     assert m.mode == "ARMED"
     assert _drive_targets(m) == targets_before
+
+
+def test_arm_without_qualification_gate_preserves_existing_success():
+    m = ChassisManager(_fake_corners())
+    m.connect()
+
+    assert m.arm() is True
+    assert m.mode == "ARMED"
+
+
+def test_arm_rejects_failed_qualification_and_latches_estop_source():
+    result = QualificationResult(
+        qualified=False,
+        disqualified_axes=((11, "pre_calibrated=false"),),
+        voltage_ok=True,
+    )
+    m = ChassisManager(_fake_corners(), qualification_gate=lambda: result)
+    m.connect()
+
+    assert m.arm() is False
+    safety = m.state()["safety"]
+    assert m.mode == "ESTOP"
+    assert safety.estop_latched is True
+    assert safety.first_source == "boot_qualification"
+    assert "pre_calibrated=false" in safety.first_detail
+    assert all(c.mode == "FAULT" for c in m.corners.values())
+
+    none_result = ChassisManager(
+        _fake_corners(),
+        qualification_gate=lambda: None,
+    )
+    none_result.connect()
+
+    assert none_result.arm() is False
+    none_safety = none_result.state()["safety"]
+    assert none_result.mode == "ESTOP"
+    assert none_safety.first_source == "boot_qualification"
+    assert none_safety.first_detail == "qualification_gate returned None"
+
+
+def test_arm_accepts_successful_qualification():
+    result = QualificationResult(
+        qualified=True,
+        disqualified_axes=(),
+        voltage_ok=True,
+    )
+    m = ChassisManager(_fake_corners(), qualification_gate=lambda: result)
+    m.connect()
+
+    assert m.arm() is True
+    assert m.mode == "ARMED"
 
 
 def test_later_corner_arm_failure_rolls_back_all_corners_and_latches_estop():
