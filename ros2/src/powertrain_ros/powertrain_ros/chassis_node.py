@@ -55,6 +55,8 @@ sys.path.insert(
 )
 
 from chassis import remote_assist  # noqa: E402
+from chassis.section_enforcement import SectionEnforcer  # noqa: E402
+from chassis.section_profiles import SectionConfig  # noqa: E402
 
 
 # A no-response US-100 transaction can consume two 0.2 s request paths.
@@ -147,6 +149,7 @@ class ChassisNode(Node):
         self.declare_parameter("safety_startup_timeout", 1.0)
         self.declare_parameter("extraction_enabled", False)
         self.declare_parameter("authority_enabled", False)
+        self.declare_parameter("section_enforcement", False)
         self.declare_parameter("assist_enabled", False)
         self.declare_parameter("contract_v2_verified", False)
         self.declare_parameter("boot_qualification_enabled", False)
@@ -177,6 +180,13 @@ class ChassisNode(Node):
         self._authority_enabled = bool(
             self.get_parameter("authority_enabled").value
         )
+        self._section_enforcement_enabled = bool(
+            self.get_parameter("section_enforcement").value
+        )
+        if self._section_enforcement_enabled and not self._authority_enabled:
+            raise ValueError(
+                "section_enforcement=true requires authority_enabled=true"
+            )
         self._assist_enabled = bool(
             self.get_parameter("assist_enabled").value
         ) and self._authority_enabled
@@ -224,6 +234,15 @@ class ChassisNode(Node):
             min_drive_turns_per_s=min_rev,
             extraction_enabled=extraction_enabled,
         )
+        self._section_floor_v_m_s = (
+            cfg.min_drive_turns_per_s * 2.0 * math.pi * 0.10
+        )
+        self._section_enforcer = None
+        if self._section_enforcement_enabled:
+            self._section_enforcer = SectionEnforcer(
+                SectionConfig(),
+                self._now_s,
+            )
         wheel_map = None
         if four_wheel:
             from chassis.chassis_manager import FOUR_WHEEL_MAP
@@ -315,6 +334,8 @@ class ChassisNode(Node):
         self._last_remote_assist_event_ns = 0
         self._last_remote_assist_event_state = None
         self._remote_assist_event_period_ns = 1_000_000_000
+        self._last_section_enforcement_event_ns = 0
+        self._section_enforcement_event_period_ns = 1_000_000_000
         self._arm_interlock = ArmInterlock(timeout_s=0.5)
         # arm_absent_field의 mock은 실제 sample/latch와 분리한다. publisher가
         # 나타나는 tick부터 이 객체를 선택하지 않아 즉시 real default-deny로 복귀한다.
@@ -400,6 +421,13 @@ class ChassisNode(Node):
                 self._on_wheel_states_for_stop,
                 10,
             )
+            if self._section_enforcement_enabled:
+                self.create_subscription(
+                    String,
+                    "/section/state",
+                    self._on_section_state,
+                    10,
+                )
             self.pub_authority_state = self.create_publisher(
                 String,
                 "/command_authority/state",
@@ -1230,6 +1258,14 @@ class ChassisNode(Node):
         response.message = self._authority.last_transition_reason
         return response
 
+    def _on_section_state(self, message):
+        received_s = self._now_s()
+        try:
+            payload = json.loads(message.data)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            payload = {}
+        self._section_enforcer.feed(payload, received_s=received_s)
+
     def _tick_authority(self, now_s):
         command = self._authority.select(now_s)
         final_v = command.v
@@ -1274,6 +1310,24 @@ class ChassisNode(Node):
             )
         )
         if command.ok:
+            # §9-3 관례: 레거시 SimpleNamespace 픽스처가 신규 속성 없이도
+            # _tick_authority 를 실행할 수 있게 getattr 가드.
+            section_enforcer = getattr(self, "_section_enforcer", None)
+            if section_enforcer is not None:
+                decision = section_enforcer.decide(
+                    now_s,
+                    floor_v_m_s=self._section_floor_v_m_s,
+                )
+                input_v, input_omega = final_v, final_omega
+                if decision.force_hold:
+                    final_v, final_omega = 0.0, 0.0
+                elif decision.v_cap is not None:
+                    final_v = max(
+                        -decision.v_cap, min(decision.v_cap, final_v)
+                    )
+                self._emit_section_enforcement_event(
+                    decision, input_v, input_omega, final_v, final_omega
+                )
             self._authority_final_v = final_v
             self._authority_final_omega = final_omega
             self.cm.set(final_v, final_omega)
@@ -1489,6 +1543,56 @@ class ChassisNode(Node):
                             "reasons": list(result.reasons),
                             "v_m_s": float(result.v_m_s),
                             "omega_rad_s": float(result.omega_rad_s),
+                        },
+                    }
+                )
+            )
+        except Exception:
+            return False
+
+    def _emit_section_enforcement_event(
+        self,
+        decision,
+        input_v,
+        input_omega,
+        output_v,
+        output_omega,
+    ):
+        """Emit active section constraints at most once per second."""
+        if not decision.force_hold and decision.v_cap is None:
+            return False
+        now_ns = time.monotonic_ns()
+        previous_ns = self._last_section_enforcement_event_ns
+        if (
+            previous_ns
+            and now_ns - previous_ns
+            < self._section_enforcement_event_period_ns
+        ):
+            return False
+        self._last_section_enforcement_event_ns = now_ns
+        client = getattr(self, "_observability_event_client", None)
+        if client is None:
+            return False
+        try:
+            return bool(
+                client.emit(
+                    {
+                        "schema_version": 1,
+                        "wall_time_ns": time.time_ns(),
+                        "monotonic_ns": now_ns,
+                        "source": "chassis_node",
+                        "event_type": "SECTION_ENFORCEMENT",
+                        "severity": (
+                            "WARN" if decision.force_hold else "INFO"
+                        ),
+                        "payload": {
+                            "reason": decision.reason,
+                            "force_hold": decision.force_hold,
+                            "v_cap": decision.v_cap,
+                            "input_v_m_s": input_v,
+                            "input_omega_rad_s": input_omega,
+                            "output_v_m_s": output_v,
+                            "output_omega_rad_s": output_omega,
                         },
                     }
                 )
