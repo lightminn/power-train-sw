@@ -1,4 +1,4 @@
-# A/B/C 개선 프로그램 통합 설계 (2026-07-17, r5)
+# A/B/C 개선 프로그램 통합 설계 (2026-07-17, r6)
 
 아이디어 세션(Codex + agy×2 + Claude 서브에이전트×3, 6소스)의 수렴 결과를
 계획 정본(§10 중단 기준·§11 금지 목록)·트랙 정책·크로스팀 경계로 필터링해 확정한
@@ -8,8 +8,11 @@
 Flash) → r2(29db46e, 사용자 결정 D1 비상 chord·D2 extraction) → Codex 재검토
 (해소16/부분9/신규9) → r3(a74dad9, 신규 9건 전량 반영 + 배치 재배열 + 계약표
 내재화) → r4(3892820, 사용자 결정 D3: min_rev 플로어 폐지 — 기본값 전면 0,
-Codex #28 저속 구간 차단 모순 소멸) → **r5(본 판, 사용자 결정 D4): 플로어 대체
-메커니즘으로 저속 마찰/코깅 보상 torque_ff(최소 전류) 노브 신설.**
+Codex #28 저속 구간 차단 모순 소멸) → r5(9cfd699, 사용자 결정 D4: 저속 마찰/
+코깅 보상 torque_ff 노브 신설) → **r6(본 판, 사용자 결정 D5): A2 배포 표면
+통합 — "프로세스는 분리, 배포·운영 표면은 기존 재사용" 하이브리드로 전환.
+신규 compose 서비스·systemd 스택 유닛·비콘 서비스·별도 영속화 툴을 폐지하고
+기존 자산 확장으로 대체.**
 
 정본 관계: 이 문서는 `docs/plans/2026-07-12-defense-robot-autonomy-software-plan.md`
 (마스터플랜)의 하위 실행 설계다. 본 프로그램이 **명시적으로 개정하는 정본 항목**:
@@ -41,7 +44,7 @@ Codex #28 저속 구간 차단 모순 소멸) → **r5(본 판, 사용자 결정
 | A1 | ○ E-stop 전역 latch 정합 + 플로어 폐지(기본 0) + 저속 마찰보상 ff 노브 | S~M |
 | A2a | ops broker(:9001) + 인증 + chord (조종기 클라이언트) | M |
 | A2b | 콘솔 운용 패널 + 햅틱/LED | M |
-| A2c | 브링업 무SSH (systemd·비콘·캘리 영속화·부팅 자격화) | M |
+| A2c | 브링업 무SSH (oneshot 유닛·비콘 확장·캘리 영속화·부팅 자격화) | M |
 | C0 | 후진 한정 extraction 상태 (A1·A2 의존, 대회 생존성 — 앞당김) | S~M |
 | A3 | 실행 배선 (WP8 힌트 집행·마커 ledger·큐/dwell) — enforcement는 §4.1 게이트 | M |
 | B1 | 시뮬 S급 (핀치포인트·클로소이드·기복·fixture 계약화) | S~M |
@@ -126,11 +129,16 @@ A2a/A2b/A2c는 독립 롤백 단위(Codex 34). C0은 A2 완료 즉시 착수(벤
 
 ### 3.1 Ops broker 노드 (A2a, 신규, powertrain_ros)
 
-- TCP **:9001**. 주행 채널(:9000, 프레임 v2) 불변. **broker는 단일 소유의 전용
-  compose 서비스(PID 1)로만 존재**하며 control launch에 포함하지 않는다(Codex 30
-  — r2의 이중 정의 정정). `restart: unless-stopped` + :9001 TCP-connect
-  healthcheck(cmdline-grep 함정 금지). `/etc/powertrain`은 read-only mount,
-  `/run/powertrain`·`/var/lib/powertrain`은 기동 전 존재·권한 검증.
+- TCP **:9001**. 주행 채널(:9000, 프레임 v2) 불변. **호스팅(r6, D5)**: broker는
+  별도 노드로 두되(프로세스 격리 — ros2 launch가 노드를 별개 프로세스로 spawn),
+  신규 compose 서비스가 아니라 **기존 `powertrain_control` 서비스가 실행하는
+  launch에 편입**한다. 단일 소유 정의는 launch 한 곳(Codex 30 충족). ops 신규
+  코드가 죽어도 주행 게이트웨이 프로세스는 별개이며, 그 역도 같다. 부수 이득:
+  §3.1 비상 chord의 gateway 선행조건(fresh neutral·release)을 같은 launch
+  그래프에서 자연 구독. 기존 서비스의 `restart: unless-stopped`를 그대로 쓰고
+  healthcheck에 :9001 TCP-connect를 추가(cmdline-grep 함정 금지).
+  `/etc/powertrain`은 read-only mount, `/run/powertrain`·`/var/lib/powertrain`은
+  기동 전 존재·권한 검증.
 - **인증(역할 결박, Codex 29)**: 역할별 별도 시크릿 —
   `/etc/powertrain/ops_console.token`·`ops_controller.token`(root:service 0640
   ro-mount, 레포 미커밋). **서버가 토큰→역할을 매핑**하고 `client_type`은 표시용
@@ -219,21 +227,31 @@ A2a/A2b/A2c는 독립 롤백 단위(Codex 34). C0은 A2 완료 즉시 착수(벤
 
 ### 3.4 당일 브링업 무SSH화 (A2c)
 
-- **감독 구조**: `wp5_control.launch.py`(+teleop; **broker 제외** — §3.1 단일
-  소유)를 compose 서비스 PID 1로 실행. systemd 유닛은 compose 스택 기동 담당:
-  `Requires/After=docker.service`, `ExecStartPre` ①`scripts/can_setup.sh`(호스트
-  root) ②env 검증 — `/etc/powertrain/powertrain.env` 존재 + `stop_mm` sane-band +
+- **감독 구조(r6, D5 — 신규 systemd 스택 유닛 없음)**: 기존 `powertrain_control`
+  compose 서비스의 command를 `wp5_control.launch.py`(+teleop+broker, §3.1)
+  실행으로 **확장**한다 — launch가 서비스 PID 1, 노드는 개별 프로세스. 부팅
+  자동 기동은 docker `restart: unless-stopped`가 담당(별도 유닛 불필요).
+  신규 systemd는 **oneshot 유닛 1개**뿐: ①`scripts/can_setup.sh`(호스트 root —
+  Jetson pinmux `devmem` 때문에 스크립트 필수) ②env 검증 —
+  `/etc/powertrain/powertrain.env` 존재 + `stop_mm` sane-band +
   `STOP_MM_PROVENANCE=BENCH|COMMISSIONED`(BENCH → 콘솔 경고 배지) ③runtime-dir·
-  토큰 파일 검증. DDS 도메인·RMW·`authority_enabled=true`·`use_sim_time=false`
-  고정. **커미셔닝 전 유닛 disabled 설치**(벤치 수동 start).
-- **crash-loop 비콘**: 독립 초경량 systemd 서비스 — 유닛 상태·journal 꼬리를
-  UDP로 콘솔 push(토큰 redaction 적용). 모터 열거 지연 대비 preflight 재시도 창
-  (기본 30 s).
-- **캘리 NVM 영속화**: 신규 `bl70200_persist_calibration.py` — ①보드 시리얼→CAN
-  노드쌍(11/12·13/14·15/16) 레지스트리 ②`find_any(serial_number=...)` 보드별
-  접속 ③axis0+axis1 양축 캘리 성공 확인 후 보드당 1회
-  `pre_calibrated=True`+`save_configuration`(리부팅) ④재열거→`--read` 전수 대조 —
-  보드 단위 트랜잭션. NVM 쓰기는 정본 CFG 준수.
+  토큰 파일 검증. 컨테이너 entrypoint도 동일 preflight를 재검(oneshot 실패 시
+  기동 거부). DDS 도메인·RMW·`authority_enabled=true`·`use_sim_time=false`는
+  compose/launch에 고정. **커미셔닝 전에는 control 서비스를 up 상태로 두지
+  않는다**(unless-stopped는 마지막 상태 복원이므로 down이면 자동 기동 안 됨 —
+  벤치에서만 수동 up).
+- **crash-loop 비콘(r6: 신규 서비스 대신 기존 확장)**: 기존 호스트 상주
+  `pdist80b_telemetry_sender`(이미 systemd 서비스 + UDP→콘솔 경로 보유)를
+  확장해 systemd 유닛 상태·compose 서비스 상태·journal 꼬리 필드를 추가
+  송신(토큰 redaction 적용). 스택과 독립 생존 요건은 기존 서비스가 이미 충족.
+  모터 열거 지연 대비 preflight 재시도 창(기본 30 s).
+- **캘리 NVM 영속화(r6: 신규 툴 대신 정본 확장)**: `bl70200_setup.py`에
+  `--serial`(보드 지정)·`--axis {0,1,both}`·`--persist-calibration` 추가 —
+  **"NVM 쓰기 단일 경로" 원칙을 유지**하는 유일한 형태(별도 툴은 원칙 자기모순).
+  ①보드 시리얼→CAN 노드쌍(11/12·13/14·15/16) 레지스트리(설정 파일)
+  ②`find_any(serial_number=...)` 보드별 접속 ③axis0+axis1 양축 캘리 성공 확인 후
+  보드당 1회 `pre_calibrated=True`+`save_configuration`(리부팅)
+  ④재열거→`--read` 전수 대조 — 보드 단위 트랜잭션.
   ⚠️ **보드 fw = 0.5.1**(사용자 확인; 0.5.6은 라이브러리) — HALL polarity 상태
   (0.5.2+)는 근거로 쓰지 않는다. 실증 정본 = 벤치 게이트.
 - **부팅 자격화 = chassis 소유 게이트**: 무회전 판독(`pre_calibrated`·
@@ -242,9 +260,13 @@ A2a/A2b/A2c는 독립 롤백 단위(Codex 34). C0은 A2 완료 즉시 착수(벤
   통과 필수.** **power-session 무효화(Codex r2-9)**: Jetson 생존 중 ODrive만
   재부팅(전압 sag 등)한 경우를 heartbeat 상태 리셋으로 감지 → 자격화 즉시 무효 →
   재판독 통과 전 arm 거부.
-- **캘리 폴백 = lifecycle job**: `calibration_start/status/cancel`(축당 ~55 s,
-  exclusive — 실행 중 arm 거부). 콘솔 확인("바퀴 전부 리프트") + broker 1회용
-  wheels-up 토큰 이중 게이트. 조립 후엔 정비 절차임을 문서화.
+- **캘리 폴백 = lifecycle job(r6: 검증된 코드 재사용)**: `can_calibrate_all.py`를
+  라이브러리로 리팩터해 **broker의 job 러너가 import 실행** —
+  fw 0.5.1의 캘리 CAN 시퀀스 함정(FULL_CAL 거부 → MOTOR_CAL·OFFSET_CAL 분리
+  요청)을 이미 아는 검증된 로직을 재사용하고, 신규 캘리 제어 코드를 쓰지
+  않는다. `calibration_start/status/cancel`(축당 ~55 s, exclusive — 실행 중 arm
+  거부), 콘솔 확인("바퀴 전부 리프트") + broker 1회용 wheels-up 토큰 이중 게이트.
+  조립 후엔 정비 절차임을 문서화.
 - **조립 전 벤치 게이트**: wheels-up 캘리→영속→**전원 사이클 3회 × 6축 직진입
   closed-loop 재현** = 차체 조립 선행조건. 실패 시 fw 업그레이드 결정 회부.
 - 완료 후 CLAUDE.md·Notion "캘리 RAM-only" 서술 갱신.
@@ -362,7 +384,8 @@ A2a/A2b/A2c는 독립 롤백 단위(Codex 34). C0은 A2 완료 즉시 착수(벤
 - **C1**: slip×stuck×depth 조합·hysteresis·budget 소진·핸드오버·min_rev 상호작용·
   diagnostics 생산자 사망 — 순수 코어 + full-stack. 슬립 플러터 체감(A2 이월).
 - 시뮬: dev-seed 앵커(0.805, 0.04 s) + §5 수치 기준.
-- **A배치 Jetson 벤치 스모크**: broker·패널·유닛·비콘·자격화 + 햅틱/트리거 체감 +
+- **A배치 Jetson 벤치 스모크**: broker(launch 편입)·패널·oneshot 유닛·확장
+  비콘·자격화 + 햅틱/트리거 체감 +
   chord(비상 포함) + **20분 연속 출력 soak** + **저속 추종 검증(§2.2b —
   wheels-up 0.15/0.25 m/s 상당 지령에서 ff 튜닝·서징 확인·단위 확정)** —
   배치 말 사용자 물리 확인 1세션. 캘리 영속화·캘리 잡·C0·저속 추종은 모터 회전
