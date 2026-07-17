@@ -10,6 +10,7 @@ from powertrain_autonomy.controller import (
     AutonomyController,
     AutonomyControllerConfig,
     ControllerDecision,
+    DriveDiagnostics,
     DriveProfile,
     MotionState,
     ProfileGate,
@@ -175,12 +176,18 @@ class TerrainAutonomyDriver:
         # 한다 — depth_tap이 같은 tick 후반에 terrain을 갱신하므로, 갱신 후
         # 값으로 비교하면 전이 tick마다 1-tick 가짜 fail-open이 계측된다.
         self._decision_terrain = self._terrain
+        state_diagnostics = snapshot.diagnostics
         self._decision = self.controller.decide(
             now_s,
             terrain=self._terrain,
             motion=motion,
             gate=gate,
-            diagnostics=None,
+            diagnostics=DriveDiagnostics(
+                stamp_s=now_s,
+                slip_candidate=state_diagnostics.slip_candidate,
+                stuck_candidate=state_diagnostics.stuck_candidate,
+                speed_cap_m_s=state_diagnostics.terrain_speed_cap,
+            ),
         )
         return self._decision.v_m_s, self._decision.omega_rad_s
 

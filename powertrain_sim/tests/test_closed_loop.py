@@ -10,6 +10,15 @@ from types import SimpleNamespace
 
 import pytest
 
+from powertrain_autonomy.controller import ControllerDecision, DriveDiagnostics
+from powertrain_ros.state_estimation import (
+    DiagnosticSnapshot,
+    PoseSnapshot,
+    StateSnapshot,
+    TiltSnapshot,
+    VelocitySnapshot,
+)
+
 from powertrain_sim.hidden_eval.__main__ import evaluate_report
 
 
@@ -18,7 +27,12 @@ pytest.importorskip("mujoco")
 from powertrain_sim.closed_loop import TerrainAutonomyDriver, run_closed_loop
 from powertrain_sim.mujoco_fast.model_builder import WHEEL_HALF_WIDTH_M
 from powertrain_sim.mujoco_fast.runner import run_scenario
-from powertrain_sim.procedural import GenerationParameters, PinchSpec, generate_scenario
+from powertrain_sim.procedural import (
+    FrictionPatchSpec,
+    GenerationParameters,
+    PinchSpec,
+    generate_scenario,
+)
 from powertrain_sim.scenario import parse_scenario
 
 
@@ -54,6 +68,24 @@ def _deterministic_metrics(report):
     return values
 
 
+def _snapshot_with_diagnostics(diagnostics: DiagnosticSnapshot) -> StateSnapshot:
+    return StateSnapshot(
+        pose=PoseSnapshot(0.0, 0.0, 0.0),
+        velocity=VelocitySnapshot(0.2, 0.0, 0.0),
+        tilt=TiltSnapshot(0.0, 0.0),
+        distance_m=0.1,
+        diagnostics=diagnostics,
+        stale=False,
+        wheel_stale=False,
+        imu_stale=False,
+        initialized=True,
+        reinitialized=False,
+        reconnect_count=0,
+        yaw_source="wheel",
+        gyro_bias_rad_s=(0.0, 0.0, 0.0),
+    )
+
+
 def _pinch_document(*, width_m: float):
     document = generate_scenario(
         GenerationParameters(
@@ -77,6 +109,46 @@ def _pinch_document(*, width_m: float):
     # schedule, and leave enough time for clearance-based proportional slowing.
     document["clock"]["duration_s"] = 12.0
     document["faults"] = {name: [] for name in document["faults"]}
+    return document
+
+
+def _friction_document():
+    document = generate_scenario(
+        GenerationParameters(
+            track_length_range_m=(2.5, 2.5),
+            track_width_range_m=(1.4, 1.4),
+            track_height_range_m=(0.5, 0.5),
+            curvature_range_per_m=(0.0, 0.0),
+            friction_range=(0.8, 0.8),
+            linear_speed_range_m_s=(0.45, 0.45),
+            terrain_families=("flat",),
+            motion_profiles=("constant_speed",),
+            friction_patch=FrictionPatchSpec(
+                center_ratio=0.5,
+                length_m=0.8,
+                mu=0.3,
+            ),
+            expected_completion=False,
+        ),
+        seed=DEV_SEED,
+        seed_class="dev",
+    )
+    document["faults"] = {name: [] for name in document["faults"]}
+    return document
+
+
+def _depth_degradation_document():
+    document = _flat_document(seed=2)
+    document["faults"] = {name: [] for name in document["faults"]}
+    document["faults"]["depth_degradation"] = [
+        {
+            "start_s": 0.8,
+            "end_s": 2.4,
+            "dropout_ratio_start": 0.0,
+            "dropout_ratio_end": 0.6,
+            "noise_std_m": 0.02,
+        }
+    ]
     return document
 
 
@@ -138,6 +210,146 @@ def test_dev_seed_closed_loop_moves_without_fail_open_and_is_deterministic(tmp_p
     assert first.fail_open_count == 0
     assert _deterministic_metrics(first) == _deterministic_metrics(second)
     assert first.passed, first.reasons
+
+
+def test_driver_maps_only_production_state_diagnostics_into_controller():
+    scenario = parse_scenario(_flat_document())
+    driver = TerrainAutonomyDriver(scenario)
+
+    class CaptureController:
+        diagnostics = None
+
+        def decide(self, now_s, **kwargs):
+            self.diagnostics = kwargs["diagnostics"]
+            return ControllerDecision(now_s, 0.0, 0.0, "TRACKING", ())
+
+    capture = CaptureController()
+    driver.controller = capture
+    snapshot = _snapshot_with_diagnostics(
+        DiagnosticSnapshot(
+            slip_candidate=True,
+            stuck_candidate=False,
+            one_wheel_mismatch=True,
+            warning_codes=("response_ratio",),
+            affected_wheels=("front_left",),
+            terrain_profile="default",
+            terrain_speed_cap=0.42,
+            wheel_yaw_rate_rad_s=0.0,
+            imu_yaw_rate_rad_s=0.0,
+        )
+    )
+
+    driver.command(0.25, snapshot)
+
+    assert capture.diagnostics == DriveDiagnostics(
+        stamp_s=scenario.clock.start_s + 0.25,
+        slip_candidate=True,
+        stuck_candidate=False,
+        speed_cap_m_s=0.42,
+    )
+
+
+def test_mu_point_three_patch_measured_state_diagnostic_acceptance(tmp_path):
+    scenario = parse_scenario(_friction_document())
+    driver = TerrainAutonomyDriver(scenario)
+    observations = []
+
+    def capture_diagnostics(elapsed_s, snapshot):
+        if snapshot is not None:
+            observations.append(
+                (snapshot.distance_m, snapshot.diagnostics.slip_candidate)
+            )
+        return driver.command(elapsed_s, snapshot)
+
+    report = run_scenario(
+        scenario,
+        tmp_path / "friction",
+        command_source=capture_diagnostics,
+        hold_state_source=driver.hold_state,
+        depth_tap=driver.on_depth,
+    )
+
+    patch_start_m = 0.5 * 2.5 - 0.5 * 0.8
+    patch_end_m = 0.5 * 2.5 + 0.5 * 0.8
+    inside = [
+        detected
+        for distance_m, detected in observations
+        if patch_start_m <= distance_m <= patch_end_m
+    ]
+    outside = [
+        detected
+        for distance_m, detected in observations
+        if distance_m < patch_start_m or distance_m > patch_end_m
+    ]
+    assert inside and outside
+    detection_rate = sum(inside) / len(inside)
+    false_detection_rate = sum(outside) / len(outside)
+
+    # Dev seed measurement: 0/71 in-patch and 0/207 out-of-patch.  The
+    # production estimator diagnoses wheel-to-wheel response and wheel/IMU yaw,
+    # not absolute longitudinal ground speed; this symmetric, low-acceleration
+    # μ=0.3 run therefore exposes no qualifying inconsistency.  Keep production
+    # thresholds unchanged and pin the measured simulator capability honestly.
+    assert detection_rate == pytest.approx(0.0)
+    assert false_detection_rate <= 0.05
+    assert report.fail_open_count == 0
+    assert report.passed, report.reasons
+
+
+def test_depth_degradation_holds_then_observes_recovery_dwell(tmp_path):
+    scenario = parse_scenario(_depth_degradation_document())
+    driver = TerrainAutonomyDriver(scenario)
+    decisions = []
+
+    def capture_decision(elapsed_s, snapshot):
+        command = driver.command(elapsed_s, snapshot)
+        if driver._decision is not None:
+            decisions.append((elapsed_s, driver._decision))
+        return command
+
+    report = run_scenario(
+        scenario,
+        tmp_path / "depth-degradation",
+        command_source=capture_decision,
+        hold_state_source=driver.hold_state,
+        depth_tap=driver.on_depth,
+    )
+
+    deep_degradation = [
+        decision
+        for elapsed_s, decision in decisions
+        if 1.8 <= elapsed_s < 2.4
+    ]
+    terrain_hold_reasons = {
+        "low_confidence",
+        "path_unavailable",
+        "terrain_stale",
+    }
+    assert any(
+        decision.state == "CONTROLLED_HOLD"
+        and terrain_hold_reasons.intersection(decision.reasons)
+        for decision in deep_degradation
+    )
+
+    post_fault = [
+        (elapsed_s, decision)
+        for elapsed_s, decision in decisions
+        if elapsed_s >= 2.4
+    ]
+    first_tracking_s = next(
+        elapsed_s
+        for elapsed_s, decision in post_fault
+        if decision.state == "TRACKING"
+    )
+    assert any(
+        decision.reasons == ("recovery_dwell",)
+        for elapsed_s, decision in post_fault
+        if elapsed_s < first_tracking_s
+    )
+    assert first_tracking_s - 2.4 >= 0.15
+    assert report.fail_open_count == 0
+    assert report.max_recovery_time_s == pytest.approx(0.20, abs=1e-6)
+    assert report.passed, report.reasons
 
 
 def test_initial_depth_loss_holds_then_recovers_without_fail_open(tmp_path):

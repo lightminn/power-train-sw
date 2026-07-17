@@ -83,6 +83,35 @@ class PinchSpec:
 
 
 @dataclass(frozen=True)
+class FrictionPatchSpec:
+    """One deterministic friction interval along the generated centreline."""
+
+    center_ratio: float
+    length_m: float
+    mu: float
+
+    def __post_init__(self) -> None:
+        values = {
+            "center_ratio": self.center_ratio,
+            "length_m": self.length_m,
+            "mu": self.mu,
+        }
+        if any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            for value in values.values()
+        ):
+            raise ValueError("friction patch values must be finite numbers")
+        if not 0.0 <= float(self.center_ratio) <= 1.0:
+            raise ValueError("friction patch center_ratio must be within [0, 1]")
+        if float(self.length_m) <= 0.0:
+            raise ValueError("friction patch length_m must be positive")
+        if float(self.mu) <= 0.0:
+            raise ValueError("friction patch mu must be positive")
+
+
+@dataclass(frozen=True)
 class GenerationParameters:
     """All tunable ranges used by the PCG64 procedural generator."""
 
@@ -106,6 +135,7 @@ class GenerationParameters:
     # 생성한다(정지 여유가 5%를 넘는 모든 기본 트랙 길이에서 성립).
     expected_completion: bool = True
     pinch: PinchSpec | None = None
+    friction_patch: FrictionPatchSpec | None = None
     curvature_mode: str = "constant"
     undulation_amplitude_m: float = 0.05
     undulation_wavelength_m: float = 2.0
@@ -160,6 +190,11 @@ class GenerationParameters:
             raise ValueError("depth_sample_every_n_steps must be a positive integer")
         if self.pinch is not None and not isinstance(self.pinch, PinchSpec):
             raise ValueError("pinch must be PinchSpec or None")
+        if self.friction_patch is not None and not isinstance(
+            self.friction_patch,
+            FrictionPatchSpec,
+        ):
+            raise ValueError("friction_patch must be FrictionPatchSpec or None")
         if self.curvature_mode not in CURVATURE_MODES:
             raise ValueError(f"curvature_mode must come from {CURVATURE_MODES}")
         for name, value, allow_zero in (
@@ -290,7 +325,7 @@ def _faults(
                 "measurement_scale": _rounded(rng.uniform(0.2, 0.55)),
             }
         )
-    return {
+    faults = {
         "wheel_slip": wheel_slip,
         "sensor_dropouts": dropouts,
         "depth_holes": [
@@ -311,6 +346,22 @@ def _faults(
             }
         ],
     }
+    if stress:
+        degradation_start, degradation_end = _interval(
+            rng,
+            duration_s,
+            width_fraction=0.15,
+        )
+        faults["depth_degradation"] = [
+            {
+                "start_s": degradation_start,
+                "end_s": degradation_end,
+                "dropout_ratio_start": 0.0,
+                "dropout_ratio_end": 0.6,
+                "noise_std_m": 0.02,
+            }
+        ]
+    return faults
 
 
 def generate_scenario(
@@ -436,6 +487,15 @@ def generate_scenario(
             for station, value in zip(stations, width)
         ]
     friction = _smooth_profile(rng, station_count, parameters.friction_range)
+    if parameters.friction_patch is not None:
+        centre_m = float(parameters.friction_patch.center_ratio) * length_m
+        half_length_m = float(parameters.friction_patch.length_m) / 2.0
+        friction = [
+            _rounded(parameters.friction_patch.mu)
+            if abs(float(station) - centre_m) <= half_length_m + 1e-12
+            else value
+            for station, value in zip(stations, friction)
+        ]
     duration_s = _duration_for_motion(
         motion_profile,
         length_m,
@@ -585,6 +645,7 @@ def dump_scenario_yaml(document: dict[str, Any], path: str | Path) -> None:
 
 
 __all__ = (
+    "FrictionPatchSpec",
     "GenerationParameters",
     "PinchSpec",
     "canonical_json_bytes",

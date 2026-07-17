@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from powertrain_sim.procedural import (
+    FrictionPatchSpec,
     GenerationParameters,
     PinchSpec,
     canonical_json_sha256,
@@ -74,6 +75,12 @@ def test_stress_seed_class_increases_fault_schedule_intensity():
     stress_faults = sum(len(entries) for entries in stress["faults"].values())
     assert stress_faults > dev_faults
     assert len(stress["faults"]["sensor_dropouts"]) >= 2
+    assert "depth_degradation" not in dev["faults"]
+    assert len(stress["faults"]["depth_degradation"]) == 1
+    degradation = stress["faults"]["depth_degradation"][0]
+    assert degradation["dropout_ratio_start"] == 0.0
+    assert degradation["dropout_ratio_end"] == 0.6
+    assert degradation["noise_std_m"] > 0.0
     assert stress["prng"]["seed_class"] == "stress"
 
 
@@ -168,6 +175,54 @@ def test_pinch_replaces_only_widths_inside_its_station_interval():
             assert actual == 1.05
         else:
             assert actual == original
+
+
+def test_friction_patch_replaces_only_mu_inside_its_station_interval():
+    common = dict(
+        track_length_range_m=(4.0, 4.0),
+        friction_range=(0.8, 0.8),
+        curvature_range_per_m=(0.0, 0.0),
+        station_spacing_range_m=(0.25, 0.25),
+        terrain_families=("flat",),
+        motion_profiles=("constant_speed",),
+    )
+    baseline = generate_scenario(
+        GenerationParameters(**common),
+        seed=105,
+        seed_class="dev",
+    )
+    patched = generate_scenario(
+        GenerationParameters(
+            **common,
+            friction_patch=FrictionPatchSpec(
+                center_ratio=0.5,
+                length_m=1.0,
+                mu=0.3,
+            ),
+        ),
+        seed=105,
+        seed_class="dev",
+    )
+
+    stations = [
+        math.dist(patched["track"]["centerline_m"][0], point)
+        for point in patched["track"]["centerline_m"]
+    ]
+    expected_friction = []
+    for station, original in zip(
+        stations,
+        baseline["track"]["friction_coefficient"],
+    ):
+        expected_friction.append(
+            0.3 if abs(station - 2.0) <= 0.5 + 1e-12 else original
+        )
+    assert patched["track"]["friction_coefficient"] == expected_friction
+
+    patched_without_fixture = json.loads(json.dumps(patched))
+    patched_without_fixture["track"]["friction_coefficient"] = baseline["track"][
+        "friction_coefficient"
+    ]
+    assert patched_without_fixture == baseline
 
 
 def test_clothoid_curvature_is_linear_across_stations():
