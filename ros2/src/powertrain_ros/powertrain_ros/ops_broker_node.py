@@ -17,7 +17,7 @@ import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
 from std_msgs.msg import String
-from std_srvs.srv import Trigger
+from std_srvs.srv import SetBool, Trigger
 
 from powertrain_msgs.msg import WheelStates
 from powertrain_observability.client import EventClient
@@ -382,18 +382,26 @@ class OpsBrokerNode(Node):
             ]
 
     # -- rclpy execution proxy -------------------------------------------
-    def _client_for(self, target):
+    def _client_for(self, service_type, target):
+        key = (service_type, target)
         with self._service_clients_lock:
-            client = self._service_clients.get(target)
+            client = self._service_clients.get(key)
             if client is None:
                 client = self.create_client(
-                    Trigger, target, callback_group=self._service_group
+                    service_type, target, callback_group=self._service_group
                 )
-                self._service_clients[target] = client
+                self._service_clients[key] = client
             return client
 
     def _execute(self, order, connection, role):
-        if order.kind in ("service", "composite"):
+        if order.kind == "service_setbool" and not isinstance(
+            order.params.get("data"), bool
+        ):
+            self._complete_order(
+                order, connection, role, False, "params.data must be bool"
+            )
+            return
+        if order.kind in ("service", "composite", "service_setbool"):
             pending = _PendingService(order=order, connection=connection)
             self._start_service_call(pending, role)
             return
@@ -424,10 +432,16 @@ class OpsBrokerNode(Node):
 
     def _start_service_call(self, pending, role):
         target = pending.order.targets[pending.index]
+        if pending.order.kind == "service_setbool":
+            service_type = SetBool
+            request = SetBool.Request(data=pending.order.params["data"])
+        else:
+            service_type = Trigger
+            request = Trigger.Request()
         try:
-            pending.future = self._client_for(target).call_async(
-                Trigger.Request()
-            )
+            pending.future = self._client_for(
+                service_type, target
+            ).call_async(request)
         except Exception as exc:
             self._record_service_result(
                 pending,

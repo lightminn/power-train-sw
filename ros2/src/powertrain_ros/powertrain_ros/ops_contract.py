@@ -69,10 +69,14 @@ ACTIONS = {
         emergency_roles=_CTRL_EMERGENCY,
     ),
     "disarm": ActionSpec(_CONSOLE, "service", ("/chassis_node/disarm",)),
+    "arm_lock_override": ActionSpec(
+        _CONSOLE, "service_setbool",
+        ("/chassis_node/arm_lock_override",),
+    ),
     "operator_hold": ActionSpec(_CONSOLE, "publish", ("/section_events",)),
     "operator_resume": ActionSpec(_CONSOLE, "publish", ("/section_events",)),
     "status_query": ActionSpec(_BOTH, "local"),
-    # A2b: arm_lock_override / A2c: calibration_* / C0: extraction_grant
+    # A2c: calibration_* / C0: extraction_grant
 }
 for _name in _MISSIONS:
     ACTIONS[_name] = ActionSpec(

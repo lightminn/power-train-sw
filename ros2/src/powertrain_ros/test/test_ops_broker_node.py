@@ -10,7 +10,7 @@ import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from std_msgs.msg import String
-from std_srvs.srv import Trigger
+from std_srvs.srv import SetBool, Trigger
 
 from powertrain_ros.ops_broker_node import OpsBrokerNode
 
@@ -53,6 +53,13 @@ class FakeServices(Node):
                 name,
                 lambda request, response, n=name: self._serve(n, response),
             )
+        self.create_service(
+            SetBool,
+            "/chassis_node/arm_lock_override",
+            lambda request, response: self._serve(
+                "/chassis_node/arm_lock_override", response
+            ),
+        )
 
     def _serve(self, name, response):
         self.calls.append(name)
@@ -255,6 +262,36 @@ def test_authority_manual_round_trip_calls_target_service(token_dir):
         node.destroy_node()
         feeder.destroy_node()
         targets.destroy_node()
+
+
+def test_arm_lock_override_round_trip_and_param_validation(token_dir):
+    port = _free_port()
+    node = _node(token_dir, port)
+    targets = FakeServices()
+    try:
+        sock, reader = _client(port, "tok-console-test")
+        _hello(reader, [node, targets])
+        sock.sendall(_request(
+            "tok-console-test", "arm_lock_override",
+            params={"data": True},
+        ))
+        replies = reader.read_until(
+            [node, targets],
+            lambda lines: _has_request(lines, "r-1", "FINAL_SUCCESS"),
+        )
+        assert "/chassis_node/arm_lock_override" in targets.calls
+
+        sock.sendall(_request(
+            "tok-console-test", "arm_lock_override", request_id="r-2",
+            sequence=1, params={},
+        ))
+        replies = reader.read_until(
+            [node, targets],
+            lambda lines: _has_request(lines, "r-2", "FINAL_REJECTED"),
+        )
+        sock.close()
+    finally:
+        node.close(); node.destroy_node(); targets.destroy_node()
 
 
 def test_composite_clear_reports_partial_results(token_dir):

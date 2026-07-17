@@ -67,6 +67,13 @@ def test_action_table_role_bindings_match_spec():
     assert oc.ACTIONS["status_query"].kind == "local"
 
 
+def test_arm_lock_override_is_console_only_setbool():
+    spec = oc.ACTIONS["arm_lock_override"]
+    assert spec.roles == frozenset({oc.ROLE_CONSOLE})
+    assert spec.kind == "service_setbool"
+    assert spec.target == ("/chassis_node/arm_lock_override",)
+
+
 def test_encode_response_is_newline_json():
     raw = oc.encode_response(
         request_id="r-1", status=oc.STATUS_PENDING, state_revision=4,
