@@ -30,6 +30,7 @@ from powertrain_ros.remote_input import RemoteInputDecoder
 from powertrain_ros.remote_input_gateway import (
     GatewayConfig,
     RemoteInputGateway,
+    frame_is_neutral,
     gated_arm_output,
 )
 
@@ -98,6 +99,7 @@ class TeleopCommandNode(Node):
         self._server_socket = None
         self._closed = False
         self._input_was_fresh = False
+        self._last_frame = None
         self._violation_rate_lock = threading.Lock()
         self._violation_window_start_s = time.monotonic()
         self._violation_events_in_window = 0
@@ -118,6 +120,11 @@ class TeleopCommandNode(Node):
         self.pub_assist_bypass = self.create_publisher(
             Bool,
             "/teleop/assist_bypass",
+            10,
+        )
+        self.pub_gateway_state = self.create_publisher(
+            String,
+            "/teleop/gateway_state",
             10,
         )
         estop_qos = QoSProfile(
@@ -270,7 +277,9 @@ class TeleopCommandNode(Node):
                 self._gateway.begin_connection()
             elif event == "disconnect":
                 self._gateway.end_connection()
+                self._last_frame = None
             elif event == "frame":
+                self._last_frame = payload
                 if payload.estop_edge:
                     self._begin_estop_event(drain_now_s)
                 self._gateway.submit(payload)
@@ -355,6 +364,21 @@ class TeleopCommandNode(Node):
         output = self._gateway.tick(time.monotonic())
         with self._status_lock:
             self._status_line = make_status_line(output).encode("utf-8")
+
+        state_message = String()
+        state_message.data = json.dumps(
+            {
+                "state": output.state,
+                "input_fresh": bool(output.input_fresh),
+                "neutral": bool(
+                    self._last_frame is not None
+                    and frame_is_neutral(self._last_frame)
+                ),
+                "stamp_s": time.monotonic(),
+            },
+            separators=(",", ":"),
+        )
+        self.pub_gateway_state.publish(state_message)
 
         input_was_fresh = self._input_was_fresh
         self._input_was_fresh = bool(output.input_fresh)

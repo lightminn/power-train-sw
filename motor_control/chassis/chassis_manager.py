@@ -360,6 +360,10 @@ class ChassisManager:
             "safety_topic_stale", bool(active), detail,
         )
 
+    def safety_snapshot(self):
+        """Expose the immutable interlock snapshot without leaking internals."""
+        return self._interlock.snapshot()
+
     def set_arm_motion_hold(self, active: bool, detail: str = "") -> None:
         """Apply the robot-arm final drive gate and discard its old command."""
         active = bool(active)

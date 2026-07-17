@@ -58,6 +58,22 @@ def gated_arm_output(output, *, enabled=False):
     return ArmOutput(joint_name=output.joint_name)
 
 
+def frame_is_neutral(frame):
+    """Return whether a decoded input frame is fully neutral."""
+    axes = frame.axes
+    return (
+        not frame.deadman
+        and not frame.mode_chord
+        and not frame.estop_edge
+        and axes.left_x == 0.0
+        and axes.right_y == 0.0
+        and axes.left_trigger == 0.0
+        and axes.right_trigger == 0.0
+        and frame.dpad.x == 0
+        and frame.dpad.y == 0
+    )
+
+
 class RemoteInputGateway:
     """Enforce zero-separated mode transitions and hold-to-run input."""
 
@@ -169,18 +185,7 @@ class RemoteInputGateway:
 
     @staticmethod
     def _neutral(frame):
-        axes = frame.axes
-        return (
-            not frame.deadman
-            and not frame.mode_chord
-            and not frame.estop_edge
-            and axes.left_x == 0.0
-            and axes.right_y == 0.0
-            and axes.left_trigger == 0.0
-            and axes.right_trigger == 0.0
-            and frame.dpad.x == 0
-            and frame.dpad.y == 0
-        )
+        return frame_is_neutral(frame)
 
     def _frame_is_fresh(self, now_s):
         if self._frame is None:

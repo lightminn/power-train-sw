@@ -1,5 +1,6 @@
 import ast
 from contextlib import nullcontext
+import json
 from types import SimpleNamespace
 import uuid
 from pathlib import Path
@@ -493,6 +494,8 @@ def test_ros_wrapper_publishes_one_zero_on_each_fresh_to_stale_edge():
     namespace = {
         "time": SimpleNamespace(monotonic=lambda: 10.0),
         "make_status_line": lambda _output: "status",
+        "String": SimpleNamespace,
+        "json": json,
     }
     module = ast.Module(body=[tick], type_ignores=[])
     ast.fix_missing_locations(module)
@@ -500,6 +503,7 @@ def test_ros_wrapper_publishes_one_zero_on_each_fresh_to_stale_edge():
 
     def output(input_fresh, value):
         return SimpleNamespace(
+            state="DRIVE",
             input_fresh=input_fresh,
             drive=SimpleNamespace(linear=value, angular=value),
             arm=SimpleNamespace(joint_velocity=value, gripper=value),
@@ -511,16 +515,20 @@ def test_ros_wrapper_publishes_one_zero_on_each_fresh_to_stale_edge():
     fresh_two = output(True, 0.2)
     stale_three = output(False, 0.0)
     outputs = iter((fresh_one, stale_one, stale_two, fresh_two, stale_three))
-    published = {"drive": [], "arm": [], "bypass": []}
+    published = {"drive": [], "arm": [], "bypass": [], "gateway": []}
     node = SimpleNamespace(
         _drain_events=lambda: None,
         _gateway=SimpleNamespace(tick=lambda _now: next(outputs)),
         _status_lock=nullcontext(),
         _input_was_fresh=False,
         _estop_event=None,          # A1: ○ E-stop 재발행 상태 (없으면 _tick AttributeError)
+        _last_frame=None,
         _publish_drive=published["drive"].append,
         _publish_arm=published["arm"].append,
         _publish_assist_bypass=published["bypass"].append,
+        pub_gateway_state=SimpleNamespace(
+            publish=published["gateway"].append,
+        ),
     )
 
     for _ in range(5):

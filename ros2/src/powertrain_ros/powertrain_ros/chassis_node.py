@@ -71,6 +71,7 @@ ARM_GATE_MODES = {ARM_GATE_PRODUCTION, ARM_GATE_ABSENT_FIELD}
 MISSION_OWNER_CHASSIS = "chassis_supervisor"
 MISSION_OWNER_LEGACY = "legacy_mission_node"
 MISSION_OWNERS = {MISSION_OWNER_CHASSIS, MISSION_OWNER_LEGACY}
+SAFETY_STATE_PUBLISH_PERIOD_S = 0.2
 
 
 def default_wheel_stop_config_path():
@@ -511,6 +512,11 @@ class ChassisNode(Node):
             "/chassis_state",
             10,
         )
+        self.pub_safety_state = self.create_publisher(
+            String,
+            "/chassis/safety_state",
+            10,
+        )
         self.pub_wheels = self.create_publisher(
             WheelStates,
             "/wheel_states",
@@ -587,6 +593,7 @@ class ChassisNode(Node):
         self._pitch = 0.0
         self._overrun_count = 0
         self._wheel_telemetry_failed = False
+        self._last_safety_state_publish_s = None
         self._seed_initial_safety()
 
         period = 1.0 / self.cm.cfg.loop_hz
@@ -1243,6 +1250,32 @@ class ChassisNode(Node):
             emit_can_health = getattr(self, "_emit_can_health_event", None)
             if emit_can_health is not None:
                 emit_can_health(snapshot)
+        publish_safety_state = getattr(self, "_publish_safety_state", None)
+        if publish_safety_state is not None:
+            publish_safety_state(time.monotonic())
+
+    def _publish_safety_state(self, now_s):
+        last_publish_s = self._last_safety_state_publish_s
+        if (
+            last_publish_s is not None
+            and now_s >= last_publish_s
+            and now_s - last_publish_s + 1e-12
+            < SAFETY_STATE_PUBLISH_PERIOD_S
+        ):
+            return
+        safety = self.cm.safety_snapshot()
+        message = String()
+        message.data = json.dumps(
+            {
+                "mode": self.cm.mode,
+                "estop_latched": bool(safety.estop_latched),
+                "active_estop_sources": list(safety.active_estop_sources),
+                "stamp_s": time.monotonic(),
+            },
+            separators=(",", ":"),
+        )
+        self.pub_safety_state.publish(message)
+        self._last_safety_state_publish_s = now_s
 
     def _emit_can_health_event(self, snapshot):
         """Best-effort datagram emission; failure never escapes the tick."""
