@@ -1,5 +1,5 @@
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Tuple
 
 RUN = "RUN"
@@ -16,6 +16,7 @@ class SafetySnapshot:
     tripped_at_s: Optional[float]
     active_estop_sources: Tuple[str, ...]
     hold_sources: Tuple[str, ...]
+    component_mask: dict[str, bool] = field(default_factory=dict)
 
 
 class SafetyInterlock:

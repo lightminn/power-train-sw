@@ -21,6 +21,8 @@ class CornerModule:
         self._drive_target = 0.0
         self._last_set_ms = None
         self._now = clock or time.monotonic  # 테스트에서 주입 가능
+        self._drive_enabled = True
+        self._steer_enabled = True
 
     def _now_ms(self) -> float:
         return self._now() * 1000.0
@@ -31,15 +33,26 @@ class CornerModule:
         self.mode = "IDLE"
 
     def arm(self) -> None:
-        self.steer.arm()
-        self.drive.arm()
+        if self._steer_enabled:
+            self.steer.arm()
+        if self._drive_enabled:
+            self.drive.arm()
         # 점프 방지: 조향 목표=현재 실제각, 구동 목표=0
-        self._steer_target = self.steer.state()["actual_deg"]
+        if self._steer_enabled:
+            self._steer_target = self.steer.state()["actual_deg"]
         self._drive_target = 0.0
-        self.steer.set_angle(self._steer_target)
-        self.drive.set_velocity(0.0)
+        if self._steer_enabled:
+            self.steer.set_angle(self._steer_target)
+        if self._drive_enabled:
+            self.drive.set_velocity(0.0)
         self._last_set_ms = self._now_ms()
         self.mode = "ARMED"
+
+    def set_drive_enabled(self, enabled: bool) -> None:
+        self._drive_enabled = bool(enabled)
+
+    def set_steer_enabled(self, enabled: bool) -> None:
+        self._steer_enabled = bool(enabled)
 
     def set(self, steer_deg: float, drive_vel: float) -> None:
         if self.mode != "ARMED":
@@ -55,18 +68,28 @@ class CornerModule:
             "steer": self.steer.state(),
             "drive": self.drive.state(),
             "faults": [],
+            "drive_enabled": self._drive_enabled,
+            "steer_enabled": self._steer_enabled,
         }
 
     def disarm(self) -> None:
-        self.drive.set_velocity(0.0)
-        self.steer.disarm()
-        self.drive.disarm()
+        if self._drive_enabled:
+            self.drive.set_velocity(0.0)
+        if self._steer_enabled:
+            self.steer.disarm()
+        if self._drive_enabled:
+            self.drive.disarm()
         self.mode = "IDLE"
 
     def estop(self) -> None:
         first_error = None
         try:
-            for actuator in (self.steer, self.drive):
+            actuators = []
+            if self._steer_enabled:
+                actuators.append(self.steer)
+            if self._drive_enabled:
+                actuators.append(self.drive)
+            for actuator in actuators:
                 try:
                     actuator.estop()
                 except BaseException as exc:
@@ -82,7 +105,8 @@ class CornerModule:
         if self.mode != "FAULT":
             return False
         self._drive_target = 0.0
-        self.drive.set_velocity(0.0)
+        if self._drive_enabled:
+            self.drive.set_velocity(0.0)
         self.mode = "IDLE"
         return True
 
@@ -105,33 +129,36 @@ class CornerModule:
             self._service_receive()
             return
 
-        st = self.steer.state()
+        st = None
+        if self._steer_enabled:
+            st = self.steer.state()
 
-        # 1) 조향 fault/전류 트립
-        if st["fault"] != 0:
-            logger.error("조향 fault=%s → estop", st["fault"])
-            self.estop()
-            return
-        # 2) CAN stale
-        if st.get("stale"):
-            logger.error("조향 status stale → estop")
-            self.estop()
-            return
-        # 조향 과전류 트립
-        if abs(st["cur_a"]) > self.cfg.steer_current_limit_a:
-            logger.error("조향 과전류 %.1fA > %.1fA → estop", st["cur_a"], self.cfg.steer_current_limit_a)
-            self.estop()
-            return
+            # 1) 조향 fault/전류 트립
+            if st["fault"] != 0:
+                logger.error("조향 fault=%s → estop", st["fault"])
+                self.estop()
+                return
+            # 2) CAN stale
+            if st.get("stale"):
+                logger.error("조향 status stale → estop")
+                self.estop()
+                return
+            # 조향 과전류 트립
+            if abs(st["cur_a"]) > self.cfg.steer_current_limit_a:
+                logger.error("조향 과전류 %.1fA > %.1fA → estop", st["cur_a"], self.cfg.steer_current_limit_a)
+                self.estop()
+                return
 
-        drive_state = self.drive.state()
-        if drive_state.get("stale", False):
-            logger.error("구동 status stale → estop")
-            self.estop()
-            return
-        if drive_state.get("axis_error", 0) != 0:
-            logger.error("구동 axis_error=%s → estop", drive_state["axis_error"])
-            self.estop()
-            return
+        if self._drive_enabled:
+            drive_state = self.drive.state()
+            if drive_state.get("stale", False):
+                logger.error("구동 status stale → estop")
+                self.estop()
+                return
+            if drive_state.get("axis_error", 0) != 0:
+                logger.error("구동 axis_error=%s → estop", drive_state["axis_error"])
+                self.estop()
+                return
 
         # 3) 워치독: 입력 타임아웃 시 구동 0
         drive_cmd = self._drive_target
@@ -139,16 +166,20 @@ class CornerModule:
             drive_cmd = 0.0
 
         # 4) 협조 로직(옵션): 조향 따라오기 전 구동 자제
-        if self.cfg.steer_gate:
+        if self._drive_enabled and self._steer_enabled and self.cfg.steer_gate:
             err = abs(self._steer_target - st["actual_deg"])
             if err > self.cfg.gate_deg:
                 drive_cmd = 0.0
 
         # 5) 목표 push
-        self.steer.set_angle(self._steer_target)
-        self.drive.set_velocity(drive_cmd)
-        self.steer.tick()
-        self.drive.tick()
+        if self._steer_enabled:
+            self.steer.set_angle(self._steer_target)
+        if self._drive_enabled:
+            self.drive.set_velocity(drive_cmd)
+        if self._steer_enabled:
+            self.steer.tick()
+        if self._drive_enabled:
+            self.drive.tick()
 
     def run(self, hz: float = None) -> None:
         """편의 제어 루프. 외부 루프가 tick() 을 직접 호출해도 된다."""

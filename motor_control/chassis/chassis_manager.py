@@ -16,7 +16,7 @@
 """
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from chassis.kinematics import ChassisGeometry, default_geometry, solve
 from chassis.safety_interlock import RUN, SafetyInterlock
@@ -40,6 +40,7 @@ from corner_module.null_steer import NullSteer
 
 logger = logging.getLogger(__name__)
 _COMMAND_RECOVERY_HOLD = "command_recovery"
+COMPONENTS = ("drive", "steer", "us100", "robot_arm")
 
 
 # ── 설정 · 매핑 표 ────────────────────────────────────────────────────────
@@ -159,6 +160,7 @@ class ChassisManager:
         self._speed_scale = 1.0            # 전방 감속 힌트 (1.0 = 제한 없음)
         self._now = time.monotonic if clock is None else clock
         self._interlock = SafetyInterlock(clock=self._now)
+        self._component_mask = {component: True for component in COMPONENTS}
         self._last_estop_error = None
         self._extraction_started_s = None
         self._extraction_last_tick_s = None
@@ -204,6 +206,48 @@ class ChassisManager:
 
     def _now_ms(self) -> float:
         return self._now() * 1000.0
+
+    @property
+    def component_mask(self) -> dict[str, bool]:
+        return dict(self._component_mask)
+
+    def set_component_enabled(self, component: str, enabled: bool,
+                              detail: str = "") -> tuple[bool, str]:
+        if component not in COMPONENTS:
+            return False, "unknown_component"
+
+        enabled = bool(enabled)
+        if self._component_mask[component] == enabled:
+            return True, ""
+        if component in {"drive", "steer"} and self.mode != "IDLE":
+            return False, "not_idle"
+
+        if component == "drive":
+            for corner in self.corners.values():
+                corner.set_drive_enabled(enabled)
+        elif component == "steer":
+            for corner in self.corners.values():
+                corner.set_steer_enabled(enabled)
+
+        self._component_mask[component] = enabled
+        if not enabled and component == "us100":
+            self._clear_component_sources("us100", clear_estops=True)
+        elif not enabled and component == "robot_arm":
+            self._clear_component_sources("robot_arm", clear_estops=False)
+        return True, ""
+
+    def _clear_component_sources(self, prefix: str, *, clear_estops: bool) -> None:
+        safety = self._interlock.snapshot()
+        if clear_estops:
+            for source in safety.active_estop_sources:
+                if source == prefix or source.startswith(f"{prefix}_"):
+                    self._interlock.set_estop_condition(source, False)
+        for source in safety.hold_sources:
+            if source == prefix or source.startswith(f"{prefix}_"):
+                self._interlock.set_motion_hold(source, False)
+        # command_recovery hold는 여기서 풀지 않는다: hold 중 저장된 이전
+        # 명령이 신규 확인 없이 재생되는 것을 막는 장치라, 해제는 오직
+        # 새 set()(fresh command)만 할 수 있다.
 
     # ── 라이프사이클 ──────────────────────────────────────────────────
     def connect(self) -> None:
@@ -460,7 +504,10 @@ class ChassisManager:
 
     def safety_snapshot(self):
         """Expose the immutable interlock snapshot without leaking internals."""
-        return self._interlock.snapshot()
+        return replace(
+            self._interlock.snapshot(),
+            component_mask=self.component_mask,
+        )
 
     def set_arm_motion_hold(self, active: bool, detail: str = "") -> None:
         """Apply the robot-arm final drive gate and discard its old command."""
@@ -730,6 +777,7 @@ class ChassisManager:
                 self.cfg.extraction_max_grants - self._extraction_grants,
             ),
             last_extraction_reject=self._last_extraction_reject,
+            component_mask=self.component_mask,
         )
 
     @staticmethod

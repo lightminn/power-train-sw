@@ -335,7 +335,75 @@ def test_corner_state_schema():
     cm = _make_cm()
     cm.connect()
     st = cm.state()
-    assert set(st.keys()) == {"mode", "steer", "drive", "faults"}
+    assert set(st.keys()) == {
+        "mode", "steer", "drive", "faults",
+        "drive_enabled", "steer_enabled",
+    }
+
+
+def test_component_enable_flags_default_on_and_are_exposed_in_state():
+    cm = _make_cm()
+
+    assert cm.state()["drive_enabled"] is True
+    assert cm.state()["steer_enabled"] is True
+
+    cm.set_drive_enabled(False)
+    cm.set_steer_enabled(False)
+    assert cm.state()["drive_enabled"] is False
+    assert cm.state()["steer_enabled"] is False
+
+
+def test_drive_disabled_skips_commands_and_fault_monitoring():
+    steer = FakeSteer()
+    drive = FakeDrive()
+    cm = _make_cm(steer=steer, drive=drive)
+    cm.connect()
+    drive.arm = Mock(wraps=drive.arm)
+    drive.set_velocity = Mock(wraps=drive.set_velocity)
+    drive.tick = Mock(wraps=drive.tick)
+    steer.set_angle = Mock(wraps=steer.set_angle)
+    steer.tick = Mock(wraps=steer.tick)
+    cm.estop = Mock(wraps=cm.estop)
+
+    cm.set_drive_enabled(False)
+    cm.arm()
+    cm.set(10.0, 2.0)
+    drive.stale_flag = True
+    drive.axis_error = 0x10
+    cm.tick()
+
+    drive.arm.assert_not_called()
+    drive.set_velocity.assert_not_called()
+    drive.tick.assert_not_called()
+    cm.estop.assert_not_called()
+    steer.set_angle.assert_called()
+    steer.tick.assert_called_once_with()
+    assert cm.mode == "ARMED"
+
+
+@pytest.mark.parametrize("disabled", ["drive", "steer"])
+def test_disabled_actuator_is_excluded_from_estop_and_reset(disabled):
+    steer = FakeSteer()
+    drive = FakeDrive()
+    cm = _make_cm(steer=steer, drive=drive)
+    cm.connect()
+    cm.set_drive_enabled(disabled != "drive")
+    cm.set_steer_enabled(disabled != "steer")
+    steer.estop = Mock(wraps=steer.estop)
+    drive.estop = Mock(wraps=drive.estop)
+    drive.set_velocity = Mock(wraps=drive.set_velocity)
+
+    cm.estop()
+    assert cm.reset_fault() is True
+
+    if disabled == "drive":
+        drive.estop.assert_not_called()
+        drive.set_velocity.assert_not_called()
+        steer.estop.assert_called_once_with()
+    else:
+        steer.estop.assert_not_called()
+        drive.estop.assert_called_once_with()
+        drive.set_velocity.assert_called_once_with(0.0)
 
 
 def test_steer_gate_holds_drive_until_settled():

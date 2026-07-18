@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
 import subprocess
 import threading
@@ -205,6 +205,7 @@ class ChassisSnapshot:
     extraction_budget_left_m: float = 0.0
     extraction_grants_left: int = 0
     last_extraction_reject: str = ""
+    component_mask: dict[str, bool] = field(default_factory=dict)
 
 
 def build_can_health_event(
