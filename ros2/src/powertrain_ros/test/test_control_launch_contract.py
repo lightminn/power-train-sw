@@ -17,3 +17,14 @@ def test_compose_control_service_uses_launch_and_checks_both_ports():
     source = COMPOSE.read_text(encoding="utf-8")
     assert "control.launch.py" in source
     assert "9001" in source
+
+
+def test_compose_chassis_service_is_persistent_and_explicit_about_stop_mm():
+    # 2026-07-18 사용자 결정: 벤치 상시 chassis 스택. stop_mm 은 env 명시
+    # 전달만(부재 시 기동 거부), healthcheck 는 래퍼가 아닌 실제 노드
+    # 프로세스를 본다(cmdline grep 함정 회피).
+    source = COMPOSE.read_text(encoding="utf-8")
+    assert "powertrain_chassis:" in source
+    assert "wp5_control.launch.py stop_mm:=$$STOP_MM" in source
+    assert "STOP_MM missing" in source
+    assert "us100_safety" in source

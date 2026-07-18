@@ -161,6 +161,65 @@ services:
       retries: 3
       start_period: 5m
 
+  # 벤치 상시 chassis 스택(us100_safety + chassis 실기) — 2026-07-18 사용자
+  # 결정. CMASK 도입으로 모터 무전원 벤치에서도 안전(IDLE 기본, arm 없음;
+  # 컴포넌트 토글·차대 텔레메트리가 항상 살아있게 된다). stop_mm 은 계약대로
+  # 명시 전달만 허용 — /etc/powertrain/powertrain.env 의 STOP_MM(부재 시 기동
+  # 거부, preflight 가 band·provenance 재검증).
+  powertrain_chassis:
+    image: powertrain-sw:ros
+    container_name: powertrain_chassis
+    network_mode: host
+    ipc: host
+    privileged: true                     # can0 + /dev/ttyTHS1 (US-100 UART)
+    volumes:
+      - ../:/workspace:rw
+      - /dev:/dev
+      # Provision first with scripts/install_powertrain_runtime_dir.sh.
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/powertrain
+        target: /var/lib/powertrain
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /etc/powertrain
+        target: /etc/powertrain
+        read_only: true
+        bind:
+          create_host_path: false
+    working_dir: /workspace
+    entrypoint:
+      - /bin/bash
+      - -lc
+    command:
+      - |
+        set -e
+        PYTHONPATH=/workspace/ros2/src/powertrain_ros python3 -m powertrain_ros.preflight || exit 1
+        set -a; . /etc/powertrain/powertrain.env; set +a
+        [ -n "$$STOP_MM" ] || { echo "STOP_MM missing in /etc/powertrain/powertrain.env"; exit 1; }
+        source /opt/ros/humble/setup.bash
+        cd /workspace/ros2
+        colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
+        source install/setup.bash
+        exec ros2 launch powertrain_ros wp5_control.launch.py stop_mm:=$$STOP_MM
+    restart: unless-stopped
+    healthcheck:
+      # ⚠️ cmdline grep 함정(§powertrain_control 참조) — 래퍼가 아니라 실제
+      #    노드 프로세스(/proc cmdline 의 설치 바이너리 경로)를 확인한다.
+      #    패턴을 이어붙여 healthcheck 자기 자신과의 매치를 배제.
+      test:
+        - CMD-SHELL
+        - python3 -c "import glob; prefix='lib/powertrain_ros/'; cmds=[open(p,'rb').read() for p in glob.glob('/proc/[0-9]*/cmdline')]; assert any((prefix+'chassis').encode() in c for c in cmds), 'chassis node down'; assert any((prefix+'us100_safety').encode() in c for c in cmds), 'us100_safety node down'"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5m
+
   # WP5.3 singleton observability journal/status daemon. The ROS image's
   # default ENTRYPOINT starts the L515 Gateway, so this service must override it.
   powertrain_observability:
