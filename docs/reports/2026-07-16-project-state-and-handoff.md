@@ -128,6 +128,11 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace/ros2 pow
   colcon --log-base /tmp/log build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros \
     --build-base /tmp/b --install-base /tmp/i
   source /tmp/i/setup.bash && python3 -m pytest src/powertrain_ros/test -q'
+# ④ 콘솔 런타임 스모크(operator_console 변경 시 필수 — 순수 테스트로는
+#    Gtk 콜백 크래시를 못 본다. 07-18 _rss 실사고의 재발 방지 게이트.
+#    실제 GUI를 Xvfb에서 띄우고 4채널 LIVE 데이터를 주입해 traceback 검출;
+#    호스트 스위트(test_runtime_smoke)에도 편입되어 자동 실행됨)
+/usr/bin/python3 -m operator_console.runtime_smoke
 ```
 
 기준선(07-17 심야, 2차 하드닝 `42800f4` 후): 호스트 240(autonomy/console/sim/tests) /
