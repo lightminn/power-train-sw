@@ -196,3 +196,65 @@ def test_drive_is_reincluded_by_the_next_arm_after_reenable():
     assert manager.arm() is True
     for corner in manager.corners.values():
         corner.drive.arm.assert_called_once_with()
+
+
+def test_us100_sources_are_ignored_while_off_and_resume_after_reenable():
+    manager = _armed_manager()
+
+    assert manager.set_component_enabled("us100", False) == (True, "")
+    manager.update_external_safety("NO_RESPONSE", True, "sensor absent")
+    manager.set_safety_link_stale(True, "link stale")
+    manager.tick()
+
+    safety = manager.safety_snapshot()
+    assert manager.mode == "ARMED"
+    assert safety.state == RUN
+    assert safety.estop_latched is False
+    assert safety.active_estop_sources == ()
+    assert safety.hold_sources == ()
+
+    assert manager.set_component_enabled("us100", True) == (True, "")
+    manager.update_external_safety("NO_RESPONSE", True, "sensor absent")
+    manager.set_safety_link_stale(True, "link stale")
+    manager.tick()
+
+    safety = manager.safety_snapshot()
+    assert manager.mode == "ESTOP"
+    assert safety.estop_latched is True
+    assert set(safety.active_estop_sources) == {
+        "safety_topic_stale",
+        "us100",
+    }
+
+
+def test_robot_arm_hold_is_ignored_while_off_and_resumes_after_reenable():
+    manager = _armed_manager()
+
+    assert manager.set_component_enabled("robot_arm", False) == (True, "")
+    manager.set_arm_motion_hold(True, "arm status stale")
+    assert manager.safety_snapshot().state == RUN
+    assert manager.safety_snapshot().hold_sources == ()
+
+    assert manager.set_component_enabled("robot_arm", True) == (True, "")
+    manager.set_arm_motion_hold(True, "arm status stale")
+    assert manager.safety_snapshot().state != RUN
+    assert "robot_arm" in manager.safety_snapshot().hold_sources
+
+
+def test_us100_off_also_clears_active_safety_topic_stale_condition():
+    # safety_topic_stale은 us100 프리픽스가 아니지만 원천이 us100 링크라
+    # OFF가 함께 걷어야 한다 — 남으면 마스크가 갱신 경로를 막아 해제 불가
+    # 활성 조건으로 교착되고 reset_estop이 영원히 거부된다.
+    manager = _armed_manager()
+    manager.set_safety_link_stale(True, "link stale")
+    manager.tick()
+    assert manager.mode == "ESTOP"
+    assert "safety_topic_stale" in manager.safety_snapshot().active_estop_sources
+
+    assert manager.set_component_enabled("us100", False) == (True, "")
+
+    safety = manager.safety_snapshot()
+    assert safety.active_estop_sources == ()
+    assert safety.estop_latched is True
+    assert manager.reset_estop() is True
+    assert manager.mode == "IDLE"

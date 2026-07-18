@@ -22,7 +22,11 @@ from std_srvs.srv import SetBool, Trigger
 from powertrain_msgs.msg import WheelStates
 from powertrain_observability.client import EventClient
 from powertrain_ros import ops_contract as oc
-from powertrain_ros.ops_broker_core import OpsBrokerCore, OpsState
+from powertrain_ros.ops_broker_core import (
+    DEFAULT_COMPONENT_MASK,
+    OpsBrokerCore,
+    OpsState,
+)
 
 
 CLIENT_IDLE_TIMEOUT_S = 10.0
@@ -34,6 +38,7 @@ _SEMANTIC_FIELDS = (
     "gateway_neutral",
     "estop_latched",
     "active_estop_sources",
+    "component_mask",
     "wheels_stopped",
 )
 
@@ -189,6 +194,20 @@ class OpsBrokerNode(Node):
             if not isinstance(sources, list):
                 raise ValueError("active_estop_sources must be a list")
             active_sources = tuple(sorted(str(item) for item in sources))
+            raw_mask = decoded.get(
+                "component_mask",
+                DEFAULT_COMPONENT_MASK,
+            )
+            if not isinstance(raw_mask, dict):
+                raise ValueError("component_mask must be an object")
+            component_mask = dict(DEFAULT_COMPONENT_MASK)
+            for component in component_mask:
+                enabled = raw_mask.get(component, True)
+                if not isinstance(enabled, bool):
+                    raise ValueError(
+                        "component_mask values must be bool"
+                    )
+                component_mask[component] = enabled
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
             self.get_logger().warning(
                 "invalid /chassis/safety_state ignored: %s" % exc
@@ -197,6 +216,7 @@ class OpsBrokerNode(Node):
         with self._state_lock:
             self._fields["estop_latched"] = estop_latched
             self._fields["active_estop_sources"] = active_sources
+            self._fields["component_mask"] = component_mask
             self._stamps["safety"] = stamp_s
 
     def _on_gateway(self, message):
@@ -246,6 +266,10 @@ class OpsBrokerNode(Node):
                 "estop_latched": bool(self._fields["estop_latched"]),
                 "active_estop_sources": tuple(
                     self._fields["active_estop_sources"] or ()
+                ),
+                "component_mask": dict(
+                    self._fields["component_mask"]
+                    or DEFAULT_COMPONENT_MASK
                 ),
                 "wheels_stopped": bool(self._fields["wheels_stopped"]),
             }
@@ -597,6 +621,7 @@ class OpsBrokerNode(Node):
                     "active_estop_sources": list(
                         state.active_estop_sources
                     ),
+                    "component_mask": dict(state.component_mask),
                     "wheels_stopped": state.wheels_stopped,
                     "field_age_s": dict(state.field_age_s),
                     "stamp_s": time.monotonic(),

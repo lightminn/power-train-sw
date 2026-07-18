@@ -231,19 +231,32 @@ class ChassisManager:
 
         self._component_mask[component] = enabled
         if not enabled and component == "us100":
-            self._clear_component_sources("us100", clear_estops=True)
+            # safety_topic_stale은 us100 링크 신선도가 원천(set_safety_link_stale)
+            # 이라 프리픽스가 달라도 함께 걷어야 한다 — 마스크가 갱신 경로까지
+            # 막으므로 남겨두면 해제 불가능한 활성 조건으로 교착된다.
+            self._clear_component_sources(
+                "us100", clear_estops=True, extra=("safety_topic_stale",)
+            )
         elif not enabled and component == "robot_arm":
             self._clear_component_sources("robot_arm", clear_estops=False)
         return True, ""
 
-    def _clear_component_sources(self, prefix: str, *, clear_estops: bool) -> None:
+    def _clear_component_sources(self, prefix: str, *, clear_estops: bool,
+                                 extra: tuple = ()) -> None:
+        def _owned(source: str) -> bool:
+            return (
+                source == prefix
+                or source.startswith(f"{prefix}_")
+                or source in extra
+            )
+
         safety = self._interlock.snapshot()
         if clear_estops:
             for source in safety.active_estop_sources:
-                if source == prefix or source.startswith(f"{prefix}_"):
+                if _owned(source):
                     self._interlock.set_estop_condition(source, False)
         for source in safety.hold_sources:
-            if source == prefix or source.startswith(f"{prefix}_"):
+            if _owned(source):
                 self._interlock.set_motion_hold(source, False)
         # command_recovery hold는 여기서 풀지 않는다: hold 중 저장된 이전
         # 명령이 신규 확인 없이 재생되는 것을 막는 장치라, 해제는 오직
@@ -477,6 +490,8 @@ class ChassisManager:
         return True
 
     def update_external_safety(self, status, estop_required, detail="") -> None:
+        if not self._component_mask["us100"]:
+            return
         self.set_motion_hold("us100_checking", status == "CHECKING", detail)
         self._interlock.set_estop_condition(
             "us100", bool(estop_required), detail,
@@ -498,6 +513,8 @@ class ChassisManager:
             )
 
     def set_safety_link_stale(self, active, detail="") -> None:
+        if not self._component_mask["us100"]:
+            return
         self._interlock.set_estop_condition(
             "safety_topic_stale", bool(active), detail,
         )
@@ -511,6 +528,8 @@ class ChassisManager:
 
     def set_arm_motion_hold(self, active: bool, detail: str = "") -> None:
         """Apply the robot-arm final drive gate and discard its old command."""
+        if not self._component_mask["robot_arm"]:
+            return
         active = bool(active)
         was_active = "robot_arm" in self._interlock.snapshot().hold_sources
         if active and not was_active:

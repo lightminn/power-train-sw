@@ -116,8 +116,11 @@ def validate_mission_contract_owner(value):
 
 
 class ChassisNode(Node):
-    def __init__(self):
-        super().__init__("chassis_node")
+    def __init__(self, parameter_overrides=None):
+        super().__init__(
+            "chassis_node",
+            parameter_overrides=parameter_overrides or [],
+        )
         self.cm = None
         self._can_session = None
         self._can_bus_sampler = None
@@ -584,6 +587,14 @@ class ChassisNode(Node):
             "~/arm_lock_override",
             self._srv_arm_lock_override,
         )
+        for component in ("drive", "steer", "us100", "robot_arm"):
+            self.create_service(
+                SetBool,
+                "~/component_enable_%s" % component,
+                lambda request, response, name=component: (
+                    self._srv_component_enable(name, request, response)
+                ),
+            )
         if self._mission_supervisor_enabled:
             self.create_service(
                 Trigger,
@@ -1146,6 +1157,46 @@ class ChassisNode(Node):
         )
         return response
 
+    def _srv_component_enable(self, component, request, response):
+        enabled = bool(request.data)
+        manager = getattr(self, "cm", None)
+        if manager is None:
+            response.success = False
+            response.message = "chassis manager unavailable"
+            return response
+        ok, reason = manager.set_component_enabled(component, enabled)
+        response.success = ok
+        response.message = reason or "%s %s" % (
+            component,
+            "enabled" if enabled else "disabled",
+        )
+        if ok:
+            emit = getattr(self, "_emit_component_mask_event", None)
+            if emit is not None:
+                emit(component, enabled)
+        return response
+
+    def _emit_component_mask_event(self, component, enabled):
+        client = getattr(self, "_observability_event_client", None)
+        if client is None:
+            return False
+        event = {
+            "schema_version": 1,
+            "wall_time_ns": time.time_ns(),
+            "monotonic_ns": time.monotonic_ns(),
+            "source": "chassis_node",
+            "event_type": "COMPONENT_MASK",
+            "severity": "INFO" if enabled else "WARN",
+            "payload": {
+                "component": str(component),
+                "enabled": bool(enabled),
+            },
+        }
+        try:
+            return bool(client.emit(event))
+        except Exception:
+            return False
+
     def _seed_initial_safety(self):
         if self._safety_required:
             self.cm.update_external_safety(
@@ -1479,6 +1530,9 @@ class ChassisNode(Node):
                 "mode": self.cm.mode,
                 "estop_latched": bool(safety.estop_latched),
                 "active_estop_sources": list(safety.active_estop_sources),
+                "component_mask": dict(
+                    getattr(safety, "component_mask", {})
+                ),
                 "stamp_s": time.monotonic(),
             },
             separators=(",", ":"),

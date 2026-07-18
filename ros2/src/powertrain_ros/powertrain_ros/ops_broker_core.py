@@ -10,6 +10,14 @@ import uuid
 from powertrain_ros import ops_contract as oc
 
 
+DEFAULT_COMPONENT_MASK = {
+    "drive": True,
+    "steer": True,
+    "us100": True,
+    "robot_arm": True,
+}
+
+
 @dataclass(frozen=True)
 class OpsState:
     revision: int
@@ -21,6 +29,9 @@ class OpsState:
     active_estop_sources: tuple
     wheels_stopped: bool
     field_age_s: dict
+    component_mask: dict = field(
+        default_factory=lambda: dict(DEFAULT_COMPONENT_MASK)
+    )
 
 
 @dataclass(frozen=True)

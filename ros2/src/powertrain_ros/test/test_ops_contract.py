@@ -74,6 +74,23 @@ def test_arm_lock_override_is_console_only_setbool():
     assert spec.target == ("/chassis_node/arm_lock_override",)
 
 
+@pytest.mark.parametrize(
+    ("action", "target"),
+    [
+        ("drive_enable", "/chassis_node/component_enable_drive"),
+        ("steer_enable", "/chassis_node/component_enable_steer"),
+        ("us100_enable", "/chassis_node/component_enable_us100"),
+        ("robot_arm_enable", "/chassis_node/component_enable_robot_arm"),
+    ],
+)
+def test_component_enable_actions_are_console_only_setbool(action, target):
+    spec = oc.ACTIONS[action]
+    assert spec.roles == frozenset({oc.ROLE_CONSOLE})
+    assert spec.emergency_roles == frozenset()
+    assert spec.kind == "service_setbool"
+    assert spec.target == (target,)
+
+
 def test_extraction_grant_is_console_only_chassis_service():
     spec = oc.ACTIONS["extraction_grant"]
     assert spec.roles == frozenset({oc.ROLE_CONSOLE})

@@ -73,6 +73,22 @@ ACTIONS = {
         _CONSOLE, "service_setbool",
         ("/chassis_node/arm_lock_override",),
     ),
+    "drive_enable": ActionSpec(
+        _CONSOLE, "service_setbool",
+        ("/chassis_node/component_enable_drive",),
+    ),
+    "steer_enable": ActionSpec(
+        _CONSOLE, "service_setbool",
+        ("/chassis_node/component_enable_steer",),
+    ),
+    "us100_enable": ActionSpec(
+        _CONSOLE, "service_setbool",
+        ("/chassis_node/component_enable_us100",),
+    ),
+    "robot_arm_enable": ActionSpec(
+        _CONSOLE, "service_setbool",
+        ("/chassis_node/component_enable_robot_arm",),
+    ),
     "extraction_grant": ActionSpec(
         _CONSOLE, "service", ("/chassis_node/extraction_grant",)
     ),
