@@ -35,11 +35,14 @@ from .ops_panel import (
     PANEL_ACTIONS,
     ConfirmFlow,
     PanelAction,
+    component_mask_from_state,
 )
 from .telemetry import (
     LatestTelemetryReceiver,
     TelemetrySnapshot,
     chassis_component_states,
+    mask_banner_text,
+    safety_banner_state,
 )
 
 
@@ -649,6 +652,8 @@ class OpsPanel(Gtk.Frame):
         self._active_action: PanelAction | None = None
         self._hold_started_s: float | None = None
         self._pending_requests: dict[str, str] = {}
+        self._latest_component_mask: dict[str, bool] | None = None
+        self._action_buttons: dict[str, Gtk.Button] = {}
 
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         body.set_border_width(8)
@@ -685,6 +690,10 @@ class OpsPanel(Gtk.Frame):
                 button.connect("button-release-event", self._on_hold_release, action)
             else:
                 button.connect("clicked", self._on_action_clicked, action)
+            if action.action is not None:
+                self._action_buttons[action.action] = button
+            if action.bool_value_from_state is not None:
+                button.set_sensitive(False)
             body.pack_start(button, False, False, 0)
 
         self._confirm_strip = Gtk.Box(
@@ -757,8 +766,14 @@ class OpsPanel(Gtk.Frame):
             self._hide_confirmation()
             return False
         self._active_action = action
+        confirm_text = action.confirm_text
+        if action.bool_value_from_state is not None:
+            enabled = pending.params.get("data") is True
+            if action.action != "us100_enable" or enabled:
+                direction = "Enable" if enabled else "Disable"
+                confirm_text = f"{direction} {action.label}?"
         self._confirm_copy.set_markup(
-            "<b>{}</b>".format(GLib.markup_escape_text(action.confirm_text))
+            "<b>{}</b>".format(GLib.markup_escape_text(confirm_text))
         )
         self._confirm_state.set_text(
             "State snapshot: " + self._state_text(pending.state_snapshot)
@@ -852,7 +867,26 @@ class OpsPanel(Gtk.Frame):
             strip.set_no_show_all(True)
 
     def _on_state(self, state: dict) -> None:
+        self._latest_component_mask = component_mask_from_state(state)
+        for action in PANEL_ACTIONS:
+            if action.action is None or action.bool_value_from_state is None:
+                continue
+            button = self._action_buttons[action.action]
+            try:
+                next_enabled = action.bool_value_from_state(state)
+            except RuntimeError:
+                button.set_label(action.label)
+                button.set_sensitive(False)
+            else:
+                current_state = "OFF" if next_enabled else "ON"
+                button.set_label(f"{action.label} [{current_state}]")
+                button.set_sensitive(True)
         self._state_label.set_text("OPS LIVE · " + self._state_text(state))
+
+    def latest_component_mask(self) -> dict[str, bool] | None:
+        if self._latest_component_mask is None:
+            return None
+        return dict(self._latest_component_mask)
 
     def _on_submit_response(self, response: dict) -> None:
         request_id = str(response.get("request_id", "unknown"))
@@ -961,16 +995,22 @@ class OperatorConsole(Gtk.Window):
         telemetry = self._telemetry_state(snapshot)
         chassis_state = self._telemetry_state(chassis_snapshot)
         odom, drive, can = chassis_component_states(chassis_snapshot)
-        if chassis_state != "LIVE" or chassis_snapshot is None:
-            safety = "SAFETY UNAVAILABLE"
-            safety_color = "#d97706"
-        elif chassis_snapshot.safety_estop_required:
-            detail = chassis_snapshot.safety_detail or "no detail"
-            safety = f"SAFETY ESTOP · {chassis_snapshot.safety_status} · {detail}"
-            safety_color = "#dc2626"
-        else:
-            safety = f"SAFETY CLEAR · {chassis_snapshot.safety_status}"
-            safety_color = "#16a34a"
+        telemetry_mask = (
+            chassis_snapshot.component_mask
+            if chassis_state == "LIVE" and chassis_snapshot is not None
+            else None
+        )
+        component_mask = (
+            telemetry_mask
+            if telemetry_mask is not None
+            else self._ops_panel.latest_component_mask()
+        )
+        mask_text = mask_banner_text(component_mask)
+        safety, safety_color = safety_banner_state(
+            chassis_snapshot,
+            component_mask=component_mask,
+            telemetry_live=chassis_state == "LIVE",
+        )
         if safety != self._last_safety_banner:
             self._events.add_event("SAFETY", safety)
             self._last_safety_banner = safety
@@ -996,8 +1036,14 @@ class OperatorConsole(Gtk.Window):
             f"YOLO {yolo}  ·  POWER {telemetry}  ·  CHASSIS {chassis_state}  ·  "
             f"ODOM {odom}  ·  DRIVE {drive}  ·  CAN {can}"
         )
+        mask_markup = ""
+        if mask_text is not None:
+            mask_markup = (
+                "  |  <span foreground='#d97706' weight='bold'>"
+                f"{GLib.markup_escape_text(mask_text)}</span>"
+            )
         self._health.set_markup(
-            f"{GLib.markup_escape_text(health)}  |  "
+            f"{GLib.markup_escape_text(health)}{mask_markup}  |  "
             f"<span foreground='{safety_color}' weight='bold'>"
             f"{GLib.markup_escape_text(safety)}</span>"
         )

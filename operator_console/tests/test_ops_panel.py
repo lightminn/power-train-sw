@@ -106,6 +106,68 @@ def test_extraction_grant_is_strip_below_arm_with_strong_warning_copy():
     assert extraction_index == arm_index + 1
 
 
+def test_component_mask_actions_are_four_bool_strips_before_arm_override():
+    expected = (
+        ("drive_enable", "Drive motors"),
+        ("steer_enable", "Steer motors"),
+        ("us100_enable", "US-100 safety"),
+        ("robot_arm_enable", "Robot arm"),
+    )
+    extraction_index = next(
+        index for index, item in enumerate(PANEL_ACTIONS)
+        if item.action == "extraction_grant"
+    )
+    override_index = next(
+        index for index, item in enumerate(PANEL_ACTIONS)
+        if item.action == "arm_lock_override"
+    )
+
+    for action_name, label in expected:
+        action = _action(action_name)
+        action_index = PANEL_ACTIONS.index(action)
+        assert action.label == label
+        assert action.gesture == GESTURE_STRIP
+        assert action.needs_bool is True
+        assert extraction_index < action_index < override_index
+
+
+def test_us100_disable_confirmation_names_lost_automatic_stop():
+    copy = _action("us100_enable").confirm_text
+
+    assert "충돌 안전 센서" in copy
+    assert "자동 정지 없음" in copy
+
+
+@pytest.mark.parametrize(
+    ("current_enabled", "submitted_enabled"),
+    ((True, False), (False, True)),
+)
+def test_component_mask_action_submits_inverse_of_snapshotted_state(
+    current_enabled,
+    submitted_enabled,
+):
+    source = StateSource({
+        "revision": 12,
+        "component_mask": {"drive": current_enabled},
+    })
+    flow = _flow(source)
+
+    flow.begin("drive_enable")
+
+    assert flow.confirm("drive_enable") == {
+        "action": "drive_enable",
+        "params": {"data": submitted_enabled},
+        "expected_state_revision": 12,
+    }
+
+
+def test_component_mask_action_cannot_begin_without_component_state():
+    flow = _flow(StateSource({"revision": 13}))
+
+    with pytest.raises(RuntimeError, match="component mask unavailable"):
+        flow.begin("drive_enable")
+
+
 def test_arm_lock_override_requires_bool_param_and_strong_confirmation_copy():
     action = _action("arm_lock_override")
     source = StateSource({"revision": 11})

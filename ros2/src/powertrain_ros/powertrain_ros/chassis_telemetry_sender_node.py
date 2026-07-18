@@ -15,6 +15,7 @@ import time
 import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from std_msgs.msg import String
 
 from l515_dashboard.client import GatewayClient
 from powertrain_msgs.msg import SafetyVerdict, WheelStates
@@ -22,7 +23,9 @@ from powertrain_observability.client import ObservabilityClient
 from powertrain_ros import console_can_status
 from powertrain_ros.chassis_telemetry import (
     LatestPollWorker,
+    component_mask_payload_value,
     encode_telemetry_payload,
+    parse_component_mask_state,
 )
 
 
@@ -54,6 +57,8 @@ class ChassisTelemetrySender(Node):
         self._odom_at: float | None = None
         self._safety: SafetyVerdict | None = None
         self._safety_at: float | None = None
+        self._component_mask: dict[str, bool] | None = None
+        self._component_mask_at: float | None = None
         self._gateway = GatewayClient("@powertrain-l515-gateway", request_timeout_s=0.5)
         self._l515: dict[str, object] = {}
         self._observability = ObservabilityClient(request_timeout_s=0.5)
@@ -74,6 +79,12 @@ class ChassisTelemetrySender(Node):
         self.create_subscription(WheelStates, "/wheel_states", self._on_wheels, 10)
         self.create_subscription(Odometry, "/odom", self._on_odom, 10)
         self.create_subscription(SafetyVerdict, "/safety_verdict", self._on_safety, 10)
+        self.create_subscription(
+            String,
+            "/chassis/safety_state",
+            self._on_safety_state,
+            10,
+        )
         self.create_timer(1.0 / hz, self._send)
 
     def _on_wheels(self, message: WheelStates) -> None:
@@ -87,6 +98,18 @@ class ChassisTelemetrySender(Node):
     def _on_safety(self, message: SafetyVerdict) -> None:
         self._safety = message
         self._safety_at = time.monotonic()
+
+    def _on_safety_state(self, message: String) -> None:
+        try:
+            component_mask = parse_component_mask_state(message.data)
+        except (TypeError, ValueError) as exc:
+            self.get_logger().warning(
+                f"invalid /chassis/safety_state ignored: {exc}",
+                throttle_duration_sec=5.0,
+            )
+            return
+        self._component_mask = component_mask
+        self._component_mask_at = time.monotonic()
 
     def _poll_l515(self):
         try:
@@ -159,6 +182,11 @@ class ChassisTelemetrySender(Node):
         wheels = self._wheels if self._fresh(self._wheels_at, now) else None
         odom = self._odom if self._fresh(self._odom_at, now) else None
         safety = self._safety if self._fresh(self._safety_at, now) else None
+        component_mask = component_mask_payload_value(
+            self._component_mask,
+            updated_s=self._component_mask_at,
+            now_s=now,
+        )
         if odom is None:
             x_m = y_m = yaw_rad = None
             odometry_source = "unavailable"
@@ -212,6 +240,7 @@ class ChassisTelemetrySender(Node):
             "safety_estop_required": None if safety is None else safety.estop_required,
             "safety_consecutive_failures": None if safety is None else safety.consecutive_failures,
             "safety_detail": "" if safety is None else safety.detail,
+            "component_mask": component_mask,
             "wheel_count": None if wheels is None else len(wheel_feedback),
             "wheel_fault_count": None if wheels is None else sum(
                 wheel.corner_mode == "FAULT" for wheel in wheel_feedback),

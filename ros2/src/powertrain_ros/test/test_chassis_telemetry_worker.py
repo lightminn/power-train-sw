@@ -89,3 +89,55 @@ def test_encoder_accepts_frozen_status_client_mappings():
     decoded = json.loads(chassis_telemetry.encode_telemetry_payload(payload))
     assert decoded["l515_ros_topic_rates_hz"] == {"color": 30.0}
     assert decoded["nested"] == [{"inner": 1}]
+
+
+def test_safety_state_component_mask_parser_and_fresh_payload_gate():
+    parse_mask = getattr(chassis_telemetry, "parse_component_mask_state", None)
+    payload_value = getattr(chassis_telemetry, "component_mask_payload_value", None)
+    assert parse_mask is not None, "component mask state parser is missing"
+    assert payload_value is not None, "component mask freshness helper is missing"
+    mask = parse_mask(
+        '{"component_mask":{"drive":true,"steer":false,'
+        '"us100":true,"robot_arm":false}}'
+    )
+
+    assert mask == {
+        "drive": True,
+        "steer": False,
+        "us100": True,
+        "robot_arm": False,
+    }
+    assert payload_value(mask, updated_s=10.0, now_s=10.5) == mask
+    assert payload_value(mask, updated_s=10.0, now_s=11.01) is None
+
+
+def test_bounded_encoder_retains_component_mask_in_truncated_summary():
+    mask = {
+        "drive": False,
+        "steer": True,
+        "us100": False,
+        "robot_arm": True,
+    }
+    raw = chassis_telemetry.encode_telemetry_payload({
+        "schema_version": 1,
+        "sequence": 21,
+        "component_mask": mask,
+        "wheel_statuses": [{"name": "w" * 5000}],
+        "safety_detail": "s" * 5000,
+        "unexpected_structure": {str(index): "x" * 500 for index in range(20)},
+    })
+
+    decoded = __import__("json").loads(raw)
+    assert decoded["truncated"] is True
+    assert decoded["component_mask"] == mask
+
+
+def test_sender_subscribes_to_safety_state_and_mirrors_component_mask():
+    source = (
+        Path(__file__).parents[1]
+        / "powertrain_ros"
+        / "chassis_telemetry_sender_node.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"/chassis/safety_state"' in source
+    assert '"component_mask": component_mask' in source

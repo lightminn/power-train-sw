@@ -14,6 +14,34 @@ MAX_TELEMETRY_BYTES = 4096
 MAX_TEXT_CHARS = 256
 
 
+def parse_component_mask_state(raw: str) -> dict[str, bool]:
+    """Extract a strict bool-valued component mask from safety-state JSON."""
+    payload = json.loads(raw)
+    if not isinstance(payload, dict):
+        raise ValueError("safety state must be an object")
+    raw_mask = payload.get("component_mask")
+    if not isinstance(raw_mask, dict):
+        raise ValueError("component_mask must be an object")
+    component_mask: dict[str, bool] = {}
+    for component, enabled in raw_mask.items():
+        if not isinstance(component, str) or not isinstance(enabled, bool):
+            raise ValueError("component_mask values must be bool")
+        component_mask[component] = enabled
+    return component_mask
+
+
+def component_mask_payload_value(
+    component_mask: Mapping[str, bool] | None,
+    *,
+    updated_s: float | None,
+    now_s: float,
+) -> dict[str, bool] | None:
+    """Mirror a defensive copy only while the safety-state source is fresh."""
+    if updated_s is None or component_mask is None or now_s - updated_s > 1.0:
+        return None
+    return dict(component_mask)
+
+
 @dataclass(frozen=True)
 class PollCache:
     value: object | None
@@ -118,7 +146,7 @@ def encode_telemetry_payload(payload: dict[str, object]) -> bytes:
         "yaw_rad", "drive_state", "can_state", "l515_state", "l515_detail",
         "l515_mode", "safety_status", "safety_distance_mm",
         "safety_estop_required", "safety_consecutive_failures",
-        "safety_detail", "wheel_count", "wheel_fault_count",
+        "safety_detail", "component_mask", "wheel_count", "wheel_fault_count",
         "wheel_stale_count", "wheel_axis_error_count",
         "wheel_steer_fault_count",
     )

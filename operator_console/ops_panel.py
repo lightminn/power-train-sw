@@ -22,6 +22,7 @@ class PanelAction:
     gesture: str
     needs_bool: bool = False
     confirm_text: str = ""
+    bool_value_from_state: Callable[[dict[str, Any]], bool] | None = None
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,33 @@ class ConfirmState:
     revision: int
     state_snapshot: dict[str, Any]
     params: dict[str, Any]
+
+
+def component_mask_from_state(
+    state: Mapping[str, Any] | None,
+) -> dict[str, bool] | None:
+    """Return a validated component mask from one ops-state snapshot."""
+    if state is None:
+        return None
+    raw_mask = state.get("component_mask")
+    if not isinstance(raw_mask, Mapping):
+        return None
+    component_mask: dict[str, bool] = {}
+    for component, enabled in raw_mask.items():
+        if not isinstance(component, str) or not isinstance(enabled, bool):
+            return None
+        component_mask[component] = enabled
+    return component_mask
+
+
+def _component_toggle_value(component: str) -> Callable[[dict[str, Any]], bool]:
+    def value_from_state(state: dict[str, Any]) -> bool:
+        component_mask = component_mask_from_state(state)
+        if component_mask is None or component not in component_mask:
+            raise RuntimeError("component mask unavailable")
+        return not component_mask[component]
+
+    return value_from_state
 
 
 PANEL_ACTIONS: tuple[PanelAction, ...] = (
@@ -92,6 +120,38 @@ PANEL_ACTIONS: tuple[PanelAction, ...] = (
         "Disarm",
         GESTURE_STRIP,
         confirm_text="Disarm the chassis and return to IDLE?",
+    ),
+    PanelAction(
+        "drive_enable",
+        "Drive motors",
+        GESTURE_STRIP,
+        needs_bool=True,
+        confirm_text="Toggle drive motor participation for this session?",
+        bool_value_from_state=_component_toggle_value("drive"),
+    ),
+    PanelAction(
+        "steer_enable",
+        "Steer motors",
+        GESTURE_STRIP,
+        needs_bool=True,
+        confirm_text="Toggle steer motor participation for this session?",
+        bool_value_from_state=_component_toggle_value("steer"),
+    ),
+    PanelAction(
+        "us100_enable",
+        "US-100 safety",
+        GESTURE_STRIP,
+        needs_bool=True,
+        confirm_text="충돌 안전 센서를 끕니다 — 접근 시 자동 정지 없음",
+        bool_value_from_state=_component_toggle_value("us100"),
+    ),
+    PanelAction(
+        "robot_arm_enable",
+        "Robot arm",
+        GESTURE_STRIP,
+        needs_bool=True,
+        confirm_text="Toggle robot-arm participation for this session?",
+        bool_value_from_state=_component_toggle_value("robot_arm"),
     ),
     PanelAction(
         "arm_lock_override",
@@ -206,7 +266,10 @@ class ConfirmFlow:
         if state is None:
             raise RuntimeError("ops state unavailable")
         snapshot = deepcopy(dict(state))
-        params = {"data": True} if panel_action.needs_bool else {}
+        if panel_action.bool_value_from_state is not None:
+            params = {"data": panel_action.bool_value_from_state(snapshot)}
+        else:
+            params = {"data": True} if panel_action.needs_bool else {}
         self._pending = ConfirmState(
             action=panel_action.action,
             gesture=panel_action.gesture,

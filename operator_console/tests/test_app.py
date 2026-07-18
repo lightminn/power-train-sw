@@ -101,6 +101,75 @@ def test_telemetry_contract_keeps_us100_estop_reason():
     assert frame.safety_detail == "liveness_timeout"
 
 
+def test_telemetry_component_mask_is_optional_for_backward_compatibility():
+    frame = parse_telemetry(
+        b'{"schema_version":1,"sequence":14}',
+        received_monotonic_s=10.0,
+    )
+
+    assert frame.component_mask is None
+
+
+def test_telemetry_component_mask_round_trips_boolean_values():
+    frame = parse_telemetry(
+        b'{"schema_version":1,"sequence":15,"component_mask":'
+        b'{"drive":true,"steer":false,"us100":true,"robot_arm":false}}',
+        received_monotonic_s=10.0,
+    )
+
+    assert frame.component_mask == {
+        "drive": True,
+        "steer": False,
+        "us100": True,
+        "robot_arm": False,
+    }
+
+
+@pytest.mark.parametrize("invalid_value", (0, 1, "true", None))
+def test_telemetry_component_mask_rejects_non_boolean_values(invalid_value):
+    payload = {
+        "schema_version": 1,
+        "sequence": 16,
+        "component_mask": {"drive": invalid_value},
+    }
+
+    with pytest.raises(ValueError, match="component_mask"):
+        parse_telemetry(json.dumps(payload).encode("utf-8"))
+
+
+def test_mask_banner_lists_disabled_components_in_console_order():
+    banner_text = getattr(telemetry, "mask_banner_text", None)
+    assert banner_text is not None, "component mask banner helper is missing"
+    assert banner_text({
+        "robot_arm": True,
+        "us100": False,
+        "drive": False,
+        "steer": True,
+    }) == "MASK: DRIVE·US-100 OFF"
+    assert banner_text({
+        "drive": True,
+        "steer": True,
+        "us100": True,
+        "robot_arm": True,
+    }) is None
+
+
+def test_us100_mask_off_safety_banner_precedes_live_estop():
+    banner_state = getattr(telemetry, "safety_banner_state", None)
+    assert banner_state is not None, "safety banner helper is missing"
+    frame = parse_telemetry(
+        b'{"schema_version":1,"sequence":17,"safety_status":"NO_RESPONSE",'
+        b'"safety_estop_required":true,"safety_detail":"liveness_timeout"}',
+        received_monotonic_s=10.0,
+    )
+
+    assert banner_state(
+        frame,
+        component_mask={"us100": False},
+        telemetry_live=True,
+    ) == ("SAFETY DISABLED (US-100 OFF)", "#d97706")
+
+
 def test_telemetry_contract_keeps_rs485_failure_reason():
     frame = parse_telemetry(
         b'{"schema_version":1,"sequence":15,"rs485_state":"ERROR",'

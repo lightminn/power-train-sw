@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Mapping
 import json
 import socket
 import threading
@@ -62,6 +63,7 @@ class TelemetrySnapshot:
     safety_estop_required: bool | None
     safety_consecutive_failures: int | None
     safety_detail: str
+    component_mask: dict[str, bool] | None
     wheel_count: int | None
     wheel_fault_count: int | None
     wheel_stale_count: int | None
@@ -126,6 +128,20 @@ def _journal_tail(payload: dict[str, Any]) -> tuple[str, ...]:
     return tuple(str(line) for line in raw_tail)
 
 
+def _optional_component_mask(payload: dict[str, Any]) -> dict[str, bool] | None:
+    raw_mask = payload.get("component_mask")
+    if raw_mask is None:
+        return None
+    if not isinstance(raw_mask, dict):
+        raise ValueError("invalid component_mask")
+    component_mask: dict[str, bool] = {}
+    for component, enabled in raw_mask.items():
+        if not isinstance(component, str) or not isinstance(enabled, bool):
+            raise ValueError("invalid component_mask")
+        component_mask[component] = enabled
+    return component_mask
+
+
 def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> TelemetrySnapshot:
     """Validate telemetry v1; a missing physical source remains explicit None."""
     if len(raw) > 8192:
@@ -169,6 +185,7 @@ def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> Te
                                else bool(payload["safety_estop_required"])),
         safety_consecutive_failures=_optional_int(payload, "safety_consecutive_failures"),
         safety_detail=str(payload.get("safety_detail", "")),
+        component_mask=_optional_component_mask(payload),
         wheel_count=_optional_int(payload, "wheel_count"),
         wheel_fault_count=_optional_int(payload, "wheel_fault_count"),
         wheel_stale_count=_optional_int(payload, "wheel_stale_count"),
@@ -178,6 +195,43 @@ def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> Te
         truncated=payload.get("truncated") is True,
         received_monotonic_s=time.monotonic() if received_monotonic_s is None else received_monotonic_s,
     )
+
+
+_COMPONENT_BANNER_LABELS = (
+    ("drive", "DRIVE"),
+    ("steer", "STEER"),
+    ("us100", "US-100"),
+    ("robot_arm", "ARM"),
+)
+
+
+def mask_banner_text(component_mask: Mapping[str, bool] | None) -> str | None:
+    """Render disabled component names in one stable operator-facing order."""
+    if component_mask is None:
+        return None
+    disabled = [
+        label
+        for component, label in _COMPONENT_BANNER_LABELS
+        if component_mask.get(component) is False
+    ]
+    return None if not disabled else "MASK: " + "·".join(disabled) + " OFF"
+
+
+def safety_banner_state(
+    snapshot: TelemetrySnapshot | None,
+    *,
+    component_mask: Mapping[str, bool] | None,
+    telemetry_live: bool,
+) -> tuple[str, str]:
+    """Return safety banner copy/color, with US-100 masking taking priority."""
+    if component_mask is not None and component_mask.get("us100") is False:
+        return "SAFETY DISABLED (US-100 OFF)", "#d97706"
+    if not telemetry_live or snapshot is None:
+        return "SAFETY UNAVAILABLE", "#d97706"
+    if snapshot.safety_estop_required:
+        detail = snapshot.safety_detail or "no detail"
+        return f"SAFETY ESTOP · {snapshot.safety_status} · {detail}", "#dc2626"
+    return f"SAFETY CLEAR · {snapshot.safety_status}", "#16a34a"
 
 
 def chassis_component_states(
