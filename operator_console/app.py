@@ -706,7 +706,10 @@ class OpsPanel(Gtk.Frame):
         self._latest_chassis_mode = "UNKNOWN"
         self._latest_estop_source = ""
         self._latest_estop_detail = ""
-        self._last_estop_cause_key: tuple[str, str] | None = None
+        self._latest_active_estop_sources: tuple[str, ...] = ()
+        self._last_estop_cause_key: (
+            tuple[str, str, tuple[str, ...]] | None
+        ) = None
         self._latest_ack_text = "없음"
         self._action_buttons: dict[str, Gtk.Button] = {}
 
@@ -841,12 +844,16 @@ class OpsPanel(Gtk.Frame):
         chassis_mode = getattr(self, "_latest_chassis_mode", "UNKNOWN")
         estop_source = getattr(self, "_latest_estop_source", "")
         estop_detail = getattr(self, "_latest_estop_detail", "")
+        active_estop_sources = getattr(
+            self, "_latest_active_estop_sources", ()
+        )
         latest_ack = getattr(self, "_latest_ack_text", "없음")
         label.set_text(format_ops_status_line(
             chassis_mode,
             latest_ack,
             estop_source,
             estop_detail,
+            active_estop_sources,
         ))
 
     def _emit(self, message: str) -> None:
@@ -989,14 +996,20 @@ class OpsPanel(Gtk.Frame):
         chassis_mode = str(state.get("chassis_mode", "UNKNOWN"))
         estop_source = str(state.get("estop_source", ""))
         estop_detail = str(state.get("estop_detail", ""))
+        active_estop_sources = tuple(
+            str(source)
+            for source in (state.get("active_estop_sources", ()) or ())
+        )
         self._latest_chassis_mode = chassis_mode
         self._latest_estop_source = estop_source
         self._latest_estop_detail = estop_detail
+        self._latest_active_estop_sources = active_estop_sources
         event_key, event_message = next_estop_cause_event(
             getattr(self, "_last_estop_cause_key", None),
             chassis_mode=chassis_mode,
             estop_source=estop_source,
             estop_detail=estop_detail,
+            active_estop_sources=active_estop_sources,
         )
         self._last_estop_cause_key = event_key
         if event_message is not None:

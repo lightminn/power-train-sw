@@ -28,7 +28,11 @@ def estop_source_korean(source: str) -> str:
         # us100 소스는 근접 감지와 센서 무응답 latch를 모두 담는다 — 구체
         # 사유는 괄호의 detail(near/reader_not_started 등)이 말해준다.
         "us100": "US-100 안전 센서",
+        "us100_checking": "US-100 점검 중",
         "safety_topic_stale": "안전 센서 링크 두절",
+        "robot_arm": "로봇팔 연동 정지",
+        "cmd_watchdog": "명령 두절",
+        "boot_qualification": "부팅 자격화 미충족",
         "console": "콘솔 비상정지 버튼",
         "manual_service": "수동 비상정지",
         "corner_fault": "모터(코너) 결함",

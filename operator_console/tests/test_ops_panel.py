@@ -350,15 +350,29 @@ def test_estop_source_korean_covers_known_empty_and_unknown_sources(
     assert estop_source_korean(source) == expected
 
 
-def test_estop_status_line_shows_korean_source_and_raw_detail():
+def test_estop_status_line_prioritizes_active_sources_and_details_first_source():
     assert ops_panel.format_ops_status_line(
         "ESTOP",
         "없음",
-        "corner_fault",
-        "front_left stale",
+        "us100",
+        "75 mm",
+        ("us100", "robot_arm"),
     ) == (
-        "모드: 비상정지(ESTOP) — 원인: 모터(코너) 결함 "
-        "(front_left stale) · 최근: 없음"
+        "모드: 비상정지(ESTOP) — 원인(활성): US-100 안전 센서 "
+        "(75 mm) · 로봇팔 연동 정지 · 최근: 없음"
+    )
+
+
+def test_estop_status_line_marks_cleared_latch_as_resettable():
+    assert ops_panel.format_ops_status_line(
+        "ESTOP",
+        "없음",
+        "us100",
+        "75 mm",
+        (),
+    ) == (
+        "모드: 비상정지(ESTOP) — 원인(최초): US-100 안전 센서 "
+        "(75 mm) · 활성 조건 없음 — 경고 초기화 가능 · 최근: 없음"
     )
 
 
@@ -368,10 +382,11 @@ def test_non_estop_status_line_preserves_existing_copy():
         "성공",
         "console",
         "ignored outside ESTOP",
+        ("robot_arm",),
     ) == "모드: 대기(IDLE) · 최근: 성공"
 
 
-def test_estop_cause_event_deduplicates_repeats_and_rearms_after_clear():
+def test_estop_cause_event_refires_once_when_active_composition_changes():
     previous = None
 
     previous, event = ops_panel.next_estop_cause_event(
@@ -379,6 +394,7 @@ def test_estop_cause_event_deduplicates_repeats_and_rearms_after_clear():
         chassis_mode="ESTOP",
         estop_source="us100",
         estop_detail="75 mm",
+        active_estop_sources=("us100", "robot_arm"),
     )
     assert event == "비상정지 원인: US-100 안전 센서 (75 mm)"
 
@@ -387,22 +403,44 @@ def test_estop_cause_event_deduplicates_repeats_and_rearms_after_clear():
         chassis_mode="ESTOP",
         estop_source="us100",
         estop_detail="75 mm",
+        active_estop_sources=("robot_arm", "us100"),
     )
     assert event is None
 
     previous, event = ops_panel.next_estop_cause_event(
         previous,
         chassis_mode="ESTOP",
-        estop_source="corner_fault",
-        estop_detail="front_left stale",
+        estop_source="us100",
+        estop_detail="75 mm",
+        active_estop_sources=("robot_arm",),
     )
-    assert event == "비상정지 원인: 모터(코너) 결함 (front_left stale)"
+    assert event == "비상정지 원인: US-100 안전 센서 (75 mm)"
+
+    previous, event = ops_panel.next_estop_cause_event(
+        previous,
+        chassis_mode="ESTOP",
+        estop_source="us100",
+        estop_detail="75 mm",
+        active_estop_sources=("robot_arm",),
+    )
+    assert event is None
+
+
+def test_estop_cause_event_rearms_after_clear():
+    previous, _event = ops_panel.next_estop_cause_event(
+        None,
+        chassis_mode="ESTOP",
+        estop_source="us100",
+        estop_detail="75 mm",
+        active_estop_sources=("us100",),
+    )
 
     previous, event = ops_panel.next_estop_cause_event(
         previous,
         chassis_mode="IDLE",
         estop_source="",
         estop_detail="",
+        active_estop_sources=(),
     )
     assert previous is None
     assert event is None
@@ -412,5 +450,6 @@ def test_estop_cause_event_deduplicates_repeats_and_rearms_after_clear():
         chassis_mode="ESTOP",
         estop_source="us100",
         estop_detail="75 mm",
+        active_estop_sources=("us100",),
     )
     assert event == "비상정지 원인: US-100 안전 센서 (75 mm)"

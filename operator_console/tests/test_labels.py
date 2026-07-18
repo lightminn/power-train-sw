@@ -5,6 +5,7 @@ from operator_console.labels import (
     OFF_LABEL,
     ON_LABEL,
     ack_korean,
+    estop_source_korean,
     freshness_korean,
     mode_korean,
 )
@@ -31,6 +32,23 @@ def test_component_and_toggle_labels_match_operator_copy():
 )
 def test_mode_korean_maps_known_modes_and_preserves_unknown(mode, expected):
     assert mode_korean(mode) == expected
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    (
+        ("robot_arm", "로봇팔 연동 정지"),
+        ("cmd_watchdog", "명령 두절"),
+        ("us100_checking", "US-100 점검 중"),
+        ("boot_qualification", "부팅 자격화 미충족"),
+        ("unmapped_source", "unmapped_source"),
+    ),
+)
+def test_estop_source_korean_maps_real_interlock_sources_and_preserves_unknown(
+    source,
+    expected,
+):
+    assert estop_source_korean(source) == expected
 
 
 @pytest.mark.parametrize(

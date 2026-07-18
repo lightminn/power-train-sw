@@ -34,31 +34,48 @@ def format_ops_status_line(
     latest_ack: str,
     estop_source: str = "",
     estop_detail: str = "",
+    active_estop_sources=(),
 ) -> str:
     """Build the Gtk-free operator status line for the latest ops state."""
     mode_text = str(chassis_mode)
     if mode_text == "ESTOP":
+        active_sources = tuple(str(source) for source in active_estop_sources)
+        if active_sources:
+            cause_text = " · ".join(
+                _estop_cause_text(
+                    source,
+                    estop_detail if source == str(estop_source) else "",
+                )
+                for source in active_sources
+            )
+            return (
+                f"모드: {mode_korean(mode_text)} — 원인(활성): "
+                f"{cause_text} · 최근: {latest_ack}"
+            )
         return (
-            f"모드: {mode_korean(mode_text)} — 원인: "
+            f"모드: {mode_korean(mode_text)} — 원인(최초): "
             f"{_estop_cause_text(estop_source, estop_detail)} · "
+            f"활성 조건 없음 — 경고 초기화 가능 · "
             f"최근: {latest_ack}"
         )
     return f"모드: {mode_korean(mode_text)} · 최근: {latest_ack}"
 
 
 def next_estop_cause_event(
-    previous_key: tuple[str, str] | None,
+    previous_key: tuple[str, str, tuple[str, ...]] | None,
     *,
     chassis_mode: str,
     estop_source: str,
     estop_detail: str,
-) -> tuple[tuple[str, str] | None, str | None]:
+    active_estop_sources=(),
+) -> tuple[tuple[str, str, tuple[str, ...]] | None, str | None]:
     """Return one event only when the visible latched E-stop cause changes."""
     source_text = str(estop_source)
     detail_text = str(estop_detail)
     if str(chassis_mode) != "ESTOP" or not source_text:
         return None, None
-    current_key = (source_text, detail_text)
+    active_sources = tuple(sorted(str(source) for source in active_estop_sources))
+    current_key = (source_text, detail_text, active_sources)
     if current_key == previous_key:
         return current_key, None
     return (
