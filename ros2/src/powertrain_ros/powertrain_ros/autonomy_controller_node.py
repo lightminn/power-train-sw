@@ -64,6 +64,13 @@ from powertrain_autonomy.terrain.depth_quality import (  # noqa: E402
 )
 from powertrain_observability.client import EventClient  # noqa: E402
 
+# L515 depth 스케일 = 1/4000 m/unit. D400 계열의 0.001 이 **아니다**.
+# Gateway 는 raw Z16 을 16UC1 로 그대로 발행하므로, 같은
+# /l515/depth/image_rect_raw 를 읽는 l515_cloud_node.DEPTH_SCALE_M 과 반드시
+# 같은 값이어야 한다. 틀리면 모든 지형 거리가 4배로 나온다.
+# (두 값의 일치는 test_l515_depth_scale.py 가 강제한다.)
+L515_DEPTH_SCALE_M = 0.00025
+
 
 _TARGET_HEIGHT = 60
 _TARGET_WIDTH = 80
@@ -128,6 +135,16 @@ class AutonomyControllerNode(Node):
         self.declare_parameter("camera_x_m", 0.0)
         self.declare_parameter("camera_yaw_deg", 0.0)
         self.declare_parameter("min_confidence", 0.25)
+        # L515 는 1/4000 m/unit. D400 계열의 0.001 이 아니다 — 틀리면 모든 지형
+        # 거리가 4배로 나온다. Gateway 는 raw Z16 을 16UC1 로 그대로 발행하므로
+        # 이 노드와 l515_cloud_node 는 같은 /l515/depth/image_rect_raw 를 같은
+        # 스케일로 읽어야 한다 (l515_cloud_node.DEPTH_SCALE_M 과 동일 값).
+        self.declare_parameter("depth_scale_m", L515_DEPTH_SCALE_M)
+
+        depth_scale_m = float(self.get_parameter("depth_scale_m").value)
+        if not math.isfinite(depth_scale_m) or depth_scale_m <= 0.0:
+            raise ValueError("depth_scale_m must be finite and positive")
+        self._depth_scale_m = depth_scale_m
 
         tick_hz = float(self.get_parameter("tick_hz").value)
         if not math.isfinite(tick_hz) or tick_hz <= 0.0:
@@ -489,7 +506,7 @@ class AutonomyControllerNode(Node):
         sampled = raw[np.ix_(row_indices, col_indices)].copy()
         frame = TerrainFrame(
             depth_roi=sampled,
-            depth_scale_m=0.001,
+            depth_scale_m=self._depth_scale_m,
             intrinsics=intrinsics,
             stamp_s=_stamp_s(message.header.stamp),
         )
