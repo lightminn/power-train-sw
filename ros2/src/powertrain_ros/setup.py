@@ -69,6 +69,7 @@ setup(
             "teleop_command = powertrain_ros.teleop_command_node:main",
             "ops_broker = powertrain_ros.ops_broker_node:main",
             "chassis_telemetry = powertrain_ros.chassis_telemetry_sender_node:main",
+            "arm_console_bridge = powertrain_ros.arm_console_bridge_node:main",
         ],
     },
 )
