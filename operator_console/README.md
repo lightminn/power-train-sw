@@ -49,6 +49,9 @@ Use the system interpreter explicitly: a conda-base `python3` has no GTK
 bindings (`gi`) and dies with ModuleNotFoundError. The systemd unit already
 pins `/usr/bin/python3`.
 
+If startup fails with `no element "gtksink"`, install `gst-plugin-gtk` —
+Arch split the GTK3 sink out of gst-plugins-good (bit us 2026-07-18).
+
 The ops broker defaults to the same host on TCP `:9001`, with its token read
 from `~/.config/powertrain/ops_console.token`. Override these independently
 with `--ops-host`, `--ops-port`, and `--ops-token-file`. If the token file is
