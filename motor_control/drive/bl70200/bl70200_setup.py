@@ -25,6 +25,7 @@ CFG = dict(
     cpr=60, bandwidth=30.0, calib_scan_omega=6.0, calib_scan_distance=150.0,
     pos_gain=2.0, vel_gain=0.12, vel_integrator_gain=0.2, input_filter_bandwidth=2.0,
     vel_limit=50.0, vel_ramp_rate=2.0, uv=40.0, ov=56.0, brake=2.0, node=11, baud=500000,
+    can_heartbeat_rate_ms=20,                    # fw 0.5.1 CAN heartbeat 50 Hz
     # marginal HALL 이 폐루프 회전 중 순간 illegal state(000/111) 읽으면 axis 0x100
     # ENCODER_FAILED 로 트립 → 직전 유효상태 유지로 트립 방지(밴드에이드; 근본은 HALL 접지/
     # 필터캡 HW 보강). 2026-07-04 6축 CAN 주행에서 node12 가 이 플래그 없어 트립해 추가.
@@ -34,6 +35,10 @@ CFG = dict(
 
 def read(ax, odrv):
     m, e, c = ax.motor.config, ax.encoder.config, ax.controller.config
+    try:
+        heartbeat_rate_ms = ax.config.can_heartbeat_rate_ms
+    except AttributeError:
+        heartbeat_rate_ms = ax.config.can.heartbeat_rate_ms
     print("fw %d.%d.%d  vbus=%.1f" % (odrv.fw_version_major, odrv.fw_version_minor,
                                       odrv.fw_version_revision, odrv.vbus_voltage))
     print("motor   type=%s pp=%s current_lim=%.1f torque_constant=%.4f"
@@ -42,9 +47,10 @@ def read(ax, odrv):
           % (e.mode, e.cpr, e.bandwidth, e.calib_scan_omega, e.ignore_illegal_hall_state))
     print("ctrl    pos=%.2f vel=%.4f vel_int=%.2f ifbw=%.1f vel_limit=%.0f"
           % (c.pos_gain, c.vel_gain, c.vel_integrator_gain, c.input_filter_bandwidth, c.vel_limit))
-    print("board   UV=%.0f OV=%.0f brake=%.1f | cal: motor=%s encoder=%s"
+    print("board   UV=%.0f OV=%.0f brake=%.1f hb=%sms | cal: motor=%s encoder=%s"
           % (odrv.config.dc_bus_undervoltage_trip_level, odrv.config.dc_bus_overvoltage_trip_level,
-             odrv.config.brake_resistance, ax.motor.is_calibrated, ax.encoder.is_ready))
+             odrv.config.brake_resistance, heartbeat_rate_ms,
+             ax.motor.is_calibrated, ax.encoder.is_ready))
 
 
 def _load_odrive():
@@ -100,6 +106,10 @@ def apply(ax, odrv, *, node=None, enums=None, save=True):
         ax.config.can_node_id = node
     except AttributeError:
         ax.config.can.node_id = node                 # 이 빌드 폴백
+    try:
+        ax.config.can_heartbeat_rate_ms = CFG["can_heartbeat_rate_ms"]
+    except AttributeError:
+        ax.config.can.heartbeat_rate_ms = CFG["can_heartbeat_rate_ms"]
     ax.config.startup_motor_calibration = False      # 부팅 자동진입 금지
     ax.config.startup_encoder_offset_calibration = False
     ax.config.startup_closed_loop_control = False
