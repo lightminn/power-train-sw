@@ -148,9 +148,20 @@ class OpsChannelClient:
         clock=time.monotonic,
         connector=open_ops_socket,
         sleep_fn=time.sleep,
+        client_id=None,
     ):
         if token is None or not str(token).strip():
             raise ValueError("ops token must be non-empty")
+        # 서버는 (token, client_id) 로 신원을 고정하고 그 신원에 멱등 캐시와
+        # status_query 를 스코프한다. 연결마다 새 값이면 재연결 시 같은
+        # request_id 가 다시 실행되므로, **재연결 간 변하지 않아야 한다**.
+        # 인스턴스당 1회 생성이 그 조건을 만족한다. 프로세스 재시작 간에도
+        # 유지하려면 호출자가 영속 값을 넘긴다.
+        self.client_id = (
+            str(uuid.uuid4()) if client_id is None else str(client_id).strip()
+        )
+        if not self.client_id:
+            raise ValueError("client_id must be non-empty")
         self.host = str(host)
         self.port = int(port)
         self.token = str(token).strip()
@@ -173,6 +184,8 @@ class OpsChannelClient:
                     "schema_version": OPS_SCHEMA_VERSION,
                     "hello": True,
                     "token": self.token,
+                    "client_id": self.client_id,
+                    "stamp_s": float(self.clock()),
                 },
                 separators=(",", ":"),
                 sort_keys=True,

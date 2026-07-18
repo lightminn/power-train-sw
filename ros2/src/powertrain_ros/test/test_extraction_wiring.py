@@ -81,7 +81,16 @@ def test_extraction_grant_callback_reports_snapshot_reject_reason():
 
 
 def test_extraction_parameter_and_service_source_contract():
-    assert 'self.declare_parameter("extraction_enabled", False)' in SOURCE
+    tree = ast.parse(SOURCE)
+    assert any(
+        isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr == "declare_parameter"
+        and len(call.args) >= 2
+        and ast.literal_eval(call.args[0]) == "extraction_enabled"
+        and ast.literal_eval(call.args[1]) is False
+        for call in ast.walk(tree)
+    )
     assert 'self.get_parameter("extraction_enabled").value' in SOURCE
     assert "extraction_enabled=extraction_enabled" in SOURCE
     assert '"~/extraction_grant"' in SOURCE

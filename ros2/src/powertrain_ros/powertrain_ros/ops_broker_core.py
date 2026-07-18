@@ -5,6 +5,9 @@
 """
 from dataclasses import dataclass, field
 import collections
+import hashlib
+import json
+import math
 import uuid
 
 from powertrain_ros import ops_contract as oc
@@ -61,7 +64,9 @@ class OpsBrokerCore:
         self._cache_size = int(cache_size)
         self._rate_limit = int(rate_limit_per_s)
         self.boot_id = uuid.uuid4().hex
-        self._sequences = {}                 # client_key -> last sequence
+        # transport key -> (stable authenticated identity, role, clock offset)
+        self._sessions = {}
+        self._sequences = {}                 # client identity -> last sequence
         # (client,rid) -> (request fingerprint, pending_key, bytes|None)
         self._cache = collections.OrderedDict()
         self._order_generation = 0
@@ -69,7 +74,7 @@ class OpsBrokerCore:
         self._pending_requests = {}
         self._latest_requests = {}           # (client,rid) -> pending_key
         self._pending_order = None           # ExecutionOrder | None
-        self._rate_window = {}               # client_key -> (window_s, count)
+        self._rate_window = {}               # client identity -> window/count
         self._emergency = {}                 # (client,action) -> begin_s
 
     # -- 응답 헬퍼 ------------------------------------------------------
@@ -83,10 +88,16 @@ class OpsBrokerCore:
         )
 
     # -- 핸드셰이크 -----------------------------------------------------
+    @staticmethod
+    def _token_identity(token):
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def _client_identity(cls, token, client_id):
+        return cls._token_identity(token), client_id
+
     def handshake(self, client_key, line):
         try:
-            import json
-
             payload = json.loads(line)
             token = payload.get("token")
             is_hello = bool(payload.get("hello"))
@@ -97,12 +108,67 @@ class OpsBrokerCore:
         role = self._token_roles.get(token)
         if role is None:
             return None, self._reject("hello", "unauthorized token")
-        self._sequences.setdefault(client_key, -1)
+        client_id = payload.get("client_id")
+        if not isinstance(client_id, str) or not client_id.strip():
+            return None, self._reject(
+                "hello", "client_id must be a non-empty string"
+            )
+        client_id = client_id.strip()
+        offset_s = None
+        if "stamp_s" in payload:
+            try:
+                client_stamp_s = float(payload["stamp_s"])
+            except (TypeError, ValueError):
+                return None, self._reject(
+                    "hello", "invalid handshake stamp_s"
+                )
+            if not math.isfinite(client_stamp_s):
+                return None, self._reject(
+                    "hello", "invalid handshake stamp_s"
+                )
+            offset_s = float(self._clock()) - client_stamp_s
+        identity = self._client_identity(token, client_id)
+        self._sessions[client_key] = (identity, role, offset_s)
+        self._sequences.setdefault(identity, -1)
         return role, oc.encode_response(
             request_id="hello", status=oc.STATUS_FINAL_SUCCESS,
             state_revision=self._revision(),
-            detail="role=%s broker_boot_id=%s" % (role, self.boot_id),
+            detail="role=%s broker_boot_id=%s clock_sync=%s" % (
+                role,
+                self.boot_id,
+                "ready" if offset_s is not None else "required",
+            ),
         )
+
+    def disconnect(self, client_key):
+        self._sessions.pop(client_key, None)
+
+    def _session(self, client_key, role, request):
+        session = self._sessions.get(client_key)
+        if session is None:
+            return None, self._reject(
+                request["request_id"], "handshake required"
+            )
+        identity, authenticated_role, offset_s = session
+        if authenticated_role != role \
+                or self._token_identity(request["token"]) != identity[0]:
+            return None, self._reject(
+                request["request_id"], "token/role mismatch"
+            )
+        return session, None
+
+    def _request_time_rejection(self, request, offset_s):
+        request_id = request["request_id"]
+        if offset_s is None:
+            return self._reject(request_id, "clock sync required")
+        now_s = float(self._clock())
+        server_stamp_s = float(request["stamp_s"]) + offset_s
+        age_s = now_s - server_stamp_s
+        if age_s > oc.REQUEST_DEADLINE_S:
+            return self._reject(request_id, "request deadline exceeded")
+        if age_s < -oc.REQUEST_FUTURE_SKEW_S:
+            return self._reject(request_id, "request stamp too far in future")
+        return None
 
     # -- 본 처리 --------------------------------------------------------
     def _rate_ok(self, client_key):
@@ -116,12 +182,16 @@ class OpsBrokerCore:
 
     @staticmethod
     def _request_fingerprint(role, request):
-        import json
-
         params = json.dumps(
             request["params"], separators=(",", ":"), sort_keys=True
         )
-        return role, request["action"], params
+        return (
+            role,
+            request["action"],
+            params,
+            request.get("expected_state_revision"),
+            request.get("phase"),
+        )
 
     def _cache_put(self, key, fingerprint, pending_key, response):
         self._cache[key] = (fingerprint, pending_key, response)
@@ -154,7 +224,14 @@ class OpsBrokerCore:
         except ValueError as exc:
             return Decision(response=self._reject("invalid", str(exc)))
         request_id = request["request_id"]
-        key = (client_key, request_id)
+        session, rejection = self._session(client_key, role, request)
+        if rejection is not None:
+            return Decision(response=rejection)
+        identity, role, offset_s = session
+        rejection = self._request_time_rejection(request, offset_s)
+        if rejection is not None:
+            return Decision(response=rejection)
+        key = (identity, request_id)
 
         if request["action"] == "estop":
             if self._token_roles.get(request["token"]) != role:
@@ -167,7 +244,7 @@ class OpsBrokerCore:
                 return Decision(response=authorized)
             return self._accept_order(key, role, request, spec)
 
-        if not self._rate_ok(client_key):
+        if not self._rate_ok(identity):
             return Decision(
                 response=self._reject(request_id, "rate limit exceeded")
             )
@@ -176,7 +253,7 @@ class OpsBrokerCore:
                 response=self._reject(request_id, "token/role mismatch")
             )
 
-        last = self._sequences.get(client_key, -1)
+        last = self._sequences.get(identity, -1)
         fingerprint = self._request_fingerprint(role, request)
         if key in self._cache:                    # 멱등 재전송
             cached_fingerprint, _, cached = self._cache[key]
@@ -194,7 +271,7 @@ class OpsBrokerCore:
             return Decision(
                 response=self._reject(request_id, "sequence regression")
             )
-        self._sequences[client_key] = request["sequence"]
+        self._sequences[identity] = request["sequence"]
 
         spec = oc.ACTIONS[request["action"]]
         emergency = self._authorize(role, request, spec)
@@ -202,7 +279,7 @@ class OpsBrokerCore:
             return Decision(response=emergency)
 
         if request["action"] == "status_query":
-            return Decision(response=self._status_query(request))
+            return Decision(response=self._status_query(identity, request))
 
         if "expected_state_revision" in request and (
             request["expected_state_revision"] != self._revision()
@@ -211,7 +288,7 @@ class OpsBrokerCore:
                 request_id, "state revision mismatch"
             ))
 
-        gate = self._precondition_gate(role, request, spec,
+        gate = self._precondition_gate(identity, role, request, spec,
                                        emergency=emergency)
         if gate is not None:
             return Decision(response=gate)
@@ -232,7 +309,9 @@ class OpsBrokerCore:
 
     _STOPPING_STATES = ("STOPPING_FOR_ARM", "STOPPING_FOR_DRIVE")
 
-    def _precondition_gate(self, role, request, spec, *, emergency):
+    def _precondition_gate(
+        self, identity, role, request, spec, *, emergency
+    ):
         request_id = request["request_id"]
         state = self._state()
         action = request["action"]
@@ -244,7 +323,7 @@ class OpsBrokerCore:
                     request_id, "emergency action requires phase"
                 )
             hold_s = oc.EMERGENCY_HOLD_S[action]
-            key = ("emergency", role, action)
+            key = ("emergency", identity, action)
             if phase == "begin":
                 self._emergency[key] = float(self._clock())
                 return oc.encode_response(
@@ -302,23 +381,22 @@ class OpsBrokerCore:
                 return self._reject(request_id, "auto preconditions not met")
         return None
 
-    def _status_query(self, request):
+    def _status_query(self, identity, request):
         target = request["params"].get("request_id")
-        for (client, rid), (_, _, cached) in reversed(self._cache.items()):
-            if rid == target:
-                if cached is None:
-                    return oc.encode_response(
-                        request_id=request["request_id"],
-                        status=oc.STATUS_PENDING,
-                        state_revision=self._revision(), detail="in flight",
-                    )
-                import json
-
-                body = json.loads(cached)
+        cached_entry = self._cache.get((identity, target))
+        if cached_entry is not None:
+            cached = cached_entry[2]
+            if cached is None:
                 return oc.encode_response(
-                    request_id=request["request_id"], status=body["status"],
-                    state_revision=self._revision(), detail=body["detail"],
+                    request_id=request["request_id"],
+                    status=oc.STATUS_PENDING,
+                    state_revision=self._revision(), detail="in flight",
                 )
+            body = json.loads(cached)
+            return oc.encode_response(
+                request_id=request["request_id"], status=body["status"],
+                state_revision=self._revision(), detail=body["detail"],
+            )
         return oc.encode_response(
             request_id=request["request_id"],
             status=oc.STATUS_OUTCOME_UNKNOWN,

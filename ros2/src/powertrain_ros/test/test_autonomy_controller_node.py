@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+from pathlib import Path
 import threading
 import time
 
@@ -24,6 +25,11 @@ from powertrain_autonomy.degradation import (
 from powertrain_ros.autonomy_controller_node import (
     L515_DEPTH_SCALE_M,
     AutonomyControllerNode,
+)
+
+
+_TEST_QUALIFICATION = (
+    Path(__file__).with_name("fixtures") / "l515_terrain_approved.yaml"
 )
 
 
@@ -244,6 +250,10 @@ def _controller(
         parameter_overrides=[
             Parameter("enabled", value=enabled),
             Parameter("drive_profile", value=drive_profile),
+            Parameter(
+                "terrain_qualification_file",
+                value=str(_TEST_QUALIFICATION),
+            ),
         ],
         event_client=event_client,
     )

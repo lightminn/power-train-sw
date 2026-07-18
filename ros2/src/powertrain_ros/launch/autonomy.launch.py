@@ -40,16 +40,50 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import Command, LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
+from powertrain_ros.terrain_qualification import (
+    require_command_guidance_qualified,
+)
+
+
+def _launch_bool(value: str) -> bool:
+    lowered = value.strip().lower()
+    if lowered in ("1", "true", "yes", "on"):
+        return True
+    if lowered in ("0", "false", "no", "off"):
+        return False
+    raise RuntimeError("propose must be a boolean")
+
+
+def _validate_command_guidance(context, *, qualification_path):
+    guidance = LaunchConfiguration("guidance").perform(context)
+    propose = _launch_bool(LaunchConfiguration("propose").perform(context))
+    try:
+        require_command_guidance_qualified(
+            guidance=guidance,
+            propose=propose,
+            qualification_path=qualification_path,
+        )
+    except ValueError as exc:
+        raise RuntimeError(
+            "command-producing guidance rejected: %s" % exc
+        ) from exc
+    return []
+
 
 def generate_launch_description():
     share = get_package_share_directory("powertrain_ros")
     xacro_path = os.path.join(share, "urdf", "jetin_rover.urdf.xacro")
+    terrain_qualification_file = os.path.join(
+        share,
+        "config",
+        "l515_terrain.yaml",
+    )
     robot_description = ParameterValue(Command(["xacro ", xacro_path]), value_type=str)
 
     guidance = LaunchConfiguration("guidance")
@@ -119,7 +153,10 @@ def generate_launch_description():
         Node(package="powertrain_ros", executable="autonomy_controller",
              name="autonomy_controller", output="screen",
              condition=IfCondition(terrain_on),
-             parameters=[{"enabled": LaunchConfiguration("propose")}]),
+             parameters=[{
+                 "enabled": LaunchConfiguration("propose"),
+                 "terrain_qualification_file": terrain_qualification_file,
+             }]),
     ]
 
     # ── 미션 (항상 — 계약 출력은 기본 false라 실물 팔에 도착 신호를 보내지 않는다) ──
@@ -138,4 +175,16 @@ def generate_launch_description():
                           "authority_enabled": True}]),
     ]
 
-    return LaunchDescription(args + state + perception + guidance_nodes + control + body)
+    qualification_gate = OpaqueFunction(
+        function=_validate_command_guidance,
+        kwargs={"qualification_path": terrain_qualification_file},
+    )
+    return LaunchDescription(
+        args
+        + [qualification_gate]
+        + state
+        + perception
+        + guidance_nodes
+        + control
+        + body
+    )

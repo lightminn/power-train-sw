@@ -17,7 +17,16 @@ def _source():
 
 def test_parameter_is_default_off_requires_authority_and_subscribes_state():
     source = _source()
-    assert 'declare_parameter("section_enforcement", False)' in source
+    tree = ast.parse(source)
+    assert any(
+        isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr == "declare_parameter"
+        and len(call.args) >= 2
+        and ast.literal_eval(call.args[0]) == "section_enforcement"
+        and ast.literal_eval(call.args[1]) is False
+        for call in ast.walk(tree)
+    )
     assert "section_enforcement=true requires authority_enabled=true" in source
     assert '"/section/state"' in source
     assert "self._on_section_state" in source

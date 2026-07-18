@@ -29,6 +29,8 @@ import time
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Twist
+from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
+from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.qos import (
     DurabilityPolicy,
@@ -45,6 +47,10 @@ from powertrain_msgs.msg import SafetyVerdict
 from powertrain_msgs.msg import WheelState, WheelStates
 from powertrain_ros import contract
 from powertrain_ros.arm_interlock import ArmInterlock
+from powertrain_ros.chassis_safety import (
+    ConsoleEstopLatchStore,
+    validate_runtime_clock_mode,
+)
 from powertrain_ros.message_adapter import fill_wheel_states_message
 from robot_arm_msgs.msg import ArmStatus, ArrivalStatus, ChassisMode
 
@@ -121,6 +127,7 @@ class ChassisNode(Node):
             "chassis_node",
             parameter_overrides=parameter_overrides or [],
         )
+        self._steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
         self.cm = None
         self._can_session = None
         self._can_bus_sampler = None
@@ -133,36 +140,125 @@ class ChassisNode(Node):
             raise
 
     def _initialize(self):
-        self.declare_parameter("fake", False)
-        self.declare_parameter("channel", "can0")
+        read_only_safety_parameter = ParameterDescriptor(read_only=True)
+        self.declare_parameter(
+            "fake", False, descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "channel", "can0", descriptor=read_only_safety_parameter
+        )
         # 🛠️ 중륜 2개(ODrive node 13/14) 없이 4륜만. 중간 보드를 부하모터에 쓸 때.
         #    ⚠️ 임시 구성 — 없으면 node 13/14 stale → 코너 FAULT → 전체 estop.
-        self.declare_parameter("four_wheel", False)
-        self.declare_parameter("min_rev", 0.0)
-        self.declare_parameter("friction_ff", 0.0)
-        self.declare_parameter("friction_v_knee", 0.5)
-        self.declare_parameter("gear_ratio", 5.0)
-        self.declare_parameter("v_max", 1.5)
-        self.declare_parameter("cmd_timeout", 0.5)
+        self.declare_parameter(
+            "four_wheel", False, descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "min_rev", 0.0, descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "friction_ff", 0.0, descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "friction_v_knee", 0.5, descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "gear_ratio", 5.0, descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "v_max", 1.5, descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "cmd_timeout", 0.5, descriptor=read_only_safety_parameter
+        )
         self.declare_parameter("mode", contract.MODE_DRIVING)
-        self.declare_parameter("safety_required", True)
+        self.declare_parameter(
+            "safety_required",
+            True,
+            descriptor=read_only_safety_parameter,
+        )
         self.declare_parameter(
             "safety_topic_timeout",
             DEFAULT_SAFETY_TOPIC_TIMEOUT_S,
+            descriptor=read_only_safety_parameter,
         )
-        self.declare_parameter("safety_startup_timeout", 1.0)
-        self.declare_parameter("extraction_enabled", False)
-        self.declare_parameter("authority_enabled", False)
-        self.declare_parameter("section_enforcement", False)
-        self.declare_parameter("assist_enabled", False)
-        self.declare_parameter("contract_v2_verified", False)
-        self.declare_parameter("boot_qualification_enabled", False)
-        self.declare_parameter("arm_gate_mode", "production")
-        self.declare_parameter("arm_override_ttl_s", 30.0)
-        self.declare_parameter("mission_contract_owner", MISSION_OWNER_CHASSIS)
-        self.declare_parameter("mission_id_path", "/var/lib/powertrain/mission_id")
+        self.declare_parameter(
+            "safety_startup_timeout",
+            1.0,
+            descriptor=read_only_safety_parameter,
+        )
+        self.declare_parameter(
+            "extraction_enabled",
+            False,
+            descriptor=read_only_safety_parameter,
+        )
+        self.declare_parameter(
+            "authority_enabled",
+            False,
+            descriptor=read_only_safety_parameter,
+        )
+        self.declare_parameter(
+            "section_enforcement",
+            False,
+            descriptor=read_only_safety_parameter,
+        )
+        self.declare_parameter(
+            "assist_enabled",
+            False,
+            descriptor=read_only_safety_parameter,
+        )
+        self.declare_parameter(
+            "contract_v2_verified",
+            False,
+            descriptor=read_only_safety_parameter,
+        )
+        self.declare_parameter(
+            "boot_qualification_enabled",
+            False,
+            descriptor=read_only_safety_parameter,
+        )
+        self.declare_parameter(
+            "arm_gate_mode",
+            "production",
+            descriptor=read_only_safety_parameter,
+        )
+        self.declare_parameter(
+            "arm_override_ttl_s",
+            30.0,
+            descriptor=read_only_safety_parameter,
+        )
+        self.declare_parameter(
+            "mission_contract_owner",
+            MISSION_OWNER_CHASSIS,
+            descriptor=read_only_safety_parameter,
+        )
+        self.declare_parameter(
+            "mission_id_path",
+            "/var/lib/powertrain/mission_id",
+            descriptor=read_only_safety_parameter,
+        )
+        self.declare_parameter(
+            "console_estop_latch_path",
+            "/var/lib/powertrain/console_estop_latch.json",
+            descriptor=read_only_safety_parameter,
+        )
 
         fake = bool(self.get_parameter("fake").value)
+        self._fake_chassis = fake
+        if not self.has_parameter("use_sim_time"):
+            self.declare_parameter("use_sim_time", False)
+        validate_runtime_clock_mode(
+            fake=fake,
+            use_sim_time=bool(self.get_parameter("use_sim_time").value),
+        )
+        self.add_on_set_parameters_callback(
+            self._validate_runtime_parameter_change
+        )
+        self._console_estop_store = ConsoleEstopLatchStore(
+            str(self.get_parameter("console_estop_latch_path").value)
+        )
+        pending_console_estop = (
+            self._console_estop_store.load_fail_closed()
+        )
         channel = str(self.get_parameter("channel").value)
         min_rev = float(self.get_parameter("min_rev").value)
         friction_ff = float(self.get_parameter("friction_ff").value)
@@ -301,6 +397,7 @@ class ChassisNode(Node):
             ),
         )
         self.cm.connect()
+        self._restore_console_estop_latch(pending_console_estop)
         # ○ E-stop 전역 latch(스펙 r6 §2.1): authority 와 무관한 고정 안전 계약.
         # TRANSIENT_LOCAL — 이 노드가 발행 후 재시작해도 latch 이벤트를 놓치지 않는다.
         self._teleop_estop_seen = collections.OrderedDict()
@@ -378,8 +475,13 @@ class ChassisNode(Node):
             self.declare_parameter(
                 "wheel_stop_config",
                 default_wheel_stop_config_path(),
+                descriptor=read_only_safety_parameter,
             )
-            self.declare_parameter("authority_handover_timeout_s", 2.0)
+            self.declare_parameter(
+                "authority_handover_timeout_s",
+                2.0,
+                descriptor=read_only_safety_parameter,
+            )
             wheel_stop_config = load_wheel_stop_config(
                 str(self.get_parameter("wheel_stop_config").value)
             )
@@ -659,9 +761,13 @@ class ChassisNode(Node):
         self._seed_initial_safety()
 
         period = 1.0 / self.cm.cfg.loop_hz
-        self.create_timer(period, self._tick)
-        self.create_timer(0.1, self._publish_mode)   # 팔이 코너 진입을 늦게 알면 의미 없다
-        self.create_timer(1.0, self._publish_state)
+        self.create_timer(period, self._tick, clock=self._steady_clock)
+        self.create_timer(
+            0.1,
+            self._publish_mode,
+            clock=self._steady_clock,
+        )   # 팔이 코너 진입을 늦게 알면 의미 없다
+        self.create_timer(1.0, self._publish_state, clock=self._steady_clock)
 
         if not self._safety_required:
             self.get_logger().warning(
@@ -843,7 +949,25 @@ class ChassisNode(Node):
         return qualify_current_axes
 
     def _now_ms(self):
-        return self.get_clock().now().nanoseconds / 1e6
+        if getattr(self, "_steady_clock", None) is None:
+            return time.monotonic() * 1000.0
+        return self._steady_clock.now().nanoseconds / 1e6
+
+    def _validate_runtime_parameter_change(self, parameters):
+        for parameter in parameters:
+            if parameter.name != "use_sim_time":
+                continue
+            try:
+                validate_runtime_clock_mode(
+                    fake=getattr(self, "_fake_chassis", False),
+                    use_sim_time=parameter.value,
+                )
+            except ValueError as exc:
+                return SetParametersResult(
+                    successful=False,
+                    reason=str(exc),
+                )
+        return SetParametersResult(successful=True)
 
     def _now_s(self):
         """The only clock domain used for every ArmInterlock call."""
@@ -2003,15 +2127,71 @@ class ChassisNode(Node):
         self._teleop_estop_seen[event_id] = stamp_s
         while len(self._teleop_estop_seen) > 32:
             self._teleop_estop_seen.popitem(last=False)
-        # 물리 정지까지 포함한 정본 진입점(cm.estop) — raw interlock trip 금지
-        # (다음 50 Hz 틱까지 모터가 돈다). 스펙 r6 §2.1.
-        self.cm.estop(
-            "remote_operator",
-            "teleop circle edge event_id=%s" % event_id,
-        )
+        detail = "teleop circle edge event_id=%s" % event_id
+        try:
+            latch_console_estop = getattr(
+                self,
+                "_latch_console_estop",
+                None,
+            )
+            if latch_console_estop is None:
+                self.cm.estop("remote_operator", detail)
+            else:
+                latch_console_estop("remote_operator", detail)
+        except (OSError, TypeError, ValueError, RuntimeError) as exc:
+            self.get_logger().error(
+                "REMOTE E-STOP latched but persistence failed: %s"
+                % type(exc).__name__
+            )
+            return
         self.get_logger().error(
             "REMOTE E-STOP latched (event_id=%s)" % event_id
         )
+
+    def _restore_console_estop_latch(self, record):
+        if record is None:
+            return False
+        manager = getattr(self, "cm", None)
+        if manager is None:
+            raise RuntimeError("cannot restore console E-stop without manager")
+        manager.estop(record.first_source, record.first_detail)
+        get_logger = getattr(self, "get_logger", None)
+        if get_logger is not None:
+            get_logger().error(
+                "persistent E-stop restored: source=%s detail=%s"
+                % (record.first_source, record.first_detail)
+            )
+        return True
+
+    def _latch_console_estop(self, source, detail):
+        manager = getattr(self, "cm", None)
+        if manager is None:
+            raise RuntimeError("chassis manager unavailable")
+        safety = manager.state()["safety"]
+        first_source = source
+        first_detail = detail
+        if getattr(safety, "estop_latched", False):
+            first_source = getattr(safety, "first_source", None) or source
+            first_detail = getattr(safety, "first_detail", None)
+            if first_detail is None:
+                first_detail = detail
+        store = getattr(self, "_console_estop_store", None)
+        if store is None:
+            manager.estop(source, detail)
+            raise RuntimeError("console E-stop persistence unavailable")
+        try:
+            store.persist(first_source, first_detail)
+        except (OSError, TypeError, ValueError, RuntimeError):
+            manager.estop(source, detail)
+            refresh_safety = getattr(self, "_refresh_safety_baseline", None)
+            if refresh_safety is not None:
+                refresh_safety()
+            raise
+        manager.estop(source, detail)
+        refresh_safety = getattr(self, "_refresh_safety_baseline", None)
+        if refresh_safety is not None:
+            refresh_safety()
+        return manager.state()["safety"]
 
     def _srv_estop(self, _request, response):
         manager = getattr(self, "cm", None)
@@ -2019,10 +2199,21 @@ class ChassisNode(Node):
             response.success = False
             response.message = "chassis manager unavailable"
             return response
-        manager.estop("console", "operator emergency stop")
-        refresh_safety = getattr(self, "_refresh_safety_baseline", None)
-        if refresh_safety is not None:
-            refresh_safety()
+        try:
+            self._latch_console_estop(
+                "console",
+                "operator emergency stop",
+            )
+        except (OSError, TypeError, ValueError, RuntimeError) as exc:
+            response.success = False
+            response.message = (
+                "mode=%s; E-stop persistence failed: %s"
+                % (manager.mode, type(exc).__name__)
+            )
+            get_logger = getattr(self, "get_logger", None)
+            if get_logger is not None:
+                get_logger().error(response.message)
+            return response
         response.success = True
         response.message = "mode=%s" % manager.mode
         emit = getattr(self, "_emit_console_estop_event", None)
@@ -2034,9 +2225,28 @@ class ChassisNode(Node):
         return response
 
     def _srv_reset_estop(self, _request, response):
+        before = self.cm.state()["safety"]
         response.success = self.cm.reset_estop()
         self._refresh_safety_baseline()
         if response.success:
+            store = getattr(self, "_console_estop_store", None)
+            try:
+                if store is None:
+                    raise RuntimeError(
+                        "console E-stop persistence unavailable"
+                    )
+                store.clear()
+            except (OSError, RuntimeError) as exc:
+                self.cm.estop(
+                    before.first_source or "console_latch_store",
+                    before.first_detail or "reset persistence clear failed",
+                )
+                response.success = False
+                response.message = (
+                    "reset persistence clear failed: %s"
+                    % type(exc).__name__
+                )
+                return response
             response.message = "mode=IDLE; explicit arm required"
         else:
             safety = self.cm.state()["safety"]

@@ -4,16 +4,17 @@ import json
 from powertrain_ros import ops_contract as oc
 from powertrain_ros.ops_broker_core import OpsBrokerCore, OpsState
 
-from test_ops_broker_core import Clock, _state, _req
+from test_ops_broker_core import Clock, _hello, _state, _req
 
 
-def _core(state):
+def _core(state, token="tok-ctrl"):
     clock = Clock()
     holder = {"state": state}
     core = OpsBrokerCore(
         {"tok-ctrl": oc.ROLE_CONTROLLER, "tok-console": oc.ROLE_CONSOLE},
         clock=clock, state_provider=lambda: holder["state"],
     )
+    core.handshake("c1", _hello(token, stamp_s=clock.now))
     return core, clock, holder
 
 
@@ -40,7 +41,7 @@ def test_emergency_execute_before_hold_elapsed_is_rejected():
     early = core.handle_line(
         "c1", oc.ROLE_CONTROLLER,
         _req("tok-ctrl", "estop_reset", request_id="r-2", sequence=1,
-             phase="execute"),
+             phase="execute", stamp_s=clock.now),
     )
     assert _status(early) == "FINAL_REJECTED"
     assert early.execute is None
@@ -56,7 +57,7 @@ def test_emergency_execute_after_hold_produces_execution_order():
     ready = core.handle_line(
         "c1", oc.ROLE_CONTROLLER,
         _req("tok-ctrl", "estop_reset", request_id="r-2", sequence=1,
-             phase="execute"),
+             phase="execute", stamp_s=clock.now),
     )
     assert _status(ready) == "PENDING"
     assert ready.execute.targets == ("/chassis_node/reset_estop",)
@@ -73,26 +74,29 @@ def test_emergency_arm_requires_neutral_fresh_and_stopped():
     blocked = core.handle_line(
         "c1", oc.ROLE_CONTROLLER,
         _req("tok-ctrl", "arm", request_id="r-2", sequence=1,
-             phase="execute"),
+             phase="execute", stamp_s=clock.now),
     )
     assert _status(blocked) == "FINAL_REJECTED"
 
     holder["state"] = _state()
     core.handle_line(
         "c1", oc.ROLE_CONTROLLER,
-        _req("tok-ctrl", "arm", request_id="r-3", sequence=2, phase="begin"),
+        _req(
+            "tok-ctrl", "arm", request_id="r-3", sequence=2,
+            phase="begin", stamp_s=clock.now,
+        ),
     )
     clock.now += 3.1
     ready = core.handle_line(
         "c1", oc.ROLE_CONTROLLER,
         _req("tok-ctrl", "arm", request_id="r-4", sequence=3,
-             phase="execute"),
+             phase="execute", stamp_s=clock.now),
     )
     assert _status(ready) == "PENDING"
 
 
 def test_console_estop_reset_needs_no_phase():
-    core, _, _ = _core(_state())
+    core, _, _ = _core(_state(), token="tok-console")
     decision = core.handle_line(
         "c1", oc.ROLE_CONSOLE, _req("tok-console", "estop_reset")
     )
@@ -100,20 +104,24 @@ def test_console_estop_reset_needs_no_phase():
 
 
 def test_authority_manual_transition_table():
-    core, _, _ = _core(_state(authority_mode="MOTION_HOLD"))
+    core, _, _ = _core(
+        _state(authority_mode="MOTION_HOLD"), token="tok-console"
+    )
     held = core.handle_line(
         "c1", oc.ROLE_CONSOLE, _req("tok-console", "authority_manual")
     )
     assert _status(held) == "FINAL_REJECTED"
     assert "clear" in json.loads(held.response)["detail"]
 
-    core2, _, _ = _core(_state(gateway_state="STOPPING_FOR_ARM"))
+    core2, _, _ = _core(
+        _state(gateway_state="STOPPING_FOR_ARM"), token="tok-console"
+    )
     stopping = core2.handle_line(
         "c1", oc.ROLE_CONSOLE, _req("tok-console", "authority_manual")
     )
     assert _status(stopping) == "FINAL_REJECTED"
 
-    core3, _, _ = _core(_state(estop_latched=True))
+    core3, _, _ = _core(_state(estop_latched=True), token="tok-console")
     latched = core3.handle_line(
         "c1", oc.ROLE_CONSOLE, _req("tok-console", "authority_manual")
     )
@@ -123,7 +131,8 @@ def test_authority_manual_transition_table():
 def test_stale_state_group_blocks_gated_action():
     core, _, _ = _core(
         _state(field_age_s={"authority": 0.0, "gateway": 2.0,
-                            "safety": 0.0, "wheels": 0.0})
+                            "safety": 0.0, "wheels": 0.0}),
+        token="tok-console",
     )
     stale = core.handle_line(
         "c1", oc.ROLE_CONSOLE, _req("tok-console", "authority_manual")

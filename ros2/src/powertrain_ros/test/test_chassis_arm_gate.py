@@ -410,10 +410,21 @@ def test_override_service_reactivation_starts_a_new_ttl():
 
 def test_arm_status_qos_service_and_fail_closed_defaults_are_explicit():
     source = CHASSIS_NODE.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    declarations = {
+        call.args[0].value: ast.literal_eval(call.args[1])
+        for call in ast.walk(tree)
+        if isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr == "declare_parameter"
+        and len(call.args) >= 2
+        and isinstance(call.args[0], ast.Constant)
+        and isinstance(call.args[1], ast.Constant)
+    }
 
-    assert 'declare_parameter("contract_v2_verified", False)' in source
-    assert 'declare_parameter("arm_gate_mode", "production")' in source
-    assert 'declare_parameter("arm_override_ttl_s", 30.0)' in source
+    assert declarations["contract_v2_verified"] is False
+    assert declarations["arm_gate_mode"] == "production"
+    assert declarations["arm_override_ttl_s"] == 30.0
     assert "TODO(WP5.2 Task 7/remote gate)" in source
     assert "deadman" in source
     assert "independent joint proof" in source

@@ -17,6 +17,7 @@ import os
 import sys
 
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Twist
 from rclpy.duration import Duration
 from rclpy.node import Node
@@ -25,6 +26,9 @@ from std_msgs.msg import Bool, Float32MultiArray
 from tf2_ros import Buffer, TransformListener
 
 from powertrain_ros import contract
+from powertrain_ros.terrain_qualification import (
+    enforce_node_command_guidance_qualification,
+)
 from robot_arm_msgs.msg import DetectedObjectArray
 
 sys.path.insert(0, os.environ.get("MOTOR_CONTROL_PATH", "/workspace/motor_control"))
@@ -81,6 +85,16 @@ class LeadFollowerNode(Node):
         self.declare_parameter("reacquire_max_gap_s", 3.0)
         self.declare_parameter("reacquire_confirm_n", 2)
         self.declare_parameter("tf_stale_s", 0.5)
+
+        enforce_node_command_guidance_qualification(
+            self,
+            guidance="follow",
+            default_path=os.path.join(
+                get_package_share_directory("powertrain_ros"),
+                "config",
+                "l515_terrain.yaml",
+            ),
+        )
 
         self.cfg = FollowConfig(
             class_name=str(self.get_parameter("class_name").value),

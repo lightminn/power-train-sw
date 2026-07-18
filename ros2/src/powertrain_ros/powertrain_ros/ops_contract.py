@@ -1,12 +1,16 @@
 """A2a ops 채널 와이어 계약 — 스펙 r6 §3.1의 권위 구현.
 
-요청 = newline-JSON {schema_version, token, request_id, sequence, action,
-params, stamp_s [, expected_state_revision, phase]}. 응답 = {request_id,
+hello는 안정 client_id와 클라이언트 단조시각 stamp_s를 포함하며 서버가 인증
+토큰+client_id 신원과 연결별 시각 오프셋을 고정한다. 요청 stamp_s는 같은
+클라이언트 단조시각 축을 사용한다. 요청 =
+newline-JSON {schema_version, token, request_id, sequence, action, params,
+stamp_s [, expected_state_revision, phase]}. 응답 = {request_id,
 status(PENDING/FINAL_SUCCESS/FINAL_REJECTED/OUTCOME_UNKNOWN), state_revision,
 detail}. 역할 인가는 서버의 토큰→역할 매핑이 유일 근거다(client_type 없음).
 """
 from dataclasses import dataclass, field
 import json
+import math
 
 SCHEMA_VERSION = 1
 DEFAULT_PORT = 9001
@@ -19,6 +23,7 @@ STATUS_FINAL_REJECTED = "FINAL_REJECTED"
 STATUS_OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
 RETRANSMIT_INTERVAL_S = 0.25
 REQUEST_DEADLINE_S = 2.0
+REQUEST_FUTURE_SKEW_S = 0.25
 SERVICE_CALL_TIMEOUT_S = 1.0
 SERVICE_ORDER_ABANDON_S = 10.0
 assert SERVICE_ORDER_ABANDON_S > SERVICE_CALL_TIMEOUT_S
@@ -139,7 +144,13 @@ def decode_request(line):
         raise ValueError("token must be a non-empty string")
     if not isinstance(payload["params"], dict):
         raise ValueError("params must be an object")
-    float(payload["stamp_s"])
+    try:
+        stamp_s = float(payload["stamp_s"])
+    except (TypeError, ValueError) as exc:
+        raise ValueError("stamp_s must be finite") from exc
+    if not math.isfinite(stamp_s):
+        raise ValueError("stamp_s must be finite")
+    payload["stamp_s"] = stamp_s
     if "phase" in payload and payload["phase"] not in _PHASES:
         raise ValueError("phase must be 'begin' or 'execute'")
     if "expected_state_revision" in payload:

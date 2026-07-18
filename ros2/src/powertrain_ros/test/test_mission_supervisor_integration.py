@@ -84,8 +84,21 @@ class _Interlock:
 
 def test_chassis_initializes_supervisor_only_inside_verified_v2_boundary():
     source = CHASSIS_NODE.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    mission_id_declarations = [
+        call
+        for call in ast.walk(tree)
+        if isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr == "declare_parameter"
+        and len(call.args) >= 2
+        and isinstance(call.args[0], ast.Constant)
+        and call.args[0].value == "mission_id_path"
+    ]
 
-    assert 'declare_parameter("mission_id_path", "/var/lib/powertrain/mission_id")' in source
+    assert len(mission_id_declarations) == 1
+    assert mission_id_declarations[0].args[1].value == \
+        "/var/lib/powertrain/mission_id"
     assert "MissionIdStore" in source
     assert "MissionSupervisor" in source
     assert "self._mission_supervisor_enabled = self._contract_v2_verified" in source

@@ -75,7 +75,11 @@ def test_chassis_node_declares_friction_parameters():
 
 
 def test_chassis_node_declares_and_forwards_gear_ratio():
-    assert 'declare_parameter("gear_ratio", 5.0)' in CHASSIS_NODE
+    # 선언 자체만 확인한다. 인자 목록까지 문자열로 고정하면 read-only descriptor
+    # 추가 같은 정당한 변경에 깨진다(2026-07-19 안전 파라미터 read-only 화에서 실제로 깨짐).
+    assert re.search(
+        r'declare_parameter\(\s*"gear_ratio",\s*5\.0', CHASSIS_NODE
+    ), "chassis_node must declare gear_ratio with default 5.0"
     assert 'gear_ratio = float(self.get_parameter("gear_ratio").value)' in CHASSIS_NODE
     assert "gear_ratio=gear_ratio" in CHASSIS_NODE
     assert "gear_ratio %.1f" in CHASSIS_NODE
