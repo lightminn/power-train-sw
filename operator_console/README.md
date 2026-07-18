@@ -42,8 +42,12 @@ ros2 run powertrain_ros arm_console_bridge --ros-args -p console_host:=<laptop-i
 ```
 
 ```bash
-python3 -m operator_console.app --host 192.168.8.106
+/usr/bin/python3 -m operator_console.app --host 192.168.8.106
 ```
+
+Use the system interpreter explicitly: a conda-base `python3` has no GTK
+bindings (`gi`) and dies with ModuleNotFoundError. The systemd unit already
+pins `/usr/bin/python3`.
 
 The ops broker defaults to the same host on TCP `:9001`, with its token read
 from `~/.config/powertrain/ops_console.token`. Override these independently
