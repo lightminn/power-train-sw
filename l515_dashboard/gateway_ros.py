@@ -1,5 +1,6 @@
 """Nonblocking ROS publication adapter for one drained Gateway frameset."""
 
+import os
 import threading
 import time
 
@@ -11,6 +12,28 @@ TOPIC_SPECS = (
     "/l515/gyro/sample",
     "/l515/accel/sample",
 )
+
+# ── 정렬 depth (opt-in) ──────────────────────────────────────────────────
+# `/l515/depth/*` 는 **원본 depth** 다 — 640x480, `l515_depth_optical_frame`. color 는
+# 1280x720, `l515_color_optical_frame`. **두 센서는 물리적으로 떨어져 있어서 픽셀이
+# 서로 대응하지 않는다.**
+#
+# RTAB-Map 같은 RGB-D SLAM 은 **color 에 정렬된 depth** 를 요구한다(같은 해상도·같은
+# 광학 프레임에서 (u,v) 가 같은 지점을 가리켜야 한다). Gateway 는 이미 `rs.align` 으로
+# 정렬 depth 를 만들고 있었지만 **SRT 스트리머로만 보내고 ROS 로는 안 냈다.** 그 경로를
+# 뚫는다.
+#
+# ⚠️ 기본은 **꺼짐**. 정렬은 CPU 를 먹고(1280x720 워핑) 토픽도 무겁다. SLAM 을 돌릴 때만
+#    `L515_ALIGNED_DEPTH_ROS=1` 로 켠다. 기존 6토픽 계약은 그대로다.
+ALIGNED_DEPTH_TOPICS = (
+    "/l515/aligned_depth_to_color/image_raw",
+    "/l515/aligned_depth_to_color/camera_info",
+)
+
+
+def aligned_depth_enabled():
+    return os.environ.get("L515_ALIGNED_DEPTH_ROS", "0") == "1"
+
 
 _COLOR_FRAME = "l515_color_optical_frame"
 _DEPTH_FRAME = "l515_depth_optical_frame"
@@ -64,9 +87,15 @@ class GatewayRosPublisher:
             topic: node.create_publisher(kind, topic, qos)
             for topic, kind in zip(TOPIC_SPECS, kinds)
         }
+        # 정렬 depth 는 켰을 때만 퍼블리셔를 만든다 → 안 켜면 계약도 카운트도 그대로.
+        self._aligned = aligned_depth_enabled()
+        if self._aligned:
+            image_kind, info_kind = kinds[0], kinds[1]
+            for topic, kind in zip(ALIGNED_DEPTH_TOPICS, (image_kind, info_kind)):
+                self._publishers[topic] = node.create_publisher(kind, topic, qos)
         self._last_timestamps = {}
         self._mapper = None
-        self._counts = {topic: 0 for topic in TOPIC_SPECS}
+        self._counts = {topic: 0 for topic in self._publishers}
         self._state_lock = threading.Lock()
         self._mapper_lock = threading.Lock()
 
@@ -122,6 +151,16 @@ class GatewayRosPublisher:
     def publish_depth(self, sample, mapper):
         return self._video(sample.frame, mapper, "/l515/depth/image_rect_raw",
                            "/l515/depth/camera_info", "16UC1", _DEPTH_FRAME)
+
+    def publish_aligned_depth(self, frame, mapper):
+        """color 에 정렬된 depth. **frame_id 가 `l515_color_optical_frame`** 인 게 요점 —
+        이 depth 는 이제 color 의 광학 프레임에 살고, 내장 intrinsics 도 color 것이다.
+        (rs.align 이 돌려주는 depth 프레임은 타깃 스트림의 프로파일을 들고 온다.)
+        """
+        if not self._aligned:
+            return ()
+        return self._video(frame, mapper, ALIGNED_DEPTH_TOPICS[0],
+                           ALIGNED_DEPTH_TOPICS[1], "16UC1", _COLOR_FRAME)
 
     def publish_imu(self, stream, sample, mapper):
         if stream == "gyro":

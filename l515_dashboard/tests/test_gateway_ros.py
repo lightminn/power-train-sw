@@ -223,3 +223,48 @@ def test_timestamp_mapper_calls_are_serialized_across_stream_workers():
     for thread in threads: thread.start()
     for thread in threads: thread.join()
     assert collisions == []
+
+
+# ── 정렬 depth (RGB-D SLAM 용, opt-in) ───────────────────────────────────
+
+def test_aligned_depth_is_off_by_default(monkeypatch):
+    """기본 꺼짐 — 기존 6토픽 계약도 카운트도 건드리지 않는다."""
+    monkeypatch.delenv("L515_ALIGNED_DEPTH_ROS", raising=False)
+    node = Node()
+    gateway = GatewayRosPublisher(node, now_ns=lambda: 1, dependencies=dependencies())
+    assert tuple(topic for _, topic, _, _ in node.created) == TOPIC_SPECS
+    # 켜지 않았으면 발행 자체를 시도해도 아무것도 안 나간다.
+    frame = Video(np.zeros((720, 1280), dtype=np.uint16), stamp=5.0)
+    assert gateway.publish_aligned_depth(frame, Mapper()) == ()
+
+
+def test_aligned_depth_publishes_in_color_frame(monkeypatch):
+    """★ 요점은 **frame_id 와 intrinsics 가 color 것** 이라는 데 있다.
+
+    원본 depth 는 640x480 / `l515_depth_optical_frame` 이라 color 픽셀과 대응하지 않는다.
+    RTAB-Map 은 정렬된 depth 를 요구하므로, 여기서 나가는 depth 는 반드시 color 의
+    광학 프레임·해상도여야 한다. 아니면 맵이 통째로 어긋난다.
+    """
+    monkeypatch.setenv("L515_ALIGNED_DEPTH_ROS", "1")
+    node = Node()
+    gateway = GatewayRosPublisher(node, now_ns=lambda: 1, dependencies=dependencies())
+
+    topics = tuple(topic for _, topic, _, _ in node.created)
+    assert topics[:len(TOPIC_SPECS)] == TOPIC_SPECS          # 기존 계약은 그대로
+    assert "/l515/aligned_depth_to_color/image_raw" in topics
+    assert "/l515/aligned_depth_to_color/camera_info" in topics
+
+    frame = Video(np.zeros((720, 1280), dtype=np.uint16), stamp=5.0)
+    published = gateway.publish_aligned_depth(frame, Mapper())
+    assert set(published) == {"/l515/aligned_depth_to_color/image_raw",
+                              "/l515/aligned_depth_to_color/camera_info"}
+
+    image = dict((t, p) for _, t, _, p in node.created)[
+        "/l515/aligned_depth_to_color/image_raw"].messages[0]
+    assert image.header.frame_id == "l515_color_optical_frame"   # depth 아님!
+    assert image.encoding == "16UC1"
+
+    info = dict((t, p) for _, t, _, p in node.created)[
+        "/l515/aligned_depth_to_color/camera_info"].messages[0]
+    assert (info.width, info.height) == (1280, 720)              # color 해상도
+    assert info.header.frame_id == "l515_color_optical_frame"
