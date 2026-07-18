@@ -123,7 +123,10 @@ Defence_Robot/
 │                         ARM-CON(07-18): 로봇팔 텔레메트리 패널(:5007, arm_console_bridge
 │                         노드가 팔 토픽 read-only 미러) + 검출 yaw·픽타깃 오버레이(:5003
 │                         superset — 브리지 가동 시 팔 metadata_sender 미기동 단일송신 원칙).
-│                         ④실시간 화면은 팔 레포 stream_node(:5002)+기존 콘솔 패널로 충족
+│                         ④실시간 화면은 팔 레포 stream_node(:5002)+기존 콘솔 패널로 충족.
+│                         CMASK(07-18): 컴포넌트 4종(drive/steer/us100/robot_arm) 콘솔
+│                         토글 — OFF=미장착 모드(estop/hold 비체결), 모터는 IDLE 한정,
+│                         무영속(재시작=전부 ON), us100 OFF 시 SAFETY DISABLED 배너
 ├── docker/               Container definitions (x86 dev + Jetson Orin Nano deploy)
 ├── scripts/              Host-side helpers (recv_stream.sh · recv_yolo3d.py · can_setup.sh ·
 │                         install_*.sh + systemd/ 유닛·udev·tmpfiles 아티팩트)
