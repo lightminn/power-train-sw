@@ -2,6 +2,7 @@
 import json
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 import rclpy
@@ -74,6 +75,18 @@ class _Harness:
 
     def arm(self):
         client = self.node.create_client(Trigger, "/chassis_node/arm")
+        assert client.wait_for_service(timeout_sec=2.0)
+        future = client.call_async(Trigger.Request())
+        assert self.wait_for(future.done)
+        result = future.result()
+        self.node.destroy_client(client)
+        return result
+
+    def trigger(self, service):
+        client = self.node.create_client(
+            Trigger,
+            "/chassis_node/%s" % service,
+        )
         assert client.wait_for_service(timeout_sec=2.0)
         future = client.call_async(Trigger.Request())
         assert self.wait_for(future.done)
@@ -186,3 +199,59 @@ def test_successful_and_idempotent_changes_emit_component_mask_journal(harness):
         event["payload"] == {"component": "us100", "enabled": False}
         for event in mask_events
     )
+
+
+def test_console_estop_round_trip_is_idempotent_and_journaled(harness):
+    events = _RecordingEventClient()
+    harness.chassis._observability_event_client = events
+
+    first = harness.trigger("estop")
+    assert first.success is True
+    assert first.message == "mode=ESTOP"
+    safety = harness.chassis.cm.safety_snapshot()
+    assert safety.first_source == "console"
+    assert safety.first_detail == "operator emergency stop"
+    assert harness.wait_for(
+        lambda: any(
+            item.get("mode") == "ESTOP"
+            and item.get("estop_latched") is True
+            for item in harness.safety_states
+        )
+    )
+
+    second = harness.trigger("estop")
+    assert second.success is True
+    assert second.message == "mode=ESTOP"
+
+    reset_state_index = len(harness.safety_states)
+    reset = harness.trigger("reset_estop")
+    assert reset.success is True
+    assert harness.chassis.cm.mode == "IDLE"
+    assert harness.wait_for(
+        lambda: any(
+            item.get("mode") == "IDLE"
+            and item.get("estop_latched") is False
+            for item in harness.safety_states[reset_state_index:]
+        )
+    )
+
+    estop_events = [
+        event for event in events.events
+        if event.get("event_type") == "CONSOLE_ESTOP"
+    ]
+    assert len(estop_events) == 2
+    assert all(event.get("severity") == "WARN" for event in estop_events)
+
+
+def test_console_estop_fails_closed_without_chassis_manager():
+    response = SimpleNamespace(success=None, message=None)
+
+    returned = ChassisNode._srv_estop(
+        SimpleNamespace(),
+        object(),
+        response,
+    )
+
+    assert returned is response
+    assert response.success is False
+    assert response.message == "chassis manager unavailable"

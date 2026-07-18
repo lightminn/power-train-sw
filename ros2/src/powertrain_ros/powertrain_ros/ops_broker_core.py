@@ -32,6 +32,7 @@ class OpsState:
     component_mask: dict = field(
         default_factory=lambda: dict(DEFAULT_COMPONENT_MASK)
     )
+    chassis_mode: str = "UNKNOWN"
 
 
 @dataclass(frozen=True)

@@ -33,6 +33,7 @@ CLIENT_IDLE_TIMEOUT_S = 10.0
 WHEEL_STOP_TURNS = 0.1
 _SEMANTIC_FIELDS = (
     "authority_mode",
+    "chassis_mode",
     "gateway_state",
     "gateway_input_fresh",
     "gateway_neutral",
@@ -196,6 +197,9 @@ class OpsBrokerNode(Node):
             if not isinstance(sources, list):
                 raise ValueError("active_estop_sources must be a list")
             active_sources = tuple(sorted(str(item) for item in sources))
+            chassis_mode = decoded.get("mode", "UNKNOWN")
+            if not isinstance(chassis_mode, str):
+                raise ValueError("mode must be a string")
             raw_mask = decoded.get(
                 "component_mask",
                 DEFAULT_COMPONENT_MASK,
@@ -216,6 +220,7 @@ class OpsBrokerNode(Node):
             )
             return
         with self._state_lock:
+            self._fields["chassis_mode"] = chassis_mode
             self._fields["estop_latched"] = estop_latched
             self._fields["active_estop_sources"] = active_sources
             self._fields["component_mask"] = component_mask
@@ -260,6 +265,7 @@ class OpsBrokerNode(Node):
         with self._state_lock:
             values = {
                 "authority_mode": self._fields["authority_mode"] or "UNKNOWN",
+                "chassis_mode": self._fields["chassis_mode"] or "UNKNOWN",
                 "gateway_state": self._fields["gateway_state"] or "UNKNOWN",
                 "gateway_input_fresh": bool(
                     self._fields["gateway_input_fresh"]
@@ -710,6 +716,7 @@ class OpsBrokerNode(Node):
                     "push": "ops_state",
                     "revision": state.revision,
                     "authority_mode": state.authority_mode,
+                    "chassis_mode": state.chassis_mode,
                     "gateway_state": state.gateway_state,
                     "gateway_input_fresh": state.gateway_input_fresh,
                     "gateway_neutral": state.gateway_neutral,

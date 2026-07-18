@@ -116,7 +116,13 @@ def _broker_harness():
     )
 
 
-def _safety_message(component_mask=None, *, include_mask=True):
+def _safety_message(
+    component_mask=None,
+    *,
+    include_mask=True,
+    mode="IDLE",
+    include_mode=True,
+):
     payload = {
         "stamp_s": time.monotonic(),
         "estop_latched": False,
@@ -124,6 +130,8 @@ def _safety_message(component_mask=None, *, include_mask=True):
     }
     if include_mask:
         payload["component_mask"] = component_mask
+    if include_mode:
+        payload["mode"] = mode
     return SimpleNamespace(data=json.dumps(payload))
 
 
@@ -185,3 +193,58 @@ def test_ops_state_push_serializes_component_mask():
 
     assert sent[0][0] is connection
     assert json.loads(sent[0][1])["component_mask"] == expected
+
+
+def test_safety_state_mode_updates_ops_state_and_semantic_revision():
+    node = _broker_harness()
+    _ON_SAFETY(node, _safety_message(mode="IDLE", include_mask=False))
+    initial = _OPS_STATE(node)
+
+    _ON_SAFETY(node, _safety_message(mode="ESTOP", include_mask=False))
+    updated = _OPS_STATE(node)
+
+    assert initial.chassis_mode == "IDLE"
+    assert updated.chassis_mode == "ESTOP"
+    assert updated.revision == initial.revision + 1
+
+
+def test_safety_state_without_mode_defaults_to_unknown():
+    node = _broker_harness()
+
+    _ON_SAFETY(
+        node,
+        _safety_message(include_mode=False, include_mask=False),
+    )
+
+    assert _OPS_STATE(node).chassis_mode == "UNKNOWN"
+
+
+def test_safety_state_rejects_non_string_mode():
+    node = _broker_harness()
+    _ON_SAFETY(node, _safety_message(mode="IDLE", include_mask=False))
+    initial = _OPS_STATE(node)
+
+    _ON_SAFETY(node, _safety_message(mode=123, include_mask=False))
+
+    unchanged = _OPS_STATE(node)
+    assert initial.chassis_mode == "IDLE"
+    assert unchanged.chassis_mode == "IDLE"
+    assert unchanged.revision == initial.revision
+
+
+def test_ops_state_push_serializes_chassis_mode():
+    node = _broker_harness()
+    _ON_SAFETY(node, _safety_message(mode="ESTOP", include_mask=False))
+    state = _OPS_STATE(node)
+    sent = []
+    connection = object()
+    node._closed = False
+    node._ops_state = lambda: state
+    node._connections_lock = threading.Lock()
+    node._connections = [connection]
+    node._send = lambda target, payload: sent.append((target, payload))
+
+    _PUSH_OPS_STATE(node)
+
+    assert sent[0][0] is connection
+    assert json.loads(sent[0][1])["chassis_mode"] == "ESTOP"

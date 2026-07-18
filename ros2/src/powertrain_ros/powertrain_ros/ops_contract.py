@@ -66,6 +66,9 @@ ACTIONS = {
         _CONSOLE, "service", ("/chassis_node/reset_estop",),
         emergency_roles=_CTRL_EMERGENCY,
     ),
+    "estop": ActionSpec(
+        _CONSOLE, "service", ("/chassis_node/estop",),
+    ),
     "arm": ActionSpec(
         _CONSOLE, "service", ("/chassis_node/arm",),
         emergency_roles=_CTRL_EMERGENCY,

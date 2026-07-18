@@ -74,6 +74,13 @@ def test_arm_lock_override_is_console_only_setbool():
     assert spec.target == ("/chassis_node/arm_lock_override",)
 
 
+def test_estop_is_console_only_chassis_service():
+    spec = oc.ACTIONS["estop"]
+    assert spec.roles == frozenset({oc.ROLE_CONSOLE})
+    assert spec.kind == "service"
+    assert spec.target == ("/chassis_node/estop",)
+
+
 @pytest.mark.parametrize(
     ("action", "target"),
     [

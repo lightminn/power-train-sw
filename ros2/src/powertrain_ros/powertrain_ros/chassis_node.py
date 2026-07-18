@@ -1197,6 +1197,24 @@ class ChassisNode(Node):
         except Exception:
             return False
 
+    def _emit_console_estop_event(self, mode):
+        client = getattr(self, "_observability_event_client", None)
+        if client is None:
+            return False
+        event = {
+            "schema_version": 1,
+            "wall_time_ns": time.time_ns(),
+            "monotonic_ns": time.monotonic_ns(),
+            "source": "chassis_node",
+            "event_type": "CONSOLE_ESTOP",
+            "severity": "WARN",
+            "payload": {"mode": str(mode)},
+        }
+        try:
+            return bool(client.emit(event))
+        except Exception:
+            return False
+
     def _seed_initial_safety(self):
         if self._safety_required:
             self.cm.update_external_safety(
@@ -1986,11 +2004,23 @@ class ChassisNode(Node):
         )
 
     def _srv_estop(self, _request, response):
-        self.cm.estop("manual_service", "~/estop")
-        self._refresh_safety_baseline()
+        manager = getattr(self, "cm", None)
+        if manager is None:
+            response.success = False
+            response.message = "chassis manager unavailable"
+            return response
+        manager.estop("console", "operator emergency stop")
+        refresh_safety = getattr(self, "_refresh_safety_baseline", None)
+        if refresh_safety is not None:
+            refresh_safety()
         response.success = True
-        response.message = "estop latched: mode=%s" % self.cm.mode
-        self.get_logger().warning("manual E-stop latched")
+        response.message = "mode=%s" % manager.mode
+        emit = getattr(self, "_emit_console_estop_event", None)
+        if emit is not None:
+            emit(manager.mode)
+        get_logger = getattr(self, "get_logger", None)
+        if get_logger is not None:
+            get_logger().warning("console E-stop latched")
         return response
 
     def _srv_reset_estop(self, _request, response):
