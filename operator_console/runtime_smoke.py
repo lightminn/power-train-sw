@@ -175,6 +175,30 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
                     ("127.0.0.1", ports[channel]),
                 )
             time.sleep(0.2)
+        # phase 2 — 주입 중단: 전 패널 LIVE→STALE 전이 + 오버레이 숨김 경로.
+        stale_deadline = time.monotonic() + 2.5
+        while time.monotonic() < stale_deadline and console.poll() is None:
+            time.sleep(0.2)
+        # phase 3 — sparse/truncated 최소 페이로드: optional 필드 부재 분기.
+        sequence += 1
+        sparse = {
+            "telemetry": {"schema_version": 1, "sequence": sequence},
+            "chassis": {"schema_version": 1, "sequence": sequence,
+                        "truncated": True, "wheel_count": 6},
+            "metadata": {"schema_version": 1, "capture_sequence": sequence,
+                         "frame_width": 848, "frame_height": 480,
+                         "detections": []},
+            "arm": {"schema_version": 1, "sequence": sequence,
+                    "dynamixel": None, "joints": None},
+        }
+        for channel, payload in sparse.items():
+            sender.sendto(
+                json.dumps(payload).encode("utf-8"),
+                ("127.0.0.1", ports[channel]),
+            )
+        sparse_deadline = time.monotonic() + 1.0
+        while time.monotonic() < sparse_deadline and console.poll() is None:
+            time.sleep(0.2)
         early_exit = console.poll() is not None
         if not early_exit:
             console.terminate()
