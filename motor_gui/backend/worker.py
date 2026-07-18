@@ -8,7 +8,8 @@ import time
 from collections.abc import Callable
 
 from .commands import normalize, CommandError
-from .transport.base import Transport, DEFAULT_TUNABLES
+from .transport.base import (Transport, DEFAULT_TUNABLES,
+                             motor_to_wheel_tunables)
 
 _log = logging.getLogger(__name__)
 
@@ -48,7 +49,6 @@ class HardwareWorker:
         self._t.connect()
         self._caps = self._t.capabilities()
         self._apply_baseline()
-        self._tunables = dict(DEFAULT_TUNABLES)
         # 이전 사이클의 미처리 요청 제거 (타임아웃으로 큐에 남은 항목 방지)
         for q in (self._reconnect_q, self._cmd_q):
             while not q.empty():
@@ -165,11 +165,16 @@ class HardwareWorker:
     def _apply_baseline(self) -> None:
         """odrive_can_setup.py 검증 baseline 을 startup 시 적용 (표시값=실제값 보장).
         IDLE 에서 config 쓰기는 안전. 실패는 무시 (예: 장치 미연결)."""
+        defaults = dict(DEFAULT_TUNABLES)
+        ratio = self._caps.get("drive_gear_ratio")
+        if ratio is not None:
+            defaults = motor_to_wheel_tunables(defaults, ratio)
+        self._tunables = defaults
         gain_keys = ("pos_gain", "vel_gain", "vel_integrator_gain",
                      "input_filter_bandwidth", "trap_vel_limit",
                      "trap_accel_limit", "trap_decel_limit")
-        gargs = {k: v for k, v in DEFAULT_TUNABLES.items() if k in gain_keys}
-        largs = {k: v for k, v in DEFAULT_TUNABLES.items()
+        gargs = {k: v for k, v in defaults.items() if k in gain_keys}
+        largs = {k: v for k, v in defaults.items()
                  if k in ("vel_limit", "current_lim")}
         try:
             if gargs:

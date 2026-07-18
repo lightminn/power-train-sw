@@ -170,3 +170,31 @@ def test_set_ids_when_not_running():
     w = HardwareWorker(FakeTransport())
     res = w.set_ids({"ak": 2})
     assert res["ok"] is False
+
+
+def test_baseline_preserves_motor_limits_while_exposing_wheel_units():
+    class BaselineFake(FakeTransport):
+        def __init__(self):
+            super().__init__()
+            self.commands = []
+
+        def capabilities(self):
+            caps = super().capabilities()
+            caps["drive_gear_ratio"] = 5.0
+            return caps
+
+        def apply(self, cmd):
+            self.commands.append(cmd)
+            return super().apply(cmd)
+
+    transport = BaselineFake()
+    worker = HardwareWorker(transport)
+    worker._apply_baseline()
+
+    gain = next(c for c in transport.commands if c["op"] == "set_gain")
+    limit = next(c for c in transport.commands if c["op"] == "set_limit")
+    assert gain["args"]["trap_vel_limit"] == 4.0
+    assert gain["args"]["trap_accel_limit"] == 3.0
+    assert gain["args"]["trap_decel_limit"] == 4.0
+    assert limit["args"]["vel_limit"] == 10.0
+    assert worker.tunables()["vel_limit"] == 10.0

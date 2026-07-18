@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 from .base import (Transport, TransportError, SIGNAL_META, ODRIVE_CONTROL_MODES,
-                   ODRIVE_INPUTS, ODRIVE_TUNABLES_CAN)
+                   ODRIVE_INPUTS, ODRIVE_TUNABLES_CAN, validate_gear_ratio)
 
 # motor_control의 공통 runtime lock과 steering/ak_control.py를 재사용한다.
 _MOTOR_CONTROL_DIR = Path(__file__).resolve().parents[3] / "motor_control"
@@ -59,8 +59,9 @@ class CanBackend(Transport):
 
     name = "can"
 
-    def __init__(self, channel: str = "can0") -> None:
+    def __init__(self, channel: str = "can0", gear_ratio: float = 5.0) -> None:
         self._channel = channel
+        self._gear_ratio = validate_gear_ratio(gear_ratio)
         self._bus = None
         self._ak = None
         self._can_session = None
@@ -129,6 +130,7 @@ class CanBackend(Transport):
         s = {"t_mono": time.monotonic()}
         s.update(self._state)
         s["odrive.pos"] = float(self._state.get("odrive.pos", 0.0)) - self._pos_offset
+        s["odrive.vel"] = float(self._state.get("odrive.vel", 0.0)) / self._gear_ratio
         s.update({
             "ak.pos_deg": self._ak.pos_out_deg,
             "ak.speed": float(self._ak.spd_erpm),
@@ -193,7 +195,8 @@ class CanBackend(Transport):
                 self._send(C_SET_INPUT_POS,
                            struct.pack("<fhh", float(args["pos"]) + self._pos_offset, 0, 0))
             elif "vel" in args:
-                self._send(C_SET_INPUT_VEL, struct.pack("<ff", float(args["vel"]), 0.0))
+                motor_vel = float(args["vel"]) * self._gear_ratio
+                self._send(C_SET_INPUT_VEL, struct.pack("<ff", motor_vel, 0.0))
             elif "torque" in args:
                 self._send(C_SET_INPUT_TORQUE, struct.pack("<f", float(args["torque"])))
         elif op == "set_gain":
@@ -213,15 +216,16 @@ class CanBackend(Transport):
                 self._last_vel_gains = merged
             if "trap_vel_limit" in args:
                 self._send(C_SET_TRAJ_VEL_LIMIT,
-                           struct.pack("<f", float(args["trap_vel_limit"])))
+                           struct.pack("<f", float(args["trap_vel_limit"])
+                                       * self._gear_ratio))
             if "trap_accel_limit" in args or "trap_decel_limit" in args:
                 for k in ("trap_accel_limit", "trap_decel_limit"):
                     if k in args:
                         self._last_trap[k] = float(args[k])
                 if "trap_accel_limit" in self._last_trap and "trap_decel_limit" in self._last_trap:
                     self._send(C_SET_TRAJ_ACCEL_LIMITS, struct.pack("<ff",
-                               self._last_trap["trap_accel_limit"],
-                               self._last_trap["trap_decel_limit"]))
+                               self._last_trap["trap_accel_limit"] * self._gear_ratio,
+                               self._last_trap["trap_decel_limit"] * self._gear_ratio))
         elif op == "set_limit":
             merged = dict(self._last_limits)
             for k in ("vel_limit", "current_lim"):
@@ -232,7 +236,8 @@ class CanBackend(Transport):
                         "detail": "CAN set_limit needs both vel_limit & "
                                   "current_lim on first set"}
             self._send(C_SET_LIMITS, struct.pack("<ff",
-                       merged["vel_limit"], merged["current_lim"]))
+                       merged["vel_limit"] * self._gear_ratio,
+                       merged["current_lim"]))
             self._last_limits = merged
         elif op == "set_state":
             st = AXIS_CLOSED_LOOP if args.get("state") == "closed_loop" else AXIS_IDLE
@@ -274,12 +279,14 @@ class CanBackend(Transport):
                            "set_origin", "estop"],
                 "ak": ["set_input", "set_origin", "estop"],
             },
-            "limits": {"odrive": {"vel": 200.0, "torque": 10.0, "pos": 100.0},
+            "limits": {"odrive": {"vel": 200.0 / self._gear_ratio,
+                                    "torque": 10.0, "pos": 100.0},
                        "ak": {"pos_deg": 360.0}},
             "control_modes": {"odrive": ODRIVE_CONTROL_MODES},
             "inputs": {"odrive": ODRIVE_INPUTS},
             "tunables": {"odrive": ODRIVE_TUNABLES_CAN},
             "signal_meta": SIGNAL_META,
+            "drive_gear_ratio": self._gear_ratio,
             "can_ids": self.device_ids(),
             "notes": ["CAN 트랙 — ODrive+AK 동시. NVM 저장 불가 (USB 전용)"],
         }

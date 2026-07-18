@@ -1,7 +1,15 @@
 import csv
+import struct
 import time
 
+import can
+
 from motor_gui.backend.transport.fake import FakeTransport
+from motor_gui.backend.transport.odrive_can_device import (
+    C_GET_ENC_EST,
+    NODE_ID,
+    OdriveCanDevice,
+)
 from motor_gui.backend.worker import HardwareWorker
 from motor_gui.backend.recorder import Recorder
 
@@ -41,3 +49,31 @@ def test_unsupported_fmt_rejected(tmp_path):
     res = rec.start(str(tmp_path / "x.bin"), "bin")
     assert res["ok"] is False
     assert "unsupported" in res["detail"]
+
+
+def test_records_converted_wheel_velocity(tmp_path):
+    class ManualWorker:
+        def subscribe(self, callback):
+            self.callback = callback
+
+        def unsubscribe(self, callback):
+            assert callback == self.callback
+
+    worker = ManualWorker()
+    recorder = Recorder(worker)
+    path = str(tmp_path / "wheel.csv")
+    device = OdriveCanDevice(gear_ratio=5.0)
+    device.on_rx(can.Message(
+        arbitration_id=(NODE_ID << 5) | C_GET_ENC_EST,
+        data=struct.pack("<ff", 0.0, 10.0),
+        is_extended_id=False,
+    ))
+
+    recorder.start(path, "csv")
+    worker.callback({"t_mono": 1.0, **device.sample()})
+    time.sleep(0.05)
+    recorder.stop()
+
+    with open(path, newline="") as f:
+        row = next(csv.DictReader(f))
+    assert float(row["odrive.vel"]) == 2.0

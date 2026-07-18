@@ -1,10 +1,12 @@
 import struct
 import can
+import pytest
 
 from motor_gui.backend.transport.odrive_can_device import (
     OdriveCanDevice, NODE_ID, C_HEARTBEAT, C_SET_POS_GAIN, C_SET_VEL_GAINS,
     C_GET_ENC_EST, C_GET_IQ, C_GET_TEMP, C_GET_BUS_VI,
     C_SET_CTRL_MODE, C_SET_INPUT_POS, C_SET_INPUT_VEL, C_SET_LIMITS,
+    C_SET_TRAJ_VEL_LIMIT, C_SET_TRAJ_ACCEL_LIMITS,
     C_SET_STATE, C_SET_LINEAR_COUNT, C_CLEAR_ERR, C_ESTOP,
     AXIS_IDLE, AXIS_CLOSED_LOOP, AXIS_FULL_CALIB,
 )
@@ -25,8 +27,8 @@ def _sent_cmds(bus):
     return [m.arbitration_id & 0x1F for m in bus.sent]
 
 
-def _mk():
-    d = OdriveCanDevice()
+def _mk(gear_ratio=5.0):
+    d = OdriveCanDevice(gear_ratio=gear_ratio)
     bus = StubBus()
     d.attach(bus)
     return d, bus
@@ -38,6 +40,7 @@ def test_capabilities_three_modes_no_torque():
     assert f["control_modes"]["odrive"] == ["position", "position_traj", "velocity"]
     assert "torque" not in f["control_modes"]["odrive"]
     assert set(f["inputs"]["odrive"]) == {"position", "position_traj", "velocity"}
+    assert f["drive_gear_ratio"] == 5.0
 
 
 def test_capabilities_commands_include_set_param_not_save_nvm():
@@ -52,12 +55,15 @@ def test_capabilities_tunables_prefill_values():
     f = OdriveCanDevice().capabilities_fragment()
     tk = {t["key"]: t for t in f["tunables"]["odrive"]}
     assert tk["pos_gain"]["value"] == 8.0
-    assert tk["vel_limit"]["value"] == 50.0
+    assert tk["vel_limit"]["value"] == 10.0
+    assert tk["trap_accel_limit"]["value"] == 3.0
+    assert tk["trap_decel_limit"]["value"] == 4.0
     assert tk["current_lim"]["value"] == 10.0
     assert "trap_vel_limit" not in tk
     assert "input_filter_bandwidth" not in tk
     assert tk["torque_constant"]["op"] == "set_param"
     assert abs(tk["torque_constant"]["value"] - 0.0084) < 1e-9
+    assert f["limits"]["odrive"]["vel"] == 40.0
 
 
 def test_signals_exclude_id_and_suberrors():
@@ -68,12 +74,14 @@ def test_signals_exclude_id_and_suberrors():
     assert "odrive.motor_err" not in sig
 
 
-def test_attach_pushes_default_gains():
+def test_attach_pushes_default_gains_and_motor_trap_limits():
     d, bus = _mk()
     cmds = _sent_cmds(bus)
     assert C_SET_POS_GAIN in cmds
     assert C_SET_VEL_GAINS in cmds
     assert C_SET_LIMITS in cmds
+    trap = _last(bus, C_SET_TRAJ_ACCEL_LIMITS)
+    assert struct.unpack("<ff", trap.data) == (15.0, 20.0)
 
 
 def _enc_msg(pos, vel, node=NODE_ID):
@@ -99,13 +107,13 @@ def test_request_sends_four_rtr_polls():
     assert set(rtr) == {C_GET_ENC_EST, C_GET_IQ, C_GET_TEMP, C_GET_BUS_VI}
 
 
-def test_on_rx_decodes_encoder_and_heartbeat():
+def test_on_rx_reports_wheel_velocity_and_heartbeat():
     d, bus = _mk()
     d.on_rx(_enc_msg(2.5, -1.25))
     d.on_rx(_heartbeat_msg(axis_err=0x20, state=AXIS_CLOSED_LOOP))
     s = d.sample()
     assert abs(s["odrive.pos"] - 2.5) < 1e-6
-    assert abs(s["odrive.vel"] + 1.25) < 1e-6
+    assert abs(s["odrive.vel"] + 0.25) < 1e-6
     assert s["odrive.state"] == AXIS_CLOSED_LOOP
     assert s["odrive.axis_err"] == 0x20
 
@@ -174,14 +182,29 @@ def test_set_input_pos_sends_frame_and_tracks_setpoint():
     assert abs(d._pos_setpoint - 4.0) < 1e-6
 
 
-def test_set_input_vel_tracks_vel_setpoint():
+def test_set_input_vel_sends_motor_velocity_and_tracks_wheel_setpoint():
     d, bus = _mk()
     d.apply(bus, "set_mode", {"control_mode": "velocity"})
     d.apply(bus, "set_input", {"vel": 2.5})
     iv = _last(bus, C_SET_INPUT_VEL)
     vel, _tff = struct.unpack("<ff", iv.data)
-    assert abs(vel - 2.5) < 1e-6
+    assert abs(vel - 12.5) < 1e-6
     assert abs(d._vel_setpoint - 2.5) < 1e-6
+
+
+def test_gear_ratio_one_preserves_velocity_command_and_feedback():
+    d, bus = _mk(gear_ratio=1.0)
+    d.apply(bus, "set_input", {"vel": 1.0})
+    vel, _tff = struct.unpack("<ff", _last(bus, C_SET_INPUT_VEL).data)
+    d.on_rx(_enc_msg(3.0, 10.0))
+    assert vel == 1.0
+    assert d.sample()["odrive.vel"] == 10.0
+
+
+@pytest.mark.parametrize("ratio", [0.0, -1.0, float("inf"), float("nan")])
+def test_gear_ratio_must_be_finite_and_positive(ratio):
+    with pytest.raises(ValueError, match="gear_ratio must be finite and positive"):
+        OdriveCanDevice(gear_ratio=ratio)
 
 
 def test_set_input_no_known_key_rejected():
@@ -207,7 +230,7 @@ def test_set_limit_velocity_mode_no_headroom():
     d.apply(bus, "set_limit", {"vel_limit": 10.0})
     lim = _last(bus, C_SET_LIMITS)
     cap, cur_lim = struct.unpack("<ff", lim.data)
-    assert abs(cap - 10.0) < 1e-6        # velocity 모드 = 정확한 캡(헤드룸 없음)
+    assert abs(cap - 50.0) < 1e-6        # wheel 10 × ratio 5 = motor cap 50
 
 
 def test_set_limit_traj_mode_has_headroom():
@@ -217,7 +240,21 @@ def test_set_limit_traj_mode_has_headroom():
     d.apply(bus, "set_limit", {"vel_limit": 10.0})
     lim = _last(bus, C_SET_LIMITS)
     cap, _cur = struct.unpack("<ff", lim.data)
-    assert abs(cap - 13.0) < 1e-6        # max(10*1.3, 0) = 13 (헤드룸)
+    assert abs(cap - 65.0) < 1e-6        # wheel 10 × ratio 5 × 1.3 = motor cap 65
+
+
+def test_trap_velocity_and_acceleration_limits_send_motor_units():
+    d, bus = _mk()
+    bus.sent.clear()
+    d.apply(bus, "set_limit", {"vel_limit": 4.0})
+    traj_vel = _last(bus, C_SET_TRAJ_VEL_LIMIT)
+    assert struct.unpack("<f", traj_vel.data)[0] == 20.0
+
+    d.apply(bus, "set_gain", {"trap_accel_limit": 2.0, "trap_decel_limit": 3.0})
+    traj_accel = _last(bus, C_SET_TRAJ_ACCEL_LIMITS)
+    accel, decel = struct.unpack("<ff", traj_accel.data)
+    assert accel == 10.0
+    assert decel == 15.0
 
 
 def test_set_param_torque_constant_updates_torque_est():

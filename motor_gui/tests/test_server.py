@@ -1,6 +1,7 @@
+import pytest
 from fastapi.testclient import TestClient
 
-from motor_gui.backend.server import create_app
+from motor_gui.backend.server import _build_parser, _make_transport, create_app
 
 
 def _client() -> TestClient:
@@ -14,6 +15,7 @@ def test_capabilities_endpoint():
         caps = r.json()
         assert caps["track"] == "fake"
         assert "odrive.pos" in caps["signals"]
+        assert "drive_gear_ratio" not in caps
 
 
 def test_command_endpoint_acks():
@@ -48,7 +50,6 @@ def test_record_start_stop(tmp_path):
 
 
 def test_make_transport_ak_track_capabilities():
-    from motor_gui.backend.server import _make_transport
     t = _make_transport("ak")
     caps = t.capabilities()                     # connect 없이 (정적 조각)
     assert caps["track"] == "ak"
@@ -65,7 +66,6 @@ def test_reconnect_endpoint_ok():
 
 
 def test_make_transport_odrive_can_track():
-    from motor_gui.backend.server import _make_transport
     t = _make_transport("odrive_can")
     caps = t.capabilities()                     # connect 없이 (정적 조각)
     assert caps["track"] == "can"
@@ -74,17 +74,16 @@ def test_make_transport_odrive_can_track():
     assert "set_param" in caps["commands"]["odrive"]
     tk = {t["key"]: t for t in caps["tunables"]["odrive"]}
     assert "torque_constant" in tk
+    assert caps["drive_gear_ratio"] == 5.0
 
 
 def test_ak_track_default_id_is_1():
-    from motor_gui.backend.server import _make_transport
     t = _make_transport("ak")
     assert t.device_ids() == {"ak": {"id": 1, "min": 1, "max": 127, "label": "AK 모터 ID"}}
     assert t.capabilities()["can_ids"]["ak"]["id"] == 1
 
 
 def test_odrive_can_default_node_is_11():
-    from motor_gui.backend.server import _make_transport
     t = _make_transport("odrive_can")
     assert t.device_ids()["odrive"]["id"] == 11
     assert t.capabilities()["can_ids"]["odrive"]["id"] == 11
@@ -95,3 +94,51 @@ def test_can_id_endpoint_rejects_empty():
         r = c.post("/api/can_id", json={})
         assert r.status_code == 200
         assert r.json()["ok"] is False
+
+
+def test_drive_gear_ratio_cli_defaults_and_parses_explicit_value():
+    parser = _build_parser()
+    assert parser.parse_args([]).drive_gear_ratio == 5.0
+    assert parser.parse_args(["--drive-gear-ratio", "1.0"]).drive_gear_ratio == 1.0
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "inf", "nan"])
+def test_drive_gear_ratio_cli_rejects_nonpositive_or_nonfinite(value):
+    with pytest.raises(SystemExit):
+        _build_parser().parse_args(["--drive-gear-ratio", value])
+
+
+@pytest.mark.parametrize("track", ["usb", "odrive_can", "can"])
+def test_make_transport_injects_ratio_into_odrive_tracks(track):
+    caps = _make_transport(track, drive_gear_ratio=7.0).capabilities()
+    assert caps["drive_gear_ratio"] == 7.0
+
+
+def test_make_transport_does_not_apply_ratio_to_ak_or_fake():
+    ak = _make_transport("ak", drive_gear_ratio=9.0)
+    fake = _make_transport("fake", drive_gear_ratio=9.0)
+    fake.connect()
+    fake.apply({"target": "odrive", "op": "set_input", "args": {"vel": 1.0}})
+    assert "drive_gear_ratio" not in ak.capabilities()
+    assert "drive_gear_ratio" not in fake.capabilities()
+    assert fake._target == 1.0
+
+
+def test_odrive_capabilities_endpoint_exposes_applied_ratio(monkeypatch):
+    from motor_gui.backend.worker import HardwareWorker
+
+    monkeypatch.setattr(HardwareWorker, "start", lambda self: None)
+    monkeypatch.setattr(HardwareWorker, "stop", lambda self: None)
+    with TestClient(create_app(track="odrive_can", drive_gear_ratio=6.0)) as client:
+        payload = client.get("/api/capabilities").json()
+    assert payload["drive_gear_ratio"] == 6.0
+
+
+def test_frontend_labels_wheel_velocity_and_displays_ratio():
+    with _client() as client:
+        html = client.get("/").text
+        app_js = client.get("/app.js").text
+        plots_js = client.get("/plots.js").text
+    assert "wheel rev/s" in html
+    assert "drive_gear_ratio" in app_js
+    assert "wheel rev/s" in plots_js

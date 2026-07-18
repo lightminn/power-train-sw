@@ -3,7 +3,8 @@ from __future__ import annotations
 import time
 
 from .base import (Transport, TransportError, SIGNAL_META, ODRIVE_CONTROL_MODES,
-                   ODRIVE_INPUTS, ODRIVE_TUNABLES_USB)
+                   ODRIVE_INPUTS, ODRIVE_TUNABLES_USB, DEFAULT_TUNABLES,
+                   validate_gear_ratio)
 
 _ODRIVE_SIGNALS = [
     "odrive.pos", "odrive.pos_setpoint", "odrive.vel", "odrive.vel_setpoint",
@@ -25,14 +26,16 @@ class UsbOdriveBackend(Transport):
 
     name = "usb"
 
-    def __init__(self, axis_num: int = 1, timeout: float = 15.0) -> None:
+    def __init__(self, axis_num: int = 1, timeout: float = 15.0,
+                 gear_ratio: float = 5.0) -> None:
         self._timeout = timeout
         self._axis_num = axis_num
+        self._gear_ratio = validate_gear_ratio(gear_ratio)
         self._drv = None
         self._ax = None
         self._fet_therm = None      # fw 별 위치 달라 connect 에서 resolve
         self._enums: dict = {}
-        self._vel_limit = 50.0       # 사용자가 의도한 속도(=TRAP 순항). 캡과 구분.
+        self._vel_limit = float(DEFAULT_TUNABLES["vel_limit"]) / self._gear_ratio
         self._torque_const = 0.0    # Iq→토크 환산 (motor.config.torque_constant)
         self._motor_info: dict = {}  # 정적 모터 파라미터 (capabilities 노출)
 
@@ -66,7 +69,7 @@ class UsbOdriveBackend(Transport):
             "VEL_RAMP": InputMode.VEL_RAMP.value,
             "TRAP_TRAJ": InputMode.TRAP_TRAJ.value,
         }
-        self._vel_limit = float(self._ax.controller.config.vel_limit)
+        self._vel_limit = float(self._ax.controller.config.vel_limit) / self._gear_ratio
         self._sync_vel_limit()
         # 정적 모터 파라미터 (캘리브레이션 결과) — 1회 읽어 토크 환산/표시에 사용.
         mc = self._ax.motor.config
@@ -90,12 +93,13 @@ class UsbOdriveBackend(Transport):
         """
         ax = self._ax
         in_trap = int(ax.controller.config.input_mode) == self._enums["TRAP_TRAJ"]
-        ax.trap_traj.config.vel_limit = self._vel_limit
+        motor_vel_limit = self._vel_limit * self._gear_ratio
+        ax.trap_traj.config.vel_limit = motor_vel_limit
         if in_trap:
             cur = abs(float(ax.encoder.vel_estimate))
-            ax.controller.config.vel_limit = max(self._vel_limit * 1.3, cur * 1.3)
+            ax.controller.config.vel_limit = max(motor_vel_limit * 1.3, cur * 1.3)
         else:
-            ax.controller.config.vel_limit = self._vel_limit
+            ax.controller.config.vel_limit = motor_vel_limit
 
     def sample(self) -> dict:
         ax, drv = self._ax, self._drv
@@ -105,8 +109,8 @@ class UsbOdriveBackend(Transport):
             "t_mono": time.monotonic(),
             "odrive.pos": float(ax.encoder.pos_estimate),
             "odrive.pos_setpoint": float(ax.controller.pos_setpoint),
-            "odrive.vel": float(ax.encoder.vel_estimate),
-            "odrive.vel_setpoint": float(ax.controller.vel_setpoint),
+            "odrive.vel": float(ax.encoder.vel_estimate) / self._gear_ratio,
+            "odrive.vel_setpoint": float(ax.controller.vel_setpoint) / self._gear_ratio,
             "odrive.iq_meas": iq_meas,
             "odrive.iq_set": float(m.Iq_setpoint),
             "odrive.id_meas": float(m.Id_measured),
@@ -147,7 +151,7 @@ class UsbOdriveBackend(Transport):
                 if "pos" in args:
                     ax.controller.input_pos = float(args["pos"])
                 elif "vel" in args:
-                    ax.controller.input_vel = float(args["vel"])
+                    ax.controller.input_vel = float(args["vel"]) * self._gear_ratio
                 elif "torque" in args:
                     ax.controller.input_torque = float(args["torque"])
             elif op == "set_gain":
@@ -160,7 +164,8 @@ class UsbOdriveBackend(Transport):
                             "trap_decel_limit": "decel_limit"}
                 for k, attr in trap_map.items():
                     if k in args:
-                        setattr(ax.trap_traj.config, attr, float(args[k]))
+                        setattr(ax.trap_traj.config, attr,
+                                float(args[k]) * self._gear_ratio)
             elif op == "set_limit":
                 if "vel_limit" in args:
                     self._vel_limit = float(args["vel_limit"])
@@ -211,11 +216,13 @@ class UsbOdriveBackend(Transport):
                                     "set_limit", "set_state", "calibrate",
                                     "clear_errors", "save_nvm", "set_origin",
                                     "estop"]},
-            "limits": {"odrive": {"vel": 200.0, "torque": 10.0, "pos": 100000.0}},
+            "limits": {"odrive": {"vel": 200.0 / self._gear_ratio,
+                                    "torque": 10.0, "pos": 100000.0}},
             "control_modes": {"odrive": ODRIVE_CONTROL_MODES},
             "inputs": {"odrive": ODRIVE_INPUTS},
             "tunables": {"odrive": _USB_TUNABLES},
             "signal_meta": SIGNAL_META,
+            "drive_gear_ratio": self._gear_ratio,
             "motor_info": {"odrive": self._motor_info},
             "notes": ["USB 트랙 — ODrive 단독, NVM 저장 가능"],
         }
@@ -237,9 +244,9 @@ class UsbOdriveBackend(Transport):
             pass
         try:
             tc = self._ax.trap_traj.config
-            out["trap_vel_limit"] = float(tc.vel_limit)
-            out["trap_accel_limit"] = float(tc.accel_limit)
-            out["trap_decel_limit"] = float(tc.decel_limit)
+            out["trap_vel_limit"] = float(tc.vel_limit) / self._gear_ratio
+            out["trap_accel_limit"] = float(tc.accel_limit) / self._gear_ratio
+            out["trap_decel_limit"] = float(tc.decel_limit) / self._gear_ratio
         except Exception:
             pass
         return out

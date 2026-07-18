@@ -371,7 +371,10 @@ function renderLoop() {
 
 async function main() {
   caps = await (await fetch("/api/capabilities")).json();
-  document.getElementById("track").textContent = `[${caps.track}]`;
+  const ratioText = caps.drive_gear_ratio == null
+    ? ""
+    : ` ODrive 1:${caps.drive_gear_ratio}`;
+  document.getElementById("track").textContent = `[${caps.track}]${ratioText}`;
   const vu = document.getElementById("velunit");
   if (vu) {
     vu.value = velUnit();
@@ -411,7 +414,7 @@ async function main() {
     rcBtn.disabled = false;
   });
   panels = window.MGPlots.buildPanels(caps.signals, caps.signal_meta || {});
-  logMsg(`연결: track=${caps.track} devices=${caps.devices.join(",")}`);
+  logMsg(`연결: track=${caps.track} devices=${caps.devices.join(",")}${ratioText}`);
   connectWS();
   requestAnimationFrame(renderLoop);
 }

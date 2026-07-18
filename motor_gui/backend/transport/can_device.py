@@ -141,6 +141,8 @@ class CanTransport(Transport):
             for key in ("commands", "control_modes", "inputs", "tunables", "limits"):
                 caps[key].update(f.get(key, {}))
             caps["signal_meta"].update(f.get("signal_meta", {}))
+            if "drive_gear_ratio" in f:
+                caps["drive_gear_ratio"] = f["drive_gear_ratio"]
         caps["can_ids"] = self.device_ids()
         return caps
 

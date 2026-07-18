@@ -17,17 +17,18 @@ class _NoCacheStatic(StaticFiles):
 
 from .worker import HardwareWorker
 from .recorder import Recorder
+from .transport.base import validate_gear_ratio
 
 _FRONTEND = Path(__file__).resolve().parents[1] / "frontend"
 
 
-def _make_transport(track: str):
+def _make_transport(track: str, drive_gear_ratio: float = 5.0):
     if track == "fake":
         from .transport.fake import FakeTransport
         return FakeTransport()
     if track == "usb":
         from .transport.usb_odrive import UsbOdriveBackend
-        return UsbOdriveBackend()
+        return UsbOdriveBackend(gear_ratio=drive_gear_ratio)
     if track == "ak":
         from .transport.can_device import CanTransport
         from .transport.ak_device import AkDevice
@@ -35,16 +36,16 @@ def _make_transport(track: str):
     if track == "odrive_can":
         from .transport.can_device import CanTransport
         from .transport.odrive_can_device import OdriveCanDevice
-        return CanTransport([OdriveCanDevice()], track="can")
+        return CanTransport([OdriveCanDevice(gear_ratio=drive_gear_ratio)], track="can")
     if track == "can":
         from .transport.can_bus import CanBackend
-        return CanBackend()
+        return CanBackend(gear_ratio=drive_gear_ratio)
     raise ValueError(f"unknown track: {track!r}")
 
 
-def create_app(track: str = "fake") -> FastAPI:
+def create_app(track: str = "fake", drive_gear_ratio: float = 5.0) -> FastAPI:
     app = FastAPI(title="motor_gui", version="0.1")
-    worker = HardwareWorker(_make_transport(track))
+    worker = HardwareWorker(_make_transport(track, drive_gear_ratio=drive_gear_ratio))
     recorder = Recorder(worker)
 
     @app.on_event("startup")
@@ -132,14 +133,37 @@ def create_app(track: str = "fake") -> FastAPI:
     return app
 
 
-def main() -> None:
-    import uvicorn
+def _positive_gear_ratio(value: str) -> float:
+    try:
+        return validate_gear_ratio(float(value))
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="motor_gui backend")
     p.add_argument("--track", choices=["fake", "usb", "can", "ak", "odrive_can"], default="fake")
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=8000)
+    p.add_argument(
+        "--drive-gear-ratio",
+        type=_positive_gear_ratio,
+        default=5.0,
+        help=("ODrive 모터회전수/바퀴회전수 (기본 5.0). "
+              "레거시 X2212 USB 직결 진단은 --drive-gear-ratio 1.0을 명시."),
+    )
+    return p
+
+
+def main() -> None:
+    import uvicorn
+    p = _build_parser()
     args = p.parse_args()
-    uvicorn.run(create_app(track=args.track), host=args.host, port=args.port)
+    uvicorn.run(
+        create_app(track=args.track, drive_gear_ratio=args.drive_gear_ratio),
+        host=args.host,
+        port=args.port,
+    )
 
 
 if __name__ == "__main__":
