@@ -41,6 +41,11 @@ def test_mode_korean_maps_known_modes_and_preserves_unknown(mode, expected):
         ("cmd_watchdog", "명령 두절"),
         ("us100_checking", "US-100 점검 중"),
         ("boot_qualification", "부팅 자격화 미충족"),
+        ("remote_operator", "원격 조작자 비상정지"),
+        ("control_exception", "차대 제어 예외"),
+        ("node_shutdown", "차대 노드 종료"),
+        ("extraction_estop_source", "구조 탈출 중 추가 비상정지"),
+        ("extraction_ttl_expired", "구조 탈출 허가 시간 만료"),
         ("unmapped_source", "unmapped_source"),
     ),
 )

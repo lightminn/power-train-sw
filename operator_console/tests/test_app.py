@@ -463,3 +463,55 @@ def test_ops_panel_wires_pure_estop_cause_status_and_event_without_gtk():
     assert 'state.get("active_estop_sources", ())' in source
     assert 'getattr(self,"_latest_active_estop_sources",())' in compact_source
     assert 'self._event_sink("안전",' in source
+
+
+def test_immediate_estop_submits_before_first_ops_state_without_revision():
+    """The token-gated E-stop must not wait for the first state push."""
+    import ast
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    source_path = Path(__file__).resolve().parents[1] / "app.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    panel = next(
+        item
+        for item in tree.body
+        if isinstance(item, ast.ClassDef) and item.name == "OpsPanel"
+    )
+    method = next(
+        item
+        for item in panel.body
+        if isinstance(item, ast.FunctionDef)
+        and item.name == "_on_immediate_clicked"
+    )
+    module = ast.Module(body=[method], type_ignores=[])
+    ast.fix_missing_locations(module)
+    namespace = {
+        "Gtk": SimpleNamespace(Button=object),
+        "PanelAction": object,
+    }
+    exec(compile(module, str(source_path), "exec"), namespace)
+
+    submitted = []
+    rejected = []
+    flow = SimpleNamespace(
+        begin=lambda _action: (_ for _ in ()).throw(
+            RuntimeError("ops state unavailable")
+        ),
+        confirm=lambda _action: None,
+        reset=lambda: None,
+    )
+    node = SimpleNamespace(
+        _flow=flow,
+        _submit=submitted.append,
+        _emit=rejected.append,
+    )
+
+    namespace["_on_immediate_clicked"](
+        node,
+        None,
+        SimpleNamespace(action="estop"),
+    )
+
+    assert submitted == [{"action": "estop", "params": {}}]
+    assert rejected == []

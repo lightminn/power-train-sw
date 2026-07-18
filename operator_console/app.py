@@ -902,17 +902,8 @@ class OpsPanel(Gtk.Frame):
         if flow is None:
             self._emit(f"{action.action}: rejected — panel disabled")
             return
-        try:
-            flow.begin(action)
-            submit_kwargs = flow.confirm(action)
-        except (RuntimeError, ValueError) as exc:
-            self._emit(f"{action.action}: rejected — {exc}")
-            flow.reset()
-            return
-        if submit_kwargs is None:
-            self._emit(f"{action.action}: rejected — state revision changed")
-            return
-        self._submit(submit_kwargs)
+        flow.reset()
+        self._submit({"action": action.action, "params": {}})
 
     def _on_hold_press(
         self,
