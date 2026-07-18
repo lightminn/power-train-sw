@@ -1,4 +1,4 @@
-"""friction_ff 노브가 build_real_corners→DriveOdriveCan까지 배선되는지 검증."""
+"""실기 구동 노브가 build_real_corners→DriveOdriveCan까지 배선되는지 검증."""
 import re
 from pathlib import Path
 
@@ -27,7 +27,7 @@ class _RecordingSteer:
         self.motor_id = motor_id
 
 
-def test_build_real_corners_passes_friction_kwargs(monkeypatch):
+def test_build_real_corners_passes_drive_kwargs(monkeypatch):
     import corner_module.drive_odrive_can as drive_mod
     import corner_module.steer_ak40 as steer_mod
 
@@ -36,13 +36,14 @@ def test_build_real_corners_passes_friction_kwargs(monkeypatch):
     monkeypatch.setattr(steer_mod, "SteerAk40", _RecordingSteer)
 
     chassis_manager.build_real_corners(
-        "can0", friction_ff=0.25, v_knee_turns_s=0.4
+        "can0", friction_ff=0.25, v_knee_turns_s=0.4, gear_ratio=6.0
     )
 
     assert len(_RecordingDrive.instances) == 6
     for drive in _RecordingDrive.instances:
         assert drive.kwargs["friction_ff"] == 0.25
         assert drive.kwargs["v_knee"] == 0.4
+        assert drive.kwargs["gear_ratio"] == 6.0
 
 
 def test_build_real_corners_defaults_are_off():
@@ -51,6 +52,7 @@ def test_build_real_corners_defaults_are_off():
     signature = inspect.signature(chassis_manager.build_real_corners)
     assert signature.parameters["friction_ff"].default == 0.0
     assert signature.parameters["v_knee_turns_s"].default == 0.5
+    assert signature.parameters["gear_ratio"].default == 5.0
 
 
 def test_teleop_clis_expose_friction_knobs_with_off_defaults():
@@ -70,6 +72,13 @@ def test_chassis_node_declares_friction_parameters():
     assert '"friction_v_knee", 0.5' in CHASSIS_NODE
     assert "friction_ff=friction_ff" in CHASSIS_NODE
     assert "v_knee_turns_s=friction_v_knee" in CHASSIS_NODE
+
+
+def test_chassis_node_declares_and_forwards_gear_ratio():
+    assert 'declare_parameter("gear_ratio", 5.0)' in CHASSIS_NODE
+    assert 'gear_ratio = float(self.get_parameter("gear_ratio").value)' in CHASSIS_NODE
+    assert "gear_ratio=gear_ratio" in CHASSIS_NODE
+    assert "gear_ratio %.1f" in CHASSIS_NODE
 
 
 def test_min_rev_floor_is_abolished_to_zero_defaults():

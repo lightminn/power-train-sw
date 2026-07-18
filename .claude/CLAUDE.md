@@ -327,7 +327,7 @@ reorg (5/20): `docs/specs/2026-05-20-motor-control-reorg-design.md`,
 - Wheel radius: 100 mm
 - Parameter-optimization reference mass: **50 kg** (v4 확정값; 86 kg 재최적화 안 함). 실차 질량·최대 허용 질량은 별도 기계 사양으로 혼동하지 않는다.
 - Drive motor (test): SunnySky X2212-13 + TLE5012B 16384 CPR encoder
-- Drive motor (real): BL70200 + internal HALL ×3 (**pp=10, cpr=60** — 2026-06 실측; 구문서의 pp=5/cpr=30 은 오기) ×6, ODrive v3.6 듀얼축 보드 3장(CAN node 11~16, 500 kbps)
+- Drive motor (real): BL70200 + internal HALL ×3 (**pp=10, cpr=60** — 2026-06 실측; 구문서의 pp=5/cpr=30 은 오기) ×6, ODrive v3.6 듀얼축 보드 3장(CAN node 11~16, 500 kbps), 감속 1:5(모터 5회전 = 바퀴 1회전) — 구동 명령·피드백은 DriveOdriveCan이 바퀴 단위로 변환
 - Sensors (2026-07-07 확정, 2026-07-10 Jetson USB 실재 확인): **L515=파워트레인 RGB/depth/IMU**, **D435i=로봇팔 인식 전용**, **US-100=독립 충돌 안전**. 파워트레인은 D435i 원본을 직접 점유하지 않고 `/detected_objects`를 구독한다.
 - Steering: CubeMars **AK45-36** (real/active, 36:1; peak 24 Nm, rated 8 Nm, KV80, peak current 65 A, backlash 12 arcmin, back-drive 0.8 Nm) / AK40-10 (legacy test, 10:1), CAN bus, identical API. 기본 `ACTIVE_MOTOR="AK45-36"` (`ak_control.py`의 `MOTOR_PROFILES`로 전환)
 

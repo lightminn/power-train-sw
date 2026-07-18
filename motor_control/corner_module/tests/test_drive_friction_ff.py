@@ -34,36 +34,38 @@ def _drive(**kwargs):
 
 
 @pytest.mark.parametrize(
-    ("target", "expected_ff"),
+    ("wheel_tps", "expected_motor_tps", "expected_ff"),
     [
-        (0.3, 0.25),     # knee 아래 전진 → +ff
-        (-0.3, -0.25),   # knee 아래 후진 → -ff (부호 추종)
-        (0.5, 0.0),      # knee 경계(포함 안 함) → 0
-        (0.8, 0.0),      # knee 위 → 0
-        (0.0, 0.0),      # 정지 지령 → 정확히 0 (크리프 방지)
+        (0.05, 0.25, 0.25),     # 모터 0.25 < knee → +ff
+        (-0.05, -0.25, -0.25),  # 모터 -0.25 < knee → -ff (부호 추종)
+        (0.1, 0.5, 0.0),        # 모터측 knee 경계(포함 안 함) → 0
+        (0.2, 1.0, 0.0),        # 모터 1.0 > knee → 0
+        (0.0, 0.0, 0.0),        # 정지 지령 → 정확히 0 (크리프 방지)
     ],
 )
-def test_tick_applies_friction_ff_only_inside_knee(target, expected_ff):
-    drive, bus = _drive(friction_ff=0.25, v_knee=0.5)
-    drive.set_velocity(target)
+def test_tick_compares_friction_ff_knee_in_motor_units(
+    wheel_tps, expected_motor_tps, expected_ff
+):
+    drive, bus = _drive(friction_ff=0.25, v_knee=0.5, gear_ratio=5.0)
+    drive.set_velocity(wheel_tps)
     drive.tick()
     frames = _input_vel_frames(bus, 11)
     assert len(frames) == 1
     vel, ff = frames[0]
-    assert vel == pytest.approx(target)
+    assert vel == pytest.approx(expected_motor_tps)
     assert ff == pytest.approx(expected_ff)
 
 
 def test_default_is_off_and_sends_zero_ff():
     drive, bus = _drive()
-    drive.set_velocity(0.3)
+    drive.set_velocity(0.05)
     drive.tick()
     assert _input_vel_frames(bus, 11)[0][1] == pytest.approx(0.0)
 
 
 def test_arm_disarm_estop_always_send_zero_ff():
     drive, bus = _drive(friction_ff=0.25, v_knee=0.5)
-    drive.set_velocity(0.3)
+    drive.set_velocity(0.05)
     drive.arm()
     drive.disarm()
     drive.estop()

@@ -24,6 +24,7 @@ RTR 로 폴링한다. steer_ak40 와 동일하게 각 드라이버가 자체 soc
 실물 CLI/노드 진입점이 connect 전에 ``chassis.runtime_lock.RealCanSession``을 잡고,
 모든 ``DriveOdriveCan.close()`` 뒤에 session을 해제해야 한다.
 """
+import math
 import struct
 import time
 
@@ -65,12 +66,15 @@ class DriveOdriveCan(DriveActuator):
         0 < |target| < v_knee 일 때만 부호 추종으로 Set_Input_Vel 2번째 필드에 실린다.
         0.0(기본) = off. 스펙 r6 §2.2b(D4).
     v_knee:
-        friction_ff 적용 상한(turns/s, 기본 0.5). 경계값은 포함하지 않는다.
+        friction_ff 적용 상한(모터 turns/s, 기본 0.5). 경계값은 포함하지 않는다.
+    gear_ratio:
+        모터 회전수 / 바퀴 회전수(기본 5.0). 반드시 양수여야 한다.
     """
 
     def __init__(self, node_id: int = 11, channel: str = "can0",
                  stale_ms: float = 200.0, bus=None, clock=None,
-                 friction_ff: float = 0.0, v_knee: float = 0.5):
+                 friction_ff: float = 0.0, v_knee: float = 0.5,
+                 gear_ratio: float = 5.0):
         self._node_id = node_id
         self._channel = channel
         self._stale_ms = stale_ms
@@ -78,6 +82,11 @@ class DriveOdriveCan(DriveActuator):
         self._owns_bus = bus is None
         self._friction_ff = max(0.0, float(friction_ff))
         self._v_knee = max(0.0, float(v_knee))
+        gear_ratio = float(gear_ratio)
+        if not math.isfinite(gear_ratio) or gear_ratio <= 0.0:
+            raise ValueError("gear_ratio must be finite and positive")
+        # BL70200 감속 1:5 — 2026-07-18 사용자 확인. 물리 검증은 바퀴 회전수 카운트.
+        self._gear_ratio = gear_ratio
         self._target_vel = 0.0
         self._actual_vel = 0.0
         self._cur_a = 0.0
@@ -196,11 +205,12 @@ class DriveOdriveCan(DriveActuator):
         self._target_vel = 0.0
 
     def set_velocity(self, turns_per_s: float) -> None:
-        """다음 tick() 에 전송할 목표 속도(turns/s)."""
+        """다음 tick() 에 전송할 바퀴 목표 속도(turns/s)."""
         self._target_vel = turns_per_s
 
-    def _friction_torque_ff(self) -> float:
-        t = self._target_vel
+    def _friction_torque_ff(self, motor_tps: float) -> float:
+        # 코깅은 모터측 물리 현상이므로 v_knee 비교도 변환 후 모터 단위에서 한다.
+        t = motor_tps
         if self._friction_ff > 0.0 and 0.0 < abs(t) < self._v_knee:
             return self._friction_ff if t > 0.0 else -self._friction_ff
         return 0.0
@@ -208,8 +218,9 @@ class DriveOdriveCan(DriveActuator):
     def tick(self) -> None:
         """제어 루프마다: 목표 속도(+저속 마찰 보상 ff) 전송 + RTR 폴링."""
         self._drain_available()
+        motor_tps = self._target_vel * self._gear_ratio
         self._send(_SET_INPUT_VEL,
-                   struct.pack("<ff", self._target_vel, self._friction_torque_ff()))
+                   struct.pack("<ff", motor_tps, self._friction_torque_ff(motor_tps)))
         self._send(_GET_ENCODER_ESTIMATES, rtr=True)
         self._send(_GET_IQ, rtr=True)
 
@@ -237,7 +248,7 @@ class DriveOdriveCan(DriveActuator):
         return {
             "node_id": self._node_id,
             "target_vel": self._target_vel,
-            "actual_vel": self._actual_vel,
+            "actual_vel": self._actual_vel / self._gear_ratio,
             "cur_a": self._cur_a,
             "axis_error": self._axis_error,
             "axis_state": self._axis_state,

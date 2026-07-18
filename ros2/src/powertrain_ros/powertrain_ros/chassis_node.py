@@ -141,6 +141,7 @@ class ChassisNode(Node):
         self.declare_parameter("min_rev", 0.0)
         self.declare_parameter("friction_ff", 0.0)
         self.declare_parameter("friction_v_knee", 0.5)
+        self.declare_parameter("gear_ratio", 5.0)
         self.declare_parameter("v_max", 1.5)
         self.declare_parameter("cmd_timeout", 0.5)
         self.declare_parameter("mode", contract.MODE_DRIVING)
@@ -166,6 +167,7 @@ class ChassisNode(Node):
         min_rev = float(self.get_parameter("min_rev").value)
         friction_ff = float(self.get_parameter("friction_ff").value)
         friction_v_knee = float(self.get_parameter("friction_v_knee").value)
+        gear_ratio = float(self.get_parameter("gear_ratio").value)
         v_max = float(self.get_parameter("v_max").value)
         self._cmd_timeout = float(self.get_parameter("cmd_timeout").value)
         self._safety_required = bool(
@@ -278,6 +280,7 @@ class ChassisNode(Node):
             corners = build_real_corners(
                 channel, wheel_map=wheel_map,
                 friction_ff=friction_ff, v_knee_turns_s=friction_v_knee,
+                gear_ratio=gear_ratio,
             )
             self.get_logger().info("Real chassis on %s" % channel)
 
@@ -675,11 +678,12 @@ class ChassisNode(Node):
             )
         self.get_logger().info(
             "chassis_node started (loop %.0f Hz, min_rev %.1f, "
-            "v_max %.1f, safety_required=%s, authority_enabled=%s, "
+            "gear_ratio %.1f, v_max %.1f, safety_required=%s, authority_enabled=%s, "
             "contract_v2_verified=%s, arm_gate_mode=%s)"
             % (
                 self.cm.cfg.loop_hz,
                 min_rev,
+                gear_ratio,
                 v_max,
                 self._safety_required,
                 self._authority_enabled,

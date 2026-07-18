@@ -1,3 +1,4 @@
+import inspect
 import struct
 from unittest.mock import Mock
 
@@ -479,6 +480,17 @@ def test_can_drive_connect_reuses_injected_bus():
     assert bus.sent == []
 
 
+def test_can_drive_default_gear_ratio_is_five():
+    signature = inspect.signature(DriveOdriveCan)
+    assert signature.parameters["gear_ratio"].default == 5.0
+
+
+@pytest.mark.parametrize("gear_ratio", [0.0, -1.0])
+def test_can_drive_rejects_nonpositive_gear_ratio(gear_ratio):
+    with pytest.raises(ValueError, match="gear_ratio"):
+        DriveOdriveCan(bus=_FakeCanBus(), gear_ratio=gear_ratio)
+
+
 def test_can_drive_arm_enters_closed_loop_at_zero_velocity():
     bus = _FakeCanBus()
     d = DriveOdriveCan(node_id=12, bus=bus)
@@ -509,9 +521,41 @@ def test_can_drive_tick_sends_target_and_rtr_polls():
     d.set_velocity(2.5)
     d.tick()
     vel = _sent(bus, 11, 0x0D)
-    assert struct.unpack("<ff", bytes(vel[-1].data))[0] == pytest.approx(2.5)
+    assert struct.unpack("<ff", bytes(vel[-1].data))[0] == pytest.approx(12.5)
     assert any(m.is_remote_frame and m.arbitration_id == (11 << 5) | 0x09 for m in bus.sent)
     assert any(m.is_remote_frame and m.arbitration_id == (11 << 5) | 0x14 for m in bus.sent)
+
+
+def test_can_drive_gear_ratio_five_converts_wheel_command_to_motor_tps():
+    bus = _FakeCanBus()
+    d = DriveOdriveCan(node_id=11, bus=bus, gear_ratio=5.0)
+    d.connect()
+    d.set_velocity(1.0)
+    d.tick()
+    vel = _sent(bus, 11, 0x0D)
+    assert struct.unpack("<ff", bytes(vel[-1].data))[0] == pytest.approx(5.0)
+    assert d.state()["target_vel"] == pytest.approx(1.0)
+
+
+def test_can_drive_gear_ratio_five_converts_motor_feedback_to_wheel_tps():
+    node = 11
+    bus = _FakeCanBus(rx=[_enc(node, 3.0, 10.0)])
+    d = DriveOdriveCan(node_id=node, bus=bus, gear_ratio=5.0)
+    d.connect()
+    d.tick()
+    assert d.state()["actual_vel"] == pytest.approx(2.0)
+
+
+def test_can_drive_gear_ratio_one_preserves_command_and_feedback_units():
+    node = 11
+    bus = _FakeCanBus(rx=[_enc(node, 3.0, 1.25)])
+    d = DriveOdriveCan(node_id=node, bus=bus, gear_ratio=1.0)
+    d.connect()
+    d.set_velocity(2.5)
+    d.tick()
+    vel = _sent(bus, node, 0x0D)
+    assert struct.unpack("<ff", bytes(vel[-1].data))[0] == pytest.approx(2.5)
+    assert d.state()["actual_vel"] == pytest.approx(1.25)
 
 
 def test_can_drive_periodic_tick_only_uses_nonblocking_recv():
@@ -522,7 +566,7 @@ def test_can_drive_periodic_tick_only_uses_nonblocking_recv():
     d.tick()
     assert bus.recv_timeouts
     assert set(bus.recv_timeouts) == {0.0}
-    assert d.state()["actual_vel"] == pytest.approx(1.25)
+    assert d.state()["actual_vel"] == pytest.approx(0.25)
 
 
 def test_can_drive_periodic_drain_is_bounded_to_16_frames():
@@ -560,7 +604,7 @@ def test_can_drive_state_parses_heartbeat_encoder_iq():
     d.connect()
     d.tick()                                   # poll 이 rx 소비
     st = d.state()
-    assert st["actual_vel"] == pytest.approx(0.98)
+    assert st["actual_vel"] == pytest.approx(0.196)
     assert st["cur_a"] == pytest.approx(0.42)
     assert st["axis_error"] == 0
     assert st["stale"] is False
