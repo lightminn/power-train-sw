@@ -1,3 +1,21 @@
+## Definition of done — execute for real, test the production path (2026-07-18 user directive)
+
+**Whatever you build (code, node, GUI, script, unit): before declaring it done,
+(1) actually run it and (2) drive one full end-to-end pass through the same
+path production uses.** Unit tests + diff review + green suites alone are NOT
+completion — assume defects exist that only execution reveals (swallowed
+callback exceptions, attribute typos, environment gaps).
+
+- operator_console: run `/usr/bin/python3 -m operator_console.runtime_smoke`
+  (real GUI under Xvfb + LIVE data on all four channels + traceback detection).
+- ROS nodes/services: smoke the **installed entry point** (`ros2 run ...`) on
+  the Jetson under domain-77 isolation (fixture publish → assert real
+  responses → process-group kill).
+- Deployed units/containers: after deploy, check `systemctl is-active` and the
+  journal for crash loops (they run silently — 5,586-restart incident, 07-18).
+- New verification gates need a negative control: reinject a known bug and
+  prove the gate FAILs.
+
 ## L515 Gateway Dashboard ownership
 
 - Production L515 access belongs only to `python3 -m l515_dashboard.gateway_main` in `powertrain_ros`.

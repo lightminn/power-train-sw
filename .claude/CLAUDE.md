@@ -275,6 +275,24 @@ ODrive 펌웨어 v0.5.x (CAN 트랙 fw-v0.5.6 검증). 구동은 **듀얼축 보
 import(예: `ak_control`)하지만 **`motor_control` 이 `motor_gui` 를 import 하면 안 됨**(역의존 금지).
 테스트 `motor_gui/tests/` (dev 컨테이너 pytest). 코너 모듈 HIL 때 `--track usb`/`--track ak` 로 실하드웨어 검증함.
 
+## 완료 선언 규칙 — 실행·실전 경로 검증 필수 (2026-07-18 사용자 지시)
+
+**뭔가 만들었으면(코드·노드·GUI·스크립트·유닛) done 선언 전에 ①실제로 실행하고
+②실전과 같은 경로로 E2E 테스트를 한 번 쫙 돌린다.** 순수 단위테스트+diff 리뷰
++스위트 green만으로 완료 선언 금지 — 실행 시에만 드러나는 결함(콜백 예외 삼킴,
+속성 오타, 환경 의존)이 반드시 있다고 가정한다.
+
+- **콘솔(operator_console)**: `/usr/bin/python3 -m operator_console.runtime_smoke`
+  (Xvfb 실기동 + 4채널 LIVE 주입 + traceback 검출) 필수. 호스트 스위트에 편입됨.
+- **ROS 노드/서비스**: 젯슨에서 **설치된 엔트리포인트**(`ros2 run ...`)를 도메인 77
+  격리로 실기동하는 스모크(ARM-CON/CMASK 패턴 — fixture 발행→실응답 단언→killpg).
+- **배포 유닛/컨테이너**: 배포 후 `systemctl is-active`+journal 무크래시 확인
+  (크래시루프는 조용히 돈다 — 07-18 sender 5,586회 사고).
+- **검증 게이트를 새로 만들면 음성 대조**(알려진 버그 재주입→FAIL 확인)로 게이트
+  자체를 증명한다.
+- 실사고 근거: 07-18 콘솔 3연속 기동 실패(gi 부재→gtksink 부재→`_rss`
+  AttributeError — 전부 스위트 green 상태에서 사용자가 직접 맞음).
+
 ## 테스트·실행 환경 (Jetson 우선)
 
 실제 실행·검증은 **Jetson Orin Nano 에서 직접 돌려보는 것을 우선**한다 (런타임 타깃이
