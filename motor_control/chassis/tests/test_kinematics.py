@@ -32,6 +32,24 @@ def test_zero_command_full_stop():
         assert wc.drive_mps == 0.0 and wc.steer_deg == 0.0
 
 
+@pytest.mark.parametrize(
+    ("v_mps", "omega_rad_s"),
+    [(math.nan, 0.0), (0.0, math.nan), (math.inf, 0.0), (0.0, -math.inf)],
+)
+def test_nonfinite_input_is_rejected(v_mps, omega_rad_s):
+    with pytest.raises(ValueError, match="non-finite input"):
+        solve(g(), v_mps, omega_rad_s)
+
+
+def test_nonfinite_output_from_invalid_geometry_is_rejected():
+    geometry = ChassisGeometry(wheels=[
+        Wheel("bad", math.nan, 0.2, True),
+    ])
+
+    with pytest.raises(ValueError, match="non-finite output"):
+        solve(geometry, 0.4, 0.4)
+
+
 # ── 좌회전 Ackermann 성질 ────────────────────────────────────────────────
 
 def test_left_turn_all_steer_left():
