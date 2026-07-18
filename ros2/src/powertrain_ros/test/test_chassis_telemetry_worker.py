@@ -71,3 +71,21 @@ def test_sender_node_uses_workers_bounded_encoder_and_no_poll_timers():
     assert "create_timer(1.0, self._poll_l515)" not in source
     assert "create_timer(1.0, self._poll_observability)" not in source
     assert "join_timeout_s=1.0" in source
+
+
+def test_encoder_accepts_frozen_status_client_mappings():
+    # GatewayClient/ObservabilityClient freeze their payloads with
+    # MappingProxyType; the encoder is the JSON boundary and must thaw them
+    # (2026-07-18 on-robot crash loop: "mappingproxy is not JSON serializable").
+    from types import MappingProxyType
+    import json
+
+    payload = {
+        "schema_version": 1,
+        "sequence": 0,
+        "l515_ros_topic_rates_hz": MappingProxyType({"color": 30.0}),
+        "nested": (MappingProxyType({"inner": 1}),),
+    }
+    decoded = json.loads(chassis_telemetry.encode_telemetry_payload(payload))
+    assert decoded["l515_ros_topic_rates_hz"] == {"color": 30.0}
+    assert decoded["nested"] == [{"inner": 1}]

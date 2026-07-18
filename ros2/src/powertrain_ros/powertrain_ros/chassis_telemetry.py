@@ -7,7 +7,7 @@ import json
 import math
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 
 MAX_TELEMETRY_BYTES = 4096
@@ -77,8 +77,18 @@ class LatestPollWorker:
         return not self._thread.is_alive()
 
 
+def _thawed(value: object) -> object:
+    # GatewayClient/ObservabilityClient hand out read-only MappingProxyType
+    # payloads; json.dumps only accepts plain containers.
+    if isinstance(value, Mapping):
+        return {key: _thawed(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_thawed(item) for item in value]
+    return value
+
+
 def _encoded(payload: dict[str, object]) -> bytes:
-    return json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    return json.dumps(_thawed(payload), separators=(",", ":")).encode("utf-8")
 
 
 def _bounded_top_level_strings(payload: dict[str, object]) -> dict[str, object]:
