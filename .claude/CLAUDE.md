@@ -119,7 +119,11 @@ Defence_Robot/
 ├── motor_gui/            웹 진단 GUI (FastAPI + 트랜스포트 추상화, AK/ODrive CAN·USB)
 ├── operator_console/     운용 PC GTK 콘솔 (SRT 2화면 + UDP 텔레메트리). ⚠️ A2b(07-18)로 헌장
 │                         개정: "관측 수신 전용 + 조작은 게이트된 ops 채널(:9001 역할토큰) 경유만"
-│                         (ConfirmFlow 2단확인 패널, 송신표면 계약테스트로 봉인)
+│                         (ConfirmFlow 2단확인 패널, 송신표면 계약테스트로 봉인).
+│                         ARM-CON(07-18): 로봇팔 텔레메트리 패널(:5007, arm_console_bridge
+│                         노드가 팔 토픽 read-only 미러) + 검출 yaw·픽타깃 오버레이(:5003
+│                         superset — 브리지 가동 시 팔 metadata_sender 미기동 단일송신 원칙).
+│                         ④실시간 화면은 팔 레포 stream_node(:5002)+기존 콘솔 패널로 충족
 ├── docker/               Container definitions (x86 dev + Jetson Orin Nano deploy)
 ├── scripts/              Host-side helpers (recv_stream.sh · recv_yolo3d.py · can_setup.sh ·
 │                         install_*.sh + systemd/ 유닛·udev·tmpfiles 아티팩트)

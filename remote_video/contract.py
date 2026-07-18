@@ -23,5 +23,13 @@ MAX_METADATA_BYTES = 16 * 1024
 RECEIVER_FEEDBACK_UDP_PORT = 5006
 RECEIVER_FEEDBACK_SCHEMA_VERSION = 1
 
+# Robot-arm telemetry mirror (arm_console_bridge): bounded dynamixel/joint
+# JSON at 5 Hz. Detection metadata reuses :5003 as a strict superset of the
+# arm team's sender schema (yaw_rad, is_pick_target) — single-sender rule:
+# when the bridge runs, the arm metadata_sender_node stays down.
+ARM_TELEMETRY_UDP_PORT = 5007
+ARM_TELEMETRY_SCHEMA_VERSION = 1
+MAX_ARM_TELEMETRY_BYTES = 4096
+
 L515_UNAVAILABLE_VERDICT = "REMOTE_DRIVE_VIDEO_UNAVAILABLE"
 D435I_UNAVAILABLE_VERDICT = "REMOTE_ARM_VIDEO_UNAVAILABLE"

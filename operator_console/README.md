@@ -26,6 +26,21 @@ SRT submit/sent/drop rates, aligned-Depth age, and Gateway process CPU/RSS.
 Missing Gateway data remains `null`/`UNAVAILABLE`; the console never opens a
 camera to fill it.
 
+Robot-arm telemetry arrives on UDP `:5007` (override with
+`--arm-telemetry-port`) from the `arm_console_bridge` ROS node, which mirrors
+the arm team's `/dynamixel/state`, `/joint_states`, `/detected_objects`, and
+latched `/pick_target` without touching the arm repo. The panel lists each
+Dynamixel as `ID · angle° · current(raw) · temperature[state]` — thresholds
+WARN 55 ℃ / CRIT 65 ℃ are provisional until the arm team confirms per-model
+limits — plus joint angles. Detection overlays on the D435i panel add
+`yaw ±deg°` and highlight the latched pick target in orange. To start the
+bridge on the robot (arm stack running, single :5003 sender rule — keep the
+arm `metadata_sender_node` down while the bridge runs):
+
+```bash
+ros2 run powertrain_ros arm_console_bridge --ros-args -p console_host:=<laptop-ip>
+```
+
 ```bash
 python3 -m operator_console.app --host 192.168.8.106
 ```
