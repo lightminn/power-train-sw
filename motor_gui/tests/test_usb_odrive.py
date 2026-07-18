@@ -1,8 +1,72 @@
 from types import SimpleNamespace
+import sys
+import types
 
 import pytest
 
 from motor_gui.backend.transport.usb_odrive import UsbOdriveBackend
+
+
+def test_connect_reads_tunables_without_writing_device_config(monkeypatch):
+    writes = []
+
+    class TrackingConfig:
+        def __init__(self, owner, **values):
+            object.__setattr__(self, "_owner", owner)
+            for key, value in values.items():
+                object.__setattr__(self, key, value)
+
+        def __setattr__(self, key, value):
+            writes.append((self._owner, key, value))
+            object.__setattr__(self, key, value)
+
+    controller = SimpleNamespace(config=TrackingConfig(
+        "controller", input_mode=2, vel_limit=50.0, pos_gain=2.0,
+        vel_gain=0.12, vel_integrator_gain=0.2,
+        input_filter_bandwidth=30.0,
+    ))
+    motor = SimpleNamespace(config=TrackingConfig(
+        "motor", torque_constant=0.04, phase_resistance=0.2,
+        phase_inductance=0.0003, pole_pairs=10, current_lim=9.0,
+    ))
+    axis = SimpleNamespace(
+        controller=controller,
+        motor=motor,
+        trap_traj=SimpleNamespace(config=TrackingConfig(
+            "trap", vel_limit=20.0, accel_limit=15.0, decel_limit=20.0,
+        )),
+        encoder=SimpleNamespace(vel_estimate=0.0),
+    )
+    driver = SimpleNamespace(axis0=axis, axis1=axis)
+
+    odrive = types.ModuleType("odrive")
+    odrive.find_any = lambda timeout: driver
+    enums = types.ModuleType("odrive.enums")
+
+    class EnumValues:
+        IDLE = SimpleNamespace(value=1)
+        CLOSED_LOOP_CONTROL = SimpleNamespace(value=8)
+        FULL_CALIBRATION_SEQUENCE = SimpleNamespace(value=3)
+        POSITION_CONTROL = SimpleNamespace(value=3)
+        VELOCITY_CONTROL = SimpleNamespace(value=2)
+        TORQUE_CONTROL = SimpleNamespace(value=1)
+        PASSTHROUGH = SimpleNamespace(value=1)
+        POS_FILTER = SimpleNamespace(value=3)
+        VEL_RAMP = SimpleNamespace(value=2)
+        TRAP_TRAJ = SimpleNamespace(value=5)
+
+    enums.AxisState = EnumValues
+    enums.ControlMode = EnumValues
+    enums.InputMode = EnumValues
+    monkeypatch.setitem(sys.modules, "odrive", odrive)
+    monkeypatch.setitem(sys.modules, "odrive.enums", enums)
+
+    backend = UsbOdriveBackend(gear_ratio=5.0)
+    backend.connect()
+
+    assert writes == []
+    assert backend.read_tunables()["vel_gain"] == 0.12
+    assert backend.read_tunables()["current_lim"] == 9.0
 
 
 def _backend(gear_ratio=5.0):

@@ -34,6 +34,7 @@ class AkDevice(CanDevice):
         self._maxcur = 30.0   # AK45-36 (peak 65A 대비 보수 트립값; 테스트 AK40-10 은 5.0)
         self._last_send = 0.0
         self._tripped = False
+        self._armed = False
         self._pos_cmd = 0.0
         self._speed_cmd = 0.0
 
@@ -41,6 +42,7 @@ class AkDevice(CanDevice):
         self._ak = AK40(bus, self._mid, name="ak")
         self._active = None
         self._tripped = False
+        self._armed = False
         self._pos_cmd = 0.0
         self._speed_cmd = 0.0
 
@@ -55,8 +57,8 @@ class AkDevice(CanDevice):
         return {
             "devices": ["ak"],
             "signals": list(_AK_SIGNALS),
-            "commands": {"ak": ["set_mode", "set_input", "set_param",
-                                 "set_origin", "estop"]},
+            "commands": {"ak": ["arm", "disarm", "set_mode", "set_input",
+                                 "set_param", "set_origin", "estop"]},
             "control_modes": {"ak": ["position", "velocity", "duty"]},
             "inputs": {"ak": {
                 "position": {"key": "pos_deg", "label": "목표 위치", "unit": "°",
@@ -104,6 +106,7 @@ class AkDevice(CanDevice):
             self._ak.send_rpm_out(0)
             self._active = None
             self._tripped = True
+            self._armed = False
             return
         now = time.monotonic()
         if self._active is not None and now - self._last_send >= 1.0 / _RESEND_HZ:
@@ -131,7 +134,19 @@ class AkDevice(CanDevice):
             if op == "estop":
                 a.stop()
                 self._active = None
+                self._armed = False
+            elif op == "arm":
+                self._active = None
+                self._tripped = False
+                self._armed = True
+            elif op == "disarm":
+                a.stop()
+                self._active = None
+                self._armed = False
             elif op == "set_mode":
+                if not self._armed:
+                    return {"ok": False, "target": "ak", "op": op,
+                            "detail": "rejected: AK disarmed; arm required"}
                 self._mode = args["control_mode"]
                 self._tripped = False
                 self._pos_cmd = a.pos_out_deg   # 비활성 모드 오버레이가 실제값을 따라가게(stale 방지)
@@ -150,6 +165,9 @@ class AkDevice(CanDevice):
                             "detail": f"unsupported mode {self._mode}"}
                 self._fire()
             elif op == "set_input":
+                if not self._armed:
+                    return {"ok": False, "target": "ak", "op": op,
+                            "detail": "rejected: AK disarmed; arm required"}
                 expected = {"position": "pos_deg", "velocity": "rpm",
                             "duty": "duty"}[self._mode]
                 if expected not in args:
@@ -183,6 +201,9 @@ class AkDevice(CanDevice):
                 if "max_cur_a" in args:
                     self._maxcur = float(args["max_cur_a"])
             elif op == "set_origin":
+                if not self._armed:
+                    return {"ok": False, "target": "ak", "op": op,
+                            "detail": "rejected: AK disarmed; arm required"}
                 a.set_origin_here()
                 self._pos_cmd = 0.0
                 if self._mode == "position":
@@ -196,6 +217,8 @@ class AkDevice(CanDevice):
             return {"ok": False, "target": "ak", "op": op, "detail": str(e)}
 
     def close(self, bus) -> None:
+        self._armed = False
+        self._active = None
         if self._ak is not None:
             try:
                 self._ak.stop()

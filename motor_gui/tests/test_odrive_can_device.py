@@ -51,14 +51,12 @@ def test_capabilities_commands_include_set_param_not_save_nvm():
     assert "save_nvm" not in cmds
 
 
-def test_capabilities_tunables_prefill_values():
+def test_capabilities_do_not_prefill_unread_x2212_tunables():
     f = OdriveCanDevice().capabilities_fragment()
     tk = {t["key"]: t for t in f["tunables"]["odrive"]}
-    assert tk["pos_gain"]["value"] == 8.0
-    assert tk["vel_limit"]["value"] == 10.0
-    assert tk["trap_accel_limit"]["value"] == 3.0
-    assert tk["trap_decel_limit"]["value"] == 4.0
-    assert tk["current_lim"]["value"] == 10.0
+    for key in ("pos_gain", "vel_gain", "vel_integrator_gain", "vel_limit",
+                "trap_accel_limit", "trap_decel_limit", "current_lim"):
+        assert "value" not in tk[key]
     assert "trap_vel_limit" not in tk
     assert "input_filter_bandwidth" not in tk
     assert tk["torque_constant"]["op"] == "set_param"
@@ -74,14 +72,14 @@ def test_signals_exclude_id_and_suberrors():
     assert "odrive.motor_err" not in sig
 
 
-def test_attach_pushes_default_gains_and_motor_trap_limits():
+def test_attach_does_not_write_any_tuning_frames():
     d, bus = _mk()
     cmds = _sent_cmds(bus)
-    assert C_SET_POS_GAIN in cmds
-    assert C_SET_VEL_GAINS in cmds
-    assert C_SET_LIMITS in cmds
-    trap = _last(bus, C_SET_TRAJ_ACCEL_LIMITS)
-    assert struct.unpack("<ff", trap.data) == (15.0, 20.0)
+    tuning_cmds = {
+        C_SET_POS_GAIN, C_SET_VEL_GAINS, C_SET_LIMITS,
+        C_SET_TRAJ_VEL_LIMIT, C_SET_TRAJ_ACCEL_LIMITS,
+    }
+    assert tuning_cmds.isdisjoint(cmds)
 
 
 def _enc_msg(pos, vel, node=NODE_ID):
@@ -213,21 +211,37 @@ def test_set_input_no_known_key_rejected():
     assert ack["ok"] is False
 
 
-def test_set_gain_partial_vel_merges_cached_pair():
+def test_set_gain_partial_vel_does_not_merge_unselected_x2212_value():
     d, bus = _mk()
     bus.sent.clear()
-    d.apply(bus, "set_gain", {"vel_gain": 0.05})
-    vg = _last(bus, C_SET_VEL_GAINS)
-    g, ig = struct.unpack("<ff", vg.data)
-    assert abs(g - 0.05) < 1e-6
-    assert abs(ig - 0.0) < 1e-6          # DEFAULT_TUNABLES vel_integrator_gain
+    ack = d.apply(bus, "set_gain", {"vel_gain": 0.05})
+    assert ack["ok"] is False
+    assert _last(bus, C_SET_VEL_GAINS) is None
+
+
+def test_set_limit_partial_does_not_merge_unselected_x2212_value():
+    d, bus = _mk()
+    bus.sent.clear()
+    ack = d.apply(bus, "set_limit", {"current_lim": 9.0})
+    assert ack["ok"] is False
+    assert _last(bus, C_SET_LIMITS) is None
+
+
+def test_set_mode_does_not_write_unknown_tuning_limits():
+    d, bus = _mk()
+    bus.sent.clear()
+    ack = d.apply(bus, "set_mode", {"control_mode": "velocity"})
+    assert ack["ok"] is True
+    cmds = _sent_cmds(bus)
+    assert C_SET_LIMITS not in cmds
+    assert C_SET_TRAJ_VEL_LIMIT not in cmds
 
 
 def test_set_limit_velocity_mode_no_headroom():
     d, bus = _mk()
     d.apply(bus, "set_mode", {"control_mode": "velocity"})
     bus.sent.clear()
-    d.apply(bus, "set_limit", {"vel_limit": 10.0})
+    d.apply(bus, "set_limit", {"vel_limit": 10.0, "current_lim": 9.0})
     lim = _last(bus, C_SET_LIMITS)
     cap, cur_lim = struct.unpack("<ff", lim.data)
     assert abs(cap - 50.0) < 1e-6        # wheel 10 × ratio 5 = motor cap 50
@@ -237,7 +251,7 @@ def test_set_limit_traj_mode_has_headroom():
     d, bus = _mk()
     d.apply(bus, "set_mode", {"control_mode": "position_traj"})
     bus.sent.clear()
-    d.apply(bus, "set_limit", {"vel_limit": 10.0})
+    d.apply(bus, "set_limit", {"vel_limit": 10.0, "current_lim": 9.0})
     lim = _last(bus, C_SET_LIMITS)
     cap, _cur = struct.unpack("<ff", lim.data)
     assert abs(cap - 65.0) < 1e-6        # wheel 10 × ratio 5 × 1.3 = motor cap 65
@@ -246,7 +260,7 @@ def test_set_limit_traj_mode_has_headroom():
 def test_trap_velocity_and_acceleration_limits_send_motor_units():
     d, bus = _mk()
     bus.sent.clear()
-    d.apply(bus, "set_limit", {"vel_limit": 4.0})
+    d.apply(bus, "set_limit", {"vel_limit": 4.0, "current_lim": 9.0})
     traj_vel = _last(bus, C_SET_TRAJ_VEL_LIMIT)
     assert struct.unpack("<f", traj_vel.data)[0] == 20.0
 
