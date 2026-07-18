@@ -197,6 +197,31 @@ def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> Te
     )
 
 
+# Shared read-only label formatters. Both Gtk telemetry panels use these;
+# they were per-class staticmethods until 2026-07-18, when the chassis panel
+# called helpers that only existed on the other panel and crashed on the
+# first LIVE snapshot (the path never ran while the sender was down).
+def _format_number(value: float | None, suffix: str) -> str:
+    return "N/A" if value is None else f"{value:.2f} {suffix}"
+
+
+def _format_rss(value: int | None) -> str:
+    return "N/A" if value is None else f"{value / (1024 * 1024):.1f} MiB"
+
+
+def _format_ros_rates(rates: tuple[tuple[str, float], ...]) -> str:
+    if not rates:
+        return "N/A"
+    return ", ".join(
+        "{} {:.1f} Hz".format(topic.rsplit("/", 1)[-1], rate)
+        for topic, rate in rates
+    )
+
+
+def _format_hex(value: int | None) -> str:
+    return "N/A" if value is None else f"0x{value:02X}"
+
+
 _COMPONENT_BANNER_LABELS = (
     ("drive", "DRIVE"),
     ("steer", "STEER"),

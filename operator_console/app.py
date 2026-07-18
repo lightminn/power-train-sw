@@ -40,6 +40,10 @@ from .ops_panel import (
 from .telemetry import (
     LatestTelemetryReceiver,
     TelemetrySnapshot,
+    _format_hex,
+    _format_number,
+    _format_ros_rates,
+    _format_rss,
     chassis_component_states,
     mask_banner_text,
     safety_banner_state,
@@ -346,27 +350,6 @@ class TelemetryPanel(Gtk.Frame):
         GLib.timeout_add(200, self._refresh)
 
     @staticmethod
-    def _number(value: float | None, suffix: str) -> str:
-        return "N/A" if value is None else f"{value:.2f} {suffix}"
-
-    @staticmethod
-    def _rss(value: int | None) -> str:
-        return "N/A" if value is None else f"{value / (1024 * 1024):.1f} MiB"
-
-    @staticmethod
-    def _l515_ros_rates_text(rates: tuple[tuple[str, float], ...]) -> str:
-        if not rates:
-            return "N/A"
-        return ", ".join(
-            "{} {:.1f} Hz".format(topic.rsplit("/", 1)[-1], rate)
-            for topic, rate in rates
-        )
-
-    @staticmethod
-    def _hex(value: int | None) -> str:
-        return "N/A" if value is None else f"0x{value:02X}"
-
-    @staticmethod
     def _power_health_text(battery_flags: int | None, protection_flags: int | None) -> str:
         if protection_flags not in (None, 0):
             return f"PROTECTION ALERT {protection_flags:#04x}"
@@ -430,12 +413,12 @@ class TelemetryPanel(Gtk.Frame):
         )
         self._report_rs485(snapshot)
         self._labels["power"].set_text(
-            f"{self._number(snapshot.voltage_v, 'V')} · {self._number(snapshot.current_a, 'A')} · "
-            f"{self._number(snapshot.power_w, 'W')}\n"
+            f"{_format_number(snapshot.voltage_v, 'V')} · {_format_number(snapshot.current_a, 'A')} · "
+            f"{_format_number(snapshot.power_w, 'W')}\n"
             f"SOC {'N/A' if snapshot.pdist_soc_percent is None else f'{snapshot.pdist_soc_percent}%'} · "
-            f"charge {self._number(snapshot.pdist_charge_current_a, 'A')} · "
-            f"battery {self._hex(snapshot.pdist_battery_flags)} · "
-            f"protection {self._hex(snapshot.pdist_protection_flags)}\n"
+            f"charge {_format_number(snapshot.pdist_charge_current_a, 'A')} · "
+            f"battery {_format_hex(snapshot.pdist_battery_flags)} · "
+            f"protection {_format_hex(snapshot.pdist_protection_flags)}\n"
             f"{self._power_health_text(snapshot.pdist_battery_flags, snapshot.pdist_protection_flags)}"
         )
         self._labels["bringup"].set_text(
@@ -553,10 +536,6 @@ class ChassisTelemetryPanel(Gtk.Frame):
         self.add(grid)
         GLib.timeout_add(200, self._refresh)
 
-    @staticmethod
-    def _number(value: float | None, suffix: str) -> str:
-        return "N/A" if value is None else f"{value:.2f} {suffix}"
-
     def _refresh(self) -> bool:
         snapshot = self._receiver.latest()
         if snapshot is None:
@@ -569,14 +548,14 @@ class ChassisTelemetryPanel(Gtk.Frame):
         self._labels["link"].set_text(f"LIVE · seq {snapshot.sequence} · {age_ms:.0f} ms")
         self._labels["odom"].set_text(snapshot.odometry_source)
         self._labels["pose"].set_text(
-            f"{self._number(snapshot.x_m, 'm')} / {self._number(snapshot.y_m, 'm')} / "
-            f"{self._number(snapshot.yaw_rad, 'rad')}"
+            f"{_format_number(snapshot.x_m, 'm')} / {_format_number(snapshot.y_m, 'm')} / "
+            f"{_format_number(snapshot.yaw_rad, 'rad')}"
         )
         self._labels["drive"].set_text(snapshot.drive_state)
         if snapshot.safety_status == "unavailable":
             self._labels["safety"].set_text("UNAVAILABLE")
         else:
-            distance = self._number(snapshot.safety_distance_mm, "mm")
+            distance = _format_number(snapshot.safety_distance_mm, "mm")
             estop = "ESTOP" if snapshot.safety_estop_required else "clear"
             failures = ("N/A" if snapshot.safety_consecutive_failures is None
                         else str(snapshot.safety_consecutive_failures))
@@ -613,20 +592,20 @@ class ChassisTelemetryPanel(Gtk.Frame):
                 fault = (" fault" if wheel.drive_axis_error or wheel.steer_fault else "")
                 stale = " stale" if wheel.stale else ""
                 lines.append(
-                    f"{wheel.name}: {wheel.mode} · {self._number(wheel.drive_turns_per_s, 'r/s')} · "
-                    f"{self._number(wheel.steer_deg, 'deg')}{stale}{fault}"
+                    f"{wheel.name}: {wheel.mode} · {_format_number(wheel.drive_turns_per_s, 'r/s')} · "
+                    f"{_format_number(wheel.steer_deg, 'deg')}{stale}{fault}"
                 )
             self._labels["wheels"].set_text("\n".join(lines))
         self._labels["can"].set_text(snapshot.can_state)
         self._labels["l515"].set_text(
             f"{snapshot.l515_state} · {snapshot.l515_mode} · native "
-            f"{self._number(snapshot.l515_color_hz, 'Hz')} / {self._number(snapshot.l515_depth_hz, 'Hz')}\n"
-            f"SRT submit/sent/drop {self._number(snapshot.l515_submitted_hz, 'Hz')} / "
-            f"{self._number(snapshot.l515_sent_hz, 'Hz')} / {self._number(snapshot.l515_drop_hz, 'Hz')}\n"
-            f"aligned depth {self._number(snapshot.l515_aligned_depth_age_ms, 'ms')} · "
-            f"process {self._number(snapshot.l515_process_cpu_percent, '% CPU')} / "
-            f"{self._rss(snapshot.l515_process_rss_bytes)}\n"
-            f"ROS {self._l515_ros_rates_text(snapshot.l515_ros_topic_rates_hz)}\n"
+            f"{_format_number(snapshot.l515_color_hz, 'Hz')} / {_format_number(snapshot.l515_depth_hz, 'Hz')}\n"
+            f"SRT submit/sent/drop {_format_number(snapshot.l515_submitted_hz, 'Hz')} / "
+            f"{_format_number(snapshot.l515_sent_hz, 'Hz')} / {_format_number(snapshot.l515_drop_hz, 'Hz')}\n"
+            f"aligned depth {_format_number(snapshot.l515_aligned_depth_age_ms, 'ms')} · "
+            f"process {_format_number(snapshot.l515_process_cpu_percent, '% CPU')} / "
+            f"{_format_rss(snapshot.l515_process_rss_bytes)}\n"
+            f"ROS {_format_ros_rates(snapshot.l515_ros_topic_rates_hz)}\n"
             f"{snapshot.l515_detail or '-'}"
         )
         return True

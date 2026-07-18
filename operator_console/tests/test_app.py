@@ -314,3 +314,36 @@ def test_bounded_encoder_never_exceeds_4096_with_multibyte_free_text():
 
     assert len(raw) <= 4096
     assert json.loads(raw)["truncated"] is True
+
+
+def test_panel_formatters_are_shared_module_functions():
+    # 2026-07-18 실사고: ChassisTelemetryPanel._refresh가 TelemetryPanel에만
+    # 있는 staticmethod(_rss 등)를 호출해 첫 LIVE 스냅샷에서 AttributeError.
+    # 포매터는 gi-무관 telemetry 모듈 함수로 공유하고, 패널 소스에 클래스
+    # 헬퍼 호출이 남지 않음을 봉인한다.
+    from pathlib import Path
+
+    from operator_console.telemetry import (
+        _format_hex,
+        _format_number,
+        _format_ros_rates,
+        _format_rss,
+    )
+
+    assert _format_number(None, "Hz") == "N/A"
+    assert _format_number(1.234, "Hz") == "1.23 Hz"
+    assert _format_rss(None) == "N/A"
+    assert _format_rss(3 * 1024 * 1024) == "3.0 MiB"
+    assert _format_ros_rates(()) == "N/A"
+    assert _format_ros_rates((("/l515/depth", 29.97),)) == "depth 30.0 Hz"
+    assert _format_hex(None) == "N/A"
+    assert _format_hex(0x1F) == "0x1F"
+
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+    for stale_call in (
+        "self._number(", "self._rss(", "self._l515_ros_rates_text(",
+        "self._hex(",
+    ):
+        assert stale_call not in source
