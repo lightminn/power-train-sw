@@ -30,6 +30,24 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SYSTEM_PYTHON = "/usr/bin/python3"
 RUN_S = 6.0
 
+# 이 패널들은 주입 중 LIVE 에 도달하고, 주입을 끊으면 STALE 로 전이해야 한다.
+# 하나라도 못 하면 그 채널은 실제로는 죽어 있는 것이다.
+REQUIRED_PANELS = frozenset({"telemetry", "chassis", "metadata", "arm"})
+
+
+def _probe_states(probe_file: Path, wanted: str) -> set[str]:
+    """프로브 파일에서 지금 `wanted` 상태인 패널 이름을 읽는다.
+
+    콘솔이 아직 안 썼거나 쓰는 중이면 조용히 빈 집합 — 폴링이라 다음 턴에 다시 본다.
+    """
+    try:
+        states = json.loads(probe_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    if not isinstance(states, dict):
+        return set()
+    return {name for name, state in states.items() if state == wanted}
+
 
 def _free_udp_port() -> int:
     probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -151,6 +169,9 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
     ) as token_handle:
         token_handle.write("runtime-smoke-token")
         token_file = token_handle.name
+    probe_file = Path(
+        tempfile.mkdtemp(prefix="operator-console-smoke-probe-")
+    ) / "panels.json"
     try:
         console = subprocess.Popen(
             [
@@ -161,6 +182,7 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
                 "--chassis-telemetry-port", str(ports["chassis"]),
                 "--arm-telemetry-port", str(ports["arm"]),
                 "--ops-token-file", token_file,
+                "--smoke-probe-file", str(probe_file),
             ],
             cwd=REPO_ROOT,
             stdout=subprocess.PIPE,
@@ -175,6 +197,8 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
         "telemetry": _telemetry_payload, "chassis": _chassis_payload,
         "metadata": _metadata_payload, "arm": _arm_payload,
     }
+    live_seen: set[str] = set()
+    stale_seen: set[str] = set()
     try:
         deadline = time.monotonic() + run_s
         sequence = 0
@@ -188,10 +212,12 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
                     ("127.0.0.1", ports[channel]),
                 )
             time.sleep(0.2)
+            live_seen |= _probe_states(probe_file, "LIVE")
         # phase 2 — 주입 중단: 전 패널 LIVE→STALE 전이 + 오버레이 숨김 경로.
         stale_deadline = time.monotonic() + 2.5
         while time.monotonic() < stale_deadline and console.poll() is None:
             time.sleep(0.2)
+            stale_seen |= _probe_states(probe_file, "STALE")
         # phase 3 — sparse/truncated 최소 페이로드: optional 필드 부재 분기.
         sequence += 1
         sparse = {
@@ -223,6 +249,7 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
     finally:
         sender.close()
         Path(token_file).unlink(missing_ok=True)
+        shutil.rmtree(probe_file.parent, ignore_errors=True)
         if console.poll() is None:
             os.killpg(console.pid, 9)
 
@@ -231,7 +258,26 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
         return False, f"console exited early (rc={console.returncode})\n{text}"
     if "Traceback" in text:
         return False, f"callback traceback detected:\n{text}"
-    return True, f"PASS · {sequence} ticks on 4 channels, no tracebacks"
+    # 기동·무traceback 만으로는 아무것도 보장하지 못한다. 수신 스레드를 통째로
+    # 죽여도 그 두 조건은 통과했다(2026-07-18 R06 #10). 패널이 실제로 데이터를
+    # 받아 LIVE 가 됐고, 주입을 끊었을 때 STALE 로 전이했는지까지 단언한다.
+    missing_live = sorted(REQUIRED_PANELS - live_seen)
+    if missing_live:
+        return False, (
+            f"panels never reached LIVE: {', '.join(missing_live)}\n"
+            f"(saw LIVE on: {', '.join(sorted(live_seen)) or 'nothing'})\n{text}"
+        )
+    missing_stale = sorted(REQUIRED_PANELS - stale_seen)
+    if missing_stale:
+        return False, (
+            f"panels never went STALE after injection stopped: "
+            f"{', '.join(missing_stale)}\n{text}"
+        )
+    return True, (
+        f"PASS · {sequence} ticks on 4 channels · "
+        f"LIVE+STALE observed on {', '.join(sorted(REQUIRED_PANELS))} · "
+        "no tracebacks"
+    )
 
 
 def main() -> int:
