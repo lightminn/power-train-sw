@@ -186,3 +186,93 @@ def test_arm_summary_covers_normal_unavailable_and_critical_temperature():
         "미수신(UNAVAILABLE)"
     )
     assert summary(critical) == "모터 1 · 최고 ⚠ 65 ℃"
+
+
+def test_arm_source_freshness_uses_age_and_fails_closed_when_missing():
+    freshness = getattr(arm_telemetry, "arm_source_freshness", None)
+    assert freshness is not None
+
+    assert freshness(None) == "UNAVAILABLE"
+    assert freshness(1.0) == "LIVE"
+    assert freshness(1.01) == "STALE"
+
+
+def test_arm_summary_does_not_report_stale_dynamixel_data_as_normal():
+    snapshot = parse_arm_telemetry(_payload(
+        source_age_s={
+            "dynamixel": 999.0,
+            "joints": 0.2,
+            "detections": 0.3,
+        },
+    ))
+
+    assert arm_telemetry.arm_summary(snapshot) == "모터 원천 지연(STALE)"
+
+
+def test_arm_panel_marks_each_stale_source_instead_of_udp_transport_live():
+    import ast
+    import math
+    from types import SimpleNamespace
+
+    source_path = Path(__file__).parents[1] / "app.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    panel = next(
+        item
+        for item in tree.body
+        if isinstance(item, ast.ClassDef) and item.name == "ArmTelemetryPanel"
+    )
+    method = next(
+        item
+        for item in panel.body
+        if isinstance(item, ast.FunctionDef) and item.name == "_refresh"
+    )
+    module = ast.Module(body=[method], type_ignores=[])
+    ast.fix_missing_locations(module)
+    namespace = {
+        "ArmTelemetrySnapshot": object,
+        "arm_summary": arm_telemetry.arm_summary,
+        "arm_source_freshness": getattr(
+            arm_telemetry,
+            "arm_source_freshness",
+            lambda _age: "LIVE",
+        ),
+        "freshness_korean": lambda state: state,
+        "temperature_state": temperature_state,
+        "math": math,
+        "time": SimpleNamespace(monotonic=lambda: 10.0),
+    }
+    exec(compile(module, str(source_path), "exec"), namespace)
+
+    class Label:
+        def __init__(self):
+            self.text = "untouched"
+
+        def set_text(self, text):
+            self.text = text
+
+    snapshot = parse_arm_telemetry(
+        _payload(source_age_s={
+            "dynamixel": 999.0,
+            "joints": 999.0,
+            "detections": 999.0,
+        }),
+        received_monotonic_s=9.5,
+    )
+    labels = {
+        key: Label()
+        for key in ("link", "motors", "joints", "detections")
+    }
+    node = SimpleNamespace(
+        _receiver=SimpleNamespace(latest=lambda: snapshot),
+        _summary=Label(),
+        _labels=labels,
+        _port=5007,
+        _report_temperature=lambda _snapshot: None,
+    )
+
+    namespace["_refresh"](node)
+
+    assert "LIVE" in labels["link"].text
+    assert "STALE" in labels["motors"].text
+    assert "STALE" in labels["joints"].text
+    assert "STALE" in labels["detections"].text

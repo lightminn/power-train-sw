@@ -29,6 +29,8 @@ import time
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SYSTEM_PYTHON = "/usr/bin/python3"
 RUN_S = 6.0
+# xvfb + Gtk + GStreamer 기동. 부하가 높으면 느려지므로 넉넉히 준다.
+STARTUP_TIMEOUT_S = 40.0
 
 # 이 패널들은 주입 중 LIVE 에 도달하고, 주입을 끊으면 STALE 로 전이해야 한다.
 # 하나라도 못 하면 그 채널은 실제로는 죽어 있는 것이다.
@@ -200,6 +202,23 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
     live_seen: set[str] = set()
     stale_seen: set[str] = set()
     try:
+        # 콘솔이 Gtk 루프에 진입하기 전에 주입 창을 소진하면 LIVE 를 한 번도
+        # 못 보고 거짓 FAIL 이 난다(부하가 높으면 xvfb 기동이 수 초 걸린다).
+        # 거짓 FAIL 은 게이트를 무시당하게 만드니, 첫 _refresh_health 가 프로브를
+        # 쓸 때까지 기다린 뒤에 시간을 재기 시작한다.
+        ready_deadline = time.monotonic() + STARTUP_TIMEOUT_S
+        while time.monotonic() < ready_deadline:
+            if console.poll() is not None or probe_file.exists():
+                break
+            time.sleep(0.2)
+        if console.poll() is None and not probe_file.exists():
+            os.killpg(console.pid, 9)
+            _, stderr = console.communicate()
+            return False, (
+                f"console never reached its first refresh within "
+                f"{STARTUP_TIMEOUT_S:.0f}s\n"
+                f"{stderr.decode('utf-8', 'replace')}"
+            )
         deadline = time.monotonic() + run_s
         sequence = 0
         while time.monotonic() < deadline:

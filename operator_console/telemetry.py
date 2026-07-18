@@ -77,12 +77,38 @@ class TelemetrySnapshot:
 
 def _optional_number(payload: dict[str, Any], name: str) -> float | None:
     value = payload.get(name)
-    return None if value is None else float(value)
+    try:
+        return None if value is None else float(value)
+    except (TypeError, OverflowError) as exc:
+        raise ValueError(f"invalid {name}") from exc
 
 
 def _optional_int(payload: dict[str, Any], name: str) -> int | None:
     value = payload.get(name)
-    return None if value is None else int(value)
+    try:
+        return None if value is None else int(value)
+    except (TypeError, OverflowError) as exc:
+        raise ValueError(f"invalid {name}") from exc
+
+
+def _optional_bool(payload: dict[str, Any], name: str) -> bool | None:
+    value = payload.get(name)
+    if value is None:
+        return None
+    if not isinstance(value, bool):
+        raise ValueError(f"invalid {name}")
+    return value
+
+
+def _bool_or_default(
+    payload: dict[str, Any],
+    name: str,
+    default: bool,
+) -> bool:
+    value = payload.get(name, default)
+    if not isinstance(value, bool):
+        raise ValueError(f"invalid {name}")
+    return value
 
 
 def _wheel_statuses(payload: dict[str, Any]) -> tuple[WheelStatus, ...]:
@@ -93,13 +119,18 @@ def _wheel_statuses(payload: dict[str, Any]) -> tuple[WheelStatus, ...]:
     for raw in raw_statuses:
         if not isinstance(raw, dict):
             raise ValueError("invalid wheel status")
-        statuses.append(WheelStatus(
-            name=str(raw["name"]), mode=str(raw["mode"]),
-            drive_turns_per_s=_optional_number(raw, "drive_turns_per_s"),
-            steer_deg=_optional_number(raw, "steer_deg"), stale=bool(raw.get("stale", False)),
-            drive_axis_error=int(raw.get("drive_axis_error", 0)),
-            steer_fault=int(raw.get("steer_fault", 0)),
-        ))
+        try:
+            status = WheelStatus(
+                name=str(raw["name"]), mode=str(raw["mode"]),
+                drive_turns_per_s=_optional_number(raw, "drive_turns_per_s"),
+                steer_deg=_optional_number(raw, "steer_deg"),
+                stale=_bool_or_default(raw, "stale", False),
+                drive_axis_error=int(raw.get("drive_axis_error", 0)),
+                steer_fault=int(raw.get("steer_fault", 0)),
+            )
+        except (KeyError, TypeError, OverflowError) as exc:
+            raise ValueError("invalid wheel status") from exc
+        statuses.append(status)
     return tuple(statuses)
 
 
@@ -108,7 +139,12 @@ def _l515_ros_topic_rates(payload: dict[str, Any]) -> tuple[tuple[str, float], .
     raw_rates = payload.get("l515_ros_topic_rates_hz", {})
     if not isinstance(raw_rates, dict) or len(raw_rates) > 6:
         raise ValueError("invalid l515_ros_topic_rates_hz")
-    return tuple(sorted((str(topic), float(rate)) for topic, rate in raw_rates.items()))
+    try:
+        return tuple(sorted(
+            (str(topic), float(rate)) for topic, rate in raw_rates.items()
+        ))
+    except (TypeError, OverflowError) as exc:
+        raise ValueError("invalid l515_ros_topic_rates_hz") from exc
 
 
 def _status_mapping(payload: dict[str, Any], name: str) -> tuple[tuple[str, str], ...]:
@@ -148,10 +184,16 @@ def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> Te
     if len(raw) > 8192:
         raise ValueError("oversize telemetry")
     payload: dict[str, Any] = json.loads(raw.decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("invalid telemetry")
     if payload.get("schema_version") != 1:
         raise ValueError("unsupported schema")
+    try:
+        sequence = int(payload["sequence"])
+    except (KeyError, TypeError, OverflowError) as exc:
+        raise ValueError("invalid telemetry structure") from exc
     return TelemetrySnapshot(
-        sequence=int(payload["sequence"]),
+        sequence=sequence,
         odometry_source=str(payload.get("odometry_source", "unavailable")),
         x_m=_optional_number(payload, "x_m"), y_m=_optional_number(payload, "y_m"),
         yaw_rad=_optional_number(payload, "yaw_rad"), voltage_v=_optional_number(payload, "voltage_v"),
@@ -182,8 +224,7 @@ def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> Te
         journal_tail=_journal_tail(payload),
         safety_status=str(payload.get("safety_status", "unavailable")),
         safety_distance_mm=_optional_number(payload, "safety_distance_mm"),
-        safety_estop_required=(None if payload.get("safety_estop_required") is None
-                               else bool(payload["safety_estop_required"])),
+        safety_estop_required=_optional_bool(payload, "safety_estop_required"),
         safety_consecutive_failures=_optional_int(payload, "safety_consecutive_failures"),
         safety_detail=str(payload.get("safety_detail", "")),
         component_mask=_optional_component_mask(payload),
@@ -312,10 +353,12 @@ def safety_banner_state(
         return "안전 해제됨(US-100 꺼짐)", "#d97706"
     if not telemetry_live or snapshot is None:
         return "안전 미수신(UNAVAILABLE)", "#d97706"
-    if snapshot.safety_estop_required:
+    if snapshot.safety_estop_required is True:
         detail = snapshot.safety_detail or snapshot.safety_status or "사유 없음"
         return f"비상정지(ESTOP) · {detail}", "#dc2626"
-    return "안전 정상(CLEAR)", "#16a34a"
+    if snapshot.safety_estop_required is False:
+        return "안전 정상(CLEAR)", "#16a34a"
+    return "안전 미수신(UNAVAILABLE)", "#d97706"
 
 
 def chassis_component_states(
@@ -346,6 +389,7 @@ class LatestTelemetryReceiver:
         self._lock = threading.Lock()
         self._stopping = threading.Event()
         self._source_gate = SourceSequenceGate(stale_after_s=2.0)
+        self._invalid_packet_count = 0
         self._thread = threading.Thread(target=self._run, name="robot-telemetry", daemon=True)
         self._thread.start()
 
@@ -354,18 +398,27 @@ class LatestTelemetryReceiver:
         while not self._stopping.is_set():
             try:
                 raw, address = self._socket.recvfrom(8192)
-                received_s = time.monotonic()
-                snapshot = parse_telemetry(raw, received_monotonic_s=received_s)
-            except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            except OSError:
                 continue
-            if not self._source_gate.accept(
-                address,
-                snapshot.sequence,
-                now_s=received_s,
-            ):
+            received_s = time.monotonic()
+            try:
+                snapshot = parse_telemetry(raw, received_monotonic_s=received_s)
+                accepted = self._source_gate.accept(
+                    address,
+                    snapshot.sequence,
+                    now_s=received_s,
+                )
+            except Exception:
+                self._invalid_packet_count += 1
+                continue
+            if not accepted:
                 continue
             with self._lock:
                 self._latest = snapshot
+
+    @property
+    def invalid_packet_count(self) -> int:
+        return self._invalid_packet_count
 
     def latest(self) -> TelemetrySnapshot | None:
         with self._lock:

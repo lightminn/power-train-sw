@@ -42,7 +42,8 @@ class SourceSequenceGate:
             return False
 
         restarting = bool(
-            self._last_sequence is not None
+            sender_stale
+            and self._last_sequence is not None
             and self._last_sequence > RESTART_SEQUENCE_MAX
             and sequence <= RESTART_SEQUENCE_MAX
         )

@@ -36,30 +36,58 @@ def parse_metadata(raw: bytes, received_monotonic_s: float | None = None) -> Met
     if len(raw) > 2048:
         raise ValueError("oversize metadata")
     payload: dict[str, Any] = json.loads(raw.decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("invalid metadata")
     if payload.get("schema_version") != 1:
         raise ValueError("unsupported schema")
-    width, height = int(payload["frame_width"]), int(payload["frame_height"])
+    try:
+        width = int(payload["frame_width"])
+        height = int(payload["frame_height"])
+        sequence = int(payload["capture_sequence"])
+    except (KeyError, TypeError, OverflowError) as exc:
+        raise ValueError("invalid metadata structure") from exc
     if width < 1 or height < 1:
         raise ValueError("invalid frame dimensions")
+    raw_detections = payload.get("detections", [])
+    if not isinstance(raw_detections, list):
+        raise ValueError("invalid detections")
     detections: list[Detection] = []
-    for item in payload.get("detections", []):
-        box = tuple(int(value) for value in item["bbox_xywh"])
+    for item in raw_detections:
+        if not isinstance(item, dict):
+            raise ValueError("invalid detection")
+        try:
+            box = tuple(int(value) for value in item["bbox_xywh"])
+            class_name = str(item["class_name"])
+            confidence = float(item["confidence"])
+        except (KeyError, TypeError, OverflowError) as exc:
+            raise ValueError("invalid detection structure") from exc
         if len(box) != 4 or box[2] < 1 or box[3] < 1:
             raise ValueError("invalid bbox")
         xyz = item.get("position_m")
-        position = None if xyz is None else tuple(float(value) for value in xyz)
+        try:
+            position = (
+                None if xyz is None else tuple(float(value) for value in xyz)
+            )
+        except (TypeError, OverflowError) as exc:
+            raise ValueError("invalid position") from exc
         if position is not None and len(position) != 3:
             raise ValueError("invalid position")
         raw_yaw = item.get("yaw_rad")
-        yaw_rad = None if raw_yaw is None else float(raw_yaw)
+        try:
+            yaw_rad = None if raw_yaw is None else float(raw_yaw)
+        except (TypeError, OverflowError) as exc:
+            raise ValueError("invalid yaw") from exc
         if yaw_rad is not None and not math.isfinite(yaw_rad):
             raise ValueError("invalid yaw")
+        is_pick_target = item.get("is_pick_target", False)
+        if not isinstance(is_pick_target, bool):
+            raise ValueError("invalid is_pick_target")
         detections.append(Detection(
-            str(item["class_name"]), float(item["confidence"]), box, position,
-            yaw_rad, bool(item.get("is_pick_target", False)),
+            class_name, confidence, box, position,
+            yaw_rad, is_pick_target,
         ))
     return MetadataFrame(
-        sequence=int(payload["capture_sequence"]), width=width, height=height,
+        sequence=sequence, width=width, height=height,
         detections=tuple(detections),
         received_monotonic_s=time.monotonic() if received_monotonic_s is None else received_monotonic_s,
     )
@@ -75,6 +103,7 @@ class LatestMetadataReceiver:
         self._lock = threading.Lock()
         self._stopping = threading.Event()
         self._source_gate = SourceSequenceGate(stale_after_s=2.0)
+        self._invalid_packet_count = 0
         self._thread = threading.Thread(target=self._run, name="d435-metadata", daemon=True)
         self._thread.start()
 
@@ -83,18 +112,27 @@ class LatestMetadataReceiver:
         while not self._stopping.is_set():
             try:
                 raw, address = self._socket.recvfrom(4096)
-                received_s = time.monotonic()
-                frame = parse_metadata(raw, received_monotonic_s=received_s)
-            except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            except OSError:
                 continue
-            if not self._source_gate.accept(
-                address,
-                frame.sequence,
-                now_s=received_s,
-            ):
+            received_s = time.monotonic()
+            try:
+                frame = parse_metadata(raw, received_monotonic_s=received_s)
+                accepted = self._source_gate.accept(
+                    address,
+                    frame.sequence,
+                    now_s=received_s,
+                )
+            except Exception:
+                self._invalid_packet_count += 1
+                continue
+            if not accepted:
                 continue
             with self._lock:
                 self._latest = frame
+
+    @property
+    def invalid_packet_count(self) -> int:
+        return self._invalid_packet_count
 
     def latest(self) -> MetadataFrame | None:
         with self._lock:

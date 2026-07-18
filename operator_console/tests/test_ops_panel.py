@@ -140,7 +140,7 @@ def test_panel_keeps_eight_basic_actions_and_preserves_existing_action_keys():
     }
 
 
-def test_estop_is_immediate_and_requires_no_confirmation_copy():
+def test_estop_confirmation_uses_snapshotted_revision_and_warning_copy():
     action = _action("estop")
     source = StateSource({"revision": 9})
     flow = _flow(source)
@@ -149,7 +149,7 @@ def test_estop_is_immediate_and_requires_no_confirmation_copy():
 
     assert action.label == "비상정지 (ESTOP)"
     assert action.gesture == GESTURE_IMMEDIATE
-    assert action.confirm_text == ""
+    assert "임무를 중단" in action.confirm_text
     assert flow.confirm(action) == {
         "action": "estop",
         "params": {},
