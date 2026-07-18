@@ -25,18 +25,27 @@ from gi.repository import Gdk, GLib, Gst, Gtk, Pango  # noqa: E402
 from .arm_telemetry import (
     ArmTelemetrySnapshot,
     LatestArmTelemetryReceiver,
+    arm_summary,
     temperature_state,
+)
+from .labels import (
+    OFF_LABEL,
+    ON_LABEL,
+    ack_korean,
+    freshness_korean,
+    mode_korean,
 )
 from .metadata import LatestMetadataReceiver, MetadataFrame
 from .ops_client import ConsoleOpsClient
 from .ops_panel import (
     GESTURE_HOLD,
+    GESTURE_IMMEDIATE,
     GESTURE_SPACER,
     PANEL_ACTIONS,
     ConfirmFlow,
     PanelAction,
     component_mask_from_state,
-    format_ack_markup,
+    mode_allows_action,
 )
 from .telemetry import (
     LatestTelemetryReceiver,
@@ -45,13 +54,18 @@ from .telemetry import (
     _format_number,
     _format_ros_rates,
     _format_rss,
+    chassis_summary,
     chassis_component_states,
     mask_banner_text,
+    power_summary,
     safety_banner_state,
 )
 
 
 DEFAULT_OPS_TOKEN_FILE = "~/.config/powertrain/ops_console.token"
+# Stable source-level declaration consumed by the send-surface contract test.
+# Operator-visible copy below is Korean; the transport boundary remains this.
+SEND_SURFACE_CONTRACT = "OBSERVE: RX-ONLY  |  OPS: TOKEN-GATED  |  "
 
 
 class MetadataCanvas(Gtk.DrawingArea):
@@ -100,7 +114,7 @@ class EventLog(Gtk.Frame):
     _MAX_LINES = 100
 
     def __init__(self) -> None:
-        super().__init__(label="Event timeline (read-only)")
+        super().__init__(label="이벤트 기록")
         self._view = Gtk.TextView(editable=False, cursor_visible=False, monospace=True)
         self._view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
         self._buffer = self._view.get_buffer()
@@ -136,9 +150,9 @@ class VideoPanel(Gtk.Box):
         self._video_widget.set_hexpand(True)
         self._video_widget.set_vexpand(True)
         self._video_widget.connect("realize", self._on_realize)
-        self._status = Gtk.Label(label=f"{name}: connecting")
-        self._fps = Gtk.Label(label="Display FPS: waiting")
-        self._detail = Gtk.Label(label=f"SRT caller → {host}:{port}, latency {latency_ms} ms")
+        self._status = Gtk.Label(label=f"{name}: 연결 중")
+        self._fps = Gtk.Label(label="화면 FPS: 대기 중")
+        self._detail = Gtk.Label(label=f"SRT 호출자 → {host}:{port}, 지연 {latency_ms} ms")
         self._detail.set_xalign(0.0)
         self._detail.set_ellipsize(Pango.EllipsizeMode.END)
         header = Gtk.Box(spacing=10)
@@ -159,7 +173,7 @@ class VideoPanel(Gtk.Box):
             self._metadata_canvas = canvas
             self.pack_start(overlay, True, True, 0)
             self._metadata_receiver = metadata_receiver
-            self._metadata_label = Gtk.Label(label="YOLO: waiting for UDP :5003")
+            self._metadata_label = Gtk.Label(label="YOLO: UDP :5003 대기 중")
             self._metadata_state: tuple[str, int] | None = None
             header.pack_start(self._metadata_label, False, False, 0)
             GLib.timeout_add(100, self._refresh_metadata_status)
@@ -200,23 +214,23 @@ class VideoPanel(Gtk.Box):
             self._frames = 0
             self._sample_start = now
             self._last_fps = fps
-            GLib.idle_add(self._fps.set_text, f"Display FPS: {fps:.1f}")
+            GLib.idle_add(self._fps.set_text, f"화면 FPS: {fps:.1f}")
         return Gst.PadProbeReturn.OK
 
     def _on_bus_message(self, _bus: Gst.Bus, message: Gst.Message) -> None:
         if message.type == Gst.MessageType.ERROR:
             error, detail = message.parse_error()
             self._pipeline_live = False
-            self._status.set_text(f"{self._name}: reconnecting / error")
+            self._status.set_text(f"{self._name}: 재연결 중 / 오류")
             self._detail.set_text(str(error if not detail else f"{error}: {detail}"))
             self._schedule_reconnect()
         elif message.type == Gst.MessageType.EOS:
             self._pipeline_live = False
-            self._status.set_text(f"{self._name}: reconnecting / end of stream")
+            self._status.set_text(f"{self._name}: 재연결 중 / 스트림 종료")
             self._schedule_reconnect()
         elif message.type == Gst.MessageType.WARNING:
             warning, _detail = message.parse_warning()
-            self._status.set_text(f"{self._name}: reconnecting ({warning})")
+            self._status.set_text(f"{self._name}: 재연결 중 ({warning})")
         elif message.type == Gst.MessageType.STATE_CHANGED and message.src == self._pipeline:
             _old, new, _pending = message.parse_state_changed()
             if new == Gst.State.PLAYING:
@@ -230,7 +244,7 @@ class VideoPanel(Gtk.Box):
         if not self._pipeline_live:
             return True
         if self._last_frame_monotonic is None:
-            self._status.set_text(f"{self._name}: waiting for first frame")
+            self._status.set_text(f"{self._name}: 첫 프레임 대기 중")
             return True
         age_ms = (time.monotonic() - self._last_frame_monotonic) * 1000.0
         if age_ms > 1000.0:
@@ -238,13 +252,13 @@ class VideoPanel(Gtk.Box):
                 self._emit_event("frame became stale (>1000 ms)")
                 self._freshness_state = "stale"
             self._status.set_text(
-                f"{self._name}: STALE ({age_ms:.0f} ms · reconnects {self._reconnects})")
+                f"{self._name}: 지연(STALE) ({age_ms:.0f} ms · 재연결 {self._reconnects})")
         else:
             if self._freshness_state != "live":
                 self._emit_event("frame flow live")
                 self._freshness_state = "live"
             self._status.set_text(
-                f"{self._name}: live · age {age_ms:.0f} ms · reconnects {self._reconnects}")
+                f"{self._name}: 정상수신(LIVE) · 경과 {age_ms:.0f} ms · 재연결 {self._reconnects}")
         return True
 
     def _emit_event(self, message: str) -> None:
@@ -279,12 +293,12 @@ class VideoPanel(Gtk.Box):
             return False
         frame: MetadataFrame | None = receiver.latest()
         if frame is None:
-            self._metadata_label.set_text("YOLO: waiting for UDP :5003")
+            self._metadata_label.set_text("YOLO: UDP :5003 대기 중")
             self._report_metadata_state("waiting", 0)
         else:
             age_ms = (time.monotonic() - frame.received_monotonic_s) * 1000.0
             if age_ms > 250.0:
-                self._metadata_label.set_text(f"YOLO: stale ({age_ms:.0f} ms)")
+                self._metadata_label.set_text(f"YOLO: 지연(STALE) ({age_ms:.0f} ms)")
                 self._report_metadata_state("stale", len(frame.detections))
             else:
                 summary = []
@@ -293,9 +307,9 @@ class VideoPanel(Gtk.Box):
                     if detection.position_m is not None:
                         text += f" {detection.position_m[2]:.2f}m"
                     summary.append(text)
-                detail = " · ".join(summary) if summary else "no detections"
+                detail = " · ".join(summary) if summary else "탐지 없음"
                 self._metadata_label.set_text(
-                    f"YOLO: {len(frame.detections)} objects · {age_ms:.0f} ms · {detail}"
+                    f"YOLO: 객체 {len(frame.detections)}개 · {age_ms:.0f} ms · {detail}"
                 )
                 self._report_metadata_state("live", len(frame.detections))
         self._metadata_canvas.queue_draw()
@@ -325,7 +339,7 @@ class TelemetryPanel(Gtk.Frame):
     """Read-only latest snapshot display; unavailable is a valid visible state."""
     def __init__(self, receiver: LatestTelemetryReceiver, port: int,
                  event_sink: Callable[[str, str], None] | None = None) -> None:
-        super().__init__(label="Robot telemetry (read-only)")
+        super().__init__(label="로봇 상태")
         self._receiver = receiver
         self._port = port
         self._event_sink = event_sink
@@ -335,30 +349,39 @@ class TelemetryPanel(Gtk.Frame):
         self._telemetry_link_state = "waiting"
         self._last_sequence: int | None = None
         self._labels: dict[str, Gtk.Label] = {}
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self._summary = Gtk.Label(label=power_summary(None))
+        self._summary.set_xalign(0.0)
+        self._summary.set_margin_start(10)
+        self._summary.set_margin_top(6)
+        body.pack_start(self._summary, False, False, 0)
         grid = Gtk.Grid(column_spacing=12, row_spacing=7, margin=10)
-        rows = (("link", "Link"), ("rs485", "RS485"), ("power", "PDIST80B"),
-                ("bringup", "Bring-up"))
+        rows = (("link", "수신"), ("rs485", "RS485"), ("power", "PDIST80B"),
+                ("bringup", "기동 상태"))
         for row, (key, title) in enumerate(rows):
             name = Gtk.Label(label=title)
             name.set_xalign(0.0)
-            value = Gtk.Label(label="UNAVAILABLE")
+            value = Gtk.Label(label="미수신(UNAVAILABLE)")
             value.set_xalign(0.0)
             value.set_line_wrap(True)
             grid.attach(name, 0, row, 1, 1)
             grid.attach(value, 1, row, 1, 1)
             self._labels[key] = value
-        self.add(grid)
+        details = Gtk.Expander(label="상세")
+        details.add(grid)
+        body.pack_start(details, False, False, 0)
+        self.add(body)
         GLib.timeout_add(200, self._refresh)
 
     @staticmethod
     def _power_health_text(battery_flags: int | None, protection_flags: int | None) -> str:
         if protection_flags not in (None, 0):
-            return f"PROTECTION ALERT {protection_flags:#04x}"
+            return f"보호 경고 {protection_flags:#04x}"
         if battery_flags not in (None, 0):
-            return f"BATTERY WARNING {battery_flags:#04x}"
+            return f"배터리 경고 {battery_flags:#04x}"
         if battery_flags == 0 and protection_flags == 0:
-            return "NORMAL"
-        return "UNAVAILABLE"
+            return "정상"
+        return "미수신(UNAVAILABLE)"
 
     def _report_power_health(self, battery_flags: int | None, protection_flags: int | None) -> None:
         key = (battery_flags, protection_flags)
@@ -387,12 +410,19 @@ class TelemetryPanel(Gtk.Frame):
 
     def _refresh(self) -> bool:
         snapshot: TelemetrySnapshot | None = self._receiver.latest()
+        summary_label = getattr(self, "_summary", None)
+        if summary_label is not None:
+            summary_label.set_text(power_summary(snapshot))
         if snapshot is None:
-            self._labels["link"].set_text(f"waiting for UDP :{self._port}")
+            self._labels["link"].set_text(
+                f"{freshness_korean('WAITING')} · UDP :{self._port}"
+            )
             return True
         age_ms = (time.monotonic() - snapshot.received_monotonic_s) * 1000.0
         if age_ms > 1000.0:
-            self._labels["link"].set_text(f"STALE ({age_ms:.0f} ms)")
+            self._labels["link"].set_text(
+                f"{freshness_korean('STALE')} · {age_ms:.0f} ms"
+            )
             if self._telemetry_link_state != "stale":
                 self._telemetry_link_state = "stale"
                 self._emit_event(f"snapshot stale ({age_ms:.0f} ms)")
@@ -405,27 +435,29 @@ class TelemetryPanel(Gtk.Frame):
             if snapshot.sequence != expected:
                 self._emit_event(f"sequence gap {self._last_sequence} → {snapshot.sequence}")
         self._last_sequence = snapshot.sequence
-        self._labels["link"].set_text(f"LIVE · seq {snapshot.sequence} · {age_ms:.0f} ms")
+        self._labels["link"].set_text(
+            f"{freshness_korean('LIVE')} · 순번 {snapshot.sequence} · {age_ms:.0f} ms"
+        )
         failures = "N/A" if snapshot.rs485_consecutive_failures is None else str(
             snapshot.rs485_consecutive_failures)
         detail = snapshot.rs485_detail or "-"
         self._labels["rs485"].set_text(
-            f"{snapshot.rs485_state} · failures {failures}\n{detail}"
+            f"{snapshot.rs485_state} · 실패 {failures}\n{detail}"
         )
         self._report_rs485(snapshot)
         self._labels["power"].set_text(
             f"{_format_number(snapshot.voltage_v, 'V')} · {_format_number(snapshot.current_a, 'A')} · "
             f"{_format_number(snapshot.power_w, 'W')}\n"
-            f"SOC {'N/A' if snapshot.pdist_soc_percent is None else f'{snapshot.pdist_soc_percent}%'} · "
-            f"charge {_format_number(snapshot.pdist_charge_current_a, 'A')} · "
-            f"battery {_format_hex(snapshot.pdist_battery_flags)} · "
-            f"protection {_format_hex(snapshot.pdist_protection_flags)}\n"
+            f"충전율 {'N/A' if snapshot.pdist_soc_percent is None else f'{snapshot.pdist_soc_percent}%'} · "
+            f"충전 {_format_number(snapshot.pdist_charge_current_a, 'A')} · "
+            f"배터리 {_format_hex(snapshot.pdist_battery_flags)} · "
+            f"보호 {_format_hex(snapshot.pdist_protection_flags)}\n"
             f"{self._power_health_text(snapshot.pdist_battery_flags, snapshot.pdist_protection_flags)}"
         )
         self._labels["bringup"].set_text(
-            f"units {dict(snapshot.unit_status) or 'N/A'} · "
-            f"compose {dict(snapshot.compose_status) or 'N/A'}\n"
-            f"journal {snapshot.journal_tail[-1] if snapshot.journal_tail else 'N/A'}"
+            f"유닛 {dict(snapshot.unit_status) or 'N/A'} · "
+            f"Compose {dict(snapshot.compose_status) or 'N/A'}\n"
+            f"저널 {snapshot.journal_tail[-1] if snapshot.journal_tail else 'N/A'}"
         )
         self._report_power_health(snapshot.pdist_battery_flags, snapshot.pdist_protection_flags)
         return True
@@ -435,25 +467,34 @@ class ArmTelemetryPanel(Gtk.Frame):
     """Read-only robot-arm motor and joint snapshot display."""
     def __init__(self, receiver: LatestArmTelemetryReceiver, port: int,
                  event_sink: Callable[[str, str], None] | None = None) -> None:
-        super().__init__(label="Robot-arm telemetry (read-only)")
+        super().__init__(label="로봇팔")
         self._receiver = receiver
         self._port = port
         self._event_sink = event_sink
         self._temperature_key: tuple[tuple[int, str], ...] | None = None
         self._labels: dict[str, Gtk.Label] = {}
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self._summary = Gtk.Label(label=arm_summary(None))
+        self._summary.set_xalign(0.0)
+        self._summary.set_margin_start(10)
+        self._summary.set_margin_top(6)
+        body.pack_start(self._summary, False, False, 0)
         grid = Gtk.Grid(column_spacing=12, row_spacing=7, margin=10)
         for row, (key, title) in enumerate((
-            ("link", "Link"), ("motors", "Motors"), ("joints", "Joints"),
+            ("link", "수신"), ("motors", "모터"), ("joints", "관절"),
         )):
             name = Gtk.Label(label=title)
             name.set_xalign(0.0)
-            value = Gtk.Label(label="UNAVAILABLE")
+            value = Gtk.Label(label="미수신(UNAVAILABLE)")
             value.set_xalign(0.0)
             value.set_line_wrap(True)
             grid.attach(name, 0, row, 1, 1)
             grid.attach(value, 1, row, 1, 1)
             self._labels[key] = value
-        self.add(grid)
+        details = Gtk.Expander(label="상세")
+        details.add(grid)
+        body.pack_start(details, False, False, 0)
+        self.add(body)
         GLib.timeout_add(200, self._refresh)
 
     def _report_temperature(self, snapshot: ArmTelemetrySnapshot) -> None:
@@ -479,16 +520,25 @@ class ArmTelemetryPanel(Gtk.Frame):
 
     def _refresh(self) -> bool:
         snapshot: ArmTelemetrySnapshot | None = self._receiver.latest()
+        summary_label = getattr(self, "_summary", None)
+        if summary_label is not None:
+            summary_label.set_text(arm_summary(snapshot))
         if snapshot is None:
-            self._labels["link"].set_text(f"waiting for UDP :{self._port}")
+            self._labels["link"].set_text(
+                f"{freshness_korean('WAITING')} · UDP :{self._port}"
+            )
             return True
         age_ms = (time.monotonic() - snapshot.received_monotonic_s) * 1000.0
         if age_ms > 1000.0:
-            self._labels["link"].set_text(f"STALE ({age_ms:.0f} ms)")
+            self._labels["link"].set_text(
+                f"{freshness_korean('STALE')} · {age_ms:.0f} ms"
+            )
             return True
-        self._labels["link"].set_text(f"LIVE · seq {snapshot.sequence} · {age_ms:.0f} ms")
+        self._labels["link"].set_text(
+            f"{freshness_korean('LIVE')} · 순번 {snapshot.sequence} · {age_ms:.0f} ms"
+        )
         if snapshot.dynamixel is None:
-            self._labels["motors"].set_text("UNAVAILABLE")
+            self._labels["motors"].set_text("미수신(UNAVAILABLE)")
         else:
             # Dynamixel current scaling is not confirmed by the arm team;
             # keep the console honest by displaying the unscaled raw value.
@@ -498,7 +548,7 @@ class ArmTelemetryPanel(Gtk.Frame):
                 for motor in snapshot.dynamixel
             ))
         if not snapshot.joint_names:
-            self._labels["joints"].set_text("UNAVAILABLE")
+            self._labels["joints"].set_text("미수신(UNAVAILABLE)")
         else:
             self._labels["joints"].set_text(", ".join(
                 f"{name} {math.degrees(position_rad):+.1f}°"
@@ -514,39 +564,57 @@ class ChassisTelemetryPanel(Gtk.Frame):
     """Read-only chassis owner snapshot; never probes CAN directly."""
     def __init__(self, receiver: LatestTelemetryReceiver, port: int,
                  event_sink: Callable[[str, str], None] | None = None) -> None:
-        super().__init__(label="Chassis telemetry (read-only)")
+        super().__init__(label="차대")
         self._receiver = receiver
         self._port = port
         self._event_sink = event_sink
         self._wheel_health_key: tuple[int, int, int] | None = None
         self._labels: dict[str, Gtk.Label] = {}
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self._summary = Gtk.Label(label=chassis_summary(None))
+        self._summary.set_xalign(0.0)
+        self._summary.set_margin_start(10)
+        self._summary.set_margin_top(6)
+        body.pack_start(self._summary, False, False, 0)
         grid = Gtk.Grid(column_spacing=12, row_spacing=7, margin=10)
-        for row, (key, title) in enumerate((("link", "Link"), ("odom", "Odometry"),
-                                             ("pose", "Pose x / y / yaw"),
-                                             ("drive", "Drive"), ("safety", "Safety / US-100"),
-                                             ("feedback", "Wheel feedback"), ("wheels", "Per-wheel"),
-                                             ("can", "CAN"), ("l515", "L515 Gateway"))):
+        for row, (key, title) in enumerate((("link", "수신"), ("odom", "주행계"),
+                                             ("pose", "자세 x / y / yaw"),
+                                             ("drive", "주행"), ("safety", "안전 / US-100"),
+                                             ("feedback", "바퀴 피드백"), ("wheels", "바퀴별"),
+                                             ("can", "CAN"), ("l515", "L515 게이트웨이"))):
             name = Gtk.Label(label=title)
             name.set_xalign(0.0)
-            value = Gtk.Label(label="UNAVAILABLE")
+            value = Gtk.Label(label="미수신(UNAVAILABLE)")
             value.set_xalign(0.0)
             value.set_line_wrap(True)
             grid.attach(name, 0, row, 1, 1)
             grid.attach(value, 1, row, 1, 1)
             self._labels[key] = value
-        self.add(grid)
+        details = Gtk.Expander(label="상세")
+        details.add(grid)
+        body.pack_start(details, False, False, 0)
+        self.add(body)
         GLib.timeout_add(200, self._refresh)
 
     def _refresh(self) -> bool:
         snapshot = self._receiver.latest()
+        summary_label = getattr(self, "_summary", None)
+        if summary_label is not None:
+            summary_label.set_text(chassis_summary(snapshot))
         if snapshot is None:
-            self._labels["link"].set_text(f"waiting for UDP :{self._port}")
+            self._labels["link"].set_text(
+                f"{freshness_korean('WAITING')} · UDP :{self._port}"
+            )
             return True
         age_ms = (time.monotonic() - snapshot.received_monotonic_s) * 1000.0
         if age_ms > 1000.0:
-            self._labels["link"].set_text(f"STALE ({age_ms:.0f} ms)")
+            self._labels["link"].set_text(
+                f"{freshness_korean('STALE')} · {age_ms:.0f} ms"
+            )
             return True
-        self._labels["link"].set_text(f"LIVE · seq {snapshot.sequence} · {age_ms:.0f} ms")
+        self._labels["link"].set_text(
+            f"{freshness_korean('LIVE')} · 순번 {snapshot.sequence} · {age_ms:.0f} ms"
+        )
         self._labels["odom"].set_text(snapshot.odometry_source)
         self._labels["pose"].set_text(
             f"{_format_number(snapshot.x_m, 'm')} / {_format_number(snapshot.y_m, 'm')} / "
@@ -554,7 +622,7 @@ class ChassisTelemetryPanel(Gtk.Frame):
         )
         self._labels["drive"].set_text(snapshot.drive_state)
         if snapshot.safety_status == "unavailable":
-            self._labels["safety"].set_text("UNAVAILABLE")
+            self._labels["safety"].set_text("미수신(UNAVAILABLE)")
         else:
             distance = _format_number(snapshot.safety_distance_mm, "mm")
             estop = "ESTOP" if snapshot.safety_estop_required else "clear"
@@ -562,16 +630,16 @@ class ChassisTelemetryPanel(Gtk.Frame):
                         else str(snapshot.safety_consecutive_failures))
             detail = snapshot.safety_detail or "-"
             self._labels["safety"].set_text(
-                f"{snapshot.safety_status} · {distance} · {estop} · failures {failures}\n{detail}"
+                f"{snapshot.safety_status} · {distance} · {estop} · 실패 {failures}\n{detail}"
             )
         if snapshot.wheel_count is None:
-            self._labels["feedback"].set_text("UNAVAILABLE")
+            self._labels["feedback"].set_text("미수신(UNAVAILABLE)")
         else:
             self._labels["feedback"].set_text(
-                f"wheels {snapshot.wheel_count} · fault {snapshot.wheel_fault_count or 0} · "
-                f"stale {snapshot.wheel_stale_count or 0} · "
-                f"axis {snapshot.wheel_axis_error_count or 0} · "
-                f"steer {snapshot.wheel_steer_fault_count or 0}"
+                f"바퀴 {snapshot.wheel_count} · 고장 {snapshot.wheel_fault_count or 0} · "
+                f"지연 {snapshot.wheel_stale_count or 0} · "
+                f"축 {snapshot.wheel_axis_error_count or 0} · "
+                f"조향 {snapshot.wheel_steer_fault_count or 0}"
             )
             health_key = (snapshot.wheel_stale_count or 0,
                           snapshot.wheel_axis_error_count or 0,
@@ -584,14 +652,14 @@ class ChassisTelemetryPanel(Gtk.Frame):
                         f"stale {health_key[0]} · axis error {health_key[1]} · steer fault {health_key[2]}",
                     )
         if snapshot.truncated and not snapshot.wheel_statuses:
-            self._labels["wheels"].set_text("TRUNCATED · per-wheel rows omitted")
+            self._labels["wheels"].set_text("잘림(TRUNCATED) · 바퀴별 행 생략")
         elif not snapshot.wheel_statuses:
-            self._labels["wheels"].set_text("UNAVAILABLE")
+            self._labels["wheels"].set_text("미수신(UNAVAILABLE)")
         else:
             lines = []
             for wheel in snapshot.wheel_statuses:
-                fault = (" fault" if wheel.drive_axis_error or wheel.steer_fault else "")
-                stale = " stale" if wheel.stale else ""
+                fault = (" 고장" if wheel.drive_axis_error or wheel.steer_fault else "")
+                stale = " 지연" if wheel.stale else ""
                 lines.append(
                     f"{wheel.name}: {wheel.mode} · {_format_number(wheel.drive_turns_per_s, 'r/s')} · "
                     f"{_format_number(wheel.steer_deg, 'deg')}{stale}{fault}"
@@ -599,12 +667,12 @@ class ChassisTelemetryPanel(Gtk.Frame):
             self._labels["wheels"].set_text("\n".join(lines))
         self._labels["can"].set_text(snapshot.can_state)
         self._labels["l515"].set_text(
-            f"{snapshot.l515_state} · {snapshot.l515_mode} · native "
+            f"{snapshot.l515_state} · {snapshot.l515_mode} · 원본 "
             f"{_format_number(snapshot.l515_color_hz, 'Hz')} / {_format_number(snapshot.l515_depth_hz, 'Hz')}\n"
-            f"SRT submit/sent/drop {_format_number(snapshot.l515_submitted_hz, 'Hz')} / "
+            f"SRT 제출/전송/누락 {_format_number(snapshot.l515_submitted_hz, 'Hz')} / "
             f"{_format_number(snapshot.l515_sent_hz, 'Hz')} / {_format_number(snapshot.l515_drop_hz, 'Hz')}\n"
-            f"aligned depth {_format_number(snapshot.l515_aligned_depth_age_ms, 'ms')} · "
-            f"process {_format_number(snapshot.l515_process_cpu_percent, '% CPU')} / "
+            f"정렬 Depth {_format_number(snapshot.l515_aligned_depth_age_ms, 'ms')} · "
+            f"프로세스 {_format_number(snapshot.l515_process_cpu_percent, '% CPU')} / "
             f"{_format_rss(snapshot.l515_process_rss_bytes)}\n"
             f"ROS {_format_ros_rates(snapshot.l515_ros_topic_rates_hz)}\n"
             f"{snapshot.l515_detail or '-'}"
@@ -624,7 +692,7 @@ class OpsPanel(Gtk.Frame):
         event_sink: Callable[[str, str], None],
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        super().__init__(label="Operations (token-gated)")
+        super().__init__(label="조작 (토큰 인증)")
         self._event_sink = event_sink
         self._clock = clock
         self._client: ConsoleOpsClient | None = None
@@ -633,6 +701,8 @@ class OpsPanel(Gtk.Frame):
         self._hold_started_s: float | None = None
         self._pending_requests: dict[str, str] = {}
         self._latest_component_mask: dict[str, bool] | None = None
+        self._latest_chassis_mode = "UNKNOWN"
+        self._latest_ack_text = "없음"
         self._action_buttons: dict[str, Gtk.Button] = {}
 
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -641,22 +711,24 @@ class OpsPanel(Gtk.Frame):
 
         token = self._read_token(token_file)
         if token is None:
-            disabled = Gtk.Label(label="ops token absent — panel disabled")
+            disabled = Gtk.Label(label="조작 토큰 없음 — 패널 비활성")
             disabled.set_xalign(0.0)
             disabled.set_line_wrap(True)
             body.pack_start(disabled, False, False, 0)
             return
 
-        self._state_label = Gtk.Label(label=f"ops {host}:{port} · waiting for state")
+        self._state_label = Gtk.Label(
+            label="모드: 미수신(UNKNOWN) · 최근: 없음"
+        )
         self._state_label.set_xalign(0.0)
         self._state_label.set_line_wrap(True)
         body.pack_start(self._state_label, False, False, 0)
-        self._ack_label = Gtk.Label(label="last: none")
-        self._ack_label.set_xalign(0.0)
-        self._ack_label.set_line_wrap(True)
-        body.pack_start(self._ack_label, False, False, 0)
+
+        basic_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        advanced_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
 
         for action in PANEL_ACTIONS:
+            target = advanced_box if action.advanced else basic_box
             if action.gesture == GESTURE_SPACER:
                 spacer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
                 spacer.pack_start(Gtk.Separator(), False, False, 0)
@@ -664,21 +736,42 @@ class OpsPanel(Gtk.Frame):
                 note.set_xalign(0.0)
                 note.set_line_wrap(True)
                 spacer.pack_start(note, False, False, 0)
-                body.pack_start(spacer, False, False, 3)
+                target.pack_start(spacer, False, False, 3)
                 continue
 
-            button = Gtk.Button(label=action.label)
+            button = Gtk.Button()
+            if action.gesture == GESTURE_IMMEDIATE:
+                emergency_label = Gtk.Label()
+                emergency_label.set_markup(
+                    '<span foreground="#b91c1c" weight="bold" size="large">'
+                    + GLib.markup_escape_text(action.label)
+                    + "</span>"
+                )
+                button.add(emergency_label)
+                button.set_size_request(-1, 48)
+            else:
+                button.set_label(action.label)
             button.set_hexpand(True)
             if action.gesture == GESTURE_HOLD:
                 button.connect("button-press-event", self._on_hold_press, action)
                 button.connect("button-release-event", self._on_hold_release, action)
+            elif action.gesture == GESTURE_IMMEDIATE:
+                button.connect("clicked", self._on_immediate_clicked, action)
             else:
                 button.connect("clicked", self._on_action_clicked, action)
             if action.action is not None:
                 self._action_buttons[action.action] = button
             if action.bool_value_from_state is not None:
+                if not mode_allows_action(action.action, "UNKNOWN"):
+                    button.set_label(action.label + " · 대기에서만")
                 button.set_sensitive(False)
-            body.pack_start(button, False, False, 0)
+            target.pack_start(button, False, False, 0)
+
+        body.pack_start(basic_box, False, False, 0)
+        advanced = Gtk.Expander(label="고급")
+        advanced.set_expanded(False)
+        advanced.add(advanced_box)
+        body.pack_start(advanced, False, False, 0)
 
         self._confirm_strip = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
@@ -692,9 +785,9 @@ class OpsPanel(Gtk.Frame):
         self._confirm_state = Gtk.Label()
         self._confirm_state.set_xalign(0.0)
         self._confirm_state.set_line_wrap(True)
-        self._confirm_button = Gtk.Button(label="Confirm")
+        self._confirm_button = Gtk.Button(label="확인")
         self._confirm_button.connect("clicked", self._on_confirm_clicked)
-        cancel = Gtk.Button(label="Cancel")
+        cancel = Gtk.Button(label="취소")
         cancel.connect("clicked", self._on_cancel_clicked)
         controls = Gtk.Box(spacing=6)
         controls.pack_start(self._confirm_button, True, True, 0)
@@ -727,13 +820,23 @@ class OpsPanel(Gtk.Frame):
     @staticmethod
     def _state_text(state: dict) -> str:
         sources = state.get("active_estop_sources") or []
-        source_text = ", ".join(str(source) for source in sources) or "none"
+        source_text = ", ".join(str(source) for source in sources) or "없음"
         return (
-            f"revision {state.get('revision', 'N/A')} · "
-            f"authority {state.get('authority_mode', 'UNKNOWN')} · "
-            f"E-stop {'LATCHED' if state.get('estop_latched') else 'clear'}\n"
-            f"sources {source_text} · "
-            f"wheels stopped {state.get('wheels_stopped', 'UNKNOWN')}"
+            f"리비전 {state.get('revision', 'N/A')} · "
+            f"권한 {state.get('authority_mode', 'UNKNOWN')} · "
+            f"비상정지 {'래치됨(LATCHED)' if state.get('estop_latched') else '정상(CLEAR)'}\n"
+            f"원인 {source_text} · "
+            f"바퀴 정지 {state.get('wheels_stopped', 'UNKNOWN')}"
+        )
+
+    def _refresh_status_line(self) -> None:
+        label = getattr(self, "_state_label", None)
+        if label is None:
+            return
+        chassis_mode = getattr(self, "_latest_chassis_mode", "UNKNOWN")
+        latest_ack = getattr(self, "_latest_ack_text", "없음")
+        label.set_text(
+            f"모드: {mode_korean(chassis_mode)} · 최근: {latest_ack}"
         )
 
     def _emit(self, message: str) -> None:
@@ -754,15 +857,15 @@ class OpsPanel(Gtk.Frame):
         if action.bool_value_from_state is not None:
             enabled = pending.params.get("data") is True
             if action.action != "us100_enable" or enabled:
-                direction = "Enable" if enabled else "Disable"
-                confirm_text = f"{direction} {action.label}?"
+                direction = "켭니다" if enabled else "끕니다"
+                confirm_text = f"{action.label}을 {direction}. 계속합니까?"
         self._confirm_copy.set_markup(
             "<b>{}</b>".format(GLib.markup_escape_text(confirm_text))
         )
         self._confirm_state.set_text(
-            "State snapshot: " + self._state_text(pending.state_snapshot)
+            "상태 스냅샷: " + self._state_text(pending.state_snapshot)
         )
-        self._confirm_button.set_label(f"Confirm {action.label}")
+        self._confirm_button.set_label(f"확인: {action.label}")
         self._confirm_button.set_visible(action.gesture != GESTURE_HOLD)
         self._confirm_strip.set_no_show_all(False)
         self._confirm_strip.show_all()
@@ -772,6 +875,27 @@ class OpsPanel(Gtk.Frame):
 
     def _on_action_clicked(self, _button: Gtk.Button, action: PanelAction) -> None:
         self._begin(action)
+
+    def _on_immediate_clicked(
+        self,
+        _button: Gtk.Button,
+        action: PanelAction,
+    ) -> None:
+        flow = self._flow
+        if flow is None:
+            self._emit(f"{action.action}: rejected — panel disabled")
+            return
+        try:
+            flow.begin(action)
+            submit_kwargs = flow.confirm(action)
+        except (RuntimeError, ValueError) as exc:
+            self._emit(f"{action.action}: rejected — {exc}")
+            flow.reset()
+            return
+        if submit_kwargs is None:
+            self._emit(f"{action.action}: rejected — state revision changed")
+            return
+        self._submit(submit_kwargs)
 
     def _on_hold_press(
         self,
@@ -852,20 +976,26 @@ class OpsPanel(Gtk.Frame):
 
     def _on_state(self, state: dict) -> None:
         self._latest_component_mask = component_mask_from_state(state)
+        chassis_mode = str(state.get("chassis_mode", "UNKNOWN"))
+        self._latest_chassis_mode = chassis_mode
         for action in PANEL_ACTIONS:
             if action.action is None or action.bool_value_from_state is None:
                 continue
             button = self._action_buttons[action.action]
+            allowed = mode_allows_action(action.action, chassis_mode)
+            gate_hint = " · 대기에서만" if not allowed else ""
             try:
                 next_enabled = action.bool_value_from_state(state)
             except RuntimeError:
-                button.set_label(action.label)
+                button.set_label(action.label + gate_hint)
                 button.set_sensitive(False)
             else:
-                current_state = "OFF" if next_enabled else "ON"
-                button.set_label(f"{action.label} [{current_state}]")
-                button.set_sensitive(True)
-        self._state_label.set_text("OPS LIVE · " + self._state_text(state))
+                current_state = OFF_LABEL if next_enabled else ON_LABEL
+                button.set_label(
+                    f"{action.label} [{current_state}]{gate_hint}"
+                )
+                button.set_sensitive(allowed)
+        self._refresh_status_line()
 
     def latest_component_mask(self) -> dict[str, bool] | None:
         if self._latest_component_mask is None:
@@ -881,9 +1011,8 @@ class OpsPanel(Gtk.Frame):
         if detail:
             message += f" · {detail}"
         self._emit(message)
-        ack_label = getattr(self, "_ack_label", None)
-        if ack_label is not None:
-            ack_label.set_markup(format_ack_markup(action, status, detail))
+        self._latest_ack_text = ack_korean(status, detail)
+        self._refresh_status_line()
         if status.startswith("FINAL_") or status == "OUTCOME_UNKNOWN":
             self._pending_requests.pop(request_id, None)
 
@@ -898,7 +1027,7 @@ class OperatorConsole(Gtk.Window):
                  arm_telemetry_port: int = 5007,
                  ops_host: str | None = None, ops_port: int = 9001,
                  ops_token_file: str = DEFAULT_OPS_TOKEN_FILE) -> None:
-        super().__init__(title="Powertrain Operator Console")
+        super().__init__(title="파워트레인 운영 콘솔")
         # Keep the two live video panels and safety sidebar visible without
         # covering the operator desktop.  The user can still maximize with
         # the window manager or use F11 when a larger view is useful.
@@ -911,10 +1040,10 @@ class OperatorConsole(Gtk.Window):
         self._chassis_receiver = LatestTelemetryReceiver(chassis_telemetry_port)
         self._arm_receiver = LatestArmTelemetryReceiver(arm_telemetry_port)
         self._events = EventLog()
-        self._d435 = VideoPanel("D435i raw", host, d435_port, latency_ms,
+        self._d435 = VideoPanel("D435i 원본", host, d435_port, latency_ms,
                                 metadata_receiver=self._metadata_receiver,
                                 event_sink=self._events.add_event)
-        self._l515 = VideoPanel("L515 driving", host, l515_port, latency_ms,
+        self._l515 = VideoPanel("L515 주행", host, l515_port, latency_ms,
                                 event_sink=self._events.add_event)
         # Stack feeds vertically to keep the safety sidebar on-screen on
         # narrow displays.
@@ -1018,10 +1147,14 @@ class OperatorConsole(Gtk.Window):
             self._events.add_event("L515", l515_transport)
             self._last_l515_transport = l515_transport
         health = (
-            "OBSERVE: RX-ONLY  |  OPS: TOKEN-GATED  |  "
-            f"L515 {self._l515.health_state()}  ·  D435i {self._d435.health_state()}  ·  "
-            f"YOLO {yolo}  ·  POWER {telemetry}  ·  CHASSIS {chassis_state}  ·  "
-            f"ODOM {odom}  ·  DRIVE {drive}  ·  CAN {can}"
+            "관측: 수신 전용  |  조작: 토큰 인증  |  "
+            f"L515 {freshness_korean(self._l515.health_state())}  ·  "
+            f"D435i {freshness_korean(self._d435.health_state())}  ·  "
+            f"YOLO {freshness_korean(yolo)}  ·  "
+            f"전원 {freshness_korean(telemetry)}  ·  "
+            f"차대 {freshness_korean(chassis_state)}  ·  "
+            f"주행계 {freshness_korean(odom)}  ·  "
+            f"주행 {freshness_korean(drive)}  ·  CAN {freshness_korean(can)}"
         )
         mask_markup = ""
         if mask_text is not None:

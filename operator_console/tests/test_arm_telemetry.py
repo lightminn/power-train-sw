@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from operator_console import arm_telemetry
 from operator_console.arm_telemetry import parse_arm_telemetry, temperature_state
 
 
@@ -141,3 +142,47 @@ def test_truncated_flag_round_trips():
 )
 def test_temperature_state_boundaries(temperature_c, expected):
     assert temperature_state(temperature_c) == expected
+
+
+def test_arm_summary_covers_normal_unavailable_and_critical_temperature():
+    summary = getattr(arm_telemetry, "arm_summary", None)
+    assert summary is not None
+    normal = parse_arm_telemetry(_payload(
+        dynamixel=[
+            {
+                "id": 11,
+                "position_raw": 2048,
+                "position_deg": 0.0,
+                "velocity": 0,
+                "current": 0,
+                "temperature_c": 45,
+            },
+            {
+                "id": 12,
+                "position_raw": 2048,
+                "position_deg": 0.0,
+                "velocity": 0,
+                "current": 0,
+                "temperature_c": 40,
+            },
+        ],
+    ))
+    critical = parse_arm_telemetry(_payload(
+        dynamixel=[
+            {
+                "id": 12,
+                "position_raw": 2048,
+                "position_deg": 0.0,
+                "velocity": 0,
+                "current": 0,
+                "temperature_c": 65,
+            },
+        ],
+    ))
+
+    assert summary(normal) == "모터 2 · 최고 45 ℃ 정상"
+    assert summary(None) == "미수신(UNAVAILABLE)"
+    assert summary(parse_arm_telemetry(_payload(dynamixel=None))) == (
+        "미수신(UNAVAILABLE)"
+    )
+    assert summary(critical) == "모터 1 · 최고 ⚠ 65 ℃"

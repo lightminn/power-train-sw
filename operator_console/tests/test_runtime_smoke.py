@@ -30,3 +30,13 @@ def _toolchain_ready() -> bool:
 def test_console_survives_live_data_on_every_channel():
     passed, report = run_smoke()
     assert passed, report
+
+
+def test_runtime_smoke_constructs_the_token_gated_ops_controls():
+    source = (
+        Path(__file__).resolve().parents[1] / "runtime_smoke.py"
+    ).read_text(encoding="utf-8")
+
+    assert "/nonexistent/ops.token" not in source
+    assert "NamedTemporaryFile" in source
+    assert '"--ops-token-file", token_file' in source

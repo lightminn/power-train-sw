@@ -163,6 +163,23 @@ def temperature_state(temp_c: int) -> str:
     return "CRIT"
 
 
+def arm_summary(snapshot: ArmTelemetrySnapshot | None) -> str:
+    """Return the compact robot-arm motor-temperature summary."""
+    if snapshot is None or snapshot.dynamixel is None:
+        return "미수신(UNAVAILABLE)"
+    if not snapshot.dynamixel:
+        return "모터 0 · 온도 미수신"
+    highest = max(motor.temperature_c for motor in snapshot.dynamixel)
+    state = temperature_state(highest)
+    if state == "NORMAL":
+        temperature = f"최고 {highest} ℃ 정상"
+    elif state == "WARN":
+        temperature = f"최고 {highest} ℃ 경고"
+    else:
+        temperature = f"최고 ⚠ {highest} ℃"
+    return f"모터 {len(snapshot.dynamixel)} · {temperature}"
+
+
 class LatestArmTelemetryReceiver:
     """Latest-only RX-bound UDP receiver for robot-arm observation."""
     def __init__(self, port: int) -> None:

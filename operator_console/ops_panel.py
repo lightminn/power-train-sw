@@ -7,9 +7,12 @@ from dataclasses import dataclass
 from html import escape
 from typing import Any
 
+from .labels import COMPONENT_KOREAN
+
 
 GESTURE_STRIP = "confirm_strip"
 GESTURE_HOLD = "hold_to_confirm"
+GESTURE_IMMEDIATE = "immediate"
 GESTURE_SPACER = "spacer"
 HOLD_CONFIRM_S = 1.5
 _ACK_COLORS = {
@@ -47,6 +50,7 @@ class PanelAction:
     needs_bool: bool = False
     confirm_text: str = ""
     bool_value_from_state: Callable[[dict[str, Any]], bool] | None = None
+    advanced: bool = False
 
 
 @dataclass(frozen=True)
@@ -78,6 +82,13 @@ def component_mask_from_state(
     return component_mask
 
 
+def mode_allows_action(action: str, chassis_mode: str) -> bool:
+    """Gate only drive/steer mutation to IDLE; other modules stay operable."""
+    if str(action) not in {"drive_enable", "steer_enable"}:
+        return True
+    return str(chassis_mode) == "IDLE"
+
+
 def _component_toggle_value(component: str) -> Callable[[dict[str, Any]], bool]:
     def value_from_state(state: dict[str, Any]) -> bool:
         component_mask = component_mask_from_state(state)
@@ -90,80 +101,52 @@ def _component_toggle_value(component: str) -> Callable[[dict[str, Any]], bool]:
 
 PANEL_ACTIONS: tuple[PanelAction, ...] = (
     PanelAction(
-        "clear_transient_hold",
-        "Clear transient hold",
-        GESTURE_STRIP,
-        confirm_text="Clear recoverable teleop and authority holds?",
-    ),
-    PanelAction(
-        "authority_manual",
-        "Authority: manual",
-        GESTURE_STRIP,
-        confirm_text="Transfer command authority to the manual operator?",
-    ),
-    PanelAction(
-        "authority_auto",
-        "Authority: auto",
-        GESTURE_STRIP,
-        confirm_text="Transfer command authority to autonomy?",
-    ),
-    PanelAction(
-        "authority_idle",
-        "Authority: idle",
-        GESTURE_STRIP,
-        confirm_text="Return command authority to IDLE?",
+        "estop",
+        "비상정지 (ESTOP)",
+        GESTURE_IMMEDIATE,
     ),
     PanelAction(
         "estop_reset",
-        "Reset E-stop latch",
+        "경고 초기화",
         GESTURE_STRIP,
-        confirm_text="Reset the E-stop latch to IDLE? This does not arm the chassis.",
+        confirm_text="비상정지 경고를 초기화하고 대기(IDLE) 상태로 돌아갑니까? 시동은 별도입니다.",
     ),
     PanelAction(
         None,
-        "Reset and arm are independent actions",
+        "경고 초기화와 시동은 별도 조작입니다",
         GESTURE_SPACER,
     ),
     PanelAction(
         "arm",
-        "Arm — hold 1.5 s",
+        "시동 — 1.5초 홀드",
         GESTURE_HOLD,
-        confirm_text="Hold for 1.5 seconds to arm after reviewing the live state.",
-    ),
-    PanelAction(
-        "extraction_grant",
-        "Extraction grant — US-100 단독 latch에서만 · 후진 −0.2 m/s · TTL 3 s",
-        GESTURE_STRIP,
-        confirm_text=(
-            "US-100 단독 latch에서만 · 후진 −0.2 m/s · TTL 3 s — "
-            "grant extraction recovery?"
-        ),
+        confirm_text="현재 상태를 확인한 뒤 1.5초 동안 눌러 시동합니다.",
     ),
     PanelAction(
         "disarm",
-        "Disarm",
+        "시동 해제",
         GESTURE_STRIP,
-        confirm_text="Disarm the chassis and return to IDLE?",
+        confirm_text="차대를 시동 해제하고 대기(IDLE) 상태로 돌아갑니까?",
     ),
     PanelAction(
         "drive_enable",
-        "Drive motors",
+        COMPONENT_KOREAN["drive"],
         GESTURE_STRIP,
         needs_bool=True,
-        confirm_text="Toggle drive motor participation for this session?",
+        confirm_text="이번 세션의 구동 모터 사용 상태를 전환합니까?",
         bool_value_from_state=_component_toggle_value("drive"),
     ),
     PanelAction(
         "steer_enable",
-        "Steer motors",
+        COMPONENT_KOREAN["steer"],
         GESTURE_STRIP,
         needs_bool=True,
-        confirm_text="Toggle steer motor participation for this session?",
+        confirm_text="이번 세션의 조향 모터 사용 상태를 전환합니까?",
         bool_value_from_state=_component_toggle_value("steer"),
     ),
     PanelAction(
         "us100_enable",
-        "US-100 safety",
+        COMPONENT_KOREAN["us100"],
         GESTURE_STRIP,
         needs_bool=True,
         confirm_text="충돌 안전 센서를 끕니다 — 접근 시 자동 정지 없음",
@@ -171,69 +154,110 @@ PANEL_ACTIONS: tuple[PanelAction, ...] = (
     ),
     PanelAction(
         "robot_arm_enable",
-        "Robot arm",
+        COMPONENT_KOREAN["robot_arm"],
         GESTURE_STRIP,
         needs_bool=True,
-        confirm_text="Toggle robot-arm participation for this session?",
+        confirm_text="이번 세션의 로봇팔 사용 상태를 전환합니까?",
         bool_value_from_state=_component_toggle_value("robot_arm"),
     ),
     PanelAction(
+        "authority_manual",
+        "권한: 수동",
+        GESTURE_STRIP,
+        confirm_text="명령 권한을 수동 조작자로 전환합니까?",
+        advanced=True,
+    ),
+    PanelAction(
+        "authority_auto",
+        "권한: 자동",
+        GESTURE_STRIP,
+        confirm_text="명령 권한을 자율주행으로 전환합니까?",
+        advanced=True,
+    ),
+    PanelAction(
+        "authority_idle",
+        "권한: 대기",
+        GESTURE_STRIP,
+        confirm_text="명령 권한을 대기(IDLE) 상태로 전환합니까?",
+        advanced=True,
+    ),
+    PanelAction(
+        "extraction_grant",
+        "구조 탈출 허가 — 후진 0.2 m/s·3초",
+        GESTURE_STRIP,
+        confirm_text="US-100 단독 비상정지에서만 구조 탈출을 허가합니다 — 후진 0.2 m/s·3초.",
+        advanced=True,
+    ),
+    PanelAction(
         "arm_lock_override",
-        "Enable arm lock override",
+        "로봇팔 잠금 해제",
         GESTURE_STRIP,
         needs_bool=True,
-        confirm_text=(
-            "DANGER: ENABLE ARM SAFETY LOCK OVERRIDE. "
-            "Use only for supervised recovery."
-        ),
+        confirm_text="위험: 로봇팔 안전 잠금을 해제합니다. 감독하의 복구 작업에만 사용하십시오.",
+        advanced=True,
+    ),
+    PanelAction(
+        "clear_transient_hold",
+        "일시 정지 해제",
+        GESTURE_STRIP,
+        confirm_text="복구 가능한 텔레옵·권한 일시 정지를 해제합니까?",
+        advanced=True,
     ),
     PanelAction(
         "mission_arrive_pickup",
-        "Mission: arrive pickup",
+        "임무: 수거 지점 도착",
         GESTURE_STRIP,
-        confirm_text="Report arrival at the pickup mission section?",
+        confirm_text="수거 임무 구간 도착을 보고합니까?",
+        advanced=True,
     ),
     PanelAction(
         "mission_arrive_drop",
-        "Mission: arrive drop",
+        "임무: 하역 지점 도착",
         GESTURE_STRIP,
-        confirm_text="Report arrival at the drop mission section?",
+        confirm_text="하역 임무 구간 도착을 보고합니까?",
+        advanced=True,
     ),
     PanelAction(
         "mission_skip",
-        "Mission: skip",
+        "임무: 건너뛰기",
         GESTURE_STRIP,
-        confirm_text="Skip the current failed mission step?",
+        confirm_text="현재 실패한 임무 단계를 건너뜁니까?",
+        advanced=True,
     ),
     PanelAction(
         "mission_retry",
-        "Mission: retry",
+        "임무: 재시도",
         GESTURE_STRIP,
-        confirm_text="Retry the current failed mission step?",
+        confirm_text="현재 실패한 임무 단계를 다시 시도합니까?",
+        advanced=True,
     ),
     PanelAction(
         "mission_regrasp_confirmed",
-        "Mission: regrasp confirmed",
+        "임무: 재파지 확인",
         GESTURE_STRIP,
-        confirm_text="Confirm that the arm has completed the regrasp?",
+        confirm_text="로봇팔 재파지가 완료되었음을 확인합니까?",
+        advanced=True,
     ),
     PanelAction(
         "mission_clear_grip_lost",
-        "Mission: clear grip lost",
+        "임무: 파지 상실 해제",
         GESTURE_STRIP,
-        confirm_text="Clear the grip-lost mission latch?",
+        confirm_text="파지 상실 임무 래치를 해제합니까?",
+        advanced=True,
     ),
     PanelAction(
         "operator_hold",
-        "Operator hold",
+        "운영자 일시 정지",
         GESTURE_STRIP,
-        confirm_text="Request an operator mission hold?",
+        confirm_text="운영자 임무 일시 정지를 요청합니까?",
+        advanced=True,
     ),
     PanelAction(
         "operator_resume",
-        "Operator resume",
+        "운영자 임무 재개",
         GESTURE_STRIP,
-        confirm_text="Resume mission supervision after the operator hold?",
+        confirm_text="운영자 일시 정지 후 임무 감독을 재개합니까?",
+        advanced=True,
     ),
 )
 

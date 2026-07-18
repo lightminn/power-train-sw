@@ -145,7 +145,7 @@ def test_mask_banner_lists_disabled_components_in_console_order():
         "us100": False,
         "drive": False,
         "steer": True,
-    }) == "MASK: DRIVE·US-100 OFF"
+    }) == "꺼짐: 구동·US-100"
     assert banner_text({
         "drive": True,
         "steer": True,
@@ -167,7 +167,75 @@ def test_us100_mask_off_safety_banner_precedes_live_estop():
         frame,
         component_mask={"us100": False},
         telemetry_live=True,
-    ) == ("SAFETY DISABLED (US-100 OFF)", "#d97706")
+    ) == ("안전 해제됨(US-100 꺼짐)", "#d97706")
+
+
+def test_live_safety_banner_is_korean_for_clear_and_estop():
+    clear = parse_telemetry(
+        b'{"schema_version":1,"sequence":18,"safety_status":"VALID",'
+        b'"safety_estop_required":false}',
+        received_monotonic_s=10.0,
+    )
+    estop = parse_telemetry(
+        b'{"schema_version":1,"sequence":19,"safety_status":"NO_RESPONSE",'
+        b'"safety_estop_required":true,"safety_detail":"liveness_timeout"}',
+        received_monotonic_s=10.0,
+    )
+
+    assert telemetry.safety_banner_state(
+        clear,
+        component_mask=None,
+        telemetry_live=True,
+    ) == ("안전 정상(CLEAR)", "#16a34a")
+    assert telemetry.safety_banner_state(
+        estop,
+        component_mask=None,
+        telemetry_live=True,
+    ) == ("비상정지(ESTOP) · liveness_timeout", "#dc2626")
+
+
+def test_power_summary_covers_normal_unavailable_and_warning():
+    summary = getattr(telemetry, "power_summary", None)
+    assert summary is not None
+    normal = parse_telemetry(
+        b'{"schema_version":1,"sequence":20,"voltage_v":47.6,'
+        b'"pdist_soc_percent":80,"pdist_battery_flags":0,'
+        b'"pdist_protection_flags":0}',
+        received_monotonic_s=10.0,
+    )
+    warning = parse_telemetry(
+        b'{"schema_version":1,"sequence":21,"voltage_v":47.6,'
+        b'"pdist_soc_percent":80,"pdist_battery_flags":0,'
+        b'"pdist_protection_flags":2}',
+        received_monotonic_s=10.0,
+    )
+
+    assert summary(normal) == "47.6 V · 80% · 정상"
+    assert summary(None) == "미수신(UNAVAILABLE)"
+    assert summary(warning) == "47.6 V · 80% · ⚠ 보호 경고"
+
+
+def test_chassis_summary_covers_normal_unavailable_and_warning():
+    summary = getattr(telemetry, "chassis_summary", None)
+    assert summary is not None
+    normal = parse_telemetry(
+        b'{"schema_version":1,"sequence":22,"drive_state":"IDLE/OK",'
+        b'"safety_estop_required":false,"wheel_count":6,'
+        b'"wheel_fault_count":0,"wheel_stale_count":0}',
+        received_monotonic_s=10.0,
+    )
+    warning = parse_telemetry(
+        b'{"schema_version":1,"sequence":23,"drive_state":"ESTOP/LATCHED",'
+        b'"safety_estop_required":true,"wheel_count":6,'
+        b'"wheel_fault_count":1,"wheel_stale_count":1}',
+        received_monotonic_s=10.0,
+    )
+
+    assert summary(normal) == "모드 대기(IDLE) · 안전 정상 · 바퀴 6/6"
+    assert summary(None) == "미수신(UNAVAILABLE)"
+    assert summary(warning) == (
+        "모드 비상정지(ESTOP) · 비상정지(ESTOP) · 바퀴 5/6 ⚠"
+    )
 
 
 def test_telemetry_contract_keeps_rs485_failure_reason():
@@ -347,3 +415,35 @@ def test_panel_formatters_are_shared_module_functions():
         "self._hex(",
     ):
         assert stale_call not in source
+
+
+def test_app_source_uses_korean_titles_and_collapsed_sections_without_gtk():
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    for title in (
+        "로봇 상태",
+        "차대",
+        "로봇팔",
+        "조작 (토큰 인증)",
+        "이벤트 기록",
+    ):
+        assert title in source
+    assert 'Gtk.Expander(label="고급")' in source
+    assert source.count('Gtk.Expander(label="상세")') >= 3
+    assert "GESTURE_IMMEDIATE" in source
+    assert "모드:" in source and "최근:" in source
+    assert "대기에서만" in source
+    assert 'mode_allows_action(action.action, "UNKNOWN")' in source
+    assert source.count('getattr(self, "_summary", None)') >= 3
+    for old_visible_copy in (
+        'Gtk.Label(label="Display FPS: waiting")',
+        'Gtk.Label(label=f"SRT caller →',
+        'self._status.set_text(f"{self._name}: waiting for first frame")',
+        'f"wheels {snapshot.wheel_count}',
+        'f"SRT submit/sent/drop',
+    ):
+        assert old_visible_copy not in source

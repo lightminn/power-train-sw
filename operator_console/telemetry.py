@@ -9,6 +9,7 @@ import threading
 import time
 from typing import Any
 
+from .labels import mode_korean
 from .udp_source import SourceSequenceGate
 
 
@@ -222,11 +223,69 @@ def _format_hex(value: int | None) -> str:
     return "N/A" if value is None else f"0x{value:02X}"
 
 
+def power_summary(snapshot: TelemetrySnapshot | None) -> str:
+    """Return the compact power line shown above the detailed telemetry."""
+    if snapshot is None:
+        return "미수신(UNAVAILABLE)"
+    voltage = "N/A" if snapshot.voltage_v is None else f"{snapshot.voltage_v:.1f} V"
+    soc = "N/A" if snapshot.pdist_soc_percent is None else f"{snapshot.pdist_soc_percent}%"
+    if snapshot.pdist_protection_flags not in (None, 0):
+        health = "⚠ 보호 경고"
+    elif snapshot.pdist_battery_flags not in (None, 0):
+        health = "⚠ 배터리 경고"
+    elif (
+        snapshot.pdist_battery_flags == 0
+        and snapshot.pdist_protection_flags == 0
+    ):
+        health = "정상"
+    else:
+        health = "상태 미수신"
+    return f"{voltage} · {soc} · {health}"
+
+
+def chassis_summary(snapshot: TelemetrySnapshot | None) -> str:
+    """Return mode, safety, and wheel health without hiding state codes."""
+    if snapshot is None:
+        return "미수신(UNAVAILABLE)"
+    raw_mode = snapshot.drive_state.split("/", 1)[0].strip()
+    mode = (
+        "미수신"
+        if not raw_mode or raw_mode.lower() == "unavailable"
+        else mode_korean(raw_mode)
+    )
+    if snapshot.safety_estop_required is True:
+        safety = "비상정지(ESTOP)"
+    elif snapshot.safety_estop_required is False:
+        safety = "안전 정상"
+    else:
+        safety = "안전 미수신"
+    if snapshot.wheel_count is None:
+        wheels = "바퀴 미수신"
+    else:
+        if len(snapshot.wheel_statuses) == snapshot.wheel_count:
+            unhealthy = sum(
+                1
+                for wheel in snapshot.wheel_statuses
+                if wheel.stale or wheel.drive_axis_error or wheel.steer_fault
+            )
+        else:
+            unhealthy = max(
+                snapshot.wheel_fault_count or 0,
+                snapshot.wheel_stale_count or 0,
+                snapshot.wheel_axis_error_count or 0,
+                snapshot.wheel_steer_fault_count or 0,
+            )
+        healthy = max(0, snapshot.wheel_count - unhealthy)
+        warning = " ⚠" if unhealthy else ""
+        wheels = f"바퀴 {healthy}/{snapshot.wheel_count}{warning}"
+    return f"모드 {mode} · {safety} · {wheels}"
+
+
 _COMPONENT_BANNER_LABELS = (
-    ("drive", "DRIVE"),
-    ("steer", "STEER"),
+    ("drive", "구동"),
+    ("steer", "조향"),
     ("us100", "US-100"),
-    ("robot_arm", "ARM"),
+    ("robot_arm", "로봇팔"),
 )
 
 
@@ -239,7 +298,7 @@ def mask_banner_text(component_mask: Mapping[str, bool] | None) -> str | None:
         for component, label in _COMPONENT_BANNER_LABELS
         if component_mask.get(component) is False
     ]
-    return None if not disabled else "MASK: " + "·".join(disabled) + " OFF"
+    return None if not disabled else "꺼짐: " + "·".join(disabled)
 
 
 def safety_banner_state(
@@ -250,13 +309,13 @@ def safety_banner_state(
 ) -> tuple[str, str]:
     """Return safety banner copy/color, with US-100 masking taking priority."""
     if component_mask is not None and component_mask.get("us100") is False:
-        return "SAFETY DISABLED (US-100 OFF)", "#d97706"
+        return "안전 해제됨(US-100 꺼짐)", "#d97706"
     if not telemetry_live or snapshot is None:
-        return "SAFETY UNAVAILABLE", "#d97706"
+        return "안전 미수신(UNAVAILABLE)", "#d97706"
     if snapshot.safety_estop_required:
-        detail = snapshot.safety_detail or "no detail"
-        return f"SAFETY ESTOP · {snapshot.safety_status} · {detail}", "#dc2626"
-    return f"SAFETY CLEAR · {snapshot.safety_status}", "#16a34a"
+        detail = snapshot.safety_detail or snapshot.safety_status or "사유 없음"
+        return f"비상정지(ESTOP) · {detail}", "#dc2626"
+    return "안전 정상(CLEAR)", "#16a34a"
 
 
 def chassis_component_states(

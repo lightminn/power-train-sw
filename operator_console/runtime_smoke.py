@@ -22,6 +22,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 
 
@@ -142,21 +143,33 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
         "metadata": _free_udp_port(), "telemetry": _free_udp_port(),
         "chassis": _free_udp_port(), "arm": _free_udp_port(),
     }
-    console = subprocess.Popen(
-        [
-            "xvfb-run", "-a", SYSTEM_PYTHON, "-m", "operator_console.app",
-            "--host", "127.0.0.1",
-            "--metadata-port", str(ports["metadata"]),
-            "--telemetry-port", str(ports["telemetry"]),
-            "--chassis-telemetry-port", str(ports["chassis"]),
-            "--arm-telemetry-port", str(ports["arm"]),
-            "--ops-token-file", "/nonexistent/ops.token",
-        ],
-        cwd=REPO_ROOT,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        start_new_session=True,
-    )
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        prefix="operator-console-smoke-token-",
+        delete=False,
+    ) as token_handle:
+        token_handle.write("runtime-smoke-token")
+        token_file = token_handle.name
+    try:
+        console = subprocess.Popen(
+            [
+                "xvfb-run", "-a", SYSTEM_PYTHON, "-m", "operator_console.app",
+                "--host", "127.0.0.1",
+                "--metadata-port", str(ports["metadata"]),
+                "--telemetry-port", str(ports["telemetry"]),
+                "--chassis-telemetry-port", str(ports["chassis"]),
+                "--arm-telemetry-port", str(ports["arm"]),
+                "--ops-token-file", token_file,
+            ],
+            cwd=REPO_ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )
+    except BaseException:
+        Path(token_file).unlink(missing_ok=True)
+        raise
     sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     builders = {
         "telemetry": _telemetry_payload, "chassis": _chassis_payload,
@@ -209,6 +222,7 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
             _, stderr = console.communicate()
     finally:
         sender.close()
+        Path(token_file).unlink(missing_ok=True)
         if console.poll() is None:
             os.killpg(console.pid, 9)
 

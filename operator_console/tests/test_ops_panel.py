@@ -3,6 +3,7 @@ import pytest
 import operator_console.ops_panel as ops_panel
 from operator_console.ops_panel import (
     GESTURE_HOLD,
+    GESTURE_IMMEDIATE,
     GESTURE_SPACER,
     GESTURE_STRIP,
     HOLD_CONFIRM_S,
@@ -89,47 +90,95 @@ def test_estop_reset_and_arm_use_distinct_gestures_with_spacer_between():
     assert PANEL_ACTIONS[reset_index + 1].gesture == GESTURE_SPACER
 
 
-def test_extraction_grant_is_strip_below_arm_with_strong_warning_copy():
+def test_panel_keeps_eight_basic_actions_and_preserves_existing_action_keys():
+    actions = tuple(action for action in PANEL_ACTIONS if action.action is not None)
+    basic = {action.action for action in actions if not action.advanced}
+    advanced = {action.action for action in actions if action.advanced}
+
+    assert basic == {
+        "estop",
+        "estop_reset",
+        "arm",
+        "disarm",
+        "drive_enable",
+        "steer_enable",
+        "us100_enable",
+        "robot_arm_enable",
+    }
+    assert {
+        "authority_manual",
+        "authority_auto",
+        "authority_idle",
+        "extraction_grant",
+        "arm_lock_override",
+        "clear_transient_hold",
+    } <= advanced
+    assert {action.action for action in actions} == {
+        "estop",
+        "clear_transient_hold",
+        "authority_manual",
+        "authority_auto",
+        "authority_idle",
+        "estop_reset",
+        "arm",
+        "extraction_grant",
+        "disarm",
+        "drive_enable",
+        "steer_enable",
+        "us100_enable",
+        "robot_arm_enable",
+        "arm_lock_override",
+        "mission_arrive_pickup",
+        "mission_arrive_drop",
+        "mission_skip",
+        "mission_retry",
+        "mission_regrasp_confirmed",
+        "mission_clear_grip_lost",
+        "operator_hold",
+        "operator_resume",
+    }
+
+
+def test_estop_is_immediate_and_requires_no_confirmation_copy():
+    action = _action("estop")
+    source = StateSource({"revision": 9})
+    flow = _flow(source)
+
+    flow.begin(action)
+
+    assert action.label == "비상정지 (ESTOP)"
+    assert action.gesture == GESTURE_IMMEDIATE
+    assert action.confirm_text == ""
+    assert flow.confirm(action) == {
+        "action": "estop",
+        "params": {},
+        "expected_state_revision": 9,
+    }
+
+
+def test_extraction_grant_is_advanced_strip_with_korean_warning_copy():
     action = _action("extraction_grant")
-    arm_index = next(
-        index for index, item in enumerate(PANEL_ACTIONS)
-        if item.action == "arm"
-    )
-    extraction_index = next(
-        index for index, item in enumerate(PANEL_ACTIONS)
-        if item.action == "extraction_grant"
-    )
-    warning = "US-100 단독 latch에서만 · 후진 −0.2 m/s · TTL 3 s"
+    warning = "후진 0.2 m/s·3초"
 
     assert action.gesture == GESTURE_STRIP
+    assert action.advanced is True
     assert warning in action.label
     assert warning in action.confirm_text
-    assert extraction_index == arm_index + 1
 
 
-def test_component_mask_actions_are_four_bool_strips_before_arm_override():
+def test_component_mask_actions_are_four_basic_bool_strips():
     expected = (
-        ("drive_enable", "Drive motors"),
-        ("steer_enable", "Steer motors"),
-        ("us100_enable", "US-100 safety"),
-        ("robot_arm_enable", "Robot arm"),
+        ("drive_enable", "구동 모터"),
+        ("steer_enable", "조향 모터"),
+        ("us100_enable", "US-100 안전"),
+        ("robot_arm_enable", "로봇팔"),
     )
-    extraction_index = next(
-        index for index, item in enumerate(PANEL_ACTIONS)
-        if item.action == "extraction_grant"
-    )
-    override_index = next(
-        index for index, item in enumerate(PANEL_ACTIONS)
-        if item.action == "arm_lock_override"
-    )
-
     for action_name, label in expected:
         action = _action(action_name)
-        action_index = PANEL_ACTIONS.index(action)
         assert action.label == label
         assert action.gesture == GESTURE_STRIP
         assert action.needs_bool is True
-        assert extraction_index < action_index < override_index
+        assert action.advanced is False
 
 
 def test_us100_disable_confirmation_names_lost_automatic_stop():
@@ -177,13 +226,39 @@ def test_arm_lock_override_requires_bool_param_and_strong_confirmation_copy():
     flow.begin(action.action)
 
     assert action.gesture == GESTURE_STRIP
+    assert action.advanced is True
     assert action.needs_bool is True
-    assert "SAFETY LOCK" in action.confirm_text
+    assert "안전 잠금" in action.confirm_text
     assert flow.confirm(action.action) == {
         "action": "arm_lock_override",
         "params": {"data": True},
         "expected_state_revision": 11,
     }
+
+
+def test_primary_action_labels_are_korean():
+    assert _action("arm").label == "시동 — 1.5초 홀드"
+    assert _action("drive_enable").label == "구동 모터"
+
+
+@pytest.mark.parametrize(
+    ("action", "mode", "expected"),
+    (
+        ("drive_enable", "IDLE", True),
+        ("drive_enable", "ARMED", False),
+        ("steer_enable", "UNKNOWN", False),
+        ("us100_enable", "ARMED", True),
+        ("robot_arm_enable", "ESTOP", True),
+    ),
+)
+def test_mode_gate_only_blocks_drive_and_steer_outside_idle(
+    action,
+    mode,
+    expected,
+):
+    mode_allows_action = getattr(ops_panel, "mode_allows_action", None)
+    assert mode_allows_action is not None
+    assert mode_allows_action(action, mode) is expected
 
 
 @pytest.mark.parametrize(
