@@ -5,6 +5,7 @@ from pathlib import Path
 CONSOLE_DIR = Path(__file__).resolve().parents[1]
 FORBIDDEN_SEND_FILES = (
     "app.py",
+    "arm_telemetry.py",
     "telemetry.py",
     "udp_source.py",
     "metadata.py",

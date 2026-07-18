@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import math
 import socket
 import threading
 import time
@@ -17,6 +18,8 @@ class Detection:
     confidence: float
     bbox_xywh: tuple[int, int, int, int]
     position_m: tuple[float, float, float] | None
+    yaw_rad: float | None = None
+    is_pick_target: bool = False
 
 
 @dataclass(frozen=True)
@@ -47,7 +50,14 @@ def parse_metadata(raw: bytes, received_monotonic_s: float | None = None) -> Met
         position = None if xyz is None else tuple(float(value) for value in xyz)
         if position is not None and len(position) != 3:
             raise ValueError("invalid position")
-        detections.append(Detection(str(item["class_name"]), float(item["confidence"]), box, position))
+        raw_yaw = item.get("yaw_rad")
+        yaw_rad = None if raw_yaw is None else float(raw_yaw)
+        if yaw_rad is not None and not math.isfinite(yaw_rad):
+            raise ValueError("invalid yaw")
+        detections.append(Detection(
+            str(item["class_name"]), float(item["confidence"]), box, position,
+            yaw_rad, bool(item.get("is_pick_target", False)),
+        ))
     return MetadataFrame(
         sequence=int(payload["capture_sequence"]), width=width, height=height,
         detections=tuple(detections),

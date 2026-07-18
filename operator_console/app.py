@@ -8,6 +8,7 @@ remains the SRT listener and the operator laptop remains an SRT caller.
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
 import time
 from collections.abc import Callable
@@ -21,6 +22,11 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("Gst", "1.0")
 from gi.repository import Gdk, GLib, Gst, Gtk, Pango  # noqa: E402
 
+from .arm_telemetry import (
+    ArmTelemetrySnapshot,
+    LatestArmTelemetryReceiver,
+    temperature_state,
+)
 from .metadata import LatestMetadataReceiver, MetadataFrame
 from .ops_client import ConsoleOpsClient
 from .ops_panel import (
@@ -60,11 +66,19 @@ class MetadataCanvas(Gtk.DrawingArea):
         context.select_font_face("Sans", 0, 1)
         context.set_font_size(15.0)
         for detection in frame.detections:
+            if detection.is_pick_target:
+                context.set_source_rgba(1.0, 0.55, 0.0, 0.95)
+                context.set_line_width(3.0)
+            else:
+                context.set_source_rgba(0.0, 1.0, 0.2, 0.95)
+                context.set_line_width(2.0)
             x, y, width, height = detection.bbox_xywh
             context.rectangle(offset_x + x * scale, offset_y + y * scale,
                               width * scale, height * scale)
             context.stroke()
             text = f"{detection.class_name} {detection.confidence:.2f}"
+            if detection.yaw_rad is not None:
+                text += f" yaw {math.degrees(detection.yaw_rad):+.0f}°"
             if detection.position_m is not None:
                 text += f"  z={detection.position_m[2]:.2f}m"
             context.move_to(offset_x + x * scale, max(16.0, offset_y + y * scale - 4.0))
@@ -430,6 +444,85 @@ class TelemetryPanel(Gtk.Frame):
         return True
 
 
+class ArmTelemetryPanel(Gtk.Frame):
+    """Read-only robot-arm motor and joint snapshot display."""
+    def __init__(self, receiver: LatestArmTelemetryReceiver, port: int,
+                 event_sink: Callable[[str, str], None] | None = None) -> None:
+        super().__init__(label="Robot-arm telemetry (read-only)")
+        self._receiver = receiver
+        self._port = port
+        self._event_sink = event_sink
+        self._temperature_key: tuple[tuple[int, str], ...] | None = None
+        self._labels: dict[str, Gtk.Label] = {}
+        grid = Gtk.Grid(column_spacing=12, row_spacing=7, margin=10)
+        for row, (key, title) in enumerate((
+            ("link", "Link"), ("motors", "Motors"), ("joints", "Joints"),
+        )):
+            name = Gtk.Label(label=title)
+            name.set_xalign(0.0)
+            value = Gtk.Label(label="UNAVAILABLE")
+            value.set_xalign(0.0)
+            value.set_line_wrap(True)
+            grid.attach(name, 0, row, 1, 1)
+            grid.attach(value, 1, row, 1, 1)
+            self._labels[key] = value
+        self.add(grid)
+        GLib.timeout_add(200, self._refresh)
+
+    def _report_temperature(self, snapshot: ArmTelemetrySnapshot) -> None:
+        alerts = () if snapshot.dynamixel is None else tuple(
+            (motor.id, temperature_state(motor.temperature_c))
+            for motor in snapshot.dynamixel
+            if temperature_state(motor.temperature_c) != "NORMAL"
+        )
+        if alerts == self._temperature_key:
+            return
+        self._temperature_key = alerts
+        if not alerts or self._event_sink is None:
+            return
+        groups = []
+        for state in ("CRIT", "WARN"):
+            motor_ids = ", ".join(
+                f"ID {motor_id}" for motor_id, alert_state in alerts
+                if alert_state == state
+            )
+            if motor_ids:
+                groups.append(f"{state}: {motor_ids}")
+        self._event_sink("ARM", "temperature " + " · ".join(groups))
+
+    def _refresh(self) -> bool:
+        snapshot: ArmTelemetrySnapshot | None = self._receiver.latest()
+        if snapshot is None:
+            self._labels["link"].set_text(f"waiting for UDP :{self._port}")
+            return True
+        age_ms = (time.monotonic() - snapshot.received_monotonic_s) * 1000.0
+        if age_ms > 1000.0:
+            self._labels["link"].set_text(f"STALE ({age_ms:.0f} ms)")
+            return True
+        self._labels["link"].set_text(f"LIVE · seq {snapshot.sequence} · {age_ms:.0f} ms")
+        if snapshot.dynamixel is None:
+            self._labels["motors"].set_text("UNAVAILABLE")
+        else:
+            # Dynamixel current scaling is not confirmed by the arm team;
+            # keep the console honest by displaying the unscaled raw value.
+            self._labels["motors"].set_text("\n".join(
+                f"ID {motor.id} · {motor.position_deg:+.1f}° · {motor.current} raw · "
+                f"{motor.temperature_c}℃ [{temperature_state(motor.temperature_c)}]"
+                for motor in snapshot.dynamixel
+            ))
+        if not snapshot.joint_names:
+            self._labels["joints"].set_text("UNAVAILABLE")
+        else:
+            self._labels["joints"].set_text(", ".join(
+                f"{name} {math.degrees(position_rad):+.1f}°"
+                for name, position_rad in zip(
+                    snapshot.joint_names, snapshot.joint_position_rad,
+                )
+            ))
+        self._report_temperature(snapshot)
+        return True
+
+
 class ChassisTelemetryPanel(Gtk.Frame):
     """Read-only chassis owner snapshot; never probes CAN directly."""
     def __init__(self, receiver: LatestTelemetryReceiver, port: int,
@@ -781,6 +874,7 @@ class OpsPanel(Gtk.Frame):
 class OperatorConsole(Gtk.Window):
     def __init__(self, host: str, d435_port: int, l515_port: int, metadata_port: int,
                  latency_ms: int, telemetry_port: int, chassis_telemetry_port: int,
+                 arm_telemetry_port: int = 5007,
                  ops_host: str | None = None, ops_port: int = 9001,
                  ops_token_file: str = DEFAULT_OPS_TOKEN_FILE) -> None:
         super().__init__(title="Powertrain Operator Console")
@@ -794,6 +888,7 @@ class OperatorConsole(Gtk.Window):
         self._metadata_receiver = LatestMetadataReceiver(metadata_port)
         self._telemetry_receiver = LatestTelemetryReceiver(telemetry_port)
         self._chassis_receiver = LatestTelemetryReceiver(chassis_telemetry_port)
+        self._arm_receiver = LatestArmTelemetryReceiver(arm_telemetry_port)
         self._events = EventLog()
         self._d435 = VideoPanel("D435i raw", host, d435_port, latency_ms,
                                 metadata_receiver=self._metadata_receiver,
@@ -822,6 +917,8 @@ class OperatorConsole(Gtk.Window):
                                    event_sink=self._events.add_event)
         chassis = ChassisTelemetryPanel(self._chassis_receiver, chassis_telemetry_port,
                                         event_sink=self._events.add_event)
+        arm = ArmTelemetryPanel(self._arm_receiver, arm_telemetry_port,
+                                event_sink=self._events.add_event)
         self._ops_panel = OpsPanel(
             host if ops_host is None else ops_host,
             ops_port,
@@ -832,6 +929,7 @@ class OperatorConsole(Gtk.Window):
         side.set_size_request(320, -1)
         side.pack_start(telemetry, False, True, 0)
         side.pack_start(chassis, False, True, 0)
+        side.pack_start(arm, False, True, 0)
         side.pack_start(self._ops_panel, False, True, 0)
         # Right-side telemetry can legitimately be taller than a compact
         # operator window (six wheel rows plus Gateway detail). Keep it in
@@ -911,6 +1009,7 @@ class OperatorConsole(Gtk.Window):
         self._metadata_receiver.close()
         self._telemetry_receiver.close()
         self._chassis_receiver.close()
+        self._arm_receiver.close()
         self._ops_panel.close()
         Gtk.main_quit()
 
@@ -935,6 +1034,7 @@ def main() -> None:
     parser.add_argument("--metadata-port", type=int, default=5003)
     parser.add_argument("--telemetry-port", type=int, default=5004)
     parser.add_argument("--chassis-telemetry-port", type=int, default=5005)
+    parser.add_argument("--arm-telemetry-port", type=int, default=5007)
     parser.add_argument(
         "--ops-host",
         default=None,
@@ -948,6 +1048,7 @@ def main() -> None:
     console = OperatorConsole(args.host, args.d435_port, args.l515_port,
                               args.metadata_port, args.latency_ms, args.telemetry_port,
                               args.chassis_telemetry_port,
+                              args.arm_telemetry_port,
                               ops_host=args.host if args.ops_host is None else args.ops_host,
                               ops_port=args.ops_port,
                               ops_token_file=args.ops_token_file)

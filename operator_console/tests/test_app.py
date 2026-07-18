@@ -1,5 +1,8 @@
 import importlib
 import json
+import math
+
+import pytest
 
 from operator_console.pipelines import pipeline_description, srt_uri
 from operator_console.metadata import parse_metadata
@@ -31,6 +34,40 @@ def test_metadata_contract_keeps_bbox_and_optical_position():
     assert frame.sequence == 7
     assert frame.detections[0].bbox_xywh == (10, 20, 30, 40)
     assert frame.detections[0].position_m == (0.1, -0.2, 0.8)
+    assert frame.detections[0].yaw_rad is None
+    assert frame.detections[0].is_pick_target is False
+
+
+def test_metadata_contract_keeps_yaw_and_pick_target_marker():
+    frame = parse_metadata(
+        b'{"schema_version":1,"capture_sequence":8,"frame_width":848,'
+        b'"frame_height":480,"detections":[{"class_name":"bottle",'
+        b'"confidence":0.91,"bbox_xywh":[10,20,30,40],'
+        b'"position_m":null,"yaw_rad":0.75,"is_pick_target":true}]}',
+        received_monotonic_s=10.0,
+    )
+
+    assert frame.detections[0].yaw_rad == 0.75
+    assert frame.detections[0].is_pick_target is True
+
+
+def test_metadata_contract_rejects_non_finite_yaw():
+    payload = {
+        "schema_version": 1,
+        "capture_sequence": 9,
+        "frame_width": 848,
+        "frame_height": 480,
+        "detections": [{
+            "class_name": "bottle",
+            "confidence": 0.91,
+            "bbox_xywh": [10, 20, 30, 40],
+            "position_m": None,
+            "yaw_rad": math.inf,
+        }],
+    }
+
+    with pytest.raises(ValueError):
+        parse_metadata(json.dumps(payload).encode("utf-8"))
 
 
 def test_telemetry_contract_keeps_missing_sensor_values_unavailable():
