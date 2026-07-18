@@ -138,9 +138,9 @@ class OdometryNode(Node):
         values = tuple(
             WheelValue(
                 name=wheel.name,
-                # WheelState currently has no command field.  A future additive
-                # field is consumed automatically; until then measurement is the
-                # neutral fallback so this adapter cannot invent a slip warning.
+                # The additive command field is authoritative after a message
+                # rebuild.  The fallback keeps older recorded/test messages
+                # neutral instead of inventing a slip warning.
                 command_turns_per_s=float(
                     getattr(
                         wheel,

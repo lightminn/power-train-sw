@@ -27,7 +27,14 @@ def ros():
     rclpy.shutdown()
 
 
-def _wheel_states(geom, drive_rev=None, steer=None, stale=(), t=0.0):
+def _wheel_states(
+    geom,
+    drive_rev=None,
+    command_rev=None,
+    steer=None,
+    stale=(),
+    t=0.0,
+):
     m = WheelStates()
     m.header.stamp.sec = int(t)
     m.header.stamp.nanosec = int((t % 1.0) * 1e9)
@@ -35,6 +42,11 @@ def _wheel_states(geom, drive_rev=None, steer=None, stale=(), t=0.0):
         ws = WheelState()
         ws.name = w.name
         ws.drive_turns_per_s = float((drive_rev or {}).get(w.name, 0.0))
+        ws.command_turns_per_s = float(
+            ws.drive_turns_per_s
+            if command_rev is None
+            else command_rev.get(w.name, 0.0)
+        )
         ws.steer_deg = float((steer or {}).get(w.name, 0.0))
         ws.drive_stale = w.name in stale
         m.wheels.append(ws)
@@ -97,6 +109,28 @@ def test_stale_wheel_is_excluded():
         n._on_wheels(m2)
         assert n._last.vx == pytest.approx(0.4, rel=0.02)   # 나머지 5개로 정답
         assert n._last.used == 5
+    finally:
+        n.destroy_node()
+
+
+def test_commanded_stall_sets_slip_and_stuck_candidates():
+    n = OdometryNode()
+    try:
+        now_s = n._now_s()
+        commands = {wheel.name: 1.0 for wheel in n.geom.wheels}
+        measured = {wheel.name: 0.0 for wheel in n.geom.wheels}
+
+        n._on_wheels(_wheel_states(
+            n.geom,
+            drive_rev=measured,
+            command_rev=commands,
+            t=now_s,
+        ))
+        diagnostics = n.estimator.snapshot(now_s=n._now_s()).diagnostics
+
+        assert diagnostics.slip_candidate
+        assert diagnostics.stuck_candidate
+        assert "response_ratio" in diagnostics.warning_codes
     finally:
         n.destroy_node()
 

@@ -1,6 +1,7 @@
 string name
 string corner_mode
 float32 drive_turns_per_s
+float32 command_turns_per_s
 float32 steer_deg
 float32 drive_current_a
 float32 steer_current_a

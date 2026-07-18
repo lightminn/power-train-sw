@@ -625,6 +625,9 @@ class ChassisManager:
                 steer_stale=bool(steer_state.get("stale", False)),
                 drive_axis_error=int(drive_state.get("axis_error", 0)),
                 steer_fault=int(steer_state.get("fault", 0)),
+                command_turns_per_s=float(
+                    drive_state.get("target_vel", 0.0)
+                ),
             ))
         wheel_tuple = tuple(wheels)
         healthy = all(

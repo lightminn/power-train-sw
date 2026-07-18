@@ -183,6 +183,7 @@ class WheelSnapshot:
     steer_stale: bool
     drive_axis_error: int
     steer_fault: int
+    command_turns_per_s: float = 0.0
 
 
 @dataclass(frozen=True)

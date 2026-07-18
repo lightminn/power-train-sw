@@ -18,6 +18,7 @@ from chassis.chassis_manager import (
 from chassis.telemetry import (
     CanBusHealth,
     CanBusStatsSampler,
+    WheelSnapshot,
     build_can_health_event,
 )
 from chassis.wheel_consistency import WheelConsistencyConfig
@@ -942,6 +943,39 @@ def test_snapshot_builds_wheel_consistency_from_one_cached_state_sample():
     }
     assert snapshot.wheel_consistency.terrain_speed_cap == 0.4
     assert snapshot.wheel_consistency.imu_yaw_rate_rad_s == 0.0
+
+
+def test_wheel_snapshot_command_defaults_to_zero_for_legacy_callers():
+    wheel = WheelSnapshot(
+        name="front_left",
+        corner_mode="IDLE",
+        drive_turns_per_s=0.0,
+        steer_deg=0.0,
+        drive_current_a=0.0,
+        steer_current_a=0.0,
+        drive_stale=False,
+        steer_stale=False,
+        drive_axis_error=0,
+        steer_fault=0,
+    )
+
+    assert wheel.command_turns_per_s == 0.0
+
+
+def test_snapshot_exposes_each_corner_drive_target_velocity():
+    m = _armed_manager()
+    m.set(0.4, 0.3)
+    m.tick()
+
+    snapshot = m.snapshot()
+
+    assert {
+        wheel.name: wheel.command_turns_per_s
+        for wheel in snapshot.wheels
+    } == pytest.approx({
+        name: corner.state()["drive"]["target_vel"]
+        for name, corner in m.corners.items()
+    })
 
 
 def test_snapshot_copies_injected_bus_health_without_io():

@@ -40,6 +40,7 @@ def test_fill_wheel_states_uses_actual_snapshot_values():
         name="front_left",
         corner_mode="ARMED",
         drive_turns_per_s=1.2,
+        command_turns_per_s=1.5,
         steer_deg=3.0,
         drive_current_a=0.4,
         steer_current_a=0.2,
@@ -71,6 +72,7 @@ def test_fill_wheel_states_uses_actual_snapshot_values():
     assert msg.healthy is True
     assert msg.wheels[0].name == "front_left"
     assert msg.wheels[0].drive_turns_per_s == 1.2
+    assert msg.wheels[0].command_turns_per_s == 1.5
     assert msg.tick_duration_ms == 4.5
     assert msg.overrun_count == 2
 

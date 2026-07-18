@@ -46,6 +46,7 @@ def fill_wheel_states_message(
             "name",
             "corner_mode",
             "drive_turns_per_s",
+            "command_turns_per_s",
             "steer_deg",
             "drive_current_a",
             "steer_current_a",
