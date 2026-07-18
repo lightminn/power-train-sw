@@ -86,3 +86,63 @@ def test_valid_patch_uses_local_median_not_full_frame(monkeypatch, cal):
     expected_z = float(np.median(expected_valid)) * cal.scale
     assert captured["z"] == pytest.approx(expected_z)
     assert result == pytest.approx((0.1, 0.2, expected_z))
+
+
+def test_patch_rejects_uint16_samples_above_calibrated_depth_range(monkeypatch, cal):
+    depth_img = np.full((32, 32), 65535, dtype=np.uint16)
+    monkeypatch.setattr(
+        m.rs,
+        "rs2_project_color_pixel_to_depth_pixel",
+        lambda *a, **k: (16.0, 16.0),
+    )
+
+    result = deproject_box(FakeDepthFrame(), depth_img, (4, 4, 28, 28), cal)
+
+    assert result is None
+
+
+def test_out_of_range_raw_samples_cannot_outvote_five_valid_samples(monkeypatch, cal):
+    depth_img = np.full((32, 32), 65535, dtype=np.uint16)
+    depth_img[12:13, 12:17] = 2000
+    monkeypatch.setattr(
+        m.rs,
+        "rs2_project_color_pixel_to_depth_pixel",
+        lambda *a, **k: (16.0, 16.0),
+    )
+    monkeypatch.setattr(
+        m.rs,
+        "rs2_deproject_pixel_to_point",
+        lambda _di, _px, z: [0.0, 0.0, z],
+    )
+    monkeypatch.setattr(
+        m.rs,
+        "rs2_transform_point_to_point",
+        lambda _ext, point: point,
+    )
+
+    result = deproject_box(FakeDepthFrame(), depth_img, (4, 4, 28, 28), cal)
+
+    assert result == pytest.approx((0.0, 0.0, 2.0))
+
+
+def test_transformed_depth_outside_calibrated_range_is_rejected(monkeypatch, cal):
+    depth_img = np.full((32, 32), 2000, dtype=np.uint16)
+    monkeypatch.setattr(
+        m.rs,
+        "rs2_project_color_pixel_to_depth_pixel",
+        lambda *a, **k: (16.0, 16.0),
+    )
+    monkeypatch.setattr(
+        m.rs,
+        "rs2_deproject_pixel_to_point",
+        lambda *_args: [0.0, 0.0, 2.0],
+    )
+    monkeypatch.setattr(
+        m.rs,
+        "rs2_transform_point_to_point",
+        lambda *_args: [0.0, 0.0, 65.535],
+    )
+
+    result = deproject_box(FakeDepthFrame(), depth_img, (4, 4, 28, 28), cal)
+
+    assert result is None

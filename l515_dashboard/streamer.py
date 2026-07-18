@@ -232,7 +232,18 @@ class SrtStreamer:
             if process is not None:
                 if thread is not None and thread is not current_thread():
                     thread.join(timeout=self._config.graceful_timeout_s)
-                self._reap(process)
+                writer_alive = (
+                    thread is not None
+                    and thread is not current_thread()
+                    and thread.is_alive()
+                )
+                self._reap(
+                    process,
+                    close_stdin=not writer_alive,
+                    terminate_first=writer_alive,
+                )
+                if writer_alive:
+                    self._close_stdin(process)
                 if thread is not None and thread is not current_thread():
                     thread.join(timeout=self._config.termination_timeout_s)
                     if thread.is_alive():
@@ -251,18 +262,25 @@ class SrtStreamer:
                 self._cleanup_in_progress = False
                 self._condition.notify_all()
 
-    def _reap(self, process, *, close_stdin=True):
-        if close_stdin and process.stdin is not None and not self._stdin_closed:
+    def _close_stdin(self, process):
+        if process.stdin is not None and not self._stdin_closed:
             self._stdin_closed = True
             process.stdin.close()
+
+    def _reap(self, process, *, close_stdin=True, terminate_first=False):
+        if close_stdin and process.stdin is not None and not self._stdin_closed:
+            self._close_stdin(process)
         if self._process_reaped:
             return
-        try:
-            process.wait(timeout=self._config.graceful_timeout_s)
-            self._process_reaped = True
-            return
-        except subprocess.TimeoutExpired:
+        if terminate_first:
             process.terminate()
+        else:
+            try:
+                process.wait(timeout=self._config.graceful_timeout_s)
+                self._process_reaped = True
+                return
+            except subprocess.TimeoutExpired:
+                process.terminate()
         try:
             process.wait(timeout=self._config.termination_timeout_s)
             self._process_reaped = True

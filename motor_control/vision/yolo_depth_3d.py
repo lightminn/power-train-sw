@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RealSense D435i + YOLOv8 → 검출 객체의 3D 좌표(카메라 기준) 추출.
+"""Powertrain L515 + YOLOv8 → 검출 객체의 3D 좌표(카메라 기준) 추출.
 
 YOLO 2D 박스 중심의 depth 를 읽어 카메라 좌표계 (X, Y, Z)[m] 와
 거리·방위각(az)·고도각(el)으로 변환한다. 모터 명령 없음 — 측정·검증 전용.
@@ -33,6 +33,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 
 import cv2
 import numpy as np
@@ -42,6 +43,7 @@ from ultralytics import YOLO
 # 같은 폴더의 헬퍼 재사용 (스크립트 직접 실행 시 sys.path[0] = vision/)
 from yolo_cuda_stream import resolve_model
 from gst_stream import ENCODERS, build_gst_command
+from realsense_l515 import start_l515_pipeline
 
 
 def parse_args() -> argparse.Namespace:
@@ -54,10 +56,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--conf", type=float, default=0.4)
     p.add_argument("--classes", default="",
                    help="검출 클래스 이름 필터, 쉼표구분 (예: bottle,person). 빈값=전체")
-    # 848x480 = 16:9 + D435i 깊이 모듈 네이티브 해상도(깊이 품질↑), 30fps 무손실.
-    # 4:3 이 필요하면 --width 640 --height 480.
-    p.add_argument("--width", type=int, default=848)
-    p.add_argument("--height", type=int, default=480)
+    p.add_argument("--width", type=int, default=1280)
+    p.add_argument("--height", type=int, default=720)
+    p.add_argument("--depth-width", type=int, default=640)
+    p.add_argument("--depth-height", type=int, default=480)
     p.add_argument("--fps", type=int, default=30)
     p.add_argument("--host", default=None,
                    help="지정 시 영상(SRT)+좌표(UDP JSON) 송신. 좌표 데이터그램 대상 IP")
@@ -139,12 +141,23 @@ def deproject_box(depth_frame: rs.depth_frame, depth_img: np.ndarray,
     # 0/튀는 값에 강건. depth 영상에서 직접 샘플하므로 정렬 불필요.
     r = max(4, min(x2 - x1, y2 - y1) // 6)
     patch = depth_img[max(dy - r, 0):dy + r, max(dx - r, 0):dx + r]
-    valid = patch[patch > 0]
+    raw_min = math.ceil(cal.dmin / cal.scale)
+    raw_max = math.floor(cal.dmax / cal.scale)
+    valid = patch[(patch >= raw_min) & (patch <= raw_max)]
     if valid.size < 5:
         return None
     z = float(np.median(valid)) * cal.scale
+    if not math.isfinite(z) or not cal.dmin <= z <= cal.dmax:
+        return None
     pt_d = rs.rs2_deproject_pixel_to_point(cal.di, [float(dx), float(dy)], z)
-    return tuple(rs.rs2_transform_point_to_point(cal.d2c, pt_d))
+    transformed = tuple(rs.rs2_transform_point_to_point(cal.d2c, pt_d))
+    if (
+        len(transformed) != 3
+        or not all(math.isfinite(value) for value in transformed)
+        or not cal.dmin <= transformed[2] <= cal.dmax
+    ):
+        return None
+    return transformed
 
 
 def class_ids(model: YOLO, names_csv: str) -> list[int] | None:
@@ -182,9 +195,11 @@ class CoordSender:
     def __init__(self, host: str, port: int):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._addr = (host, port)
+        self._session_id = uuid.uuid4().hex
 
     def send(self, frame_idx: int, w: int, h: int, dets: list) -> None:
-        pkt = {"frame": frame_idx, "t": time.time(), "w": w, "h": h,
+        pkt = {"session_id": self._session_id, "frame": frame_idx,
+               "t": time.time(), "w": w, "h": h,
                "dets": dets}
         try:
             self._sock.sendto(json.dumps(pkt).encode(), self._addr)
@@ -251,9 +266,10 @@ def main() -> None:
 
     pipe = rs.pipeline()
     cfg = rs.config()
-    cfg.enable_stream(rs.stream.depth, a.width, a.height, rs.format.z16, a.fps)
+    cfg.enable_stream(rs.stream.depth, a.depth_width, a.depth_height,
+                      rs.format.z16, a.fps)
     cfg.enable_stream(rs.stream.color, a.width, a.height, rs.format.bgr8, a.fps)
-    profile = pipe.start(cfg)
+    profile = start_l515_pipeline(pipe, cfg, rs)
     cal = DepthCal(profile)  # color↔depth 투영 파라미터 (정렬 대신 검출별 투영)
 
     writer = (AsyncWriter(open_writer(a.port, a.width, a.height, a.fps,

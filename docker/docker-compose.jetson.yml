@@ -100,7 +100,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - python3 -c "import powertrain_observability"
+        - python3 -m l515_dashboard.healthcheck
       interval: 30s
       timeout: 3s
       retries: 3

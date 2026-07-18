@@ -11,6 +11,8 @@ Jetson 컨테이너에서 RealSense SDK(librealsense + pyrealsense2, Dockerfile.
 import pyrealsense2 as rs
 import numpy as np
 
+from realsense_l515 import start_l515_pipeline
+
 
 def main():
     ctx = rs.context()
@@ -28,7 +30,7 @@ def main():
     cfg = rs.config()
     cfg.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
     cfg.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
-    pipe.start(cfg)
+    start_l515_pipeline(pipe, cfg, rs)
     try:
         frames = None
         for _ in range(30):          # auto-exposure 안정용 워밍업

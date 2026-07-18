@@ -1,5 +1,6 @@
 """Pure validation and latest-only tracking for D435i detection metadata."""
 
+from collections import deque
 from dataclasses import dataclass
 import json
 import math
@@ -136,6 +137,8 @@ def parse_metadata(
 class MetadataTracker:
     """Retain one latest packet and hide only stale overlay metadata."""
 
+    MAX_RETIRED_SESSIONS = 32
+
     def __init__(self, ttl_s: float = 0.5):
         if (
             isinstance(ttl_s, bool)
@@ -147,6 +150,17 @@ class MetadataTracker:
         self._ttl_ns = int(float(ttl_s) * 1_000_000_000)
         self._latest: MetadataPacket | None = None
         self._received_monotonic_ns: int | None = None
+        self._retired_sessions = deque()
+        self._retired_session_ids = set()
+
+    def _retire(self, session_id: str) -> None:
+        if session_id in self._retired_session_ids:
+            return
+        if len(self._retired_sessions) >= self.MAX_RETIRED_SESSIONS:
+            expired = self._retired_sessions.popleft()
+            self._retired_session_ids.remove(expired)
+        self._retired_sessions.append(session_id)
+        self._retired_session_ids.add(session_id)
 
     @property
     def latest(self) -> MetadataPacket | None:
@@ -159,6 +173,8 @@ class MetadataTracker:
             raise TypeError("packet must be MetadataPacket")
         received_ns = _integer(received_monotonic_ns, "received_monotonic_ns")
         previous = self._latest
+        if packet.session_id in self._retired_session_ids:
+            return False
         if (
             previous is not None
             and packet.session_id == previous.session_id
@@ -170,6 +186,8 @@ class MetadataTracker:
             and received_ns < self._received_monotonic_ns
         ):
             raise ValueError("received_monotonic_ns must not go backwards")
+        if previous is not None and packet.session_id != previous.session_id:
+            self._retire(previous.session_id)
         self._latest = packet
         self._received_monotonic_ns = received_ns
         return True

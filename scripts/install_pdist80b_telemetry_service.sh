@@ -10,13 +10,17 @@ if [ "$EUID" -ne 0 ]; then
   fail 'must run as root'
 fi
 
-if [ "$#" -ne 1 ]; then
-  fail 'usage: sudo bash scripts/install_pdist80b_telemetry_service.sh OPERATOR_HOST'
+if [ "$#" -ne 2 ]; then
+  fail 'usage: sudo bash scripts/install_pdist80b_telemetry_service.sh OPERATOR_HOST PDIST_ID_PATH'
 fi
 
 operator_host="$1"
 case "$operator_host" in
   *[!0-9.]* | '') fail 'OPERATOR_HOST must be an IPv4 address' ;;
+esac
+pdist_id_path="$2"
+case "$pdist_id_path" in
+  *[!A-Za-z0-9._:/-]* | '') fail 'PDIST_ID_PATH contains unsupported characters' ;;
 esac
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -32,7 +36,11 @@ udev_rule_destination=/etc/udev/rules.d/99-powertrain-pdist80b.rules
 [ -f "$sender" ] || fail "missing sender: $sender"
 
 install -D -o root -g root -m 0644 "$unit_source" "$unit_destination"
-install -D -o root -g root -m 0644 "$udev_rule_source" "$udev_rule_destination"
+rendered_udev_rule="$(mktemp)"
+trap 'rm -f "$rendered_udev_rule"' EXIT
+sed "s|@PDIST_ID_PATH@|$pdist_id_path|g" \
+  "$udev_rule_source" >"$rendered_udev_rule"
+install -D -o root -g root -m 0644 "$rendered_udev_rule" "$udev_rule_destination"
 install -D -o root -g root -m 0644 /dev/null "$environment_destination"
 cat >"$environment_destination" <<EOF
 OPERATOR_HOST=$operator_host
@@ -47,4 +55,9 @@ udevadm trigger --subsystem-match=tty
 systemctl daemon-reload
 systemctl enable powertrain-pdist80b-telemetry.service
 systemctl restart powertrain-pdist80b-telemetry.service
-systemctl status --no-pager powertrain-pdist80b-telemetry.service || true
+if ! systemctl is-active --quiet powertrain-pdist80b-telemetry.service; then
+  systemctl status --no-pager powertrain-pdist80b-telemetry.service || true
+  journalctl --no-pager -u powertrain-pdist80b-telemetry.service -n 50 || true
+  fail 'installed service is not active'
+fi
+systemctl status --no-pager powertrain-pdist80b-telemetry.service

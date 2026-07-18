@@ -312,6 +312,59 @@ def test_wait_timeout_escalates_to_terminate_then_kill_and_owns_timeout():
     ) == (1, 1, 3)
 
 
+def test_blocked_writer_reaps_child_before_closing_buffered_stdin():
+    entered = threading.Event()
+    release = threading.Event()
+    events = []
+
+    class ReapBeforeCloseStdin(FakeStdin):
+        def __init__(self):
+            super().__init__(entered=entered, release=release)
+            self.process = None
+
+        def close(self):
+            assert self.process.returncode is not None, "stdin closed before child reap"
+            super().close()
+
+    class ReapingProcess(FakeProcess):
+        def wait(self, timeout=None):
+            events.append("wait")
+            self.wait_calls += 1
+            if timeout is not None:
+                raise subprocess.TimeoutExpired("gst", timeout)
+            self.returncode = 0
+            release.set()
+            return self.returncode
+
+        def terminate(self):
+            events.append("terminate")
+            super().terminate()
+
+        def kill(self):
+            events.append("kill")
+            super().kill()
+
+    stdin = ReapBeforeCloseStdin()
+    process = ReapingProcess(stdin)
+    stdin.process = process
+    streamer = SrtStreamer(
+        DashboardConfig(graceful_timeout_s=0.01, termination_timeout_s=0.01),
+        popen=FakePopen(process),
+    )
+    streamer.start()
+    streamer.submit_color(
+        np.zeros((720, 1280, 3), np.uint8), timestamp_ns=0
+    )
+    assert entered.wait(1)
+
+    streamer.stop()
+
+    assert (process.terminate_calls, process.kill_calls) == (1, 1)
+    assert events == ["terminate", "wait", "kill", "wait"]
+    assert process.stdin.close_calls == 1
+    assert not streamer._thread.is_alive()
+
+
 def test_concurrent_stop_completes_cleanup_once():
     process = FakeProcess()
     streamer = SrtStreamer(DashboardConfig(), popen=FakePopen(process))

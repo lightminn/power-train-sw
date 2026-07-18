@@ -83,6 +83,7 @@ class DaemonLock:
 class ObservabilityServer:
     MAX_RECENT_EVENT_TYPES = 32
     MAX_CHANNELS = 32
+    MAX_STATUS_CLIENTS = 8
 
     def __init__(
         self,
@@ -114,6 +115,9 @@ class ObservabilityServer:
         self._client_sockets: set[socket.socket] = set()
         self._client_threads: set[threading.Thread] = set()
         self._client_lock = threading.Lock()
+        self._status_client_slots = threading.BoundedSemaphore(
+            self.MAX_STATUS_CLIENTS
+        )
         self._snapshot_lock = threading.Lock()
         self._recent_event = None
         self._recent_events: OrderedDict[str, dict] = OrderedDict()
@@ -309,8 +313,11 @@ class ObservabilityServer:
                 client.close()
                 continue
             client.settimeout(1.0)
+            if not self._status_client_slots.acquire(blocking=False):
+                client.close()
+                continue
             thread = threading.Thread(
-                target=self._serve_status,
+                target=self._serve_status_bounded,
                 args=(client,),
                 daemon=True,
                 name="observability-status-client",
@@ -318,7 +325,20 @@ class ObservabilityServer:
             with self._client_lock:
                 self._client_sockets.add(client)
                 self._client_threads.add(thread)
-            thread.start()
+            try:
+                thread.start()
+            except RuntimeError:
+                with self._client_lock:
+                    self._client_sockets.discard(client)
+                    self._client_threads.discard(thread)
+                self._status_client_slots.release()
+                client.close()
+
+    def _serve_status_bounded(self, client: socket.socket) -> None:
+        try:
+            self._serve_status(client)
+        finally:
+            self._status_client_slots.release()
 
     def _serve_status(self, client: socket.socket) -> None:
         reader = None

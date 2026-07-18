@@ -1,1 +1,1 @@
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="powertrain-pdist80b", GROUP="dialout", MODE="0660"
+SUBSYSTEM=="tty", ENV{ID_PATH}=="@PDIST_ID_PATH@", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="powertrain-pdist80b", GROUP="dialout", MODE="0660"

@@ -265,6 +265,35 @@ def test_active_stream_never_reenumerates_and_fresh_video_keeps_it_streaming():
     source.stop()
 
 
+def test_color_callbacks_cannot_hide_a_stale_depth_stream():
+    rs = RS()
+    config = DashboardConfig(reconnect_interval_s=.01)
+    source = L515GatewaySource(
+        rs,
+        config=config,
+        mapper_factory=object,
+        video_startup_grace_s=.02,
+        video_stale_timeout_s=.02,
+    )
+    source.start()
+    assert wait_until(lambda: source.state is GatewaySourceState.STREAMING)
+    callback = rs.pipelines[0].callback
+
+    reconnected = False
+    deadline = time.monotonic() + .12
+    number = 0
+    while time.monotonic() < deadline:
+        number += 1
+        callback(Frame("color", number))
+        if len(rs.pipelines) > 1:
+            reconnected = True
+            break
+        time.sleep(.005)
+
+    source.stop()
+    assert reconnected, "fresh color callbacks hid the missing depth stream"
+
+
 def test_old_pipeline_callback_cannot_contaminate_reconnected_capture():
     rs = RS(); config = DashboardConfig(reconnect_interval_s=.01)
     source = L515GatewaySource(rs, config=config, mapper_factory=object,
