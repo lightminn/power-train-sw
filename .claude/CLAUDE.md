@@ -256,7 +256,7 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
 ODrive 펌웨어 v0.5.x (CAN 트랙 fw-v0.5.6 검증). 구동은 **듀얼축 보드 3장**(M0=`axis0`+M1=`axis1`
 양축, CAN node 11/12·13/14·15/16) — 단축 레거시 스크립트만 `axis1` 기준. 폐루프 진입 전
 `input_pos = 현재위치`(위치모드) 또는 `input_vel = 0`(속도모드) 설정으로 모터 점프 방지.
-캘리는 RAM-only — 전원 사이클마다 `bl70200/can_calibrate_all.py` 로 재캘리.
+캘리는 현재 RAM-only — 전원 사이클마다 `bl70200/can_calibrate_all.py` 로 재캘리. **(개정 경로 2026-07-18, 스펙 r6 §3.4/A2c: `bl70200_setup.py --serial/--axis/--persist-calibration` 으로 NVM 영속화 지원 — 실행·검증(전원사이클 3회×6축 직진입)은 조립 전 벤치 게이트, 통과 전까지 RAM-only 운용 유지. fw 0.5.1 전제.)**
 
 ## Working in `motor_gui/`
 

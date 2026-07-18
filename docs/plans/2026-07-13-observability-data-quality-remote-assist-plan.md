@@ -326,7 +326,11 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
 
 ## Task 6: dual-camera network profile과 semi-auto remote assist
 
-> **2026-07-15 추가 정합 항목**: PR #2로 병합된 read-only operator console
+> **2026-07-15 추가 정합 항목** *(⛔ 헌장 개정 2026-07-18, A/B/C 스펙 r6 §3.3/A2b:
+> "read-only"는 "관측 수신 전용 + 조작은 게이트된 ops 채널(:9001 역할 토큰) 경유만"
+> 으로 대체됐다. 봉인 근거도 과거 서술의 no-send 테스트(미실존)가 아니라 실제
+> `operator_console/tests/test_send_surface_contract.py` — "ops 클라이언트 외 제어
+> 송신 없음" — 다.)*: PR #2로 병합된 read-only operator console
 > (`operator_console/` + `chassis_telemetry_sender_node`)은 자체 RX 전용 can0 관찰로
 > CAN 상태를 표시한다(검사기 allowlist + no-send 계약 테스트로 봉인). 이는 "CAN health는
 > 실제 flock owner가 측정한 값만 권위 있게 표시한다"는 Global constraint와 표시 소스가

@@ -35,6 +35,7 @@
 | WP6-C (autonomy controller + command authority) | ✅ SW 완료 | `c744936`. 순수 `powertrain_autonomy/controller`(BLOCKED vs CONTROLLED_HOLD vs TRACKING) + 단일 프로세스 `autonomy_controller` 노드(`guidance:=terrain`), `/odom_diagnostics`. authority는 WP5.2 것 그대로. **잔여**: 프로파일 잠정값 HIL(제동·뱅크·경사), 실기 terrain 유도 스모크 |
 | L515 경량 파이프라인 | ✅ | 29.91 fps RGB SRT, raw depth 10 Hz |
 | 원격운용 (teleop 유/무선 + operator_console) | ✅ | 콘솔은 팀원 PR #2 병합·정합화 |
+| WP9 (환경 degradation 정책: slip/stuck/depth 열화 → 감속·bounded 복구·핸드오버 대기) | ✅ SW (C1) | `degradation.py` 순수 FSM + 노드/시뮬 배선. **실한계**: 균일 저마찰 slip은 휠+IMU로 검출 불가(0% — B2 실측), stall형만 실질(지령속 계약 체인). HANDOVER_WAIT 탈출은 운영자 조작만(§11) |
 | WP8 구간 supervisor | ✅ SW 골격 | `72ec7e4`. 5구간 profile+MarkerDedup 순수 코어 + fake `/section_events` 어댑터. 공통 상태머신은 기존 MissionSupervisor 재사용. **잔여**: 크로스팀 인식 이벤트 실토픽·`MISSION_STOP` 언락 순서·풀 핸드셰이크 1사이클 |
 
 ## 2. 2026-07-15~16 개발 로그 (커밋 체인, 전부 main 푸시·젯슨 배포)
