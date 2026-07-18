@@ -1,5 +1,6 @@
 import pytest
 
+import operator_console.ops_panel as ops_panel
 from operator_console.ops_panel import (
     GESTURE_HOLD,
     GESTURE_SPACER,
@@ -183,3 +184,64 @@ def test_arm_lock_override_requires_bool_param_and_strong_confirmation_copy():
         "params": {"data": True},
         "expected_state_revision": 11,
     }
+
+
+@pytest.mark.parametrize(
+    ("action", "status", "detail", "expected"),
+    (
+        (
+            "drive_enable",
+            "FINAL_REJECTED",
+            "not_idle",
+            "last: drive_enable FINAL_REJECTED · not_idle",
+        ),
+        (
+            "estop_reset",
+            "OUTCOME_UNKNOWN",
+            "no response from /chassis_node/reset_estop",
+            (
+                "last: estop_reset OUTCOME_UNKNOWN · "
+                "no response from /chassis_node/reset_estop"
+            ),
+        ),
+        (
+            "authority_idle",
+            "FINAL_SUCCESS",
+            "",
+            "last: authority_idle FINAL_SUCCESS",
+        ),
+    ),
+)
+def test_format_ack_line_keeps_action_status_and_detail_visible(
+    action,
+    status,
+    detail,
+    expected,
+):
+    assert ops_panel.format_ack_line(action, status, detail) == expected
+
+
+@pytest.mark.parametrize(
+    ("status", "color"),
+    (
+        ("FINAL_REJECTED", "#d32f2f"),
+        ("OUTCOME_UNKNOWN", "#e67e22"),
+    ),
+)
+def test_format_ack_markup_colors_non_success_final_status(status, color):
+    markup = ops_panel.format_ack_markup("drive_enable", status, "not_idle")
+
+    assert markup == (
+        f'<span foreground="{color}">'
+        f"last: drive_enable {status} · not_idle</span>"
+    )
+
+
+def test_format_ack_markup_leaves_success_plain_and_escapes_detail():
+    markup = ops_panel.format_ack_markup(
+        "authority_idle",
+        "FINAL_SUCCESS",
+        "ok <safe>",
+    )
+
+    assert markup == "last: authority_idle FINAL_SUCCESS · ok &lt;safe&gt;"

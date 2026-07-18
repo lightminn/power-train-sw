@@ -100,6 +100,37 @@ def test_mutation_flow_pending_then_final_and_idempotent_cache():
     assert json.loads(cached.response)["status"] == "FINAL_SUCCESS"
 
 
+def test_outcome_unknown_is_cached_and_releases_mutation_slot():
+    core, _, _ = _core()
+    first = core.handle_line(
+        "c1", oc.ROLE_CONSOLE, _req("tok-console", "disarm")
+    )
+
+    final = core.complete(
+        first.execute.pending_key,
+        False,
+        "no response from /chassis_node/disarm",
+        status=oc.STATUS_OUTCOME_UNKNOWN,
+    )
+
+    assert json.loads(final)["status"] == "OUTCOME_UNKNOWN"
+    cached = core.handle_line(
+        "c1",
+        oc.ROLE_CONSOLE,
+        _req("tok-console", "disarm", sequence=1),
+    )
+    assert cached.execute is None
+    assert json.loads(cached.response)["status"] == "OUTCOME_UNKNOWN"
+
+    second = core.handle_line(
+        "c1",
+        oc.ROLE_CONSOLE,
+        _req("tok-console", "operator_hold", request_id="r-2", sequence=1),
+    )
+    assert second.execute is not None
+    assert "busy" not in json.loads(second.response)["detail"]
+
+
 def test_second_mutation_while_pending_is_busy_rejected():
     core, _, _ = _core()
     first = core.handle_line(

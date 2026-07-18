@@ -12,6 +12,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from std_srvs.srv import SetBool, Trigger
 
+from powertrain_ros import ops_contract as oc
 from powertrain_ros.ops_broker_node import OpsBrokerNode
 
 
@@ -374,6 +375,209 @@ def test_controller_direct_estop_reset_is_rejected(token_dir):
     finally:
         node.close()
         node.destroy_node()
+
+
+def test_absent_service_is_abandoned_and_releases_mutation_slot(
+    token_dir,
+    monkeypatch,
+):
+    monkeypatch.setattr(oc, "SERVICE_CALL_TIMEOUT_S", 0.1)
+    monkeypatch.setattr(oc, "SERVICE_ORDER_ABANDON_S", 0.5, raising=False)
+    port = _free_port()
+    node = _node(token_dir, port)
+    journals = []
+    node._journal = lambda **entry: journals.append(entry)
+    try:
+        sock, reader = _client(port, "tok-console-test")
+        _hello(reader, [node])
+        sock.sendall(_request("tok-console-test", "disarm"))
+
+        replies = reader.read_until(
+            [node],
+            lambda lines: _has_request(lines, "r-1", "FINAL_REJECTED"),
+            timeout_s=1.5,
+        )
+        final = next(
+            item for item in replies
+            if item.get("request_id") == "r-1"
+            and item.get("status") == "FINAL_REJECTED"
+        )
+        assert final["detail"] == "service unavailable: /chassis_node/disarm"
+        assert not node._service_clients
+        assert any(
+            entry["severity"] == "WARN"
+            and entry["payload"]["status"] == "FINAL_REJECTED"
+            and entry["payload"]["detail"] == final["detail"]
+            for entry in journals
+        )
+
+        sock.sendall(_request(
+            "tok-console-test",
+            "operator_hold",
+            request_id="r-2",
+            sequence=1,
+        ))
+        next_replies = reader.read_until(
+            [node],
+            lambda lines: _has_request(lines, "r-2", "FINAL_SUCCESS"),
+        )
+        assert _has_request(next_replies, "r-2", "FINAL_SUCCESS")
+        assert not any(
+            item.get("request_id") == "r-2"
+            and "busy" in item.get("detail", "")
+            for item in next_replies
+        )
+
+        sock.sendall(_request(
+            "tok-console-test",
+            "disarm",
+            request_id="r-1",
+            sequence=2,
+        ))
+        cached = reader.read_until(
+            [node],
+            lambda lines: _has_request(lines, "r-1", "FINAL_REJECTED"),
+        )
+        cached_final = next(
+            item for item in cached
+            if item.get("request_id") == "r-1"
+        )
+        assert cached_final["detail"] == final["detail"]
+        sock.close()
+    finally:
+        node.close()
+        node.destroy_node()
+
+
+def test_unresponsive_service_becomes_unknown_and_releases_mutation_slot(
+    token_dir,
+    monkeypatch,
+):
+    monkeypatch.setattr(oc, "SERVICE_CALL_TIMEOUT_S", 0.1)
+    monkeypatch.setattr(oc, "SERVICE_ORDER_ABANDON_S", 0.5, raising=False)
+    port = _free_port()
+    node = _node(token_dir, port)
+    journals = []
+    node._journal = lambda **entry: journals.append(entry)
+    targets = FakeServices()
+    targets.delay_s["/chassis_node/reset_estop"] = 1.2
+    try:
+        client = node._client_for(Trigger, "/chassis_node/reset_estop")
+        assert client.wait_for_service(timeout_sec=2.0)
+        with _spinning(node, targets):
+            sock, reader = _client(port, "tok-console-test")
+            _hello(reader, [])
+            sock.sendall(_request("tok-console-test", "estop_reset"))
+
+            replies = reader.read_until(
+                [],
+                lambda lines: _has_request(lines, "r-1", "OUTCOME_UNKNOWN"),
+                timeout_s=1.5,
+            )
+            final = next(
+                item for item in replies
+                if item.get("request_id") == "r-1"
+                and item.get("status") == "OUTCOME_UNKNOWN"
+            )
+            assert final["detail"] == "no response from /chassis_node/reset_estop"
+            assert "/chassis_node/reset_estop" in targets.calls
+            assert not node._service_clients
+
+            def _abandon_journaled():
+                return any(
+                    entry["severity"] == "WARN"
+                    and entry["payload"]["status"] == "OUTCOME_UNKNOWN"
+                    and entry["payload"]["detail"] == final["detail"]
+                    for entry in journals
+                )
+
+            # 저널은 요청자 push와 다른 스레드 순서로 기록될 수 있다 —
+            # 소켓 응답 직후 즉시 단언하면 파일 단위 부하에서 레이스.
+            deadline = time.monotonic() + 2.0
+            while time.monotonic() < deadline and not _abandon_journaled():
+                time.sleep(0.05)
+            assert _abandon_journaled()
+
+            sock.sendall(_request(
+                "tok-console-test",
+                "operator_hold",
+                request_id="r-2",
+                sequence=1,
+            ))
+            next_replies = reader.read_until(
+                [],
+                lambda lines: _has_request(lines, "r-2", "FINAL_SUCCESS"),
+            )
+            assert _has_request(next_replies, "r-2", "FINAL_SUCCESS")
+            sock.close()
+    finally:
+        node.close()
+        node.destroy_node()
+        targets.destroy_node()
+
+
+def test_service_timeout_warns_then_late_completion_pushes_final(
+    token_dir,
+    monkeypatch,
+):
+    monkeypatch.setattr(oc, "SERVICE_CALL_TIMEOUT_S", 0.1)
+    monkeypatch.setattr(oc, "SERVICE_ORDER_ABANDON_S", 1.0, raising=False)
+    port = _free_port()
+    node = _node(token_dir, port)
+    journals = []
+    node._journal = lambda **entry: journals.append(entry)
+    targets = FakeServices()
+    targets.delay_s["/chassis_node/reset_estop"] = 0.5
+    try:
+        client = node._client_for(Trigger, "/chassis_node/reset_estop")
+        assert client.wait_for_service(timeout_sec=2.0)
+        with _spinning(node, targets):
+            sock, reader = _client(port, "tok-console-test")
+            _hello(reader, [])
+            sock.sendall(_request("tok-console-test", "estop_reset"))
+
+            before_late_completion = reader.read_until(
+                [],
+                lambda _lines: any(
+                    entry["severity"] == "WARN"
+                    and entry["payload"]["status"] == "PENDING"
+                    and entry["payload"]["detail"]
+                    == "service timeout; awaiting late completion"
+                    for entry in journals
+                ),
+                timeout_s=0.4,
+            )
+            assert _has_request(before_late_completion, "r-1", "PENDING")
+            assert not _has_request(
+                before_late_completion, "r-1", "FINAL_SUCCESS"
+            )
+            timeout_journals = [
+                entry for entry in journals
+                if entry["payload"]["status"] == "PENDING"
+                and entry["payload"]["detail"]
+                == "service timeout; awaiting late completion"
+            ]
+            assert len(timeout_journals) == 1
+
+            late = reader.read_until(
+                [],
+                lambda lines: _has_request(lines, "r-1", "FINAL_SUCCESS"),
+                timeout_s=1.0,
+            )
+            assert _has_request(late, "r-1", "FINAL_SUCCESS")
+            assert "/chassis_node/reset_estop" in targets.calls
+            timeout_journals = [
+                entry for entry in journals
+                if entry["payload"]["status"] == "PENDING"
+                and entry["payload"]["detail"]
+                == "service timeout; awaiting late completion"
+            ]
+            assert len(timeout_journals) == 1
+            sock.close()
+    finally:
+        node.close()
+        node.destroy_node()
+        targets.destroy_node()
 
 
 def test_service_timeout_stays_pending_then_late_completion_pushes_final(

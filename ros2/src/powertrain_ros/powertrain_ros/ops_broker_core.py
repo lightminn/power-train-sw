@@ -284,10 +284,18 @@ class OpsBrokerCore:
             state_revision=self._revision(), detail="no record",
         )
 
-    def complete(self, pending_key, success, detail):
-        status = (
-            oc.STATUS_FINAL_SUCCESS if success else oc.STATUS_FINAL_REJECTED
-        )
+    def complete(self, pending_key, success, detail, *, status=None):
+        if status is None:
+            status = (
+                oc.STATUS_FINAL_SUCCESS
+                if success else oc.STATUS_FINAL_REJECTED
+            )
+        elif status not in (
+            oc.STATUS_FINAL_SUCCESS,
+            oc.STATUS_FINAL_REJECTED,
+            oc.STATUS_OUTCOME_UNKNOWN,
+        ):
+            raise ValueError("invalid final status: %s" % status)
         response = oc.encode_response(
             request_id=pending_key[1], status=status,
             state_revision=self._revision(), detail=detail,

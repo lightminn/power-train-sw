@@ -75,8 +75,10 @@ class _PendingService:
     index: int = 0
     results: list = field(default_factory=list)
     future: object = None
+    client: object = None
     started_s: float = 0.0
     timeout_journaled: bool = False
+    service_was_ready: bool = False
 
 
 class OpsBrokerNode(Node):
@@ -463,9 +465,11 @@ class OpsBrokerNode(Node):
             service_type = Trigger
             request = Trigger.Request()
         try:
-            pending.future = self._client_for(
-                service_type, target
-            ).call_async(request)
+            pending.client = self._client_for(service_type, target)
+            pending.service_was_ready = bool(
+                pending.client.service_is_ready()
+            )
+            pending.future = pending.client.call_async(request)
         except Exception as exc:
             self._record_service_result(
                 pending,
@@ -488,10 +492,15 @@ class OpsBrokerNode(Node):
         for pending_key, (pending, role) in entries:
             future = pending.future
             if not future.done():
+                try:
+                    if pending.client.service_is_ready():
+                        pending.service_was_ready = True
+                except Exception:
+                    pass
+                elapsed_s = now_s - pending.started_s
                 if (
                     not pending.timeout_journaled
-                    and now_s - pending.started_s
-                    >= oc.SERVICE_CALL_TIMEOUT_S
+                    and elapsed_s >= oc.SERVICE_CALL_TIMEOUT_S
                 ):
                     with self._pending_lock:
                         current = self._pending.get(pending_key)
@@ -512,6 +521,13 @@ class OpsBrokerNode(Node):
                             ),
                         },
                     )
+                if elapsed_s >= oc.SERVICE_ORDER_ABANDON_S:
+                    with self._pending_lock:
+                        current = self._pending.get(pending_key)
+                        if current is None or current[0] is not pending:
+                            continue
+                        del self._pending[pending_key]
+                    self._abandon_service_call(pending, role)
                 continue
 
             with self._pending_lock:
@@ -542,6 +558,51 @@ class OpsBrokerNode(Node):
             )
             self._advance_or_complete(pending, role)
 
+    def _abandon_service_call(self, pending, role):
+        target = pending.order.targets[pending.index]
+        try:
+            if pending.client.service_is_ready():
+                pending.service_was_ready = True
+        except Exception:
+            pass
+        try:
+            pending.future.cancel()
+        except Exception:
+            pass
+        self._destroy_cached_service_client(pending.client)
+
+        if pending.service_was_ready:
+            status = oc.STATUS_OUTCOME_UNKNOWN
+            result_detail = "no_response(%s)" % target
+            detail = "no response from %s" % target
+        else:
+            status = oc.STATUS_FINAL_REJECTED
+            result_detail = "unavailable(%s)" % target
+            detail = "service unavailable: %s" % target
+            # rclpy service discovery/requests are volatile. Destroying a
+            # never-ready client means a server discovered later cannot
+            # receive this abandoned historical request.
+        self._record_service_result(
+            pending,
+            False,
+            result_detail,
+            message=detail,
+            final_status=status,
+        )
+        self._advance_or_complete(pending, role)
+
+    def _destroy_cached_service_client(self, client):
+        if client is None:
+            return
+        with self._service_clients_lock:
+            for key, cached in list(self._service_clients.items()):
+                if cached is client:
+                    del self._service_clients[key]
+        try:
+            self.destroy_client(client)
+        except Exception:
+            pass
+
     @staticmethod
     def _target_name(target):
         return str(target).rstrip("/").rsplit("/", 1)[-1]
@@ -554,7 +615,14 @@ class OpsBrokerNode(Node):
             return "chassis"
         return OpsBrokerNode._target_name(target)
 
-    def _record_service_result(self, pending, success, detail, message=""):
+    def _record_service_result(
+        self,
+        pending,
+        success,
+        detail,
+        message="",
+        final_status=None,
+    ):
         target = pending.order.targets[pending.index]
         pending.results.append(
             {
@@ -563,13 +631,29 @@ class OpsBrokerNode(Node):
                 "success": bool(success),
                 "detail": str(detail),
                 "message": str(message),
+                "final_status": final_status,
             }
         )
 
     def _advance_or_complete(self, pending, role):
-        if pending.index + 1 < len(pending.order.targets):
+        result = pending.results[-1]
+        final_status = result.get("final_status")
+        if (
+            final_status is None
+            and pending.index + 1 < len(pending.order.targets)
+        ):
             pending.index += 1
             self._start_service_call(pending, role)
+            return
+        if final_status is not None:
+            self._complete_order(
+                pending.order,
+                pending.connection,
+                role,
+                False,
+                result["message"] or result["detail"],
+                status=final_status,
+            )
             return
         success = all(result["success"] for result in pending.results)
         if pending.order.kind == "composite":
@@ -584,10 +668,22 @@ class OpsBrokerNode(Node):
             pending.order, pending.connection, role, success, detail
         )
 
-    def _complete_order(self, order, connection, role, success, detail):
+    def _complete_order(
+        self,
+        order,
+        connection,
+        role,
+        success,
+        detail,
+        *,
+        status=None,
+    ):
         with self._core_lock:
             response = self._core.complete(
-                order.pending_key, bool(success), str(detail)
+                order.pending_key,
+                bool(success),
+                str(detail),
+                status=status,
             )
         self._send(connection, response)
         decoded = json.loads(response)

@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
+from html import escape
 from typing import Any
 
 
@@ -11,6 +12,29 @@ GESTURE_STRIP = "confirm_strip"
 GESTURE_HOLD = "hold_to_confirm"
 GESTURE_SPACER = "spacer"
 HOLD_CONFIRM_S = 1.5
+_ACK_COLORS = {
+    "FINAL_REJECTED": "#d32f2f",
+    "OUTCOME_UNKNOWN": "#e67e22",
+}
+
+
+def format_ack_line(action: str, status: str, detail: str = "") -> str:
+    """Build the latest command acknowledgement shown in the ops panel."""
+    line = "last: %s %s" % (str(action), str(status))
+    detail_text = str(detail).strip()
+    if detail_text:
+        line += " · %s" % detail_text
+    return line
+
+
+def format_ack_markup(action: str, status: str, detail: str = "") -> str:
+    """Return escaped Pango markup with explicit rejected/unknown colors."""
+    status_text = str(status)
+    line = escape(format_ack_line(action, status_text, detail), quote=False)
+    color = _ACK_COLORS.get(status_text)
+    if color is None:
+        return line
+    return '<span foreground="%s">%s</span>' % (color, line)
 
 
 @dataclass(frozen=True)

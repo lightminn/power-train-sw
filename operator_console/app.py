@@ -36,6 +36,7 @@ from .ops_panel import (
     ConfirmFlow,
     PanelAction,
     component_mask_from_state,
+    format_ack_markup,
 )
 from .telemetry import (
     LatestTelemetryReceiver,
@@ -650,6 +651,10 @@ class OpsPanel(Gtk.Frame):
         self._state_label.set_xalign(0.0)
         self._state_label.set_line_wrap(True)
         body.pack_start(self._state_label, False, False, 0)
+        self._ack_label = Gtk.Label(label="last: none")
+        self._ack_label.set_xalign(0.0)
+        self._ack_label.set_line_wrap(True)
+        body.pack_start(self._ack_label, False, False, 0)
 
         for action in PANEL_ACTIONS:
             if action.gesture == GESTURE_SPACER:
@@ -876,6 +881,9 @@ class OpsPanel(Gtk.Frame):
         if detail:
             message += f" · {detail}"
         self._emit(message)
+        ack_label = getattr(self, "_ack_label", None)
+        if ack_label is not None:
+            ack_label.set_markup(format_ack_markup(action, status, detail))
         if status.startswith("FINAL_") or status == "OUTCOME_UNKNOWN":
             self._pending_requests.pop(request_id, None)
 
