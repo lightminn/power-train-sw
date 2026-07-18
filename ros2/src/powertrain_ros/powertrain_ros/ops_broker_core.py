@@ -62,7 +62,12 @@ class OpsBrokerCore:
         self._rate_limit = int(rate_limit_per_s)
         self.boot_id = uuid.uuid4().hex
         self._sequences = {}                 # client_key -> last sequence
-        self._cache = collections.OrderedDict()   # (client,rid) -> bytes|None
+        # (client,rid) -> (request fingerprint, pending_key, bytes|None)
+        self._cache = collections.OrderedDict()
+        self._order_generation = 0
+        # pending_key -> ((client,rid), request fingerprint)
+        self._pending_requests = {}
+        self._latest_requests = {}           # (client,rid) -> pending_key
         self._pending_order = None           # ExecutionOrder | None
         self._rate_window = {}               # client_key -> (window_s, count)
         self._emergency = {}                 # (client,action) -> begin_s
@@ -109,10 +114,39 @@ class OpsBrokerCore:
         self._rate_window[client_key] = (window, count)
         return count <= self._rate_limit
 
-    def _cache_put(self, key, response):
-        self._cache[key] = response
+    @staticmethod
+    def _request_fingerprint(role, request):
+        import json
+
+        params = json.dumps(
+            request["params"], separators=(",", ":"), sort_keys=True
+        )
+        return role, request["action"], params
+
+    def _cache_put(self, key, fingerprint, pending_key, response):
+        self._cache[key] = (fingerprint, pending_key, response)
         while len(self._cache) > self._cache_size:
             self._cache.popitem(last=False)
+
+    def _accept_order(self, key, role, request, spec):
+        self._order_generation += 1
+        pending_key = key + (self._order_generation,)
+        fingerprint = self._request_fingerprint(role, request)
+        order = ExecutionOrder(
+            pending_key=pending_key, action=request["action"], kind=spec.kind,
+            targets=tuple(spec.target), params=dict(request["params"]),
+        )
+        self._pending_requests[pending_key] = (key, fingerprint)
+        self._latest_requests[key] = pending_key
+        self._pending_order = order
+        self._cache_put(key, fingerprint, pending_key, None)
+        return Decision(
+            response=oc.encode_response(
+                request_id=request["request_id"], status=oc.STATUS_PENDING,
+                state_revision=self._revision(), detail="accepted",
+            ),
+            execute=order,
+        )
 
     def handle_line(self, client_key, role, line):
         try:
@@ -121,6 +155,17 @@ class OpsBrokerCore:
             return Decision(response=self._reject("invalid", str(exc)))
         request_id = request["request_id"]
         key = (client_key, request_id)
+
+        if request["action"] == "estop":
+            if self._token_roles.get(request["token"]) != role:
+                return Decision(
+                    response=self._reject(request_id, "token/role mismatch")
+                )
+            spec = oc.ACTIONS[request["action"]]
+            authorized = self._authorize(role, request, spec)
+            if isinstance(authorized, bytes):
+                return Decision(response=authorized)
+            return self._accept_order(key, role, request, spec)
 
         if not self._rate_ok(client_key):
             return Decision(
@@ -132,8 +177,13 @@ class OpsBrokerCore:
             )
 
         last = self._sequences.get(client_key, -1)
+        fingerprint = self._request_fingerprint(role, request)
         if key in self._cache:                    # 멱등 재전송
-            cached = self._cache[key]
+            cached_fingerprint, _, cached = self._cache[key]
+            if cached_fingerprint != fingerprint:
+                return Decision(response=self._reject(
+                    request_id, "request_id reused with different request"
+                ))
             if cached is None:                    # 아직 PENDING
                 return Decision(response=oc.encode_response(
                     request_id=request_id, status=oc.STATUS_PENDING,
@@ -170,19 +220,7 @@ class OpsBrokerCore:
             return Decision(
                 response=self._reject(request_id, "busy: mutation in flight")
             )
-        order = ExecutionOrder(
-            pending_key=key, action=request["action"], kind=spec.kind,
-            targets=tuple(spec.target), params=dict(request["params"]),
-        )
-        self._pending_order = order
-        self._cache_put(key, None)
-        return Decision(
-            response=oc.encode_response(
-                request_id=request_id, status=oc.STATUS_PENDING,
-                state_revision=self._revision(), detail="accepted",
-            ),
-            execute=order,
-        )
+        return self._accept_order(key, role, request, spec)
 
     def _authorize(self, role, request, spec):
         """일반 인가. 반환: False(일반)/True(비상 경로)/bytes(거부)."""
@@ -266,7 +304,7 @@ class OpsBrokerCore:
 
     def _status_query(self, request):
         target = request["params"].get("request_id")
-        for (client, rid), cached in reversed(self._cache.items()):
+        for (client, rid), (_, _, cached) in reversed(self._cache.items()):
             if rid == target:
                 if cached is None:
                     return oc.encode_response(
@@ -299,11 +337,48 @@ class OpsBrokerCore:
             oc.STATUS_OUTCOME_UNKNOWN,
         ):
             raise ValueError("invalid final status: %s" % status)
+        pending = self._pending_requests.pop(pending_key, None)
+        if pending is None:
+            cache_key = pending_key[:2]
+            entry = self._cache.get(cache_key)
+            fingerprint = entry[0] if entry is not None else None
+        else:
+            cache_key, fingerprint = pending
+        entry = self._cache.get(cache_key)
+        latest_pending_key = self._latest_requests.get(cache_key)
+        if latest_pending_key is not None \
+                and latest_pending_key != pending_key:
+            if entry is not None and entry[1] == latest_pending_key \
+                    and entry[2] is not None:
+                response = entry[2]
+            else:
+                latest_is_pending = latest_pending_key \
+                    in self._pending_requests
+                response = oc.encode_response(
+                    request_id=cache_key[1],
+                    status=(
+                        oc.STATUS_PENDING if latest_is_pending
+                        else oc.STATUS_OUTCOME_UNKNOWN
+                    ),
+                    state_revision=self._revision(),
+                    detail="superseded by newer request",
+                )
+            if not any(
+                item[0] == cache_key
+                for item in self._pending_requests.values()
+            ):
+                self._latest_requests.pop(cache_key, None)
+            return response
         response = oc.encode_response(
-            request_id=pending_key[1], status=status,
+            request_id=cache_key[1], status=status,
             state_revision=self._revision(), detail=detail,
         )
-        self._cache_put(pending_key, response)
+        if entry is None or entry[1] == pending_key:
+            self._cache_put(cache_key, fingerprint, pending_key, response)
+        if not any(
+            item[0] == cache_key for item in self._pending_requests.values()
+        ):
+            self._latest_requests.pop(cache_key, None)
         if self._pending_order is not None \
                 and self._pending_order.pending_key == pending_key:
             self._pending_order = None
