@@ -8,6 +8,7 @@ remains the SRT listener and the operator laptop remains an SRT caller.
 from __future__ import annotations
 
 import argparse
+import json
 import math
 from pathlib import Path
 import time
@@ -1053,8 +1054,12 @@ class OperatorConsole(Gtk.Window):
                  latency_ms: int, telemetry_port: int, chassis_telemetry_port: int,
                  arm_telemetry_port: int = 5007,
                  ops_host: str | None = None, ops_port: int = 9001,
-                 ops_token_file: str = DEFAULT_OPS_TOKEN_FILE) -> None:
+                 ops_token_file: str = DEFAULT_OPS_TOKEN_FILE,
+                 smoke_probe_file: str | None = None) -> None:
         super().__init__(title="파워트레인 운영 콘솔")
+        self._smoke_probe_path = (
+            Path(smoke_probe_file) if smoke_probe_file else None
+        )
         # Keep the two live video panels and safety sidebar visible without
         # covering the operator desktop.  The user can still maximize with
         # the window manager or use F11 when a larger view is useful.
@@ -1194,7 +1199,32 @@ class OperatorConsole(Gtk.Window):
             f"<span foreground='{safety_color}' weight='bold'>"
             f"{GLib.markup_escape_text(safety)}</span>"
         )
+        self._write_smoke_probe({
+            "telemetry": telemetry,
+            "chassis": chassis_state,
+            "metadata": yolo,
+            "arm": self._telemetry_state(self._arm_receiver.latest()),
+            "safety_banner": safety,
+        })
         return True
+
+    def _write_smoke_probe(self, states: dict) -> None:
+        """runtime_smoke 전용 관측 창구 — `--smoke-probe-file` 없으면 no-op.
+
+        GTK 패널 상태는 라벨 마크업 안에만 있어서 외부에서 볼 수 없다. 그래서
+        하니스가 "기동했고 traceback 없음" 이상을 단언하지 못했고, 수신 스레드를
+        통째로 죽여도 PASS 했다(2026-07-18 적대적 리뷰 R06 #10). 여기서 패널별
+        freshness 를 파일로 흘려 하니스가 **실제로 LIVE 에 도달했는지** 단언한다.
+        진단 전용이며 운용 경로에는 영향이 없다.
+        """
+        if self._smoke_probe_path is None:
+            return
+        try:
+            self._smoke_probe_path.write_text(
+                json.dumps(states), encoding="utf-8",
+            )
+        except OSError:
+            pass
 
     def _on_destroy(self, *_args: object) -> None:
         self._d435.stop()
@@ -1236,6 +1266,12 @@ def main() -> None:
     parser.add_argument("--ops-port", type=int, default=9001)
     parser.add_argument("--ops-token-file", default=DEFAULT_OPS_TOKEN_FILE)
     parser.add_argument("--latency-ms", type=int, default=60)
+    parser.add_argument(
+        "--smoke-probe-file",
+        default=None,
+        help=("진단 전용: 패널별 freshness 를 이 경로에 JSON 으로 흘린다. "
+              "runtime_smoke 가 LIVE 도달을 단언하는 데 쓴다. 운용 시 생략."),
+    )
     args = parser.parse_args()
     Gst.init(None)
     console = OperatorConsole(args.host, args.d435_port, args.l515_port,
@@ -1244,7 +1280,8 @@ def main() -> None:
                               args.arm_telemetry_port,
                               ops_host=args.host if args.ops_host is None else args.ops_host,
                               ops_port=args.ops_port,
-                              ops_token_file=args.ops_token_file)
+                              ops_token_file=args.ops_token_file,
+                              smoke_probe_file=args.smoke_probe_file)
     console.show_all()
     Gtk.main()
 
