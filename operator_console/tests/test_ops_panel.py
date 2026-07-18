@@ -326,7 +326,7 @@ def test_format_ack_markup_leaves_success_plain_and_escapes_detail():
 @pytest.mark.parametrize(
     ("source", "expected"),
     (
-        ("us100", "US-100 근접 감지"),
+        ("us100", "US-100 안전 센서"),
         ("safety_topic_stale", "안전 센서 링크 두절"),
         ("console", "콘솔 비상정지 버튼"),
         ("manual_service", "수동 비상정지"),
@@ -380,7 +380,7 @@ def test_estop_cause_event_deduplicates_repeats_and_rearms_after_clear():
         estop_source="us100",
         estop_detail="75 mm",
     )
-    assert event == "비상정지 원인: US-100 근접 감지 (75 mm)"
+    assert event == "비상정지 원인: US-100 안전 센서 (75 mm)"
 
     previous, event = ops_panel.next_estop_cause_event(
         previous,
@@ -413,4 +413,4 @@ def test_estop_cause_event_deduplicates_repeats_and_rearms_after_clear():
         estop_source="us100",
         estop_detail="75 mm",
     )
-    assert event == "비상정지 원인: US-100 근접 감지 (75 mm)"
+    assert event == "비상정지 원인: US-100 안전 센서 (75 mm)"

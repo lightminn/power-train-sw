@@ -25,7 +25,9 @@ def estop_source_korean(source: str) -> str:
     """Return the operator-facing Korean label for an E-stop trip source."""
     text = str(source)
     return {
-        "us100": "US-100 근접 감지",
+        # us100 소스는 근접 감지와 센서 무응답 latch를 모두 담는다 — 구체
+        # 사유는 괄호의 detail(near/reader_not_started 등)이 말해준다.
+        "us100": "US-100 안전 센서",
         "safety_topic_stale": "안전 센서 링크 두절",
         "console": "콘솔 비상정지 버튼",
         "manual_service": "수동 비상정지",
