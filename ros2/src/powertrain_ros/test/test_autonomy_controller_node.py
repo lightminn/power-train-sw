@@ -21,7 +21,10 @@ from powertrain_autonomy.degradation import (
     DegradationOutput,
     DegradationStage,
 )
-from powertrain_ros.autonomy_controller_node import AutonomyControllerNode
+from powertrain_ros.autonomy_controller_node import (
+    L515_DEPTH_SCALE_M,
+    AutonomyControllerNode,
+)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -77,7 +80,12 @@ def _render_flat_track_depth():
     )
     lower_valid = np.isfinite(lower_t) & (lower_t > 0.0)
     depth_m = np.where(on_track, upper_t, np.where(lower_valid, lower_t, 0.0))
-    return np.rint(np.clip(depth_m * 1000.0, 0.0, 65535.0)).astype(np.uint16)
+    # raw 단위는 노드와 **같은 스케일**로 만들어야 한다. 예전엔 *1000.0 (D400 의
+    # 0.001) 으로 하드코딩돼 있어서, 노드가 L515 정본 0.00025 를 쓰기 시작하자
+    # 이 합성 지형이 4배 가까이 있는 것으로 해석돼 주행 가능 판정이 안 났다.
+    return np.rint(
+        np.clip(depth_m / L515_DEPTH_SCALE_M, 0.0, 65535.0)
+    ).astype(np.uint16)
 
 
 def _depth(node, raw=None, width=80, height=60):
