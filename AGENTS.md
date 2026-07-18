@@ -181,8 +181,10 @@ This section is newer than every embedded migrated note below and overrides conf
 - Motor bus: one `can0` at 500 kbps, AK45-36 ×4 plus ODrive/BL70200 ×6. ADM3053 isolation removed
   the PWM-noise coupling; the CAN watchdog remains insurance.
 - ODrive authority: pp=10, cpr=60, bandwidth=30, vel_gain=0.12, vel_integrator_gain=0.2,
-  node 11–16. Use `bl70200_setup.py` and `can_calibrate_all.py`. Never use legacy
-  `odrive_calibration.py` on real BL70200 hardware; it still forces single-axis pp=5 settings.
+  node 11–16. Use `bl70200_setup.py` and `can_calibrate_all.py`. The legacy
+  `odrive_calibration.py` and `odrive_diff_drive_test.py` were moved to
+  `drive/bl70200/archive/` and hard-stop on import (2026-07-19) — they wrote pp=5 / cpr=30
+  and, in the calibration script, dc_bus_undervoltage_trip_level=8.0 V to NVM.
 - Parameter-optimization v4 remains final at **50 kg**; do not plan an 86 kg rerun. Treat 86 kg as
   an old design estimate, not the v4 calculation mass.
 - Jetson audit on 2026-07-10: powertrain had no unpushed commits but contained untracked
