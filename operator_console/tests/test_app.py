@@ -447,3 +447,16 @@ def test_app_source_uses_korean_titles_and_collapsed_sections_without_gtk():
         'f"SRT submit/sent/drop',
     ):
         assert old_visible_copy not in source
+
+
+def test_ops_panel_wires_pure_estop_cause_status_and_event_without_gtk():
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    assert "format_ops_status_line(" in source
+    assert "next_estop_cause_event(" in source
+    assert 'getattr(self, "_last_estop_cause' in source
+    assert 'self._event_sink("안전",' in source

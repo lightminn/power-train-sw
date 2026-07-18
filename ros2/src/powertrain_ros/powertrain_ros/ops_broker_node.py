@@ -38,6 +38,7 @@ _SEMANTIC_FIELDS = (
     "gateway_input_fresh",
     "gateway_neutral",
     "estop_latched",
+    "estop_source",
     "active_estop_sources",
     "component_mask",
     "wheels_stopped",
@@ -109,6 +110,7 @@ class OpsBrokerNode(Node):
 
         self._state_lock = threading.Lock()
         self._fields = {name: None for name in _SEMANTIC_FIELDS}
+        self._fields["estop_detail"] = None
         self._stamps = {
             "authority": None,
             "gateway": None,
@@ -193,6 +195,8 @@ class OpsBrokerNode(Node):
             if not math.isfinite(stamp_s):
                 raise ValueError("stamp_s must be finite")
             estop_latched = bool(decoded["estop_latched"])
+            estop_source = str(decoded.get("estop_source", ""))
+            estop_detail = str(decoded.get("estop_detail", ""))
             sources = decoded["active_estop_sources"]
             if not isinstance(sources, list):
                 raise ValueError("active_estop_sources must be a list")
@@ -222,6 +226,8 @@ class OpsBrokerNode(Node):
         with self._state_lock:
             self._fields["chassis_mode"] = chassis_mode
             self._fields["estop_latched"] = estop_latched
+            self._fields["estop_source"] = estop_source
+            self._fields["estop_detail"] = estop_detail
             self._fields["active_estop_sources"] = active_sources
             self._fields["component_mask"] = component_mask
             self._stamps["safety"] = stamp_s
@@ -272,6 +278,8 @@ class OpsBrokerNode(Node):
                 ),
                 "gateway_neutral": bool(self._fields["gateway_neutral"]),
                 "estop_latched": bool(self._fields["estop_latched"]),
+                "estop_source": self._fields["estop_source"] or "",
+                "estop_detail": self._fields.get("estop_detail") or "",
                 "active_estop_sources": tuple(
                     self._fields["active_estop_sources"] or ()
                 ),
@@ -721,6 +729,8 @@ class OpsBrokerNode(Node):
                     "gateway_input_fresh": state.gateway_input_fresh,
                     "gateway_neutral": state.gateway_neutral,
                     "estop_latched": state.estop_latched,
+                    "estop_source": state.estop_source,
+                    "estop_detail": state.estop_detail,
                     "active_estop_sources": list(
                         state.active_estop_sources
                     ),

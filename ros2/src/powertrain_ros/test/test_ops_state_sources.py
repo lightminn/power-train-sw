@@ -75,6 +75,45 @@ _OPS_STATE = _extract_broker_method("_ops_state")
 _PUSH_OPS_STATE = _extract_broker_method("_push_ops_state")
 
 
+class _String:
+    def __init__(self):
+        self.data = ""
+
+
+def _extract_chassis_method(name):
+    tree = ast.parse(CHASSIS)
+    cls = next(
+        item
+        for item in tree.body
+        if isinstance(item, ast.ClassDef) and item.name == "ChassisNode"
+    )
+    method = next(
+        item
+        for item in cls.body
+        if isinstance(item, ast.FunctionDef) and item.name == name
+    )
+    module = ast.Module(body=[method], type_ignores=[])
+    ast.fix_missing_locations(module)
+    namespace = {
+        "SAFETY_STATE_PUBLISH_PERIOD_S": 0.2,
+        "String": _String,
+        "json": json,
+        "time": time,
+    }
+    exec(
+        compile(
+            module,
+            str(PACKAGE / "powertrain_ros/chassis_node.py"),
+            "exec",
+        ),
+        namespace,
+    )
+    return namespace[name]
+
+
+_PUBLISH_SAFETY_STATE = _extract_chassis_method("_publish_safety_state")
+
+
 def test_frame_is_neutral_matches_gateway_semantics():
     assert frame_is_neutral(_frame())
     assert not frame_is_neutral(_frame(deadman=True))
@@ -92,7 +131,58 @@ def test_chassis_publishes_safety_state():
     assert '"/chassis/safety_state"' in CHASSIS
     assert '"estop_latched"' in CHASSIS
     assert '"active_estop_sources"' in CHASSIS
+    assert '"estop_source"' in CHASSIS
+    assert '"estop_detail"' in CHASSIS
     assert '"component_mask"' in CHASSIS
+
+
+def _published_safety_state(safety, *, mode):
+    published = []
+    node = SimpleNamespace(
+        _last_safety_state_publish_s=None,
+        cm=SimpleNamespace(
+            mode=mode,
+            safety_snapshot=lambda: safety,
+        ),
+        pub_safety_state=SimpleNamespace(
+            publish=lambda message: published.append(message)
+        ),
+    )
+
+    _PUBLISH_SAFETY_STATE(node, 10.0)
+
+    assert len(published) == 1
+    return json.loads(published[0].data)
+
+
+def test_chassis_safety_state_publishes_latched_first_cause():
+    payload = _published_safety_state(
+        SimpleNamespace(
+            estop_latched=True,
+            active_estop_sources=("corner_fault",),
+            component_mask={},
+            first_source="corner_fault",
+            first_detail="front_left stale",
+        ),
+        mode="ESTOP",
+    )
+
+    assert payload["estop_source"] == "corner_fault"
+    assert payload["estop_detail"] == "front_left stale"
+
+
+def test_chassis_safety_state_defaults_missing_first_cause_to_empty_strings():
+    payload = _published_safety_state(
+        SimpleNamespace(
+            estop_latched=False,
+            active_estop_sources=(),
+            component_mask={},
+        ),
+        mode="IDLE",
+    )
+
+    assert payload["estop_source"] == ""
+    assert payload["estop_detail"] == ""
 
 
 class _Logger:
@@ -122,6 +212,8 @@ def _safety_message(
     include_mask=True,
     mode="IDLE",
     include_mode=True,
+    estop_source=None,
+    estop_detail=None,
 ):
     payload = {
         "stamp_s": time.monotonic(),
@@ -132,6 +224,10 @@ def _safety_message(
         payload["component_mask"] = component_mask
     if include_mode:
         payload["mode"] = mode
+    if estop_source is not None:
+        payload["estop_source"] = estop_source
+    if estop_detail is not None:
+        payload["estop_detail"] = estop_detail
     return SimpleNamespace(data=json.dumps(payload))
 
 
@@ -248,3 +344,94 @@ def test_ops_state_push_serializes_chassis_mode():
 
     assert sent[0][0] is connection
     assert json.loads(sent[0][1])["chassis_mode"] == "ESTOP"
+
+
+def test_safety_state_parses_estop_cause_as_strings_and_defaults_missing():
+    node = _broker_harness()
+    _ON_SAFETY(
+        node,
+        _safety_message(
+            include_mask=False,
+            estop_source=123,
+            estop_detail=False,
+        ),
+    )
+
+    parsed = _OPS_STATE(node)
+
+    assert parsed.estop_source == "123"
+    assert parsed.estop_detail == "False"
+
+    _ON_SAFETY(node, _safety_message(include_mask=False))
+    defaulted = _OPS_STATE(node)
+
+    assert defaulted.estop_source == ""
+    assert defaulted.estop_detail == ""
+
+
+def test_only_estop_source_changes_semantic_revision_not_detail():
+    node = _broker_harness()
+    _ON_SAFETY(
+        node,
+        _safety_message(
+            include_mask=False,
+            mode="ESTOP",
+            estop_source="console",
+            estop_detail="first detail",
+        ),
+    )
+    initial = _OPS_STATE(node)
+
+    _ON_SAFETY(
+        node,
+        _safety_message(
+            include_mask=False,
+            mode="ESTOP",
+            estop_source="console",
+            estop_detail="changed detail",
+        ),
+    )
+    detail_changed = _OPS_STATE(node)
+
+    _ON_SAFETY(
+        node,
+        _safety_message(
+            include_mask=False,
+            mode="ESTOP",
+            estop_source="us100",
+            estop_detail="changed detail",
+        ),
+    )
+    source_changed = _OPS_STATE(node)
+
+    assert detail_changed.estop_detail == "changed detail"
+    assert detail_changed.revision == initial.revision
+    assert source_changed.estop_source == "us100"
+    assert source_changed.revision == initial.revision + 1
+
+
+def test_ops_state_push_serializes_estop_source_and_detail():
+    node = _broker_harness()
+    _ON_SAFETY(
+        node,
+        _safety_message(
+            include_mask=False,
+            mode="ESTOP",
+            estop_source="corner_fault",
+            estop_detail="front_left stale",
+        ),
+    )
+    state = _OPS_STATE(node)
+    sent = []
+    connection = object()
+    node._closed = False
+    node._ops_state = lambda: state
+    node._connections_lock = threading.Lock()
+    node._connections = [connection]
+    node._send = lambda target, payload: sent.append((target, payload))
+
+    _PUSH_OPS_STATE(node)
+
+    payload = json.loads(sent[0][1])
+    assert payload["estop_source"] == "corner_fault"
+    assert payload["estop_detail"] == "front_left stale"

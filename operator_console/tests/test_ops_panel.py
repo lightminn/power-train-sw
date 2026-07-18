@@ -1,5 +1,6 @@
 import pytest
 
+import operator_console.labels as labels
 import operator_console.ops_panel as ops_panel
 from operator_console.ops_panel import (
     GESTURE_HOLD,
@@ -320,3 +321,96 @@ def test_format_ack_markup_leaves_success_plain_and_escapes_detail():
     )
 
     assert markup == "last: authority_idle FINAL_SUCCESS · ok &lt;safe&gt;"
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    (
+        ("us100", "US-100 근접 감지"),
+        ("safety_topic_stale", "안전 센서 링크 두절"),
+        ("console", "콘솔 비상정지 버튼"),
+        ("manual_service", "수동 비상정지"),
+        ("corner_fault", "모터(코너) 결함"),
+        ("arm_failure", "시동 실패"),
+        ("reset_failure", "초기화 실패"),
+        ("extraction_budget_exhausted", "구조 탈출 한도 소진"),
+        ("extraction_arm_failure", "구조 탈출 시동 실패"),
+        ("active_estop_sources_not_us100_only", "구조 탈출 불가 조건"),
+        ("extraction_complete", "구조 탈출 종료"),
+        ("", ""),
+        ("unknown_trip", "unknown_trip"),
+    ),
+)
+def test_estop_source_korean_covers_known_empty_and_unknown_sources(
+    source,
+    expected,
+):
+    estop_source_korean = getattr(labels, "estop_source_korean", None)
+    assert estop_source_korean is not None
+    assert estop_source_korean(source) == expected
+
+
+def test_estop_status_line_shows_korean_source_and_raw_detail():
+    assert ops_panel.format_ops_status_line(
+        "ESTOP",
+        "없음",
+        "corner_fault",
+        "front_left stale",
+    ) == (
+        "모드: 비상정지(ESTOP) — 원인: 모터(코너) 결함 "
+        "(front_left stale) · 최근: 없음"
+    )
+
+
+def test_non_estop_status_line_preserves_existing_copy():
+    assert ops_panel.format_ops_status_line(
+        "IDLE",
+        "성공",
+        "console",
+        "ignored outside ESTOP",
+    ) == "모드: 대기(IDLE) · 최근: 성공"
+
+
+def test_estop_cause_event_deduplicates_repeats_and_rearms_after_clear():
+    previous = None
+
+    previous, event = ops_panel.next_estop_cause_event(
+        previous,
+        chassis_mode="ESTOP",
+        estop_source="us100",
+        estop_detail="75 mm",
+    )
+    assert event == "비상정지 원인: US-100 근접 감지 (75 mm)"
+
+    previous, event = ops_panel.next_estop_cause_event(
+        previous,
+        chassis_mode="ESTOP",
+        estop_source="us100",
+        estop_detail="75 mm",
+    )
+    assert event is None
+
+    previous, event = ops_panel.next_estop_cause_event(
+        previous,
+        chassis_mode="ESTOP",
+        estop_source="corner_fault",
+        estop_detail="front_left stale",
+    )
+    assert event == "비상정지 원인: 모터(코너) 결함 (front_left stale)"
+
+    previous, event = ops_panel.next_estop_cause_event(
+        previous,
+        chassis_mode="IDLE",
+        estop_source="",
+        estop_detail="",
+    )
+    assert previous is None
+    assert event is None
+
+    _previous, event = ops_panel.next_estop_cause_event(
+        previous,
+        chassis_mode="ESTOP",
+        estop_source="us100",
+        estop_detail="75 mm",
+    )
+    assert event == "비상정지 원인: US-100 근접 감지 (75 mm)"

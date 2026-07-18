@@ -33,6 +33,8 @@ class OpsState:
         default_factory=lambda: dict(DEFAULT_COMPONENT_MASK)
     )
     chassis_mode: str = "UNKNOWN"
+    estop_source: str = ""
+    estop_detail: str = ""
 
 
 @dataclass(frozen=True)

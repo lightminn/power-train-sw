@@ -45,7 +45,9 @@ from .ops_panel import (
     ConfirmFlow,
     PanelAction,
     component_mask_from_state,
+    format_ops_status_line,
     mode_allows_action,
+    next_estop_cause_event,
 )
 from .telemetry import (
     LatestTelemetryReceiver,
@@ -702,6 +704,9 @@ class OpsPanel(Gtk.Frame):
         self._pending_requests: dict[str, str] = {}
         self._latest_component_mask: dict[str, bool] | None = None
         self._latest_chassis_mode = "UNKNOWN"
+        self._latest_estop_source = ""
+        self._latest_estop_detail = ""
+        self._last_estop_cause_key: tuple[str, str] | None = None
         self._latest_ack_text = "없음"
         self._action_buttons: dict[str, Gtk.Button] = {}
 
@@ -834,10 +839,15 @@ class OpsPanel(Gtk.Frame):
         if label is None:
             return
         chassis_mode = getattr(self, "_latest_chassis_mode", "UNKNOWN")
+        estop_source = getattr(self, "_latest_estop_source", "")
+        estop_detail = getattr(self, "_latest_estop_detail", "")
         latest_ack = getattr(self, "_latest_ack_text", "없음")
-        label.set_text(
-            f"모드: {mode_korean(chassis_mode)} · 최근: {latest_ack}"
-        )
+        label.set_text(format_ops_status_line(
+            chassis_mode,
+            latest_ack,
+            estop_source,
+            estop_detail,
+        ))
 
     def _emit(self, message: str) -> None:
         self._event_sink("OPS", message)
@@ -977,7 +987,20 @@ class OpsPanel(Gtk.Frame):
     def _on_state(self, state: dict) -> None:
         self._latest_component_mask = component_mask_from_state(state)
         chassis_mode = str(state.get("chassis_mode", "UNKNOWN"))
+        estop_source = str(state.get("estop_source", ""))
+        estop_detail = str(state.get("estop_detail", ""))
         self._latest_chassis_mode = chassis_mode
+        self._latest_estop_source = estop_source
+        self._latest_estop_detail = estop_detail
+        event_key, event_message = next_estop_cause_event(
+            getattr(self, "_last_estop_cause_key", None),
+            chassis_mode=chassis_mode,
+            estop_source=estop_source,
+            estop_detail=estop_detail,
+        )
+        self._last_estop_cause_key = event_key
+        if event_message is not None:
+            self._event_sink("안전", event_message)
         for action in PANEL_ACTIONS:
             if action.action is None or action.bool_value_from_state is None:
                 continue

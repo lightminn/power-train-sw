@@ -25,6 +25,13 @@ def _state(revision=1, **overrides):
     return OpsState(**base)
 
 
+def test_ops_state_estop_cause_defaults_are_empty_strings():
+    state = _state()
+
+    assert state.estop_source == ""
+    assert state.estop_detail == ""
+
+
 def _core(clock=None, state=None):
     clock = clock or Clock()
     holder = {"state": state or _state()}

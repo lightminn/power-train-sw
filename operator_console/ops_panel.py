@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from html import escape
 from typing import Any
 
-from .labels import COMPONENT_KOREAN
+from .labels import COMPONENT_KOREAN, estop_source_korean, mode_korean
 
 
 GESTURE_STRIP = "confirm_strip"
@@ -19,6 +19,52 @@ _ACK_COLORS = {
     "FINAL_REJECTED": "#d32f2f",
     "OUTCOME_UNKNOWN": "#e67e22",
 }
+
+
+def _estop_cause_text(estop_source: str, estop_detail: str) -> str:
+    source_text = estop_source_korean(estop_source)
+    detail_text = str(estop_detail)
+    if detail_text:
+        return f"{source_text} ({detail_text})"
+    return source_text
+
+
+def format_ops_status_line(
+    chassis_mode: str,
+    latest_ack: str,
+    estop_source: str = "",
+    estop_detail: str = "",
+) -> str:
+    """Build the Gtk-free operator status line for the latest ops state."""
+    mode_text = str(chassis_mode)
+    if mode_text == "ESTOP":
+        return (
+            f"모드: {mode_korean(mode_text)} — 원인: "
+            f"{_estop_cause_text(estop_source, estop_detail)} · "
+            f"최근: {latest_ack}"
+        )
+    return f"모드: {mode_korean(mode_text)} · 최근: {latest_ack}"
+
+
+def next_estop_cause_event(
+    previous_key: tuple[str, str] | None,
+    *,
+    chassis_mode: str,
+    estop_source: str,
+    estop_detail: str,
+) -> tuple[tuple[str, str] | None, str | None]:
+    """Return one event only when the visible latched E-stop cause changes."""
+    source_text = str(estop_source)
+    detail_text = str(estop_detail)
+    if str(chassis_mode) != "ESTOP" or not source_text:
+        return None, None
+    current_key = (source_text, detail_text)
+    if current_key == previous_key:
+        return current_key, None
+    return (
+        current_key,
+        "비상정지 원인: " + _estop_cause_text(source_text, detail_text),
+    )
 
 
 def format_ack_line(action: str, status: str, detail: str = "") -> str:

@@ -1548,6 +1548,12 @@ class ChassisNode(Node):
                 "mode": self.cm.mode,
                 "estop_latched": bool(safety.estop_latched),
                 "active_estop_sources": list(safety.active_estop_sources),
+                "estop_source": (
+                    getattr(safety, "first_source", "") or ""
+                ),
+                "estop_detail": (
+                    getattr(safety, "first_detail", "") or ""
+                ),
                 "component_mask": dict(
                     getattr(safety, "component_mask", {})
                 ),

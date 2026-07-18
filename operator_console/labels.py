@@ -21,6 +21,25 @@ def mode_korean(mode: str) -> str:
     }.get(text, text)
 
 
+def estop_source_korean(source: str) -> str:
+    """Return the operator-facing Korean label for an E-stop trip source."""
+    text = str(source)
+    return {
+        "us100": "US-100 근접 감지",
+        "safety_topic_stale": "안전 센서 링크 두절",
+        "console": "콘솔 비상정지 버튼",
+        "manual_service": "수동 비상정지",
+        "corner_fault": "모터(코너) 결함",
+        "arm_failure": "시동 실패",
+        "reset_failure": "초기화 실패",
+        "extraction_budget_exhausted": "구조 탈출 한도 소진",
+        "extraction_arm_failure": "구조 탈출 시동 실패",
+        "active_estop_sources_not_us100_only": "구조 탈출 불가 조건",
+        "extraction_complete": "구조 탈출 종료",
+        "": "",
+    }.get(text, text)
+
+
 def freshness_korean(state: str) -> str:
     """Return the Korean receive-state label while retaining its state code."""
     text = str(state)

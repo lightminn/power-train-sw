@@ -215,6 +215,8 @@ def test_console_estop_round_trip_is_idempotent_and_journaled(harness):
         lambda: any(
             item.get("mode") == "ESTOP"
             and item.get("estop_latched") is True
+            and item.get("estop_source") == "console"
+            and item.get("estop_detail") == "operator emergency stop"
             for item in harness.safety_states
         )
     )
@@ -231,6 +233,8 @@ def test_console_estop_round_trip_is_idempotent_and_journaled(harness):
         lambda: any(
             item.get("mode") == "IDLE"
             and item.get("estop_latched") is False
+            and item.get("estop_source") == ""
+            and item.get("estop_detail") == ""
             for item in harness.safety_states[reset_state_index:]
         )
     )
