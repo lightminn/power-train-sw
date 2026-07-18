@@ -290,6 +290,12 @@ class Gateway:
                 self._disable_streamer(exc)
 
     def _alignment_required(self):
+        # ★ SLAM(RTAB-Map)이 정렬 depth 를 ROS 로 구독하면 **SRT 와 무관하게** 정렬이 돌아야
+        #   한다. 예전엔 "SRT 가 DEPTH/OVERLAY 모드로 스트리밍 중" 일 때만 돌아서, SLAM 을
+        #   띄워도 토픽이 안 나갔다.
+        from l515_dashboard.gateway_ros import aligned_depth_enabled
+        if aligned_depth_enabled():
+            return True
         stream = self._stream_snapshot()
         return bool(
             self.streaming_enabled

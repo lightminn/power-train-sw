@@ -46,6 +46,8 @@
   <!-- ⚠️ 센서 마운트 = 미실측. imu_tilt_node 의 mount_* 기본값과 맞춰둠 -->
   <xacro:property name="l515_x"  value="0.30"/>
   <xacro:property name="l515_z"  value="0.35"/>
+  <!-- 아래로 숙인 각(+ = 아래). REP-103 에서 pitch + 는 코가 내려가는 방향이다. -->
+  <xacro:property name="l515_pitch_deg" value="15.0"/>
   <xacro:property name="d435i_x" value="0.34"/>
   <xacro:property name="d435i_z" value="0.30"/>
   <xacro:property name="us100_x" value="0.36"/>
@@ -115,15 +117,33 @@
       <material name="blue"/>
     </visual>
   </link>
+  <!-- ★ 마운트: 차체 전방, **아래로 15° 숙임** (2026-07-14 설계 확정).
+       왜 15° 인가 — L515 수직화각은 **55°** 다(70° 는 수평). 15° 숙이면 커버리지가
+       상단 +12.5° / 하단 −42.5° 가 된다:
+         · 상단이 **수평 위에 남는다** → 벽·기둥 같은 먼 특징점이 잡힌다. SLAM 이 산다.
+         · 더 숙이면(25~30°) 상단이 수평 아래로 내려가 **바닥만 보게 되고** 특징점이
+           사라져 SLAM 이 망가진다. 사각지대를 줄이려고 숙이면 손해다.
+       앞쪽 0.38 m 는 사각지대 — 어차피 **US-100 이 담당하는 영역**이다. -->
   <joint name="l515_mount" type="fixed">
     <parent link="base_link"/><child link="l515_link"/>
-    <origin xyz="${l515_x} 0 ${l515_z}"/>
+    <origin xyz="${l515_x} 0 ${l515_z}" rpy="0 ${l515_pitch_deg*pi/180} 0"/>
   </joint>
 
   <!-- depth 토픽의 frame_id. 광학 규약(x=오른쪽, y=아래, z=앞) — 표준 카메라 회전 -->
   <link name="l515_depth_optical_frame"/>
   <joint name="l515_optical" type="fixed">
     <parent link="l515_link"/><child link="l515_depth_optical_frame"/>
+    <origin rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- ★ color 광학 프레임 — 정렬(aligned) depth 의 frame_id 가 이거다(gateway_ros.py
+       _COLOR_FRAME). depth-color 베이스라인 실측 전이라 잠정 depth 와 동일 원점으로 둔다
+       (L515 물리 베이스라인은 수 mm 라 SLAM 파이프라인 검증에는 영향 없음 — 정밀 캘리는
+       실측 후 갱신). 이게 없으면 rgbd_odometry/rtabmap 이 "source_frame does not exist" 로
+       계속 실패한다. -->
+  <link name="l515_color_optical_frame"/>
+  <joint name="l515_color_optical" type="fixed">
+    <parent link="l515_link"/><child link="l515_color_optical_frame"/>
     <origin rpy="${-pi/2} 0 ${-pi/2}"/>
   </joint>
 

@@ -173,6 +173,13 @@ class DepthWorker(_Worker):
                 if result is not None and self.source.capture_identity() == identity:
                     if hasattr(result, "get_depth_frame"):
                         result = result.get_depth_frame()
+                    # ★ ndarray 로 뭉개기 **전에** rs 프레임 그대로 ROS 로 낸다 —
+                    #   프레임에 color intrinsics 와 디바이스 타임스탬프가 붙어 있어서,
+                    #   이걸 버리면 camera_info 도 시각도 다시 못 만든다.
+                    if mapper is not None and hasattr(result, "get_data"):
+                        publish = getattr(self.ros, "publish_aligned_depth", None)
+                        if publish is not None:
+                            self._published(depth, publish(result, mapper) or ())
                     if hasattr(result, "get_data"):
                         result = result.get_data()
                     array = np.asanyarray(result).copy()
