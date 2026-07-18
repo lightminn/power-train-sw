@@ -138,18 +138,35 @@ ODRIVE_TUNABLES_USB = [
 ODRIVE_TUNABLES_CAN = [t for t in ODRIVE_TUNABLES_USB
                        if t["key"] != "input_filter_bandwidth"]
 
-# X2212-13 + TLE5012B 실측 게인 스윕 최적값 (docs/motor-gui-tuning-guide.md 참고).
-# vel_gain>0.05 면 트립, vel_integrator_gain 은 한계진동(움찔) 유발 → 0.
-# 잔차(~0.08turn)는 코깅 — fw0.5.1 anticogging 이 불안정(모션 brick)해 미사용, 실용 한계로 수용.
-# 다른 모터로 교체 시 docs/motor-gui-tuning-guide.md 절차대로 재튜닝.
-DEFAULT_TUNABLES = {
-    "pos_gain": 8.0,
-    "vel_gain": 0.015,
-    "vel_integrator_gain": 0.0,
-    "input_filter_bandwidth": 50.0,
-    "vel_limit": 50.0,
-    "current_lim": 10.0,
-    "trap_vel_limit": 20.0,
-    "trap_accel_limit": 15.0,
-    "trap_decel_limit": 20.0,
+# 명시적 사용자 선택 전에는 어느 프로파일도 하드웨어에 쓰지 않는다.
+TUNABLE_PROFILES = {
+    # X2212-13 + TLE5012B 실측 게인 스윕 최적값
+    # (docs/motor-gui-tuning-guide.md 참고). vel_gain>0.05 면 트립,
+    # vel_integrator_gain 은 한계진동(움찔) 유발 → 0. 다른 모터에는 재튜닝 필수.
+    "x2212": {
+        "label": "X2212-13 + TLE5012B",
+        "values": {
+            "pos_gain": 8.0,
+            "vel_gain": 0.015,
+            "vel_integrator_gain": 0.0,
+            "input_filter_bandwidth": 50.0,
+            "vel_limit": 50.0,
+            "current_lim": 10.0,
+            "trap_vel_limit": 20.0,
+            "trap_accel_limit": 15.0,
+            "trap_decel_limit": 20.0,
+        },
+    },
+    "bl70200": {
+        "label": "BL70200",
+        "values": {
+            "pos_gain": 2.0,
+            "vel_gain": 0.12,
+            "vel_integrator_gain": 0.2,
+            "current_lim": 9.0,
+        },
+    },
 }
+
+# 기존 import 호환성. 이 값은 X2212 프로파일일 뿐 자동 적용 baseline 이 아니다.
+DEFAULT_TUNABLES = dict(TUNABLE_PROFILES["x2212"]["values"])

@@ -1,3 +1,22 @@
+"""⛔ DEPRECATED — 아카이브. 실행 금지. 정본은 ../bl70200_setup.py.
+
+이 스크립트는 BL70200 실측값과 다른 pole_pairs=5 / cpr=30 을 쓰고
+dc_bus_undervoltage_trip_level 을 48V 시스템에 8.0V 로 설정한 뒤
+save_configuration() 으로 NVM 에 저장한다. 정상 설정된 보드에 실행하면
+값 불일치를 "감지"해 5/30 으로 영구히 덮어써서 HALL 전기각↔기계각 대응이
+깨지고 캘리 실패·오정류·폐루프 트립을 일으킨다 (실측 정본 pp=10 / cpr=60 / UV=40V).
+
+2026-07-18 적대적 코드리뷰에서 CRITICAL 로 확정되어 아카이브로 이동했다.
+이력 참조용으로만 보존한다.
+"""
+import sys
+
+sys.exit(
+    "⛔ 이 스크립트는 아카이브됨 — 실행 금지.\n"
+    "   pp=5 / cpr=30 / UV=8V 를 NVM 에 저장해 BL70200 보드를 손상시킨다.\n"
+    "   정본 셋업을 사용할 것: python3 motor_control/drive/bl70200/bl70200_setup.py --help"
+)
+
 import time
 import odrive
 from odrive.enums import *

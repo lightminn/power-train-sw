@@ -1,6 +1,8 @@
 import struct
 import sys
 from pathlib import Path
+
+import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "motor_control" / "steering"))
 from ak_control import AK40  # noqa: E402
 
@@ -12,14 +14,13 @@ class StubBus:
         self.sent.append(msg)
 
 
-def test_send_brake_frame():
+def test_send_brake_prohibited_on_active_profile():
+    """실전 프로파일(AK45-36)에서 브레이크 패킷은 제동이 아니라 폭주 → 호출 자체가 금지."""
     bus = StubBus()
     m = AK40(bus, 10, name="ak")
-    assert m.send_brake(2.0) is True
-    msg = bus.sent[-1]
-    assert msg.is_extended_id is True
-    assert msg.arbitration_id == (2 << 8) | 10        # PKT_SET_BRAKE=2, id=10
-    assert msg.data == struct.pack(">i", 2000)        # 2.0A → 2000 mA
+    with pytest.raises(RuntimeError, match="금지"):
+        m.send_brake(2.0)
+    assert bus.sent == []                             # 프레임이 버스로 나가면 안 됨
 
 
 def test_send_duty_frame():
@@ -38,11 +39,14 @@ def test_send_duty_clamps():
     assert bus.sent[-1].data == struct.pack(">i", 95000)
 
 
-def test_send_brake_clamps_negative():
+def test_send_brake_prohibited_regardless_of_value():
+    """값과 무관하게 금지 — 0A/음수도 프레임이 나가면 안 됨."""
     bus = StubBus()
     m = AK40(bus, 10, name="ak")
-    m.send_brake(-1.0)                                # 음수 → 0 클램프
-    assert bus.sent[-1].data == struct.pack(">i", 0)
+    for value in (-1.0, 0.0, 2.0):
+        with pytest.raises(RuntimeError):
+            m.send_brake(value)
+    assert bus.sent == []
 
 
 def test_send_duty_clamps_negative():

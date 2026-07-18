@@ -137,7 +137,9 @@ docker compose -f docker/docker-compose.jetson.yml exec -T powertrain \
 
 1. **HW 파라미터 셋업**: 그 모터의 캘리 스크립트로 pole_pairs/cpr/encoder mode/motor_type 설정
    + 캘리(`is_calibrated`/`is_ready` True) + NVM 저장. (X2212: `drive/x2212_test/init_odrive.py`
-   또는 `odrive_can_setup.py`. BL70200: `drive/bl70200/odrive_calibration.py`.)
+   또는 `odrive_can_setup.py`. BL70200: `drive/bl70200/bl70200_setup.py --apply --calibrate`.
+   ⚠️ 구 `odrive_calibration.py` 는 pp=5/cpr=30/UV=8V 를 NVM 에 써서 보드를 손상시키므로
+   `drive/bl70200/archive/` 로 이동·실행 차단됐다.)
 2. **read-only 확인**: GUI/스크립트로 sample + config 덤프 + dump_errors. vbus/state/encoder 정상?
 3. **보수적 시작**: 그 모터 캘리 스크립트의 게인을 출발점으로.
 4. **스윕(자유회전 확인 후)**:

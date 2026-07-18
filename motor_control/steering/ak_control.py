@@ -18,10 +18,17 @@ import math
 # 테스트 모터로 되돌리려면 ACTIVE_MOTOR 만 "AK40-10" 으로 바꾼다.
 # (pole_pairs 는 AK 동일 계열로 14 가정 — AK45-36 실측 시 재확인)
 # ============================================================
+#   brake_prohibited: 이 펌웨어에서 PKT_SET_BRAKE(2) 는 제동이 아니라 폭주를 일으킨다.
+#     근거: motor_control/can_ak_odrive_demo.py — "brake·current 는 이 펌웨어서 폭주 → 금지".
+#     motor_gui 도 HIL 학습 후 brake/current 를 삭제했다. 정지는 send_rpm_out(0) 을 쓴다.
+#     ⚠️ AK40-10(레거시 테스트) 은 동일 펌웨어 계열이라 같은 위험이 있을 수 있으나
+#        실측 확인 전이라 기존 동작을 유지한다. 실전 경로는 AK45-36 뿐이다.
 MOTOR_PROFILES = {
-    "AK40-10": {"gear_ratio": 10.0, "pole_pairs": 14, "max_cur_a": 5.0},
+    "AK40-10": {"gear_ratio": 10.0, "pole_pairs": 14, "max_cur_a": 5.0,
+                "brake_prohibited": False},
     # max_cur_a 는 트립 한계로, peak 65A 대비 보수값. HIL 에서 정상 홀딩 전류 확인 후 튜닝 필요.
-    "AK45-36": {"gear_ratio": 36.0, "pole_pairs": 14, "max_cur_a": 30.0},
+    "AK45-36": {"gear_ratio": 36.0, "pole_pairs": 14, "max_cur_a": 30.0,
+                "brake_prohibited": True},
 }
 ACTIVE_MOTOR = "AK45-36"   # 실전 조향 모터. 테스트는 "AK40-10" (10:1)
 
@@ -29,6 +36,7 @@ _profile = MOTOR_PROFILES[ACTIVE_MOTOR]
 GEAR_RATIO = _profile["gear_ratio"]
 POLE_PAIRS = _profile["pole_pairs"]
 DEFAULT_MAX_CUR_A = _profile["max_cur_a"]
+BRAKE_PROHIBITED = _profile["brake_prohibited"]
 
 RATED_ERPM = int(370 * POLE_PAIRS)   # 5180 (pole_pairs=14 기준)
 NOLOAD_ERPM = int(435 * POLE_PAIRS)    # 6090 (pole_pairs=14 기준)
@@ -105,7 +113,17 @@ class AK40:
         return self._send(PKT_SET_RPM, struct.pack(">i", erpm))
 
     def send_brake(self, current_a):
-        """전류 기반 브레이크 (VESC: mA). 0~20A 클램프 (20A=hw 절대 최대)."""
+        """⛔ 전류 기반 브레이크 — 실전 프로파일(AK45-36)에서는 금지.
+
+        이 펌웨어에서 PKT_SET_BRAKE(2) 는 제동이 아니라 폭주를 일으킨다
+        (can_ak_odrive_demo.py 의 "brake·current 는 이 펌웨어서 폭주 → 금지",
+        motor_gui 는 HIL 학습 후 brake/current 를 삭제). 정지는 send_rpm_out(0) 을 쓸 것.
+        """
+        if BRAKE_PROHIBITED:
+            raise RuntimeError(
+                f"send_brake() 는 {ACTIVE_MOTOR} 에서 금지됨 — 이 펌웨어에서 브레이크 패킷은 "
+                "제동이 아니라 폭주를 일으킨다. 정지는 send_rpm_out(0) 을 사용할 것."
+            )
         cur = max(0.0, min(20.0, float(current_a)))
         return self._send(PKT_SET_BRAKE, struct.pack(">i", int(cur * 1000)))
 
@@ -305,12 +323,13 @@ def demo_full_functions():
             m.send_rpm_out(30.0)
             time.sleep(0.05)
 
-        print("\n=== 🛑 5. 브레이크 제어 (send_brake) ===")
-        print("  [전류 2.0A로 강제 브레이크 체결 (1초 유지)]")
-        # 돌고 있던 모터에 브레이크를 걸어 급정거 후 홀딩
+        print("\n=== 🛑 5. 감속 정지 (send_rpm_out 0) ===")
+        print("  [RPM 0 을 1초간 지속 송신해 정지]")
+        # ⚠️ send_brake() 를 쓰지 않는다 — 이 펌웨어에서 브레이크 패킷은 제동이 아니라
+        #    폭주를 일으킨다 (can_ak_odrive_demo.py 참조). 정지는 RPM 0 지속 송신.
         end_time = time.time() + 1.0
         while time.time() < end_time:
-            m.send_brake(2.0)
+            m.send_rpm_out(0.0)
             time.sleep(0.05)
 
         print("\n=== 💤 6. 안전 정지 (stop) ===")

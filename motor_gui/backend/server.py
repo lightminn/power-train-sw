@@ -65,6 +65,21 @@ def create_app(track: str = "fake", drive_gear_ratio: float = 5.0) -> FastAPI:
     def tunables() -> dict:
         return worker.tunables()
 
+    @app.get("/api/safety")
+    def safety() -> dict:
+        return worker.safety_state()
+
+    @app.get("/api/tunable_profiles")
+    def tunable_profiles() -> dict:
+        return worker.tunable_profiles()
+
+    @app.post("/api/tunable_profiles/apply")
+    def apply_tunable_profile(body: dict) -> dict:
+        profile = (body or {}).get("profile")
+        if not isinstance(profile, str) or not profile:
+            return {"ok": False, "detail": "profile name is required"}
+        return worker.apply_profile(profile)
+
     @app.post("/api/command")
     def command(envelope: dict) -> dict:
         if envelope.get("op") == "estop":

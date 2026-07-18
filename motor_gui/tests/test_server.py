@@ -20,6 +20,9 @@ def test_capabilities_endpoint():
 
 def test_command_endpoint_acks():
     with _client() as c:
+        armed = c.post("/api/command",
+                       json={"target": "odrive", "op": "arm", "args": {}})
+        assert armed.json()["ok"] is True
         r = c.post("/api/command", json={"target": "odrive", "op": "set_input",
                                          "args": {"vel": 3.0}})
         assert r.status_code == 200
@@ -63,6 +66,62 @@ def test_reconnect_endpoint_ok():
         r = c.post("/api/reconnect")
         assert r.status_code == 200
         assert r.json()["ok"] is True
+
+
+def test_tunable_profile_endpoints_require_explicit_profile_choice():
+    with _client() as c:
+        profiles = c.get("/api/tunable_profiles")
+        assert profiles.status_code == 200
+        assert set(profiles.json()) == {"x2212", "bl70200"}
+
+        assert c.post("/api/command", json={"target": "odrive", "op": "arm",
+                                            "args": {}}).json()["ok"] is True
+        applied = c.post("/api/tunable_profiles/apply",
+                         json={"profile": "bl70200"})
+        assert applied.status_code == 200
+        assert applied.json()["ok"] is True
+        assert applied.json()["profile"] == "bl70200"
+
+
+def test_frontend_requires_profile_selection_before_apply():
+    with _client() as client:
+        app_js = client.get("/app.js").text
+    assert 'fetch("/api/tunable_profiles")' in app_js
+    assert 'fetch("/api/tunable_profiles/apply"' in app_js
+
+
+def test_estop_reset_endpoint_returns_idle_without_arming():
+    with _client() as client:
+        assert client.post("/api/command", json={
+            "target": "odrive", "op": "arm", "args": {}
+        }).json()["ok"] is True
+        assert client.post("/api/command", json={
+            "target": "odrive", "op": "estop", "args": {}
+        }).json()["ok"] is True
+
+        rejected = client.post("/api/command", json={
+            "target": "odrive", "op": "set_input", "args": {"vel": 1.0}
+        }).json()
+        assert rejected["ok"] is False
+        assert "estop active" in rejected["detail"]
+
+        reset = client.post("/api/command", json={
+            "target": "odrive", "op": "reset", "args": {}
+        }).json()
+        assert reset["ok"] is True
+        safety = client.get("/api/safety").json()
+        assert safety == {"estop_latched": False,
+                          "armed": {"odrive": False, "ak": False}}
+
+
+def test_frontend_exposes_reset_and_device_arm_controls():
+    with _client() as client:
+        html = client.get("/").text
+        app_js = client.get("/app.js").text
+    assert "E-STOP RESET" in html
+    assert 'op: "arm"' in app_js
+    assert 'op: "disarm"' in app_js
+    assert 'op: "reset"' in app_js
 
 
 def test_make_transport_odrive_can_track():

@@ -15,6 +15,7 @@
 표 숫자만 교체하면 코드는 무관.
 """
 import logging
+import math
 import time
 from dataclasses import dataclass, field, replace
 
@@ -310,6 +311,19 @@ class ChassisManager:
     def set(self, v_mps: float, omega_rad_s: float) -> None:
         if self.mode not in {"ARMED", "EXTRACTION"}:
             logger.warning("set() 무시: ARMED/EXTRACTION 아님 (mode=%s)", self.mode)
+            return
+        if not math.isfinite(v_mps) or not math.isfinite(omega_rad_s):
+            self._v = self._omega = 0.0
+            self._interlock.set_motion_hold(
+                _COMMAND_RECOVERY_HOLD,
+                True,
+                "non-finite command",
+            )
+            logger.error(
+                "비유한 차체 명령 → MOTION_HOLD (v=%r, omega=%r)",
+                v_mps,
+                omega_rad_s,
+            )
             return
         safety = self._interlock.snapshot()
         blocking_holds = set(safety.hold_sources) - {

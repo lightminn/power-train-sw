@@ -326,6 +326,44 @@ def test_pivot_drives_mid_wheels_opposite():
     assert abs(m.corners["front_left"].state()["steer"]["target_deg"]) > 1e-3
 
 
+@pytest.mark.parametrize(
+    ("v_mps", "omega_rad_s"),
+    [(math.nan, 0.0), (0.0, math.nan)],
+)
+def test_nan_command_enters_hold_and_cannot_drive_motors(v_mps, omega_rad_s):
+    m = _armed_manager()
+    m.set(0.4, 0.2)
+    m.tick()
+    assert any(value != 0.0 for value in _drive_targets(m).values())
+
+    m.set(v_mps, omega_rad_s)
+    m.tick()
+
+    assert m.mode == "ARMED"
+    assert m.snapshot().stop_state == "MOTION_HOLD"
+    assert m.state()["v"] == 0.0
+    assert m.state()["omega"] == 0.0
+    assert all(value == 0.0 for value in _drive_targets(m).values())
+    assert all(
+        math.isfinite(corner.state()["steer"]["target_deg"])
+        and math.isfinite(corner.state()["drive"]["target_vel"])
+        for corner in m.corners.values()
+    )
+
+
+def test_finite_command_recovers_from_nonfinite_command_hold():
+    m = _armed_manager()
+    m.set(math.nan, 0.0)
+    m.tick()
+    assert m.snapshot().stop_state == "MOTION_HOLD"
+
+    m.set(0.4, 0.0)
+    m.tick()
+
+    assert m.snapshot().stop_state == "RUN"
+    assert any(value != 0.0 for value in _drive_targets(m).values())
+
+
 # ── 안전 interlock (hold → 구동 0, ESTOP → 전체 정지) ─────────────────────
 
 def test_checking_auto_clears_but_requires_fresh_command_without_disarm():

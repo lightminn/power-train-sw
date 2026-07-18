@@ -4,6 +4,7 @@
 안전하게 적용한다. tick() 을 외부 루프가 주기적으로 호출하거나 run() 사용.
 """
 import logging
+import math
 import time
 
 from corner_module.config import CornerConfig, clamp
@@ -57,6 +58,14 @@ class CornerModule:
     def set(self, steer_deg: float, drive_vel: float) -> None:
         if self.mode != "ARMED":
             logger.warning("set() 무시: ARMED 아님 (mode=%s)", self.mode)
+            return
+        if not math.isfinite(steer_deg) or not math.isfinite(drive_vel):
+            logger.error(
+                "비유한 코너 명령 → estop (steer=%r, drive=%r)",
+                steer_deg,
+                drive_vel,
+            )
+            self.estop()
             return
         self._steer_target = clamp(steer_deg, self.cfg.steer_min_deg, self.cfg.steer_max_deg)
         self._drive_target = clamp(drive_vel, -self.cfg.drive_vel_limit, self.cfg.drive_vel_limit)

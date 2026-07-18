@@ -108,6 +108,8 @@ def _limit_omega(geom: ChassisGeometry, v: float, omega: float, steer_max: float
 
 def solve(geom: ChassisGeometry, v_mps: float, omega_rad_s: float) -> SolveResult:
     """차체 명령 (v, ω) → 바퀴별 명령. 조향/속도 한계를 초과하면 자동 제한."""
+    if not math.isfinite(v_mps) or not math.isfinite(omega_rad_s):
+        raise ValueError("non-finite input to kinematics")
     steer_max = math.radians(geom.steer_limit_deg)
 
     # 1) 조향 한계로 ω 축소 (선회 완만화)
@@ -136,11 +138,19 @@ def solve(geom: ChassisGeometry, v_mps: float, omega_rad_s: float) -> SolveResul
     wheels = {}
     for w, delta, speed in raw:
         speed *= scale
+        steer_deg = math.degrees(delta)
+        drive_turns_per_s = speed / circ
+        if not all(math.isfinite(value) for value in (
+            steer_deg,
+            speed,
+            drive_turns_per_s,
+        )):
+            raise ValueError(f"non-finite output for wheel {w.name}")
         wheels[w.name] = WheelCommand(
             name=w.name,
-            steer_deg=math.degrees(delta),
+            steer_deg=steer_deg,
             drive_mps=speed,
-            drive_turns_per_s=speed / circ,
+            drive_turns_per_s=drive_turns_per_s,
         )
     return SolveResult(wheels, omega, steer_clamped, speed_clamped)
 

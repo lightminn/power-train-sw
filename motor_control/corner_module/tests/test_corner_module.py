@@ -1,4 +1,5 @@
 import inspect
+import math
 import struct
 from unittest.mock import Mock
 
@@ -28,6 +29,12 @@ def test_clamp_bounds():
     assert clamp(100.0, -45.0, 45.0) == 45.0
     assert clamp(-100.0, -45.0, 45.0) == -45.0
     assert clamp(12.0, -45.0, 45.0) == 12.0
+
+
+def test_clamp_rejects_nan_without_changing_negative_infinity_clamp():
+    with pytest.raises(ValueError, match="NaN"):
+        clamp(math.nan, -5.0, 5.0)
+    assert clamp(-math.inf, -5.0, 5.0) == -5.0
 
 
 def test_fake_steer_converges_to_target_when_armed():
@@ -105,6 +112,38 @@ def test_set_clamps_targets():
     cm.tick()
     assert cm.state()["steer"]["target_deg"] == 45.0
     assert cm.state()["drive"]["target_vel"] == 5.0
+
+
+@pytest.mark.parametrize(
+    ("steer_deg", "drive_vel"),
+    [
+        (math.nan, 2.0),
+        (math.inf, 2.0),
+        (-math.inf, 2.0),
+        (10.0, math.nan),
+        (10.0, math.inf),
+        (10.0, -math.inf),
+    ],
+)
+def test_nonfinite_targets_never_reach_actuators(steer_deg, drive_vel):
+    steer = FakeSteer()
+    drive = FakeDrive()
+    steer.set_angle = Mock(wraps=steer.set_angle)
+    drive.set_velocity = Mock(wraps=drive.set_velocity)
+    cm = _make_cm(steer=steer, drive=drive)
+    cm.connect()
+    cm.arm()
+    steer.set_angle.reset_mock()
+    drive.set_velocity.reset_mock()
+
+    cm.set(steer_deg, drive_vel)
+    cm.tick()
+
+    assert cm.mode == "FAULT"
+    steer.set_angle.assert_not_called()
+    drive.set_velocity.assert_not_called()
+    assert math.isfinite(cm.state()["steer"]["target_deg"])
+    assert cm.state()["drive"]["target_vel"] == 0.0
 
 
 def test_set_ignored_when_not_armed():

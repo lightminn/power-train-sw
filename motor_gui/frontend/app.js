@@ -231,6 +231,50 @@ function canIdPanel(caps) {
   return wrap;
 }
 
+async function tunableProfilePanel() {
+  let profiles;
+  try {
+    profiles = await (await fetch("/api/tunable_profiles")).json();
+  } catch (e) {
+    logMsg("튜닝 프로파일 조회 실패: " + e, "err");
+    return null;
+  }
+  if (!profiles || !Object.keys(profiles).length) return null;
+  const wrap = el("div", "panel");
+  const h = el("h3"); h.textContent = "ODrive 튜닝 프로파일"; wrap.appendChild(h);
+  const row = el("div", "row");
+  const select = document.createElement("select");
+  const placeholder = document.createElement("option");
+  placeholder.value = ""; placeholder.textContent = "프로파일 선택";
+  select.appendChild(placeholder);
+  Object.keys(profiles).forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name; option.textContent = profiles[name].label;
+    select.appendChild(option);
+  });
+  const apply = document.createElement("button");
+  apply.textContent = "선택 프로파일 적용"; apply.disabled = true;
+  select.addEventListener("change", () => { apply.disabled = !select.value; });
+  apply.addEventListener("click", async () => {
+    if (!select.value) return;
+    apply.disabled = true;
+    const ack = await (await fetch("/api/tunable_profiles/apply", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile: select.value }),
+    })).json();
+    if (ack.ok) {
+      logMsg(`프로파일 적용: ${profiles[select.value].label}`);
+      location.reload();
+    } else {
+      logMsg("프로파일 적용 실패: " + (ack.detail || ""), "err");
+      apply.disabled = false;
+    }
+  });
+  row.appendChild(select); row.appendChild(apply); wrap.appendChild(row);
+  wrap.appendChild(helpLine("연결만으로는 쓰지 않습니다. 선택 후 적용 버튼을 눌러야 하드웨어에 기록합니다."));
+  return wrap;
+}
+
 function controlPanel(device, caps, tunVals) {
   const ops = (caps.commands && caps.commands[device]) || [];
   const wrap = el("div", "panel");
@@ -238,7 +282,12 @@ function controlPanel(device, caps, tunVals) {
   const grid = el("div", "pgrid");
   wrap.appendChild(grid);
 
-  if (ops.includes("set_state")) {
+  if (ops.includes("arm")) {
+    grid.appendChild(rowButton("ARM", () =>
+      postCommand({ target: device, op: "arm", args: {} })));
+    grid.appendChild(rowButton("DISARM / IDLE", () =>
+      postCommand({ target: device, op: "disarm", args: {} })));
+  } else if (ops.includes("set_state")) {
     grid.appendChild(rowButton("폐루프 진입", () =>
       postCommand({ target: device, op: "set_state", args: { state: "closed_loop" } })));
     grid.appendChild(rowButton("IDLE", () =>
@@ -390,6 +439,8 @@ async function main() {
   }
   const controls = document.getElementById("controls");
   controls.appendChild(recordingPanel());
+  const profilePanel = await tunableProfilePanel();
+  if (profilePanel) controls.appendChild(profilePanel);
   const cidp = canIdPanel(caps);
   if (cidp) controls.appendChild(cidp);
   const mi = motorInfoPanel(caps);
@@ -399,6 +450,11 @@ async function main() {
   document.getElementById("estop").addEventListener("click", () => {
     logMsg("E-STOP 발동", "err");
     postCommand({ target: caps.devices[0], op: "estop", args: {} });
+  });
+  const resetBtn = document.getElementById("estop-reset");
+  if (resetBtn) resetBtn.addEventListener("click", async () => {
+    const ack = await postCommand({ target: caps.devices[0], op: "reset", args: {} });
+    if (ack.ok) logMsg("E-STOP reset — 모든 장치 IDLE/disarmed");
   });
   const rcBtn = document.getElementById("reconnect");
   if (rcBtn) rcBtn.addEventListener("click", async () => {

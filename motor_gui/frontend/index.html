@@ -12,6 +12,8 @@
              font-weight:700; padding:.6rem 1.2rem; border-radius:6px; cursor:pointer; }
     #reconnect { background:#2a6; color:#fff; border:0; font-size:.95rem;
                  padding:.5rem 1rem; border-radius:6px; cursor:pointer; }
+    #estop-reset { background:#8a6d1d; color:#fff; border:0; font-size:.95rem;
+                   padding:.5rem 1rem; border-radius:6px; cursor:pointer; }
     #status { font-size:.85rem; opacity:.8; }
     main { display:grid; grid-template-columns: 700px 1fr; gap:1rem; padding:1rem; align-items:start; }
     #left { display:flex; flex-direction:column; gap:1rem; max-height: calc(100vh - 80px); overflow:auto; }
@@ -42,6 +44,7 @@
       <select id="velunit"><option value="rev/s">wheel rev/s</option><option value="m/s">wheel m/s</option></select>
     </label>
     <button id="reconnect">↻ 재연결</button>
+    <button id="estop-reset">E-STOP RESET</button>
     <button id="estop">■ E-STOP</button>
   </header>
   <main>

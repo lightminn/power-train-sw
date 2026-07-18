@@ -1,3 +1,20 @@
+"""⛔ DEPRECATED — 아카이브. 실행 금지. 정본은 ../bl70200_setup.py / ../can_drive_test.py.
+
+이 스크립트는 BL70200 실측값과 다른 POLE_PAIRS=5 (cpr=6*5=30) 를 쓰고
+encoder 설정을 NVM 에 저장한다 (실측 정본 pp=10 / cpr=60). 그 밖에도
+캘리 단계마다 무제한 IDLE 대기, 폐루프 잔존, 정본 NVM 이 VELOCITY 모드인데
+POSITION 모드로 바꾸지 않고 input_pos 를 쓴 뒤 무한 대기하는 결함이 있다.
+
+2026-07-18 적대적 코드리뷰에서 확정되어 아카이브로 이동했다. 이력 참조용으로만 보존한다.
+"""
+import sys
+
+sys.exit(
+    "⛔ 이 스크립트는 아카이브됨 — 실행 금지.\n"
+    "   pp=5 / cpr=30 을 NVM 에 저장해 BL70200 보드를 손상시킨다.\n"
+    "   정본: bl70200_setup.py (셋업/캘리) · can_drive_test.py (다축 주행)"
+)
+
 import time
 import odrive
 from odrive.enums import *

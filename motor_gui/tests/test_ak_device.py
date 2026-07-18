@@ -19,10 +19,12 @@ def _status_msg(pos_deg=12.0, spd_erpm=0, cur_a=0.0, temp=40, fault=0):
                        data=data, is_extended_id=True)
 
 
-def _mk():
+def _mk(armed=True):
     d = AkDevice()
     bus = StubBus()
     d.attach(bus)
+    if armed:
+        d.apply(bus, "arm", {})
     return d, bus
 
 
@@ -31,8 +33,50 @@ def test_capabilities_fragment_modes_and_commands():
     assert f["devices"] == ["ak"]
     assert f["control_modes"]["ak"] == ["position", "velocity", "duty"]
     assert "set_param" in f["commands"]["ak"]
+    assert "arm" in f["commands"]["ak"]
+    assert "disarm" in f["commands"]["ak"]
     assert f["inputs"]["ak"]["velocity"]["key"] == "rpm"
     assert "ak.fault" in f["signals"]
+
+
+def test_attach_defaults_disarmed_and_rejects_motion_input():
+    d, bus = _mk(armed=False)
+    before = len(bus.sent)
+    ack = d.apply(bus, "set_input", {"pos_deg": 30.0})
+    assert ack["ok"] is False
+    assert "disarmed" in ack["detail"]
+    assert len(bus.sent) == before
+
+
+def test_arm_enables_motion_and_disarm_blocks_it_again():
+    d, bus = _mk(armed=False)
+    assert d.apply(bus, "arm", {})["ok"] is True
+    assert d.apply(bus, "set_input", {"pos_deg": 30.0})["ok"] is True
+    assert d.apply(bus, "disarm", {})["ok"] is True
+    before = len(bus.sent)
+    ack = d.apply(bus, "set_input", {"pos_deg": 40.0})
+    assert ack["ok"] is False
+    assert len(bus.sent) == before
+
+
+def test_estop_revokes_ak_arm_until_explicit_rearm():
+    d, bus = _mk()
+    assert d.apply(bus, "set_input", {"pos_deg": 10.0})["ok"] is True
+    assert d.apply(bus, "estop", {})["ok"] is True
+    before = len(bus.sent)
+    rejected = d.apply(bus, "set_input", {"pos_deg": 20.0})
+    assert rejected["ok"] is False
+    assert len(bus.sent) == before
+
+
+def test_reattach_returns_ak_to_disarmed():
+    d, bus = _mk()
+    assert d.apply(bus, "set_input", {"pos_deg": 10.0})["ok"] is True
+    d.attach(bus)
+    before = len(bus.sent)
+    rejected = d.apply(bus, "set_input", {"pos_deg": 20.0})
+    assert rejected["ok"] is False
+    assert len(bus.sent) == before
 
 
 def test_set_input_velocity_sends_rpm_frame():

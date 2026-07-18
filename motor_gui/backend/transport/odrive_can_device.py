@@ -4,7 +4,6 @@ import struct
 import time
 
 from .base import (SIGNAL_META, ODRIVE_INPUTS, ODRIVE_TUNABLES_CAN,
-                   DEFAULT_TUNABLES, GEAR_SCALED_TUNABLES,
                    validate_gear_ratio)
 from .can_device import CanDevice
 
@@ -70,8 +69,8 @@ class OdriveCanDevice(CanDevice):
         self._state = {k: 0.0 for k in _SIGNALS}
         self._mode = "position"
         self._torque_const = _DEFAULT_KT
-        self._vel_limit = float(DEFAULT_TUNABLES["vel_limit"]) / self._gear_ratio
-        self._cur_lim = float(DEFAULT_TUNABLES["current_lim"])
+        self._vel_limit = None
+        self._cur_lim = None
         self._pos_setpoint = 0.0
         self._vel_setpoint = 0.0
         # CAN 영점은 소프트 오프셋(raw - offset). 절대엔코더에서 Set_Linear_Count(CAN)
@@ -79,16 +78,8 @@ class OdriveCanDevice(CanDevice):
         self._pos_offset = 0.0
         self._last_poll = 0.0        # RTR 폴링 throttle 타임스탬프
         # pair-frame 명령(두 값을 한 프레임에) 부분 업데이트 병합용 캐시.
-        self._vel_gains = {"vel_gain": float(DEFAULT_TUNABLES["vel_gain"]),
-                           "vel_integrator_gain": float(DEFAULT_TUNABLES["vel_integrator_gain"])}
-        self._trap = {
-            "trap_accel_limit": (
-                float(DEFAULT_TUNABLES["trap_accel_limit"]) / self._gear_ratio
-            ),
-            "trap_decel_limit": (
-                float(DEFAULT_TUNABLES["trap_decel_limit"]) / self._gear_ratio
-            ),
-        }
+        self._vel_gains = {}
+        self._trap = {}
 
     # ── 프레임 송신 헬퍼 ──
     def _arb(self, cmd: int) -> int:
@@ -123,6 +114,8 @@ class OdriveCanDevice(CanDevice):
         위치보정 항이 좁은 하드캡(vl×1.3)을 넘겨 overspeed(axis_err 0x200) 트립.
         TRAP 정밀 저속은 vel_limit ≥ 3 권장(또는 position/POS_FILTER 모드 사용).
         """
+        if self._vel_limit is None or self._cur_lim is None:
+            return
         if self._mode == "position_traj":
             cur = abs(float(self._state.get("odrive.vel", 0.0)))
             cap = max(self._vel_limit * self._gear_ratio * 1.3, cur * 1.3)
@@ -132,6 +125,8 @@ class OdriveCanDevice(CanDevice):
 
     def _sync_vel_limit(self) -> None:
         """TRAP 순항=vel_limit + 컨트롤러 하드캡(헤드룸) 동기."""
+        if self._vel_limit is None:
+            return
         motor_vel_limit = self._vel_limit * self._gear_ratio
         self._send(C_SET_TRAJ_VEL_LIMIT, struct.pack("<f", motor_vel_limit))
         self._send_limits()
@@ -144,14 +139,6 @@ class OdriveCanDevice(CanDevice):
         self._vel_setpoint = 0.0
         self._pos_offset = 0.0
         self._last_poll = 0.0        # 재연결 직후 첫 sample 에서 바로 폴링
-        # 기본 게인/한계 push → UI prefill 값과 실제 장치 일치.
-        self._send(C_SET_POS_GAIN, struct.pack("<f", float(DEFAULT_TUNABLES["pos_gain"])))
-        self._send(C_SET_VEL_GAINS, struct.pack("<ff",
-                   self._vel_gains["vel_gain"], self._vel_gains["vel_integrator_gain"]))
-        self._send(C_SET_TRAJ_ACCEL_LIMITS, struct.pack("<ff",
-                   self._trap["trap_accel_limit"] * self._gear_ratio,
-                   self._trap["trap_decel_limit"] * self._gear_ratio))
-        self._sync_vel_limit()
 
     def can_id_spec(self) -> dict | None:
         return {"id": self._node, "min": 0, "max": 63, "label": "ODrive node ID"}
@@ -161,15 +148,7 @@ class OdriveCanDevice(CanDevice):
 
     def capabilities_fragment(self) -> dict:
         meta = {k: SIGNAL_META[k] for k in _SIGNALS if k in SIGNAL_META}
-        tunables = []
-        for t in _BASE_TUNABLES:
-            item = dict(t)
-            if t["key"] in DEFAULT_TUNABLES:
-                value = float(DEFAULT_TUNABLES[t["key"]])
-                if t["key"] in GEAR_SCALED_TUNABLES:
-                    value /= self._gear_ratio
-                item["value"] = value  # wheel-unit prefill where applicable
-            tunables.append(item)
+        tunables = [dict(t) for t in _BASE_TUNABLES]
         tunables.append({
             "op": "set_param", "key": "torque_constant",
             "label": "토크 상수 Kt [Nm/A]", "value": self._torque_const,
@@ -272,6 +251,11 @@ class OdriveCanDevice(CanDevice):
                     for k in ("vel_gain", "vel_integrator_gain"):
                         if k in args:
                             self._vel_gains[k] = float(args[k])
+                    if not all(k in self._vel_gains for k in
+                               ("vel_gain", "vel_integrator_gain")):
+                        return {"ok": False, "target": "odrive", "op": op,
+                                "detail": "CAN set_gain(vel) needs both gains "
+                                          "on first set"}
                     self._send(C_SET_VEL_GAINS, struct.pack("<ff",
                                self._vel_gains["vel_gain"],
                                self._vel_gains["vel_integrator_gain"]))
@@ -279,6 +263,11 @@ class OdriveCanDevice(CanDevice):
                     for k in ("trap_accel_limit", "trap_decel_limit"):
                         if k in args:
                             self._trap[k] = float(args[k])
+                    if not all(k in self._trap for k in
+                               ("trap_accel_limit", "trap_decel_limit")):
+                        return {"ok": False, "target": "odrive", "op": op,
+                                "detail": "CAN set_gain(trap) needs both limits "
+                                          "on first set"}
                     self._send(C_SET_TRAJ_ACCEL_LIMITS, struct.pack("<ff",
                                self._trap["trap_accel_limit"] * self._gear_ratio,
                                self._trap["trap_decel_limit"] * self._gear_ratio))
@@ -286,15 +275,18 @@ class OdriveCanDevice(CanDevice):
             elif op == "set_limit":
                 if "vel_limit" in args:
                     self._vel_limit = float(args["vel_limit"])
-                    self._sync_vel_limit()
-                    # TRAP 진행 중 캡 변경 시 setpoint 재발행 → 새 순항속도로 재계획.
-                    if (self._mode == "position_traj"
-                            and int(self._state.get("odrive.state", 0)) == AXIS_CLOSED_LOOP):
-                        self._send(C_SET_INPUT_POS, struct.pack(
-                            "<fhh", self._pos_setpoint + self._pos_offset, 0, 0))
                 if "current_lim" in args:
                     self._cur_lim = float(args["current_lim"])
-                    self._send_limits()
+                if self._vel_limit is None or self._cur_lim is None:
+                    return {"ok": False, "target": "odrive", "op": op,
+                            "detail": "CAN set_limit needs both vel_limit and "
+                                      "current_lim on first set"}
+                self._sync_vel_limit()
+                # TRAP 진행 중 캡 변경 시 setpoint 재발행 → 새 순항속도로 재계획.
+                if (self._mode == "position_traj"
+                        and int(self._state.get("odrive.state", 0)) == AXIS_CLOSED_LOOP):
+                    self._send(C_SET_INPUT_POS, struct.pack(
+                        "<fhh", self._pos_setpoint + self._pos_offset, 0, 0))
             elif op == "set_state":
                 if args.get("state") == "closed_loop":
                     raw = float(self._state.get("odrive.pos", 0.0))

@@ -86,7 +86,9 @@ historical context.
   `stop_mm` commissioning) wait for vehicle assembly.
 - Sensors: **L515=powertrain RGB/depth/IMU, D435i=robot-arm exclusive, US-100=independent safety**.
 - ODrive authority: pp10/cpr60/bw30/vg0.12/vi0.2, node11–16. Use `bl70200_setup.py` and
-  `can_calibrate_all.py`; never use legacy single-axis pp5 `odrive_calibration.py` on real hardware.
+  `can_calibrate_all.py`. The legacy single-axis pp5 `odrive_calibration.py` and
+  `odrive_diff_drive_test.py` were moved to `drive/bl70200/archive/` and hard-stop on import
+  (2026-07-19) — they wrote pp=5 / cpr=30 / UV=8V to NVM.
 - v4 calculation mass is final at **50 kg**; do not schedule an 86 kg rerun.
 - Before work, inspect GitHub and both Jetson checkouts for dirty/ahead/behind state. Preserve all
   teammate untracked and uncommitted files.
@@ -179,7 +181,9 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   bw30·vel_gain 0.12·vel_int 0.2·ignore_illegal_hall_state=True·48V UV40), `bl70200_dual_axis.py`
   (듀얼축 M0+M1 캘리·데모), **CAN 다축 도구**: `can_calibrate_all.py`(node 11~16 일괄 풀캘리 —
   캘리 RAM-only 라 전원 켤 때마다 필요), `can_drive_test.py`(6축 동시 주행 브링업). 레거시 단축
-  테스트: `odrive_calibration.py`, `odrive_*_test.py`(구스크립트 일부 pp=5 하드코딩 — 그대로 쓰지 말 것).
+  테스트: `odrive_*_test.py`(구스크립트 일부 pp=5 하드코딩 — 그대로 쓰지 말 것).
+  `odrive_calibration.py`·`odrive_diff_drive_test.py` 는 pp=5/cpr=30(+UV 8V)을 NVM 에 써서
+  **`archive/` 로 이동·import 시 하드스톱**(2026-07-19 적대적 리뷰 CRITICAL).
 - **drive/x2212_test/** (SunnySky X2212-13 + TLE5012B, **레거시·deprecated** — BL70200 도착 전
   임시 엔코더 테스트모터; 엔코더 기반 X2212 제어는 폐기(실전 BL70200=HALL), ODrive CAN 일반
   실험데이터는 유효 → 「AK + ODrive 동시 CAN」 정본으로 이관):

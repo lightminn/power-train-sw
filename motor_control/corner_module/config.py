@@ -1,9 +1,12 @@
 """코너 모듈 설정값·한계 및 공용 유틸."""
 from dataclasses import dataclass
+import math
 
 
 def clamp(value: float, lo: float, hi: float) -> float:
     """value 를 [lo, hi] 로 제한."""
+    if math.isnan(value):
+        raise ValueError("cannot clamp NaN")
     return max(lo, min(hi, value))
 
 

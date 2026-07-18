@@ -32,13 +32,14 @@ def test_ops_state_estop_cause_defaults_are_empty_strings():
     assert state.estop_detail == ""
 
 
-def _core(clock=None, state=None):
+def _core(clock=None, state=None, **core_kwargs):
     clock = clock or Clock()
     holder = {"state": state or _state()}
     core = OpsBrokerCore(
         {"tok-console": oc.ROLE_CONSOLE, "tok-ctrl": oc.ROLE_CONTROLLER},
         clock=clock,
         state_provider=lambda: holder["state"],
+        **core_kwargs,
     )
     return core, clock, holder
 
@@ -152,6 +153,184 @@ def test_second_mutation_while_pending_is_busy_rejected():
     assert body["status"] == "FINAL_REJECTED"
     assert "busy" in body["detail"]
     core.complete(first.execute.pending_key, True, "ok")
+
+
+def test_estop_preempts_pending_mutation_and_produces_execution_order():
+    core, _, _ = _core()
+    arm = core.handle_line(
+        "c1", oc.ROLE_CONSOLE, _req("tok-console", "arm")
+    )
+    assert arm.execute.action == "arm"
+
+    estop = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "estop", request_id="r-estop", sequence=1),
+    )
+
+    assert json.loads(estop.response)["status"] == "PENDING"
+    assert estop.execute.action == "estop"
+    assert estop.execute.targets == ("/chassis_node/estop",)
+
+
+def test_estop_bypasses_rate_limit_after_authenticated_flood():
+    core, _, _ = _core(rate_limit_per_s=1)
+    core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "status_query", params={"request_id": "x"}),
+    )
+
+    estop = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "estop", request_id="r-estop", sequence=1),
+    )
+
+    assert json.loads(estop.response)["status"] == "PENDING"
+    assert estop.execute.action == "estop"
+
+
+def test_estop_same_request_id_as_completed_hold_executes_instead_of_cache_hit():
+    core, _, _ = _core()
+    hold = core.handle_line(
+        "c1", oc.ROLE_CONSOLE, _req("tok-console", "operator_hold")
+    )
+    core.complete(hold.execute.pending_key, True, "operator hold published")
+
+    estop = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "estop", sequence=1),
+    )
+
+    assert json.loads(estop.response)["status"] == "PENDING"
+    assert estop.execute.action == "estop"
+    assert estop.execute.targets == ("/chassis_node/estop",)
+
+
+def test_same_id_estop_preemption_survives_older_mutation_completion():
+    core, _, _ = _core()
+    hold = core.handle_line(
+        "c1", oc.ROLE_CONSOLE, _req("tok-console", "operator_hold")
+    )
+    estop = core.handle_line(
+        "c1", oc.ROLE_CONSOLE, _req("tok-console", "estop", sequence=1)
+    )
+    assert estop.execute.pending_key != hold.execute.pending_key
+
+    stale = core.complete(
+        hold.execute.pending_key, True, "operator hold published"
+    )
+    assert json.loads(stale)["status"] == "PENDING"
+    assert "superseded" in json.loads(stale)["detail"]
+    blocked = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "operator_resume", request_id="r-2", sequence=1),
+    )
+
+    assert blocked.execute is None
+    assert "busy" in json.loads(blocked.response)["detail"]
+    core.complete(estop.execute.pending_key, True, "estop triggered")
+
+
+def test_retransmitted_estop_has_distinct_completion_identity():
+    core, _, _ = _core()
+    first = core.handle_line(
+        "c1", oc.ROLE_CONSOLE, _req("tok-console", "estop")
+    )
+    second = core.handle_line(
+        "c1", oc.ROLE_CONSOLE, _req("tok-console", "estop", sequence=1)
+    )
+    assert second.execute.pending_key != first.execute.pending_key
+
+    stale = core.complete(
+        first.execute.pending_key, True, "first estop completed"
+    )
+    assert json.loads(stale)["status"] == "PENDING"
+    assert "superseded" in json.loads(stale)["detail"]
+    blocked = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "operator_hold", request_id="r-2", sequence=0),
+    )
+
+    assert blocked.execute is None
+    assert "busy" in json.loads(blocked.response)["detail"]
+    core.complete(second.execute.pending_key, True, "second estop completed")
+
+
+def test_pending_fingerprint_survives_cache_eviction_until_completion():
+    core, _, _ = _core(cache_size=1)
+    hold = core.handle_line(
+        "c1", oc.ROLE_CONSOLE, _req("tok-console", "operator_hold")
+    )
+    core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "estop", request_id="r-estop", sequence=1),
+    )
+    core.complete(hold.execute.pending_key, True, "operator hold published")
+
+    retry = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "operator_hold", sequence=1),
+    )
+
+    assert retry.execute is None
+    body = json.loads(retry.response)
+    assert body["status"] == "FINAL_SUCCESS"
+    assert body["detail"] == "operator hold published"
+
+
+def test_same_request_id_with_different_non_estop_action_is_rejected():
+    core, _, _ = _core()
+    hold = core.handle_line(
+        "c1", oc.ROLE_CONSOLE, _req("tok-console", "operator_hold")
+    )
+    core.complete(hold.execute.pending_key, True, "operator hold published")
+
+    conflict = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "operator_resume", sequence=1),
+    )
+
+    body = json.loads(conflict.response)
+    assert body["status"] == "FINAL_REJECTED"
+    assert "request_id reused" in body["detail"]
+    assert conflict.execute is None
+
+
+def test_same_request_id_with_different_params_is_rejected():
+    core, _, _ = _core()
+    hold = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "operator_hold", params={"reason": "first"}),
+    )
+    core.complete(hold.execute.pending_key, True, "operator hold published")
+
+    conflict = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req(
+            "tok-console", "operator_hold", sequence=1,
+            params={"reason": "different"},
+        ),
+    )
+
+    body = json.loads(conflict.response)
+    assert body["status"] == "FINAL_REJECTED"
+    assert "request_id reused" in body["detail"]
+    assert conflict.execute is None
+
+
+def test_estop_priority_path_keeps_token_and_role_authorization():
+    core, _, _ = _core()
+
+    mismatch = core.handle_line(
+        "c1", oc.ROLE_CONSOLE, _req("tok-ctrl", "estop")
+    )
+    forbidden = core.handle_line(
+        "c2", oc.ROLE_CONTROLLER, _req("tok-ctrl", "estop")
+    )
+
+    assert json.loads(mismatch.response)["detail"] == "token/role mismatch"
+    assert mismatch.execute is None
+    assert json.loads(forbidden.response)["detail"] == "role not authorized"
+    assert forbidden.execute is None
 
 
 def test_sequence_regression_is_rejected():

@@ -51,11 +51,6 @@ class UsbOdriveBackend(Transport):
         # 일부 빌드=axis.motor.fet_thermistor). connect 시 1회 resolve.
         self._fet_therm = (getattr(self._ax, "fet_thermistor", None)
                            or getattr(self._ax.motor, "fet_thermistor", None))
-        # 토크(current) 모드에서도 vel_limit 존중 보장 (무부하 runaway 방지).
-        try:
-            self._ax.controller.config.enable_current_mode_vel_limit = True
-        except Exception:
-            pass
         # fw-v0.5.6 plain Enum → wire I/O 용 int 상수 (0.6.x IntEnum 도 .value 동작)
         self._enums = {
             "IDLE": AxisState.IDLE.value,
@@ -70,7 +65,6 @@ class UsbOdriveBackend(Transport):
             "TRAP_TRAJ": InputMode.TRAP_TRAJ.value,
         }
         self._vel_limit = float(self._ax.controller.config.vel_limit) / self._gear_ratio
-        self._sync_vel_limit()
         # 정적 모터 파라미터 (캘리브레이션 결과) — 1회 읽어 토크 환산/표시에 사용.
         mc = self._ax.motor.config
         self._torque_const = float(getattr(mc, "torque_constant", 0.0))
@@ -136,6 +130,9 @@ class UsbOdriveBackend(Transport):
                 ax.requested_state = self._enums["IDLE"]
             elif op == "set_mode":
                 mode = args["control_mode"]
+                if mode == "torque":
+                    # 명시적 torque 선택 시에만 무부하 runaway 방지 설정을 쓴다.
+                    ax.controller.config.enable_current_mode_vel_limit = True
                 cm = {"position": "POSITION", "position_traj": "POSITION",
                       "velocity": "VELOCITY", "torque": "TORQUE"}[mode]
                 im_def = {"position": "POS_FILTER", "position_traj": "TRAP_TRAJ",
