@@ -1,8 +1,16 @@
-# ARM-CON 배치 구현 계획 — 로봇팔 콘솔 기능 (⏸️ 계획만, 구현 보류)
+# ARM-CON 배치 구현 계획 — 로봇팔 콘솔 기능 (▶️ 착수 2026-07-18, r2)
 
-> **상태: 사용자 지시(2026-07-18)로 계획서만 작성 — A/B/C 프로그램(A2b~C1) 완주 후
-> 또는 별도 지시 시 착수.** 착수 전 필수: ①팀원 gateway WIP(l515_dashboard) 랜딩
-> 여부 재확인(§주의 ⓐ) ②팔 팀 토픽 계약 재검증(아래 조사 스냅샷과 대조).
+> **상태: 사용자 지시(2026-07-18)로 착수.** 착수 전 체크 결과(r2 개정 사유):
+> ①팀원 gateway WIP **미랜딩**(l515_dashboard M 파일 유지 — 파일 충돌 없음, 진행)
+> ②팔 레포 워킹카피 재검증 — `perception_node.py` 미커밋 수정(+19/-4)에도 발행
+> 계약 불변(/detected_objects·/pick_target·raw_image·PCA orientation 유지),
+> `dynamixel_position_node.py` 무변경 ③**:5007 소스 전체 미사용 재확인**
+> ④**중대 발견: 팔 레포에 `stream_node`(raw_image→SRT :5002)와
+> `metadata_sender_node`(:5003, class_name 포함·yaw 없음)가 이미 존재** →
+> **Task 4(arm_video_bridge) 폐기**, Task 1 송신②는 팔 sender와 동일 기본
+> 스키마의 strict superset(yaw_rad·is_pick_target 추가)으로 확정. :5003은
+> 단일 송신 원칙 — 우리 브리지 가동 시 팔 metadata_sender는 미기동(배포 조율,
+> 팔 레포 수정 없음).
 > **For agentic workers:** superpowers:subagent-driven-development 또는 executing-plans.
 > **레포 관례:** Codex 위임(git 금지 — 커밋은 리뷰어) + 3환경 + 젯슨 실기 검증.
 
@@ -65,9 +73,18 @@ read-only 구독 → 기존 콘솔 UDP 텔레메트리 패턴 :5007 + 기존 :50
  "source_age_s":{"dynamixel":0.1,"joints":0.1,"detections":0.4}}
 ```
 
-- 송신 ②: UDP :5003 — 기존 콘솔 metadata.py가 파싱하는 포맷 그대로(착수 시
-  `operator_console/metadata.py` 스키마 확인 후 매핑) + 확장 필드
-  `class_name`·`yaw_rad`(= `2*atan2(z,w)` 정규화 ±π)·`is_pick_target`.
+- 송신 ②: UDP :5003 — **확정(r2)**: 팔 `metadata_sender_node`와 동일 기본 스키마
+  (`schema_version:1`·`capture_sequence`=stamp ns·`capture_stamp_ns`·
+  `frame_width/height`·`frame_id`·`detections[{class_id,class_name,confidence,
+  bbox_xywh,position_m}]`, 상한 2048 B — `operator_console/metadata.py`
+  `parse_metadata`가 이 포맷을 그대로 파싱함을 코드로 확인) + 확장 필드
+  `yaw_rad`(= `2*atan2(z,w)` 정규화 ±π)·`is_pick_target`(latched `/pick_target`과
+  class_id+bbox 정확 일치 시 — best-effort). 콘솔 파서는 미지 필드 관대 →
+  additive 안전. 초과 시 confidence 낮은 검출부터 절단.
+- 구현 분할(레포 관례 — `chassis_telemetry_sender` 패턴): 순수 모듈
+  `powertrain_ros/arm_console_mirror.py`(파싱·변환·페이로드 인코딩, rclpy 무관)
+  + 얇은 노드 `arm_console_bridge_node.py`. 크로스 계약 테스트는 최상위
+  `tests/`(빌드된 페이로드를 콘솔 파서로 직접 파싱 — beacon 계약 테스트 선례).
 - 방어 파싱: `/dynamixel/state` 길이가 5의 배수 아니면 drop+WARN(1 Hz 스로틀),
   개수 상한 8모터, 값 int 범위 검증. 소스별 최신 stamp → `source_age_s`.
 - 페이로드 상한 4096 B(기존 텔레메트리 계약과 동일), 초과 시 dynamixel 우선
@@ -107,22 +124,14 @@ sequence 단조 ②RED ③구현 ④ros 컨테이너 GREEN ⑤커밋.
 
 ---
 
-### Task 4: `arm_video_bridge` — 실시간 화면 최적화 (M)
+### Task 4: ~~`arm_video_bridge`~~ — **폐기 (r2, 2026-07-18)**
 
-**Files:**
-- Create: `ros2/src/powertrain_ros/powertrain_ros/arm_video_bridge_node.py` (+setup entry)
-- Test: `ros2/src/powertrain_ros/test/test_arm_video_bridge.py` (파이프라인 문자열·파라미터 계약 — GStreamer 실행은 실기 몫)
-
-**Interfaces:**
-- `/perception/raw_image` 구독(latest-only 슬롯 — autonomy 노드 워커 패턴 재사용)
-  → GStreamer `appsrc → videoconvert → x264enc(ultrafast, zerolatency,
-  bitrate 파라미터) → h264parse → mpegtsmux → srtsink(listener :5002,
-  latency 60)` — `gst_stream.py`의 검증 설정(Orin NVENC 부재 → SW 인코딩,
-  848×480/15 fps 기본, 파라미터화) 재사용.
-- 파라미터: `source_topic`(기본 raw_image — debug_image로 전환 가능),
-  `width/height/fps/bitrate_kbps`, `srt_port`(기본 5002).
-- 콘솔 수신측 작업 0(기존 D435i 패널). 오버레이는 :5003 분리 원칙(영상 지연
-  최소 — L515 관례) — debug_image 스트리밍은 폴백 옵션으로만.
+**폐기 사유:** 착수 전 체크에서 팔 레포
+`robot_arm_perception/stream_node.py`(raw_image→appsrc→SRT listener :5002,
+setup entry `stream_node`)가 이미 존재함을 확인 — ④실시간 화면은 팔 스택의
+stream_node + 우리 콘솔의 기존 D435i 패널(:5002 수신)로 이미 충족된다.
+중복 구현 대신 Task 5에서 배포 확인(팔 stream_node 기동 → 콘솔 수신 육안)만
+수행한다. 우리 레포 신규 코드 0.
 
 ---
 
