@@ -28,3 +28,12 @@ def test_compose_chassis_service_is_persistent_and_explicit_about_stop_mm():
     assert "wp5_control.launch.py stop_mm:=$$STOP_MM" in source
     assert "STOP_MM missing" in source
     assert "us100_safety" in source
+
+
+def test_wp5_launch_shuts_down_whole_stack_when_any_node_dies():
+    # 반쪽 생존 금지(07-18 실측: chassis만 죽고 us100은 살아 unhealthy 방치)
+    # — 노드 사망 = launch 종료 = compose restart 전체 복구.
+    source = (PACKAGE / "launch/wp5_control.launch.py").read_text(
+        encoding="utf-8"
+    )
+    assert source.count("on_exit=Shutdown()") == 2

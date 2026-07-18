@@ -1,11 +1,15 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction
+from launch.actions import DeclareLaunchArgument, GroupAction, Shutdown
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node, SetParameter
 from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
+    # 두 노드 모두 on_exit=Shutdown: 하나라도 죽으면 launch 전체가 내려간다.
+    # 반쪽(us100만 생존)으로 계속 돌면 supervisor(compose restart / HIL
+    # 운영자)가 결함을 못 보고 지나친다 — 2026-07-18 실측: chassis가
+    # CanOwnershipError로 죽었는데 컨테이너는 unhealthy인 채 살아있었다.
     return LaunchDescription([
         DeclareLaunchArgument(
             "stop_mm",
@@ -15,6 +19,7 @@ def generate_launch_description():
             package="powertrain_ros",
             executable="us100_safety",
             output="screen",
+            on_exit=Shutdown(),
             parameters=[{
                 "stop_mm": ParameterValue(
                     LaunchConfiguration("stop_mm"),
@@ -88,6 +93,7 @@ def generate_launch_description():
                 package="powertrain_ros",
                 executable="chassis",
                 output="screen",
+                on_exit=Shutdown(),
             ),
         ]),
     ])
