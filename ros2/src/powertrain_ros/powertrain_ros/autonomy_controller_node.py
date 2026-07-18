@@ -11,6 +11,7 @@ import math
 import os
 import sys
 import threading
+import time
 
 import numpy as np
 import rclpy
@@ -46,6 +47,10 @@ from powertrain_autonomy.controller import (  # noqa: E402
     assist_correction_from_terrain,
     profile_by_name,
 )
+from powertrain_autonomy.degradation import (  # noqa: E402
+    DegradationFsm,
+    DegradationStage,
+)
 from powertrain_autonomy.terrain import (  # noqa: E402
     BaseToCameraExtrinsic,
     BodyTilt,
@@ -55,7 +60,9 @@ from powertrain_autonomy.terrain import (  # noqa: E402
 )
 from powertrain_autonomy.terrain.depth_quality import (  # noqa: E402
     CameraIntrinsics,
+    analyze_depth_quality,
 )
+from powertrain_observability.client import EventClient  # noqa: E402
 
 
 _TARGET_HEIGHT = 60
@@ -107,7 +114,7 @@ def _wrap(angle: float) -> float:
 
 
 class AutonomyControllerNode(Node):
-    def __init__(self, *, parameter_overrides=None):
+    def __init__(self, *, parameter_overrides=None, event_client=None):
         super().__init__(
             "autonomy_controller",
             parameter_overrides=parameter_overrides,
@@ -134,6 +141,10 @@ class AutonomyControllerNode(Node):
             )
         )
         self.controller = AutonomyController(profile, controller_config)
+        self.degradation = DegradationFsm(clock=self._now_s)
+        self._event_client = (
+            event_client if event_client is not None else EventClient()
+        )
         self.estimator = TerrainEstimator()
         self.extrinsic = BaseToCameraExtrinsic(
             x_m=float(self.get_parameter("camera_x_m").value),
@@ -171,6 +182,15 @@ class AutonomyControllerNode(Node):
         self._depth_worker_join_timeout_s = 1.0
         self._gate: ProfileGate | None = None
         self._diagnostics: DriveDiagnostics | None = None
+        self._previous_odom_xy: tuple[float, float] | None = None
+        self._traveled_m = 0.0
+        self._depth_quality_snapshot: tuple[
+            float | None,
+            float | None,
+        ] = (None, None)
+        self._depth_quality_seen = False
+        self._degradation_output = None
+        self._last_degradation_stage = DegradationStage.NORMAL
 
         self.pub_cmd = self.create_publisher(
             Twist,
@@ -190,6 +210,11 @@ class AutonomyControllerNode(Node):
         self.pub_assist_correction = self.create_publisher(
             String,
             "/autonomy/assist_correction",
+            10,
+        )
+        self.pub_degradation_state = self.create_publisher(
+            String,
+            "/autonomy/degradation_state",
             10,
         )
 
@@ -236,6 +261,10 @@ class AutonomyControllerNode(Node):
             10,
         )
         self.create_timer(1.0 / tick_hz, self._tick)
+        self._degradation_timer = self.create_timer(
+            1.0,
+            self._publish_degradation_state,
+        )
         self._depth_worker_thread = threading.Thread(
             target=self._depth_worker_loop,
             name="autonomy-depth-worker",
@@ -328,6 +357,16 @@ class AutonomyControllerNode(Node):
             _stamp_s(message.header.stamp),
         )
         self._odom = odom
+        current_xy = odom[:2]
+        if all(math.isfinite(value) for value in current_xy):
+            previous_xy = getattr(self, "_previous_odom_xy", None)
+            if previous_xy is not None:
+                self._traveled_m = getattr(self, "_traveled_m", 0.0) \
+                    + math.hypot(
+                        current_xy[0] - previous_xy[0],
+                        current_xy[1] - previous_xy[1],
+                    )
+            self._previous_odom_xy = current_xy
         self._motion_snapshot = (odom, self._tilt, self._imu_stamp_s)
 
     def _on_arm_status(self, message: ArmStatus) -> None:
@@ -435,6 +474,8 @@ class AutonomyControllerNode(Node):
         try:
             raw = self._decode_depth(message)
         except ValueError as exc:
+            self._depth_quality_snapshot = (None, received_at_s)
+            self._depth_quality_seen = True
             with self._depth_condition:
                 if self._depth_stop:
                     return
@@ -452,6 +493,21 @@ class AutonomyControllerNode(Node):
             intrinsics=intrinsics,
             stamp_s=_stamp_s(message.header.stamp),
         )
+        try:
+            quality = analyze_depth_quality(
+                sampled,
+                depth_scale_m=frame.depth_scale_m,
+                intrinsics=frame.intrinsics,
+                frame_stamp_s=frame.stamp_s,
+            )
+        except (TypeError, ValueError):
+            self._depth_quality_snapshot = (None, received_at_s)
+        else:
+            self._depth_quality_snapshot = (
+                1.0 - quality.valid_ratio,
+                received_at_s,
+            )
+        self._depth_quality_seen = True
         with self._terrain_state_lock:
             previous_depth_pose = self._previous_depth_pose
         try:
@@ -526,6 +582,129 @@ class AutonomyControllerNode(Node):
             pitch_rad=tilt.pitch_rad,
         )
 
+    def _fresh_diagnostics(self, now_s: float) -> DriveDiagnostics | None:
+        diagnostics = getattr(self, "_diagnostics", None)
+        if diagnostics is None:
+            return None
+        stamp_s = diagnostics.stamp_s
+        if (
+            not math.isfinite(stamp_s)
+            or stamp_s > now_s + 0.1
+            or now_s - stamp_s > self.controller.config.diagnostics_stale_s
+        ):
+            return None
+        return diagnostics
+
+    def _depth_quality(self, now_s: float) -> float | None:
+        if not getattr(self, "_depth_quality_seen", False):
+            # Before the first analyzable frame, terrain_missing already owns
+            # fail-closed startup.  Do not poison the FSM's dropout hysteresis.
+            return 0.0
+        value, stamp_s = getattr(
+            self,
+            "_depth_quality_snapshot",
+            (None, None),
+        )
+        if (
+            stamp_s is None
+            or not math.isfinite(stamp_s)
+            or stamp_s > now_s + 0.1
+            or now_s - stamp_s > self.controller.config.terrain_stale_s
+        ):
+            return None
+        return value
+
+    def _degradation_diagnostics(
+        self,
+        now_s: float,
+    ) -> DriveDiagnostics:
+        source = self._fresh_diagnostics(now_s)
+        slip_candidate = bool(
+            source is not None and source.slip_candidate
+        )
+        stuck_candidate = bool(
+            source is not None and source.stuck_candidate
+        )
+        output = self.degradation.update(
+            depth_quality=self._depth_quality(now_s),
+            slip_candidate=slip_candidate,
+            stuck_candidate=stuck_candidate,
+            traveled_m=getattr(self, "_traveled_m", 0.0),
+            now_s=now_s,
+        )
+        previous_stage = getattr(
+            self,
+            "_last_degradation_stage",
+            DegradationStage.NORMAL,
+        )
+        self._degradation_output = output
+        if output.stage is not previous_stage:
+            self._emit_degradation_event(previous_stage, output, now_s)
+        self._last_degradation_stage = output.stage
+
+        degradation_cap = (
+            self.controller.profile.max_speed_m_s * output.speed_scale
+        )
+        source_cap = math.inf if source is None else source.speed_cap_m_s
+        speed_cap = (
+            min(float(source_cap), degradation_cap)
+            if math.isfinite(float(source_cap))
+            else degradation_cap
+        )
+        return DriveDiagnostics(
+            stamp_s=now_s,
+            slip_candidate=slip_candidate,
+            stuck_candidate=stuck_candidate or output.request_hold,
+            speed_cap_m_s=speed_cap,
+        )
+
+    def _publish_degradation_state(self) -> None:
+        output = getattr(self, "_degradation_output", None)
+        publisher = getattr(self, "pub_degradation_state", None)
+        if output is None or publisher is None:
+            return
+        publisher.publish(
+            String(
+                data=json.dumps(
+                    {
+                        "stage": output.stage.value,
+                        "speed_scale": output.speed_scale,
+                        "reasons": list(output.reasons),
+                        "stamp_s": self._now_s(),
+                    },
+                    allow_nan=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+            )
+        )
+
+    def _emit_degradation_event(self, previous_stage, output, now_s) -> bool:
+        client = getattr(self, "_event_client", None)
+        if client is None:
+            return False
+        event = {
+            "schema_version": 1,
+            "wall_time_ns": time.time_ns(),
+            "monotonic_ns": time.monotonic_ns(),
+            "source": "autonomy_controller_node",
+            "event_type": "DEGRADATION",
+            "severity": "WARN" if output.request_hold else "INFO",
+            "payload": {
+                "from_stage": previous_stage.value,
+                "to_stage": output.stage.value,
+                "speed_scale": output.speed_scale,
+                "request_hold": output.request_hold,
+                "handover_wait": output.handover_wait,
+                "reasons": list(output.reasons),
+                "stamp_s": now_s,
+            },
+        }
+        try:
+            return bool(client.emit(event))
+        except Exception:
+            return False
+
     def _tick(self) -> None:
         now_s = self._now_s()
         terrain, terrain_seen = self._terrain_snapshot
@@ -555,7 +734,7 @@ class AutonomyControllerNode(Node):
             terrain=terrain,
             motion=self._motion_state(now_s),
             gate=self._gate,
-            diagnostics=self._diagnostics,
+            diagnostics=self._degradation_diagnostics(now_s),
         )
         self.pub_controller_state.publish(
             String(

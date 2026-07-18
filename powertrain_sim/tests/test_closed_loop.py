@@ -11,6 +11,10 @@ from types import SimpleNamespace
 import pytest
 
 from powertrain_autonomy.controller import ControllerDecision, DriveDiagnostics
+from powertrain_autonomy.degradation import (
+    DegradationOutput,
+    DegradationStage,
+)
 from powertrain_ros.state_estimation import (
     DiagnosticSnapshot,
     PoseSnapshot,
@@ -115,6 +119,8 @@ def test_dev_seed_closed_loop_moves_without_fail_open_and_is_deterministic(tmp_p
 def test_driver_maps_only_production_state_diagnostics_into_controller():
     scenario = parse_scenario(_flat_document())
     driver = TerrainAutonomyDriver(scenario)
+    driver._depth_quality = 0.0
+    driver._depth_quality_stamp_s = scenario.clock.start_s + 0.25
 
     class CaptureController:
         diagnostics = None
@@ -145,8 +151,135 @@ def test_driver_maps_only_production_state_diagnostics_into_controller():
         stamp_s=scenario.clock.start_s + 0.25,
         slip_candidate=True,
         stuck_candidate=False,
-        speed_cap_m_s=0.42,
+        # The slip candidate enters WP9 SLOWDOWN, so profile 0.8 * 0.5
+        # is stricter than the source diagnostic cap of 0.42.
+        speed_cap_m_s=0.40,
     )
+
+
+def test_driver_waits_for_first_depth_quality_before_degrading():
+    scenario = parse_scenario(_flat_document())
+    driver = TerrainAutonomyDriver(scenario)
+    snapshot = _snapshot_with_diagnostics(
+        DiagnosticSnapshot(
+            slip_candidate=False,
+            stuck_candidate=False,
+            one_wheel_mismatch=False,
+            warning_codes=(),
+            affected_wheels=(),
+            terrain_profile="default",
+            terrain_speed_cap=math.inf,
+            wheel_yaw_rate_rad_s=0.0,
+            imu_yaw_rate_rad_s=0.0,
+        )
+    )
+
+    driver.command(0.02, snapshot)
+
+    assert driver._degradation_output.stage is DegradationStage.NORMAL
+    assert driver._degradation_output.reasons == ()
+
+
+def test_driver_maps_degradation_output_through_existing_diagnostics_seam():
+    scenario = parse_scenario(_flat_document())
+    driver = TerrainAutonomyDriver(scenario, clock=lambda: 123.0)
+
+    class CaptureDegradation:
+        inputs = None
+
+        def update(self, **kwargs):
+            self.inputs = kwargs
+            return DegradationOutput(
+                stage=DegradationStage.SLOWDOWN,
+                speed_scale=0.5,
+                request_hold=True,
+                handover_wait=False,
+                reasons=("depth_dropout", "stuck_candidate"),
+            )
+
+    class CaptureController:
+        diagnostics = None
+
+        def decide(self, now_s, **kwargs):
+            self.diagnostics = kwargs["diagnostics"]
+            return ControllerDecision(now_s, 0.0, 0.0, "CONTROLLED_HOLD", ())
+
+    degradation = CaptureDegradation()
+    controller = CaptureController()
+    driver.degradation = degradation
+    driver.controller = controller
+    driver._depth_quality = 0.40
+    driver._depth_quality_stamp_s = scenario.clock.start_s + 0.25
+    driver._depth_quality_seen = True
+    snapshot = _snapshot_with_diagnostics(
+        DiagnosticSnapshot(
+            slip_candidate=True,
+            stuck_candidate=False,
+            one_wheel_mismatch=True,
+            warning_codes=("response_ratio",),
+            affected_wheels=("front_left",),
+            terrain_profile="default",
+            terrain_speed_cap=0.42,
+            wheel_yaw_rate_rad_s=0.0,
+            imu_yaw_rate_rad_s=0.0,
+        )
+    )
+
+    driver.command(0.25, snapshot)
+
+    now_s = scenario.clock.start_s + 0.25
+    assert degradation.inputs == {
+        "depth_quality": 0.40,
+        "slip_candidate": True,
+        "stuck_candidate": False,
+        "traveled_m": snapshot.distance_m,
+        "now_s": now_s,
+    }
+    assert driver._degradation_output.stage is DegradationStage.SLOWDOWN
+    assert controller.diagnostics == DriveDiagnostics(
+        stamp_s=now_s,
+        slip_candidate=True,
+        stuck_candidate=True,
+        speed_cap_m_s=0.40,
+    )
+
+
+def test_smog_dev_seed_observes_fsm_slowdown_without_fail_open(tmp_path):
+    scenario = parse_scenario(_depth_degradation_document(seed=2))
+    driver = TerrainAutonomyDriver(scenario)
+    observations = []
+
+    def capture_degradation(elapsed_s, snapshot):
+        command = driver.command(elapsed_s, snapshot)
+        output = driver._degradation_output
+        if output is not None:
+            observations.append(
+                (elapsed_s, output.stage, driver._depth_quality)
+            )
+        return command
+
+    report = run_scenario(
+        scenario,
+        tmp_path / "smog-degradation-fsm",
+        command_source=capture_degradation,
+        hold_state_source=driver.hold_state,
+        depth_tap=driver.on_depth,
+    )
+
+    smog_window = [
+        (stage, depth_quality)
+        for elapsed_s, stage, depth_quality in observations
+        if 0.8 <= elapsed_s <= 2.4
+    ]
+    assert smog_window
+    assert any(
+        stage is DegradationStage.SLOWDOWN
+        and depth_quality is not None
+        and depth_quality >= 0.35
+        for stage, depth_quality in smog_window
+    )
+    assert report.fail_open_count == 0
+    assert report.passed, report.reasons
 
 
 def test_mu_point_three_patch_measured_state_diagnostic_acceptance(tmp_path):

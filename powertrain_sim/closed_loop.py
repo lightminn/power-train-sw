@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+from typing import Callable
 
 from chassis.kinematics import ChassisGeometry, default_geometry
 from powertrain_autonomy.controller import (
@@ -15,6 +16,7 @@ from powertrain_autonomy.controller import (
     MotionState,
     ProfileGate,
 )
+from powertrain_autonomy.degradation import DegradationFsm
 from powertrain_autonomy.terrain import (
     BaseToCameraExtrinsic,
     BodyTilt,
@@ -24,6 +26,7 @@ from powertrain_autonomy.terrain import (
     TerrainEstimatorConfig,
     TerrainFrame,
 )
+from powertrain_autonomy.terrain.depth_quality import analyze_depth_quality
 from powertrain_ros.state_estimation import StateSnapshot
 
 from .fixtures import DepthFrame
@@ -73,10 +76,16 @@ class TerrainAutonomyDriver:
         profile: DriveProfile = EMPTY_STOWED,
         controller_config: AutonomyControllerConfig | None = None,
         estimator_config: TerrainEstimatorConfig | None = None,
+        clock: Callable[[], float] | None = None,
     ) -> None:
         self.scenario = scenario
         self.geometry = geometry or default_geometry()
         self.controller = AutonomyController(profile, controller_config)
+        self._profile_speed_cap_m_s = profile.max_speed_m_s
+        self._depth_quality_stale_s = self.controller.config.terrain_stale_s
+        self.degradation = DegradationFsm(
+            clock=clock or (lambda: self.scenario.clock.start_s),
+        )
         self.estimator = TerrainEstimator(
             estimator_config or _scenario_estimator_config(scenario),
             geometry=self.geometry,
@@ -100,6 +109,10 @@ class TerrainAutonomyDriver:
         self._terrain: TerrainEstimate | None = None
         self._decision: ControllerDecision | None = None
         self._decision_terrain: TerrainEstimate | None = None
+        self._depth_quality: float | None = None
+        self._depth_quality_stamp_s: float | None = None
+        self._depth_quality_seen = False
+        self._degradation_output = None
 
     def _odometry_delta(self, snapshot: StateSnapshot) -> OdometryDelta:
         pose = snapshot.pose
@@ -127,6 +140,20 @@ class TerrainAutonomyDriver:
             intrinsics=frame.intrinsics,
             stamp_s=frame.stamp_s,
         )
+        self._depth_quality_seen = True
+        try:
+            quality = analyze_depth_quality(
+                frame.depth_roi,
+                depth_scale_m=frame.depth_scale_m,
+                intrinsics=frame.intrinsics,
+                frame_stamp_s=frame.stamp_s,
+            )
+        except (TypeError, ValueError):
+            self._depth_quality = None
+            self._depth_quality_stamp_s = frame.stamp_s
+        else:
+            self._depth_quality = 1.0 - quality.valid_ratio
+            self._depth_quality_stamp_s = frame.stamp_s
         try:
             estimate = self.estimator.update(
                 terrain_frame,
@@ -172,11 +199,39 @@ class TerrainAutonomyDriver:
         )
         # Simulation assumption: the arm lock heartbeat is fresh on every tick.
         gate = ProfileGate(stamp_s=now_s, status="STOWED_LOCKED")
+        depth_quality = self._depth_quality
+        depth_stamp_s = self._depth_quality_stamp_s
+        if not self._depth_quality_seen:
+            depth_quality = 0.0
+        elif (
+            depth_stamp_s is None
+            or not math.isfinite(depth_stamp_s)
+            or depth_stamp_s > now_s + 0.1
+            or now_s - depth_stamp_s > self._depth_quality_stale_s
+        ):
+            depth_quality = None
+        state_diagnostics = snapshot.diagnostics
+        self._degradation_output = self.degradation.update(
+            depth_quality=depth_quality,
+            slip_candidate=state_diagnostics.slip_candidate,
+            stuck_candidate=state_diagnostics.stuck_candidate,
+            traveled_m=snapshot.distance_m,
+            now_s=now_s,
+        )
+        degradation_cap = (
+            self._profile_speed_cap_m_s
+            * self._degradation_output.speed_scale
+        )
+        source_cap = state_diagnostics.terrain_speed_cap
+        speed_cap = (
+            min(float(source_cap), degradation_cap)
+            if math.isfinite(float(source_cap))
+            else degradation_cap
+        )
         # hold_state()의 should_hold는 이 결정이 실제로 소비한 terrain 기준이어야
         # 한다 — depth_tap이 같은 tick 후반에 terrain을 갱신하므로, 갱신 후
         # 값으로 비교하면 전이 tick마다 1-tick 가짜 fail-open이 계측된다.
         self._decision_terrain = self._terrain
-        state_diagnostics = snapshot.diagnostics
         self._decision = self.controller.decide(
             now_s,
             terrain=self._terrain,
@@ -185,8 +240,11 @@ class TerrainAutonomyDriver:
             diagnostics=DriveDiagnostics(
                 stamp_s=now_s,
                 slip_candidate=state_diagnostics.slip_candidate,
-                stuck_candidate=state_diagnostics.stuck_candidate,
-                speed_cap_m_s=state_diagnostics.terrain_speed_cap,
+                stuck_candidate=(
+                    state_diagnostics.stuck_candidate
+                    or self._degradation_output.request_hold
+                ),
+                speed_cap_m_s=speed_cap,
             ),
         )
         return self._decision.v_m_s, self._decision.omega_rad_s

@@ -17,6 +17,10 @@ from sensor_msgs.msg import CameraInfo, Image, Imu
 from std_msgs.msg import String
 
 from robot_arm_msgs.msg import ArmStatus
+from powertrain_autonomy.degradation import (
+    DegradationOutput,
+    DegradationStage,
+)
 from powertrain_ros.autonomy_controller_node import AutonomyControllerNode
 
 
@@ -94,8 +98,10 @@ def _imu(node):
     return message
 
 
-def _odom(node):
+def _odom(node, *, x_m=0.0, y_m=0.0):
     message = _stamp(node, Odometry())
+    message.pose.pose.position.x = x_m
+    message.pose.pose.position.y = y_m
     message.pose.pose.orientation.w = 1.0
     return message
 
@@ -118,6 +124,7 @@ class Harness:
         self.command_times = []
         self.controller_states = []
         self.terrain_states = []
+        self.degradation_states = []
         self.assist_corrections = []
         self.node.create_subscription(
             Twist, "/autonomy/cmd_vel", self._record_command, 10
@@ -127,6 +134,12 @@ class Harness:
         )
         self.node.create_subscription(
             String, "/autonomy/terrain_state", self.terrain_states.append, 10
+        )
+        self.node.create_subscription(
+            String,
+            "/autonomy/degradation_state",
+            self.degradation_states.append,
+            10,
         )
         self.node.create_subscription(
             String,
@@ -179,6 +192,7 @@ class Harness:
         self.command_times.clear()
         self.controller_states.clear()
         self.terrain_states.clear()
+        self.degradation_states.clear()
         self.assist_corrections.clear()
 
     def pump_terrain_until(
@@ -212,13 +226,38 @@ class Harness:
         self.executor.shutdown()
 
 
-def _controller(enabled=True, drive_profile="EMPTY_STOWED"):
+def _controller(
+    enabled=True,
+    drive_profile="EMPTY_STOWED",
+    *,
+    event_client=None,
+):
     return AutonomyControllerNode(
         parameter_overrides=[
             Parameter("enabled", value=enabled),
             Parameter("drive_profile", value=drive_profile),
-        ]
+        ],
+        event_client=event_client,
     )
+
+
+class _CaptureEventClient:
+    def __init__(self):
+        self.events = []
+
+    def emit(self, event):
+        self.events.append(event)
+        return True
+
+
+class _CaptureDegradation:
+    def __init__(self, output):
+        self.output = output
+        self.inputs = []
+
+    def update(self, **kwargs):
+        self.inputs.append(kwargs)
+        return self.output
 
 
 def test_synthetic_flat_track_inputs_publish_valid_twist_when_enabled():
@@ -556,6 +595,93 @@ def test_diagnostics_null_speed_cap_maps_to_unlimited():
         assert math.isinf(controller._diagnostics.speed_cap_m_s)
     finally:
         controller.destroy_node()
+
+
+def test_degradation_wiring_uses_depth_odom_and_existing_controller_seam(
+    monkeypatch,
+):
+    event_client = _CaptureEventClient()
+    controller = _controller(enabled=False, event_client=event_client)
+    harness = Harness(controller)
+    try:
+        harness.settle()
+        controller._on_camera_info(_camera_info(controller))
+        controller._on_imu(_imu(controller))
+        controller._on_odom(_odom(controller, x_m=0.0, y_m=0.0))
+        controller._on_odom(_odom(controller, x_m=3.0, y_m=4.0))
+        raw = np.full((60, 80), 1500, dtype=np.uint16)
+        raw[:, :32] = 0
+        controller._process_depth_now(_depth(controller, raw=raw))
+        now_s = controller._now_s()
+        controller._on_diagnostics(
+            String(
+                data=json.dumps(
+                    {
+                        "stamp_s": now_s,
+                        "slip_candidate": True,
+                        "stuck_candidate": False,
+                        "speed_cap_m_s": 0.42,
+                    }
+                )
+            )
+        )
+
+        slowed = DegradationOutput(
+            stage=DegradationStage.SLOWDOWN,
+            speed_scale=0.5,
+            request_hold=False,
+            handover_wait=False,
+            reasons=("depth_dropout",),
+        )
+        degradation = _CaptureDegradation(slowed)
+        controller.degradation = degradation
+        captured = []
+        real_decide = controller.controller.decide
+
+        def capture_decide(now_s, **kwargs):
+            captured.append(kwargs["diagnostics"])
+            return real_decide(now_s, **kwargs)
+
+        monkeypatch.setattr(controller.controller, "decide", capture_decide)
+        controller._tick()
+
+        assert degradation.inputs[-1]["depth_quality"] == pytest.approx(0.40)
+        assert degradation.inputs[-1]["slip_candidate"] is True
+        assert degradation.inputs[-1]["stuck_candidate"] is False
+        assert degradation.inputs[-1]["traveled_m"] == pytest.approx(5.0)
+        assert captured[-1].speed_cap_m_s == pytest.approx(0.40)
+        assert captured[-1].slip_candidate is True
+        assert captured[-1].stuck_candidate is False
+
+        degradation.output = DegradationOutput(
+            stage=DegradationStage.HOLD_RECOVERY,
+            speed_scale=0.0,
+            request_hold=True,
+            handover_wait=False,
+            reasons=("depth_dropout", "stuck_candidate"),
+        )
+        controller._tick()
+
+        assert captured[-1].speed_cap_m_s == 0.0
+        assert captured[-1].stuck_candidate is True
+        assert [event["event_type"] for event in event_client.events] == [
+            "DEGRADATION",
+            "DEGRADATION",
+        ]
+        assert event_client.events[-1]["payload"]["to_stage"] \
+            == "HOLD_RECOVERY"
+
+        controller._publish_degradation_state()
+        harness.spin_until(lambda: bool(harness.degradation_states))
+        payload = json.loads(harness.degradation_states[-1].data)
+        assert set(payload) == {"stage", "speed_scale", "reasons", "stamp_s"}
+        assert payload["stage"] == "HOLD_RECOVERY"
+        assert payload["speed_scale"] == 0.0
+        assert payload["reasons"] == ["depth_dropout", "stuck_candidate"]
+        assert math.isfinite(payload["stamp_s"])
+        assert controller._degradation_timer.timer_period_ns == 1_000_000_000
+    finally:
+        harness.close(controller)
 
 
 def test_invalid_drive_profile_fails_startup():
