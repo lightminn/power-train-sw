@@ -56,6 +56,17 @@ scripts/wp8_handshake_e2e.sh  (젯슨 호스트)
 
 ## 3. 시나리오 (Phase 1 — 실팔, headless 한계까지)
 
+> **개정(07-19 구현 리뷰)**: v2 supervisor는 READY→DRIVE 전이에 팔의 신선한
+> 잠금자세 heartbeat(`STOWED_LOCKED`/`CARRYING_LOCKED`, 0.5 s)를 요구한다
+> (`mission.py` READY 분기). 실팔 headless는 TF 부재로 `STOWED_LOCKED`에 도달
+> 못 할 수 있고, 그 경우 chassis는 `STOW_REQUEST` 유지 + DRIVING 미발행 +
+> 서비스 거부 = **fail-closed가 정답 동작**이다. 판정은 2분기: ⓐ잠금 heartbeat
+> 도달 시 아래 표의 conjunction 경로 ⓑ미도달 시 fail-closed 경로(작업 수락·
+> ArrivalStatus·MISSION_STOP 전무 + 거부 근거 marker)를 PASS로 인정하고, 표
+> 4~6(SIGSTOP/재개)은 ⓐ에서만 수행한다. ⓑ가 나오면 표 2~6의 실증은 협조
+> 세션(실서보, TF 가용)으로 이월된다. baseline의 "DRIVING 발행" 기대도 같은
+> 이유로 "작업 불허 모드(LOCK_MODES ∪ STOW_REQUEST) 발행"으로 정정한다.
+
 | # | 자극 | 기대(단언) |
 |---|---|---|
 | 1 | chassis FAKE 시동, DRIVING 발행 시작 | 팔 heartbeat 수신(10 Hz), 팔 상태 IDLE/LOCKED — 작업 미개시 |

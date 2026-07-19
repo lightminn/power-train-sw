@@ -71,6 +71,7 @@ setup(
             "ops_broker = powertrain_ros.ops_broker_node:main",
             "chassis_telemetry = powertrain_ros.chassis_telemetry_sender_node:main",
             "arm_console_bridge = powertrain_ros.arm_console_bridge_node:main",
+            "wp8_handshake_probe = powertrain_ros.wp8_handshake_probe:main",
         ],
     },
 )
