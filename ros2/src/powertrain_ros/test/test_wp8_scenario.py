@@ -158,16 +158,42 @@ def test_pickup_rejects_arrival_without_mission_stop_as_violation():
     assert wp8_scenario.pickup_branch(events) == "violation"
 
 
-def test_pickup_rejects_arrival_before_mission_stop():
+def test_pickup_accepts_same_tick_skew_stop_after_arrival():
+    # MISSION_STOP 모드와 arrival은 같은 supervisor tick에서 함께 발행되고
+    # 토픽 간 DDS 전달 순서는 보장되지 않는다(07-19 실기 24 ms skew 실측).
+    events = [
+        _event(0.100, "arrival", contract.ARRIVED_PICKUP, 7),
+        _event(0.124, "chassis_mode", contract.MODE_MISSION_STOP),
+        _event(0.8, "arm_status", contract.ARM_WORK_READY, 7),
+    ]
+
+    assert _all_ok(judge_pickup_conjunction(events))
+    assert wp8_scenario.pickup_branch(events) == "work_accepted"
+
+
+def test_pickup_rejects_stop_long_after_arrival():
     events = [
         _event(0.1, "arrival", contract.ARRIVED_PICKUP, 7),
-        _event(0.2, "chassis_mode", contract.MODE_MISSION_STOP),
-        _event(0.3, "arm_status", contract.ARM_WORK_READY, 7),
+        _event(2.5, "chassis_mode", contract.MODE_MISSION_STOP),
+        _event(2.8, "arm_status", contract.ARM_WORK_READY, 7),
     ]
 
     findings = judge_pickup_conjunction(events)
 
-    assert any(f.check == "stop_before_arrival" and not f.ok for f in findings)
+    assert any(f.check == "stop_covers_arrival" and not f.ok for f in findings)
+
+
+def test_pickup_rejects_drive_mode_between_arrival_and_stop():
+    events = [
+        _event(0.10, "arrival", contract.ARRIVED_PICKUP, 7),
+        _event(0.20, "chassis_mode", contract.MODE_DRIVING),
+        _event(0.30, "chassis_mode", contract.MODE_MISSION_STOP),
+        _event(0.8, "arm_status", contract.ARM_WORK_READY, 7),
+    ]
+
+    findings = judge_pickup_conjunction(events)
+
+    assert any(f.check == "stop_covers_arrival" and not f.ok for f in findings)
 
 
 def test_pickup_rejects_inconsistent_arrival_mission_ids():

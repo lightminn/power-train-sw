@@ -114,12 +114,17 @@ check_group_gone() {
   if [[ -z "$pgid" ]]; then
     return 0
   fi
-  if docker exec "$container" bash -lc \
-      "kill -0 -- -${pgid} >/dev/null 2>&1" >/dev/null 2>&1; then
-    echo "잔류 검사: ${label} PGID ${pgid} 잔류"
-  else
-    echo "잔류 검사: ${label} PGID ${pgid} 없음"
-  fi
+  # SIGKILL 직후에는 좀비가 reap되기 전이라 kill -0가 잠시 성공한다 — 폴링.
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    if ! docker exec "$container" bash -lc \
+        "kill -0 -- -${pgid} >/dev/null 2>&1" >/dev/null 2>&1; then
+      echo "잔류 검사: ${label} PGID ${pgid} 없음"
+      return 0
+    fi
+    sleep 0.3
+  done
+  echo "잔류 검사: ${label} PGID ${pgid} 잔류"
 }
 
 stop_chassis() {
@@ -153,11 +158,17 @@ cleanup() {
   echo "로그 디렉터리: $LOG_DIR"
   exit "$rc"
 }
-trap cleanup EXIT INT TERM
+# HUP 포함 — SSH 끊김에도 정리가 돌게 한다(07-19 3차: SSH 사망 후 진행 지속).
+trap cleanup EXIT INT TERM HUP
 
 start_chassis() {
   local command
-  command="source /opt/ros/humble/setup.bash && source /workspace/ros2/install/setup.bash && export ROS_DOMAIN_ID=77 && exec setsid bash -lc 'echo \$\$ > ${CHASSIS_PID_FILE}; exec ros2 run powertrain_ros chassis --ros-args -p fake:=true -p safety_required:=false -p contract_v2_verified:=true -p mission_contract_owner:=chassis_supervisor -p mission_id_path:=/tmp/wp8_mission_id'"
+  command="source /opt/ros/humble/setup.bash && source /workspace/ros2/install/setup.bash && export ROS_DOMAIN_ID=77 && exec setsid bash -lc 'echo \$\$ > ${CHASSIS_PID_FILE}; exec ros2 run powertrain_ros chassis --ros-args -p fake:=true -p safety_required:=false -p contract_v2_verified:=true -p mission_contract_owner:=chassis_supervisor -p mission_id_path:=/tmp/wp8_mission_id -p authority_enabled:=true'"
+  # authority_enabled 없이는 WheelStopPredicate가 생성되지 않아(chassis_node
+  # authority 블록 소속) 미션 게이트가 wheel_stop_unqualified로 fail-closed된다.
+  # ⚠️ PID 파일을 먼저 지운다 — 재기동 시 이전 기동의 stale PGID를 읽으면
+  # stop_chassis가 죽은 그룹만 죽여 새 chassis가 누수된다(07-19 3차 실기 사고).
+  docker exec powertrain_ros rm -f "$CHASSIS_PID_FILE" >/dev/null 2>&1 || true
   if ! docker exec -d powertrain_ros bash -lc "$command"; then
     echo "오류: chassis 기동 실패"
     return 1
@@ -203,6 +214,7 @@ start_arm() {
 
   local command
   command="source /opt/ros/humble/setup.bash && source /root/ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=77 && exec setsid bash -lc 'echo \$\$ > ${ARM_PID_FILE}; exec ros2 run dynamixel_control arm_fsm'"
+  docker exec ros2_humble rm -f "$ARM_PID_FILE" >/dev/null 2>&1 || true
   if ! docker exec -d ros2_humble bash -lc "$command"; then
     echo "오류: arm_fsm 기동 실패"
     return 1
@@ -248,15 +260,18 @@ run_probe() {
 }
 
 print_summary() {
-  echo
-  echo "WP8 핸드셰이크 E2E 요약"
-  echo "단계 | 결과 | 상세"
-  echo "--- | --- | ---"
-  local row
-  for row in "${SUMMARY_ROWS[@]}"; do
-    IFS='|' read -r step result detail <<<"$row"
-    echo "$step | $result | $detail"
-  done
+  # SSH가 끊겨도 결과가 남도록 요약을 로그 디렉터리에도 기록한다.
+  {
+    echo
+    echo "WP8 핸드셰이크 E2E 요약"
+    echo "단계 | 결과 | 상세"
+    echo "--- | --- | ---"
+    local row
+    for row in "${SUMMARY_ROWS[@]}"; do
+      IFS='|' read -r step result detail <<<"$row"
+      echo "$step | $result | $detail"
+    done
+  } | tee "$LOG_DIR/summary.txt"
 }
 
 if ! container_running powertrain_ros; then

@@ -38,7 +38,9 @@
 scripts/wp8_handshake_e2e.sh  (젯슨 호스트)
  ├─ docker exec powertrain_ros:  chassis_node  (도메인 77, fake:=true,
  │     contract_v2_verified:=true, mission_contract_owner:=chassis_supervisor,
- │     safety_required:=false — BENCH/FAKE 전용 조합, 프로세스 그룹 신규)
+ │     safety_required:=false, authority_enabled:=true — BENCH/FAKE 전용 조합,
+ │     authority 없이는 WheelStopPredicate 미생성 → wheel_stop_unqualified
+ │     fail-closed(07-19 1차 실기에서 실증), 프로세스 그룹 신규)
  ├─ docker exec ros2_humble:     arm_fsm_node  (도메인 77, 팔 레포 설치본 그대로,
  │     파라미터 기본값 — 수정·주입 없음)
  └─ docker exec powertrain_ros:  wp8_handshake_probe (도메인 77)

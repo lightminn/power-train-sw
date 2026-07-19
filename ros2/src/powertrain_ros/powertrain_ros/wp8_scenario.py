@@ -16,6 +16,11 @@ TOPIC_ARM_STATUS = "arm_status"
 FAULT_SCENARIOS = {"no_response", "late_done", "failed_latch", "dup_done"}
 PICKUP_BRANCHES = {"work_accepted", "fail_closed", "violation"}
 
+# MISSION_STOP 모드와 ArrivalStatus는 같은 supervisor tick에서 함께 발행되며
+# 토픽 간 DDS 전달 순서는 보장되지 않는다(07-19 실기에서 24 ms skew 실측).
+# 이 허용치 안에서 주행(LOCK) 모드가 끼지 않으면 동시 활성으로 인정한다.
+STOP_ARRIVAL_SKEW_TOL_S = 0.5
+
 
 @dataclass(frozen=True)
 class Event:
@@ -138,9 +143,22 @@ def _pickup_evidence(events: Iterable[Event]) -> dict[str, object]:
         and event.value == contract.ARRIVED_PICKUP
     ]
     arrival = arrivals[0] if arrivals else None
-    stop_before_arrival = (
-        stop is not None and arrival is not None and stop.t < arrival.t
-    )
+    # MISSION_STOP 모드와 arrival은 같은 supervisor tick에서 함께 발행되고,
+    # 서로 다른 토픽 간 DDS 전달 순서는 보장되지 않는다(07-19 실기 24 ms skew).
+    # 강제 가능한 계약은 "동시 활성"이므로, 사이에 주행(LOCK) 모드가 관측되지
+    # 않는 작은 skew는 허용한다.
+    stop_covers_arrival = False
+    if stop is not None and arrival is not None:
+        if stop.t < arrival.t:
+            stop_covers_arrival = True
+        elif stop.t - arrival.t <= STOP_ARRIVAL_SKEW_TOL_S:
+            drive_between = any(
+                event.topic == TOPIC_CHASSIS_MODE
+                and event.value in contract.LOCK_MODES
+                and arrival.t <= event.t <= stop.t
+                for event in ordered
+            )
+            stop_covers_arrival = not drive_between
     arrival_ids = {event.mission_id for event in arrivals}
     ids_consistent = (
         bool(arrivals)
@@ -177,14 +195,14 @@ def _pickup_evidence(events: Iterable[Event]) -> dict[str, object]:
         and stop is None
         and bool(rejection_markers)
     )
-    work_accepted = stop_before_arrival and ids_consistent and bool(accepted)
+    work_accepted = stop_covers_arrival and ids_consistent and bool(accepted)
     return {
         "stop": stop,
         "arrival": arrival,
         "arrival_ids": arrival_ids,
         "mission_id": mission_id,
         "accepted": accepted,
-        "stop_before_arrival": stop_before_arrival,
+        "stop_covers_arrival": stop_covers_arrival,
         "ids_consistent": ids_consistent,
         "any_work_accepted": any_work_accepted,
         "rejection_markers": rejection_markers,
@@ -239,8 +257,8 @@ def judge_pickup_conjunction(events: Iterable[Event]) -> list[Finding]:
     arrival_ids = evidence["arrival_ids"]
     return [
         Finding(
-            "stop_before_arrival",
-            bool(evidence["stop_before_arrival"]),
+            "stop_covers_arrival",
+            bool(evidence["stop_covers_arrival"]),
             "stop_t=%s arrival_t=%s"
             % (
                 "missing" if stop is None else "%.6f" % stop.t,
