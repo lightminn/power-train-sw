@@ -52,6 +52,7 @@
 | `09cb606` | US-100 발행-UART 결합 해소(리더 스레드) |
 | `e22e364` | **WP6-S P0 2부** 절차 생성 고가 트랙 + 헤드리스 MuJoCo fast 브리지(광축 Z depth·production solve() 직결·metric 6종·기대 메트릭 물리 캘리브레이션, dev 이미지 mujoco 추가) |
 | `eba8b74` | **WP6-B** bank-aware NumPy terrain 코어(고정 shape 5 cm grid·corridor/FOV-한계 낙하 경계·footprint erosion·fail-closed, 54 tests + 광FOV MuJoCo 정량 통합, autonomy 이미지에 chassis 동봉). ⚠️ Codex 위임분을 검토자가 낙하 경계 의미론·성능(107→31 ms) 근본 재설계 |
+| (문서) | **터레인 백엔드 젯슨 자격화 종결(07-19)** — §6-1 ③ 해소. 풀로드(6코어 96~100%·25W) 실측 커널 p95 ≤ 7 ms → **NumPy 확정**, JAX는 x86 dev 전용 유지(CUDA jaxlib pip 불가 + 오프라인 운용망 pip 불가). 부수 발견: 팔 perception CPU 추론 정황(GPU 0~6%) → 팔팀 안건. 정본 `docs/reports/2026-07-19-terrain-backend-jetson-qualification.md` |
 | `84a4dbd` | **원클릭 GUI 브링업 `scripts/jetson_gui_up.sh`(07-19)**: 콘솔 의존 젯슨측 전부를 한 명령으로 — 호스트 preflight(can0·런타임 dir·powertrain.env·ops 토큰) → 파워트레인 compose 5종 명시 기동(bare `up -d` 금지)+헬스 대기 → 텔레메트리 유닛 자가회복 대기(Restart=always 활용, sudo-free 경로) → 팔 스택(ros2_humble + perception/stream, 팔 레포 `run_perception.sh` 인자 그대로) → **:5003 단일송신 가드**(팔 metadata_sender 감지 시 브리지 스킵, 팔 프로세스 kill 금지) → `arm_console_bridge`(powertrain_ros 다운 시 powertrain_control 폴백, 양 컨테이너 pkill로 이중송신 방지) → SRT lazy-start 폴링 포트검증 + 한국어 요약표(exit 0/1/2). fake-PATH pytest 8종(`scripts/tests/test_jetson_gui_up.py`). **젯슨 실기 2회(07-19)**: 1차 exit 2(SRT 첫 프레임 전 lazy 포트) → 폴링 보강 후 2차 전항목 ✅ exit 0 + 노트북 UDP :5004/:5005/:5007 실수신 확인. 부수 발견: ①chassis-telemetry 유닛 5,904회 크래시루프는 powertrain_ros 정지가 원인(컨테이너 회복으로 자가치유 — 스크립트가 이 경로 자동화) ②**젯슨 체크아웃이 팀원 브랜치 `feat/l515-aligned-depth-slam`(a177fe2)로 전환됨** — main 미머지라 스크립트는 untracked 배치, 브랜치 무접촉 유지 |
 | ~`9475ca5`+ | **KGUI 후속 2건 + 종합 재검증(07-18 밤)**: ①비상정지 원인 표시 — interlock first_source/detail → OpsState → 상태줄 한국어, 이후 사용자 지적으로 **활성 원인 우선**으로 의미론 교정(활성 나열 / 전부 해소 시 "원인(최초) … 초기화 가능") ②종합 적대 리뷰(Codex)에서 실결함 2건: **IMMEDIATE 비상정지가 상태 push 수신 전 거부 가능(높음 — 전제조건 제거로 무조건 발사)** + 원인 라벨 미매핑 5종. ③재검증 전체 green: 호스트 408→176(콘솔)·dev 1254+3skip·ros 546·smoke PASS + **젯슨 GRAND-E2E PASS**(활성/이력 원인 양쪽 실원인·멱등·토글 왕복·복구 7단계) + 배포 건강(컨테이너 5 healthy·유닛 3 active·크래시 0). ⚠️ 설계 유보 항목: 브로커 변이 직렬화 중 estop 최대 명목 대기 10.05 s(busy 거부·재시도 멱등, 1차 비상경로는 DualSense ○) — estop 직렬화 우회는 후속 결정 |
 | `ed8a7a5`~ | **KGUI 배치(07-18 저녁)**: 콘솔 간소화+전면 한국어화(광운대 참조, 스펙 `2026-07-18-console-simplify-korean-design.md` D1~D4+보충). ①기본 화면 = **비상정지(신규 — 무확인 즉시, `estop` ops 액션·기존 `~/estop` 서비스 정비·CONSOLE_ESTOP 저널)**·경고 초기화·시동(1.5 s 홀드)/해제·모듈 스위치 4행(기본 전부 켜짐 = CMASK 무영속 계약); 권한·extraction·팔잠금·hold해제는 "고급" Expander ②OpsState `chassis_mode`(semantic) → 상태줄 모드 표시 + 모터 토글 IDLE 게이트 회색화(`not_idle` 혼동 해소) ③전면 한국어(labels.py 순수 모듈, 상태코드 병기)·배너·요약 1줄+상세 Expander(전원/차대/팔) ④runtime_smoke가 임시 토큰으로 ops 패널 활성 경로까지 실기동. 기준선: 호스트 146 / dev 1230+3skip / ros 540 + **smoke PASS** + **젯슨 비상정지 버튼 실전 E2E PASS**(estop 무확인 latch→멱등→us100 OFF→reset IDLE→원복). Notion §5/6 매뉴얼 한국어 기준 갱신 |
@@ -195,7 +196,8 @@ healthcheck는 실제 노드 프로세스 확인. ⚠️ 크로스팀 조율 항
    WP6-S P1, WP6-B JAX 커널, WP7, WP8 골격, 플래핑 수정까지 완료(§2 커밋 체인).
    남은 것은 전부 ①실기/벤치 게이트(아래 2·3·4) ②크로스팀 계약 대기
    (gateway 배선=팀원 l515 WIP landing 뒤, WP8 인식 이벤트 실토픽·`MISSION_STOP`
-   언락 순서, D435i sender) ③JAX Jetson 전체부하 자격화·backend 선택.
+   언락 순서, D435i sender) ③~~JAX Jetson 전체부하 자격화·backend 선택~~ →
+   **07-19 종결: NumPy 확정**(`docs/reports/2026-07-19-terrain-backend-jetson-qualification.md`).
    `powertrain_sim/README.md`·`powertrain_autonomy/README.md`가 시뮬레이션·
    terrain+controller 계약 정본.
 2. ~~D 런북~~ → **07-17 벤치 HIL 완주** (`docs/reports/2026-07-17-bench-hil-remote-e2e.md`
