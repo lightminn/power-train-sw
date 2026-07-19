@@ -274,8 +274,16 @@ def test_remote_assist_state_change_event_is_rate_limited(monkeypatch):
 
 def test_assist_parameters_and_subscriptions_stay_inside_authority_boundary():
     source = CHASSIS_NODE.read_text(encoding="utf-8")
-    assert 'declare_parameter("assist_enabled", False)' in source
     initialize = _method("_initialize")
+    assert any(
+        isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr == "declare_parameter"
+        and len(call.args) >= 2
+        and ast.literal_eval(call.args[0]) == "assist_enabled"
+        and ast.literal_eval(call.args[1]) is False
+        for call in ast.walk(initialize)
+    )
     authority_guard = next(
         node
         for node in ast.walk(initialize)

@@ -161,6 +161,26 @@ def test_tracker_accepts_new_session_with_reset_sequence():
     assert tracker.latest == packet("new", 0)
 
 
+def test_tracker_rejects_delayed_packet_from_retired_session():
+    tracker = MetadataTracker()
+
+    assert tracker.update(packet("old", 100), received_monotonic_ns=10) is True
+    assert tracker.update(packet("new", 0), received_monotonic_ns=20) is True
+    assert tracker.update(packet("old", 99), received_monotonic_ns=30) is False
+    assert tracker.latest == packet("new", 0)
+
+
+def test_tracker_retired_session_memory_is_finite():
+    tracker = MetadataTracker()
+
+    for index in range(100):
+        assert tracker.update(
+            packet(f"session-{index}", 0), received_monotonic_ns=index
+        ) is True
+
+    assert len(tracker._retired_session_ids) == tracker.MAX_RETIRED_SESSIONS
+
+
 def test_tracker_is_latest_only_and_has_no_backlog():
     tracker = MetadataTracker()
 

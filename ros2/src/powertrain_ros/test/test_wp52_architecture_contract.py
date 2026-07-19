@@ -73,7 +73,16 @@ def test_standalone_command_authority_node_and_entry_point_are_removed():
 
 def test_chassis_authority_input_is_opt_in_and_mutually_exclusive():
     source = CHASSIS_NODE.read_text(encoding="utf-8")
-    assert 'declare_parameter("authority_enabled", False)' in source
+    tree = ast.parse(source)
+    assert any(
+        isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr == "declare_parameter"
+        and len(call.args) >= 2
+        and ast.literal_eval(call.args[0]) == "authority_enabled"
+        and ast.literal_eval(call.args[1]) is False
+        for call in ast.walk(tree)
+    )
 
     initialize = _method_ast(CHASSIS_NODE, "ChassisNode", "_initialize")
     guard = next(

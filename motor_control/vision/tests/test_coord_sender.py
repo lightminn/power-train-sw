@@ -35,6 +35,7 @@ def test_heartbeat_sent_even_with_no_detections(udp_listener):
     assert pkt["h"] == 480
     assert pkt["dets"] == []  # 빈 리스트지만 패킷 자체는 도착 — "표적 없음"
     assert "t" in pkt  # 수신측이 마지막 도착 시각과 비교해 두절을 판정하는 근거
+    assert isinstance(pkt["session_id"], str) and pkt["session_id"]
 
 
 def test_detection_payload_round_trips_through_udp(udp_listener):
@@ -75,3 +76,22 @@ def test_send_swallows_transient_socket_error():
     sender._sock = BoomSocket()  # 실소켓은 C 타입이라 메서드 monkeypatch 불가 — 통째로 교체
 
     sender.send(frame_idx=0, w=848, h=480, dets=[])  # 예외 없이 반환돼야 함
+
+
+def test_payload_has_stable_nonempty_session_id_without_network(monkeypatch):
+    payloads = []
+
+    class CaptureSocket:
+        def sendto(self, data, _address):
+            payloads.append(json.loads(data.decode()))
+
+    capture = CaptureSocket()
+    monkeypatch.setattr(socket, "socket", lambda *_args, **_kwargs: capture)
+    sender = CoordSender("127.0.0.1", 5001)
+
+    sender.send(frame_idx=1, w=1280, h=720, dets=[])
+    sender.send(frame_idx=2, w=1280, h=720, dets=[])
+
+    assert payloads[0]["session_id"] == payloads[1]["session_id"]
+    assert isinstance(payloads[0]["session_id"], str)
+    assert payloads[0]["session_id"]

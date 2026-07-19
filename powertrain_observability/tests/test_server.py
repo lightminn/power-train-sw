@@ -1,6 +1,8 @@
 import json
 import os
+import socket
 import struct
+import threading
 import time
 import uuid
 
@@ -265,3 +267,55 @@ def test_maximum_bounded_snapshot_still_fits_status_protocol(tmp_path):
     encoded=encode_status_response(server.status_snapshot())
 
     assert encoded.endswith(b"\n")
+
+
+def test_status_accept_loop_bounds_clients_that_never_send_newline(tmp_path):
+    release = threading.Event()
+
+    class Reader:
+        def readline(self, _size):
+            release.wait(1.0)
+            return b""
+
+        def close(self):
+            pass
+
+    class Client:
+        def __init__(self):
+            self.closed = False
+
+        def getsockopt(self, *_args):
+            return struct.pack("3i", os.getpid(), os.geteuid(), os.getegid())
+
+        def settimeout(self, _timeout):
+            pass
+
+        def makefile(self, _mode):
+            return Reader()
+
+        def close(self):
+            self.closed = True
+
+    all_clients = [Client() for _ in range(20)]
+    clients = list(all_clients)
+    server = make_server(tmp_path)
+
+    class StatusSocket:
+        def accept(self):
+            client = clients.pop(0)
+            if not clients:
+                server._stop.set()
+            return client, None
+
+    server._status_socket = StatusSocket()
+    server._stop.clear()
+    server._accept_status()
+    try:
+        with server._client_lock:
+            active = len(server._client_threads)
+        assert active <= 8
+        assert sum(client.closed for client in all_clients) >= 12
+    finally:
+        release.set()
+        for thread in list(server._client_threads):
+            thread.join(1.0)

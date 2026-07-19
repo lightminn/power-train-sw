@@ -15,6 +15,7 @@ import time
 
 import numpy as np
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
@@ -56,13 +57,18 @@ from powertrain_autonomy.terrain import (  # noqa: E402
     BodyTilt,
     OdometryDelta,
     TerrainEstimator,
+    TerrainEstimatorConfig,
     TerrainFrame,
 )
 from powertrain_autonomy.terrain.depth_quality import (  # noqa: E402
     CameraIntrinsics,
+    DepthQualityConfig,
     analyze_depth_quality,
 )
 from powertrain_observability.client import EventClient  # noqa: E402
+from powertrain_ros.terrain_qualification import (  # noqa: E402
+    load_approved_terrain_qualification,
+)
 
 # L515 depth 스케일 = 1/4000 m/unit. D400 계열의 0.001 이 **아니다**.
 # Gateway 는 raw Z16 을 16UC1 로 그대로 발행하므로, 같은
@@ -129,11 +135,15 @@ class AutonomyControllerNode(Node):
         self.declare_parameter("enabled", False)
         self.declare_parameter("drive_profile", "EMPTY_STOWED")
         self.declare_parameter("tick_hz", 20.0)
-        # PROVISIONAL: unmeasured candidates; never production-completion proof.
-        self.declare_parameter("camera_height_m", 0.60)
-        self.declare_parameter("camera_pitch_down_deg", 25.0)
-        self.declare_parameter("camera_x_m", 0.0)
-        self.declare_parameter("camera_yaw_deg", 0.0)
+        default_qualification_file = os.path.join(
+            get_package_share_directory("powertrain_ros"),
+            "config",
+            "l515_terrain.yaml",
+        )
+        self.declare_parameter(
+            "terrain_qualification_file",
+            default_qualification_file,
+        )
         self.declare_parameter("min_confidence", 0.25)
         # L515 는 1/4000 m/unit. D400 계열의 0.001 이 아니다 — 틀리면 모든 지형
         # 거리가 4배로 나온다. Gateway 는 raw Z16 을 16UC1 로 그대로 발행하므로
@@ -162,20 +172,49 @@ class AutonomyControllerNode(Node):
         self._event_client = (
             event_client if event_client is not None else EventClient()
         )
-        self.estimator = TerrainEstimator()
-        self.extrinsic = BaseToCameraExtrinsic(
-            x_m=float(self.get_parameter("camera_x_m").value),
-            z_m=float(self.get_parameter("camera_height_m").value),
-            pitch_down_rad=math.radians(
-                float(
-                    self.get_parameter("camera_pitch_down_deg").value
-                )
-            ),
-            yaw_rad=math.radians(
-                float(self.get_parameter("camera_yaw_deg").value)
-            ),
-        )
         self._enabled = bool(self.get_parameter("enabled").value)
+        qualification_path = str(
+            self.get_parameter("terrain_qualification_file").value
+        )
+        try:
+            qualification = load_approved_terrain_qualification(
+                qualification_path
+            )
+        except ValueError as exc:
+            if self._enabled:
+                raise ValueError(
+                    "terrain command production rejected: %s" % exc
+                ) from exc
+            self._qualification_error = str(exc)
+            self._qualification = None
+            self._qualified_roi = None
+            self._depth_quality_config = None
+            self.estimator = None
+            self.extrinsic = None
+        else:
+            self._qualification_error = None
+            self._qualification = qualification
+            self._qualified_roi = qualification.roi
+            self._depth_quality_config = DepthQualityConfig(
+                min_depth_m=qualification.min_depth_m,
+                max_depth_m=qualification.max_depth_m,
+                min_valid_ratio=qualification.min_valid_ratio,
+            )
+            self.estimator = TerrainEstimator(
+                TerrainEstimatorConfig(
+                    min_depth_m=qualification.min_depth_m,
+                    max_depth_m=qualification.max_depth_m,
+                )
+            )
+            self.extrinsic = BaseToCameraExtrinsic(
+                x_m=qualification.translation_m[0],
+                y_m=qualification.translation_m[1],
+                z_m=qualification.translation_m[2],
+                roll_rad=qualification.roll_rad,
+                mount_pitch_rad=qualification.pitch_rad,
+                pitch_down_rad=0.0,
+                yaw_rad=qualification.yaw_rad,
+            )
 
         self._grid_source_shape: tuple[int, int] | None = None
         self._row_indices: np.ndarray | None = None
@@ -311,6 +350,9 @@ class AutonomyControllerNode(Node):
         return True
 
     def _on_camera_info(self, message: CameraInfo) -> None:
+        qualified_roi = getattr(self, "_qualified_roi", None)
+        if qualified_roi is None:
+            return
         shape = (int(message.height), int(message.width))
         grid_snapshot = self._grid_snapshot
         if grid_snapshot is not None:
@@ -321,29 +363,27 @@ class AutonomyControllerNode(Node):
                 )
             return
         height, width = shape
-        stride = min(height // _TARGET_HEIGHT, width // _TARGET_WIDTH)
-        if stride < 1:
+        roi_x, roi_y, roi_width, roi_height = qualified_roi
+        if roi_x + roi_width > width or roi_y + roi_height > height:
             self.get_logger().error(
-                "depth CameraInfo %dx%d is smaller than fixed 80x60"
+                "qualified terrain ROI exceeds depth CameraInfo %dx%d"
                 % (width, height)
             )
             return
-        crop_height = _TARGET_HEIGHT * stride
-        crop_width = _TARGET_WIDTH * stride
-        row_start = (height - crop_height) // 2
-        col_start = (width - crop_width) // 2
+        row_stride = roi_height // _TARGET_HEIGHT
+        col_stride = roi_width // _TARGET_WIDTH
         try:
             intrinsics = CameraIntrinsics(
-                fx=float(message.k[0]) / stride,
-                fy=float(message.k[4]) / stride,
-                cx=(float(message.k[2]) - col_start) / stride,
-                cy=(float(message.k[5]) - row_start) / stride,
+                fx=float(message.k[0]) / col_stride,
+                fy=float(message.k[4]) / row_stride,
+                cx=(float(message.k[2]) - roi_x) / col_stride,
+                cy=(float(message.k[5]) - roi_y) / row_stride,
             )
         except (IndexError, TypeError, ValueError) as exc:
             self.get_logger().error("invalid depth CameraInfo: %s" % exc)
             return
-        row_indices = row_start + stride * np.arange(_TARGET_HEIGHT)
-        col_indices = col_start + stride * np.arange(_TARGET_WIDTH)
+        row_indices = roi_y + row_stride * np.arange(_TARGET_HEIGHT)
+        col_indices = roi_x + col_stride * np.arange(_TARGET_WIDTH)
         self._grid_source_shape = shape
         self._row_indices = row_indices
         self._col_indices = col_indices
@@ -471,6 +511,9 @@ class AutonomyControllerNode(Node):
             received_at_s = self._now_s()
         if self._depth_is_stopping():
             return
+        if self._qualification is None:
+            self._publish_terrain_unavailable("qualification_unapproved")
+            return
         grid_snapshot = self._grid_snapshot
         if grid_snapshot is None:
             self._publish_terrain_unavailable("waiting_camera_info")
@@ -516,6 +559,7 @@ class AutonomyControllerNode(Node):
                 depth_scale_m=frame.depth_scale_m,
                 intrinsics=frame.intrinsics,
                 frame_stamp_s=frame.stamp_s,
+                config=self._depth_quality_config,
             )
         except (TypeError, ValueError):
             self._depth_quality_snapshot = (None, received_at_s)

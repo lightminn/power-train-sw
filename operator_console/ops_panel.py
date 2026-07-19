@@ -167,6 +167,7 @@ PANEL_ACTIONS: tuple[PanelAction, ...] = (
         "estop",
         "비상정지 (ESTOP)",
         GESTURE_IMMEDIATE,
+        confirm_text="비상정지 명령으로 현재 임무를 중단합니까?",
     ),
     PanelAction(
         "estop_reset",

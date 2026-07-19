@@ -1,6 +1,9 @@
 [Unit]
 Description=Powertrain read-only operator console
 After=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+StartLimitAction=none
 
 [Service]
 Type=simple

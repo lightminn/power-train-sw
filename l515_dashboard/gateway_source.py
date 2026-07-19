@@ -129,7 +129,10 @@ class L515GatewaySource:
         self._next_capture_token = 0
         self._last_frame_numbers = {}
         self._frame_stats = {}
-        self._last_video_callback_at = None
+        self._last_video_callback_at = {
+            self._rs.stream.color: None,
+            self._rs.stream.depth: None,
+        }
         self._callback_arrivals = {stream: deque(maxlen=512) for stream in self._buffers}
         self._mapper = None
         self._poll_sequences = {stream: 0 for stream in self._buffers}
@@ -324,7 +327,8 @@ class L515GatewaySource:
             self._capture_token = token
             self._last_frame_numbers.clear()
             self._frame_stats.clear()
-            self._last_video_callback_at = None
+            for stream in self._last_video_callback_at:
+                self._last_video_callback_at[stream] = None
             for arrivals in self._callback_arrivals.values():
                 arrivals.clear()
             self._mapper = self._mapper_factory()
@@ -342,7 +346,8 @@ class L515GatewaySource:
             self._capture_token = None
             self._last_frame_numbers.clear()
             self._frame_stats.clear()
-            self._last_video_callback_at = None
+            for stream in self._last_video_callback_at:
+                self._last_video_callback_at[stream] = None
             for arrivals in self._callback_arrivals.values():
                 arrivals.clear()
             self._mapper = None
@@ -422,7 +427,7 @@ class L515GatewaySource:
                 self._last_frame_numbers[stream] = number
                 sample = self._sample_from_frame(stream, child)
                 if stream in (self._rs.stream.color, self._rs.stream.depth):
-                    self._last_video_callback_at = self._clock()
+                    self._last_video_callback_at[stream] = self._clock()
                 self._callback_arrivals[stream].append(sample.received_ns)
                 self._buffers[stream].publish(sample)
 
@@ -574,13 +579,22 @@ class L515GatewaySource:
                         break
                     now = self._clock()
                     with self._capture_lock:
-                        last_video = self._last_video_callback_at
-                    if last_video is None:
-                        stale = now - stream_started_at > self._video_startup_grace_s
-                    else:
-                        stale = now - last_video > self._video_stale_timeout_s
-                    if stale:
-                        raise RuntimeError("expected L515 video callbacks became stale")
+                        last_video = dict(self._last_video_callback_at)
+                    for stream in (self._rs.stream.color, self._rs.stream.depth):
+                        last_callback = last_video[stream]
+                        if last_callback is None:
+                            stale = (
+                                now - stream_started_at
+                                > self._video_startup_grace_s
+                            )
+                        else:
+                            stale = (
+                                now - last_callback > self._video_stale_timeout_s
+                            )
+                        if stale:
+                            raise RuntimeError(
+                                f"expected L515 {stream} callbacks became stale"
+                            )
             except Exception:
                 if self._is_current(generation):
                     self._clear_capture(capture_token)

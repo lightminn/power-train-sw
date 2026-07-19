@@ -2,6 +2,9 @@
 Description=Powertrain PDIST80B read-only operator telemetry
 Wants=network-online.target
 After=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+StartLimitAction=none
 
 [Service]
 Type=simple

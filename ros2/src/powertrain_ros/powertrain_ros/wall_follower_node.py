@@ -20,6 +20,7 @@ import sys
 
 import numpy as np
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Point, Twist
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
@@ -27,6 +28,10 @@ from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Bool, Float32MultiArray
 from tf2_ros import Buffer, TransformListener
 from visualization_msgs.msg import Marker
+
+from powertrain_ros.terrain_qualification import (
+    enforce_node_command_guidance_qualification,
+)
 
 sys.path.insert(0, os.environ.get("MOTOR_CONTROL_PATH", "/workspace/motor_control"))
 
@@ -55,6 +60,16 @@ class WallFollowerNode(Node):
         self.declare_parameter("kp", 1.2)
         self.declare_parameter("kh", 1.4)                # 각도항 — S자 진동을 잡는다
         self.declare_parameter("v_nominal", 0.5)
+
+        enforce_node_command_guidance_qualification(
+            self,
+            guidance="wall",
+            default_path=os.path.join(
+                get_package_share_directory("powertrain_ros"),
+                "config",
+                "l515_terrain.yaml",
+            ),
+        )
 
         self.cfg = WallConfig(
             side=str(self.get_parameter("side").value),

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # can0 TX 웻지 자동복구 워치독 (Jetson 호스트에서 sudo 로 실행).
 #
 # 배경: mttcan 드라이버는 bus-off 가 반복되면(모터 PWM 노이즈로 CAN TX 에러 폭풍)
@@ -8,8 +9,9 @@
 #
 # 감지: qdisc 백로그 >0 인데 Sent 카운터가 2초(2연속 샘플) 동안 정지 → 웻지 판정
 #       (정상 부하는 백로그가 ms 단위로 빠지고 Sent 가 계속 증가하므로 오탐 없음).
-# 복구: ip link down/up + txqueuelen 재설정 (~0.2s). 제어측은 프레임 몇 개 유실 후
-#       재개 — teleop 서버는 CanError 흡수라 안 죽고, 코너 stale→FAULT 시 □ 재무장.
+# 복구: 500 kbps·loopback off·restart-ms 100·txqueuelen 1000 전체 복원. 제어측은
+#       프레임 몇 개 유실 후 재개 — teleop 서버는 CanError 흡수라 안 죽고,
+#       코너 stale→FAULT 시 □ 재무장.
 #
 # 실행 (Jetson 호스트):
 #   sudo nohup bash scripts/can_watchdog.sh > /tmp/can_watchdog.log 2>&1 &
@@ -25,6 +27,24 @@ get_stats() {
         END       { if (sent != "") print sent, pkts+0 }'
 }
 
+verify_can_invariant() {
+    local details
+    details="$(ip -details link show dev "$IF")"
+    grep -Eq '^[0-9]+: .*<[^>]*UP' <<< "$details"
+    grep -Eq 'bitrate[[:space:]]+500000([[:space:]]|$)' <<< "$details"
+    grep -Eq 'restart-ms[[:space:]]+100([[:space:]]|$)' <<< "$details"
+    grep -Eq 'loopback[[:space:]]+off([[:space:]]|$)' <<< "$details"
+    grep -Eq 'qlen[[:space:]]+1000([[:space:]]|$)' <<< "$details"
+}
+
+recover_can() {
+    ip link set dev "$IF" down
+    ip link set dev "$IF" type can bitrate 500000 loopback off restart-ms 100
+    ip link set dev "$IF" txqueuelen 1000
+    ip link set dev "$IF" up
+    verify_can_invariant
+}
+
 echo "[can_watchdog] 시작 — $IF 감시 (간격 ${INTERVAL}s)"
 prev_sent=""
 prev_backlog=0
@@ -32,9 +52,7 @@ while true; do
     read -r sent backlog <<< "$(get_stats)"
     if [[ -n "$sent" && "$backlog" -gt 0 && "$sent" == "$prev_sent" && "$prev_backlog" -gt 0 ]]; then
         echo "[can_watchdog] $(date '+%F %T') TX 웻지 감지 (backlog ${backlog}p, Sent 정지) → $IF 리셋"
-        ip link set "$IF" down
-        ip link set "$IF" up
-        ip link set "$IF" txqueuelen 1000
+        recover_can
         prev_sent=""
         prev_backlog=0
         sleep 1

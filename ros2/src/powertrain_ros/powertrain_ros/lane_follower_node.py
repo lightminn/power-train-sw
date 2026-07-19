@@ -31,12 +31,19 @@ import sys
 
 import numpy as np
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Point, Twist
+from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CameraInfo, Image, Imu
 from std_msgs.msg import Bool, Float32MultiArray
 from visualization_msgs.msg import Marker
+
+from powertrain_ros.lane_freshness import ImuFreshnessGate
+from powertrain_ros.terrain_qualification import (
+    enforce_node_command_guidance_qualification,
+)
 
 sys.path.insert(0, os.environ.get("MOTOR_CONTROL_PATH", "/workspace/motor_control"))
 
@@ -51,12 +58,23 @@ class LaneFollowerNode(Node):
         super().__init__("lane_follower")
         self.declare_parameter("enabled", False)            # 🛑 /cmd_vel 발행 여부
         self.declare_parameter("use_imu_tilt", True)        # 경사에서 지면 보정
+        self.declare_parameter("imu_timeout_s", 0.25)
         self.declare_parameter("cam_height_m", 0.35)        # ⚠️ 미실측 플레이스홀더
         self.declare_parameter("cam_pitch_deg", 20.0)       # ⚠️ 미실측 플레이스홀더
         self.declare_parameter("cam_x_m", 0.30)
         self.declare_parameter("v_nominal", 0.5)
         self.declare_parameter("kp", 1.6)
         self.declare_parameter("kd", 0.25)
+
+        enforce_node_command_guidance_qualification(
+            self,
+            guidance="lane",
+            default_path=os.path.join(
+                get_package_share_directory("powertrain_ros"),
+                "config",
+                "l515_terrain.yaml",
+            ),
+        )
 
         self.cfg = LaneConfig(
             cam_height_m=float(self.get_parameter("cam_height_m").value),
@@ -71,6 +89,10 @@ class LaneFollowerNode(Node):
         self._K = None
         self._M = None                                       # 호모그래피 캐시
         self._tilt = (0.0, 0.0)
+        self._steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
+        self._imu_freshness = ImuFreshnessGate(
+            float(self.get_parameter("imu_timeout_s").value)
+        )
         self._t_prev = None
         self._n = 0
 
@@ -114,6 +136,17 @@ class LaneFollowerNode(Node):
         roll = math.atan2(2 * (q.w * q.x + q.y * q.z), 1 - 2 * (q.x * q.x + q.y * q.y))
         pitch = math.asin(max(-1.0, min(1.0, 2 * (q.w * q.y - q.z * q.x))))
         self._tilt = (roll, pitch)
+        self._imu_freshness.update(
+            received_steady_s=self._steady_now_s(),
+            header_ros_s=self._stamp_s(msg.header.stamp),
+        )
+
+    def _steady_now_s(self):
+        return self._steady_clock.now().nanoseconds * 1e-9
+
+    @staticmethod
+    def _stamp_s(stamp):
+        return float(stamp.sec) + float(stamp.nanosec) * 1e-9
 
     def _on_image(self, msg: Image):
         if self._K is None:
@@ -122,8 +155,16 @@ class LaneFollowerNode(Node):
         dt = 0.0 if self._t_prev is None else t - self._t_prev
         self._t_prev = t
 
-        roll, pitch = self._tilt if bool(
-            self.get_parameter("use_imu_tilt").value) else (0.0, 0.0)
+        use_imu_tilt = bool(self.get_parameter("use_imu_tilt").value)
+        imu_is_fresh = self._imu_freshness.is_fresh(
+            now_steady_s=self._steady_now_s(),
+            now_ros_s=t,
+        )
+        roll, pitch = (
+            self._tilt
+            if use_imu_tilt and imu_is_fresh
+            else (0.0, 0.0)
+        )
         # 기울임이 바뀌면 호모그래피를 다시 만든다(경사에서 지면이 안 틀어지게)
         self._M = ground_homography(self._K, self.cfg, roll, pitch)
 
@@ -146,7 +187,9 @@ class LaneFollowerNode(Node):
 
         # ⚠️ 못 보면 **아무것도 발행하지 않는다** — 마지막 명령을 반복하지 않는다.
         #    미션 시퀀서가 정차를 명령해도 마찬가지다(팔이 뻗어 있을 수 있다).
-        if ok and self._allow_drive and bool(self.get_parameter("enabled").value):
+        if ok and imu_is_fresh and self._allow_drive and bool(
+            self.get_parameter("enabled").value
+        ):
             cmd = Twist()
             cmd.linear.x = v
             cmd.angular.z = omega

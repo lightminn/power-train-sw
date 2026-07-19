@@ -1,0 +1,22 @@
+# TEST FIXTURE ONLY — not a production qualification.
+schema_version: 1
+qualification:
+  status: approved
+  production_enabled: true
+mount:
+  pitch_deg: 25.0
+terrain:
+  backend: numpy
+  roi:
+    x: 0
+    y: 0
+    width: 80
+    height: 60
+  depth_thresholds:
+    min_depth_m: 0.2
+    max_depth_m: 6.0
+    min_valid_ratio: 0.75
+tf:
+  base_link_to_l515_link:
+    translation_m: [0.0, 0.0, 0.60]
+    rotation_xyzw: [0.0, 0.2164396139, 0.0, 0.9762960071]

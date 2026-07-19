@@ -41,20 +41,25 @@ def _core(clock=None, state=None, **core_kwargs):
         state_provider=lambda: holder["state"],
         **core_kwargs,
     )
+    core.handshake("c1", _hello("tok-console", stamp_s=100.0))
+    core.handshake("c2", _hello("tok-ctrl", stamp_s=100.0))
     return core, clock, holder
 
 
-def _hello(token):
-    return json.dumps(
-        {"schema_version": 1, "hello": True, "token": token}
-    )
+def _hello(token, **extra):
+    client_id = extra.pop("client_id", "pytest-%s" % token)
+    payload = {"schema_version": 1, "hello": True, "token": token}
+    if client_id is not None:
+        payload["client_id"] = client_id
+    payload.update(extra)
+    return json.dumps(payload)
 
 
 def _req(token, action, request_id="r-1", sequence=0, **extra):
     payload = {
         "schema_version": 1, "token": token, "request_id": request_id,
         "sequence": sequence, "action": action, "params": {},
-        "stamp_s": 1.0,
+        "stamp_s": 100.0,
     }
     payload.update(extra)
     return json.dumps(payload)
@@ -70,6 +75,219 @@ def test_handshake_maps_token_to_role_and_rejects_unknown():
     role, response = core.handshake("c2", _hello("wrong"))
     assert role is None
     assert json.loads(response)["status"] == "FINAL_REJECTED"
+
+
+def test_mutation_requires_clock_sync_handshake():
+    core, _, _ = _core()
+    role, _ = core.handshake("legacy", _hello("tok-console"))
+
+    decision = core.handle_line(
+        "legacy", role,
+        _req("tok-console", "operator_hold", stamp_s=100.0),
+    )
+
+    assert decision.execute is None
+    assert "clock sync" in json.loads(decision.response)["detail"]
+
+
+def test_expired_request_is_rejected_before_sequence_or_cache_change():
+    core, _, _ = _core()
+    role, _ = core.handshake(
+        "delayed", _hello("tok-console", stamp_s=10.0)
+    )
+
+    stale = core.handle_line(
+        "delayed", role,
+        _req(
+            "tok-console", "operator_hold", request_id="stale",
+            sequence=50, stamp_s=7.99,
+        ),
+    )
+
+    assert stale.execute is None
+    assert "deadline" in json.loads(stale.response)["detail"]
+    fresh = core.handle_line(
+        "delayed", role,
+        _req(
+            "tok-console", "operator_hold", request_id="fresh",
+            sequence=0, stamp_s=10.0,
+        ),
+    )
+    assert fresh.execute is not None
+
+
+def test_too_far_future_request_is_rejected_before_sequence_change():
+    core, _, _ = _core()
+    role, _ = core.handshake(
+        "future", _hello("tok-console", stamp_s=10.0)
+    )
+
+    future = core.handle_line(
+        "future", role,
+        _req(
+            "tok-console", "operator_hold", request_id="future",
+            sequence=50, stamp_s=10.251,
+        ),
+    )
+
+    assert future.execute is None
+    assert "future" in json.loads(future.response)["detail"]
+    fresh = core.handle_line(
+        "future", role,
+        _req(
+            "tok-console", "operator_hold", request_id="fresh",
+            sequence=0, stamp_s=10.0,
+        ),
+    )
+    assert fresh.execute is not None
+
+
+def test_completed_mutation_is_idempotent_across_reconnect():
+    core, clock, _ = _core()
+    role, _ = core.handshake(
+        "transport-1", _hello("tok-console", stamp_s=10.0)
+    )
+    first = core.handle_line(
+        "transport-1", role,
+        _req("tok-console", "operator_hold", stamp_s=10.0),
+    )
+    core.complete(first.execute.pending_key, True, "published")
+
+    clock.now += 0.1
+    role, _ = core.handshake(
+        "transport-2", _hello("tok-console", stamp_s=20.0)
+    )
+    retry = core.handle_line(
+        "transport-2", role,
+        _req(
+            "tok-console", "operator_hold", sequence=1, stamp_s=20.0,
+        ),
+    )
+
+    assert retry.execute is None
+    assert json.loads(retry.response)["status"] == "FINAL_SUCCESS"
+
+
+def test_request_fingerprint_is_enforced_across_reconnect():
+    core, clock, _ = _core()
+    role, _ = core.handshake(
+        "transport-1", _hello("tok-console", stamp_s=10.0)
+    )
+    first = core.handle_line(
+        "transport-1", role,
+        _req(
+            "tok-console", "operator_hold", stamp_s=10.0,
+            expected_state_revision=1,
+        ),
+    )
+    core.complete(first.execute.pending_key, True, "published")
+
+    clock.now += 0.1
+    role, _ = core.handshake(
+        "transport-2", _hello("tok-console", stamp_s=20.0)
+    )
+    conflict = core.handle_line(
+        "transport-2", role,
+        _req(
+            "tok-console", "operator_hold", sequence=1, stamp_s=20.0,
+            expected_state_revision=2,
+        ),
+    )
+
+    assert conflict.execute is None
+    assert "request_id reused" in json.loads(conflict.response)["detail"]
+
+
+def test_status_query_is_scoped_to_authenticated_token_identity():
+    clock = Clock()
+    core = OpsBrokerCore(
+        {
+            "tok-console-a": oc.ROLE_CONSOLE,
+            "tok-console-b": oc.ROLE_CONSOLE,
+        },
+        clock=clock,
+        state_provider=lambda: _state(),
+    )
+    role_a, _ = core.handshake(
+        "transport-a", _hello("tok-console-a", stamp_s=10.0)
+    )
+    first = core.handle_line(
+        "transport-a", role_a,
+        _req(
+            "tok-console-a", "operator_hold", request_id="shared-id",
+            stamp_s=10.0,
+        ),
+    )
+    core.complete(first.execute.pending_key, False, "A denied")
+
+    role_b, _ = core.handshake(
+        "transport-b", _hello("tok-console-b", stamp_s=20.0)
+    )
+    query = core.handle_line(
+        "transport-b", role_b,
+        _req(
+            "tok-console-b", "status_query", request_id="query-b",
+            stamp_s=20.0, params={"request_id": "shared-id"},
+        ),
+    )
+
+    body = json.loads(query.response)
+    assert body["status"] == "OUTCOME_UNKNOWN"
+    assert body["detail"] == "no record"
+
+
+def test_status_query_is_scoped_to_client_id_when_token_is_shared():
+    clock = Clock()
+    core = OpsBrokerCore(
+        {"shared-console-token": oc.ROLE_CONSOLE},
+        clock=clock,
+        state_provider=lambda: _state(),
+    )
+    role_a, _ = core.handshake(
+        "transport-a",
+        _hello(
+            "shared-console-token", stamp_s=10.0, client_id="console-a"
+        ),
+    )
+    first = core.handle_line(
+        "transport-a", role_a,
+        _req(
+            "shared-console-token", "operator_hold",
+            request_id="shared-id", stamp_s=10.0,
+        ),
+    )
+    core.complete(first.execute.pending_key, False, "A denied")
+
+    role_b, _ = core.handshake(
+        "transport-b",
+        _hello(
+            "shared-console-token", stamp_s=20.0, client_id="console-b"
+        ),
+    )
+    query = core.handle_line(
+        "transport-b", role_b,
+        _req(
+            "shared-console-token", "status_query",
+            request_id="query-b", stamp_s=20.0,
+            params={"request_id": "shared-id"},
+        ),
+    )
+
+    body = json.loads(query.response)
+    assert body["status"] == "OUTCOME_UNKNOWN"
+    assert body["detail"] == "no record"
+
+
+def test_handshake_requires_stable_client_id():
+    core, _, _ = _core()
+
+    role, response = core.handshake(
+        "missing-id",
+        _hello("tok-console", stamp_s=100.0, client_id=None),
+    )
+
+    assert role is None
+    assert "client_id" in json.loads(response)["detail"]
 
 
 def test_console_only_action_is_rejected_for_controller_role():

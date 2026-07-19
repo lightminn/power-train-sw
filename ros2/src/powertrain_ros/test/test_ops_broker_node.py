@@ -159,7 +159,13 @@ def _client(port, token):
     sock.sendall(
         (
             json.dumps(
-                {"schema_version": 1, "hello": True, "token": token}
+                {
+                    "schema_version": 1,
+                    "hello": True,
+                    "token": token,
+                    "client_id": "pytest-%s" % token,
+                    "stamp_s": time.monotonic(),
+                }
             )
             + "\n"
         ).encode()

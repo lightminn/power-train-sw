@@ -82,6 +82,12 @@ class LeadFollowerNode(Node):
         self.declare_parameter("reacquire_confirm_n", 2)
         self.declare_parameter("tf_stale_s", 0.5)
 
+        # L515 지형 자격 게이트는 여기 걸지 않는다. 이 노드는 L515 를 전혀 쓰지
+        # 않는다 — /detected_objects(팔 D435i)와 TF 만 소비하므로 잠정 L515
+        # mount/ROI 값이 이 노드의 출력에 영향을 줄 수 없다. 게이트는 L515 기하를
+        # 실제로 소비하는 autonomy_controller(/l515/depth/*)와
+        # wall_follower(/l515/points)에만 건다.
+
         self.cfg = FollowConfig(
             class_name=str(self.get_parameter("class_name").value),
             target_m=float(self.get_parameter("target_m").value),

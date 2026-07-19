@@ -395,6 +395,8 @@ class OpsBrokerNode(Node):
         finally:
             if registered:
                 self._remove_connection(connection)
+            with self._core_lock:
+                self._core.disconnect(connection.client_key)
             try:
                 sock.close()
             except OSError:

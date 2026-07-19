@@ -114,12 +114,16 @@ class _Harness:
 
 
 @pytest.fixture()
-def harness():
+def harness(tmp_path):
     chassis = ChassisNode(
         parameter_overrides=[
             Parameter("fake", value=True),
             Parameter("safety_required", value=False),
             Parameter("arm_gate_mode", value="arm_absent_field"),
+            Parameter(
+                "console_estop_latch_path",
+                value=str(tmp_path / "console-estop.json"),
+            ),
         ]
     )
     result = _Harness(chassis)

@@ -1,6 +1,8 @@
 import importlib
 import json
 import math
+from pathlib import Path
+import sys
 
 import pytest
 
@@ -194,6 +196,181 @@ def test_live_safety_banner_is_korean_for_clear_and_estop():
     ) == ("비상정지(ESTOP) · liveness_timeout", "#dc2626")
 
 
+def test_live_safety_banner_treats_missing_estop_field_as_unavailable():
+    missing = parse_telemetry(
+        b'{"schema_version":1,"sequence":20,"safety_status":"VALID"}',
+        received_monotonic_s=10.0,
+    )
+
+    assert telemetry.safety_banner_state(
+        missing,
+        component_mask=None,
+        telemetry_live=True,
+    ) == ("안전 미수신(UNAVAILABLE)", "#d97706")
+
+
+@pytest.mark.parametrize(
+    ("parser", "payload"),
+    (
+        (parse_telemetry, b"[]"),
+        (parse_metadata, b"[]"),
+    ),
+)
+def test_console_datagram_parsers_normalize_non_object_json_to_value_error(
+    parser,
+    payload,
+):
+    with pytest.raises(ValueError):
+        parser(payload)
+
+
+@pytest.mark.parametrize(
+    ("parser", "payload"),
+    (
+        (parse_telemetry, {"schema_version": 1}),
+        (
+            parse_metadata,
+            {
+                "schema_version": 1,
+                "capture_sequence": 11,
+                "frame_width": 848,
+                "frame_height": 480,
+                "detections": [{
+                    "class_name": "bottle",
+                    "confidence": 0.9,
+                }],
+            },
+        ),
+    ),
+)
+def test_console_datagram_parsers_normalize_missing_structure_to_value_error(
+    parser,
+    payload,
+):
+    with pytest.raises(ValueError):
+        parser(json.dumps(payload).encode("utf-8"))
+
+
+@pytest.mark.parametrize(
+    ("parser", "payload"),
+    (
+        (
+            parse_telemetry,
+            {
+                "schema_version": 1,
+                "sequence": 23,
+                "wheel_statuses": [{"mode": "IDLE"}],
+            },
+        ),
+        (
+            parse_metadata,
+            {
+                "schema_version": 1,
+                "capture_sequence": 12,
+                "frame_width": 848,
+                "frame_height": 480,
+                "detections": [{
+                    "class_name": "bottle",
+                    "confidence": 0.9,
+                    "bbox_xywh": [10, 20, 30, 40],
+                    "position_m": 1,
+                }],
+            },
+        ),
+        (
+            parse_metadata,
+            {
+                "schema_version": 1,
+                "capture_sequence": 13,
+                "frame_width": 848,
+                "frame_height": 480,
+                "detections": [{
+                    "class_name": "bottle",
+                    "confidence": 0.9,
+                    "bbox_xywh": [10, 20, math.inf, 40],
+                    "position_m": None,
+                }],
+            },
+        ),
+    ),
+)
+def test_console_datagram_parsers_normalize_nested_structure_to_value_error(
+    parser,
+    payload,
+):
+    with pytest.raises(ValueError):
+        parser(json.dumps(payload).encode("utf-8"))
+
+
+@pytest.mark.parametrize(
+    ("parser", "payload"),
+    (
+        (
+            parse_telemetry,
+            {"schema_version": 1, "sequence": math.inf},
+        ),
+        (
+            parse_metadata,
+            {
+                "schema_version": 1,
+                "capture_sequence": math.inf,
+                "frame_width": math.inf,
+                "frame_height": 480,
+                "detections": [],
+            },
+        ),
+    ),
+)
+def test_console_datagram_parsers_normalize_overflowing_header_to_value_error(
+    parser,
+    payload,
+):
+    with pytest.raises(ValueError):
+        parser(json.dumps(payload).encode("utf-8"))
+
+
+def test_telemetry_rejects_string_safety_estop_boolean():
+    with pytest.raises(ValueError, match="safety_estop_required"):
+        parse_telemetry(
+            b'{"schema_version":1,"sequence":21,'
+            b'"safety_estop_required":"false"}'
+        )
+
+
+def test_telemetry_rejects_string_wheel_stale_boolean():
+    payload = {
+        "schema_version": 1,
+        "sequence": 22,
+        "wheel_statuses": [{
+            "name": "front_left",
+            "mode": "IDLE",
+            "stale": "false",
+        }],
+    }
+
+    with pytest.raises(ValueError, match="stale"):
+        parse_telemetry(json.dumps(payload).encode("utf-8"))
+
+
+def test_metadata_rejects_string_pick_target_boolean():
+    payload = {
+        "schema_version": 1,
+        "capture_sequence": 10,
+        "frame_width": 848,
+        "frame_height": 480,
+        "detections": [{
+            "class_name": "bottle",
+            "confidence": 0.9,
+            "bbox_xywh": [10, 20, 30, 40],
+            "position_m": None,
+            "is_pick_target": "false",
+        }],
+    }
+
+    with pytest.raises(ValueError, match="is_pick_target"):
+        parse_metadata(json.dumps(payload).encode("utf-8"))
+
+
 def test_power_summary_covers_normal_unavailable_and_warning():
     summary = getattr(telemetry, "power_summary", None)
     assert summary is not None
@@ -303,10 +480,14 @@ def test_chassis_rows_become_stale_when_snapshot_age_exceeds_one_second():
 
 
 def _payload_encoder():
+    package_root = str(
+        Path(__file__).resolve().parents[2] / "ros2/src/powertrain_ros"
+    )
+    sys.path.insert(0, package_root)
     try:
         module = importlib.import_module("powertrain_ros.chassis_telemetry")
-    except ModuleNotFoundError:
-        return None
+    finally:
+        sys.path.remove(package_root)
     return getattr(module, "encode_telemetry_payload", None)
 
 
@@ -465,8 +646,7 @@ def test_ops_panel_wires_pure_estop_cause_status_and_event_without_gtk():
     assert 'self._event_sink("안전",' in source
 
 
-def test_immediate_estop_submits_before_first_ops_state_without_revision():
-    """The token-gated E-stop must not wait for the first state push."""
+def test_immediate_estop_click_begins_confirmation_instead_of_direct_submit():
     import ast
     from pathlib import Path
     from types import SimpleNamespace
@@ -493,25 +673,66 @@ def test_immediate_estop_submits_before_first_ops_state_without_revision():
     exec(compile(module, str(source_path), "exec"), namespace)
 
     submitted = []
-    rejected = []
-    flow = SimpleNamespace(
-        begin=lambda _action: (_ for _ in ()).throw(
-            RuntimeError("ops state unavailable")
-        ),
-        confirm=lambda _action: None,
-        reset=lambda: None,
-    )
+    begun = []
     node = SimpleNamespace(
-        _flow=flow,
+        _begin=begun.append,
         _submit=submitted.append,
-        _emit=rejected.append,
     )
+    action = SimpleNamespace(action="estop")
 
     namespace["_on_immediate_clicked"](
         node,
         None,
-        SimpleNamespace(action="estop"),
+        action,
     )
 
-    assert submitted == [{"action": "estop", "params": {}}]
-    assert rejected == []
+    assert begun == [action]
+    assert submitted == []
+
+
+def test_ops_panel_clears_cached_component_mask_when_state_becomes_unavailable():
+    import ast
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    source_path = Path(__file__).resolve().parents[1] / "app.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    panel = next(
+        item
+        for item in tree.body
+        if isinstance(item, ast.ClassDef) and item.name == "OpsPanel"
+    )
+    method = next(
+        item
+        for item in panel.body
+        if isinstance(item, ast.FunctionDef) and item.name == "_on_state"
+    )
+    module = ast.Module(body=[method], type_ignores=[])
+    ast.fix_missing_locations(module)
+    namespace = {
+        "component_mask_from_state": lambda state: state.get("component_mask"),
+        "next_estop_cause_event": lambda *_args, **_kwargs: (None, None),
+        "PANEL_ACTIONS": (),
+    }
+    exec(compile(module, str(source_path), "exec"), namespace)
+
+    calls = []
+    node = SimpleNamespace(
+        _latest_component_mask={"us100": True},
+        _latest_chassis_mode="ARMED",
+        _latest_estop_source="us100",
+        _latest_estop_detail="near",
+        _latest_active_estop_sources=("us100",),
+        _last_estop_cause_key=None,
+        _flow=SimpleNamespace(reset=lambda: calls.append("reset")),
+        _hide_confirmation=lambda: calls.append("hide"),
+        _event_sink=lambda *_args: None,
+        _action_buttons={},
+        _refresh_status_line=lambda: None,
+    )
+
+    namespace["_on_state"](node, None)
+
+    assert node._latest_component_mask is None
+    assert node._latest_chassis_mode == "UNKNOWN"
+    assert calls == ["reset", "hide"]

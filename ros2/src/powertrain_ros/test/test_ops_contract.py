@@ -1,5 +1,6 @@
 """A2a ops 채널 와이어 계약(스펙 r6 §3.1) — 디코드 엄격성·action 표."""
 import json
+import math
 
 import pytest
 
@@ -50,6 +51,18 @@ def test_decode_rejects_contract_violations(bad):
 def test_decode_rejects_oversized_record():
     with pytest.raises(ValueError):
         oc.decode_request(_request(params={"x": "y" * oc.MAX_RECORD_BYTES}))
+
+
+@pytest.mark.parametrize("stamp_s", [math.nan, math.inf, -math.inf])
+def test_decode_rejects_nonfinite_request_stamp(stamp_s):
+    with pytest.raises(ValueError, match="stamp_s must be finite"):
+        oc.decode_request(_request(stamp_s=stamp_s))
+
+
+@pytest.mark.parametrize("stamp_s", [None, [], {}])
+def test_decode_normalizes_invalid_request_stamp_type(stamp_s):
+    with pytest.raises(ValueError, match="stamp_s must be finite"):
+        oc.decode_request(_request(stamp_s=stamp_s))
 
 
 def test_action_table_role_bindings_match_spec():

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RealSense D435i color + depth → GStreamer H.264/SRT 송신 (Jetson → 노트북).
+"""Powertrain L515 color + depth → GStreamer H.264/SRT 송신 (Jetson → 노트북).
 
 color(좌) | depth 컬러맵(우) 를 가로로 이어 붙여 한 프레임으로 송신한다.
 depth 패널에는 화면 중앙 거리(m)를 오버레이한다.
@@ -25,6 +25,7 @@ import pyrealsense2 as rs
 
 # 같은 폴더의 공용 송신 파이프라인 (스크립트 직접 실행 시 sys.path[0] = vision/)
 from gst_stream import ENCODERS, build_gst_command
+from realsense_l515 import start_l515_pipeline
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,7 +56,7 @@ def main() -> None:
     cfg = rs.config()
     cfg.enable_stream(rs.stream.depth, a.width, a.height, rs.format.z16, a.fps)
     cfg.enable_stream(rs.stream.color, a.width, a.height, rs.format.bgr8, a.fps)
-    pipe.start(cfg)
+    start_l515_pipeline(pipe, cfg, rs)
     overlay = a.mode == "overlay"
     align = rs.align(rs.stream.color) if (a.align or overlay) else None
 

@@ -63,4 +63,4 @@ ENTRYPOINT ["/usr/local/bin/powertrain_ros_entrypoint"]
 # bind-mounts the repository at /workspace before the healthcheck executes.
 ENV PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros:/workspace/motor_control
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
-    CMD python3 -c "import powertrain_observability" || exit 1
+    CMD python3 -m l515_dashboard.healthcheck

@@ -1,5 +1,7 @@
 import inspect
 
+import pytest
+
 from operator_console import ops_client
 
 
@@ -28,6 +30,7 @@ class FakeClient:
         self.submitted = []
         self.responses = []
         self.closed = False
+        self.pump_error = None
 
     def submit(
         self,
@@ -46,6 +49,9 @@ class FakeClient:
         return request_id
 
     def pump(self):
+        if self.pump_error is not None:
+            error, self.pump_error = self.pump_error, None
+            raise error
         responses, self.responses = self.responses, []
         return responses
 
@@ -69,8 +75,22 @@ def _console(monkeypatch, *, submit_sink=None, state_sink=None, schedule=None):
     return console, client, FakeThread.instances[-1]
 
 
+def _publish_state(console, client, **overrides):
+    console.run_once()
+    state = {
+        "push": "ops_state",
+        "revision": 7,
+        "authority_mode": "IDLE",
+    }
+    state.update(overrides)
+    client.responses.append(state)
+    console.run_once()
+    return state
+
+
 def test_submit_is_queued_then_forwarded_with_the_returned_request_id(monkeypatch):
     console, client, _thread = _console(monkeypatch)
+    _publish_state(console, client)
 
     request_id = console.submit(
         "authority_manual",
@@ -107,6 +127,8 @@ def test_ack_is_delivered_to_submit_sink_through_schedule(monkeypatch):
         submit_sink=received.append,
         schedule=schedule,
     )
+    _publish_state(console, client)
+    scheduled.clear()
     request_id = console.submit("status_query")
     console.run_once()
     ack = {"request_id": request_id, "status": "FINAL_SUCCESS"}
@@ -140,16 +162,88 @@ def test_push_updates_latest_state_and_reaches_state_sink(monkeypatch):
     assert console.latest_state()["revision"] == 9
 
 
-def test_send_queue_drops_oldest_when_more_than_sixteen_are_pending(monkeypatch):
+def test_submit_rejects_when_disconnected_or_current_connection_has_no_state(
+    monkeypatch,
+):
     console, client, _thread = _console(monkeypatch)
 
-    for index in range(17):
+    with pytest.raises(RuntimeError, match="not connected"):
+        console.submit("estop")
+
+    console.run_once()
+    with pytest.raises(RuntimeError, match="state unavailable"):
+        console.submit("estop")
+
+    _publish_state(console, client)
+    assert console.submit("estop")
+
+
+def test_disconnect_clears_latest_state_and_rejects_unsent_queue(monkeypatch):
+    submits = []
+    states = []
+    console, client, _thread = _console(
+        monkeypatch,
+        submit_sink=submits.append,
+        state_sink=states.append,
+    )
+    state = _publish_state(
+        console,
+        client,
+        component_mask={"us100": True},
+    )
+    request_id = console.submit("estop")
+
+    console._disconnect(client)
+
+    assert console.latest_state() is None
+    assert states == [state, None]
+    assert submits == [{
+        "request_id": request_id,
+        "status": "FINAL_REJECTED",
+        "detail": "ops connection lost before command was sent",
+    }]
+    assert console._take_pending() == []
+
+
+def test_seventeenth_pending_command_is_rejected_instead_of_silent_drop(
+    monkeypatch,
+):
+    console, client, _thread = _console(monkeypatch)
+    _publish_state(console, client)
+
+    for index in range(16):
         console.submit("action-%d" % index)
+    with pytest.raises(RuntimeError, match="queue full"):
+        console.submit("action-16")
 
     assert console.dropped_send_count == 1
     console.run_once()
     assert [item["action"] for item in client.submitted] == [
-        "action-%d" % index for index in range(1, 17)
+        "action-%d" % index for index in range(16)
+    ]
+
+
+def test_pump_exception_reports_outcome_unknown_for_every_sent_request(
+    monkeypatch,
+):
+    received = []
+    console, client, _thread = _console(
+        monkeypatch,
+        submit_sink=received.append,
+    )
+    _publish_state(console, client)
+    request_ids = [console.submit("action-%d" % index) for index in range(2)]
+    client.pump_error = OSError("connection reset")
+
+    console.run_once()
+
+    assert received == [
+        {
+            "request_id": request_id,
+            "status": "OUTCOME_UNKNOWN",
+            "detail": "ops connection lost after command was sent",
+        }
+        for request_id in request_ids
     ]
 
 

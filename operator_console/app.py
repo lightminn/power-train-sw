@@ -26,6 +26,7 @@ from gi.repository import Gdk, GLib, Gst, Gtk, Pango  # noqa: E402
 from .arm_telemetry import (
     ArmTelemetrySnapshot,
     LatestArmTelemetryReceiver,
+    arm_source_freshness,
     arm_summary,
     temperature_state,
 )
@@ -485,6 +486,7 @@ class ArmTelemetryPanel(Gtk.Frame):
         grid = Gtk.Grid(column_spacing=12, row_spacing=7, margin=10)
         for row, (key, title) in enumerate((
             ("link", "수신"), ("motors", "모터"), ("joints", "관절"),
+            ("detections", "탐지"),
         )):
             name = Gtk.Label(label=title)
             name.set_xalign(0.0)
@@ -540,7 +542,12 @@ class ArmTelemetryPanel(Gtk.Frame):
         self._labels["link"].set_text(
             f"{freshness_korean('LIVE')} · 순번 {snapshot.sequence} · {age_ms:.0f} ms"
         )
-        if snapshot.dynamixel is None:
+        motor_freshness = arm_source_freshness(snapshot.dynamixel_age_s)
+        joints_freshness = arm_source_freshness(snapshot.joints_age_s)
+        detections_freshness = arm_source_freshness(snapshot.detections_age_s)
+        if motor_freshness != "LIVE":
+            self._labels["motors"].set_text(freshness_korean(motor_freshness))
+        elif snapshot.dynamixel is None:
             self._labels["motors"].set_text("미수신(UNAVAILABLE)")
         else:
             # Dynamixel current scaling is not confirmed by the arm team;
@@ -550,7 +557,9 @@ class ArmTelemetryPanel(Gtk.Frame):
                 f"{motor.temperature_c}℃ [{temperature_state(motor.temperature_c)}]"
                 for motor in snapshot.dynamixel
             ))
-        if not snapshot.joint_names:
+        if joints_freshness != "LIVE":
+            self._labels["joints"].set_text(freshness_korean(joints_freshness))
+        elif not snapshot.joint_names:
             self._labels["joints"].set_text("미수신(UNAVAILABLE)")
         else:
             self._labels["joints"].set_text(", ".join(
@@ -559,7 +568,11 @@ class ArmTelemetryPanel(Gtk.Frame):
                     snapshot.joint_names, snapshot.joint_position_rad,
                 )
             ))
-        self._report_temperature(snapshot)
+        self._labels["detections"].set_text(
+            freshness_korean(detections_freshness)
+        )
+        if motor_freshness == "LIVE":
+            self._report_temperature(snapshot)
         return True
 
 
@@ -624,11 +637,16 @@ class ChassisTelemetryPanel(Gtk.Frame):
             f"{_format_number(snapshot.yaw_rad, 'rad')}"
         )
         self._labels["drive"].set_text(snapshot.drive_state)
-        if snapshot.safety_status == "unavailable":
+        if (
+            snapshot.safety_status == "unavailable"
+            or snapshot.safety_estop_required is None
+        ):
             self._labels["safety"].set_text("미수신(UNAVAILABLE)")
         else:
             distance = _format_number(snapshot.safety_distance_mm, "mm")
-            estop = "ESTOP" if snapshot.safety_estop_required else "clear"
+            estop = (
+                "ESTOP" if snapshot.safety_estop_required is True else "clear"
+            )
             failures = ("N/A" if snapshot.safety_consecutive_failures is None
                         else str(snapshot.safety_consecutive_failures))
             detail = snapshot.safety_detail or "-"
@@ -899,12 +917,7 @@ class OpsPanel(Gtk.Frame):
         _button: Gtk.Button,
         action: PanelAction,
     ) -> None:
-        flow = self._flow
-        if flow is None:
-            self._emit(f"{action.action}: rejected — panel disabled")
-            return
-        flow.reset()
-        self._submit({"action": action.action, "params": {}})
+        self._begin(action)
 
     def _on_hold_press(
         self,
@@ -983,7 +996,12 @@ class OpsPanel(Gtk.Frame):
             strip.hide()
             strip.set_no_show_all(True)
 
-    def _on_state(self, state: dict) -> None:
+    def _on_state(self, state: dict | None) -> None:
+        if state is None:
+            state = {}
+            if self._flow is not None:
+                self._flow.reset()
+            self._hide_confirmation()
         self._latest_component_mask = component_mask_from_state(state)
         chassis_mode = str(state.get("chassis_mode", "UNKNOWN"))
         estop_source = str(state.get("estop_source", ""))

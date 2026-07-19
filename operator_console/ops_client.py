@@ -65,10 +65,13 @@ class ConsoleOpsClient:
         self._send_queue = deque(maxlen=SEND_QUEUE_MAXLEN)
         self._queue_lock = threading.Lock()
         self._dropped_send_count = 0
+        self._inflight = {}
         self._latest = None
         self._state_lock = threading.Lock()
+        self._state_generation = None
         self._client = None
         self._client_lock = threading.Lock()
+        self._connection_generation = 0
         self._next_connect_s = 0.0
         self._stopping = threading.Event()
 
@@ -88,27 +91,57 @@ class ConsoleOpsClient:
         """Queue one command without blocking the GTK thread."""
         if self._stopping.is_set():
             raise RuntimeError("console ops client is closed")
-        request_id = str(uuid.uuid4())
-        queued = _QueuedSubmit(
-            request_id=request_id,
-            action=str(action),
-            params=dict(params or {}),
-            expected_state_revision=expected_state_revision,
-        )
-        with self._queue_lock:
-            if len(self._send_queue) == self._send_queue.maxlen:
-                self._dropped_send_count += 1
-            self._send_queue.append(queued)
+        with self._client_lock:
+            if self._client is None:
+                raise RuntimeError("ops client is not connected")
+            generation = self._connection_generation
+            with self._state_lock:
+                if (
+                    self._latest is None
+                    or self._state_generation != generation
+                ):
+                    raise RuntimeError("ops state unavailable for current connection")
+            request_id = str(uuid.uuid4())
+            queued = _QueuedSubmit(
+                request_id=request_id,
+                action=str(action),
+                params=dict(params or {}),
+                expected_state_revision=expected_state_revision,
+            )
+            with self._queue_lock:
+                if len(self._send_queue) == self._send_queue.maxlen:
+                    self._dropped_send_count += 1
+                    raise RuntimeError("ops send queue full")
+                self._send_queue.append(queued)
         return request_id
 
     def latest_state(self):
         with self._state_lock:
             return None if self._latest is None else dict(self._latest)
 
-    def _disconnect(self, client):
+    def _disconnect(self, client, *, uncertain=(), unsent=()):
+        disconnected = False
         with self._client_lock:
             if self._client is client:
                 self._client = None
+                disconnected = True
+                with self._state_lock:
+                    self._latest = None
+                    self._state_generation = None
+        if disconnected:
+            queued = list(unsent) + self._take_pending()
+            inflight = self._take_inflight() + list(uncertain)
+            self._report_requests(
+                queued,
+                status="FINAL_REJECTED",
+                detail="ops connection lost before command was sent",
+            )
+            self._report_requests(
+                inflight,
+                status="OUTCOME_UNKNOWN",
+                detail="ops connection lost after command was sent",
+            )
+            self._schedule_sink(self._state_sink, None)
         try:
             client.close()
         except Exception:
@@ -139,6 +172,10 @@ class ConsoleOpsClient:
             return None
         with self._client_lock:
             self._client = client
+            self._connection_generation += 1
+            with self._state_lock:
+                self._latest = None
+                self._state_generation = None
         return client
 
     def _take_pending(self):
@@ -147,18 +184,22 @@ class ConsoleOpsClient:
             self._send_queue.clear()
         return pending
 
-    def _restore_pending(self, pending):
+    def _take_inflight(self):
         with self._queue_lock:
-            combined = list(pending) + list(self._send_queue)
-            overflow = max(0, len(combined) - SEND_QUEUE_MAXLEN)
-            if overflow:
-                self._dropped_send_count += overflow
-                combined = combined[overflow:]
-            self._send_queue.clear()
-            self._send_queue.extend(combined)
+            inflight = list(self._inflight.values())
+            self._inflight.clear()
+        return inflight
+
+    def _report_requests(self, queued_requests, *, status, detail):
+        for queued in queued_requests:
+            self._schedule_sink(self._submit_sink, {
+                "request_id": queued.request_id,
+                "status": status,
+                "detail": detail,
+            })
 
     def _schedule_sink(self, sink, payload):
-        snapshot = dict(payload)
+        snapshot = None if payload is None else dict(payload)
 
         def callback():
             sink(snapshot)
@@ -183,9 +224,14 @@ class ConsoleOpsClient:
                     request_id=queued.request_id,
                     expected_state_revision=queued.expected_state_revision,
                 )
+                with self._queue_lock:
+                    self._inflight[queued.request_id] = queued
             except Exception:
-                self._restore_pending(pending[index:])
-                self._disconnect(client)
+                self._disconnect(
+                    client,
+                    uncertain=(queued,),
+                    unsent=pending[index + 1:],
+                )
                 return
 
         try:
@@ -198,10 +244,19 @@ class ConsoleOpsClient:
                 continue
             if response.get("push") == "ops_state":
                 snapshot = dict(response)
-                with self._state_lock:
-                    self._latest = snapshot
+                with self._client_lock:
+                    if self._client is not client:
+                        continue
+                    generation = self._connection_generation
+                    with self._state_lock:
+                        self._latest = snapshot
+                        self._state_generation = generation
                 self._schedule_sink(self._state_sink, snapshot)
             else:
+                status = str(response.get("status", ""))
+                if status.startswith("FINAL_") or status == "OUTCOME_UNKNOWN":
+                    with self._queue_lock:
+                        self._inflight.pop(str(response.get("request_id")), None)
                 self._schedule_sink(self._submit_sink, response)
 
     def _run(self):

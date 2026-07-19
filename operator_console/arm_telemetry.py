@@ -11,6 +11,9 @@ from typing import Any
 from .udp_source import SourceSequenceGate
 
 
+ARM_SOURCE_STALE_AFTER_S = 1.0
+
+
 @dataclass(frozen=True)
 class DynamixelMotorStatus:
     id: int
@@ -163,10 +166,22 @@ def temperature_state(temp_c: int) -> str:
     return "CRIT"
 
 
+def arm_source_freshness(age_s: float | None) -> str:
+    """Classify one ROS source independently from the live UDP bridge."""
+    if age_s is None:
+        return "UNAVAILABLE"
+    return "STALE" if age_s > ARM_SOURCE_STALE_AFTER_S else "LIVE"
+
+
 def arm_summary(snapshot: ArmTelemetrySnapshot | None) -> str:
     """Return the compact robot-arm motor-temperature summary."""
     if snapshot is None or snapshot.dynamixel is None:
         return "미수신(UNAVAILABLE)"
+    motor_freshness = arm_source_freshness(snapshot.dynamixel_age_s)
+    if motor_freshness == "UNAVAILABLE":
+        return "미수신(UNAVAILABLE)"
+    if motor_freshness == "STALE":
+        return "모터 원천 지연(STALE)"
     if not snapshot.dynamixel:
         return "모터 0 · 온도 미수신"
     highest = max(motor.temperature_c for motor in snapshot.dynamixel)
