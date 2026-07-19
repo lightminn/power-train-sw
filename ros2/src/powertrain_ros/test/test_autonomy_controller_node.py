@@ -576,7 +576,14 @@ def test_changed_camera_info_resolution_and_matching_frame_are_ignored():
         controller.destroy_node()
 
 
-def test_first_camera_info_fixes_uniform_stride_central_crop_and_intrinsics():
+def test_first_camera_info_fixes_grid_from_qualified_roi_and_intrinsics():
+    """그리드는 첫 CameraInfo 에 고정되고, ROI 는 **자격 파일**에서만 온다.
+
+    예전에는 노드가 전체 프레임의 중앙 크롭을 스스로 정했다. 그러면 잠정
+    extrinsics/ROI 로 지형을 해석하게 되므로, 자격이 승인된 단일 출처에서만
+    ROI 를 받도록 바뀌었다(2026-07-18 리뷰 R04 #7). 픽스처 ROI 는 80x60@0,0 이라
+    stride 는 1 이고 intrinsics 는 ROI 원점만큼 이동한다.
+    """
     controller = _controller(enabled=False)
     try:
         info = _camera_info(controller, width=1280, height=720)
@@ -587,13 +594,25 @@ def test_first_camera_info_fixes_uniform_stride_central_crop_and_intrinsics():
 
         assert controller._grid_source_shape == (720, 1280)
         assert controller._row_indices[0] == 0
-        assert controller._row_indices[-1] == 708
-        assert controller._col_indices[0] == 160
-        assert controller._col_indices[-1] == 1108
-        assert controller._intrinsics.fx == pytest.approx(80.0)
-        assert controller._intrinsics.fy == pytest.approx(80.0)
-        assert controller._intrinsics.cx == pytest.approx((639.5 - 160) / 12)
-        assert controller._intrinsics.cy == pytest.approx(359.5 / 12)
+        assert controller._row_indices[-1] == 59
+        assert controller._col_indices[0] == 0
+        assert controller._col_indices[-1] == 79
+        assert controller._intrinsics.fx == pytest.approx(960.0)
+        assert controller._intrinsics.fy == pytest.approx(960.0)
+        assert controller._intrinsics.cx == pytest.approx(639.5)
+        assert controller._intrinsics.cy == pytest.approx(359.5)
+    finally:
+        controller.destroy_node()
+
+
+def test_camera_info_without_qualified_roi_builds_no_grid():
+    """자격 ROI 가 없으면 그리드를 만들지 않는다 — fail-closed."""
+    controller = _controller(enabled=False)
+    try:
+        controller._qualified_roi = None
+        controller._grid_snapshot = None
+        controller._on_camera_info(_camera_info(controller, width=1280, height=720))
+        assert controller._grid_snapshot is None
     finally:
         controller.destroy_node()
 

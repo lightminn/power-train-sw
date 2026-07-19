@@ -17,7 +17,6 @@ import os
 import sys
 
 import rclpy
-from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Twist
 from rclpy.duration import Duration
 from rclpy.node import Node
@@ -26,9 +25,6 @@ from std_msgs.msg import Bool, Float32MultiArray
 from tf2_ros import Buffer, TransformListener
 
 from powertrain_ros import contract
-from powertrain_ros.terrain_qualification import (
-    enforce_node_command_guidance_qualification,
-)
 from robot_arm_msgs.msg import DetectedObjectArray
 
 sys.path.insert(0, os.environ.get("MOTOR_CONTROL_PATH", "/workspace/motor_control"))
@@ -86,15 +82,11 @@ class LeadFollowerNode(Node):
         self.declare_parameter("reacquire_confirm_n", 2)
         self.declare_parameter("tf_stale_s", 0.5)
 
-        enforce_node_command_guidance_qualification(
-            self,
-            guidance="follow",
-            default_path=os.path.join(
-                get_package_share_directory("powertrain_ros"),
-                "config",
-                "l515_terrain.yaml",
-            ),
-        )
+        # L515 지형 자격 게이트는 여기 걸지 않는다. 이 노드는 L515 를 전혀 쓰지
+        # 않는다 — /detected_objects(팔 D435i)와 TF 만 소비하므로 잠정 L515
+        # mount/ROI 값이 이 노드의 출력에 영향을 줄 수 없다. 게이트는 L515 기하를
+        # 실제로 소비하는 autonomy_controller(/l515/depth/*)와
+        # wall_follower(/l515/points)에만 건다.
 
         self.cfg = FollowConfig(
             class_name=str(self.get_parameter("class_name").value),
