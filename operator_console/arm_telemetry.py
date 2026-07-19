@@ -195,6 +195,18 @@ def arm_summary(snapshot: ArmTelemetrySnapshot | None) -> str:
     return f"모터 {len(snapshot.dynamixel)} · {temperature}"
 
 
+def arm_panel_summary(
+    snapshot: ArmTelemetrySnapshot | None,
+    receive_age_s: float | None,
+) -> str:
+    """Summarize the arm panel without hiding a dead receive link."""
+    if snapshot is None:
+        return arm_summary(None)
+    if receive_age_s is not None and receive_age_s > ARM_SOURCE_STALE_AFTER_S:
+        return "지연(STALE)"
+    return arm_summary(snapshot)
+
+
 class LatestArmTelemetryReceiver:
     """Latest-only RX-bound UDP receiver for robot-arm observation."""
     def __init__(self, port: int) -> None:
@@ -205,6 +217,7 @@ class LatestArmTelemetryReceiver:
         self._lock = threading.Lock()
         self._stopping = threading.Event()
         self._source_gate = SourceSequenceGate(stale_after_s=2.0)
+        self._invalid_packet_count = 0
         self._thread = threading.Thread(target=self._run, name="arm-telemetry", daemon=True)
         self._thread.start()
 
@@ -213,18 +226,27 @@ class LatestArmTelemetryReceiver:
         while not self._stopping.is_set():
             try:
                 raw, address = self._socket.recvfrom(4097)
-                received_s = time.monotonic()
-                snapshot = parse_arm_telemetry(raw, received_monotonic_s=received_s)
-            except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            except OSError:
                 continue
-            if not self._source_gate.accept(
-                address,
-                snapshot.sequence,
-                now_s=received_s,
-            ):
+            received_s = time.monotonic()
+            try:
+                snapshot = parse_arm_telemetry(raw, received_monotonic_s=received_s)
+                accepted = self._source_gate.accept(
+                    address,
+                    snapshot.sequence,
+                    now_s=received_s,
+                )
+            except Exception:
+                self._invalid_packet_count += 1
+                continue
+            if not accepted:
                 continue
             with self._lock:
                 self._latest = snapshot
+
+    @property
+    def invalid_packet_count(self) -> int:
+        return self._invalid_packet_count
 
     def latest(self) -> ArmTelemetrySnapshot | None:
         with self._lock:

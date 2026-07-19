@@ -118,10 +118,19 @@ def _joint_payload(
         raise ValueError("joint array lengths do not match")
 
     truncated = len(names) > MAX_JOINTS
+    position_values = [float(value) for value in position[:MAX_JOINTS]]
+    velocity_values = [float(value) for value in velocity[:MAX_JOINTS]]
+    # NaN 은 여기서 잡는다 — 전체 payload _encode(allow_nan=False) 단계까지
+    # 가면 dynamixel 온도까지 함께 버려진다.
+    if not all(
+        math.isfinite(value)
+        for value in position_values + velocity_values
+    ):
+        raise ValueError("joint values must be finite")
     return {
         "names": [str(name) for name in names[:MAX_JOINTS]],
-        "position_rad": [float(value) for value in position[:MAX_JOINTS]],
-        "velocity": [float(value) for value in velocity[:MAX_JOINTS]],
+        "position_rad": position_values,
+        "velocity": velocity_values,
     }, truncated
 
 
@@ -137,7 +146,14 @@ def build_arm_telemetry_payload(
     joint_payload = None
     truncated = False
     if joints is not None:
-        joint_payload, truncated = _joint_payload(joints)
+        try:
+            joint_payload, truncated = _joint_payload(joints)
+        except ValueError:
+            # 합법 JointState 변형(velocity 생략)이나 NaN 이 datagram 전체
+            # (모터 온도 포함)를 침묵시키지 않도록 joints 만 강등한다
+            # (2026-07-19 콘솔 E2E 리뷰 A#2).
+            joint_payload = None
+            truncated = False
     payload = {
         "schema_version": 1,
         "sequence": int(sequence),
@@ -223,8 +239,14 @@ def build_detection_metadata_payload(
     frame_height,
     detections,
     pick_target,
+    capture_sequence=None,
 ) -> bytes:
-    """Encode the arm metadata schema superset accepted by the console."""
+    """Encode the arm metadata schema superset accepted by the console.
+
+    ``capture_sequence`` 는 콘솔 SourceSequenceGate 가 단조 증가를 요구한다.
+    header.stamp 미설정(0) 스택에서 stamp 겸용은 첫 프레임 이후 전부
+    기각되므로, 브리지는 자체 카운터를 명시로 넘긴다 (리뷰 A#6).
+    """
     encoded_detections = []
     for detection in detections:
         encoded = _metadata_detection(detection, pick_target)
@@ -232,7 +254,9 @@ def build_detection_metadata_payload(
             encoded_detections.append(encoded)
     payload = {
         "schema_version": 1,
-        "capture_sequence": int(capture_stamp_ns),
+        "capture_sequence": int(
+            capture_stamp_ns if capture_sequence is None else capture_sequence
+        ),
         "capture_stamp_ns": int(capture_stamp_ns),
         "frame_width": int(frame_width),
         "frame_height": int(frame_height),

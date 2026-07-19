@@ -26,6 +26,7 @@ from gi.repository import Gdk, GLib, Gst, Gtk, Pango  # noqa: E402
 from .arm_telemetry import (
     ArmTelemetrySnapshot,
     LatestArmTelemetryReceiver,
+    arm_panel_summary,
     arm_source_freshness,
     arm_summary,
     temperature_state,
@@ -67,6 +68,9 @@ from .telemetry import (
 
 
 DEFAULT_OPS_TOKEN_FILE = "~/.config/powertrain/ops_console.token"
+# srtsrc(auto-reconnect=true)는 리스너 사망·재기동을 bus ERROR 없이 삼키므로,
+# 프레임을 한 번이라도 본 스트림이 이 시간 넘게 stale 이면 강제 재시작한다.
+VIDEO_STALE_RESTART_S = 5.0
 # Stable source-level declaration consumed by the send-surface contract test.
 # Operator-visible copy below is Korean; the transport boundary remains this.
 SEND_SURFACE_CONTRACT = "OBSERVE: RX-ONLY  |  OPS: TOKEN-GATED  |  "
@@ -257,6 +261,12 @@ class VideoPanel(Gtk.Box):
                 self._freshness_state = "stale"
             self._status.set_text(
                 f"{self._name}: 지연(STALE) ({age_ms:.0f} ms · 재연결 {self._reconnects})")
+            if (
+                age_ms > VIDEO_STALE_RESTART_S * 1000.0
+                and self._retry_source_id is None
+            ):
+                self._emit_event("stale watchdog: forcing pipeline restart")
+                self._schedule_reconnect()
         else:
             if self._freshness_state != "live":
                 self._emit_event("frame flow live")
@@ -288,6 +298,14 @@ class VideoPanel(Gtk.Box):
         if self._stopped:
             return False
         self._pipeline.set_state(Gst.State.NULL)
+        # 재시작 후에도 죽기 전 프레임 시각이 남아 있으면 워치독이 곧바로
+        # 다시 발화하고 표시도 거대한 stale 나이를 보인다 — 상태를 리셋한다.
+        self._pipeline_live = False
+        self._last_frame_monotonic = None
+        self._last_fps = None
+        self._frames = 0
+        self._sample_start = time.monotonic()
+        self._freshness_state = "connecting"
         self._pipeline.set_state(Gst.State.PLAYING)
         return False
 
@@ -525,15 +543,20 @@ class ArmTelemetryPanel(Gtk.Frame):
 
     def _refresh(self) -> bool:
         snapshot: ArmTelemetrySnapshot | None = self._receiver.latest()
+        receive_age_s = (
+            None
+            if snapshot is None
+            else time.monotonic() - snapshot.received_monotonic_s
+        )
         summary_label = getattr(self, "_summary", None)
         if summary_label is not None:
-            summary_label.set_text(arm_summary(snapshot))
+            summary_label.set_text(arm_panel_summary(snapshot, receive_age_s))
         if snapshot is None:
             self._labels["link"].set_text(
                 f"{freshness_korean('WAITING')} · UDP :{self._port}"
             )
             return True
-        age_ms = (time.monotonic() - snapshot.received_monotonic_s) * 1000.0
+        age_ms = receive_age_s * 1000.0
         if age_ms > 1000.0:
             self._labels["link"].set_text(
                 f"{freshness_korean('STALE')} · {age_ms:.0f} ms"
@@ -883,7 +906,9 @@ class OpsPanel(Gtk.Frame):
             self._emit(f"{action.action}: rejected — panel disabled")
             return False
         try:
-            pending = self._flow.begin(action.action)
+            # 문자열이 아니라 행 객체를 넘긴다 — arm_lock_override 는 같은
+            # action 이름의 걸기/취소 행 쌍이라 문자열 조회로는 구분 불가.
+            pending = self._flow.begin(action)
         except (RuntimeError, ValueError) as exc:
             self._emit(f"{action.action}: rejected — {exc}")
             self._hide_confirmation()
@@ -917,7 +942,12 @@ class OpsPanel(Gtk.Frame):
         _button: Gtk.Button,
         action: PanelAction,
     ) -> None:
-        self._begin(action)
+        flow = self._flow
+        if flow is None:
+            self._emit(f"{action.action}: rejected — panel disabled")
+            return
+        flow.reset()
+        self._submit({"action": action.action, "params": {}})
 
     def _on_hold_press(
         self,
@@ -942,7 +972,7 @@ class OpsPanel(Gtk.Frame):
         if started_s is None or self._flow is None:
             return False
         held_s = max(0.0, self._clock() - started_s)
-        submit_kwargs = self._flow.confirm(action.action, held_s=held_s)
+        submit_kwargs = self._flow.confirm(action, held_s=held_s)
         if submit_kwargs is None:
             self._flow.reset()
             self._emit(
@@ -958,7 +988,7 @@ class OpsPanel(Gtk.Frame):
         action = self._active_action
         if action is None or self._flow is None:
             return
-        submit_kwargs = self._flow.confirm(action.action)
+        submit_kwargs = self._flow.confirm(action)
         if submit_kwargs is None:
             self._emit(
                 f"{action.action}: rejected — state revision changed; begin again"
@@ -1160,6 +1190,7 @@ class OperatorConsole(Gtk.Window):
             yolo = "STALE" if time.monotonic() - metadata.received_monotonic_s > 0.25 else "LIVE"
         telemetry = self._telemetry_state(snapshot)
         chassis_state = self._telemetry_state(chassis_snapshot)
+        arm_state = self._telemetry_state(self._arm_receiver.latest())
         odom, drive, can = chassis_component_states(chassis_snapshot)
         telemetry_mask = (
             chassis_snapshot.component_mask
@@ -1203,6 +1234,7 @@ class OperatorConsole(Gtk.Window):
             f"YOLO {freshness_korean(yolo)}  ·  "
             f"전원 {freshness_korean(telemetry)}  ·  "
             f"차대 {freshness_korean(chassis_state)}  ·  "
+            f"팔 {freshness_korean(arm_state)}  ·  "
             f"주행계 {freshness_korean(odom)}  ·  "
             f"주행 {freshness_korean(drive)}  ·  CAN {freshness_korean(can)}"
         )
@@ -1221,7 +1253,9 @@ class OperatorConsole(Gtk.Window):
             "telemetry": telemetry,
             "chassis": chassis_state,
             "metadata": yolo,
-            "arm": self._telemetry_state(self._arm_receiver.latest()),
+            "arm": arm_state,
+            "video_l515": self._l515.health_state(),
+            "video_d435": self._d435.health_state(),
             "safety_banner": safety,
         })
         return True

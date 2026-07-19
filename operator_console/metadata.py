@@ -61,8 +61,10 @@ def parse_metadata(raw: bytes, received_monotonic_s: float | None = None) -> Met
             confidence = float(item["confidence"])
         except (KeyError, TypeError, OverflowError) as exc:
             raise ValueError("invalid detection structure") from exc
-        if len(box) != 4 or box[2] < 1 or box[3] < 1:
+        if len(box) != 4:
             raise ValueError("invalid bbox")
+        if box[2] < 1 or box[3] < 1:
+            continue
         xyz = item.get("position_m")
         try:
             position = (

@@ -25,8 +25,13 @@ RETRANSMIT_INTERVAL_S = 0.25
 REQUEST_DEADLINE_S = 2.0
 REQUEST_FUTURE_SKEW_S = 0.25
 SERVICE_CALL_TIMEOUT_S = 1.0
+SERVICE_UNAVAILABLE_ABANDON_S = 3.0
 SERVICE_ORDER_ABANDON_S = 10.0
-assert SERVICE_ORDER_ABANDON_S > SERVICE_CALL_TIMEOUT_S
+assert (
+    SERVICE_CALL_TIMEOUT_S
+    < SERVICE_UNAVAILABLE_ABANDON_S
+    < SERVICE_ORDER_ABANDON_S
+)
 # ⚠️ recovery-v1-initial-candidate — HIL·운전자 피드백 후 변경 전제(임시).
 EMERGENCY_HOLD_S = {"estop_reset": 5.0, "arm": 3.0}
 OPS_STATE_STALE_S = 0.5
@@ -36,6 +41,12 @@ _REQUIRED = (
     "params", "stamp_s",
 )
 _OPTIONAL = ("expected_state_revision", "phase")
+
+
+def service_abandon_timeout_s(*, service_was_ready):
+    if service_was_ready:
+        return SERVICE_ORDER_ABANDON_S
+    return SERVICE_UNAVAILABLE_ABANDON_S
 
 
 @dataclass(frozen=True)
@@ -51,7 +62,7 @@ _CONSOLE = frozenset({ROLE_CONSOLE})
 _CTRL_EMERGENCY = frozenset({ROLE_CONTROLLER})
 _MISSIONS = (
     "mission_arrive_pickup", "mission_arrive_drop", "mission_skip",
-    "mission_retry", "mission_regrasp_confirmed", "mission_clear_grip_lost",
+    "mission_retry", "mission_regrasp_confirmed",
 )
 
 ACTIONS = {
@@ -82,6 +93,10 @@ ACTIONS = {
     "arm_lock_override": ActionSpec(
         _CONSOLE, "service_setbool",
         ("/chassis_node/arm_lock_override",),
+    ),
+    "mission_clear_grip_lost": ActionSpec(
+        _CONSOLE, "service_setbool",
+        ("/chassis_node/mission_clear_grip_lost",),
     ),
     "drive_enable": ActionSpec(
         _CONSOLE, "service_setbool",

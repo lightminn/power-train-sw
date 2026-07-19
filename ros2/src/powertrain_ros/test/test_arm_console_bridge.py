@@ -138,19 +138,43 @@ def test_arm_telemetry_payload_round_trips_null_sources_and_ages():
     }
 
 
-def test_arm_telemetry_payload_rejects_mismatched_joint_arrays():
-    with pytest.raises(ValueError, match="joint"):
-        build_arm_telemetry_payload(
-            sequence=0,
-            stamp_s=0.0,
-            motors=(_motor(),),
-            joints={
-                "names": ["joint_1", "joint_2"],
-                "position_rad": [0.1],
-                "velocity": [0.2, 0.3],
-            },
-            source_age_s={},
-        )
+def test_arm_telemetry_payload_degrades_mismatched_joints_without_killing_motors():
+    # ROS 관례상 JointState 는 velocity 를 생략(빈 배열)할 수 있다. 이런
+    # 합법 변형이 datagram 전체(모터 온도 포함)를 침묵시키면 안 된다 —
+    # joints 만 강등한다 (2026-07-19 콘솔 E2E 리뷰 A#2).
+    encoded = build_arm_telemetry_payload(
+        sequence=0,
+        stamp_s=0.0,
+        motors=(_motor(),),
+        joints={
+            "names": ["joint_1", "joint_2"],
+            "position_rad": [0.1, 0.2],
+            "velocity": [],
+        },
+        source_age_s={},
+    )
+
+    payload = json.loads(encoded)
+    assert payload["joints"] is None
+    assert payload["dynamixel"][0]["id"] == 11
+
+
+def test_arm_telemetry_payload_degrades_nonfinite_joints_without_killing_motors():
+    encoded = build_arm_telemetry_payload(
+        sequence=1,
+        stamp_s=0.0,
+        motors=(_motor(),),
+        joints={
+            "names": ["joint_1"],
+            "position_rad": [math.nan],
+            "velocity": [0.0],
+        },
+        source_age_s={},
+    )
+
+    payload = json.loads(encoded)
+    assert payload["joints"] is None
+    assert payload["dynamixel"][0]["id"] == 11
 
 
 def test_arm_telemetry_payload_drops_oversize_joints_before_motors():
@@ -448,3 +472,38 @@ def test_node_mirrors_detection_yaw_and_exact_latched_pick_target():
         harness.close(bridge)
         telemetry.close()
         metadata.close()
+
+
+def test_detection_metadata_uses_explicit_capture_sequence_over_stamp():
+    # header.stamp 가 0(미설정)인 팔 스택에서 stamp=sequence 겸용은 첫
+    # 프레임 이후 전부 게이트에서 기각된다 — 브리지는 자체 단조 카운터를
+    # capture_sequence 로 넘긴다 (2026-07-19 콘솔 E2E 리뷰 A#6).
+    encoded = build_detection_metadata_payload(
+        capture_sequence=7,
+        capture_stamp_ns=0,
+        frame_id="camera_link",
+        frame_width=848,
+        frame_height=480,
+        detections=[],
+        pick_target=None,
+    )
+    payload = json.loads(encoded)
+    assert payload["capture_sequence"] == 7
+    assert payload["capture_stamp_ns"] == 0
+
+    fallback = json.loads(build_detection_metadata_payload(
+        capture_stamp_ns=123,
+        frame_id="camera_link",
+        frame_width=848,
+        frame_height=480,
+        detections=[],
+        pick_target=None,
+    ))
+    assert fallback["capture_sequence"] == 123
+
+
+def test_node_metadata_send_uses_monotonic_bridge_counter():
+    source = NODE_MODULE.read_text(encoding="utf-8")
+    assert "self._metadata_sequence = 0" in source
+    assert "capture_sequence=self._metadata_sequence" in source
+    assert "self._metadata_sequence += 1" in source

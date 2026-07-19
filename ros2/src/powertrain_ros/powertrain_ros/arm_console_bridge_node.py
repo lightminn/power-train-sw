@@ -61,6 +61,9 @@ class ArmConsoleBridge(Node):
         self._metadata_endpoint = (host, metadata_port)
         self._udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sequence = 0
+        # header.stamp 를 capture_sequence 로 겸용하면 stamp=0 스택에서
+        # 콘솔 게이트가 첫 프레임 이후 전부 기각한다 — 자체 단조 카운터.
+        self._metadata_sequence = 0
         self._dynamixel: Int32MultiArray | None = None
         self._dynamixel_at: float | None = None
         self._joints: JointState | None = None
@@ -210,6 +213,7 @@ class ArmConsoleBridge(Node):
         )
         try:
             payload = build_detection_metadata_payload(
+                capture_sequence=self._metadata_sequence,
                 capture_stamp_ns=capture_stamp_ns,
                 frame_id=message.header.frame_id,
                 frame_width=self._frame_width,
@@ -218,6 +222,7 @@ class ArmConsoleBridge(Node):
                 pick_target=self._pick_comparison(),
             )
             self._udp.sendto(payload, self._metadata_endpoint)
+            self._metadata_sequence += 1
         except (ValueError, OSError) as exc:
             self.get_logger().warning(
                 f"arm detection metadata send failed: {exc}",

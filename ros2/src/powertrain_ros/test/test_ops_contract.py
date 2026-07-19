@@ -118,6 +118,23 @@ def test_extraction_grant_is_console_only_chassis_service():
     assert spec.target == ("/chassis_node/extraction_grant",)
 
 
+def test_mission_clear_grip_lost_is_console_only_setbool_service():
+    spec = oc.ACTIONS["mission_clear_grip_lost"]
+    assert spec.roles == frozenset({oc.ROLE_CONSOLE})
+    assert spec.kind == "service_setbool"
+    assert spec.target == ("/chassis_node/mission_clear_grip_lost",)
+
+
+def test_never_ready_service_uses_shorter_abandon_deadline():
+    assert oc.SERVICE_CALL_TIMEOUT_S < oc.SERVICE_UNAVAILABLE_ABANDON_S
+    assert oc.SERVICE_UNAVAILABLE_ABANDON_S < oc.SERVICE_ORDER_ABANDON_S
+    assert oc.service_abandon_timeout_s(service_was_ready=False) == 3.0
+    assert (
+        oc.service_abandon_timeout_s(service_was_ready=True)
+        == oc.SERVICE_ORDER_ABANDON_S
+    )
+
+
 def test_encode_response_is_newline_json():
     raw = oc.encode_response(
         request_id="r-1", status=oc.STATUS_PENDING, state_revision=4,

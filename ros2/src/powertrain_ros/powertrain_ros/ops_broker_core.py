@@ -73,7 +73,7 @@ class OpsBrokerCore:
         # pending_key -> ((client,rid), request fingerprint)
         self._pending_requests = {}
         self._latest_requests = {}           # (client,rid) -> pending_key
-        self._pending_order = None           # ExecutionOrder | None
+        self._pending_orders = {}            # pending_key -> ExecutionOrder
         self._rate_window = {}               # client identity -> window/count
         self._emergency = {}                 # (client,action) -> begin_s
 
@@ -208,7 +208,7 @@ class OpsBrokerCore:
         )
         self._pending_requests[pending_key] = (key, fingerprint)
         self._latest_requests[key] = pending_key
-        self._pending_order = order
+        self._pending_orders[pending_key] = order
         self._cache_put(key, fingerprint, pending_key, None)
         return Decision(
             response=oc.encode_response(
@@ -234,10 +234,25 @@ class OpsBrokerCore:
         key = (identity, request_id)
 
         if request["action"] == "estop":
+            # 비상 경로도 토큰 재검증은 유지한다 — 생략하는 전제조건은
+            # rate/sequence/busy 뿐이다.
             if self._token_roles.get(request["token"]) != role:
                 return Decision(
                     response=self._reject(request_id, "token/role mismatch")
                 )
+            fingerprint = self._request_fingerprint(role, request)
+            if key in self._cache:
+                cached_fingerprint, _, cached = self._cache[key]
+                if cached_fingerprint != fingerprint:
+                    return Decision(response=self._reject(
+                        request_id, "request_id reused with different request"
+                    ))
+                if cached is None:
+                    return Decision(response=oc.encode_response(
+                        request_id=request_id, status=oc.STATUS_PENDING,
+                        state_revision=self._revision(), detail="in flight",
+                    ))
+                return Decision(response=cached)
             spec = oc.ACTIONS[request["action"]]
             authorized = self._authorize(role, request, spec)
             if isinstance(authorized, bytes):
@@ -293,7 +308,7 @@ class OpsBrokerCore:
         if gate is not None:
             return Decision(response=gate)
 
-        if self._pending_order is not None:
+        if self._pending_orders:
             return Decision(
                 response=self._reject(request_id, "busy: mutation in flight")
             )
@@ -404,6 +419,7 @@ class OpsBrokerCore:
         )
 
     def complete(self, pending_key, success, detail, *, status=None):
+        self._pending_orders.pop(pending_key, None)
         if status is None:
             status = (
                 oc.STATUS_FINAL_SUCCESS
@@ -457,7 +473,4 @@ class OpsBrokerCore:
             item[0] == cache_key for item in self._pending_requests.values()
         ):
             self._latest_requests.pop(cache_key, None)
-        if self._pending_order is not None \
-                and self._pending_order.pending_key == pending_key:
-            self._pending_order = None
         return response

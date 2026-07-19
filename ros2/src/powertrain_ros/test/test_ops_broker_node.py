@@ -388,6 +388,9 @@ def test_absent_service_is_abandoned_and_releases_mutation_slot(
     monkeypatch,
 ):
     monkeypatch.setattr(oc, "SERVICE_CALL_TIMEOUT_S", 0.1)
+    monkeypatch.setattr(
+        oc, "SERVICE_UNAVAILABLE_ABANDON_S", 0.5, raising=False
+    )
     monkeypatch.setattr(oc, "SERVICE_ORDER_ABANDON_S", 0.5, raising=False)
     port = _free_port()
     node = _node(token_dir, port)

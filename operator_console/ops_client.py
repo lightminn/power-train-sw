@@ -24,6 +24,7 @@ from laptop import ops_channel_client  # noqa: E402
 SEND_QUEUE_MAXLEN = 16
 RECONNECT_BACKOFF_S = 1.0
 PUMP_INTERVAL_S = 0.02
+PUSH_LIVENESS_TIMEOUT_S = 2.0
 
 
 def _glib_idle_add(callback):
@@ -73,6 +74,7 @@ class ConsoleOpsClient:
         self._client_lock = threading.Lock()
         self._connection_generation = 0
         self._next_connect_s = 0.0
+        self._last_rx_s = None
         self._stopping = threading.Event()
 
         self._thread = threading.Thread(
@@ -124,6 +126,7 @@ class ConsoleOpsClient:
         with self._client_lock:
             if self._client is client:
                 self._client = None
+                self._last_rx_s = None
                 disconnected = True
                 with self._state_lock:
                     self._latest = None
@@ -172,6 +175,7 @@ class ConsoleOpsClient:
             return None
         with self._client_lock:
             self._client = client
+            self._last_rx_s = time.monotonic()
             self._connection_generation += 1
             with self._state_lock:
                 self._latest = None
@@ -237,6 +241,15 @@ class ConsoleOpsClient:
         try:
             responses = client.pump()
         except Exception:
+            self._disconnect(client)
+            return
+        now_s = time.monotonic()
+        if responses:
+            self._last_rx_s = now_s
+        if (
+            self._last_rx_s is not None
+            and now_s - self._last_rx_s > PUSH_LIVENESS_TIMEOUT_S
+        ):
             self._disconnect(client)
             return
         for response in responses:

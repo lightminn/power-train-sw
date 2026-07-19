@@ -53,6 +53,33 @@ def test_metadata_contract_keeps_yaw_and_pick_target_marker():
     assert frame.detections[0].is_pick_target is True
 
 
+def test_metadata_skips_degenerate_bbox_without_dropping_valid_detection():
+    payload = {
+        "schema_version": 1,
+        "capture_sequence": 9,
+        "frame_width": 848,
+        "frame_height": 480,
+        "detections": [
+            {
+                "class_name": "valid",
+                "confidence": 0.9,
+                "bbox_xywh": [10, 20, 30, 40],
+                "position_m": None,
+            },
+            {
+                "class_name": "degenerate",
+                "confidence": 0.8,
+                "bbox_xywh": [50, 60, 0, 20],
+                "position_m": None,
+            },
+        ],
+    }
+
+    frame = parse_metadata(json.dumps(payload).encode("utf-8"))
+
+    assert [item.class_name for item in frame.detections] == ["valid"]
+
+
 def test_metadata_contract_rejects_non_finite_yaw():
     payload = {
         "schema_version": 1,
@@ -479,6 +506,21 @@ def test_chassis_rows_become_stale_when_snapshot_age_exceeds_one_second():
     assert state_fn(snapshot, now_s=11.01) == ("STALE", "STALE", "STALE")
 
 
+def test_chassis_components_treat_unavailable_prefix_case_insensitively():
+    snapshot = parse_telemetry(
+        b'{"schema_version":1,"sequence":18,'
+        b'"odometry_source":"  Unavailable \xc2\xb7 no wheel odometry",'
+        b'"drive_state":"UNAVAILABLE \xc2\xb7 chassis owner absent",'
+        b'"can_state":"UNAVAILABLE \xc2\xb7 no CAN_HEALTH from chassis owner"}',
+        received_monotonic_s=10.0,
+    )
+
+    assert telemetry.chassis_component_states(
+        snapshot,
+        now_s=10.5,
+    ) == ("UNAVAILABLE", "UNAVAILABLE", "UNAVAILABLE")
+
+
 def _payload_encoder():
     package_root = str(
         Path(__file__).resolve().parents[2] / "ros2/src/powertrain_ros"
@@ -646,7 +688,21 @@ def test_ops_panel_wires_pure_estop_cause_status_and_event_without_gtk():
     assert 'self._event_sink("안전",' in source
 
 
-def test_immediate_estop_click_begins_confirmation_instead_of_direct_submit():
+def test_health_banner_includes_arm_freshness_and_reuses_probe_state():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    arm_state_call = (
+        "self._telemetry_state(self._arm_receiver.latest())"
+    )
+    assert source.count(arm_state_call) == 1
+    assert "arm_state = " + arm_state_call in source
+    assert 'f"팔 {freshness_korean(arm_state)}' in source
+    assert '"arm": arm_state' in source
+
+
+def test_immediate_estop_click_submits_directly_without_confirmation():
     import ast
     from pathlib import Path
     from types import SimpleNamespace
@@ -673,9 +729,14 @@ def test_immediate_estop_click_begins_confirmation_instead_of_direct_submit():
     exec(compile(module, str(source_path), "exec"), namespace)
 
     submitted = []
-    begun = []
+    flow_calls = []
+    flow = SimpleNamespace(
+        reset=lambda: flow_calls.append("reset"),
+        begin=lambda _action: flow_calls.append("begin"),
+    )
     node = SimpleNamespace(
-        _begin=begun.append,
+        _flow=flow,
+        _emit=lambda _message: None,
         _submit=submitted.append,
     )
     action = SimpleNamespace(action="estop")
@@ -686,8 +747,10 @@ def test_immediate_estop_click_begins_confirmation_instead_of_direct_submit():
         action,
     )
 
-    assert begun == [action]
-    assert submitted == []
+    # 비상 조작은 state 가용성·revision 일치·확인 클릭을 전제하면 안 된다.
+    # 최종 권위와 거부 판단은 브로커에 있다.
+    assert flow_calls == ["reset"]
+    assert submitted == [{"action": "estop", "params": {}}]
 
 
 def test_ops_panel_clears_cached_component_mask_when_state_becomes_unavailable():
@@ -736,3 +799,66 @@ def test_ops_panel_clears_cached_component_mask_when_state_becomes_unavailable()
     assert node._latest_component_mask is None
     assert node._latest_chassis_mode == "UNKNOWN"
     assert calls == ["reset", "hide"]
+
+
+def test_ops_panel_passes_the_panel_action_object_to_confirm_flow():
+    # 같은 action 이름의 행이 2개(arm_lock_override 걸기/취소)라서 문자열을
+    # 넘기면 _ACTION_BY_NAME 이 한 행으로 뭉개진다 — 반드시 행 객체를 넘긴다.
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+    assert "self._flow.begin(action)" in source
+    assert "self._flow.begin(action.action)" not in source
+    assert "self._flow.confirm(action, held_s=held_s)" in source
+    assert "self._flow.confirm(action.action" not in source
+
+
+def test_video_panel_has_stale_watchdog_and_restart_resets_freshness():
+    # srtsrc(auto-reconnect=true)는 리스너 사망을 bus ERROR 없이 삼킨다 —
+    # 웻지된 스트림은 stale 워치독만이 복구할 수 있다(2026-07-19 리뷰).
+    import ast
+    from pathlib import Path
+
+    source_path = Path(__file__).resolve().parents[1] / "app.py"
+    source = source_path.read_text(encoding="utf-8")
+    assert "VIDEO_STALE_RESTART_S = 5.0" in source
+
+    tree = ast.parse(source)
+    panel = next(
+        item
+        for item in tree.body
+        if isinstance(item, ast.ClassDef) and item.name == "VideoPanel"
+    )
+
+    def method_source(name):
+        method = next(
+            item
+            for item in panel.body
+            if isinstance(item, ast.FunctionDef) and item.name == name
+        )
+        return ast.get_source_segment(source, method)
+
+    health = method_source("_refresh_video_health")
+    assert "VIDEO_STALE_RESTART_S" in health
+    assert "_schedule_reconnect()" in health
+
+    restart = method_source("_restart_pipeline")
+    for reset_line in (
+        "self._pipeline_live = False",
+        "self._last_frame_monotonic = None",
+        "self._frames = 0",
+        'self._freshness_state = "connecting"',
+    ):
+        assert reset_line in restart, reset_line
+
+
+def test_smoke_probe_reports_video_pane_health():
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+    assert '"video_l515": self._l515.health_state()' in source
+    assert '"video_d435": self._d435.health_state()' in source

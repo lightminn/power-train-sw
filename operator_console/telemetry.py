@@ -373,9 +373,15 @@ def chassis_component_states(
     if current_s - snapshot.received_monotonic_s > 1.0:
         return "STALE", "STALE", "STALE"
     return (
-        "LIVE" if snapshot.odometry_source != "unavailable" else "UNAVAILABLE",
-        "LIVE" if snapshot.drive_state != "unavailable" else "UNAVAILABLE",
-        "LIVE" if snapshot.can_state != "unavailable" else "UNAVAILABLE",
+        "UNAVAILABLE"
+        if snapshot.odometry_source.strip().lower().startswith("unavailable")
+        else "LIVE",
+        "UNAVAILABLE"
+        if snapshot.drive_state.strip().lower().startswith("unavailable")
+        else "LIVE",
+        "UNAVAILABLE"
+        if snapshot.can_state.strip().lower().startswith("unavailable")
+        else "LIVE",
     )
 
 

@@ -18,10 +18,18 @@ def _fake_environment(
     metadata_sender: bool = False,
     ros_health: str = "healthy",
     ros_running: bool = True,
+    route_src: str | None = "192.168.8.106",
+    telemetry_env_content: str | None = None,
 ) -> tuple[dict[str, str], Path]:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     docker_log = tmp_path / "docker.log"
+    systemctl_log = tmp_path / "systemctl.log"
+    chassis_env = tmp_path / "powertrain-chassis-telemetry"
+    pdist80b_env = tmp_path / "powertrain-pdist80b-telemetry"
+    if telemetry_env_content is not None:
+        chassis_env.write_text(telemetry_env_content, encoding="utf-8")
+        pdist80b_env.write_text(telemetry_env_content, encoding="utf-8")
 
     arm_repo = tmp_path / "extreme-robot"
     arm_repo.mkdir()
@@ -77,7 +85,8 @@ def _fake_environment(
     )
     _executable(
         bin_dir / "systemctl",
-        "#!/bin/sh\n"
+        "#!/bin/bash\n"
+        f"printf '%s\\n' \"$*\" >> {systemctl_log}\n"
         "case \"$*\" in\n"
         "  'is-active powertrain-chassis-telemetry.service'|"
         "'is-active powertrain-pdist80b-telemetry.service'|"
@@ -104,16 +113,42 @@ def _fake_environment(
     )
     _executable(
         bin_dir / "ip",
-        "#!/bin/sh\n"
-        "printf '%s\\n' '2: can0: <NOARP,UP,LOWER_UP> state UP qlen 1000' "
-        "'    can state ERROR-ACTIVE restart-ms 100' '    bitrate 500000'\n",
+        "#!/bin/bash\n"
+        "case \"$*\" in\n"
+        "  '-details link show can0')\n"
+        "    printf '%s\\n' '2: can0: <NOARP,UP,LOWER_UP> state UP qlen 1000' "
+        "'    can state ERROR-ACTIVE restart-ms 100' '    bitrate 500000'\n"
+        "    ;;\n"
+        "  'route get '* )\n"
+        + (
+            "    printf '%s\\n' "
+            f"'192.168.50.10 via 192.168.8.1 dev eth0 src {route_src} uid 1000'\n"
+            "    ;;\n"
+            if route_src is not None
+            else "    exit 1\n    ;;\n"
+        )
+        + "esac\n",
     )
     _executable(
         bin_dir / "hostname",
         "#!/bin/sh\n"
         "[ \"${1:-}\" = -I ] && printf '%s\\n' '192.168.50.98 172.17.0.1'\n",
     )
-    _executable(bin_dir / "sudo", "#!/bin/sh\nexit 0\n")
+    _executable(
+        bin_dir / "sudo",
+        "#!/bin/bash\n"
+        "set -u\n"
+        "[ \"${1:-}\" = -n ] && shift\n"
+        "if [ \"${1:-}\" = bash ] && [ \"${2:-}\" = -c ]; then\n"
+        "  command=\"$3\"\n"
+        "  command=\"${command//\\/etc\\/default\\/powertrain-chassis-telemetry/"
+        "$FAKE_CHASSIS_ENV}\"\n"
+        "  command=\"${command//\\/etc\\/default\\/powertrain-pdist80b-telemetry/"
+        "$FAKE_PDIST80B_ENV}\"\n"
+        "  exec /bin/bash -c \"$command\" \"${@:4}\"\n"
+        "fi\n"
+        "exec \"$@\"\n",
+    )
     _executable(bin_dir / "sleep", "#!/bin/sh\nexec /bin/sleep 0.01\n")
 
     bash_env = tmp_path / "bash_env"
@@ -141,6 +176,8 @@ def _fake_environment(
             "ARM_REPO": str(arm_repo),
             "GUI_UP_POLL_S": "0.05",
             "BASH_ENV": str(bash_env),
+            "FAKE_CHASSIS_ENV": str(chassis_env),
+            "FAKE_PDIST80B_ENV": str(pdist80b_env),
         }
     )
     return env, docker_log
@@ -194,8 +231,39 @@ def test_happy_path_starts_exact_stacks_and_prints_operator_command(tmp_path):
     assert "console_host:=192.168.50.10" in log
     assert (
         "운영 PC에서: /usr/bin/python3 -m operator_console.app "
+        "--host 192.168.8.106"
+    ) in result.stdout
+
+
+def test_operator_command_falls_back_to_first_hostname_address(tmp_path):
+    result, _log = _run(tmp_path, route_src=None)
+
+    assert result.returncode == 0, result.stdout
+    assert (
+        "운영 PC에서: /usr/bin/python3 -m operator_console.app "
         "--host 192.168.50.98"
     ) in result.stdout
+
+
+def test_operator_host_missing_line_is_added_and_units_are_restarted(tmp_path):
+    result, _log = _run(
+        tmp_path,
+        telemetry_env_content="OPERATOR_PORT=5005\n",
+    )
+
+    assert result.returncode == 0, result.stdout
+    for name in (
+        "powertrain-chassis-telemetry",
+        "powertrain-pdist80b-telemetry",
+    ):
+        content = (tmp_path / name).read_text(encoding="utf-8")
+        assert "OPERATOR_HOST=192.168.50.10\n" in content
+        assert content.count("OPERATOR_HOST=") == 1
+    systemctl_log = (tmp_path / "systemctl.log").read_text(encoding="utf-8")
+    assert (
+        "restart powertrain-chassis-telemetry.service "
+        "powertrain-pdist80b-telemetry.service"
+    ) in systemctl_log
 
 
 def test_fresh_adds_force_recreate_to_powertrain_compose(tmp_path):

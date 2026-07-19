@@ -237,6 +237,50 @@ def test_arm_lock_override_requires_bool_param_and_strong_confirmation_copy():
     }
 
 
+def test_arm_lock_override_cancel_row_sends_false_and_string_lookup_keeps_true():
+    # 콘솔에서 위험 잠금 해제를 "걸 수만 있고 풀 수 없던" 결함의 재발 방지:
+    # 같은 action 이름의 취소 행이 data=False 를 보내고, 문자열 조회는
+    # 기존 의미(해제 걸기 = True)를 유지해야 한다.
+    rows = [
+        action for action in PANEL_ACTIONS
+        if action.action == "arm_lock_override"
+    ]
+    assert len(rows) == 2
+    enable_row, cancel_row = rows
+    assert enable_row.bool_value is True
+    assert cancel_row.bool_value is False
+    assert cancel_row.advanced is True
+    assert "취소" in cancel_row.label
+
+    flow = _flow(StateSource({"revision": 4}))
+    flow.begin(cancel_row)
+    assert flow.confirm(cancel_row) == {
+        "action": "arm_lock_override",
+        "params": {"data": False},
+        "expected_state_revision": 4,
+    }
+
+    flow.begin("arm_lock_override")
+    confirmed = flow.confirm("arm_lock_override")
+    assert confirmed is not None
+    assert confirmed["params"] == {"data": True}
+
+
+def test_mission_clear_grip_lost_sends_operator_authorization_bool():
+    # chassis_node 의 ~/mission_clear_grip_lost 는 SetBool(request.data=인가).
+    # needs_bool 없이는 브로커가 "params.data must be bool" 로 거부한다.
+    action = _action("mission_clear_grip_lost")
+    assert action.needs_bool is True
+
+    flow = _flow(StateSource({"revision": 6}))
+    flow.begin(action)
+    assert flow.confirm(action) == {
+        "action": "mission_clear_grip_lost",
+        "params": {"data": True},
+        "expected_state_revision": 6,
+    }
+
+
 def test_primary_action_labels_are_korean():
     assert _action("arm").label == "시동 — 1.5초 홀드"
     assert _action("drive_enable").label == "구동 모터"

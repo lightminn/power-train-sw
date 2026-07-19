@@ -117,7 +117,8 @@ class OpsBrokerNode(Node):
             "safety": None,
             "wheels": None,
         }
-        self._revision = 0
+        # 브로커 재시작 전후 snapshot revision 충돌 확률을 제거한다.
+        self._revision = int.from_bytes(os.urandom(4), "big")
         self._last_semantic = None
         self._core_lock = threading.Lock()
         self._core = OpsBrokerCore(
@@ -347,6 +348,19 @@ class OpsBrokerNode(Node):
         try:
             sock.settimeout(0.2)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            # 5 + 2*3 ≈ 11 s 안에 죽은 피어를 감지한다. 동시에 서버의
+            # 5 Hz push sendall 실패 경로도 연결 정리를 계속 담당한다.
+            for option_name, value in (
+                ("TCP_KEEPIDLE", 5),
+                ("TCP_KEEPINTVL", 2),
+                ("TCP_KEEPCNT", 3),
+            ):
+                if hasattr(socket, option_name):
+                    sock.setsockopt(
+                        socket.IPPROTO_TCP,
+                        getattr(socket, option_name),
+                        value,
+                    )
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             while not self._stop_event.is_set():
                 try:
@@ -361,7 +375,10 @@ class OpsBrokerNode(Node):
                 if data:
                     last_data_s = now_s
                     buffer += data
-                elif now_s - last_data_s > CLIENT_IDLE_TIMEOUT_S:
+                elif (
+                    role is None
+                    and now_s - last_data_s > CLIENT_IDLE_TIMEOUT_S
+                ):
                     break
 
                 if b"\n" not in buffer and len(buffer) > oc.MAX_RECORD_BYTES:
@@ -537,7 +554,10 @@ class OpsBrokerNode(Node):
                             ),
                         },
                     )
-                if elapsed_s >= oc.SERVICE_ORDER_ABANDON_S:
+                abandon_s = oc.service_abandon_timeout_s(
+                    service_was_ready=pending.service_was_ready
+                )
+                if elapsed_s >= abandon_s:
                     with self._pending_lock:
                         current = self._pending.get(pending_key)
                         if current is None or current[0] is not pending:

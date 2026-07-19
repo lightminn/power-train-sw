@@ -1,5 +1,7 @@
 import json
 from pathlib import Path
+import queue
+import time
 
 import pytest
 
@@ -130,6 +132,69 @@ def test_receiver_reads_past_limit_to_detect_oversize_datagrams():
     assert "recvfrom(4097)" in source
 
 
+class FakeDatagramSocket:
+    def __init__(self, payloads):
+        self._payloads = queue.Queue()
+        for payload in payloads:
+            self._payloads.put(payload)
+        self.closed = False
+
+    def setsockopt(self, *_args):
+        pass
+
+    def bind(self, _address):
+        pass
+
+    def settimeout(self, _timeout_s):
+        pass
+
+    def recvfrom(self, _limit):
+        try:
+            payload = self._payloads.get(timeout=0.01)
+        except queue.Empty as exc:
+            raise arm_telemetry.socket.timeout() from exc
+        return payload, ("robot", 5007)
+
+    def close(self):
+        self.closed = True
+
+
+@pytest.mark.parametrize(
+    "poison",
+    (
+        _payload(source_age_s={
+            "dynamixel": 10**400,
+            "joints": 0.2,
+            "detections": 0.3,
+        }),
+        b"[" * 2000,
+    ),
+    ids=("overflow", "recursion"),
+)
+def test_receiver_survives_poison_packet_and_accepts_next_valid_packet(
+    monkeypatch,
+    poison,
+):
+    fake_socket = FakeDatagramSocket((poison, _payload()))
+    monkeypatch.setattr(
+        arm_telemetry.socket,
+        "socket",
+        lambda *_args: fake_socket,
+    )
+    receiver = arm_telemetry.LatestArmTelemetryReceiver(5007)
+    try:
+        deadline = time.monotonic() + 1.0
+        while receiver.latest() is None and time.monotonic() < deadline:
+            time.sleep(0.005)
+
+        assert receiver.latest() is not None
+        assert receiver.latest().sequence == 21
+        assert receiver.invalid_packet_count == 1
+        assert receiver._thread.is_alive()
+    finally:
+        receiver.close()
+
+
 def test_truncated_flag_round_trips():
     snapshot = parse_arm_telemetry(_payload(truncated=True))
 
@@ -209,6 +274,16 @@ def test_arm_summary_does_not_report_stale_dynamixel_data_as_normal():
     assert arm_telemetry.arm_summary(snapshot) == "모터 원천 지연(STALE)"
 
 
+def test_arm_panel_summary_covers_unavailable_receive_stale_and_fresh():
+    panel_summary = getattr(arm_telemetry, "arm_panel_summary", None)
+    assert panel_summary is not None
+    snapshot = parse_arm_telemetry(_payload())
+
+    assert panel_summary(None, 999.0) == arm_telemetry.arm_summary(None)
+    assert panel_summary(snapshot, 1.01) == "지연(STALE)"
+    assert panel_summary(snapshot, 1.0) == arm_telemetry.arm_summary(snapshot)
+
+
 def test_arm_panel_marks_each_stale_source_instead_of_udp_transport_live():
     import ast
     import math
@@ -230,6 +305,7 @@ def test_arm_panel_marks_each_stale_source_instead_of_udp_transport_live():
     ast.fix_missing_locations(module)
     namespace = {
         "ArmTelemetrySnapshot": object,
+        "arm_panel_summary": getattr(arm_telemetry, "arm_panel_summary", None),
         "arm_summary": arm_telemetry.arm_summary,
         "arm_source_freshness": getattr(
             arm_telemetry,

@@ -211,8 +211,7 @@ fi
 OPERATOR_HOST=""
 if [ -n "$CLI_OPERATOR_HOST" ]; then
   OPERATOR_HOST="$CLI_OPERATOR_HOST"
-  if [ -n "$existing_operator_host" ] \
-    && [ "$CLI_OPERATOR_HOST" != "$existing_operator_host" ]; then
+  if [ "$CLI_OPERATOR_HOST" != "$existing_operator_host" ]; then
     printf 'OPERATOR_HOST 변경을 두 텔레메트리 환경 파일에 반영합니다.\n'
     sudo -n bash -c '
       set -euo pipefail
@@ -220,9 +219,18 @@ if [ -n "$CLI_OPERATOR_HOST" ]; then
       for environment_file in \
         /etc/default/powertrain-chassis-telemetry \
         /etc/default/powertrain-pdist80b-telemetry; do
-        [ -f "$environment_file" ]
-        grep -q "^OPERATOR_HOST=" "$environment_file"
-        sed -i -E "s|^OPERATOR_HOST=.*$|OPERATOR_HOST=$new_host|" "$environment_file"
+        if [ -f "$environment_file" ]; then
+          if grep -q "^OPERATOR_HOST=" "$environment_file"; then
+            sed -i -E \
+              "s|^OPERATOR_HOST=.*$|OPERATOR_HOST=$new_host|" \
+              "$environment_file"
+          else
+            printf "OPERATOR_HOST=%s\n" "$new_host" >> "$environment_file"
+          fi
+        else
+          printf "OPERATOR_HOST=%s\nOPERATOR_PORT=5005\n" "$new_host" \
+            > "$environment_file"
+        fi
       done
     ' bash "$CLI_OPERATOR_HOST"
     operator_update_rc=$?
@@ -633,8 +641,25 @@ else
   exit_reason='모든 기대 항목 정상'
 fi
 
-jetson_addresses="$(hostname -I 2>/dev/null || true)"
-jetson_ip="${jetson_addresses%% *}"
+jetson_ip=""
+if [ -n "$OPERATOR_HOST" ]; then
+  route_to_operator="$(ip route get "$OPERATOR_HOST" 2>/dev/null || true)"
+  jetson_ip="$(
+    printf '%s\n' "$route_to_operator" \
+      | awk '{
+          for (field = 1; field < NF; field++) {
+            if ($field == "src") {
+              print $(field + 1)
+              exit
+            }
+          }
+        }'
+  )"
+fi
+if [ -z "$jetson_ip" ]; then
+  jetson_addresses="$(hostname -I 2>/dev/null || true)"
+  jetson_ip="${jetson_addresses%% *}"
+fi
 [ -n "$jetson_ip" ] || jetson_ip='<JETSON_IP>'
 
 printf '\n종료 코드: %d — %s\n' "$exit_code" "$exit_reason"

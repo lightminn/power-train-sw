@@ -59,6 +59,14 @@ class FakeClient:
         self.closed = True
 
 
+class FakeClock:
+    def __init__(self, now=0.0):
+        self.now = float(now)
+
+    def __call__(self):
+        return self.now
+
+
 def _console(monkeypatch, *, submit_sink=None, state_sink=None, schedule=None):
     FakeThread.instances = []
     monkeypatch.setattr(ops_client.threading, "Thread", FakeThread)
@@ -245,6 +253,67 @@ def test_pump_exception_reports_outcome_unknown_for_every_sent_request(
         }
         for request_id in request_ids
     ]
+
+
+def test_push_heartbeat_keeps_ops_connection_alive(monkeypatch):
+    clock = FakeClock(10.0)
+    monkeypatch.setattr(ops_client.time, "monotonic", clock)
+    console, client, _thread = _console(monkeypatch)
+
+    console.run_once()
+    for now_s in (11.9, 13.8, 15.7):
+        clock.now = now_s
+        client.responses.append({
+            "push": "ops_state",
+            "revision": int(now_s * 10),
+            "authority_mode": "IDLE",
+        })
+        console.run_once()
+
+    assert client.closed is False
+    assert console._client is client
+
+
+def test_stopped_push_disconnects_and_reports_inflight_unknown(monkeypatch):
+    clock = FakeClock(20.0)
+    monkeypatch.setattr(ops_client.time, "monotonic", clock)
+    submits = []
+    states = []
+    console, client, _thread = _console(
+        monkeypatch,
+        submit_sink=submits.append,
+        state_sink=states.append,
+    )
+    state = _publish_state(console, client)
+    request_id = console.submit("authority_manual")
+    console.run_once()
+
+    clock.now += ops_client.PUSH_LIVENESS_TIMEOUT_S + 0.01
+    console.run_once()
+
+    assert client.closed is True
+    assert console.latest_state() is None
+    assert states == [state, None]
+    assert submits == [{
+        "request_id": request_id,
+        "status": "OUTCOME_UNKNOWN",
+        "detail": "ops connection lost after command was sent",
+    }]
+
+
+def test_new_ops_connection_gets_liveness_grace_from_creation_time(monkeypatch):
+    clock = FakeClock(30.0)
+    monkeypatch.setattr(ops_client.time, "monotonic", clock)
+    console, client, _thread = _console(monkeypatch)
+
+    console.run_once()
+    clock.now += ops_client.PUSH_LIVENESS_TIMEOUT_S
+    console.run_once()
+    assert client.closed is False
+
+    clock.now += 0.01
+    console.run_once()
+    assert client.closed is True
 
 
 def test_close_stops_client_and_joins_worker(monkeypatch):

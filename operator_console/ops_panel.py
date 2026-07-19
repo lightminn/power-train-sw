@@ -114,6 +114,9 @@ class PanelAction:
     confirm_text: str = ""
     bool_value_from_state: Callable[[dict[str, Any]], bool] | None = None
     advanced: bool = False
+    # 같은 action 이름을 서로 다른 고정 data 로 보내는 행 쌍(잠금 해제 걸기/
+    # 취소)을 허용한다. bool_value_from_state 가 있으면 그쪽이 우선.
+    bool_value: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -259,6 +262,16 @@ PANEL_ACTIONS: tuple[PanelAction, ...] = (
         needs_bool=True,
         confirm_text="위험: 로봇팔 안전 잠금을 해제합니다. 감독하의 복구 작업에만 사용하십시오.",
         advanced=True,
+        bool_value=True,
+    ),
+    PanelAction(
+        "arm_lock_override",
+        "로봇팔 잠금 해제 취소",
+        GESTURE_STRIP,
+        needs_bool=True,
+        confirm_text="로봇팔 안전 잠금 해제를 취소하고 잠금 상태로 되돌립니까?",
+        advanced=True,
+        bool_value=False,
     ),
     PanelAction(
         "clear_transient_hold",
@@ -306,6 +319,8 @@ PANEL_ACTIONS: tuple[PanelAction, ...] = (
         "mission_clear_grip_lost",
         "임무: 파지 상실 해제",
         GESTURE_STRIP,
+        # chassis_node 의 ~/mission_clear_grip_lost 는 SetBool(data=운영자 인가).
+        needs_bool=True,
         confirm_text="파지 상실 임무 래치를 해제합니까?",
         advanced=True,
     ),
@@ -326,11 +341,14 @@ PANEL_ACTIONS: tuple[PanelAction, ...] = (
 )
 
 
-_ACTION_BY_NAME = {
-    action.action: action
-    for action in PANEL_ACTIONS
-    if action.action is not None
-}
+_ACTION_BY_NAME: dict[str, PanelAction] = {}
+for _panel_action in PANEL_ACTIONS:
+    # 첫 행 우선: 문자열 조회는 기존 의미(예: arm_lock_override = 걸기)를
+    # 유지한다. 취소 행처럼 뒤에 오는 동명 행은 객체로만 시작할 수 있다.
+    if _panel_action.action is not None \
+            and _panel_action.action not in _ACTION_BY_NAME:
+        _ACTION_BY_NAME[_panel_action.action] = _panel_action
+del _panel_action
 
 
 class ConfirmFlow:
@@ -380,6 +398,8 @@ class ConfirmFlow:
         snapshot = deepcopy(dict(state))
         if panel_action.bool_value_from_state is not None:
             params = {"data": panel_action.bool_value_from_state(snapshot)}
+        elif panel_action.bool_value is not None:
+            params = {"data": panel_action.bool_value}
         else:
             params = {"data": True} if panel_action.needs_bool else {}
         self._pending = ConfirmState(
