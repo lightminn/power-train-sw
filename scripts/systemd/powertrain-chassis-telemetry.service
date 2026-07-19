@@ -11,7 +11,11 @@ StartLimitAction=none
 Type=simple
 EnvironmentFile=/etc/default/powertrain-chassis-telemetry
 ExecStart=/usr/bin/docker exec -e OPERATOR_HOST -e OPERATOR_PORT powertrain_ros bash -lc 'source /opt/ros/humble/setup.bash && source /workspace/ros2/install/setup.bash && exec ros2 run powertrain_ros chassis_telemetry --ros-args -p operator_host:=$OPERATOR_HOST -p operator_port:=$OPERATOR_PORT'
-ExecStop=/usr/bin/docker exec powertrain_ros sh -lc 'pkill -f chassis_telemetry_sender_node.py || true'
+# ⚠️ 패턴 주의: 실제 프로세스는 설치 바이너리 lib/powertrain_ros/chassis_telemetry와
+# ros2 run 래퍼다 — 구 패턴(chassis_telemetry_sender_node.py)은 아무것도 못 죽여
+# restart마다 컨테이너 안에 구 sender가 누적됐다(2026-07-19 실사고: 구 IP로 송신하는
+# 좀비 발견). [/ ] 브래킷은 ExecStop 자신의 cmdline self-match 방지를 겸한다.
+ExecStop=/usr/bin/docker exec powertrain_ros sh -lc 'pkill -f "powertrain_ros[/ ]chassis_telemetry" || true'
 Restart=always
 RestartSec=3
 NoNewPrivileges=yes

@@ -125,9 +125,11 @@ Codex 샌드박스는 docker/rclpy/abstract-socket bind 불가(EPERM) — 통합
 ```bash
 # ① 호스트(실소켓·SCM_CREDENTIALS 필요분)
 PYTHONPATH=ros2/src/powertrain_ros:motor_control /home/light/anaconda3/bin/python -m pytest <dirs> -q
-# ② dev 컨테이너(python-can 포함 전체 회귀)
-docker run --rm -v "$PWD:/workspace" -w /workspace -e PYTHONPATH=/workspace/motor_control \
-  powertrain-sw:dev python3 -m pytest motor_control motor_gui powertrain_observability powertrain_autonomy powertrain_sim -q
+# ② dev 컨테이너(python-can 포함 전체 회귀) — ⚠️ tests/가 07-18부터
+#    powertrain_ros를 import하므로 PYTHONPATH에 ros2/src/powertrain_ros 필수
+docker run --rm -v "$PWD:/workspace" -w /workspace \
+  -e PYTHONPATH=/workspace/ros2/src/powertrain_ros:/workspace/motor_control:/workspace \
+  powertrain-sw:dev python3 -m pytest motor_control motor_gui powertrain_observability powertrain_autonomy powertrain_sim remote_video operator_console tests -q
 # ③ ros 컨테이너(colcon /tmp install-space — 엔트리포인트 검증 포함)
 docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace/ros2 powertrain-sw:ros -lc '
   set -e; source /opt/ros/humble/setup.bash

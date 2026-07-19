@@ -7,7 +7,10 @@ import numpy as np
 import pytest
 import yaml
 
-from chassis.kinematics import default_geometry
+# mujoco 미탑재 이미지(예: 젯슨 autonomy)에서 수집이 깨지지 않게 의존 import 전에 skip.
+pytest.importorskip("mujoco")
+
+from chassis.kinematics import default_geometry  # noqa: E402
 from powertrain_autonomy.terrain.depth_quality import CameraIntrinsics
 from powertrain_ros.state_estimation import StateEstimator, StateEstimatorConfig
 from powertrain_sim.fixtures import DepthFrame

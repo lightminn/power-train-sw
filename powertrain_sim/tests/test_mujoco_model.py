@@ -6,10 +6,12 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
-import mujoco
 import numpy as np
 import pytest
 import yaml
+
+# mujoco 미탑재 이미지(예: 젯슨 autonomy)에서 수집이 깨지지 않게 의존 import 전에 skip.
+mujoco = pytest.importorskip("mujoco")
 
 from chassis.kinematics import default_geometry, solve
 from powertrain_ros.state_estimation import ImuSample, WheelSample

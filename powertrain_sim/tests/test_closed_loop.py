@@ -23,10 +23,11 @@ from powertrain_ros.state_estimation import (
     VelocitySnapshot,
 )
 
-from powertrain_sim.hidden_eval.__main__ import evaluate_report
-
-
+# ⚠️ hidden_eval.__main__이 mujoco를 전이 import한다 — importorskip이 이 import
+# 뒤에 있으면 무효(수집 단계에서 ModuleNotFoundError). 반드시 앞에 둔다.
 pytest.importorskip("mujoco")
+
+from powertrain_sim.hidden_eval.__main__ import evaluate_report  # noqa: E402
 
 from powertrain_sim.closed_loop import TerrainAutonomyDriver, run_closed_loop
 from powertrain_sim.family_scenarios import (
