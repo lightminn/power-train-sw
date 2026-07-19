@@ -206,9 +206,9 @@ def test_launch_and_node_share_the_installed_qualification_source():
 @pytest.mark.parametrize(
     ("filename", "guidance"),
     (
-        ("lane_follower_node.py", "lane"),
-        ("wall_follower_node.py", "wall"),
-        ("lead_follower_node.py", "follow"),
+        # L515 기하를 실제로 소비하는 노드만 자격 게이트를 요구한다.
+        ("lane_follower_node.py", "lane"),   # /l515/color/*
+        ("wall_follower_node.py", "wall"),   # /l515/points
     ),
 )
 def test_direct_command_guidance_entrypoints_require_qualification(
@@ -221,3 +221,29 @@ def test_direct_command_guidance_entrypoints_require_qualification(
 
     assert "enforce_node_command_guidance_qualification(" in source
     assert 'guidance="%s"' % guidance in source
+
+
+def test_lead_follower_is_not_gated_on_l515_qualification():
+    """lead_follower 는 L515 를 쓰지 않으므로 지형 자격에 묶으면 안 된다.
+
+    이 노드는 /detected_objects(팔 D435i)와 TF 만 소비한다. 잠정 L515 mount/ROI
+    값이 출력에 영향을 줄 수 없는데도 게이트를 걸면, 미승인 상태에서 추종이
+    통째로 죽는다(2026-07-19 실기 컨테이너 검증에서 실제로 6건 실패로 드러남).
+    """
+    source = (PACKAGE / "powertrain_ros" / "lead_follower_node.py").read_text(
+        encoding="utf-8"
+    )
+    assert "enforce_node_command_guidance_qualification(" not in source
+    # 주석이 아니라 **실제 구독**을 본다.
+    tree = ast.parse(source)
+    subscribed = {
+        call.args[1].value
+        for call in ast.walk(tree)
+        if isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr == "create_subscription"
+        and len(call.args) > 1
+        and isinstance(call.args[1], ast.Constant)
+        and isinstance(call.args[1].value, str)
+    }
+    assert not [t for t in subscribed if t.startswith("/l515")], subscribed
