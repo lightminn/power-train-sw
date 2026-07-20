@@ -1053,7 +1053,8 @@ def _suspension_side(
     rover: RoverModel,
     side: str,           # "left" | "right"
     wheels: dict[str, RoverWheel],
-    unsprung_kg: float,
+    wheel_mass_kg: float,
+    hub_mass_kg: float,
 ) -> None:
     """CAD 체인: base -> rocker -> (bogie -> 앞·중륜) + 뒷륜."""
     front = wheels[f"front_{side}"]
@@ -1130,9 +1131,14 @@ def _suspension_side(
         },
     )
     # 앞바퀴(조향) 는 보기에, 중륜(고정) 도 보기에, 뒷바퀴(조향) 는 로커에 붙는다.
-    _attach_wheel(bogie, rover, front, (front.x_m - mid.x_m, front.y_m - pivot_y, 0.0), unsprung_kg)
-    _attach_wheel(bogie, rover, mid, (0.0, mid.y_m - pivot_y, 0.0), unsprung_kg)
-    _attach_wheel(rocker, rover, rear, (rear.x_m - pivot_x, rear.y_m - pivot_y, 0.0), unsprung_kg)
+    for parent, wheel, offset in (
+        (bogie, front, (front.x_m - mid.x_m, front.y_m - pivot_y, 0.0)),
+        (bogie, mid, (0.0, mid.y_m - pivot_y, 0.0)),
+        (rocker, rear, (rear.x_m - pivot_x, rear.y_m - pivot_y, 0.0)),
+    ):
+        _attach_wheel(
+            parent, geometry, rover, wheel, offset, wheel_mass_kg, hub_mass_kg
+        )
 ```
 
 `_attach_wheel()` 은 기존 `_rover()` 의 바퀴 부착 로직(`model_builder.py:235-286`)을
@@ -1146,7 +1152,8 @@ def _attach_wheel(
     rover: RoverModel,
     wheel: RoverWheel,
     position: tuple[float, float, float],
-    mass_kg: float,
+    wheel_mass_kg: float,
+    hub_mass_kg: float,
 ) -> None:
     """조향 바디(필요 시)와 바퀴 바디를 parent 아래 position 에 붙인다."""
     if wheel.steerable:
@@ -1180,7 +1187,8 @@ def _attach_wheel(
                 "name": f"steer_hub_{wheel.name}",
                 "type": "sphere",
                 "size": "0.025",
-                "mass": "0",
+                # 0 이면 MuJoCo 가 관절 달린 바디를 거부한다 (Task 2 참조).
+                "mass": _numbers((hub_mass_kg,)),
                 "contype": "0",
                 "conaffinity": "0",
                 "group": "1",
@@ -1191,7 +1199,8 @@ def _attach_wheel(
             name=wheel.name,
             position=(0.0, 0.0, 0.0),
             radius_m=rover.wheel_radius_m,
-            mass_kg=mass_kg,
+            half_width_m=rover.wheel_half_width_m,
+            mass_kg=wheel_mass_kg,
         )
     else:
         _wheel_body(
@@ -1199,7 +1208,8 @@ def _attach_wheel(
             name=wheel.name,
             position=position,
             radius_m=rover.wheel_radius_m,
-            mass_kg=mass_kg,
+            half_width_m=rover.wheel_half_width_m,
+            mass_kg=wheel_mass_kg,
         )
 ```
 
@@ -1219,24 +1229,40 @@ def _suspension_masses(rover: RoverModel) -> tuple[float, float]:
     return rocker / 2.0, bogie / 2.0
 
 
-def _mass_split(rover: RoverModel, *, suspension: bool) -> tuple[float, float]:
-    """(바퀴 1개당 비스프렁 질량, 차체 질량) 을 돌려준다."""
+def _mass_split(
+    rover: RoverModel, *, suspension: bool
+) -> tuple[float, float, float]:
+    """(바퀴 1개, 조향 허브 1개, 차체) 질량. 합은 총질량과 정확히 같다.
+
+    ⚠️ Task 2 에서 이미 3-튜플이다. 조향 허브 몫(AK45)을 빼먹으면 조향 바디가
+    질량 0 이 되어 MuJoCo 가 모델을 거부한다.
+    """
     unsprung = sum(
         link.mass_kg
         for link in rover.links
         if any(key in link.name for key in _UNSPRUNG_KEYS)
     )
+    steer = sum(
+        link.mass_kg for link in rover.links if _STEER_ACTUATOR_KEY in link.name
+    )
     body = rover.total_mass_kg - unsprung
     if suspension:
         rocker_kg, bogie_kg = _suspension_masses(rover)
         body -= 2.0 * (rocker_kg + bogie_kg)
-    return unsprung / len(rover.wheels), body
+    return (
+        (unsprung - steer) / len(rover.wheels),
+        steer / _STEERABLE_CORNERS,
+        body,
+    )
 ```
 
-`_suspension_side()` 의 캡슐 `"mass"` 하드코딩(`"1.81"` · `"1.17"`)을
-`_numbers((rocker_kg,))` · `_numbers((bogie_kg,))` 로 바꾸고, 두 값은
-`_suspension_masses(rover)` 에서 받아 인자로 넘긴다. **하드코딩하지 말 것** —
-CAD 가 갱신되면 자동으로 따라가야 한다.
+⚠️ **현재 코드는 이미 3-튜플 `(바퀴, 허브, 차체)` 를 돌려준다** (Task 2 에서
+조향 허브 질량 0 문제를 고치며 그렇게 됐다). 이 태스크는 거기에 `suspension`
+키워드만 추가하는 것이다 — 2-튜플로 되돌리지 말 것.
+
+`_suspension_side()` 의 캡슐 `"mass"` 는 `_numbers((rocker_kg,))` ·
+`_numbers((bogie_kg,))` 로 쓰고, 두 값은 `_suspension_masses(rover)` 에서
+받는다. **하드코딩하지 말 것** — CAD 가 갱신되면 자동으로 따라가야 한다.
 
 `build_mjcf()` 에서 `suspension` 기본값을 `True` 로 바꾸고 `differential_bar:
 bool = True` 인자를 추가한다. `suspension and differential_bar` 일 때만
@@ -1265,18 +1291,21 @@ if suspension:
 약 1.81 kg · 1.17 kg 이 나온다 — 위 `_suspension_masses()` 결과가 이 값 근처인지
 확인하면 링크 이름 접두사 집계가 맞는지 검산할 수 있다.
 
-`_rover()` 는 `suspension` 인자를 받아 분기한다:
+`_rover()` 는 `suspension` 인자를 받아 분기한다. `wheel_mass_kg` · `hub_mass_kg`
+· `body_mass_kg` 는 `_mass_split(rover, suspension=suspension)` 에서 받는다:
 
 ```python
     if suspension:
         wheels = {wheel.name: wheel for wheel in rover.wheels}
         for side in ("left", "right"):
-            _suspension_side(base, geometry, rover, side, wheels, unsprung_kg)
+            _suspension_side(
+                base, geometry, rover, side, wheels, wheel_mass_kg, hub_mass_kg
+            )
     else:
         for wheel in rover.wheels:              # 기존 강체 경로
             _attach_wheel(
                 base, geometry, rover, wheel,
-                (wheel.x_m, wheel.y_m, 0.0), unsprung_kg,
+                (wheel.x_m, wheel.y_m, 0.0), wheel_mass_kg, hub_mass_kg,
             )
 ```
 
