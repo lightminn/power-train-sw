@@ -55,11 +55,17 @@ class BaseToCameraExtrinsic:
 
 @dataclass(frozen=True)
 class TerrainEstimatorConfig:
-    depth_shape_px: tuple[int, int] = (60, 80)
-    roi_rows: tuple[int, int] = (0, 60)
-    roi_cols: tuple[int, int] = (0, 80)
+    # 60x80 은 5 cm 격자를 전방 ~1.4 m 너머로 채우지 못한다. 빈 행이 생기면
+    # 연결성 기반 support 성장이 거기서 끊기고, FOV 한계 검사가 닿는 가장 먼
+    # 행이 트랙 에지를 margin(1.5 x 격자 = 75 mm) 만큼 넘어서지 못해
+    # `drop_boundaries_unobserved` 로 영구 fail-closed 된다(실측: 여유 57 mm).
+    # 120x160 이면 support 가 멀리까지 자라 완주율 0.00 -> 0.83, fail_open 0 유지.
+    # 격자가 고정 shape 라 추정기 런타임은 사실상 불변(0.83 ms, 예산 5 ms).
+    depth_shape_px: tuple[int, int] = (120, 160)
+    roi_rows: tuple[int, int] = (0, 120)
+    roi_cols: tuple[int, int] = (0, 160)
     stride: int = 1
-    quality_tile_shape_px: tuple[int, int] = (15, 20)
+    quality_tile_shape_px: tuple[int, int] = (30, 40)
     grid_resolution_m: float = 0.05
     grid_x_range_m: tuple[float, float] = (0.3, 4.0)
     grid_y_range_m: tuple[float, float] = (-1.5, 1.5)

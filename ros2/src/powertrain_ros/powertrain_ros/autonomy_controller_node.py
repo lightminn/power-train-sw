@@ -78,8 +78,12 @@ from powertrain_ros.terrain_qualification import (  # noqa: E402
 L515_DEPTH_SCALE_M = 0.00025
 
 
-_TARGET_HEIGHT = 60
-_TARGET_WIDTH = 80
+# TerrainEstimatorConfig.depth_shape_px 와 같은 값이어야 한다.
+# 60x80 은 5 cm 격자를 전방 ~1.4 m 너머로 채우지 못해 support 성장이 끊기고,
+# 로봇이 `drop_boundaries_unobserved` 로 영구 정지한다(시뮬 실측 완주율 0.00).
+# 120x160 으로 완주율 0.83, fail_open 0 유지, 추정기 런타임 불변.
+_TARGET_HEIGHT = 120
+_TARGET_WIDTH = 160
 
 
 def _stamp_s(stamp) -> float:

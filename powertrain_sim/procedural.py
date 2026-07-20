@@ -127,7 +127,9 @@ class GenerationParameters:
     terrain_families: tuple[str, ...] = DEFAULT_TERRAIN_FAMILIES
     motion_profiles: tuple[str, ...] = MOTION_PROFILES
     clock_dt_s: float = 0.02
-    depth_shape_px: tuple[int, int] = (60, 80)
+    # TerrainEstimatorConfig.depth_shape_px 와 같은 값이어야 한다 — 시뮬이
+    # production 보다 좋은 센서를 갖게 되면 검증 의미가 사라진다.
+    depth_shape_px: tuple[int, int] = (120, 160)
     depth_sample_every_n_steps: int = 5
     # 개루프(스크립트 모션) 검증은 트랙 끝까지 가므로 True가 기본이다.
     # 폐루프(P1)는 고가 트랙 종단 낙하 앞 ~0.55 m(≈전방 코너 반경)에서
