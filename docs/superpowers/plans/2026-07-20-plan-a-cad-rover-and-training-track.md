@@ -765,22 +765,62 @@ def _rover(
 _UNSPRUNG_KEYS = ("bl70200s", "motor_bracket", "AK45")
 
 
-def _mass_split(rover: RoverModel) -> tuple[float, float]:
-    """(바퀴 1개당 비스프렁 질량, 차체 질량) 을 돌려준다."""
+_STEER_ACTUATOR_KEY = "AK45"
+_STEERABLE_CORNERS = 4
+
+
+def _mass_split(rover: RoverModel) -> tuple[float, float, float]:
+    """(바퀴 1개, 조향 허브 1개, 차체) 질량. 합은 총질량과 정확히 같다.
+
+    AK45 조향 서보는 실물에서 조향 너클 위에 얹히므로 조향 바디에 싣는다.
+    CAD 합계 1.360 kg = 4 x 0.340 kg 이며 패키지 README 의 "조향모터 0.34 kg x4"
+    와 일치한다.
+    """
     unsprung = sum(
         link.mass_kg
         for link in rover.links
         if any(key in link.name for key in _UNSPRUNG_KEYS)
     )
+    steer = sum(
+        link.mass_kg
+        for link in rover.links
+        if _STEER_ACTUATOR_KEY in link.name
+    )
     body = rover.total_mass_kg - unsprung
-    return unsprung / len(rover.wheels), body
+    return (
+        (unsprung - steer) / len(rover.wheels),
+        steer / _STEERABLE_CORNERS,
+        body,
+    )
 ```
 
 `_wheel_body()` 에 `mass_kg: float` 인자를 추가해 `"mass": _numbers((mass_kg,))` 로
 쓰고, 차체 geom 의 `"mass"` 를 `_numbers((body_mass_kg,))` 로 바꾼다.
-조향 허브 구(`steer_hub_*`)의 `"mass": "0.08"` 은 **0 으로 바꾼다** — 질량을
-이중 계상하지 않기 위해서다. MuJoCo 는 질량 0 지오메트리를 허용하므로
-`"mass": "0"` 로 두고 `contype/conaffinity` 는 그대로 0 을 유지한다.
+
+조향 허브 구(`steer_hub_*`)의 `"mass": "0.08"` 은 **`_numbers((hub_mass_kg,))`
+(= 0.340 kg) 로 바꾼다.** `contype/conaffinity` 는 그대로 0 을 유지한다.
+
+⚠️ **여기를 0 으로 두면 안 된다.** 조향 바디(`steer_{name}`)가 직접 담는
+지오메트리는 이 허브 구 하나뿐이고(바퀴는 자식 바디라 부모 질량에 안 잡힌다),
+MuJoCo 는 **관절이 달린 바디의 질량이 0 이면 모델을 거부한다**:
+
+```
+ValueError: Error: mass and inertia of moving bodies must be larger than mjMINVAL
+Element name 'steer_front_left', id 2
+```
+
+CAD 의 AK45 질량을 여기 싣는 것이 물리적으로도 맞다 — 실물에서 조향 서보는
+너클 위에 얹혀 조향축과 함께 돈다.
+
+**검산** (총질량이 정확히 보존되어야 한다):
+
+```
+바퀴  6.248467 x 6 = 37.490805
+허브  0.340000 x 4 =  1.360000
+차체              = 28.110479
+                  ------------
+                    66.961284   ← rover_model.json 의 total_mass_kg 와 일치
+```
 
 `build_mjcf()` 안에서 `rover = load_rover_model()` 을 호출해 `_rover()` 에 넘긴다.
 `build_mjcf` 시그니처에 `suspension: bool = False` 를 추가하되 이 태스크에서는

@@ -194,3 +194,76 @@ def test_depth_spike_is_injected_over_a_ray_miss_like_part_one_fixture():
 
     assert frame is not None
     assert frame.depth_roi[20, 30] == 2500
+
+
+def test_mjcf_total_mass_matches_the_cad_urdf():
+    scenario = _load()
+
+    model = mujoco.MjModel.from_xml_string(build_mjcf(scenario))
+
+    # base_link 이하 전체(월드 바디 0번 제외)
+    total = float(model.body_mass[1:].sum())
+    assert total == pytest.approx(66.9613, abs=0.5)
+
+
+def test_wheel_geoms_use_the_measured_tyre_radius():
+    scenario = _load()
+    root = ET.fromstring(build_mjcf(scenario))
+
+    geom = root.find(".//geom[@name='wheel_geom_front_left']")
+    assert geom is not None
+    radius, half_width = (float(value) for value in geom.attrib["size"].split())
+    assert radius == pytest.approx(0.1035, abs=1e-4)
+    assert half_width == pytest.approx(0.035, abs=1e-4)
+
+
+def test_forward_command_moves_the_rover_along_positive_x():
+    """부호 검증: v>0 이면 +X 로 간다."""
+    scenario = _load()
+    plant = MujocoFastPlant(scenario)
+    start = plant.ground_truth_pose()[0].copy()
+
+    plant.apply_command(0.4, 0.0)
+    for _ in range(100):
+        plant.step_clock_interval()
+
+    moved = plant.ground_truth_pose()[0] - start
+    assert moved[0] > 0.05
+    assert abs(moved[1]) < 0.05
+
+
+def test_positive_yaw_rate_turns_counter_clockwise_and_slows_the_left_wheels():
+    """부호 검증: omega>0 이면 반시계, 좌측 바퀴가 더 느리다."""
+    scenario = _load()
+    geometry = default_geometry()
+    plant = MujocoFastPlant(scenario, geometry=geometry)
+
+    result = plant.apply_command(0.4, 0.3)
+
+    left = result.wheels["mid_left"].drive_turns_per_s
+    right = result.wheels["mid_right"].drive_turns_per_s
+    assert left < right
+
+
+def test_all_six_wheels_touch_the_deck_at_rest():
+    scenario = _load()
+    plant = MujocoFastPlant(scenario)
+
+    for _ in range(50):
+        plant.step_clock_interval()
+
+    contacts = plant.wheel_contact_points_world()
+    assert len(contacts) == 6
+    heights = [point[2] for point in contacts.values()]
+    assert max(heights) - min(heights) < 0.05
+
+
+def test_actuator_force_limits_match_the_usd_motor_specs():
+    scenario = _load()
+    root = ET.fromstring(build_mjcf(scenario))
+
+    steer = root.find(".//actuator/position[@name='steer_front_left']")
+    drive = root.find(".//actuator/velocity[@name='drive_mid_left']")
+    assert steer is not None and drive is not None
+    assert [float(v) for v in steer.attrib["forcerange"].split()] == [-24.0, 24.0]
+    assert [float(v) for v in drive.attrib["forcerange"].split()] == [-39.0, 39.0]

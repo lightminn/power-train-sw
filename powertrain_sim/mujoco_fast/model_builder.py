@@ -9,19 +9,61 @@ import numpy as np
 from chassis.kinematics import ChassisGeometry, default_geometry
 
 from ..scenario import Scenario
+from .rover_model import RoverModel, load_rover_model
 
 
 TRACK_THICKNESS_M = 0.04
 TRACK_SEAM_OVERLAP_M = 0.012
 TRACK_END_APRON_M = 0.65
-WHEEL_HALF_WIDTH_M = 0.035
 WHEEL_CONTACT_GAP_M = 0.006
 CAMERA_POSITION_BODY_M = (0.30, 0.0, 0.18)
 CAMERA_PITCH_DOWN_RAD = math.radians(25.0)
 
+# 바퀴 반폭. 정본은 rover_model.json (USD 타이어 STL 실측 70 mm 의 절반) 이지만,
+# runner.py 와 powertrain_sim / powertrain_autonomy 의 여러 테스트가 이 이름을
+# 모듈 상수로 import 하므로 여기서 다시 노출한다. 값을 손으로 적지 않고 모델에서
+# 끌어와 출처를 한 곳으로 유지한다.
+WHEEL_HALF_WIDTH_M = load_rover_model().wheel_half_width_m
+
+# CAD 질량 배분. 인휠 구동모터 + 브래킷 + 타이어는 비스프렁이므로 바퀴 바디에
+# 싣고, 나머지는 차체에 싣는다. 합계는 USD 총질량(66.9613 kg)과 일치해야 한다.
+# USD prim 이름 예: motor_bracket_front_1_bl70200s_1_tire_1 (62개가 여기 걸린다).
+_UNSPRUNG_KEYS = ("bl70200s", "motor_bracket", "AK45")
+
 
 def _numbers(values) -> str:
     return " ".join(format(float(value), ".12g") for value in values)
+
+
+_STEER_ACTUATOR_KEY = "AK45"
+_STEERABLE_CORNERS = 4
+
+
+def _mass_split(rover: RoverModel) -> tuple[float, float, float]:
+    """(바퀴 1개, 조향 허브 1개, 차체) 질량. 합은 총질량과 정확히 같다.
+
+    AK45 조향 서보는 실물에서 조향 너클 위에 얹혀 조향축과 함께 도므로 조향
+    바디에 싣는다. CAD 합계 1.360 kg = 4 x 0.340 kg 이며 패키지 README 의
+    "조향모터 0.34 kg x4" 와 일치한다.
+
+    조향 바디를 질량 0 으로 두면 안 된다 — 조향 바디가 직접 담는 지오메트리는
+    허브 구 하나뿐이고(바퀴는 자식 바디라 부모 질량에 안 잡힌다), MuJoCo 는
+    관절 달린 바디의 질량이 0 이면 모델을 거부한다.
+    """
+    unsprung = sum(
+        link.mass_kg
+        for link in rover.links
+        if any(key in link.name for key in _UNSPRUNG_KEYS)
+    )
+    steer = sum(
+        link.mass_kg for link in rover.links if _STEER_ACTUATOR_KEY in link.name
+    )
+    body = rover.total_mass_kg - unsprung
+    return (
+        (unsprung - steer) / len(rover.wheels),
+        steer / _STEERABLE_CORNERS,
+        body,
+    )
 
 
 def _unit(vector: np.ndarray) -> np.ndarray:
@@ -150,6 +192,8 @@ def _wheel_body(
     name: str,
     position: tuple[float, float, float],
     radius_m: float,
+    half_width_m: float,
+    mass_kg: float,
 ) -> None:
     wheel = ET.SubElement(parent, "body", {"name": f"wheel_{name}", "pos": _numbers(position)})
     ET.SubElement(
@@ -169,9 +213,9 @@ def _wheel_body(
         {
             "name": f"wheel_geom_{name}",
             "type": "cylinder",
-            "size": _numbers((radius_m, WHEEL_HALF_WIDTH_M)),
+            "size": _numbers((radius_m, half_width_m)),
             "quat": "0.707106781187 0.707106781187 0 0",
-            "mass": "1.2",
+            "mass": _numbers((mass_kg,)),
             "friction": "1.2 0.02 0.002",
             "group": "1",
             "rgba": "0.08 0.08 0.09 1",
@@ -183,9 +227,11 @@ def _rover(
     worldbody: ET.Element,
     scenario: Scenario,
     geometry: ChassisGeometry,
+    rover: RoverModel,
     initial_normal: np.ndarray,
     initial_quaternion: tuple[float, ...],
 ) -> None:
+    wheel_mass_kg, hub_mass_kg, body_mass_kg = _mass_split(rover)
     start = np.asarray(scenario.track.centerline_m[0], dtype=float)
     root_position = start + (geometry.wheel_radius_m + WHEEL_CONTACT_GAP_M) * initial_normal
     base = ET.SubElement(
@@ -206,7 +252,7 @@ def _rover(
             "type": "box",
             "pos": "0 0 0.16",
             "size": "0.38 0.24 0.075",
-            "mass": "38",
+            "mass": _numbers((body_mass_kg,)),
             "group": "1",
             "rgba": "0.15 0.23 0.30 1",
         },
@@ -265,7 +311,9 @@ def _rover(
                     "name": f"steer_hub_{wheel.name}",
                     "type": "sphere",
                     "size": "0.025",
-                    "mass": "0.08",
+                    # AK45 조향 서보. 0 으로 두면 MuJoCo 가 "mass and inertia of
+                    # moving bodies must be larger than mjMINVAL" 로 거부한다.
+                    "mass": _numbers((hub_mass_kg,)),
                     "contype": "0",
                     "conaffinity": "0",
                     "group": "1",
@@ -275,14 +323,18 @@ def _rover(
                 steer,
                 name=wheel.name,
                 position=(0.0, 0.0, 0.0),
-                radius_m=geometry.wheel_radius_m,
+                radius_m=rover.wheel_radius_m,
+                half_width_m=rover.wheel_half_width_m,
+                mass_kg=wheel_mass_kg,
             )
         else:
             _wheel_body(
                 base,
                 name=wheel.name,
                 position=position,
-                radius_m=geometry.wheel_radius_m,
+                radius_m=rover.wheel_radius_m,
+                half_width_m=rover.wheel_half_width_m,
+                mass_kg=wheel_mass_kg,
             )
 
 
@@ -290,9 +342,11 @@ def build_mjcf(
     scenario: Scenario,
     *,
     geometry: ChassisGeometry | None = None,
+    suspension: bool = False,
 ) -> str:
     """Return a deterministic MJCF string for the scenario and production geometry."""
     geometry = geometry or default_geometry()
+    rover = load_rover_model()
     configured = tuple(scenario.sensors["wheel_states"]["wheel_names"])
     actual = tuple(wheel.name for wheel in geometry.wheels)
     if configured != actual:
@@ -333,7 +387,7 @@ def build_mjcf(
         },
     )
     initial_normal, initial_quaternion = _track_geometries(worldbody, scenario)
-    _rover(worldbody, scenario, geometry, initial_normal, initial_quaternion)
+    _rover(worldbody, scenario, geometry, rover, initial_normal, initial_quaternion)
 
     actuator = ET.SubElement(root, "actuator")
     maximum_angular_speed = geometry.drive_limit_mps / geometry.wheel_radius_m
@@ -355,7 +409,9 @@ def build_mjcf(
                         )
                     ),
                     "forcelimited": "true",
-                    "forcerange": "-160 160",
+                    "forcerange": _numbers(
+                        (-rover.steer_torque_limit_nm, rover.steer_torque_limit_nm)
+                    ),
                 },
             )
         ET.SubElement(
@@ -368,7 +424,9 @@ def build_mjcf(
                 "ctrllimited": "true",
                 "ctrlrange": _numbers((-maximum_angular_speed, maximum_angular_speed)),
                 "forcelimited": "true",
-                "forcerange": "-90 90",
+                "forcerange": _numbers(
+                    (-rover.drive_torque_limit_nm, rover.drive_torque_limit_nm)
+                ),
             },
         )
 
@@ -394,6 +452,5 @@ __all__ = (
     "CAMERA_POSITION_BODY_M",
     "TRACK_END_APRON_M",
     "TRACK_THICKNESS_M",
-    "WHEEL_HALF_WIDTH_M",
     "build_mjcf",
 )
