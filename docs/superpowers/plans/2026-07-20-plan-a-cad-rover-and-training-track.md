@@ -98,7 +98,8 @@ chassis_z = urdf_z + 0.2235
   - `usd_to_chassis(x_m, y_m, z_m) -> tuple[float, float, float]`
   - `RoverWheel(name: str, x_m: float, y_m: float, z_m: float, steerable: bool)`
   - `RoverLink(name: str, mass_kg: float, com_m: tuple[float,float,float],
-    inertia: tuple[float,float,float,float,float,float])` — `(ixx, iyy, izz, ixy, ixz, iyz)`
+    diagonal_inertia: tuple[float,float,float])` — USD `MassAPI.GetDiagonalInertiaAttr()`
+    는 주축 정렬 대각 성분 3개만 준다. 비대각 성분은 USD에 없으므로 만들지 않는다.
   - `RoverModel` (frozen dataclass) 필드: `wheels: tuple[RoverWheel, ...]`,
     `links: tuple[RoverLink, ...]`, `total_mass_kg: float`, `wheel_radius_m: float`,
     `wheel_half_width_m: float`, `rocker_limit_rad: float`, `bogie_limit_rad: float`,
