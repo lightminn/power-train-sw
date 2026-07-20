@@ -864,9 +864,13 @@ git commit -m "feat(sim): CAD mass distribution and measured tyre radius in the 
 
 **Interfaces:**
 - Consumes: Task 2의 `build_mjcf(scenario, *, geometry, suspension)`, `RoverModel`
-- Produces: `build_mjcf(..., suspension: bool = True)` — 기본값이 True 로 바뀐다.
-  MJCF 조인트 이름 `rocker_left` · `rocker_right` · `bogie_left` · `bogie_right`,
-  등식 제약 이름 `differential_bar`.
+- Produces:
+  - `build_mjcf(scenario, *, geometry=None, suspension: bool = True,
+    differential_bar: bool = True) -> str` — 두 기본값 모두 True.
+  - MJCF 조인트 이름 `rocker_left` · `rocker_right` · `bogie_left` · `bogie_right`,
+    등식 제약 이름 `differential_bar`.
+  - `MujocoFastPlant(scenario, *, geometry=None, build_kwargs: dict | None = None)`
+    — `build_kwargs` 를 `build_mjcf()` 에 그대로 넘긴다. 대조군 실행용.
 
 **바디 트리 구조** (좌측 기준, 우측 대칭):
 
@@ -941,20 +945,47 @@ def test_rocker_actually_articulates_over_a_one_sided_bump():
     assert abs(float(plant.data.qpos[address])) > 1e-3
 
 
-def test_differential_bar_changes_behaviour_when_removed():
-    """음성 대조: 제약을 끄면 거동이 달라져야 한다. 안 달라지면 제약이 안 걸린 것."""
+def test_differential_bar_can_be_disabled_for_control_runs():
     scenario = _load()
-    with_bar = build_mjcf(scenario)
-    model_with = mujoco.MjModel.from_xml_string(with_bar)
 
-    without_bar = with_bar.replace('name="differential_bar"', 'name="_disabled"')
-    without_bar = without_bar.replace("<equality>", "<equality>").replace(
-        '<joint name="_disabled"', '<joint active="false" name="_disabled"'
+    coupled = mujoco.MjModel.from_xml_string(build_mjcf(scenario))
+    free = mujoco.MjModel.from_xml_string(
+        build_mjcf(scenario, differential_bar=False)
     )
-    model_without = mujoco.MjModel.from_xml_string(without_bar)
 
-    assert model_with.neq >= 1
-    assert int(model_with.eq_active0.sum()) > int(model_without.eq_active0.sum())
+    assert coupled.neq == 1
+    assert free.neq == 0
+
+
+def test_differential_bar_couples_the_left_and_right_rockers():
+    """음성 대조: 한쪽 로커를 밀면 디프바가 있을 때만 반대쪽이 따라 움직인다."""
+
+    def rocker_response(*, differential_bar: bool) -> float:
+        scenario = _load()
+        plant = MujocoFastPlant(
+            scenario, build_kwargs={"differential_bar": differential_bar}
+        )
+        left = mujoco.mj_name2id(
+            plant.model, mujoco.mjtObj.mjOBJ_JOINT, "rocker_left"
+        )
+        right = mujoco.mj_name2id(
+            plant.model, mujoco.mjtObj.mjOBJ_JOINT, "rocker_right"
+        )
+        left_address = int(plant.model.jnt_qposadr[left])
+        right_address = int(plant.model.jnt_qposadr[right])
+        plant.data.qpos[left_address] = 0.25
+        mujoco.mj_forward(plant.model, plant.data)
+        for _ in range(100):
+            plant.step_clock_interval()
+        return abs(float(plant.data.qpos[right_address]))
+
+    coupled = rocker_response(differential_bar=True)
+    free = rocker_response(differential_bar=False)
+
+    # 디프바가 있으면 반대쪽 로커가 유의미하게 따라 움직인다.
+    assert coupled > 0.05
+    # 없으면 훨씬 덜 움직인다. 같으면 제약이 안 걸린 것이다.
+    assert coupled > 3.0 * free
 ```
 
 - [ ] **Step 2: 테스트 실패 확인**
@@ -1162,8 +1193,10 @@ def _mass_split(rover: RoverModel, *, suspension: bool) -> tuple[float, float]:
 `_suspension_masses(rover)` 에서 받아 인자로 넘긴다. **하드코딩하지 말 것** —
 CAD 가 갱신되면 자동으로 따라가야 한다.
 
-`build_mjcf()` 에서 `suspension` 기본값을 `True` 로 바꾸고, True 일 때
-`root` 아래 `<equality>` 를 추가한다:
+`build_mjcf()` 에서 `suspension` 기본값을 `True` 로 바꾸고 `differential_bar:
+bool = True` 인자를 추가한다. `suspension and differential_bar` 일 때만
+`root` 아래 `<equality>` 를 추가한다 — 디프바 단독 on/off 가 **음성 대조의
+핵심**이라 반드시 독립 스위치여야 한다:
 
 ```python
 if suspension:
@@ -1214,6 +1247,16 @@ PYTHONPATH=motor_control:ros2/src/powertrain_ros:. python3 -m pytest \
 물리가 불안정하면(진동·관통) `damping` · `armature` 를 키우고, 그래도 안 되면
 `model_builder.py` 의 `iterations` 를 40 → 80 으로 올린다. **해결 안 되면
 숨기지 말고 보고할 것.**
+
+`MujocoFastPlant.__init__` 에 `build_kwargs: dict | None = None` 을 추가하고
+`build_mjcf(scenario, geometry=self.geometry, **(build_kwargs or {}))` 로 넘긴다
+(`plant.py:44`). 이것이 대조군 실행 경로다.
+
+⚠️ **디프바 결합 방향 확인.** `polycoef="0 -1 0 0 0"` 은 좌우 로커가 서로
+**반대로** 움직인다는 뜻이다(실물 디프바의 거동). 음성 대조 테스트에서
+`coupled > 0.05` 가 안 나오면 부호를 `"0 1 0 0 0"` 으로 뒤집어 확인하고,
+**어느 쪽이 맞았는지 보고서에 적을 것** — 이건 실물 기구 거동에 대한
+관측이므로 기록 가치가 있다.
 
 - [ ] **Step 5: 캠페인 실행 — 2차 앵커 이동 관측**
 
