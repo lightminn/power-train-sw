@@ -16,7 +16,13 @@ TRACK_THICKNESS_M = 0.04
 TRACK_SEAM_OVERLAP_M = 0.012
 TRACK_END_APRON_M = 0.65
 WHEEL_CONTACT_GAP_M = 0.006
-CAMERA_POSITION_BODY_M = (0.30, 0.0, 0.18)
+# z 0.18 -> 0.28 (지면 기준 0.2895 -> 0.3895 m). 뱅크 트랙에서 올라간 쪽 지면이
+# 그 너머 바닥을 가려 한쪽 낙하 경계를 원리적으로 관측할 수 없었고, 추정기의
+# "좌우 양쪽 확인" 규칙이 충족 불가라 bank 가족 완주율이 0 이었다. 카메라를
+# 10 cm 올리면 그 너머가 보인다(실측 bank 0.000 -> 0.831, flat 0.812 -> 0.836).
+# L515 장착 높이는 실차에서 조절 가능하다는 확인을 받았다(2026-07-21).
+# 피치는 25 도 유지 — 스윕에서 40 도는 전 가족을 죽였다(근거리만 봄).
+CAMERA_POSITION_BODY_M = (0.30, 0.0, 0.28)
 CAMERA_PITCH_DOWN_RAD = math.radians(25.0)
 
 # 바퀴 반폭. 정본은 rover_model.json (USD 타이어 STL 실측 70 mm 의 절반) 이지만,

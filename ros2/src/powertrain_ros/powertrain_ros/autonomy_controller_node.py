@@ -374,6 +374,14 @@ class AutonomyControllerNode(Node):
                 % (width, height)
             )
             return
+        if roi_height < _TARGET_HEIGHT or roi_width < _TARGET_WIDTH:
+            # stride 가 0 이 되면 모든 인덱스가 같은 픽셀을 가리켜 지형이 조용히
+            # 망가진다. fail-closed 로 거부하고 자격화를 다시 받게 한다.
+            self.get_logger().error(
+                "qualified terrain ROI %dx%d is smaller than the %dx%d grid"
+                % (roi_width, roi_height, _TARGET_WIDTH, _TARGET_HEIGHT)
+            )
+            return
         row_stride = roi_height // _TARGET_HEIGHT
         col_stride = roi_width // _TARGET_WIDTH
         try:

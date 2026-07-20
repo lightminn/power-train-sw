@@ -7,11 +7,12 @@ mount:
   pitch_deg: 25.0
 terrain:
   backend: numpy
+  # _TARGET_WIDTH/_TARGET_HEIGHT 이상이어야 한다 — 작으면 stride 가 0 이 된다.
   roi:
     x: 0
     y: 0
-    width: 80
-    height: 60
+    width: 160
+    height: 120
   depth_thresholds:
     min_depth_m: 0.2
     max_depth_m: 6.0
