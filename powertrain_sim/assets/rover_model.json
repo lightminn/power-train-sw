@@ -1,0 +1,1670 @@
+{
+  "bodies": [
+    {
+      "com_m": [
+        -0.30285,
+        0.185,
+        0.3435
+      ],
+      "diagonal_inertia": [
+        0.001268055,
+        0.001268055,
+        4.6601e-05
+      ],
+      "mass_kg": 0.25932374596595764,
+      "name": "base_link_1_3030_240mm_1"
+    },
+    {
+      "com_m": [
+        -0.30285,
+        0.0,
+        0.2085
+      ],
+      "diagonal_inertia": [
+        0.003572058,
+        0.003572058,
+        6.6019e-05
+      ],
+      "mass_kg": 0.36737528443336487,
+      "name": "base_link_1_3030_340mm_1"
+    },
+    {
+      "com_m": [
+        -0.06785,
+        0.185,
+        0.2085
+      ],
+      "diagonal_inertia": [
+        0.011303914,
+        9.7086e-05,
+        0.011303914
+      ],
+      "mass_kg": 0.5402578115463257,
+      "name": "base_link_1_3030_500mm_1"
+    },
+    {
+      "com_m": [
+        0.16715,
+        0.0,
+        0.2085
+      ],
+      "diagonal_inertia": [
+        0.003572058,
+        0.003572058,
+        6.6019e-05
+      ],
+      "mass_kg": 0.36737528443336487,
+      "name": "base_link_1_3030_340mm_2"
+    },
+    {
+      "com_m": [
+        0.16715,
+        0.185,
+        0.3435
+      ],
+      "diagonal_inertia": [
+        4.6601e-05,
+        0.001268055,
+        0.001268055
+      ],
+      "mass_kg": 0.25932374596595764,
+      "name": "base_link_1_3030_240mm_2"
+    },
+    {
+      "com_m": [
+        0.16715,
+        -0.185,
+        0.3435
+      ],
+      "diagonal_inertia": [
+        4.6601e-05,
+        0.001268055,
+        0.001268055
+      ],
+      "mass_kg": 0.25932374596595764,
+      "name": "base_link_1_3030_240mm_4"
+    },
+    {
+      "com_m": [
+        -0.06784,
+        -0.184838,
+        0.208513
+      ],
+      "diagonal_inertia": [
+        0.011303914,
+        9.7086e-05,
+        0.011303914
+      ],
+      "mass_kg": 0.5402578115463257,
+      "name": "base_link_1_3030_500mm_2"
+    },
+    {
+      "com_m": [
+        -0.30285,
+        -0.185,
+        0.3435
+      ],
+      "diagonal_inertia": [
+        4.6601e-05,
+        0.001268055,
+        0.001268055
+      ],
+      "mass_kg": 0.25932374596595764,
+      "name": "base_link_1_3030_240mm_3"
+    },
+    {
+      "com_m": [
+        -0.30285,
+        0.0,
+        0.4785
+      ],
+      "diagonal_inertia": [
+        6.6019e-05,
+        0.003572058,
+        0.003572058
+      ],
+      "mass_kg": 0.36737528443336487,
+      "name": "base_link_1_3030_340mm_4"
+    },
+    {
+      "com_m": [
+        -0.06785,
+        0.185,
+        0.4785
+      ],
+      "diagonal_inertia": [
+        0.011303914,
+        9.7086e-05,
+        0.011303914
+      ],
+      "mass_kg": 0.5402578115463257,
+      "name": "base_link_1_3030_500mm_3"
+    },
+    {
+      "com_m": [
+        -0.08585,
+        0.185,
+        0.344281
+      ],
+      "diagonal_inertia": [
+        0.016529633,
+        0.043664575,
+        0.058073252
+      ],
+      "mass_kg": 7.906227111816406,
+      "name": "base_link_1_mounting_plateMirror_1"
+    },
+    {
+      "com_m": [
+        -0.085163,
+        0.238632,
+        0.353457
+      ],
+      "diagonal_inertia": [
+        0.000807255,
+        0.000841926,
+        0.00027052
+      ],
+      "mass_kg": 0.21998625993728638,
+      "name": "base_link_1_chassis_pivotMirror_1"
+    },
+    {
+      "com_m": [
+        -0.085884,
+        0.300494,
+        0.3275
+      ],
+      "diagonal_inertia": [
+        0.000499894,
+        0.000396726,
+        0.000422081
+      ],
+      "mass_kg": 0.38193851709365845,
+      "name": "rocker_v2_L_1_rocker_pivot_v3_1"
+    },
+    {
+      "com_m": [
+        -0.0037,
+        0.292526,
+        0.327504
+      ],
+      "diagonal_inertia": [
+        7.4985e-05,
+        4.8706e-05,
+        7.4555e-05
+      ],
+      "mass_kg": 0.11987968534231186,
+      "name": "rocker_v2_L_1_rocker_base_front_1"
+    },
+    {
+      "com_m": [
+        0.055861,
+        0.29253,
+        0.320416
+      ],
+      "diagonal_inertia": [
+        0.000226472,
+        0.00013403,
+        0.000222399
+      ],
+      "mass_kg": 0.207370325922966,
+      "name": "rocker_v2_L_1_rocker_vertex_front_1"
+    },
+    {
+      "com_m": [
+        0.101498,
+        0.292518,
+        0.281719
+      ],
+      "diagonal_inertia": [
+        7.4246e-05,
+        7.3816e-05,
+        4.8499e-05
+      ],
+      "mass_kg": 0.11937084794044495,
+      "name": "rocker_v2_L_1_rocker_leg_front_1"
+    },
+    {
+      "com_m": [
+        0.150707,
+        0.293016,
+        0.228698
+      ],
+      "diagonal_inertia": [
+        0.000250654,
+        0.000259497,
+        0.000229712
+      ],
+      "mass_kg": 0.4335077404975891,
+      "name": "rocker_v2_L_1_bogie_pivot_in_1"
+    },
+    {
+      "com_m": [
+        0.152778,
+        0.3525,
+        0.225951
+      ],
+      "diagonal_inertia": [
+        0.000305676,
+        0.000321544,
+        0.000274296
+      ],
+      "mass_kg": 0.4827648103237152,
+      "name": "bogie_v2_1_bogie_pivot_out_1"
+    },
+    {
+      "com_m": [
+        0.284994,
+        0.3525,
+        0.236986
+      ],
+      "diagonal_inertia": [
+        0.000997384,
+        0.000996775,
+        0.000129158
+      ],
+      "mass_kg": 0.3179105818271637,
+      "name": "bogie_v2_1_bogie_link_front_1"
+    },
+    {
+      "com_m": [
+        0.437241,
+        0.352974,
+        0.313812
+      ],
+      "diagonal_inertia": [
+        2.231e-06,
+        2.231e-06,
+        4.442e-06
+      ],
+      "mass_kg": 0.00798824056982994,
+      "name": "motor_bracket_front_1_servo_mount_cover_1"
+    },
+    {
+      "com_m": [
+        0.430141,
+        0.352818,
+        0.223931
+      ],
+      "diagonal_inertia": [
+        0.000824208,
+        0.001745739,
+        0.001942469
+      ],
+      "mass_kg": 0.6527339220046997,
+      "name": "motor_bracket_front_1_servo_mount_front_1"
+    },
+    {
+      "com_m": [
+        0.437725,
+        0.3525,
+        0.149517
+      ],
+      "diagonal_inertia": [
+        1.7581e-05,
+        8.806e-06,
+        8.806e-06
+      ],
+      "mass_kg": 0.020925479009747505,
+      "name": "motor_bracket_front_1_retainer_plate_1"
+    },
+    {
+      "com_m": [
+        0.437725,
+        0.3525,
+        0.161309
+      ],
+      "diagonal_inertia": [
+        5.4696e-05,
+        3.2872e-05,
+        3.2872e-05
+      ],
+      "mass_kg": 0.1602369248867035,
+      "name": "motor_bracket_front_1_NSK_5204_1_5204_Outer_Ring_1"
+    },
+    {
+      "com_m": [
+        0.437725,
+        0.3525,
+        0.258143
+      ],
+      "diagonal_inertia": [
+        9.109e-06,
+        1.8053e-05,
+        9.109e-06
+      ],
+      "mass_kg": 0.11245042830705643,
+      "name": "motor_bracket_front_1_AK45_36_KV80_flanged_1_servo_hub_1"
+    },
+    {
+      "com_m": [
+        0.437725,
+        0.3525,
+        0.241209
+      ],
+      "diagonal_inertia": [
+        2.1188e-05,
+        6.4e-06,
+        2.1188e-05
+      ],
+      "mass_kg": 0.22754956781864166,
+      "name": "motor_bracket_front_1_AK45_36_KV80_flanged_1_rotational_axis_1"
+    },
+    {
+      "com_m": [
+        0.437773,
+        0.352354,
+        0.218236
+      ],
+      "diagonal_inertia": [
+        0.000301571,
+        0.000303817,
+        0.000175497
+      ],
+      "mass_kg": 0.42542293667793274,
+      "name": "motor_bracket_front_1_E_LMPJC55L78_15_20_LK5_RK6_1_BODY_R_E_LMPJC55L78_15_20_LK5_RK6_1"
+    },
+    {
+      "com_m": [
+        0.43773,
+        0.3525,
+        0.162322
+      ],
+      "diagonal_inertia": [
+        2.2947e-05,
+        5.7391e-05,
+        5.7391e-05
+      ],
+      "mass_kg": 0.09920904040336609,
+      "name": "motor_bracket_front_1_kingpin_flange_1"
+    },
+    {
+      "com_m": [
+        0.43773,
+        0.308184,
+        0.121856
+      ],
+      "diagonal_inertia": [
+        0.007936634,
+        0.008821139,
+        0.002822927
+      ],
+      "mass_kg": 1.272153377532959,
+      "name": "motor_bracket_front_1_motor_bracket_curved_1"
+    },
+    {
+      "com_m": [
+        0.437729,
+        0.2995,
+        9e-06
+      ],
+      "diagonal_inertia": [
+        3.03e-07,
+        1.45e-07,
+        1.64e-07
+      ],
+      "mass_kg": 0.004330660216510296,
+      "name": "motor_bracket_front_1_double_d_washer_1"
+    },
+    {
+      "com_m": [
+        0.43773,
+        0.352287,
+        9e-06
+      ],
+      "diagonal_inertia": [
+        0.012841218,
+        0.007676467,
+        0.007676414
+      ],
+      "mass_kg": 3.765862226486206,
+      "name": "motor_bracket_front_1_bl70200s_1_wheel_1"
+    },
+    {
+      "com_m": [
+        0.43773,
+        0.3525,
+        9e-06
+      ],
+      "diagonal_inertia": [
+        0.005216789,
+        0.002896741,
+        0.002896741
+      ],
+      "mass_kg": 0.6161156296730042,
+      "name": "motor_bracket_front_1_bl70200s_1_tire_1"
+    },
+    {
+      "com_m": [
+        0.43773,
+        0.351897,
+        0.172209
+      ],
+      "diagonal_inertia": [
+        1.65e-07,
+        9.4e-08,
+        7.2e-08
+      ],
+      "mass_kg": 0.0014085216680541635,
+      "name": "motor_bracket_front_1_STWS20_1"
+    },
+    {
+      "com_m": [
+        0.05105,
+        0.3525,
+        0.119041
+      ],
+      "diagonal_inertia": [
+        0.001526175,
+        0.000149696,
+        0.001525566
+      ],
+      "mass_kg": 0.36846721172332764,
+      "name": "bogie_v2_1_bogie_link_center_1"
+    },
+    {
+      "com_m": [
+        -0.051457,
+        0.355419,
+        0.010051
+      ],
+      "diagonal_inertia": [
+        0.000350671,
+        0.000354881,
+        0.000226043
+      ],
+      "mass_kg": 0.2712840437889099,
+      "name": "motor_bracket_center_1_center_bracket_1"
+    },
+    {
+      "com_m": [
+        -0.060358,
+        0.318749,
+        -1.2e-05
+      ],
+      "diagonal_inertia": [
+        1.1244e-05,
+        5.633e-06,
+        5.633e-06
+      ],
+      "mass_kg": 0.021253462880849838,
+      "name": "motor_bracket_center_1_bracket_cover_1"
+    },
+    {
+      "com_m": [
+        -0.060358,
+        0.386499,
+        -1.2e-05
+      ],
+      "diagonal_inertia": [
+        3.03e-07,
+        1.64e-07,
+        1.45e-07
+      ],
+      "mass_kg": 0.004330660216510296,
+      "name": "motor_bracket_center_1_double_d_washer_1"
+    },
+    {
+      "com_m": [
+        -0.060358,
+        0.439287,
+        -1.2e-05
+      ],
+      "diagonal_inertia": [
+        0.007676414,
+        0.007676467,
+        0.012841218
+      ],
+      "mass_kg": 3.765862226486206,
+      "name": "motor_bracket_center_1_bl70200s_1_wheel_1"
+    },
+    {
+      "com_m": [
+        -0.060358,
+        0.439499,
+        -1.2e-05
+      ],
+      "diagonal_inertia": [
+        0.005216789,
+        0.002896741,
+        0.002896741
+      ],
+      "mass_kg": 0.6161156296730042,
+      "name": "motor_bracket_center_1_bl70200s_1_tire_1"
+    },
+    {
+      "com_m": [
+        -0.1922,
+        0.29245,
+        0.327493
+      ],
+      "diagonal_inertia": [
+        0.000280804,
+        8.2061e-05,
+        0.000280374
+      ],
+      "mass_kg": 0.2019863724708557,
+      "name": "rocker_v2_L_1_rocker_base_rear_1"
+    },
+    {
+      "com_m": [
+        -0.438446,
+        0.29246,
+        0.31379
+      ],
+      "diagonal_inertia": [
+        2.231e-06,
+        2.231e-06,
+        4.442e-06
+      ],
+      "mass_kg": 0.00798824056982994,
+      "name": "motor_bracket_rear_1_servo_mount_cover_1"
+    },
+    {
+      "com_m": [
+        -0.429047,
+        0.292811,
+        0.228685
+      ],
+      "diagonal_inertia": [
+        0.000829129,
+        0.001991937,
+        0.002184535
+      ],
+      "mass_kg": 0.6665163636207581,
+      "name": "motor_bracket_rear_1_servo_mount_rear_1"
+    },
+    {
+      "com_m": [
+        -0.437769,
+        0.2925,
+        0.149549
+      ],
+      "diagonal_inertia": [
+        1.7581e-05,
+        8.806e-06,
+        8.806e-06
+      ],
+      "mass_kg": 0.020925479009747505,
+      "name": "motor_bracket_rear_1_retainer_plate_1"
+    },
+    {
+      "com_m": [
+        -0.437769,
+        0.2925,
+        0.161341
+      ],
+      "diagonal_inertia": [
+        5.4696e-05,
+        3.2872e-05,
+        3.2872e-05
+      ],
+      "mass_kg": 0.1602369248867035,
+      "name": "motor_bracket_rear_1_NSK_5204_1_5204_Outer_Ring_1"
+    },
+    {
+      "com_m": [
+        -0.437769,
+        0.2925,
+        0.258175
+      ],
+      "diagonal_inertia": [
+        9.109e-06,
+        1.8053e-05,
+        9.109e-06
+      ],
+      "mass_kg": 0.11245042830705643,
+      "name": "motor_bracket_rear_1_AK45_36_KV80_flanged_1_servo_hub_1"
+    },
+    {
+      "com_m": [
+        -0.437769,
+        0.2925,
+        0.241241
+      ],
+      "diagonal_inertia": [
+        2.1188e-05,
+        6.4e-06,
+        2.1188e-05
+      ],
+      "mass_kg": 0.22754956781864166,
+      "name": "motor_bracket_rear_1_AK45_36_KV80_flanged_1_rotational_axis_1"
+    },
+    {
+      "com_m": [
+        -0.437721,
+        0.292354,
+        0.218268
+      ],
+      "diagonal_inertia": [
+        0.000301571,
+        0.000303817,
+        0.000175497
+      ],
+      "mass_kg": 0.42542293667793274,
+      "name": "motor_bracket_rear_1_E_LMPJC55L78_15_20_LK5_RK6_1_BODY_R_E_LMPJC55L78_15_20_LK5_RK6_1"
+    },
+    {
+      "com_m": [
+        -0.437764,
+        0.2925,
+        0.162354
+      ],
+      "diagonal_inertia": [
+        2.2947e-05,
+        5.7391e-05,
+        5.7391e-05
+      ],
+      "mass_kg": 0.09920904040336609,
+      "name": "motor_bracket_rear_1_kingpin_flange_1"
+    },
+    {
+      "com_m": [
+        -0.437764,
+        0.248184,
+        0.121888
+      ],
+      "diagonal_inertia": [
+        0.007936634,
+        0.008821139,
+        0.002822927
+      ],
+      "mass_kg": 1.272153377532959,
+      "name": "motor_bracket_rear_1_motor_bracket_curved_1"
+    },
+    {
+      "com_m": [
+        -0.437765,
+        0.2395,
+        4.1e-05
+      ],
+      "diagonal_inertia": [
+        3.03e-07,
+        1.45e-07,
+        1.64e-07
+      ],
+      "mass_kg": 0.004330660216510296,
+      "name": "motor_bracket_rear_1_double_d_washer_1"
+    },
+    {
+      "com_m": [
+        -0.437764,
+        0.292288,
+        4.1e-05
+      ],
+      "diagonal_inertia": [
+        0.012841218,
+        0.007676467,
+        0.007676414
+      ],
+      "mass_kg": 3.765862226486206,
+      "name": "motor_bracket_rear_1_bl70200s_1_wheel_1"
+    },
+    {
+      "com_m": [
+        -0.437764,
+        0.2925,
+        4.1e-05
+      ],
+      "diagonal_inertia": [
+        0.005216789,
+        0.002896741,
+        0.002896741
+      ],
+      "mass_kg": 0.6161156296730042,
+      "name": "motor_bracket_rear_1_bl70200s_1_tire_1"
+    },
+    {
+      "com_m": [
+        -0.437764,
+        0.291897,
+        0.172241
+      ],
+      "diagonal_inertia": [
+        1.65e-07,
+        9.4e-08,
+        7.2e-08
+      ],
+      "mass_kg": 0.0014085216680541635,
+      "name": "motor_bracket_rear_1_STWS20_1"
+    },
+    {
+      "com_m": [
+        -0.278062,
+        0.292467,
+        0.323305
+      ],
+      "diagonal_inertia": [
+        0.00023737,
+        0.000134021,
+        0.000234961
+      ],
+      "mass_kg": 0.2099914252758026,
+      "name": "rocker_v2_L_1_rocker_vertex_rear_1"
+    },
+    {
+      "com_m": [
+        -0.339615,
+        0.292472,
+        0.297289
+      ],
+      "diagonal_inertia": [
+        0.000103031,
+        5.5642e-05,
+        0.000102601
+      ],
+      "mass_kg": 0.1369529515504837,
+      "name": "rocker_v2_L_1_rocker_leg_rear_1"
+    },
+    {
+      "com_m": [
+        0.16715,
+        -0.0,
+        0.4785
+      ],
+      "diagonal_inertia": [
+        0.003572058,
+        0.003572058,
+        6.6019e-05
+      ],
+      "mass_kg": 0.36737528443336487,
+      "name": "base_link_1_3030_340mm_5"
+    },
+    {
+      "com_m": [
+        -0.06784,
+        -0.184838,
+        0.478513
+      ],
+      "diagonal_inertia": [
+        0.011303914,
+        9.7086e-05,
+        0.011303914
+      ],
+      "mass_kg": 0.5402578115463257,
+      "name": "base_link_1_3030_500mm_4"
+    },
+    {
+      "com_m": [
+        -0.21785,
+        -0.0,
+        0.4785
+      ],
+      "diagonal_inertia": [
+        0.003572058,
+        0.003572058,
+        6.6019e-05
+      ],
+      "mass_kg": 0.36737528443336487,
+      "name": "base_link_1_3030_340mm_7"
+    },
+    {
+      "com_m": [
+        -0.08585,
+        -0.185,
+        0.344281
+      ],
+      "diagonal_inertia": [
+        0.016529633,
+        0.043664575,
+        0.058073252
+      ],
+      "mass_kg": 7.906227111816406,
+      "name": "base_link_1_main_plate2_1"
+    },
+    {
+      "com_m": [
+        -0.08513,
+        -0.238632,
+        0.353457
+      ],
+      "diagonal_inertia": [
+        0.000807255,
+        0.000841926,
+        0.00027052
+      ],
+      "mass_kg": 0.21998625993728638,
+      "name": "base_link_1_chassis_pivot_1"
+    },
+    {
+      "com_m": [
+        -0.08585,
+        -0.300494,
+        0.3275
+      ],
+      "diagonal_inertia": [
+        0.00049989,
+        0.000396724,
+        0.000422076
+      ],
+      "mass_kg": 0.38193660974502563,
+      "name": "rocker_v2_R_1_rocker_pivot_v3_R_1"
+    },
+    {
+      "com_m": [
+        -0.0037,
+        -0.292473,
+        0.3275
+      ],
+      "diagonal_inertia": [
+        7.4634e-05,
+        4.8523e-05,
+        7.4026e-05
+      ],
+      "mass_kg": 0.1194259449839592,
+      "name": "rocker_v2_R_1_rocker_base_front_1"
+    },
+    {
+      "com_m": [
+        0.05586,
+        -0.292469,
+        0.320412
+      ],
+      "diagonal_inertia": [
+        0.000226472,
+        0.00013403,
+        0.000222399
+      ],
+      "mass_kg": 0.207370325922966,
+      "name": "rocker_v2_R_1_rocker_vertex_front_1"
+    },
+    {
+      "com_m": [
+        0.101495,
+        -0.292482,
+        0.281716
+      ],
+      "diagonal_inertia": [
+        7.39e-05,
+        7.3291e-05,
+        4.8317e-05
+      ],
+      "mass_kg": 0.11891742050647736,
+      "name": "rocker_v2_R_1_rocker_leg_front_1"
+    },
+    {
+      "com_m": [
+        0.151319,
+        -0.291979,
+        0.228622
+      ],
+      "diagonal_inertia": [
+        0.000250654,
+        0.000259497,
+        0.000229712
+      ],
+      "mass_kg": 0.4335077404975891,
+      "name": "rocker_v2_R_1_bogie_pivot_in_1"
+    },
+    {
+      "com_m": [
+        0.152778,
+        -0.3525,
+        0.225951
+      ],
+      "diagonal_inertia": [
+        0.000305676,
+        0.000321544,
+        0.000274296
+      ],
+      "mass_kg": 0.4827648103237152,
+      "name": "bogie_v2_2_bogie_pivot_out_1"
+    },
+    {
+      "com_m": [
+        0.284994,
+        -0.3525,
+        0.236986
+      ],
+      "diagonal_inertia": [
+        0.000997384,
+        0.000996775,
+        0.000129158
+      ],
+      "mass_kg": 0.3179105818271637,
+      "name": "bogie_v2_2_bogie_link_front_1"
+    },
+    {
+      "com_m": [
+        0.05105,
+        -0.3525,
+        0.119041
+      ],
+      "diagonal_inertia": [
+        0.001526175,
+        0.000149696,
+        0.001525566
+      ],
+      "mass_kg": 0.36846721172332764,
+      "name": "bogie_v2_2_bogie_link_center_1"
+    },
+    {
+      "com_m": [
+        0.437725,
+        -0.3525,
+        0.313764
+      ],
+      "diagonal_inertia": [
+        2.231e-06,
+        2.231e-06,
+        4.442e-06
+      ],
+      "mass_kg": 0.00798824056982994,
+      "name": "motor_bracket_front_2_servo_mount_cover_1"
+    },
+    {
+      "com_m": [
+        0.430142,
+        -0.352182,
+        0.223931
+      ],
+      "diagonal_inertia": [
+        0.000824208,
+        0.001745739,
+        0.001942469
+      ],
+      "mass_kg": 0.6527339220046997,
+      "name": "motor_bracket_front_2_servo_mount_front_1"
+    },
+    {
+      "com_m": [
+        0.437725,
+        -0.3525,
+        0.149517
+      ],
+      "diagonal_inertia": [
+        1.7581e-05,
+        8.806e-06,
+        8.806e-06
+      ],
+      "mass_kg": 0.020925479009747505,
+      "name": "motor_bracket_front_2_retainer_plate_1"
+    },
+    {
+      "com_m": [
+        0.437725,
+        -0.3525,
+        0.161309
+      ],
+      "diagonal_inertia": [
+        5.4696e-05,
+        3.2872e-05,
+        3.2872e-05
+      ],
+      "mass_kg": 0.1602369248867035,
+      "name": "motor_bracket_front_2_NSK_5204_1_5204_Outer_Ring_1"
+    },
+    {
+      "com_m": [
+        0.437725,
+        -0.3525,
+        0.258143
+      ],
+      "diagonal_inertia": [
+        9.109e-06,
+        1.8053e-05,
+        9.109e-06
+      ],
+      "mass_kg": 0.11245042830705643,
+      "name": "motor_bracket_front_2_AK45_36_KV80_flanged_1_servo_hub_1"
+    },
+    {
+      "com_m": [
+        0.437725,
+        -0.3525,
+        0.241209
+      ],
+      "diagonal_inertia": [
+        2.1188e-05,
+        6.4e-06,
+        2.1188e-05
+      ],
+      "mass_kg": 0.22754956781864166,
+      "name": "motor_bracket_front_2_AK45_36_KV80_flanged_1_rotational_axis_1"
+    },
+    {
+      "com_m": [
+        0.437677,
+        -0.352355,
+        0.218236
+      ],
+      "diagonal_inertia": [
+        0.000301571,
+        0.000303817,
+        0.000175497
+      ],
+      "mass_kg": 0.42542293667793274,
+      "name": "motor_bracket_front_2_E_LMPJC55L78_15_20_LK5_RK6_1_BODY_R_E_LMPJC55L78_15_20_LK5_RK6_1"
+    },
+    {
+      "com_m": [
+        0.43772,
+        -0.3525,
+        0.162322
+      ],
+      "diagonal_inertia": [
+        2.2947e-05,
+        5.7391e-05,
+        5.7391e-05
+      ],
+      "mass_kg": 0.09920904040336609,
+      "name": "motor_bracket_front_2_kingpin_flange_1"
+    },
+    {
+      "com_m": [
+        0.43772,
+        -0.308184,
+        0.121856
+      ],
+      "diagonal_inertia": [
+        0.007936634,
+        0.008821139,
+        0.002822927
+      ],
+      "mass_kg": 1.272153377532959,
+      "name": "motor_bracket_front_2_motor_bracket_curved_1"
+    },
+    {
+      "com_m": [
+        0.437722,
+        -0.2995,
+        9e-06
+      ],
+      "diagonal_inertia": [
+        3.03e-07,
+        1.45e-07,
+        1.64e-07
+      ],
+      "mass_kg": 0.004330660216510296,
+      "name": "motor_bracket_front_2_double_d_washer_1"
+    },
+    {
+      "com_m": [
+        0.43772,
+        -0.352288,
+        9e-06
+      ],
+      "diagonal_inertia": [
+        0.012841218,
+        0.007676467,
+        0.007676414
+      ],
+      "mass_kg": 3.765862226486206,
+      "name": "motor_bracket_front_2_bl70200s_1_wheel_1"
+    },
+    {
+      "com_m": [
+        0.43772,
+        -0.3525,
+        9e-06
+      ],
+      "diagonal_inertia": [
+        0.005216789,
+        0.002896741,
+        0.002896741
+      ],
+      "mass_kg": 0.6161156296730042,
+      "name": "motor_bracket_front_2_bl70200s_1_tire_1"
+    },
+    {
+      "com_m": [
+        0.43772,
+        -0.351897,
+        0.172209
+      ],
+      "diagonal_inertia": [
+        1.65e-07,
+        9.4e-08,
+        7.2e-08
+      ],
+      "mass_kg": 0.0014085216680541635,
+      "name": "motor_bracket_front_2_STWS20_1"
+    },
+    {
+      "com_m": [
+        -0.050756,
+        -0.354336,
+        0.009997
+      ],
+      "diagonal_inertia": [
+        0.000350671,
+        0.000354881,
+        0.000226043
+      ],
+      "mass_kg": 0.2712840437889099,
+      "name": "motor_bracket_center_2_center_bracket_1"
+    },
+    {
+      "com_m": [
+        -0.060358,
+        -0.31875,
+        -1.2e-05
+      ],
+      "diagonal_inertia": [
+        1.1244e-05,
+        5.633e-06,
+        5.633e-06
+      ],
+      "mass_kg": 0.021253462880849838,
+      "name": "motor_bracket_center_2_bracket_cover_1"
+    },
+    {
+      "com_m": [
+        -0.060358,
+        -0.3865,
+        -1.2e-05
+      ],
+      "diagonal_inertia": [
+        3.03e-07,
+        1.45e-07,
+        1.64e-07
+      ],
+      "mass_kg": 0.004330660216510296,
+      "name": "motor_bracket_center_2_double_d_washer_1"
+    },
+    {
+      "com_m": [
+        -0.060358,
+        -0.439288,
+        -1.2e-05
+      ],
+      "diagonal_inertia": [
+        0.007676414,
+        0.007676467,
+        0.012841218
+      ],
+      "mass_kg": 3.765862226486206,
+      "name": "motor_bracket_center_2_bl70200s_1_wheel_1"
+    },
+    {
+      "com_m": [
+        -0.060358,
+        -0.4395,
+        -1.2e-05
+      ],
+      "diagonal_inertia": [
+        0.005216789,
+        0.00289674,
+        0.00289674
+      ],
+      "mass_kg": 0.6161156296730042,
+      "name": "motor_bracket_center_2_bl70200s_1_tire_1"
+    },
+    {
+      "com_m": [
+        -0.1922,
+        -0.29255,
+        0.3275
+      ],
+      "diagonal_inertia": [
+        0.000279587,
+        8.188e-05,
+        0.000278978
+      ],
+      "mass_kg": 0.20153501629829407,
+      "name": "rocker_v2_R_1_rocker_base_rear_1"
+    },
+    {
+      "com_m": [
+        -0.437827,
+        -0.29254,
+        0.313796
+      ],
+      "diagonal_inertia": [
+        2.231e-06,
+        2.231e-06,
+        4.442e-06
+      ],
+      "mass_kg": 0.00798824056982994,
+      "name": "motor_bracket_rear_2_servo_mount_cover_1"
+    },
+    {
+      "com_m": [
+        -0.429047,
+        -0.292189,
+        0.228686
+      ],
+      "diagonal_inertia": [
+        0.000829129,
+        0.001991937,
+        0.002184535
+      ],
+      "mass_kg": 0.6665163636207581,
+      "name": "motor_bracket_rear_2_servo_mount_rear_1"
+    },
+    {
+      "com_m": [
+        -0.437769,
+        -0.2925,
+        0.149549
+      ],
+      "diagonal_inertia": [
+        1.7581e-05,
+        8.806e-06,
+        8.806e-06
+      ],
+      "mass_kg": 0.020925479009747505,
+      "name": "motor_bracket_rear_2_retainer_plate_1"
+    },
+    {
+      "com_m": [
+        -0.437769,
+        -0.2925,
+        0.161341
+      ],
+      "diagonal_inertia": [
+        5.4696e-05,
+        3.2872e-05,
+        3.2872e-05
+      ],
+      "mass_kg": 0.1602369248867035,
+      "name": "motor_bracket_rear_2_NSK_5204_1_5204_Outer_Ring_1"
+    },
+    {
+      "com_m": [
+        -0.437769,
+        -0.2925,
+        0.258175
+      ],
+      "diagonal_inertia": [
+        9.109e-06,
+        1.8053e-05,
+        9.109e-06
+      ],
+      "mass_kg": 0.11245042830705643,
+      "name": "motor_bracket_rear_2_AK45_36_KV80_flanged_1_servo_hub_1"
+    },
+    {
+      "com_m": [
+        -0.437769,
+        -0.2925,
+        0.241241
+      ],
+      "diagonal_inertia": [
+        2.1188e-05,
+        6.4e-06,
+        2.1188e-05
+      ],
+      "mass_kg": 0.22754956781864166,
+      "name": "motor_bracket_rear_2_AK45_36_KV80_flanged_1_rotational_axis_1"
+    },
+    {
+      "com_m": [
+        -0.437817,
+        -0.292355,
+        0.218268
+      ],
+      "diagonal_inertia": [
+        0.000301571,
+        0.000303817,
+        0.000175497
+      ],
+      "mass_kg": 0.42542293667793274,
+      "name": "motor_bracket_rear_2_E_LMPJC55L78_15_20_LK5_RK6_1_BODY_R_E_LMPJC55L78_15_20_LK5_RK6_1"
+    },
+    {
+      "com_m": [
+        -0.437775,
+        -0.2925,
+        0.162355
+      ],
+      "diagonal_inertia": [
+        2.2947e-05,
+        5.7391e-05,
+        5.7391e-05
+      ],
+      "mass_kg": 0.09920904040336609,
+      "name": "motor_bracket_rear_2_kingpin_flange_1"
+    },
+    {
+      "com_m": [
+        -0.437775,
+        -0.248184,
+        0.121888
+      ],
+      "diagonal_inertia": [
+        0.007936634,
+        0.008821139,
+        0.002822927
+      ],
+      "mass_kg": 1.272153377532959,
+      "name": "motor_bracket_rear_2_motor_bracket_curved_1"
+    },
+    {
+      "com_m": [
+        -0.437773,
+        -0.2395,
+        4.1e-05
+      ],
+      "diagonal_inertia": [
+        3.03e-07,
+        1.45e-07,
+        1.64e-07
+      ],
+      "mass_kg": 0.004330660216510296,
+      "name": "motor_bracket_rear_2_double_d_washer_1"
+    },
+    {
+      "com_m": [
+        -0.437775,
+        -0.292288,
+        4.1e-05
+      ],
+      "diagonal_inertia": [
+        0.012841218,
+        0.007676467,
+        0.007676414
+      ],
+      "mass_kg": 3.765862226486206,
+      "name": "motor_bracket_rear_2_bl70200s_1_wheel_1"
+    },
+    {
+      "com_m": [
+        -0.437775,
+        -0.2925,
+        4.1e-05
+      ],
+      "diagonal_inertia": [
+        0.005216789,
+        0.002896741,
+        0.002896741
+      ],
+      "mass_kg": 0.6161156296730042,
+      "name": "motor_bracket_rear_2_bl70200s_1_tire_1"
+    },
+    {
+      "com_m": [
+        -0.437775,
+        -0.291897,
+        0.172241
+      ],
+      "diagonal_inertia": [
+        1.65e-07,
+        9.4e-08,
+        7.2e-08
+      ],
+      "mass_kg": 0.0014085216680541635,
+      "name": "motor_bracket_rear_2_STWS20_1"
+    },
+    {
+      "com_m": [
+        -0.278063,
+        -0.292533,
+        0.32331
+      ],
+      "diagonal_inertia": [
+        0.00023737,
+        0.000134021,
+        0.000234961
+      ],
+      "mass_kg": 0.2099914252758026,
+      "name": "rocker_v2_R_1_rocker_vertex_rear_1"
+    },
+    {
+      "com_m": [
+        -0.339617,
+        -0.292528,
+        0.297293
+      ],
+      "diagonal_inertia": [
+        0.000102543,
+        5.5459e-05,
+        0.000101934
+      ],
+      "mass_kg": 0.13649950921535492,
+      "name": "rocker_v2_R_1_rocker_leg_rear_1"
+    },
+    {
+      "com_m": [
+        0.05065,
+        -0.0,
+        0.4785
+      ],
+      "diagonal_inertia": [
+        0.003572058,
+        0.003572058,
+        6.6019e-05
+      ],
+      "mass_kg": 0.36737528443336487,
+      "name": "base_link_1_3030_340mm_6"
+    },
+    {
+      "com_m": [
+        0.075022,
+        -0.0,
+        0.4785
+      ],
+      "diagonal_inertia": [
+        3.755e-06,
+        3.13e-06,
+        3.801e-06
+      ],
+      "mass_kg": 0.015537172555923462,
+      "name": "base_link_1_diferential_bar_mount_1"
+    },
+    {
+      "com_m": [
+        0.08065,
+        -0.0,
+        0.505264
+      ],
+      "diagonal_inertia": [
+        0.002500003,
+        0.006826477,
+        0.006859454
+      ],
+      "mass_kg": 0.13892999291419983,
+      "name": "bar_assembly"
+    },
+    {
+      "com_m": [
+        0.02265,
+        -0.2175,
+        0.505451
+      ],
+      "diagonal_inertia": [
+        0.001645269,
+        0.0015,
+        0.001645269
+      ],
+      "mass_kg": 0.1401900053024292,
+      "name": "connector_right"
+    },
+    {
+      "com_m": [
+        0.02265,
+        0.2175,
+        0.505451
+      ],
+      "diagonal_inertia": [
+        0.001645269,
+        0.0015,
+        0.001645269
+      ],
+      "mass_kg": 0.1401900053024292,
+      "name": "connector_left"
+    },
+    {
+      "com_m": [
+        -0.047451,
+        -0.2175,
+        0.50545
+      ],
+      "diagonal_inertia": [
+        0.001005488,
+        0.001,
+        0.001005488
+      ],
+      "mass_kg": 0.03108000010251999,
+      "name": "bearing_right"
+    },
+    {
+      "com_m": [
+        -0.047451,
+        0.2175,
+        0.50545
+      ],
+      "diagonal_inertia": [
+        0.001005488,
+        0.001,
+        0.001005488
+      ],
+      "mass_kg": 0.03108000010251999,
+      "name": "bearing_left"
+    }
+  ],
+  "joints": {
+    "bogie_left": {
+      "axis": "X",
+      "lower_deg": -45.0,
+      "max_force_nm": null,
+      "upper_deg": 45.0
+    },
+    "bogie_right": {
+      "axis": "X",
+      "lower_deg": -45.0,
+      "max_force_nm": null,
+      "upper_deg": 45.0
+    },
+    "diff_bar_pivot": {
+      "axis": "Z",
+      "lower_deg": null,
+      "max_force_nm": null,
+      "upper_deg": null
+    },
+    "rocker_left": {
+      "axis": "X",
+      "lower_deg": -45.0,
+      "max_force_nm": null,
+      "upper_deg": 45.0
+    },
+    "rocker_right": {
+      "axis": "X",
+      "lower_deg": -45.0,
+      "max_force_nm": null,
+      "upper_deg": 45.0
+    },
+    "steer_front_left": {
+      "axis": "Y",
+      "lower_deg": null,
+      "max_force_nm": 24.0,
+      "upper_deg": null
+    },
+    "steer_front_right": {
+      "axis": "Y",
+      "lower_deg": null,
+      "max_force_nm": 24.0,
+      "upper_deg": null
+    },
+    "steer_rear_left": {
+      "axis": "Y",
+      "lower_deg": null,
+      "max_force_nm": 24.0,
+      "upper_deg": null
+    },
+    "steer_rear_right": {
+      "axis": "Y",
+      "lower_deg": null,
+      "max_force_nm": 24.0,
+      "upper_deg": null
+    },
+    "susp_conn_left": {
+      "axis": "X",
+      "lower_deg": null,
+      "max_force_nm": null,
+      "upper_deg": null
+    },
+    "susp_conn_right": {
+      "axis": "X",
+      "lower_deg": null,
+      "max_force_nm": null,
+      "upper_deg": null
+    },
+    "wheel_center_left": {
+      "axis": "X",
+      "lower_deg": null,
+      "max_force_nm": 39.0,
+      "upper_deg": null
+    },
+    "wheel_center_right": {
+      "axis": "X",
+      "lower_deg": null,
+      "max_force_nm": 39.0,
+      "upper_deg": null
+    },
+    "wheel_front_left": {
+      "axis": "X",
+      "lower_deg": null,
+      "max_force_nm": 39.0,
+      "upper_deg": null
+    },
+    "wheel_front_right": {
+      "axis": "X",
+      "lower_deg": null,
+      "max_force_nm": 39.0,
+      "upper_deg": null
+    },
+    "wheel_rear_left": {
+      "axis": "X",
+      "lower_deg": null,
+      "max_force_nm": 39.0,
+      "upper_deg": null
+    },
+    "wheel_rear_right": {
+      "axis": "X",
+      "lower_deg": null,
+      "max_force_nm": 39.0,
+      "upper_deg": null
+    }
+  },
+  "schema_version": 1,
+  "source_sha256": "10a265a26251b42685a3be2b3a45e56461e1700c7cf86104001a479190a6e9e7",
+  "source_usd": "rover2_diff_full.usd",
+  "total_mass_kg": 66.961284,
+  "wheel_half_width_m": 0.035,
+  "wheel_radius_m": 0.1035,
+  "wheels": [
+    {
+      "name": "front_left",
+      "steerable": true,
+      "x_m": 0.43773,
+      "y_m": 0.3525,
+      "z_m": 9e-06
+    },
+    {
+      "name": "front_right",
+      "steerable": true,
+      "x_m": 0.43772,
+      "y_m": -0.3525,
+      "z_m": 9e-06
+    },
+    {
+      "name": "mid_left",
+      "steerable": false,
+      "x_m": -0.060358,
+      "y_m": 0.439499,
+      "z_m": -1.2e-05
+    },
+    {
+      "name": "mid_right",
+      "steerable": false,
+      "x_m": -0.060358,
+      "y_m": -0.4395,
+      "z_m": -1.2e-05
+    },
+    {
+      "name": "rear_left",
+      "steerable": true,
+      "x_m": -0.437764,
+      "y_m": 0.2925,
+      "z_m": 4.1e-05
+    },
+    {
+      "name": "rear_right",
+      "steerable": true,
+      "x_m": -0.437775,
+      "y_m": -0.2925,
+      "z_m": 4.1e-05
+    }
+  ]
+}
