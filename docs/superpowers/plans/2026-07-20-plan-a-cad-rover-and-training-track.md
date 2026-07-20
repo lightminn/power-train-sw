@@ -291,7 +291,11 @@ mkdir -p /tmp/usdpkg && unzip -q -o urdf/urdf_and_usd.zip -d /tmp/usdpkg
   --output powertrain_sim/assets/rover_model.json
 ```
 
-기대 출력: `108 bodies, 66.9613 kg -> powertrain_sim/assets/rover_model.json`
+기대 출력: `108 bodies, 66.961284 kg -> powertrain_sim/assets/rover_model.json`
+
+(스크립트는 `round(..., 6)` 값을 그대로 찍으므로 `66.961284` 가 나온다. 문서 곳곳의
+`66.9613` 은 이 값을 4자리로 반올림한 표기이며 **같은 값**이다. 강체 수 108 과
+질량이 이와 다르면 `configuration/` 페이로드가 안 붙은 것이니 STOP.)
 
 ⚠️ **`configuration/` 폴더가 USD 옆에 함께 있어야 한다** — 지오메트리·물리가
 그 페이로드에 들어 있다. zip 을 통째로 풀면 자동으로 만족된다.
