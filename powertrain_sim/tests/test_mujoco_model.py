@@ -65,7 +65,7 @@ def test_mjcf_contains_segment_friction_drop_floor_six_wheels_and_sensors():
     assert segment is not None
     assert float(segment.attrib["friction"].split()[0]) == pytest.approx(0.8)
     assert root.find(".//geom[@name='lower_floor']") is not None
-    assert len(root.findall(".//joint[@name][@type='hinge']")) == 10
+    assert len(root.findall(".//joint[@name][@type='hinge']")) == 14
     assert len(root.findall(".//actuator/position")) == 4
     assert len(root.findall(".//actuator/velocity")) == 6
     assert root.find(".//sensor/gyro[@name='imu_gyro']") is not None
@@ -153,10 +153,10 @@ def test_headless_depth_rays_hit_track_then_lower_floor_outside_drop_boundary():
     on_track = sensors.sample_depth(0)
     assert on_track is not None
     centre = on_track.depth_roi[19:21, 29:31].astype(float) * on_track.depth_scale_m
-    # Camera is 0.28 m above the surface and pitched down 25 degrees: the
-    # centre ray hits at range 0.28/sin(25 deg) = 0.663 m, and stored depth is
-    # optical-axis Z (= range at the optical centre pixel).
-    assert float(np.median(centre)) == pytest.approx(0.663, abs=0.035)
+    # The camera is 0.28 m above the body origin, which sits one 0.1035 m tyre
+    # radius above the surface, and is pitched down 25 degrees. The centre ray
+    # therefore hits at about (0.28 + 0.1035)/sin(25 deg) = 0.907 m.
+    assert float(np.median(centre)) == pytest.approx(0.907, abs=0.035)
 
     free_qpos = int(plant.model.jnt_qposadr[plant.root_free_joint_id])
     plant.data.qpos[free_qpos + 1] = 1.2
@@ -267,3 +267,100 @@ def test_actuator_force_limits_match_the_usd_motor_specs():
     assert steer is not None and drive is not None
     assert [float(v) for v in steer.attrib["forcerange"].split()] == [-24.0, 24.0]
     assert [float(v) for v in drive.attrib["forcerange"].split()] == [-39.0, 39.0]
+
+
+def test_suspension_model_has_rocker_and_bogie_joints_with_usd_limits():
+    scenario = _load()
+    root = ET.fromstring(build_mjcf(scenario))
+
+    for name in ("rocker_left", "rocker_right", "bogie_left", "bogie_right"):
+        joint = root.find(f".//joint[@name='{name}']")
+        assert joint is not None, name
+        assert joint.attrib["type"] == "hinge"
+        lower, upper = (float(v) for v in joint.attrib["range"].split())
+        assert lower == pytest.approx(-math.radians(45.0), abs=1e-6)
+        assert upper == pytest.approx(math.radians(45.0), abs=1e-6)
+
+
+def test_differential_bar_is_an_equality_constraint():
+    scenario = _load()
+    root = ET.fromstring(build_mjcf(scenario))
+
+    equality = root.find(".//equality/joint[@name='differential_bar']")
+    assert equality is not None
+    assert {equality.attrib["joint1"], equality.attrib["joint2"]} == {
+        "rocker_left", "rocker_right",
+    }
+
+
+def test_rigid_model_remains_available_as_a_control():
+    scenario = _load()
+
+    rigid = ET.fromstring(build_mjcf(scenario, suspension=False))
+
+    assert rigid.find(".//joint[@name='rocker_left']") is None
+    assert rigid.find(".//equality/joint[@name='differential_bar']") is None
+
+
+def test_rocker_actually_articulates_over_a_one_sided_bump():
+    """음성 대조 포함: 서스펜션이 실제로 움직여야 한다."""
+    scenario = _load()
+    plant = MujocoFastPlant(scenario)
+    joint_id = mujoco.mj_name2id(
+        plant.model, mujoco.mjtObj.mjOBJ_JOINT, "rocker_left"
+    )
+    assert joint_id >= 0
+    address = int(plant.model.jnt_qposadr[joint_id])
+
+    # 좌측 앞바퀴 아래에만 턱을 놓는다: base 를 롤 방향으로 기울여 접지 비대칭을 만든다.
+    free_qpos = int(plant.model.jnt_qposadr[plant.root_free_joint_id])
+    plant.data.qpos[free_qpos + 2] += 0.05
+    plant.data.qpos[free_qpos + 4] = 0.08   # quat x 성분 = roll
+    mujoco.mj_forward(plant.model, plant.data)
+    for _ in range(200):
+        plant.step_clock_interval()
+
+    assert abs(float(plant.data.qpos[address])) > 1e-3
+
+
+def test_differential_bar_can_be_disabled_for_control_runs():
+    scenario = _load()
+
+    coupled = mujoco.MjModel.from_xml_string(build_mjcf(scenario))
+    free = mujoco.MjModel.from_xml_string(
+        build_mjcf(scenario, differential_bar=False)
+    )
+
+    assert coupled.neq == 1
+    assert free.neq == 0
+
+
+def test_differential_bar_couples_the_left_and_right_rockers():
+    """음성 대조: 한쪽 로커를 밀면 디프바가 있을 때만 반대쪽이 따라 움직인다."""
+
+    def rocker_response(*, differential_bar: bool) -> float:
+        scenario = _load()
+        plant = MujocoFastPlant(
+            scenario, build_kwargs={"differential_bar": differential_bar}
+        )
+        left = mujoco.mj_name2id(
+            plant.model, mujoco.mjtObj.mjOBJ_JOINT, "rocker_left"
+        )
+        right = mujoco.mj_name2id(
+            plant.model, mujoco.mjtObj.mjOBJ_JOINT, "rocker_right"
+        )
+        left_address = int(plant.model.jnt_qposadr[left])
+        right_address = int(plant.model.jnt_qposadr[right])
+        plant.data.qpos[left_address] = 0.25
+        mujoco.mj_forward(plant.model, plant.data)
+        for _ in range(100):
+            plant.step_clock_interval()
+        return abs(float(plant.data.qpos[right_address]))
+
+    coupled = rocker_response(differential_bar=True)
+    free = rocker_response(differential_bar=False)
+
+    # 디프바가 있으면 반대쪽 로커가 유의미하게 따라 움직인다.
+    assert coupled > 0.05
+    # 없으면 훨씬 덜 움직인다. 같으면 제약이 안 걸린 것이다.
+    assert coupled > 3.0 * free

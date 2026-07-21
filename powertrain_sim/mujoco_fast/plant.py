@@ -38,10 +38,15 @@ class MujocoFastPlant:
         scenario: Scenario,
         *,
         geometry: ChassisGeometry | None = None,
+        build_kwargs: dict | None = None,
     ) -> None:
         self.scenario = scenario
         self.geometry = geometry or default_geometry()
-        self.xml = build_mjcf(scenario, geometry=self.geometry)
+        self.xml = build_mjcf(
+            scenario,
+            geometry=self.geometry,
+            **(build_kwargs or {}),
+        )
         self.model = mujoco.MjModel.from_xml_string(self.xml)
         self.data = mujoco.MjData(self.model)
         self.physics_dt_s = float(self.model.opt.timestep)
@@ -119,7 +124,11 @@ class MujocoFastPlant:
         settle_steps = int(math.ceil(INITIAL_SETTLE_S / self.physics_dt_s))
         for _ in range(settle_steps):
             mujoco.mj_step(self.model, self.data)
-        # Settling is an initialization detail, outside the scenario clock.
+        # Settling is an initialization detail, outside the scenario clock. Start
+        # the measured scenario from rest rather than carrying residual suspension
+        # velocity out of the pre-roll.
+        self.data.qvel[:] = 0.0
+        mujoco.mj_forward(self.model, self.data)
         self.data.time = 0.0
 
     @property

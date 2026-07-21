@@ -9,7 +9,7 @@ import numpy as np
 from chassis.kinematics import ChassisGeometry, default_geometry
 
 from ..scenario import Scenario
-from .rover_model import RoverModel, load_rover_model
+from .rover_model import RoverModel, RoverWheel, load_rover_model
 
 
 TRACK_THICKNESS_M = 0.04
@@ -45,7 +45,20 @@ _STEER_ACTUATOR_KEY = "AK45"
 _STEERABLE_CORNERS = 4
 
 
-def _mass_split(rover: RoverModel) -> tuple[float, float, float]:
+def _suspension_masses(rover: RoverModel) -> tuple[float, float]:
+    """(로커 1개, 보기 1개) 질량. CAD 링크 이름 접두사로 집계한다."""
+    rocker = sum(
+        link.mass_kg for link in rover.links if link.name.startswith("rocker_v2")
+    )
+    bogie = sum(
+        link.mass_kg for link in rover.links if link.name.startswith("bogie_v2")
+    )
+    return rocker / 2.0, bogie / 2.0
+
+
+def _mass_split(
+    rover: RoverModel, *, suspension: bool
+) -> tuple[float, float, float]:
     """(바퀴 1개, 조향 허브 1개, 차체) 질량. 합은 총질량과 정확히 같다.
 
     AK45 조향 서보는 실물에서 조향 너클 위에 얹혀 조향축과 함께 도므로 조향
@@ -65,6 +78,9 @@ def _mass_split(rover: RoverModel) -> tuple[float, float, float]:
         link.mass_kg for link in rover.links if _STEER_ACTUATOR_KEY in link.name
     )
     body = rover.total_mass_kg - unsprung
+    if suspension:
+        rocker_kg, bogie_kg = _suspension_masses(rover)
+        body -= 2.0 * (rocker_kg + bogie_kg)
     return (
         (unsprung - steer) / len(rover.wheels),
         steer / _STEERABLE_CORNERS,
@@ -229,6 +245,167 @@ def _wheel_body(
     )
 
 
+def _attach_wheel(
+    parent: ET.Element,
+    geometry: ChassisGeometry,
+    rover: RoverModel,
+    wheel: RoverWheel,
+    position: tuple[float, float, float],
+    wheel_mass_kg: float,
+    hub_mass_kg: float,
+) -> None:
+    """조향 바디(필요 시)와 바퀴 바디를 parent 아래 position 에 붙인다."""
+    if wheel.steerable:
+        steer = ET.SubElement(
+            parent,
+            "body",
+            {"name": f"steer_{wheel.name}", "pos": _numbers(position)},
+        )
+        ET.SubElement(
+            steer,
+            "joint",
+            {
+                "name": f"steer_joint_{wheel.name}",
+                "type": "hinge",
+                "axis": "0 0 1",
+                "range": _numbers(
+                    (
+                        -math.radians(geometry.steer_limit_deg),
+                        math.radians(geometry.steer_limit_deg),
+                    )
+                ),
+                "limited": "true",
+                "damping": "1.0",
+                "armature": "0.02",
+            },
+        )
+        ET.SubElement(
+            steer,
+            "geom",
+            {
+                "name": f"steer_hub_{wheel.name}",
+                "type": "sphere",
+                "size": "0.025",
+                # 0 이면 MuJoCo 가 관절 달린 바디를 거부한다 (Task 2 참조).
+                "mass": _numbers((hub_mass_kg,)),
+                "contype": "0",
+                "conaffinity": "0",
+                "group": "1",
+            },
+        )
+        _wheel_body(
+            steer,
+            name=wheel.name,
+            position=(0.0, 0.0, 0.0),
+            radius_m=rover.wheel_radius_m,
+            half_width_m=rover.wheel_half_width_m,
+            mass_kg=wheel_mass_kg,
+        )
+    else:
+        _wheel_body(
+            parent,
+            name=wheel.name,
+            position=position,
+            radius_m=rover.wheel_radius_m,
+            half_width_m=rover.wheel_half_width_m,
+            mass_kg=wheel_mass_kg,
+        )
+
+
+def _suspension_side(
+    base: ET.Element,
+    geometry: ChassisGeometry,
+    rover: RoverModel,
+    side: str,
+    wheels: dict[str, RoverWheel],
+    wheel_mass_kg: float,
+    hub_mass_kg: float,
+) -> None:
+    """CAD 체인: base -> rocker -> (bogie -> 앞·중륜) + 뒷륜."""
+    front = wheels[f"front_{side}"]
+    mid = wheels[f"mid_{side}"]
+    rear = wheels[f"rear_{side}"]
+    # 로커 피벗은 중륜과 뒷륜 사이, 차체 중심선 쪽. CAD 의 chassis_pivot 위치.
+    pivot_x = 0.5 * (mid.x_m + rear.x_m)
+    pivot_y = 0.5 * front.y_m
+    rocker_kg, bogie_kg = _suspension_masses(rover)
+    rocker = ET.SubElement(
+        base,
+        "body",
+        {"name": f"rocker_{side}", "pos": _numbers((pivot_x, pivot_y, 0.0))},
+    )
+    ET.SubElement(
+        rocker,
+        "joint",
+        {
+            "name": f"rocker_{side}",
+            "type": "hinge",
+            "axis": "1 0 0",
+            "range": _numbers((-rover.rocker_limit_rad, rover.rocker_limit_rad)),
+            "limited": "true",
+            "damping": "32.0",
+            "armature": "0.05",
+        },
+    )
+    ET.SubElement(
+        rocker,
+        "geom",
+        {
+            "name": f"rocker_geom_{side}",
+            "type": "capsule",
+            "fromto": _numbers(
+                (rear.x_m - pivot_x, 0.0, 0.0, mid.x_m - pivot_x, 0.0, 0.0)
+            ),
+            "size": "0.02",
+            "mass": _numbers((rocker_kg,)),
+            "contype": "0",
+            "conaffinity": "0",
+            "group": "1",
+        },
+    )
+    bogie = ET.SubElement(
+        rocker,
+        "body",
+        {"name": f"bogie_{side}", "pos": _numbers((mid.x_m - pivot_x, 0.0, 0.0))},
+    )
+    ET.SubElement(
+        bogie,
+        "joint",
+        {
+            "name": f"bogie_{side}",
+            "type": "hinge",
+            "axis": "1 0 0",
+            "range": _numbers((-rover.bogie_limit_rad, rover.bogie_limit_rad)),
+            "limited": "true",
+            "damping": "16.0",
+            "armature": "0.03",
+        },
+    )
+    ET.SubElement(
+        bogie,
+        "geom",
+        {
+            "name": f"bogie_geom_{side}",
+            "type": "capsule",
+            "fromto": _numbers((0.0, 0.0, 0.0, front.x_m - mid.x_m, 0.0, 0.0)),
+            "size": "0.02",
+            "mass": _numbers((bogie_kg,)),
+            "contype": "0",
+            "conaffinity": "0",
+            "group": "1",
+        },
+    )
+    # 앞바퀴(조향) 는 보기에, 중륜(고정) 도 보기에, 뒷바퀴(조향) 는 로커에 붙는다.
+    for parent, wheel, offset in (
+        (bogie, front, (front.x_m - mid.x_m, front.y_m - pivot_y, 0.0)),
+        (bogie, mid, (0.0, mid.y_m - pivot_y, 0.0)),
+        (rocker, rear, (rear.x_m - pivot_x, rear.y_m - pivot_y, 0.0)),
+    ):
+        _attach_wheel(
+            parent, geometry, rover, wheel, offset, wheel_mass_kg, hub_mass_kg
+        )
+
+
 def _rover(
     worldbody: ET.Element,
     scenario: Scenario,
@@ -236,8 +413,11 @@ def _rover(
     rover: RoverModel,
     initial_normal: np.ndarray,
     initial_quaternion: tuple[float, ...],
+    suspension: bool,
 ) -> None:
-    wheel_mass_kg, hub_mass_kg, body_mass_kg = _mass_split(rover)
+    wheel_mass_kg, hub_mass_kg, body_mass_kg = _mass_split(
+        rover, suspension=suspension
+    )
     start = np.asarray(scenario.track.centerline_m[0], dtype=float)
     root_position = start + (geometry.wheel_radius_m + WHEEL_CONTACT_GAP_M) * initial_normal
     base = ET.SubElement(
@@ -284,63 +464,22 @@ def _rover(
         },
     )
 
-    for wheel in geometry.wheels:
-        position = (wheel.x, wheel.y, 0.0)
-        if wheel.steerable:
-            steer = ET.SubElement(
+    if suspension:
+        wheels = {wheel.name: wheel for wheel in rover.wheels}
+        for side in ("left", "right"):
+            _suspension_side(
+                base, geometry, rover, side, wheels, wheel_mass_kg, hub_mass_kg
+            )
+    else:
+        for wheel in rover.wheels:
+            _attach_wheel(
                 base,
-                "body",
-                {"name": f"steer_{wheel.name}", "pos": _numbers(position)},
-            )
-            ET.SubElement(
-                steer,
-                "joint",
-                {
-                    "name": f"steer_joint_{wheel.name}",
-                    "type": "hinge",
-                    "axis": "0 0 1",
-                    "range": _numbers(
-                        (
-                            -math.radians(geometry.steer_limit_deg),
-                            math.radians(geometry.steer_limit_deg),
-                        )
-                    ),
-                    "limited": "true",
-                    "damping": "1.0",
-                    "armature": "0.02",
-                },
-            )
-            ET.SubElement(
-                steer,
-                "geom",
-                {
-                    "name": f"steer_hub_{wheel.name}",
-                    "type": "sphere",
-                    "size": "0.025",
-                    # AK45 조향 서보. 0 으로 두면 MuJoCo 가 "mass and inertia of
-                    # moving bodies must be larger than mjMINVAL" 로 거부한다.
-                    "mass": _numbers((hub_mass_kg,)),
-                    "contype": "0",
-                    "conaffinity": "0",
-                    "group": "1",
-                },
-            )
-            _wheel_body(
-                steer,
-                name=wheel.name,
-                position=(0.0, 0.0, 0.0),
-                radius_m=rover.wheel_radius_m,
-                half_width_m=rover.wheel_half_width_m,
-                mass_kg=wheel_mass_kg,
-            )
-        else:
-            _wheel_body(
-                base,
-                name=wheel.name,
-                position=position,
-                radius_m=rover.wheel_radius_m,
-                half_width_m=rover.wheel_half_width_m,
-                mass_kg=wheel_mass_kg,
+                geometry,
+                rover,
+                wheel,
+                (wheel.x_m, wheel.y_m, 0.0),
+                wheel_mass_kg,
+                hub_mass_kg,
             )
 
 
@@ -348,7 +487,8 @@ def build_mjcf(
     scenario: Scenario,
     *,
     geometry: ChassisGeometry | None = None,
-    suspension: bool = False,
+    suspension: bool = True,
+    differential_bar: bool = True,
 ) -> str:
     """Return a deterministic MJCF string for the scenario and production geometry."""
     geometry = geometry or default_geometry()
@@ -393,7 +533,31 @@ def build_mjcf(
         },
     )
     initial_normal, initial_quaternion = _track_geometries(worldbody, scenario)
-    _rover(worldbody, scenario, geometry, rover, initial_normal, initial_quaternion)
+    _rover(
+        worldbody,
+        scenario,
+        geometry,
+        rover,
+        initial_normal,
+        initial_quaternion,
+        suspension,
+    )
+
+    if suspension and differential_bar:
+        equality = ET.SubElement(root, "equality")
+        ET.SubElement(
+            equality,
+            "joint",
+            {
+                "name": "differential_bar",
+                "joint1": "rocker_left",
+                "joint2": "rocker_right",
+                # 디프바: 좌우 로커가 서로 반대로 움직인다 (polycoef = 0 + (-1)*q2).
+                "polycoef": "0 -1 0 0 0",
+                "solimp": "0.95 0.99 0.001",
+                "solref": "0.02 1",
+            },
+        )
 
     actuator = ET.SubElement(root, "actuator")
     maximum_angular_speed = geometry.drive_limit_mps / geometry.wheel_radius_m
