@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
+import gc
 import json
 import math
 from pathlib import Path
@@ -433,100 +434,111 @@ def run_scenario(
     output = Path(run_directory)
 
     with RunWriter(output, run_id=scenario.scenario_id) as writer:
-        for index in range(scenario.clock.sample_count):
-            elapsed_s = index * scenario.clock.dt_s
-            truth = sensors.sample_ground_truth(index)
-            detections = None
-            if detections_source is not None:
-                # Closed-loop ordering is deliberate and safety-relevant:
-                # synthesize the observation from the current robot pose,
-                # decide the follow command, then step the physical plant.
-                detections = _validate_detections(
-                    detections_source(elapsed_s, truth)
-                )
-            if command_source is None:
-                v_m_s, omega_rad_s = _motion(scenario, elapsed_s)
-            else:
-                command = command_source(elapsed_s, latest_estimate)
-                if not isinstance(command, tuple) or len(command) != 2:
-                    raise ValueError("command_source must return (v_m_s, omega_rad_s)")
-                v_m_s, omega_rad_s = command
-            plant.apply_command(float(v_m_s), float(omega_rad_s))
+        gc_was_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            for index in range(scenario.clock.sample_count):
+                elapsed_s = index * scenario.clock.dt_s
+                truth = sensors.sample_ground_truth(index)
+                detections = None
+                if detections_source is not None:
+                    # Closed-loop ordering is deliberate and safety-relevant:
+                    # synthesize the observation from the current robot pose,
+                    # decide the follow command, then step the physical plant.
+                    detections = _validate_detections(
+                        detections_source(elapsed_s, truth)
+                    )
+                if command_source is None:
+                    v_m_s, omega_rad_s = _motion(scenario, elapsed_s)
+                else:
+                    command = command_source(elapsed_s, latest_estimate)
+                    if not isinstance(command, tuple) or len(command) != 2:
+                        raise ValueError("command_source must return (v_m_s, omega_rad_s)")
+                    v_m_s, omega_rad_s = command
+                plant.apply_command(float(v_m_s), float(omega_rad_s))
 
-            wheel = sensors.sample_wheel(index)
-            imu = sensors.sample_imu(index)
-            depth = sensors.sample_depth(index)
-            if depth is not None:
-                depth = _apply_depth_degradation(
-                    depth,
-                    elapsed_s=elapsed_s,
-                    faults=scenario.faults.get("depth_degradation", ()),
-                    rng=degradation_rng,
-                )
-            if wheel is not None:
-                writer.write_wheel(wheel)
-                estimator_started_ns = time.perf_counter_ns()
-                decision = estimator.update_wheels(wheel, now_s=wheel.stamp_s)
-                estimator_elapsed_ms = (time.perf_counter_ns() - estimator_started_ns) / 1e6
-                max_estimator_runtime_ms = max(
-                    max_estimator_runtime_ms,
-                    estimator_elapsed_ms,
-                )
-                if not decision.accepted:
-                    raise RuntimeError(f"production estimator rejected wheel sample: {decision.reason}")
-            if imu is not None:
-                writer.write_imu(imu)
-                estimator_started_ns = time.perf_counter_ns()
-                decision = estimator.update_imu(imu, now_s=imu.stamp_s)
-                estimator_elapsed_ms = (time.perf_counter_ns() - estimator_started_ns) / 1e6
-                max_estimator_runtime_ms = max(
-                    max_estimator_runtime_ms,
-                    estimator_elapsed_ms,
-                )
-                if not decision.accepted:
-                    raise RuntimeError(f"production estimator rejected IMU sample: {decision.reason}")
-            if depth is not None:
-                writer.write_depth(depth)
-                if depth_tap is not None:
-                    depth_tap(depth)
-            if detections is not None:
-                lead_distance_m, follow_state = _lead_recording_channels(
-                    detections_source,
-                    command_source,
-                    detections,
-                )
-                writer.write_detections(
-                    stamp_s=truth.stamp_s,
-                    frame_id=scenario.frames["body"],
-                    detections=tuple(
-                        {
-                            "class_name": name,
-                            "confidence": confidence,
-                            "forward_m": forward_m,
-                            "left_m": left_m,
-                            "bbox_area_px": bbox_area_px,
-                        }
-                        for name, confidence, forward_m, left_m, bbox_area_px
-                        in detections
-                    ),
-                    lead_distance_m=lead_distance_m,
-                    follow_state=follow_state,
-                )
-            writer.write_ground_truth(truth)
+                wheel = sensors.sample_wheel(index)
+                imu = sensors.sample_imu(index)
+                depth = sensors.sample_depth(index)
+                if depth is not None:
+                    depth = _apply_depth_degradation(
+                        depth,
+                        elapsed_s=elapsed_s,
+                        faults=scenario.faults.get("depth_degradation", ()),
+                        rng=degradation_rng,
+                    )
+                if wheel is not None:
+                    writer.write_wheel(wheel)
+                    estimator_started_ns = time.perf_counter_ns()
+                    decision = estimator.update_wheels(wheel, now_s=wheel.stamp_s)
+                    estimator_elapsed_ms = (time.perf_counter_ns() - estimator_started_ns) / 1e6
+                    max_estimator_runtime_ms = max(
+                        max_estimator_runtime_ms,
+                        estimator_elapsed_ms,
+                    )
+                    if not decision.accepted:
+                        raise RuntimeError(f"production estimator rejected wheel sample: {decision.reason}")
+                if imu is not None:
+                    writer.write_imu(imu)
+                    estimator_started_ns = time.perf_counter_ns()
+                    decision = estimator.update_imu(imu, now_s=imu.stamp_s)
+                    estimator_elapsed_ms = (time.perf_counter_ns() - estimator_started_ns) / 1e6
+                    max_estimator_runtime_ms = max(
+                        max_estimator_runtime_ms,
+                        estimator_elapsed_ms,
+                    )
+                    if not decision.accepted:
+                        raise RuntimeError(f"production estimator rejected IMU sample: {decision.reason}")
+                if depth is not None:
+                    writer.write_depth(depth)
+                    if depth_tap is not None:
+                        depth_tap(depth)
+                if detections is not None:
+                    lead_distance_m, follow_state = _lead_recording_channels(
+                        detections_source,
+                        command_source,
+                        detections,
+                    )
+                    writer.write_detections(
+                        stamp_s=truth.stamp_s,
+                        frame_id=scenario.frames["body"],
+                        detections=tuple(
+                            {
+                                "class_name": name,
+                                "confidence": confidence,
+                                "forward_m": forward_m,
+                                "left_m": left_m,
+                                "bbox_area_px": bbox_area_px,
+                            }
+                            for name, confidence, forward_m, left_m, bbox_area_px
+                            in detections
+                        ),
+                        lead_distance_m=lead_distance_m,
+                        follow_state=follow_state,
+                    )
+                writer.write_ground_truth(truth)
 
-            latest_estimate = estimator.snapshot(now_s=truth.stamp_s)
-            if hold_state_source is None:
-                actual_hold, should_hold = False, False
-            else:
-                actual_hold, should_hold = hold_state_source(elapsed_s, latest_estimate)
-            hold.observe(
-                elapsed_s,
-                actual_hold=actual_hold,
-                should_hold=should_hold,
-            )
-            metrics.observe(truth, plant.wheel_contact_points_world())
-            if index + 1 < scenario.clock.sample_count:
-                plant.step_clock_interval()
+                latest_estimate = estimator.snapshot(now_s=truth.stamp_s)
+                if hold_state_source is None:
+                    actual_hold, should_hold = False, False
+                else:
+                    actual_hold, should_hold = hold_state_source(elapsed_s, latest_estimate)
+                hold.observe(
+                    elapsed_s,
+                    actual_hold=actual_hold,
+                    should_hold=should_hold,
+                )
+                metrics.observe(truth, plant.wheel_contact_points_world())
+                if index + 1 < scenario.clock.sample_count:
+                    plant.step_clock_interval()
+        finally:
+            # 측정 루프 동안 GC 를 꺼 max_estimator_runtime_ms 가 Python GC
+            # 일시정지(실기 C++ 런타임엔 없음)가 아니라 추정기 compute 를
+            # 반영하게 한다. 예산(5 ms)은 불변. 실측: full 스위트 누적 메모리
+            # 압박에서 depth_degradation 프레임이 GC pause 로 95 ms 스파이크.
+            if gc_was_enabled:
+                gc.enable()
+            gc.collect()
 
     runtime_s = (time.perf_counter_ns() - started_ns) / 1e9
     distance_error, yaw_error = metrics.error_ratios(latest_estimate)
