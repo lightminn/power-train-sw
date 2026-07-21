@@ -12,8 +12,14 @@ pytest.importorskip("mujoco")
 from powertrain_sim.campaign import (
     CampaignConfigurationError,
     DEV_SEEDS,
+    FAMILIES,
     build_family_document,
     run_campaign,
+)
+from powertrain_sim.family_scenarios import (
+    ROBOT_FOOTPRINT_WIDTH_M,
+    TRAINING_TRACK_LENGTH_M,
+    TRAINING_TRACK_WIDTH_M,
 )
 from powertrain_sim.procedural import canonical_json_sha256
 
@@ -120,3 +126,48 @@ def test_regression_seed_class_is_delegated_to_environment_manifest(tmp_path):
             families=("flat",),
             seed_class="regression",
         )
+
+
+@pytest.mark.parametrize(
+    "family",
+    [name for name in FAMILIES if name not in ("pinch", "follow")],
+)
+def test_training_track_is_long_and_wide_enough_for_the_real_rover(family):
+    document = build_family_document(family, seed=0, seed_class="dev")
+
+    widths = document["track"]["width_m"]
+    assert min(widths) == pytest.approx(TRAINING_TRACK_WIDTH_M, abs=1e-6)
+    # 차폭 949 mm 대비 편측 여유 325 mm
+    assert (min(widths) - ROBOT_FOOTPRINT_WIDTH_M) / 2.0 > 0.30
+
+    centerline = document["track"]["centerline_m"]
+    span = max(point[0] for point in centerline) - min(
+        point[0] for point in centerline
+    )
+    assert span == pytest.approx(TRAINING_TRACK_LENGTH_M, rel=0.15)
+
+
+def test_pinch_family_keeps_its_deliberate_narrowing():
+    """폭 확대가 pinch 의 의도적 좁힘을 덮어쓰면 안 된다."""
+    document = build_family_document("pinch", seed=0, seed_class="dev")
+
+    widths = document["track"]["width_m"]
+    assert min(widths) < ROBOT_FOOTPRINT_WIDTH_M + 0.20
+    assert max(widths) > min(widths)
+
+
+def test_undulating_family_matches_the_measured_course_profile():
+    document = build_family_document("undulating", seed=0, seed_class="dev")
+
+    heights = document["track"]["height_m"]
+    peak_to_peak = max(heights) - min(heights)
+    # 대회 코스 실측: 0.085 <-> 0.388 m (peak-to-peak 0.303 m)
+    assert peak_to_peak == pytest.approx(0.30, abs=0.05)
+
+
+def test_clock_duration_covers_the_longer_track():
+    document = build_family_document("flat", seed=0, seed_class="dev")
+
+    speed = document["motion"]["linear_speed_m_s"]
+    duration = document["clock"]["duration_s"]
+    assert speed * duration >= TRAINING_TRACK_LENGTH_M
