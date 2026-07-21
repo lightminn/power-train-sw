@@ -16,6 +16,14 @@ from .plant import MujocoFastPlant
 
 
 MAX_VALID_DEPTH_M = 6.0
+# MuJoCo mj_multiRay 는 cutoff 로 geom 을 "앵커점(geom pos)까지의 거리" 기준
+# 프루닝한다(3.10.0 실측). 무한 plane 인 lower_floor 는 앵커가 월드 원점이라,
+# 카메라가 원점에서 cutoff 이상 멀어지는 순간 컷오프-이내 바닥 히트까지 통째로
+# 사라진다 — 훈련 트랙 ~6 m 지점 전 가족 영구 정지(6 m 벽)의 근본 원인.
+# 컷오프는 프루닝이 일어나지 않는 값으로 두고, 센서 사거리는 _ray_depth_m 의
+# hit 마스크(MAX_VALID_DEPTH_M)만이 정의한다. 스펙:
+# docs/superpowers/specs/2026-07-21-sim-depth-floor-pruning-6m-wall-design.md
+RAY_PRUNING_CUTOFF_M = 1.0e6
 
 
 class FastSensorSuite:
@@ -164,7 +172,7 @@ class FastSensorSuite:
             distances,
             None,
             ray_count,
-            MAX_VALID_DEPTH_M,
+            RAY_PRUNING_CUTOFF_M,
         )
         hit = (distances >= 0.0) & (distances <= MAX_VALID_DEPTH_M)
         axial = np.where(hit, distances * self._depth_axial_cos, 0.0)
