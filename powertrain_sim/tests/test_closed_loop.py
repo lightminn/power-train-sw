@@ -32,6 +32,7 @@ from powertrain_sim.hidden_eval.__main__ import evaluate_report  # noqa: E402
 from powertrain_sim.closed_loop import TerrainAutonomyDriver, run_closed_loop
 from powertrain_sim.family_scenarios import (
     ROBOT_FOOTPRINT_WIDTH_M,
+    TRAINING_TRACK_LENGTH_M,
     clothoid_document as _clothoid_document,
     depth_degradation_document as _depth_degradation_document,
     flat_document as _flat_document,
@@ -106,12 +107,10 @@ def test_dev_seed_closed_loop_moves_without_fail_open_and_is_deterministic(tmp_p
     first = run_closed_loop(scenario, tmp_path / "first")
     second = run_closed_loop(scenario, tmp_path / "second")
 
-    # Measured WP6-S P1 regression anchor. 0.805 → 0.709 after the A3
-    # recovery-dwell hardening (ticks AND >=0.15 s AND 3 fresh samples):
-    # each hold/recovery episode holds ~0.16 s longer, so the fixed-length
-    # run covers less track. Fail-closed endpoint semantics unchanged
-    # (passed=True, fail_open=0). Change only after reviewing a dev seed run.
-    assert first.completion_ratio > 0.70
+    # 6 m 벽(시뮬 depth 렌더러 결함) 수정 후 재기준선 (2026-07-21): 15 m 기복
+    # 트랙 dev seed 실측 0.9418. 이전 0.709 앵커는 2.5 m 트랙 시절 값.
+    # Change only after reviewing a dev seed run.
+    assert first.completion_ratio > 0.90
     assert first.fail_open_count == 0
     assert _deterministic_metrics(first) == _deterministic_metrics(second)
     assert first.passed, first.reasons
@@ -436,7 +435,8 @@ def test_initial_depth_loss_holds_then_recovers_without_fail_open(tmp_path):
 def test_wide_pinch_is_traversed_without_fail_open(tmp_path):
     document = _pinch_document(width_m=ROBOT_FOOTPRINT_WIDTH_M + 0.15)
     report = run_closed_loop(parse_scenario(document), tmp_path / "wide-pinch")
-    pinch_end_ratio = 0.45 + 0.5 / 2.0 / 2.5
+    # 조임목 비율 공식 재핀 (2026-07-21): 2.5 는 구 트랙 길이 하드코딩이었다.
+    pinch_end_ratio = 0.45 + 0.5 / 2.0 / TRAINING_TRACK_LENGTH_M
 
     assert report.completion_ratio > pinch_end_ratio
     assert report.fail_open_count == 0
@@ -447,7 +447,17 @@ def test_wide_pinch_is_traversed_without_fail_open(tmp_path):
 def test_too_narrow_pinch_stops_before_the_drop_boundary(tmp_path):
     document = _pinch_document(width_m=ROBOT_FOOTPRINT_WIDTH_M - 0.049)
     report = run_closed_loop(parse_scenario(document), tmp_path / "narrow-pinch")
-    pinch_start_ratio = 0.45 - 0.5 / 2.0 / 2.5
+    # 조임목 비율 공식 재핀 (2026-07-21): 2.5 는 구 트랙 길이 하드코딩이었다.
+    # ⚠️ 이 테스트는 현재 RED 가 정직한 상태다 — 6 m 벽(시뮬 depth 렌더러
+    # mj_multiRay plane 프루닝) 수정으로 로봇이 조임목(6.5~7.0 m)에 실제로
+    # 도달하게 되면서, production 추정기가 차폭보다 49 mm 좁은 짧은 조임목을
+    # 정지시키지 못하는 검출 구멍이 드러났다(2026-07-21 실측: 통과 + 바퀴
+    # 바깥 24.5 mm 경계 침범 edge_overrun 1). 원인: 조임목의 실제 에지가
+    # corridor 일관성 필터(2셀)에 강등돼 corridor 를 상속받고, 백스톱인
+    # corridor-내부 바닥 검출은 0.5 m 포켓의 가림 가시창을 놓친다. 추정기
+    # 수정은 별도 안전 설계 사이클(P0 후속) — 게이트를 느슨하게 풀어 숨기지
+    # 않는다. docs/reports/2026-07-21-6m-wall-rootcause-and-fix.md 참조.
+    pinch_start_ratio = 0.45 - 0.5 / 2.0 / TRAINING_TRACK_LENGTH_M
 
     assert report.completion_ratio < pinch_start_ratio
     assert report.fail_open_count == 0

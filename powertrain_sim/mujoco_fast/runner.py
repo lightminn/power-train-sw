@@ -370,7 +370,12 @@ def _comparison_reasons(
 ) -> tuple[str, ...]:
     expected = scenario.expected_metrics
     reasons = []
-    completed = completion_ratio >= 0.95
+    # "완주" 프록시 재기준선 (2026-07-21): 15 m 트랙의 정상 종단 fail-closed
+    # 정지점이 끝 0.55~0.9 m 전(비율 0.94~0.96)에 놓여 0.95 는 정지 성공을
+    # 완주로 오분류한다. 실제 완주는 비율 ~1.0 에 도달하므로 0.98 로 상향
+    # (dev 실측 최고 friction 0.961). 6 m 벽 수정으로 종단 도달이 가능해지며
+    # 드러난 스테일 임계.
+    completed = completion_ratio >= 0.98
     if completed != bool(expected["completion"]):
         reasons.append(
             f"completion {completion_ratio:.4f} does not match expected {bool(expected['completion'])}"

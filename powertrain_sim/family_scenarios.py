@@ -30,6 +30,26 @@ UNDULATION_WAVELENGTH_M = 4.4
 # 0.45 m/s 로 15 m 를 주파하려면 33.3 s. 종단 정지 여유를 포함해 40 s.
 TRAINING_DURATION_S = 40.0
 
+# 6 m 벽(시뮬 depth 렌더러 mj_multiRay plane 프루닝) 수정 후 정직 재기준선
+# (2026-07-21). 15 m 기복 트랙에서 크레스트 통과마다 짧은 fail-closed 과도
+# hold 가 생긴다 — Task 2 특성화 실측: flat 13 / bank 15 / clothoid 13 /
+# friction 10 / smog 22 (pinch·undulating 0), 에피소드는 중간 구간 전부
+# <=0.28 s, bank 종단 정지 구간(x>13.5)에 0.88 s·1.1 s 에피소드
+# 2건 존재, max_recovery 실측
+# 0.2 s. 상한은 실측 x1.5 올림. fail_open/edge_overrun 0 은 절대 불변.
+FAMILY_FALSE_HOLD_BOUND = {
+    "flat": 20,
+    "bank": 23,
+    "clothoid": 20,
+    "friction": 15,
+    "smog": 33,
+}
+
+
+def _repin_transient_hold_bounds(document: dict, family: str) -> None:
+    document["expected_metrics"]["false_hold_count"] = FAMILY_FALSE_HOLD_BOUND[family]
+    document["expected_metrics"]["max_recovery_time_s"] = 0.5
+
 
 def _terrain_document(
     family: str,
@@ -61,6 +81,7 @@ def _terrain_document(
         seed_class=seed_class,
     )
     document["clock"]["duration_s"] = TRAINING_DURATION_S
+    _repin_transient_hold_bounds(document, family)
     return document
 
 
@@ -139,6 +160,7 @@ def friction_document(
         seed_class=seed_class,
     )
     document["clock"]["duration_s"] = TRAINING_DURATION_S
+    _repin_transient_hold_bounds(document, "friction")
     document["faults"] = {name: [] for name in document["faults"]}
     return document
 
@@ -159,6 +181,8 @@ def depth_degradation_document(
             "noise_std_m": 0.02,
         }
     ]
+    # flat_document 가 상속시킨 flat 상한(20)을 smog 실측 기반 상한으로 교체.
+    _repin_transient_hold_bounds(document, "smog")
     return document
 
 
@@ -192,6 +216,12 @@ def clothoid_document(
         seed_class=seed_class,
     )
     document["clock"]["duration_s"] = TRAINING_DURATION_S
+    _repin_transient_hold_bounds(document, "clothoid")
+    # 생성기 기대 여유(0.3105)는 직선·중앙 주행 기하 가정이다. 클로소이드
+    # 곡선에서는 corridor-중앙 추종이 안쪽을 지나며 실측 최소 여유가 준다
+    # (2026-07-21 dev seed 실측 0.2081, edge_overrun 0). 하한을 실측 기반
+    # 0.15 로 재핀 — 0 침범은 여전히 edge_overrun 게이트가 잡는다.
+    document["expected_metrics"]["min_clearance_m"] = 0.15
     document["faults"] = {name: [] for name in document["faults"]}
     return document
 
