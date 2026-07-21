@@ -1,0 +1,121 @@
+# 6 m 벽 — 근본 원인 확정과 해소 (2026-07-21)
+
+브랜치 `sim-fidelity-completion`. 스펙
+`docs/superpowers/specs/2026-07-21-sim-depth-floor-pruning-6m-wall-design.md`,
+계획 `docs/superpowers/plans/2026-07-21-sim-depth-ray-cutoff-fix.md`.
+
+> 한 문장: **"6 m 데드락"은 production 지형 추정기의 결함이 아니라 시뮬 depth
+> 렌더러의 MuJoCo `mj_multiRay` 결함이었다.** 컷오프(6 m)를 geom **앵커점 거리**
+> 로 프루닝해서, 카메라가 월드 원점에서 6 m 를 벗어나는 순간 무한 바닥
+> plane(`lower_floor`)이 depth 에서 통째로 사라진다. 낙하 증거가 물리적으로
+> 소실되니 추정기의 fail-closed 정지는 **올바른 동작**이었다. 실차 L515 에는
+> 이 메커니즘이 없다 — **실기 6 m 결함 우려는 해당 없음**.
+
+## 1. 기존 진단의 반증 (실측)
+
+집중 과제의 "확정 메커니즘" 중 두 전제가 계측과 어긋났다:
+
+| 기존 주장 | 실측 반증 |
+|---|---|
+| far 타일이 품질 게이트(valid_ratio)로 통째 배제 | 프레임 0 hard-reject 타일 **0개**. 단일프레임 유효 셀은 **3.93 m** 까지 존재 |
+| 확인에 support ~4 m 필요 → 단일프레임(2.3 m) 확인 불가 | 프레임 0(정지·단일 시점)은 support 2.32 m 로 **확인 성공**(`path_available=True`). 실제-에지 인정은 x≈1.6 m 행부터 |
+| hold→융합 시간만료→support 붕괴가 데드락 원인 | 융합 붕괴는 **증상**. 최초 기각(프레임 86, x=5.41)은 fused support 3.975 m 건재 상태에서 **좌우 낙하 증거 완전 소실**(기준높이−0.18 아래 점 ~800→0)로 발생 |
+
+단일프레임 support 가 ~2.4 m 의 빈 5 cm 행(그레이징 샘플링 희소)에서 끊기는
+현상 자체는 실재하나, 6 m 벽과 무관하다(§5 backlog).
+
+## 2. 근본 원인 — mj_multiRay plane 앵커-거리 프루닝
+
+- 소실 시점 레이 재캐스트: 해석적 바닥 히트가 3.3~5.9 m(컷오프 이내)인 레이
+  768개가 `mj_multiRay(cutoff=6)` 에서 NO_HIT. 같은 레이를 `mj_ray` 로 쏘면
+  정확히 그 거리에서 `lower_floor` 를 맞춘다.
+- flip 지점 = |카메라−월드원점| 6.0 m (ray86 5.93 m 유지 / ray87 6.00 m 소실).
+- 최소 재현(MuJoCo 3.10.0): plane(pos 0 0 0) 위 (x,0,1)에서 수직 아래 레이,
+  cutoff 6 → x=5.90 dist 1.00 보고, **x=5.99 부터 NO_HIT** (mj_ray 는 1.00).
+- 기존 관측 전부 설명: 전 가족·전 시드 ~6 m(원점 유클리드), 해상도·서스펜션·
+  바퀴반경·오도메트리·카메라 장착 무관, corridor-carry 5 m 게이트의 10.5 m
+  (맹목 creep 소진 — 증거는 영영 안 돌아옴).
+
+## 3. 수정 — 시뮬 센서 한 곳, 추정기 무변경
+
+`powertrain_sim/mujoco_fast/sensors.py`: 레이캐스트 컷오프를 센서 사거리와
+분리(`RAY_PRUNING_CUTOFF_M = 1.0e6`), 사거리는 기존 `hit` 마스크
+(`MAX_VALID_DEPTH_M = 6.0`)만이 정의. **`powertrain_autonomy` 는 한 줄도
+변경하지 않았다** (134 passed 불변).
+
+음성 대조·등가성(`powertrain_sim/tests/test_depth_ray_cutoff.py`, TDD RED→GREEN):
+- V1 결함 재현: far 포즈(x=8)에서 mj_ray ground-truth 등가 — 수정 전 FAIL
+  (바닥 12/300 샘플 0), 수정 후 PASS. MuJoCo quirk 자체도 별도 핀(업스트림
+  의미론 변경 감지).
+- V2 사거리 불변: 6 m 초과 유효값 금지 단언(근·원 포즈).
+- V3 서브-6 m 등가성: 스폰 포즈 프레임 mj_ray 일치(수정이 기존 유효 depth 를
+  바꾸지 않음).
+
+## 4. 결과 (정본 dev 캠페인, exit 0 · 전 가족 passed)
+
+| family | 수정 전 | 수정 후 | fail_open | edge_overrun |
+|---|---|---|---|---|
+| flat | 0.396 (5.9 m 벽) | **0.9418** | 0 | 0 |
+| bank | ~0.40 | **0.9429** | 0 | 0 |
+| clothoid | ~0.40 | **0.9527** | 0 | 0 |
+| friction | ~0.40 | **0.9609** | 0 | 0 |
+| smog | ~0.40 | **0.9384** | 0 | 0 |
+| pinch | 벽에 막힘 | 0.5075 (12 s 시간한도, passed) | 0 | 0 |
+| undulating | 0.15 | 0.1528 (벽 무관 별건, §5) | 0 | 0 |
+| follow | 0.735 | 0.7342 (depth 미사용) | 0 | 0 |
+
+- **절대 게이트 기계검증: fail_open 위반 0 · edge_overrun 위반 0** (campaign.json
+  + per-run metrics.json 전수).
+- 추정기 런타임 최대 0.25 ms (예산 5 ms). 시뮬 벽시계 동급(프루닝 이득 무의미).
+- 회귀: `powertrain_autonomy` 134 passed.
+
+## 5. 정직 재기준선 + 신규 발견
+
+벽이 사라지며 로봇이 처음으로 트랙 후반부에 도달, 스테일 앵커와 진짜 결함이
+드러났다 (`f045778`):
+
+1. **과도 hold 재핀**: 15 m 기복 트랙 크레스트마다 짧은 fail-closed 과도 hold
+   (중간 구간 전부 ≤0.28 s, bank 종단 정지 구간 x>13.5 에만 0.88/1.1 s 2건,
+   recovery 전 가족 0.2 s). 가족별 false_hold 상한 = 실측 ×1.5
+   (flat 20 / bank 23 / clothoid 20 / friction 15 / smog 33), recovery 0.5 s.
+   ⚠️ 특성화 결정규칙(에피소드 ≤1.0 s)을 bank 종단 2건이 0.1 s 초과했으나
+   위치(의도된 종단 fail-closed 영역)·방향(hold=안전)을 근거로 유계 판정.
+2. **스테일 앵커**: flat dev 완주 앵커 0.70→0.90(실측 0.9418), 조임목 비율
+   공식의 2.5 m 하드코딩 제거, runner "완주" 프록시 0.95→0.98(종단 fail-closed
+   정지점이 0.94~0.96 에 놓임), clothoid min_clearance 0.3105→0.15(곡선 실측
+   0.2081, 직선·중앙 기하 가정 해제).
+3. **⚠️ P0 신규 결함 (실기 관련, 벽 수정이 언마스킹)**:
+   `test_too_narrow_pinch_stops_before_the_drop_boundary` 가 **정직한 RED**.
+   차폭보다 49 mm 좁은 0.5 m 조임목을 추정기가 정지시키지 못하고 통과
+   (바퀴 바깥 24.5 mm 경계 침범, edge_overrun 1). 메커니즘: ① 조임목의 실제
+   에지(±0.45)가 corridor 중앙값(±0.8) 대비 2셀 초과 이탈이라 **일관성 필터가
+   "데이터 결손 파편"으로 강등 → corridor 상속** → 지지폭(±0.45)이 침식
+   corridor(±0.28)를 커버해 통과 판정. ② 백스톱(corridor-내부 바닥 검출)은
+   0.5 m 포켓의 가림 가시창(로봇 x≈5.3~5.9)을 스침 — x≈5.4~5.8 에서 우측
+   여유 0.175 로 잠깐 좁아지며 감속(0.36 m/s)까지 갔으나 증거가 사라지자
+   재가속. 2.5 m 트랙 시절엔 조임목이 출발 시야 안(1.1 m)이라 정지 성공 —
+   위치 의존 잠복 결함. **추정기 수정은 별도 안전 설계 사이클 필요**(이번
+   계획은 추정기 금지). 게이트를 풀어 숨기지 않고 red 유지.
+4. 잔여 red (전부 기왕 문서화, 별건): undulating 0.153(시작부 정당 hold 지속 —
+   기복 지형 난이도), follow 간격 0.9 mm, three_percent(스펙 §5 의도),
+   canonical_json_hash·l515_wide_fov(기계 재핀 대기 — 이번 expected_metrics
+   재핀으로 해시가 한 번 더 이동, 재핀 시 최신 문서 기준으로).
+
+## 6. 완료 기준 대비
+
+1. flat 15 m 6 m 벽 돌파 ✅ (0.396→0.9418, 14.1 m 주행)
+2. 전 가족 fail_open 0 · edge_overrun 0 ✅ (기계검증) + 음성 대조 ✅ (V1~V3)
+3. 추정기 예산 ✅ (무변경, 0.25 ms ≤ 5 ms)
+4. powertrain_autonomy 134 green ✅, sim 재기준선 정직 실측 ✅
+5. 훈련 트랙 15 m 확정 + Task 5(완주율 기준선) 재개 — 이제 차단 해제.
+   단 too_narrow_pinch P0 와 undulating 시작부는 Task 5 설계에 반영할 것.
+
+## 7. 남은 것
+
+- **P0**: 조임목 검출 구멍(§5-3) — 추정기 안전 설계 사이클(브레인스토밍→스펙→
+  음성대조→적대 리뷰). 후보 방향: 일관성 필터의 "좁아지는 쪽" 비대칭 처리
+  (좁아짐은 fail-closed 방향이므로 강등 금지), choke 증거의 짧은 기억.
+- undulating 시작부 붕괴(0.15) — 기복 지형 취급 별건 조사.
+- canonical hash·l515_fov·three_percent·follow 앵커의 기계 재핀(기왕 목록).
+- MuJoCo 업스트림 리포트(선택): mj_multiRay plane 앵커-거리 프루닝, 재현
+  스크립트는 `test_depth_ray_cutoff.py::test_mujoco_multiray_anchor_pruning_quirk_is_pinned`.

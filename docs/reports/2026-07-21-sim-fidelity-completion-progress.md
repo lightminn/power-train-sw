@@ -81,6 +81,13 @@
 
 ## 3-B. 6 m 벽 근본 규명 + corridor-carry 시도 (실증 실패)
 
+> ⛔ **2026-07-21 후속 규명으로 대체됨**: 이 절(그리고 §3)의 "품질 타일 게이팅 /
+> 단일프레임 사거리" 진단은 반증됐다. 6 m 벽의 근본 원인은 시뮬 depth 렌더러의
+> MuJoCo `mj_multiRay` plane 앵커-거리 프루닝이다(실차 무관, production 추정기
+> 무결 — fail-closed 는 올바른 동작이었다). 정본:
+> `docs/superpowers/specs/2026-07-21-sim-depth-floor-pruning-6m-wall-design.md`,
+> 결과: `docs/reports/2026-07-21-6m-wall-rootcause-and-fix.md`.
+
 사용자 지시로 벽의 정확한 원인을 끝까지 파고, 수정(option b)을 시도했다.
 
 **정확한 메커니즘 (모션 의존 데드락):**
