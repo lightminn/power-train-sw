@@ -123,5 +123,9 @@
   (좁아짐은 fail-closed 방향이므로 강등 금지), choke 증거의 짧은 기억.
 - undulating 시작부 붕괴(0.15) — 기복 지형 취급 별건 조사.
 - canonical hash·l515_fov·three_percent·follow 앵커의 기계 재핀(기왕 목록).
+  같은 재핀 백로그: clothoid `min_clearance_m=0.15` 는 dev 한정이 아니다 —
+  생성기의 직선 기하 가정(0.3105)이 곡선 클래스 전체에 틀렸다는 판단이지만,
+  hidden 곡률은 다르게 뽑히므로 재핀 시 dev 한정+다중시드 보정으로 정리할 것
+  (재리뷰 잔여 Minor).
 - MuJoCo 업스트림 리포트(선택): mj_multiRay plane 앵커-거리 프루닝, 재현
   스크립트는 `test_depth_ray_cutoff.py::test_mujoco_multiray_anchor_pruning_quirk_is_pinned`.
