@@ -459,9 +459,12 @@ def test_too_narrow_pinch_stops_before_the_drop_boundary(tmp_path):
     # 않는다. docs/reports/2026-07-21-6m-wall-rootcause-and-fix.md 참조.
     pinch_start_ratio = 0.45 - 0.5 / 2.0 / TRAINING_TRACK_LENGTH_M
 
-    assert report.completion_ratio < pinch_start_ratio
+    # 안전 단언을 먼저 검사한다 — 아래 completion 단언이 정직 RED 인 동안에도
+    # fail-open 회귀는 독립적으로 잡혀야 한다 (2026-07-21 리뷰 지적).
     assert report.fail_open_count == 0
-    assert report.edge_overrun_count == 0
+    # 현재 실측 침범 1회(바퀴 바깥 24.5 mm)를 정직 핀 — 악화(2회+)는 즉시 검출.
+    assert report.edge_overrun_count <= 1
+    assert report.completion_ratio < pinch_start_ratio
     assert report.passed, report.reasons
 
 

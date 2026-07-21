@@ -34,7 +34,7 @@ def _flat_suite_at(x_m: float) -> tuple[MujocoFastPlant, FastSensorSuite]:
 
 def _ground_truth_axial(
     plant: MujocoFastPlant, suite: FastSensorSuite, flat_index: int
-) -> float:
+) -> tuple[float, int]:
     """Single-ray mj_ray ground truth with the sensor's own range mask."""
     body_matrix = np.asarray(
         plant.data.xmat[plant.base_body_id], dtype=float
@@ -52,12 +52,15 @@ def _ground_truth_axial(
         plant.base_body_id,
         geom_id,
     )
+    hit_geom_id = int(geom_id[0])
     if distance < 0.0 or distance > MAX_VALID_DEPTH_M:
-        return 0.0
-    return float(distance * suite._depth_axial_cos[flat_index])
+        return 0.0, hit_geom_id
+    return float(distance * suite._depth_axial_cos[flat_index]), hit_geom_id
 
 
-def _frame_vs_ground_truth(x_m: float) -> tuple[np.ndarray, np.ndarray]:
+def _frame_vs_ground_truth(
+    x_m: float,
+) -> tuple[MujocoFastPlant, np.ndarray, np.ndarray, np.ndarray]:
     plant, suite = _flat_suite_at(x_m)
     frame = suite.sample_depth(0)
     assert frame is not None
@@ -65,13 +68,21 @@ def _frame_vs_ground_truth(x_m: float) -> tuple[np.ndarray, np.ndarray]:
     sensor = frame.depth_roi.astype(float) * frame.depth_scale_m
     sampled_sensor = []
     sampled_truth = []
+    sampled_geom_ids = []
     for row in range(0, height, 8):
         for col in range(0, width, 8):
             sampled_sensor.append(sensor[row, col])
-            sampled_truth.append(
-                _ground_truth_axial(plant, suite, row * width + col)
+            axial, geom_id = _ground_truth_axial(
+                plant, suite, row * width + col
             )
-    return np.asarray(sampled_sensor), np.asarray(sampled_truth)
+            sampled_truth.append(axial)
+            sampled_geom_ids.append(geom_id)
+    return (
+        plant,
+        np.asarray(sampled_sensor),
+        np.asarray(sampled_truth),
+        np.asarray(sampled_geom_ids),
+    )
 
 
 def test_depth_matches_single_ray_ground_truth_far_from_origin():
@@ -79,15 +90,18 @@ def test_depth_matches_single_ray_ground_truth_far_from_origin():
 
     수정 전에는 mj_multiRay 앵커-거리 프루닝이 lower_floor plane 을 통째로
     제외해 측면 바닥 픽셀이 전부 0 이 된다 (6 m 벽의 근본 원인)."""
-    sensor, truth = _frame_vs_ground_truth(x_m=8.0)
-    floor_visible = truth > 0.0
+    plant, sensor, truth, truth_geom_ids = _frame_vs_ground_truth(x_m=8.0)
+    lower_floor_id = mujoco.mj_name2id(
+        plant.model, mujoco.mjtObj.mjOBJ_GEOM, "lower_floor"
+    )
+    floor_visible = (truth_geom_ids == lower_floor_id) & (truth > 0.0)
     assert np.count_nonzero(floor_visible) > 0
     np.testing.assert_allclose(sensor, truth, atol=2.0e-3)
 
 
 def test_depth_matches_single_ray_ground_truth_at_spawn():
     """벽 이전 포즈(스폰)에서의 등가성 — 수정이 기존 유효 depth 를 바꾸지 않음."""
-    sensor, truth = _frame_vs_ground_truth(x_m=0.0)
+    _, sensor, truth, _ = _frame_vs_ground_truth(x_m=0.0)
     np.testing.assert_allclose(sensor, truth, atol=2.0e-3)
 
 

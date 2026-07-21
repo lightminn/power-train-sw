@@ -37,6 +37,8 @@ TRAINING_DURATION_S = 40.0
 # <=0.28 s, bank 종단 정지 구간(x>13.5)에 0.88 s·1.1 s 에피소드
 # 2건 존재, max_recovery 실측
 # 0.2 s. 상한은 실측 x1.5 올림. fail_open/edge_overrun 0 은 절대 불변.
+# dev 시드 한정 적용(hidden/stress 는 생성기 기본 유지 — 다중시드 보정 전
+# 미보정 상태가 정직). recovery 상한 0.3 = 실측 0.2 x1.5.
 FAMILY_FALSE_HOLD_BOUND = {
     "flat": 20,
     "bank": 23,
@@ -46,9 +48,16 @@ FAMILY_FALSE_HOLD_BOUND = {
 }
 
 
-def _repin_transient_hold_bounds(document: dict, family: str) -> None:
-    document["expected_metrics"]["false_hold_count"] = FAMILY_FALSE_HOLD_BOUND[family]
-    document["expected_metrics"]["max_recovery_time_s"] = 0.5
+def _repin_transient_hold_bounds(
+    document: dict, family: str, seed_class: str
+) -> None:
+    if seed_class != "dev":
+        return
+    bound = FAMILY_FALSE_HOLD_BOUND.get(family)
+    if bound is None:
+        return
+    document["expected_metrics"]["false_hold_count"] = bound
+    document["expected_metrics"]["max_recovery_time_s"] = 0.3
 
 
 def _terrain_document(
@@ -81,7 +90,7 @@ def _terrain_document(
         seed_class=seed_class,
     )
     document["clock"]["duration_s"] = TRAINING_DURATION_S
-    _repin_transient_hold_bounds(document, family)
+    _repin_transient_hold_bounds(document, family, seed_class)
     return document
 
 
@@ -160,7 +169,7 @@ def friction_document(
         seed_class=seed_class,
     )
     document["clock"]["duration_s"] = TRAINING_DURATION_S
-    _repin_transient_hold_bounds(document, "friction")
+    _repin_transient_hold_bounds(document, "friction", seed_class)
     document["faults"] = {name: [] for name in document["faults"]}
     return document
 
@@ -182,7 +191,7 @@ def depth_degradation_document(
         }
     ]
     # flat_document 가 상속시킨 flat 상한(20)을 smog 실측 기반 상한으로 교체.
-    _repin_transient_hold_bounds(document, "smog")
+    _repin_transient_hold_bounds(document, "smog", seed_class)
     return document
 
 
@@ -216,7 +225,7 @@ def clothoid_document(
         seed_class=seed_class,
     )
     document["clock"]["duration_s"] = TRAINING_DURATION_S
-    _repin_transient_hold_bounds(document, "clothoid")
+    _repin_transient_hold_bounds(document, "clothoid", seed_class)
     # 생성기 기대 여유(0.3105)는 직선·중앙 주행 기하 가정이다. 클로소이드
     # 곡선에서는 corridor-중앙 추종이 안쪽을 지나며 실측 최소 여유가 준다
     # (2026-07-21 dev seed 실측 0.2081, edge_overrun 0). 하한을 실측 기반

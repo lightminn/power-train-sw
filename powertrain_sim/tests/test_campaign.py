@@ -20,6 +20,7 @@ from powertrain_sim.family_scenarios import (
     ROBOT_FOOTPRINT_WIDTH_M,
     TRAINING_TRACK_LENGTH_M,
     TRAINING_TRACK_WIDTH_M,
+    flat_document,
 )
 from powertrain_sim.procedural import canonical_json_sha256
 
@@ -171,3 +172,13 @@ def test_clock_duration_covers_the_longer_track():
     speed = document["motion"]["linear_speed_m_s"]
     duration = document["clock"]["duration_s"]
     assert speed * duration >= TRAINING_TRACK_LENGTH_M
+
+
+def test_transient_hold_repin_applies_to_dev_documents_only():
+    dev = flat_document(seed=0, seed_class="dev")
+    hidden = flat_document(seed=0, seed_class="hidden_evaluation")
+
+    assert dev["expected_metrics"]["false_hold_count"] == 20
+    assert dev["expected_metrics"]["max_recovery_time_s"] == 0.3
+    assert hidden["expected_metrics"]["false_hold_count"] == 0
+    assert hidden["expected_metrics"]["max_recovery_time_s"] == 0.25

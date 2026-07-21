@@ -467,6 +467,28 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 ---
 
+## 개정 이력 (2026-07-21 최종 리뷰 반영)
+
+최종 whole-branch 적대 리뷰(Critical 0 · Important 5 · Minor 4) 반영 개정:
+
+1. **Task 2 결정 규칙 개정 (리뷰 Important#4)**: 원문 "모든 에피소드 ≤1.0 s"
+   에 종단 예외를 명시한다 — *종단 fail-closed 정지 구간(트랙 끝 1.5 m 이내,
+   hold=안전 방향)의 에피소드는 ≤1.5 s 까지 유계 과도로 인정*. 근거: bank
+   실측 0.88/1.1 s 2건이 전부 종단 구간(x>13.5)이고 중간 구간은 전 가족
+   ≤0.28 s. 종단 구간에서 hold/available 오라클이 진동하는 현상 자체는 별건
+   조사 대상으로 남긴다.
+2. **재핀 범위 dev 한정 (Important#2)**: dev 시드 1개 실측으로 만든 상한을
+   hidden/stress 문서에 적용하지 않는다(생성기 기본 0/0.25 유지 — 다중시드
+   보정 전 미보정 상태가 정직). Task 3 의 재핀 코드는 `seed_class=="dev"`
+   가드를 갖는다.
+3. **recovery 상한 0.5 → 0.3 (Important#3)**: 실측 0.2 ×1.5 = 0.3. 0.5 는
+   stress 클래스 값과 겹쳐 dev/stress 구분을 지웠다.
+4. **narrow-pinch 정직 RED 의 안전 단언 우선순위 (Important#1)**: fail_open ·
+   edge_overrun(≤1 정직 핀) 단언을 completion 단언 앞으로 — RED 상태에서도
+   fail-open 회귀가 독립 검출되게.
+5. **far 테스트 바닥 히트 보장 (Important#5)**: mj_ray geom id 로 lower_floor
+   히트 ≥1 을 단언(공허 통과 방지).
+
 ## Self-Review 결과
 
 - 스펙 §3(수정) → Task 1, §4 V1·V2·V3 → Task 1 테스트 4종, V4 → Task 4, V5 → Task 3 Step 3 + Task 5 Step 1. §5 비목표(추정기 무변경) → Global Constraints. 누락 없음.

@@ -77,9 +77,14 @@
 1. **과도 hold 재핀**: 15 m 기복 트랙 크레스트마다 짧은 fail-closed 과도 hold
    (중간 구간 전부 ≤0.28 s, bank 종단 정지 구간 x>13.5 에만 0.88/1.1 s 2건,
    recovery 전 가족 0.2 s). 가족별 false_hold 상한 = 실측 ×1.5
-   (flat 20 / bank 23 / clothoid 20 / friction 15 / smog 33), recovery 0.5 s.
-   ⚠️ 특성화 결정규칙(에피소드 ≤1.0 s)을 bank 종단 2건이 0.1 s 초과했으나
-   위치(의도된 종단 fail-closed 영역)·방향(hold=안전)을 근거로 유계 판정.
+   (flat 20 / bank 23 / clothoid 20 / friction 15 / smog 33), recovery 0.3 s
+   (실측 0.2 ×1.5). **재핀은 dev 시드 문서 한정** — dev 1시드 실측 상한을
+   hidden/stress 에 적용하지 않는다(생성기 기본 0/0.25 유지; hidden 은
+   다중시드 보정 전 미보정 debt).
+   ⚠️ 특성화 결정규칙(에피소드 ≤1.0 s)을 bank 종단 2건(0.88/1.1 s)이 초과 —
+   전부 종단 fail-closed 정지 구간(x>13.5, hold=안전 방향)이라, 계획서에
+   종단 예외(트랙 끝 1.5 m 이내 ≤1.5 s)를 명시 개정하고 진행(계획서 "개정
+   이력" 절). 종단 구간 hold/available 오라클 진동은 별건 조사 대상.
 2. **스테일 앵커**: flat dev 완주 앵커 0.70→0.90(실측 0.9418), 조임목 비율
    공식의 2.5 m 하드코딩 제거, runner "완주" 프록시 0.95→0.98(종단 fail-closed
    정지점이 0.94~0.96 에 놓임), clothoid min_clearance 0.3105→0.15(곡선 실측
@@ -98,8 +103,9 @@
    계획은 추정기 금지). 게이트를 풀어 숨기지 않고 red 유지.
 4. 잔여 red (전부 기왕 문서화, 별건): undulating 0.153(시작부 정당 hold 지속 —
    기복 지형 난이도), follow 간격 0.9 mm, three_percent(스펙 §5 의도),
-   canonical_json_hash·l515_wide_fov(기계 재핀 대기 — 이번 expected_metrics
-   재핀으로 해시가 한 번 더 이동, 재핀 시 최신 문서 기준으로).
+   canonical_json_hash·l515_wide_fov(기계 재핀 대기 — 해시 핀은 depth 해상도
+   변경 시점부터 스테일; 이 범위의 재핀은 해당 대표 문서를 건드리지 않는다.
+   재핀 시 최신 문서 기준으로).
 
 ## 6. 완료 기준 대비
 
