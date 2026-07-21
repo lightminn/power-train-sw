@@ -111,9 +111,13 @@ def test_representative_dev_seed_canonical_json_hash_is_pinned():
     )
 
     # Reviewed golden document: this catches silent PCG64 draw-order or schema drift.
+    # 재핀 2026-07-22: depth 격자 60x80 -> 120x160(6 m 벽 수정) 로 해시 변경.
+    # 안전 검증: depth_shape_px=(60,80) 로 생성하면 옛 해시가 그대로 재현되고,
+    # 두 문서 차이는 shape_px + intrinsics(스케일) + depth_holes/depth_spikes 픽셀
+    # 좌표(정확히 2배 스케일)뿐이다 — track/motion/prng 등 RNG draw 는 전부 불변.
     assert json.loads(json.dumps(document, sort_keys=True)) == document
     assert canonical_json_sha256(document) == (
-        "9f97356d6b5cee3b2ffac8b772740b3c155d1d7a23d4bda221a8e53278fc00b3"
+        "fb11608193fd5c0ca6db6a5cd4045646459ffc8bc1a5066330edc6cdfd9f6113"
     )
 
 
@@ -134,7 +138,9 @@ def test_generated_depth_roi_preserves_l515_wide_field_of_view():
         2.0 * math.atan(height / (2.0 * intrinsics["fy"]))
     )
 
-    assert depth["shape_px"] == [60, 80]
+    # 재핀 2026-07-22: 60x80 -> 120x160(6 m 벽 수정). intrinsics 가 shape 에
+    # 맞춰 스케일되므로 L515 광FOV(70x55 도)는 그대로 보존된다 — 해상도만 오른다.
+    assert depth["shape_px"] == [120, 160]
     assert horizontal_fov_deg == pytest.approx(70.0, abs=1.0)
     assert vertical_fov_deg == pytest.approx(55.0, abs=1.0)
 
