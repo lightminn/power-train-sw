@@ -105,6 +105,7 @@ def bank_document(*, seed: int = DEV_SEED, seed_class: str = "dev") -> dict:
 def pinch_document(
     *,
     width_m: float,
+    length_m: float = 0.5,
     seed: int = DEV_SEED,
     seed_class: str = "dev",
 ) -> dict:
@@ -124,7 +125,7 @@ def pinch_document(
             linear_speed_range_m_s=(0.45, 0.45),
             terrain_families=("flat",),
             motion_profiles=("constant_speed",),
-            pinch=PinchSpec(center_ratio=0.45, length_m=0.5, width_m=width_m),
+            pinch=PinchSpec(center_ratio=0.45, length_m=length_m, width_m=width_m),
             expected_completion=False,
         ),
         seed=seed,
