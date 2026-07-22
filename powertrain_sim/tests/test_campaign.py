@@ -33,6 +33,7 @@ ROW_KEYS = {
     "passed",
     "completion",
     "fail_open",
+    "edge_overrun",
     "recovery",
 }
 
@@ -70,6 +71,7 @@ def test_two_family_dev_matrix_is_deterministic_and_writes_report_schema(tmp_pat
     assert all(isinstance(row["passed"], bool) for row in first["results"])
     assert all(isinstance(row["completion"], float) for row in first["results"])
     assert all(isinstance(row["fail_open"], int) for row in first["results"])
+    assert all(isinstance(row["edge_overrun"], int) for row in first["results"])
     assert all(isinstance(row["recovery"], float) for row in first["results"])
 
     on_disk = json.loads(
@@ -83,6 +85,7 @@ def test_two_family_dev_matrix_is_deterministic_and_writes_report_schema(tmp_pat
         "passed",
         "completion",
         "fail_open",
+        "edge_overrun",
         "recovery",
     ]
     assert len(lines) == 1 + len(first["results"])

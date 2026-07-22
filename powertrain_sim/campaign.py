@@ -150,12 +150,12 @@ def _run_family(family: str, document: dict, run_directory: Path) -> MetricsRepo
 
 
 def _print_table(results: Sequence[dict], stdout: TextIO) -> None:
-    print("family seed passed completion fail_open recovery", file=stdout)
+    print("family seed passed completion fail_open edge_overrun recovery", file=stdout)
     for row in results:
         print(
             f"{row['family']} {row['seed']} "
             f"{str(row['passed']).lower()} {row['completion']:.6f} "
-            f"{row['fail_open']} {row['recovery']:.6f}",
+            f"{row['fail_open']} {row['edge_overrun']} {row['recovery']:.6f}",
             file=stdout,
         )
 
@@ -223,7 +223,11 @@ def run_campaign(
                     "scenario_sha256": digest,
                     "passed": metrics.passed,
                     "completion": metrics.completion_ratio,
+                    # fail_open_count is relative to the estimator's own should_hold,
+                    # not a ground-truth oracle. edge_overrun_count is the ground-truth
+                    # footprint-vs-boundary breach count for real-safety audits.
                     "fail_open": metrics.fail_open_count,
+                    "edge_overrun": metrics.edge_overrun_count,
                     "recovery": metrics.max_recovery_time_s,
                 }
             )
