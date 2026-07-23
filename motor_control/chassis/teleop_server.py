@@ -35,6 +35,7 @@ from chassis.teleop_dualsense import (
 
 WIRELESS_RX_TIMEOUT_MS = 300.0
 WIRELESS_NEUTRAL_DEADZONE = 0.05
+WIRELESS_INPUT_BUFFER_MAX_BYTES = 4096
 
 
 def reset_wireless_input(state):
@@ -49,6 +50,52 @@ def reset_wireless_input(state):
         "rx_seq": 0,
         "consumed_seq": 0,
     })
+    # Lifecycle/safety events are drained by the sole control thread and must
+    # survive input resets performed by the socket thread.
+    state.setdefault("raw_ci", 0)
+    state.setdefault("estop_pending", False)
+
+
+def mark_wireless_disconnected(state):
+    """Clear client input and leave a sticky lifecycle event for control."""
+    reset_wireless_input(state)
+    state["raw_ci"] = 0
+    state["disconnect_pending"] = True
+
+
+def consume_wireless_disconnect(state):
+    pending = bool(state.get("disconnect_pending", False))
+    state["disconnect_pending"] = False
+    return pending
+
+
+def apply_wireless_disconnect(manager, pending):
+    """Disarm from the sole ChassisManager owner after a client disconnect."""
+    if not pending or manager.mode != "ARMED":
+        return False
+    manager.disarm()
+    return True
+
+
+def consume_wireless_estop(state):
+    pending = bool(state.get("estop_pending", False))
+    state["estop_pending"] = False
+    return pending
+
+
+def apply_wireless_estop(manager, pending):
+    if not pending:
+        return False
+    manager.estop("manual", "dualsense")
+    return True
+
+
+def should_process_wireless_square(
+    square,
+    previous_square,
+    estop_applied,
+):
+    return bool(square and not previous_square and not estop_applied)
 
 
 def _wireless_sample_is_neutral(sample):
@@ -76,6 +123,9 @@ def update_wireless_input(
     ):
         reset_wireless_input(state)
     lx, rt, lt, sq, ci = sample
+    if ci and not state.get("raw_ci", 0):
+        state["estop_pending"] = True
+    state["raw_ci"] = 1 if ci else 0
     if not state.get("neutral_seen", False):
         state["rx_ms"] = now_ms
         if not _wireless_sample_is_neutral(sample):
@@ -234,6 +284,14 @@ def make_status_line(mode, v, omega):
     return "S %s %+.2f %+.2f\n" % (mode, v, omega)
 
 
+def append_wireless_input_data(buffer, data):
+    """Append one recv chunk while bounding an unterminated input frame."""
+    buffered = buffer + data
+    if len(buffered) > WIRELESS_INPUT_BUFFER_MAX_BYTES:
+        return b"", True
+    return buffered, False
+
+
 def parse_input_line(text):
     """"left_x rt lt sq ci" → (left_x, rt, lt, sq, ci) 클램프됨, 또는 None."""
     parts = text.split()
@@ -242,9 +300,9 @@ def parse_input_line(text):
     try:
         lx, rt, lt = float(parts[0]), float(parts[1]), float(parts[2])
         sq, ci = int(parts[3]), int(parts[4])
-    except ValueError:
-        return None
-    if not all(math.isfinite(value) for value in (lx, rt, lt, sq, ci)):
+        if not all(math.isfinite(value) for value in (lx, rt, lt, sq, ci)):
+            return None
+    except (ValueError, OverflowError):
         return None
     lx = max(-1.0, min(1.0, lx))
     rt = max(0.0, min(1.0, rt))
@@ -360,15 +418,17 @@ def main(argv=None):
     control_failure = {}
     control_failed = threading.Event()
 
-    prev_sq = prev_ci = 0
+    prev_sq = 0
     period = 1.0 / cfg.loop_hz
     last_print = 0.0
     verdict = None
 
     def control_step():
-        nonlocal prev_sq, prev_ci, last_print, verdict
+        nonlocal prev_sq, last_print, verdict
         t0 = time.monotonic()
         with lock:
+            disconnect_pending = consume_wireless_disconnect(shared)
+            estop_pending = consume_wireless_estop(shared)
             input_active = wireless_input_active(
                 shared,
                 now_ms=t0 * 1000.0,
@@ -379,6 +439,10 @@ def main(argv=None):
             )
         v_cmd = w_cmd = 0.0
 
+        estop_applied = apply_wireless_estop(cm, estop_pending)
+        if not estop_applied:
+            apply_wireless_disconnect(cm, disconnect_pending)
+
         if background is not None:
             verdict = background.verdict()
             cm.update_external_safety(
@@ -388,16 +452,21 @@ def main(argv=None):
             )
 
         if sample is None and not input_active:
-            prev_sq = prev_ci = 0
+            prev_sq = 0
         elif sample is not None:
-            _lx, _rt, _lt, sq, ci = sample
-            if sq and not prev_sq:
-                if not handle_chassis_square(cm):
+            _lx, _rt, _lt, sq, _ci = sample
+            if should_process_wireless_square(
+                sq,
+                prev_sq,
+                estop_applied,
+            ):
+                if not handle_chassis_square(
+                    cm,
+                    (_lx, _rt, _lt),
+                ):
                     print("[server] □ 요청 거부 (mode=%s)" % cm.mode,
                           flush=True)
-            if ci and not prev_ci:
-                cm.estop("manual", "dualsense")
-            prev_sq, prev_ci = sq, ci
+            prev_sq = sq
             v_cmd, w_cmd, _applied = apply_wireless_command(
                 cm,
                 sample,
@@ -500,7 +569,12 @@ def main(argv=None):
                         data = conn.recv(256)
                         if not data:
                             break
-                        buf += data
+                        buf, overflowed = append_wireless_input_data(buf, data)
+                        if overflowed:
+                            print(
+                                "[server] 입력 버퍼 초과 — 미완성 프레임 폐기",
+                                flush=True,
+                            )
                         while b"\n" in buf:
                             line, buf = buf.split(b"\n", 1)
                             r = parse_input_line(line.decode(errors="ignore").strip())
@@ -526,7 +600,7 @@ def main(argv=None):
                 pass
             finally:
                 with lock:
-                    reset_wireless_input(shared)
+                    mark_wireless_disconnected(shared)
                 conn.close()
                 print("[server] 클라이언트 해제 — 구동 0", flush=True)
     except KeyboardInterrupt:

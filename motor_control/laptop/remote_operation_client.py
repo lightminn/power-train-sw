@@ -32,6 +32,7 @@ DEFAULT_OPS_TOKEN_FILE = "~/.config/powertrain/ops_controller.token"
 SEND_HZ = 30.0
 SCHEMA_VERSION = 2
 MAX_RECORD_BYTES = 2 * 1024
+MAX_STATUS_BUFFER_BYTES = 4 * 1024
 MODE_CHORD_HOLD_NS = 1_000_000_000
 TRIGGER_DEADZONE = 0.03
 # 실측 DualSense 휴지 드리프트 left_x -0.0118 / right_y +0.0431 (2026-07-17 벤치).
@@ -376,6 +377,10 @@ class RemoteOperationTransmitter:
         if not chunk:
             return []
         self._status_buffer.extend(chunk)
+        buffer_overflow = len(self._status_buffer) > MAX_STATUS_BUFFER_BYTES
+        if buffer_overflow and b"\n" not in self._status_buffer:
+            self._status_buffer.clear()
+            return []
         lines = []
         while b"\n" in self._status_buffer:
             line, _, rest = self._status_buffer.partition(b"\n")
@@ -459,9 +464,25 @@ def main(argv=None):
     mapping = mapping_for_guid(guid, args.mapping_version)
     adapter = DualSenseInputAdapter(joystick, mapping)
 
+    ops = None
+    detector = None
+    token_path = os.path.expanduser(args.ops_token_file)
+    try:
+        with open(token_path, "r", encoding="utf-8") as handle:
+            ops_token = handle.readline().strip()
+    except OSError:
+        ops_token = ""
+    if not ops_token:
+        print(
+            "warning: ops channel disabled; haptics disabled because they "
+            "reflect ops-link state; token file unavailable: %s"
+            % token_path,
+            file=sys.stderr,
+        )
+
     haptic_arbiter = None
     haptic_output = None
-    if args.haptics:
+    if args.haptics and ops_token:
         haptic_arbiter = HapticArbiter(clock=time.monotonic)
         haptic_output = DualSenseOutput(
             haptic_arbiter,
@@ -480,21 +501,7 @@ def main(argv=None):
         args.port,
         on_reconnect=input_after_reconnect,
     )
-    ops = None
-    detector = None
-    token_path = os.path.expanduser(args.ops_token_file)
-    try:
-        with open(token_path, "r", encoding="utf-8") as handle:
-            ops_token = handle.readline().strip()
-    except OSError:
-        ops_token = ""
-    if not ops_token:
-        print(
-            "warning: ops channel disabled; token file unavailable: %s"
-            % token_path,
-            file=sys.stderr,
-        )
-    else:
+    if ops_token:
         ops = ops_channel.OpsChannelClient(
             args.host,
             args.ops_port,

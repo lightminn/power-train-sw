@@ -103,6 +103,90 @@ def test_haptic_cli_flags_default_on_with_trigger_fx_opt_in():
     assert parser.parse_args(["--haptics", "--trigger-fx"]).trigger_fx is True
 
 
+@pytest.mark.parametrize(
+    "empty_token_file",
+    [False, True],
+    ids=("missing", "empty"),
+)
+def test_unavailable_ops_token_disables_haptics_before_output_starts(
+    monkeypatch, tmp_path, capsys, empty_token_file
+):
+    class MainJoystick(FakeController):
+        def init(self):
+            pass
+
+        def get_guid(self):
+            return "fake-guid"
+
+        def get_name(self):
+            return "Fake DualSense"
+
+    joystick = MainJoystick()
+
+    class FakePygame:
+        def __init__(self):
+            self.joystick = type(
+                "JoystickModule",
+                (),
+                {
+                    "init": staticmethod(lambda: None),
+                    "get_count": staticmethod(lambda: 1),
+                    "Joystick": staticmethod(lambda _index: joystick),
+                },
+            )()
+            self.event = type(
+                "EventModule",
+                (),
+                {"pump": staticmethod(lambda: None)},
+            )()
+
+        @staticmethod
+        def init():
+            pass
+
+        @staticmethod
+        def quit():
+            pass
+
+    output_events = []
+
+    class RecordingHapticOutput:
+        def __init__(self, *_args, **_kwargs):
+            output_events.append("created")
+
+        def start(self):
+            output_events.append("started")
+
+        def close(self):
+            output_events.append("closed")
+
+    class InterruptingTransmitter:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def send(self, *_args, **_kwargs):
+            raise KeyboardInterrupt
+
+        def close(self):
+            pass
+
+    monkeypatch.setitem(sys.modules, "pygame", FakePygame())
+    monkeypatch.setattr(client, "DualSenseOutput", RecordingHapticOutput)
+    monkeypatch.setattr(
+        client, "RemoteOperationTransmitter", InterruptingTransmitter
+    )
+
+    missing_token = tmp_path / "missing-ops.token"
+    if empty_token_file:
+        missing_token.write_text("", encoding="utf-8")
+    client.main(["--ops-token-file", str(missing_token)])
+
+    assert output_events == []
+    stderr = capsys.readouterr().err
+    assert "haptics disabled" in stderr
+    assert "ops-link state" in stderr
+
+
 def test_ops_feedback_feeds_latest_state_and_ack_patterns():
     arbiter = FakeHapticArbiter()
     state = {"push": "ops_state", "revision": 9, "authority_mode": "TELEOP"}
@@ -231,6 +315,28 @@ def test_send_failure_reconnects_with_new_session_and_sequence_zero():
     second_wire = json.loads(second.sent[1])
     assert second_wire["session_id"] == first_wire["session_id"]
     assert second_wire["sequence"] == 1
+
+
+def test_status_buffer_recovers_after_oversized_unterminated_input():
+    class StatusSocket(FakeSocket):
+        def __init__(self):
+            super().__init__()
+            self.received = []
+
+        def recv(self, _size):
+            if not self.received:
+                raise BlockingIOError
+            return self.received.pop(0)
+
+    sock = StatusSocket()
+    sender = client.RemoteOperationTransmitter("jetson")
+    sender.sock = sock
+
+    sock.received.append(b"x" * (4 * 1024 + 1))
+    assert sender.receive_status() == []
+
+    sock.received.append(b"S DRIVE 0.0 0.0\n")
+    assert sender.receive_status() == ["S DRIVE 0.0 0.0"]
 
 
 def test_connect_forever_retries_fake_socket_until_success():

@@ -68,7 +68,11 @@ def map_chassis_input(left_x: float, rt: float, lt: float,
     return v, omega
 
 
-def handle_chassis_square(manager):
+def _motion_input_is_neutral(motion_input, deadzone=0.05):
+    return all(abs(value) < deadzone for value in motion_input)
+
+
+def handle_chassis_square(manager, motion_input=None):
     """Apply one square-button edge without combining reset and arm."""
     if manager.mode == "ESTOP":
         return bool(manager.reset_estop())
@@ -76,6 +80,11 @@ def handle_chassis_square(manager):
         manager.disarm()
         return True
     if manager.mode == "IDLE":
+        if (
+            motion_input is not None
+            and not _motion_input_is_neutral(motion_input)
+        ):
+            return False
         return bool(manager.arm())
     return False
 
@@ -250,7 +259,10 @@ def main(argv=None):
                     )
 
                 if sq and not prev_sq:
-                    if not handle_chassis_square(cm):
+                    if not handle_chassis_square(
+                        cm,
+                        (left_x, rt, lt),
+                    ):
                         print("□ 요청 거부 (mode=%s)" % cm.mode)
                 if ci and not prev_ci:
                     cm.estop("manual", "dualsense")

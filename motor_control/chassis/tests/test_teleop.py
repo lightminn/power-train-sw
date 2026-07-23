@@ -82,6 +82,137 @@ def test_parse_bad_returns_none():
     assert parse_input_line("") is None
 
 
+def test_parse_rejects_astronomical_button_integer():
+    huge_button = "9" * 400
+
+    assert parse_input_line(f"0 0 0 {huge_button} 0") is None
+
+
+def test_wireless_receive_buffer_clears_oversized_unterminated_line():
+    limit = teleop_server.WIRELESS_INPUT_BUFFER_MAX_BYTES
+
+    buffered, overflowed = teleop_server.append_wireless_input_data(
+        b"x" * limit,
+        b"x",
+    )
+
+    assert buffered == b""
+    assert overflowed is True
+
+
+def test_wireless_disconnect_disarms_armed_manager_once():
+    class Manager:
+        mode = "ARMED"
+
+        def __init__(self):
+            self.disarm_calls = 0
+
+        def disarm(self):
+            self.disarm_calls += 1
+            self.mode = "IDLE"
+
+    state = {}
+    teleop_server.reset_wireless_input(state)
+    manager = Manager()
+
+    teleop_server.mark_wireless_disconnected(state)
+    # A fast replacement client can be accepted before the 50 Hz owner drains
+    # the lifecycle event. Its input reset must not erase the pending disarm.
+    teleop_server.reset_wireless_input(state)
+    pending = teleop_server.consume_wireless_disconnect(state)
+
+    assert teleop_server.apply_wireless_disconnect(manager, pending) is True
+    assert manager.mode == "IDLE"
+    assert manager.disarm_calls == 1
+    assert teleop_server.consume_wireless_disconnect(state) is False
+
+
+@pytest.mark.parametrize("module", (teleop_server, teleop_dualsense))
+@pytest.mark.parametrize(
+    "motion_input",
+    (
+        (0.1, 0.0, 0.0),
+        (0.0, 0.1, 0.0),
+        (0.0, 0.0, 0.1),
+    ),
+)
+def test_square_refuses_idle_arm_with_non_neutral_motion(
+    module,
+    motion_input,
+):
+    class Manager:
+        mode = "IDLE"
+
+        def __init__(self):
+            self.arm_calls = 0
+
+        def arm(self):
+            self.arm_calls += 1
+            self.mode = "ARMED"
+            return True
+
+    manager = Manager()
+
+    assert module.handle_chassis_square(manager, motion_input) is False
+    assert manager.mode == "IDLE"
+    assert manager.arm_calls == 0
+
+
+def test_wireless_estop_edge_bypasses_closed_neutral_gate_once():
+    class Manager:
+        mode = "ARMED"
+
+        def __init__(self):
+            self.estop_calls = []
+
+        def estop(self, source, detail):
+            self.estop_calls.append((source, detail))
+            self.mode = "ESTOP"
+
+    state = {}
+    teleop_server.reset_wireless_input(state)
+    assert teleop_server.update_wireless_input(
+        state,
+        (0.0, 0.0, 0.0, 0, 0),
+        now_ms=0.0,
+    ) is True
+    assert teleop_server.update_wireless_input(
+        state,
+        (0.0, 1.0, 0.0, 0, 0),
+        now_ms=10.0,
+    ) is True
+
+    # The trigger remains held after an RX gap, so the neutral gate closes.
+    assert teleop_server.update_wireless_input(
+        state,
+        (0.0, 1.0, 0.0, 0, 1),
+        now_ms=10.0 + teleop_server.WIRELESS_RX_TIMEOUT_MS + 0.1,
+    ) is False
+
+    manager = Manager()
+    pending = teleop_server.consume_wireless_estop(state)
+    assert teleop_server.apply_wireless_estop(manager, pending) is True
+    assert manager.estop_calls == [("manual", "dualsense")]
+
+    # Repeated held-circle samples behind the gate are not new edges.
+    assert teleop_server.update_wireless_input(
+        state,
+        (0.0, 1.0, 0.0, 0, 1),
+        now_ms=320.0,
+    ) is False
+    pending = teleop_server.consume_wireless_estop(state)
+    assert teleop_server.apply_wireless_estop(manager, pending) is False
+    assert manager.estop_calls == [("manual", "dualsense")]
+
+
+def test_wireless_estop_edge_suppresses_simultaneous_square():
+    assert teleop_server.should_process_wireless_square(
+        square=1,
+        previous_square=0,
+        estop_applied=True,
+    ) is False
+
+
 @pytest.mark.parametrize(
     "line",
     (
