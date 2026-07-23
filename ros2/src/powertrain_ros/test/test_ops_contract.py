@@ -142,3 +142,20 @@ def test_encode_response_is_newline_json():
     )
     assert raw.endswith(b"\n")
     assert json.loads(raw)["status"] == "PENDING"
+
+
+def test_encode_response_optionally_marks_successful_status_query():
+    marked = json.loads(oc.encode_response(
+        request_id="query-1",
+        status=oc.STATUS_PENDING,
+        state_revision=4,
+        queried_request_id="target-1",
+    ))
+    ordinary = json.loads(oc.encode_response(
+        request_id="r-1",
+        status=oc.STATUS_FINAL_REJECTED,
+        state_revision=4,
+    ))
+
+    assert marked["queried_request_id"] == "target-1"
+    assert "queried_request_id" not in ordinary

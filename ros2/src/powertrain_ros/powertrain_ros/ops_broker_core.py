@@ -196,7 +196,20 @@ class OpsBrokerCore:
     def _cache_put(self, key, fingerprint, pending_key, response):
         self._cache[key] = (fingerprint, pending_key, response)
         while len(self._cache) > self._cache_size:
-            self._cache.popitem(last=False)
+            completed_key = next((
+                cache_key
+                for cache_key, (_, cached_pending_key, cached_response)
+                in self._cache.items()
+                if cached_response is not None
+                and cached_pending_key not in self._pending_requests
+            ), None)
+            if completed_key is None:
+                break
+            del self._cache[completed_key]
+
+    def _cache_direct_response(self, key, fingerprint, response):
+        self._cache_put(key, fingerprint, None, response)
+        return Decision(response=response)
 
     def _accept_order(self, key, role, request, spec):
         self._order_generation += 1
@@ -291,7 +304,7 @@ class OpsBrokerCore:
         spec = oc.ACTIONS[request["action"]]
         emergency = self._authorize(role, request, spec)
         if isinstance(emergency, bytes):
-            return Decision(response=emergency)
+            return self._cache_direct_response(key, fingerprint, emergency)
 
         if request["action"] == "status_query":
             return Decision(response=self._status_query(identity, request))
@@ -299,19 +312,21 @@ class OpsBrokerCore:
         if "expected_state_revision" in request and (
             request["expected_state_revision"] != self._revision()
         ):
-            return Decision(response=self._reject(
+            response = self._reject(
                 request_id, "state revision mismatch"
-            ))
+            )
+            return self._cache_direct_response(key, fingerprint, response)
 
         gate = self._precondition_gate(identity, role, request, spec,
                                        emergency=emergency)
         if gate is not None:
-            return Decision(response=gate)
+            return self._cache_direct_response(key, fingerprint, gate)
 
         if self._pending_orders:
-            return Decision(
-                response=self._reject(request_id, "busy: mutation in flight")
+            response = self._reject(
+                request_id, "busy: mutation in flight"
             )
+            return self._cache_direct_response(key, fingerprint, response)
         return self._accept_order(key, role, request, spec)
 
     def _authorize(self, role, request, spec):
@@ -352,14 +367,23 @@ class OpsBrokerCore:
             if float(self._clock()) - begin_s < hold_s:
                 return self._reject(request_id, "hold not satisfied")
             del self._emergency[key]
-            if action == "arm" and not (
-                state.gateway_neutral and state.gateway_input_fresh
-                and state.wheels_stopped
-            ):
-                return self._reject(
-                    request_id,
-                    "arm requires released neutral input and stopped wheels",
-                )
+            if action == "arm":
+                if state.field_age_s.get("gateway", 9.9) \
+                        > oc.OPS_STATE_STALE_S \
+                        or state.field_age_s.get("wheels", 9.9) \
+                        > oc.OPS_STATE_STALE_S:
+                    return self._reject(request_id, "stale state; retry")
+                if state.estop_latched:
+                    return self._reject(request_id, "E-stop latched")
+                if not (
+                    state.gateway_neutral and state.gateway_input_fresh
+                    and state.wheels_stopped
+                ):
+                    return self._reject(
+                        request_id,
+                        "arm requires released neutral input "
+                        "and stopped wheels",
+                    )
             return None
         if request.get("phase") is not None:
             return self._reject(request_id, "phase is emergency-only")
@@ -406,16 +430,19 @@ class OpsBrokerCore:
                     request_id=request["request_id"],
                     status=oc.STATUS_PENDING,
                     state_revision=self._revision(), detail="in flight",
+                    queried_request_id=target,
                 )
             body = json.loads(cached)
             return oc.encode_response(
                 request_id=request["request_id"], status=body["status"],
                 state_revision=self._revision(), detail=body["detail"],
+                queried_request_id=target,
             )
         return oc.encode_response(
             request_id=request["request_id"],
             status=oc.STATUS_OUTCOME_UNKNOWN,
             state_revision=self._revision(), detail="no record",
+            queried_request_id=target,
         )
 
     def complete(self, pending_key, success, detail, *, status=None):

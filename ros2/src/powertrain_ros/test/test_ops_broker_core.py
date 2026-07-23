@@ -65,6 +65,21 @@ def _req(token, action, request_id="r-1", sequence=0, **extra):
     return json.dumps(payload)
 
 
+def _execute_emergency_arm(core, clock):
+    core.handle_line(
+        "c2", oc.ROLE_CONTROLLER,
+        _req("tok-ctrl", "arm", request_id="arm-begin", phase="begin"),
+    )
+    clock.now += oc.EMERGENCY_HOLD_S["arm"] + 0.1
+    return core.handle_line(
+        "c2", oc.ROLE_CONTROLLER,
+        _req(
+            "tok-ctrl", "arm", request_id="arm-execute", sequence=1,
+            phase="execute", stamp_s=clock.now,
+        ),
+    )
+
+
 def test_handshake_maps_token_to_role_and_rejects_unknown():
     core, _, _ = _core()
     role, response = core.handshake("c1", _hello("tok-console"))
@@ -373,6 +388,137 @@ def test_second_mutation_while_pending_is_busy_rejected():
     core.complete(first.execute.pending_key, True, "ok")
 
 
+def test_retransmitted_emergency_begin_replays_cached_success():
+    core, _, _ = _core()
+    request = _req(
+        "tok-ctrl", "arm", request_id="arm-begin", phase="begin"
+    )
+
+    first = core.handle_line("c2", oc.ROLE_CONTROLLER, request)
+    retry = core.handle_line("c2", oc.ROLE_CONTROLLER, request)
+
+    assert json.loads(first.response)["status"] == oc.STATUS_FINAL_SUCCESS
+    assert retry.response == first.response
+    assert retry.execute is None
+
+
+def test_retransmitted_post_sequence_authorization_rejection_is_cached():
+    core, _, _ = _core()
+    request = _req(
+        "tok-ctrl", "mission_skip", request_id="forbidden"
+    )
+
+    first = core.handle_line("c2", oc.ROLE_CONTROLLER, request)
+    retry = core.handle_line("c2", oc.ROLE_CONTROLLER, request)
+
+    assert "role not authorized" in json.loads(first.response)["detail"]
+    assert retry.response == first.response
+    assert retry.execute is None
+
+
+def test_retransmitted_revision_rejection_is_cached():
+    core, _, holder = _core()
+    holder["state"] = _state(revision=7)
+    request = _req(
+        "tok-console", "authority_manual", request_id="revision",
+        expected_state_revision=6,
+    )
+
+    first = core.handle_line("c1", oc.ROLE_CONSOLE, request)
+    retry = core.handle_line("c1", oc.ROLE_CONSOLE, request)
+
+    assert "state revision mismatch" in json.loads(first.response)["detail"]
+    assert retry.response == first.response
+    assert retry.execute is None
+
+
+def test_retransmitted_precondition_rejection_is_cached():
+    core, _, _ = _core(state=_state(authority_mode="MOTION_HOLD"))
+    request = _req(
+        "tok-console", "authority_manual", request_id="held"
+    )
+
+    first = core.handle_line("c1", oc.ROLE_CONSOLE, request)
+    retry = core.handle_line("c1", oc.ROLE_CONSOLE, request)
+
+    assert "MOTION_HOLD" in json.loads(first.response)["detail"]
+    assert retry.response == first.response
+    assert retry.execute is None
+
+
+def test_retransmitted_busy_rejection_is_cached():
+    core, _, _ = _core()
+    pending = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "operator_hold", request_id="pending"),
+    )
+    request = _req(
+        "tok-console", "disarm", request_id="busy", sequence=1
+    )
+
+    first = core.handle_line("c1", oc.ROLE_CONSOLE, request)
+    retry = core.handle_line("c1", oc.ROLE_CONSOLE, request)
+
+    assert "busy" in json.loads(first.response)["detail"]
+    assert retry.response == first.response
+    assert retry.execute is None
+    core.complete(pending.execute.pending_key, True, "hold published")
+
+
+def test_cache_pressure_does_not_reexecute_in_flight_estop():
+    core, _, _ = _core(cache_size=1)
+
+    first = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "estop", request_id="estop-1"),
+    )
+    pressure = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req(
+            "tok-console", "estop", request_id="estop-2", sequence=1
+        ),
+    )
+    retry = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "estop", request_id="estop-1"),
+    )
+
+    execution_orders = [
+        decision.execute
+        for decision in (first, pressure, retry)
+        if decision.execute is not None
+    ]
+    assert len(execution_orders) == 2
+    assert retry.execute is None
+    assert json.loads(retry.response)["status"] == oc.STATUS_PENDING
+
+
+def test_mixed_cache_pressure_evicts_completed_entry_and_pins_estop():
+    core, _, _ = _core(cache_size=1)
+    core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "estop", request_id="pinned-estop"),
+    )
+    begin_request = _req(
+        "tok-ctrl", "arm", request_id="completed-begin", phase="begin"
+    )
+    core.handle_line("c2", oc.ROLE_CONTROLLER, begin_request)
+
+    assert len(core._cache) == 1
+    estop_retry = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "estop", request_id="pinned-estop"),
+    )
+    begin_retry = core.handle_line(
+        "c2", oc.ROLE_CONTROLLER, begin_request
+    )
+
+    assert estop_retry.execute is None
+    assert json.loads(estop_retry.response)["status"] == oc.STATUS_PENDING
+    assert begin_retry.execute is None
+    assert "sequence regression" in json.loads(begin_retry.response)["detail"]
+
+
 def test_estop_preempts_pending_mutation_and_produces_execution_order():
     core, _, _ = _core()
     arm = core.handle_line(
@@ -468,26 +614,31 @@ def test_retransmitted_pending_estop_is_idempotent_and_executes_once():
     core.complete(first.execute.pending_key, True, "estop triggered")
 
 
-def test_pending_fingerprint_survives_cache_eviction_until_completion():
+def test_completed_outcome_is_evicted_before_in_flight_estop():
     core, _, _ = _core(cache_size=1)
     hold = core.handle_line(
         "c1", oc.ROLE_CONSOLE, _req("tok-console", "operator_hold")
     )
-    core.handle_line(
+    estop = core.handle_line(
         "c1", oc.ROLE_CONSOLE,
         _req("tok-console", "estop", request_id="r-estop", sequence=1),
     )
     core.complete(hold.execute.pending_key, True, "operator hold published")
 
-    retry = core.handle_line(
+    hold_retry = core.handle_line(
         "c1", oc.ROLE_CONSOLE,
         _req("tok-console", "operator_hold", sequence=1),
     )
+    estop_retry = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req("tok-console", "estop", request_id="r-estop", sequence=1),
+    )
 
-    assert retry.execute is None
-    body = json.loads(retry.response)
-    assert body["status"] == "FINAL_SUCCESS"
-    assert body["detail"] == "operator hold published"
+    assert hold_retry.execute is None
+    assert "busy" in json.loads(hold_retry.response)["detail"]
+    assert estop.execute is not None
+    assert estop_retry.execute is None
+    assert json.loads(estop_retry.response)["status"] == oc.STATUS_PENDING
 
 
 def test_same_request_id_with_different_non_estop_action_is_rejected():
@@ -572,6 +723,53 @@ def test_expected_state_revision_mismatch_is_rejected():
     assert decision.execute is None
 
 
+def test_emergency_arm_execute_rejects_stale_gateway_state():
+    ages = {"authority": 0.0, "gateway": oc.OPS_STATE_STALE_S + 0.01,
+            "safety": 0.0, "wheels": 0.0}
+    core, clock, _ = _core(state=_state(field_age_s=ages))
+
+    decision = _execute_emergency_arm(core, clock)
+
+    assert decision.execute is None
+    body = json.loads(decision.response)
+    assert body["status"] == oc.STATUS_FINAL_REJECTED
+    assert "stale" in body["detail"]
+
+
+def test_emergency_arm_execute_rejects_stale_wheels_state():
+    ages = {"authority": 0.0, "gateway": 0.0, "safety": 0.0,
+            "wheels": oc.OPS_STATE_STALE_S + 0.01}
+    core, clock, _ = _core(state=_state(field_age_s=ages))
+
+    decision = _execute_emergency_arm(core, clock)
+
+    assert decision.execute is None
+    body = json.loads(decision.response)
+    assert body["status"] == oc.STATUS_FINAL_REJECTED
+    assert "stale" in body["detail"]
+
+
+def test_emergency_arm_execute_rejects_latched_estop():
+    core, clock, _ = _core(state=_state(estop_latched=True))
+
+    decision = _execute_emergency_arm(core, clock)
+
+    assert decision.execute is None
+    body = json.loads(decision.response)
+    assert body["status"] == oc.STATUS_FINAL_REJECTED
+    assert "E-stop latched" in body["detail"]
+
+
+def test_emergency_arm_execute_accepts_fresh_clear_state():
+    core, clock, _ = _core()
+
+    decision = _execute_emergency_arm(core, clock)
+
+    assert json.loads(decision.response)["status"] == oc.STATUS_PENDING
+    assert decision.execute is not None
+    assert decision.execute.action == "arm"
+
+
 def test_status_query_returns_cached_or_unknown():
     core, _, _ = _core()
     decision = core.handle_line(
@@ -592,6 +790,33 @@ def test_status_query_returns_cached_or_unknown():
              params={"request_id": "never"}),
     )
     assert json.loads(miss.response)["status"] == "OUTCOME_UNKNOWN"
+
+
+def test_status_query_results_mark_target_but_rate_rejection_does_not():
+    core, _, _ = _core(rate_limit_per_s=1)
+
+    successful = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req(
+            "tok-console", "status_query", request_id="query-1",
+            params={"request_id": "target-1"},
+        ),
+    )
+    rejected = core.handle_line(
+        "c1", oc.ROLE_CONSOLE,
+        _req(
+            "tok-console", "status_query", request_id="query-2", sequence=1,
+            params={"request_id": "target-1"},
+        ),
+    )
+
+    successful_body = json.loads(successful.response)
+    rejected_body = json.loads(rejected.response)
+    assert successful_body["status"] == oc.STATUS_OUTCOME_UNKNOWN
+    assert successful_body["queried_request_id"] == "target-1"
+    assert rejected_body["status"] == oc.STATUS_FINAL_REJECTED
+    assert "rate limit" in rejected_body["detail"]
+    assert "queried_request_id" not in rejected_body
 
 
 def test_rate_limit_rejects_flood():
