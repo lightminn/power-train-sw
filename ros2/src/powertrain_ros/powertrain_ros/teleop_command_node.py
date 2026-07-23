@@ -97,6 +97,7 @@ class TeleopCommandNode(Node):
         self._events_lock = threading.Lock()
         self._motion_frame = None
         self._motion_frames_dropped = 0
+        self._gateway_estop_pending = False
         self._lifecycle_events = deque(maxlen=MAX_LIFECYCLE_EVENTS)
         self._violation_events = deque(maxlen=MAX_VIOLATION_KINDS)
         self._status_lock = threading.Lock()
@@ -228,11 +229,16 @@ class TeleopCommandNode(Node):
         for result in results:
             if result.frame is not None:
                 if result.frame.estop_edge:
-                    # Do this before the overwritable motion slot.  The TCP
-                    # thread only sets a lock-protected flag; ROS publication
-                    # stays on _tick and TRANSIENT_LOCAL keeps the event
-                    # durable for late subscribers.
-                    self._begin_estop_event(event_now_s)
+                    # Gateway latch와 ROS durable 발행을 motion 최신값 슬롯과
+                    # 별도로 보존한다. 다음 정상 frame이 같은 batch에서
+                    # 덮어써도 gateway E-stop edge는 다음 drain에 남는다.
+                    lock = getattr(self, "_events_lock", None)
+                    if lock is None:
+                        lock = threading.Lock()
+                        self._events_lock = lock
+                    with lock:
+                        self._gateway_estop_pending = True
+                        self._begin_estop_event(event_now_s)
                 self._queue_motion_frame(result.frame)
             else:
                 rate_lock = getattr(self, "_violation_rate_lock", None)
@@ -270,16 +276,27 @@ class TeleopCommandNode(Node):
             return self._status_line
 
     def _serve_client(self, connection):
-        connection.settimeout(0.20)
-        connection.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-        # 상태 회신도 Nagle에 뭉치면 클라이언트 표시가 늦는다 — 양단 NODELAY.
-        connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self._decoder.start_connection()
-        connection_session_id = uuid.uuid4().hex
-        self._queue_lifecycle_event("connect", connection_session_id)
-        last_status_s = 0.0
-        last_data_s = time.monotonic()
+        decoder_started = False
+        connection_session_id = None
         try:
+            connection.settimeout(0.20)
+            connection.setsockopt(
+                socket.SOL_SOCKET,
+                socket.SO_KEEPALIVE,
+                1,
+            )
+            # 상태 회신도 Nagle에 뭉치면 클라이언트 표시가 늦는다 — 양단 NODELAY.
+            connection.setsockopt(
+                socket.IPPROTO_TCP,
+                socket.TCP_NODELAY,
+                1,
+            )
+            self._decoder.start_connection()
+            decoder_started = True
+            connection_session_id = uuid.uuid4().hex
+            self._queue_lifecycle_event("connect", connection_session_id)
+            last_status_s = 0.0
+            last_data_s = time.monotonic()
             while not self._stop_event.is_set():
                 try:
                     data = connection.recv(4096)
@@ -309,12 +326,17 @@ class TeleopCommandNode(Node):
                     except OSError:
                         break
                     last_status_s = now_s
+        except OSError:
+            # accept 이후의 socket 설정 실패도 해당 연결만 폐기한다.
+            pass
         finally:
-            self._queue_decoder_results(self._decoder.end_connection())
-            self._queue_lifecycle_event(
-                "disconnect",
-                connection_session_id,
-            )
+            if decoder_started:
+                self._queue_decoder_results(self._decoder.end_connection())
+            if connection_session_id is not None:
+                self._queue_lifecycle_event(
+                    "disconnect",
+                    connection_session_id,
+                )
 
     def _serve(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -329,14 +351,24 @@ class TeleopCommandNode(Node):
                     connection, _address = server.accept()
                 except socket.timeout:
                     continue
-                except OSError:
+                except OSError as exc:
                     if self._stop_event.is_set():
                         break
-                    raise
+                    self._log_violation_throttled(
+                        "remote input TCP accept failed: %r; retrying" % exc,
+                        time.monotonic(),
+                    )
+                    # EMFILE 같은 지속 장애에서도 accept hot-spin을 막되
+                    # 종료 신호에는 즉시 반응한다.
+                    self._stop_event.wait(0.20)
+                    continue
                 try:
                     self._serve_client(connection)
                 finally:
-                    connection.close()
+                    try:
+                        connection.close()
+                    except OSError:
+                        pass
         except BaseException as exc:
             if not self._stop_event.is_set():
                 self._queue_violation(
@@ -379,7 +411,11 @@ class TeleopCommandNode(Node):
                     "_violation_events",
                     None,
                 )
-                if lifecycle_events:
+                if getattr(self, "_gateway_estop_pending", False):
+                    self._gateway_estop_pending = False
+                    event = "gateway_estop"
+                    payload = None
+                elif lifecycle_events:
                     lifecycle, session_id = lifecycle_events.popleft()
                     event = "lifecycle"
                     payload = (lifecycle, session_id)
@@ -393,7 +429,9 @@ class TeleopCommandNode(Node):
                 else:
                     break
             processed += 1
-            if event == "lifecycle":
+            if event == "gateway_estop":
+                self._gateway._enter_hold("remote E-stop edge")
+            elif event == "lifecycle":
                 lifecycle, _session_id = payload
                 if lifecycle == "connect":
                     self._gateway.begin_connection()

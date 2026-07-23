@@ -206,7 +206,7 @@ services:
         cd /workspace/ros2
         colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
         source install/setup.bash
-        exec ros2 launch powertrain_ros wp5_control.launch.py stop_mm:=$$STOP_MM
+        exec ros2 launch powertrain_ros wp5_control.launch.py stop_mm:=$$STOP_MM authority_enabled:=true
     restart: unless-stopped
     healthcheck:
       # ⚠️ cmdline grep 함정(§powertrain_control 참조) — 래퍼가 아니라 실제

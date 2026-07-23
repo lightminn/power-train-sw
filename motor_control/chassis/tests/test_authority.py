@@ -307,14 +307,45 @@ def test_idle_to_first_source_still_uses_neutral_gate_when_unqualified():
     assert a.select(0.0).ok is False
 
 
-def test_explicit_idle_request_always_stops_without_wheel_qualification():
+def test_request_idle_after_teleop_drive_emits_one_explicit_zero():
     a = _a(
         wheel_stopped=lambda: False,
         wheel_stop_qualified=lambda: False,
     )
-    _active_auto(a)
+    a.submit(MANUAL_SOURCE, 0.0, 0.0, t=0.0)
+    assert a.set_mode(MANUAL) is True
+    assert a.select(0.0).ok is True
+    a.submit(MANUAL_SOURCE, 0.5, 0.1, t=0.1)
+    drive = a.select(0.1)
+    assert (drive.v, drive.omega, drive.ok) == (0.5, 0.1, True)
 
-    assert a.set_mode(IDLE) is True
+    result = a.request_mode(IDLE, t=0.2)
+    assert result.accepted is True
     assert a.mode == IDLE
-    command = a.select(0.2)
-    assert (command.v, command.omega, command.ok) == (0.0, 0.0, False)
+
+    first = a.select(0.2)
+    assert (first.v, first.omega, first.ok) == (0.0, 0.0, True)
+    assert a.select(0.21).ok is False
+
+    # Already-IDLE requests do not re-arm the one-shot command.
+    assert a.request_mode(IDLE, t=0.22).accepted is True
+    assert a.select(0.22).ok is False
+
+
+def test_clear_hold_after_drive_emits_one_explicit_zero():
+    a = _a(stale_s=0.3)
+    a.submit(MANUAL_SOURCE, 0.0, 0.0, t=0.0)
+    assert a.set_mode(MANUAL) is True
+    assert a.select(0.0).ok is True
+    a.submit(MANUAL_SOURCE, 0.5, 0.1, t=0.1)
+    drive = a.select(0.1)
+    assert (drive.v, drive.omega, drive.ok) == (0.5, 0.1, True)
+
+    assert a.select(0.41).ok is False
+    assert a.mode == MOTION_HOLD
+    assert a.clear_hold() is True
+    assert a.mode == IDLE
+
+    first = a.select(0.42)
+    assert (first.v, first.omega, first.ok) == (0.0, 0.0, True)
+    assert a.select(0.43).ok is False

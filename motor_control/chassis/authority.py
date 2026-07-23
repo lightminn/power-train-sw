@@ -83,6 +83,7 @@ class CommandAuthority:
         ):
             raise ValueError("handover_timeout_s must be finite and positive")
         self.mode = IDLE
+        self._idle_zero_pending = False
         self._src = {}
         self._armed = False
         self._wheel_stopped = wheel_stopped
@@ -100,6 +101,12 @@ class CommandAuthority:
     def _transition_result(self, accepted, reason):
         self.last_transition_reason = reason
         return TransitionResult(bool(accepted), reason, self.mode)
+
+    def _set_mode(self, mode):
+        if mode == self.mode:
+            return
+        self.mode = mode
+        self._idle_zero_pending = mode == IDLE
 
     @staticmethod
     def _call_flag(value):
@@ -131,7 +138,7 @@ class CommandAuthority:
             )
 
         if target == IDLE:
-            self.mode = IDLE
+            self._set_mode(IDLE)
             self._pending_mode = None
             self._stopping_started_s = None
             self._stopping_zero_emitted = False
@@ -169,7 +176,7 @@ class CommandAuthority:
             when = self._last_select_t if t is None else float(t)
             if not math.isfinite(when):
                 return self._transition_result(False, "invalid request time")
-            self.mode = STOPPING_FOR_HANDOVER
+            self._set_mode(STOPPING_FOR_HANDOVER)
             self._pending_mode = target
             self._stopping_started_s = when
             self._stopping_zero_emitted = False
@@ -181,7 +188,7 @@ class CommandAuthority:
 
         # IDLE→source and already-zero source→source retain the transitional
         # neutral gate, without requiring a physical-stop predicate.
-        self.mode = target
+        self._set_mode(target)
         self._armed = False
         return self._transition_result(
             True,
@@ -196,7 +203,7 @@ class CommandAuthority:
         """Acknowledge a hold and return to IDLE; never resume a source."""
         if self.mode != MOTION_HOLD:
             return False
-        self.mode = IDLE
+        self._set_mode(IDLE)
         self._pending_mode = None
         self._stopping_started_s = None
         self._stopping_zero_emitted = False
@@ -212,12 +219,12 @@ class CommandAuthority:
     def _select_stopping(self, t):
         elapsed = t - self._stopping_started_s
         if elapsed < 0.0:
-            self.mode = MOTION_HOLD
+            self._set_mode(MOTION_HOLD)
             self._pending_mode = None
             self._armed = False
             return self._zero("clock rollback during handover → MOTION_HOLD")
         if elapsed + 1e-12 >= self.cfg.handover_timeout_s:
-            self.mode = MOTION_HOLD
+            self._set_mode(MOTION_HOLD)
             self._pending_mode = None
             self._armed = False
             return self._zero("handover timeout → MOTION_HOLD")
@@ -231,7 +238,7 @@ class CommandAuthority:
         try:
             stopped = self._call_flag(self._wheel_stopped)
         except Exception as exc:
-            self.mode = MOTION_HOLD
+            self._set_mode(MOTION_HOLD)
             self._pending_mode = None
             self._armed = False
             return self._zero(
@@ -241,7 +248,7 @@ class CommandAuthority:
             return self._zero("STOPPING_FOR_HANDOVER — wheel stop pending")
 
         target = self._pending_mode
-        self.mode = target
+        self._set_mode(target)
         self._pending_mode = None
         self._stopping_started_s = None
         self._stopping_zero_emitted = False
@@ -256,6 +263,9 @@ class CommandAuthority:
         if self.mode == MOTION_HOLD:
             return self._zero("MOTION_HOLD — clear_hold() required")
         if self.mode == IDLE:
+            if self._idle_zero_pending:
+                self._idle_zero_pending = False
+                return self._zero("IDLE entered — zero commanded")
             return Command(reason="IDLE — 아무도 조종하지 않음")
 
         name = _SOURCE_BY_STATE[self.mode]
@@ -266,11 +276,11 @@ class CommandAuthority:
         v, omega, ts = entry
         age = t - ts
         if age < 0.0:
-            self.mode = MOTION_HOLD
+            self._set_mode(MOTION_HOLD)
             self._armed = False
             return Command(reason=f"{name} future timestamp → MOTION_HOLD")
         if age > self.cfg.stale_s:
-            self.mode = MOTION_HOLD
+            self._set_mode(MOTION_HOLD)
             self._armed = False
             return Command(reason=f"{name} stale ({age:.2f}s) → MOTION_HOLD")
 
