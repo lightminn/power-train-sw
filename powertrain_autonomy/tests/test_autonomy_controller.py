@@ -224,6 +224,154 @@ def test_offset_and_heading_signs_steer_toward_positive_left_path(offset, headin
     assert math.copysign(1.0, decision.omega_rad_s) == expected_sign
 
 
+def test_sustained_turn_intent_opens_measured_yaw_rate_damping_gate():
+    estimate = terrain(path_offset_m=0.10, heading_error_rad=0.20)
+    state = motion(yaw_rate_rad_s=0.30)
+
+    def decision_for(kd_yaw):
+        controller = AutonomyController(
+            EMPTY_STOWED,
+            AutonomyControllerConfig(kd_yaw=kd_yaw),
+        )
+        decision = decide_fresh(
+            controller,
+            0.0,
+            estimate=estimate,
+            state=state,
+        )
+        for tick in range(1, 21):
+            decision = decide_fresh(
+                controller,
+                tick * 0.25,
+                estimate=estimate,
+                state=state,
+            )
+        return decision
+
+    proportional = decision_for(0.0)
+    damped = decision_for(0.4)
+
+    assert proportional.state == damped.state == "TRACKING"
+    assert proportional.omega_rad_s == pytest.approx(0.32)
+    assert damped.omega_rad_s == pytest.approx(0.20)
+    assert 0.0 < damped.omega_rad_s < proportional.omega_rad_s
+
+
+def test_nearly_straight_turn_intent_preserves_terrain_induced_yaw_rate():
+    estimate = terrain(heading_error_rad=0.001)
+    state = motion(yaw_rate_rad_s=0.30)
+
+    def decision_for(kd_yaw):
+        controller = AutonomyController(
+            EMPTY_STOWED,
+            AutonomyControllerConfig(kd_yaw=kd_yaw),
+        )
+        decision = decide_fresh(
+            controller,
+            0.0,
+            estimate=estimate,
+            state=state,
+        )
+        for tick in range(1, 41):
+            decision = decide_fresh(
+                controller,
+                tick * 0.25,
+                estimate=estimate,
+                state=state,
+            )
+        return decision
+
+    proportional = decision_for(0.0)
+    damped = decision_for(0.5)
+
+    assert proportional.state == damped.state == "TRACKING"
+    assert proportional.omega_rad_s == pytest.approx(0.0012)
+    assert damped.omega_rad_s == pytest.approx(
+        proportional.omega_rad_s,
+        abs=1.0e-3,
+    )
+
+
+def test_blocked_state_clears_sustained_turn_activity():
+    controller = AutonomyController(
+        EMPTY_STOWED,
+        AutonomyControllerConfig(kd_yaw=0.5),
+    )
+    turning = terrain(path_offset_m=0.10, heading_error_rad=0.20)
+    yawing = motion(yaw_rate_rad_s=0.30)
+    for tick in range(21):
+        decide_fresh(
+            controller,
+            tick * 0.25,
+            estimate=turning,
+            state=yawing,
+        )
+
+    blocked = controller.decide(
+        5.25,
+        terrain=terrain(5.25),
+        motion=motion(5.25),
+        gate=gate(5.25, "EXECUTING"),
+        diagnostics=None,
+    )
+    resumed = decide_fresh(
+        controller,
+        5.50,
+        estimate=terrain(heading_error_rad=0.001),
+        state=yawing,
+    )
+
+    assert blocked.state == "BLOCKED"
+    assert resumed.state == "TRACKING"
+    assert resumed.omega_rad_s == pytest.approx(0.0012, abs=1.0e-3)
+
+
+def test_controlled_hold_clears_sustained_turn_activity():
+    controller = AutonomyController(
+        EMPTY_STOWED,
+        AutonomyControllerConfig(kd_yaw=0.5),
+    )
+    turning = terrain(path_offset_m=0.10, heading_error_rad=0.20)
+    yawing = motion(yaw_rate_rad_s=0.30)
+    for tick in range(21):
+        decide_fresh(
+            controller,
+            tick * 0.25,
+            estimate=turning,
+            state=yawing,
+        )
+
+    held = decide_fresh(
+        controller,
+        5.25,
+        estimate=terrain(path_available=False),
+        state=yawing,
+    )
+    nearly_straight = terrain(heading_error_rad=0.001)
+    assert decide_fresh(
+        controller,
+        5.50,
+        estimate=nearly_straight,
+        state=yawing,
+    ).state == "CONTROLLED_HOLD"
+    assert decide_fresh(
+        controller,
+        5.75,
+        estimate=nearly_straight,
+        state=yawing,
+    ).state == "CONTROLLED_HOLD"
+    resumed = decide_fresh(
+        controller,
+        6.00,
+        estimate=nearly_straight,
+        state=yawing,
+    )
+
+    assert held.state == "CONTROLLED_HOLD"
+    assert resumed.state == "TRACKING"
+    assert resumed.omega_rad_s == pytest.approx(0.0012, abs=1.0e-3)
+
+
 @pytest.mark.parametrize(
     ("kind", "variant", "reason", "expected_state"),
     (
@@ -548,6 +696,10 @@ def test_blocked_rollback_does_not_move_slew_origin_back():
         ("kp_heading", -0.1),
         ("kp_offset", -0.1),
         ("curvature_slow_k", -0.1),
+        ("yaw_damp_gate_rad_s", 0.0),
+        ("yaw_damp_gate_rad_s", -0.1),
+        ("yaw_damp_tau_s", 0.0),
+        ("yaw_damp_tau_s", -0.1),
         ("clearance_hold_m", -0.1),
         ("clearance_full_m", 0.04),
         ("min_confidence", -0.1),
@@ -565,6 +717,20 @@ def test_blocked_rollback_does_not_move_slew_origin_back():
 def test_invalid_controller_config_raises_value_error(field, value):
     with pytest.raises(ValueError):
         AutonomyControllerConfig(**{field: value})
+
+
+@pytest.mark.parametrize("kd_yaw", (-0.1, math.nan, math.inf, True))
+def test_invalid_kd_yaw_raises_specific_value_error(kd_yaw):
+    with pytest.raises(
+        ValueError,
+        match="^kd_yaw must be finite and non-negative$",
+    ):
+        AutonomyControllerConfig(kd_yaw=kd_yaw)
+
+
+@pytest.mark.parametrize("kd_yaw", (0.0, 0.4))
+def test_nonnegative_finite_kd_yaw_is_accepted(kd_yaw):
+    assert AutonomyControllerConfig(kd_yaw=kd_yaw).kd_yaw == kd_yaw
 
 
 def test_nonfinite_now_is_rejected_before_a_nonfinite_decision_can_escape():

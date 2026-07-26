@@ -52,6 +52,9 @@ class AutonomyControllerConfig:
     kp_heading: float = 1.2
     kp_offset: float = 0.8
     curvature_slow_k: float = 1.0
+    kd_yaw: float = 0.0
+    yaw_damp_gate_rad_s: float = 0.25
+    yaw_damp_tau_s: float = 0.7
     clearance_hold_m: float = 0.05
     clearance_full_m: float = 0.30
     min_confidence: float = 0.25
@@ -91,6 +94,8 @@ class AutonomyControllerConfig:
             "kp_heading",
             "kp_offset",
             "curvature_slow_k",
+            "yaw_damp_gate_rad_s",
+            "yaw_damp_tau_s",
             "clearance_hold_m",
             "clearance_full_m",
             "min_confidence",
@@ -100,6 +105,13 @@ class AutonomyControllerConfig:
             value = getattr(self, name)
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError(f"{name} must be finite and positive")
+        if (
+            not isinstance(self.kd_yaw, (int, float))
+            or isinstance(self.kd_yaw, bool)
+            or not math.isfinite(float(self.kd_yaw))
+            or float(self.kd_yaw) < 0.0
+        ):
+            raise ValueError("kd_yaw must be finite and non-negative")
         if self.clearance_hold_m >= self.clearance_full_m:
             raise ValueError("clearance_hold_m must be below clearance_full_m")
         if not self.min_confidence < self.full_confidence <= 1.0:
@@ -224,6 +236,7 @@ class AutonomyController:
         self._last_stamp_s: float | None = None
         self._v_m_s = 0.0
         self._omega_rad_s = 0.0
+        self._turn_activity = 0.0
         self._recovering_from_hold = False
         self._recovery_fresh_ticks = 0
         self._recovery_started_s: float | None = None
@@ -250,6 +263,7 @@ class AutonomyController:
     def _blocked(self, now_s: float, reasons) -> ControllerDecision:
         self._v_m_s = 0.0
         self._omega_rad_s = 0.0
+        self._turn_activity = 0.0
         self._recovering_from_hold = False
         self._recovery_fresh_ticks = 0
         self._recovery_started_s = None
@@ -269,6 +283,7 @@ class AutonomyController:
         *,
         reset_recovery: bool,
     ) -> ControllerDecision:
+        self._turn_activity = 0.0
         if reset_recovery:
             self._recovering_from_hold = True
             self._recovery_fresh_ticks = 0
@@ -484,10 +499,30 @@ class AutonomyController:
                 reasons.append("speed_cap")
                 v_lim = speed_cap
 
-        omega_raw = (
+        omega_p = (
             self.config.kp_heading * terrain.heading_error_rad
             + self.config.kp_offset * terrain.path_offset_m
         )
+        if self.config.kd_yaw > 0.0:
+            alpha = (
+                dt / (self.config.yaw_damp_tau_s + dt)
+                if dt > 0.0
+                else 0.0
+            )
+            self._turn_activity += (
+                abs(omega_p) - self._turn_activity
+            ) * alpha
+            gate = _clamp(
+                self._turn_activity / self.config.yaw_damp_gate_rad_s,
+                0.0,
+                1.0,
+            )
+            omega_raw = (
+                omega_p
+                - self.config.kd_yaw * motion.yaw_rate_rad_s * gate
+            )
+        else:
+            omega_raw = omega_p
         if not math.isfinite(omega_raw):
             return self._controlled_hold(
                 now_s,

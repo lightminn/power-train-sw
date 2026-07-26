@@ -149,6 +149,11 @@ class AutonomyControllerNode(Node):
             default_qualification_file,
         )
         self.declare_parameter("min_confidence", 0.25)
+        # Clothoid limit-cycle fix: turn-intent-gated yaw-rate damping. See
+        # docs/reports/2026-07-25-m4-clothoid-steering-limit-cycle.md.
+        self.declare_parameter("kd_yaw", 0.5)
+        self.declare_parameter("yaw_damp_gate_rad_s", 0.25)
+        self.declare_parameter("yaw_damp_tau_s", 0.7)
         # L515 는 1/4000 m/unit. D400 계열의 0.001 이 아니다 — 틀리면 모든 지형
         # 거리가 4배로 나온다. Gateway 는 raw Z16 을 16UC1 로 그대로 발행하므로
         # 이 노드와 l515_cloud_node 는 같은 /l515/depth/image_rect_raw 를 같은
@@ -169,7 +174,14 @@ class AutonomyControllerNode(Node):
         controller_config = AutonomyControllerConfig(
             min_confidence=float(
                 self.get_parameter("min_confidence").value
-            )
+            ),
+            kd_yaw=float(self.get_parameter("kd_yaw").value),
+            yaw_damp_gate_rad_s=float(
+                self.get_parameter("yaw_damp_gate_rad_s").value
+            ),
+            yaw_damp_tau_s=float(
+                self.get_parameter("yaw_damp_tau_s").value
+            ),
         )
         self.controller = AutonomyController(profile, controller_config)
         self.degradation = DegradationFsm(clock=self._now_s)
@@ -781,6 +793,7 @@ class AutonomyControllerNode(Node):
     def _tick(self) -> None:
         now_s = self._now_s()
         terrain, terrain_seen = self._terrain_snapshot
+        motion = self._motion_state(now_s)
         assist = assist_correction_from_terrain(
             terrain,
             self.controller.config,
@@ -805,7 +818,7 @@ class AutonomyControllerNode(Node):
         decision = self.controller.decide(
             now_s,
             terrain=terrain,
-            motion=self._motion_state(now_s),
+            motion=motion,
             gate=self._gate,
             diagnostics=self._degradation_diagnostics(now_s),
         )
