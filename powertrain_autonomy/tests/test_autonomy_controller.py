@@ -257,6 +257,28 @@ def test_sustained_turn_intent_opens_measured_yaw_rate_damping_gate():
     assert 0.0 < damped.omega_rad_s < proportional.omega_rad_s
 
 
+def test_curvature_governor_uses_turn_intent_when_damping_cancels_yaw_command():
+    controller = AutonomyController(
+        EMPTY_STOWED,
+        AutonomyControllerConfig(kd_yaw=0.5),
+    )
+    estimate = terrain(path_offset_m=0.10, heading_error_rad=0.20)
+    state = motion(yaw_rate_rad_s=0.64)
+
+    for tick in range(21):
+        decision = decide_fresh(
+            controller,
+            tick * 0.25,
+            estimate=estimate,
+            state=state,
+        )
+
+    assert decision.state == "TRACKING"
+    assert decision.omega_rad_s == pytest.approx(0.0)
+    assert decision.v_m_s == pytest.approx(0.6060606060606061)
+    assert "curvature_slow" in decision.reasons
+
+
 def test_nearly_straight_turn_intent_preserves_terrain_induced_yaw_rate():
     estimate = terrain(heading_error_rad=0.001)
     state = motion(yaw_rate_rad_s=0.30)

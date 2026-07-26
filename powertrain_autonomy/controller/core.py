@@ -52,6 +52,9 @@ class AutonomyControllerConfig:
     kp_heading: float = 1.2
     kp_offset: float = 0.8
     curvature_slow_k: float = 1.0
+    # 0.0 preserves the pure-P baseline for tests/backward compatibility.
+    # Production enables the clothoid fix through autonomy_controller_node's
+    # kd_yaw=0.5 parameter; direct construction without a config is undamped.
     kd_yaw: float = 0.0
     yaw_damp_gate_rad_s: float = 0.25
     yaw_damp_tau_s: float = 0.7
@@ -504,11 +507,7 @@ class AutonomyController:
             + self.config.kp_offset * terrain.path_offset_m
         )
         if self.config.kd_yaw > 0.0:
-            alpha = (
-                dt / (self.config.yaw_damp_tau_s + dt)
-                if dt > 0.0
-                else 0.0
-            )
+            alpha = dt / (self.config.yaw_damp_tau_s + dt)
             self._turn_activity += (
                 abs(omega_p) - self._turn_activity
             ) * alpha
@@ -537,11 +536,11 @@ class AutonomyController:
         )
         if omega_target != omega_raw:
             reasons.append("yaw_rate_limited")
-        if omega_raw:
+        if omega_p:
             reasons.append("curvature_slow")
         v_target = max(
             0.0,
-            v_lim / (1.0 + self.config.curvature_slow_k * abs(omega_raw)),
+            v_lim / (1.0 + self.config.curvature_slow_k * abs(omega_p)),
         )
 
         self._v_m_s = _slew(

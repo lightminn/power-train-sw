@@ -149,8 +149,9 @@ class AutonomyControllerNode(Node):
             default_qualification_file,
         )
         self.declare_parameter("min_confidence", 0.25)
-        # Clothoid limit-cycle fix: turn-intent-gated yaw-rate damping. See
-        # docs/reports/2026-07-25-m4-clothoid-steering-limit-cycle.md.
+        # Clothoid limit-cycle fix: turn-intent-gated yaw-rate damping.
+        # Rationale and validation live in the power-train-sim repo:
+        # docs/reports/2026-07-25-m4-clothoid-steering-limit-cycle.md §7.
         self.declare_parameter("kd_yaw", 0.5)
         self.declare_parameter("yaw_damp_gate_rad_s", 0.25)
         self.declare_parameter("yaw_damp_tau_s", 0.7)
