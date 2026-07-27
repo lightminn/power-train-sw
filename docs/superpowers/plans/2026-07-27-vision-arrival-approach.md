@@ -1035,6 +1035,30 @@ git commit -m "docs(approach): E2E verification log — auto ARRIVED chain PASS 
 
 ---
 
+## 검증 결과 로그 (2026-07-27, 젯슨, 모터 무전원)
+
+- **Task 1–3 순수 코어**: `python -m pytest chassis/tests/test_approach.py` → **12 passed**.
+  음성대조 실증: `_tick_approaching`의 `v_settle` 정지 게이트 제거 시
+  `test_not_aligned_while_moving` FAIL(움직이는 중 발사) → 복원 후 PASS. 전체 chassis 회귀 444 passed.
+- **Task 4 노드**: 젯슨 running `powertrain_control` 컨테이너에서 소스경로 import →
+  rclpy·`_apply_tf` 재사용·`chassis.approach`·`robot_arm_msgs` 정상 해석, 20 cfg 필드.
+- **Task 6 rclpy 스모크**: 격리 install-base colcon 빌드(2.68s, 실행 스택 install/ 무영향) →
+  `ros2 pkg executables` 에 `approach_controller` 등록 → 도메인77 스모크 **PASS(1.82s)**:
+  실제 노드가 detection→정렬 후 `/approach/active`=true·`/autonomy/cmd_vel` 전진 크립·
+  mock `mission_arrive_pickup` **실호출**. ← 신규코드 통합점(정렬→서비스호출)의 실행 증명.
+- **Task 7 라이브 supervisor E2E**(도메인77 격리, `chassis` fake+contract_v2+bench + `approach_controller`
+  + fixture): 배포 chassis는 supervisor OFF라 격리 기동으로 수행. 결과 —
+  approach_controller가 detection→정렬→**실제 `/chassis_node/mission_arrive_pickup` 서비스 호출**,
+  실제 `MissionSupervisor`가 `/arm_status=STOWED_LOCKED` 수락 후 **미션 시작**, 정지확인
+  (`wheel_stop.confirmed`)을 통과해 **`EVENT_HOLD`(팔작업 대기 = ArrivalStatus 발행 상태) 도달**을
+  확인(직접 서비스 프로브: `False 'EVENT_HOLD|mission_busy:EVENT_HOLD'` = 첫 호출로 미션이 이미 시작됨).
+  즉 신규 approach 코드가 **실제 supervisor를 미션 시작까지 end-to-end 구동**함을 입증.
+  ⚠️ 단, fake 벤치 하네스에서 `/arrival_status` **와이어 메시지 직접 캡처는 미확정**(arrival
+  republish window·arm_gate 타이밍 — 기존 하류 동작). supervisor가 발행 상태(EVENT_HOLD)에
+  도달한 것으로 통합은 확인. `stop_m`·`lat_tol` 및 완전한 ArrivalStatus 왕복은 실서보 HIL 게이트로 이월.
+- **라이브 스택 무영향**: E2E 내내 `powertrain_chassis/control/observability/canwatchdog` healthy 유지,
+  젯슨 트리·오버레이·격리 install-base 전부 정리(git 0 changes). E2E 스크립트는 `scratchpad/`(미커밋).
+
 ## 실행 후 검증 (Claude 담당)
 
 - 순수 스위트: `cd motor_control && python -m pytest chassis/tests/test_approach.py -v` 전수 green + 음성대조 재확인.
