@@ -4,7 +4,7 @@
     /detected_objects ─┐
     /odom ─────────────┼─→ [이 노드: ApproachController] ─→ /autonomy/cmd_vel (제안)
     TF(base_link) ─────┘                                 ├─→ /approach/active (Bool)
-    /arm_status ────────────────────────────────────────┼─→ /approach/state  (String)
+    /arrival_status + /arm_status ──────────────────────┼─→ /approach/state  (String)
                                                           └─→ chassis/mission_arrive_pickup/_drop (Trigger)
 
 🛑 `/cmd_vel` 을 직접 쓰지 않는다 — authority가 내장된 chassis_node만 받는다.
@@ -26,7 +26,7 @@ from tf2_ros import Buffer, TransformListener
 
 from powertrain_ros import contract
 from powertrain_ros.section_supervisor_node import _apply_tf  # DRY: 동일 quaternion 규칙 재사용
-from robot_arm_msgs.msg import ArmStatus, DetectedObjectArray
+from robot_arm_msgs.msg import ArmStatus, ArrivalStatus, DetectedObjectArray
 
 sys.path.insert(0, os.environ.get("MOTOR_CONTROL_PATH", "/workspace/motor_control"))
 
@@ -69,7 +69,8 @@ class ApproachControllerNode(Node):
         self._speed_s = 0.0
         self._targets = []
         self._targets_stamp_s = 0.0
-        self._arm_done_prev = False
+        self._active_mission_id = None
+        self._resume_prev = False
         self._pending_fire = None
         self._call_inflight = False
 
@@ -79,6 +80,8 @@ class ApproachControllerNode(Node):
         self.create_subscription(DetectedObjectArray, contract.TOPIC_DETECTED,
                                  self._on_detections, 10)
         self.create_subscription(Odometry, "/odom", self._on_odom, 10)
+        self.create_subscription(ArrivalStatus, contract.TOPIC_ARRIVAL,
+                                 self._on_arrival, 10)
         self.create_subscription(ArmStatus, contract.TOPIC_ARM_STATUS,
                                  self._on_arm, 10)
 
@@ -109,11 +112,27 @@ class ApproachControllerNode(Node):
         self._speed = abs(msg.twist.twist.linear.x)
         self._speed_s = self._now()
 
+    def _on_arrival(self, msg: ArrivalStatus):
+        # chassis MissionSupervisor가 미션 진입 시 발행하는 mission_id를 학습한다.
+        mission_id = int(msg.mission_id)
+        if mission_id > 0:
+            self._active_mission_id = mission_id
+
     def _on_arm(self, msg: ArmStatus):
-        done = (str(msg.status) == contract.ARM_DONE)
-        if done and not self._arm_done_prev:
+        # v2 재출발 권위 = DRIVE_READY_STATUSES{STOWED_LOCKED, CARRYING_LOCKED} 진입.
+        # ⚠️ 팔은 idle에도 STOWED_LOCKED를 상시 발행하므로 mission_id 일치 + rising edge로만
+        #    "우리가 시킨 그 미션의 완료"를 인정한다(DONE은 v1-레거시라 안 쓴다).
+        status = str(msg.status)
+        drive_ready = status in contract.DRIVE_READY_STATUSES
+        matched = (
+            self._active_mission_id is not None
+            and int(msg.mission_id) == self._active_mission_id
+        )
+        cond = drive_ready and matched
+        if cond and not self._resume_prev:
             self.ctl.on_mission_done(self._now())
-        self._arm_done_prev = done
+            self._active_mission_id = None
+        self._resume_prev = cond
 
     def _on_detections(self, msg: DetectedObjectArray):
         self._targets_stamp_s = (
@@ -197,6 +216,8 @@ class ApproachControllerNode(Node):
     def _srv_reset(self, request, response):
         del request
         self.ctl.reset(self._now())
+        self._active_mission_id = None
+        self._resume_prev = False
         self._pending_fire = None
         response.success = True
         response.message = "reset"
