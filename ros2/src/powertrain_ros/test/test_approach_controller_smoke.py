@@ -23,7 +23,7 @@ def _spawn_node():
     env = dict(os.environ, ROS_DOMAIN_ID="77")
     return subprocess.Popen(
         ["ros2", "run", "powertrain_ros", "approach_controller",
-         "--ros-args", "-p", "enabled:=true", "-p", "consecutive:=2",
+         "--ros-args", "-p", "enabled:=true", "-p", "consecutive:=2.0",
          "-p", "stop_m:=1.0", "-p", "engage_m:=2.0",
          "-p", "lat_tol:=0.08", "-p", "dist_tol:=0.08", "-p", "v_settle:=0.05"],
         env=env, preexec_fn=os.setsid,
@@ -68,6 +68,7 @@ def test_approach_controller_fires_arrive_on_alignment():
         while time.time() - t0 < 30 and not got["called"]:
             arr = DetectedObjectArray()
             arr.header.frame_id = "arm_cam"
+            arr.header.stamp = node.get_clock().now().to_msg()
             o = DetectedObject()
             o.class_name = "box"
             o.confidence = 0.9
@@ -78,6 +79,7 @@ def test_approach_controller_fires_arrive_on_alignment():
             arr.objects = [o]
             pub_det.publish(arr)
             od = Odometry()
+            od.header.stamp = node.get_clock().now().to_msg()
             od.twist.twist.linear.x = 0.0
             pub_odom.publish(od)
             rclpy.spin_once(node, timeout_sec=0.1)

@@ -110,8 +110,9 @@ class LaneFollowerNode(Node):
         # 능동 접근 정렬(approach_controller)이 활성이면 그 노드가 /autonomy/cmd_vel 을
         # 단독으로 쓴다 → 여기서는 제안을 양보한다(단일 writer 규율).
         self._approach_active = False
+        self._approach_active_s = 0.0
         self.create_subscription(Bool, "/approach/active",
-                                 lambda m: setattr(self, "_approach_active", m.data), 10)
+                                 self._on_approach_active, 10)
 
         self.pub_state = self.create_publisher(Float32MultiArray, "/lane/state", 10)
         self.pub_cmd = self.create_publisher(Twist, "/autonomy/cmd_vel", 10)
@@ -149,6 +150,10 @@ class LaneFollowerNode(Node):
     def _steady_now_s(self):
         return self._steady_clock.now().nanoseconds * 1e-9
 
+    def _on_approach_active(self, msg: Bool):
+        self._approach_active = bool(msg.data)
+        self._approach_active_s = self._steady_now_s()
+
     @staticmethod
     def _stamp_s(stamp):
         return float(stamp.sec) + float(stamp.nanosec) * 1e-9
@@ -161,9 +166,14 @@ class LaneFollowerNode(Node):
         self._t_prev = t
 
         use_imu_tilt = bool(self.get_parameter("use_imu_tilt").value)
+        steady_now_s = self._steady_now_s()
         imu_is_fresh = self._imu_freshness.is_fresh(
-            now_steady_s=self._steady_now_s(),
+            now_steady_s=steady_now_s,
             now_ros_s=t,
+        )
+        approach_active = (
+            self._approach_active
+            and (steady_now_s - self._approach_active_s) < 0.5
         )
         roll, pitch = (
             self._tilt
@@ -192,7 +202,7 @@ class LaneFollowerNode(Node):
 
         # ⚠️ 못 보면 **아무것도 발행하지 않는다** — 마지막 명령을 반복하지 않는다.
         #    미션 시퀀서가 정차를 명령해도 마찬가지다(팔이 뻗어 있을 수 있다).
-        if ok and imu_is_fresh and self._allow_drive and not self._approach_active and bool(
+        if ok and imu_is_fresh and self._allow_drive and not approach_active and bool(
             self.get_parameter("enabled").value
         ):
             cmd = Twist()

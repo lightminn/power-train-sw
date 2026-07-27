@@ -31,7 +31,7 @@ from robot_arm_msgs.msg import ArmStatus, DetectedObjectArray
 sys.path.insert(0, os.environ.get("MOTOR_CONTROL_PATH", "/workspace/motor_control"))
 
 from chassis.approach import (                              # noqa: E402
-    ApproachConfig, ApproachController, Target, ARRIVED_PICKUP,
+    ALIGNED, ARRIVED_PICKUP, ApproachConfig, ApproachController, Target,
 )
 
 _CFG_FIELDS = (
@@ -41,6 +41,7 @@ _CFG_FIELDS = (
     "cooldown_s", "min_confidence", "lost_frames", "pose_stale_s",
     "pickup_class", "drop_class",
 )
+_INT_CFG_FIELDS = {"max_retries", "consecutive", "lost_frames"}
 
 
 class ApproachControllerNode(Node):
@@ -49,17 +50,28 @@ class ApproachControllerNode(Node):
         self.declare_parameter("enabled", False)
         self.declare_parameter("control_hz", 20.0)
         self.declare_parameter("base_frame", "base_link")
+        self.declare_parameter("odom_stale_s", 0.3)
         defaults = ApproachConfig()
         for f in _CFG_FIELDS:
-            self.declare_parameter(f, getattr(defaults, f))
-        cfg = ApproachConfig(**{f: self.get_parameter(f).value for f in _CFG_FIELDS})
+            default = getattr(defaults, f)
+            if f in _INT_CFG_FIELDS:
+                default = float(default)
+            self.declare_parameter(f, default)
+        cfg_values = {f: self.get_parameter(f).value for f in _CFG_FIELDS}
+        for f in _INT_CFG_FIELDS:
+            cfg_values[f] = int(cfg_values[f])
+        cfg = ApproachConfig(**cfg_values)
         self.ctl = ApproachController(cfg)
         self._base = str(self.get_parameter("base_frame").value)
         self._enabled = bool(self.get_parameter("enabled").value)
+        self._odom_stale_s = float(self.get_parameter("odom_stale_s").value)
         self._speed = 0.0
+        self._speed_s = 0.0
         self._targets = []
-        self._targets_s = 0.0          # 마지막 detection 수신 시각(freshness)
+        self._targets_stamp_s = 0.0
         self._arm_done_prev = False
+        self._pending_fire = None
+        self._call_inflight = False
 
         self._tf = Buffer()
         self._tfl = TransformListener(self._tf, self)
@@ -79,8 +91,13 @@ class ApproachControllerNode(Node):
             Trigger, "/chassis_node/mission_arrive_pickup")
         self.cli_drop = self.create_client(
             Trigger, "/chassis_node/mission_arrive_drop")
+        self.create_service(Trigger, "~/reset", self._srv_reset)
 
         hz = float(self.get_parameter("control_hz").value)
+        if not (hz > 0.0):
+            self.get_logger().warn(
+                "control_hz가 0 이하이거나 유효하지 않음 — 20.0 Hz 사용")
+            hz = 20.0
         self.create_timer(1.0 / hz, self._tick)
         self.get_logger().info(
             "approach_controller 시작 — 제안 %s" % ("ON" if self._enabled else "OFF"))
@@ -90,6 +107,7 @@ class ApproachControllerNode(Node):
 
     def _on_odom(self, msg: Odometry):
         self._speed = abs(msg.twist.twist.linear.x)
+        self._speed_s = self._now()
 
     def _on_arm(self, msg: ArmStatus):
         done = (str(msg.status) == contract.ARM_DONE)
@@ -98,6 +116,10 @@ class ApproachControllerNode(Node):
         self._arm_done_prev = done
 
     def _on_detections(self, msg: DetectedObjectArray):
+        self._targets_stamp_s = (
+            float(msg.header.stamp.sec)
+            + float(msg.header.stamp.nanosec) * 1e-9
+        )
         frame = msg.header.frame_id
         if not frame:
             self._targets = []
@@ -117,34 +139,53 @@ class ApproachControllerNode(Node):
             x, y, _z = _apply_tf(o.pose.position, tf)       # 3-튜플 (x,y,z), x=전방·y=횡
             out.append(Target(str(o.class_name), float(o.confidence), x, y))
         self._targets = out
-        self._targets_s = self._now()
 
     def _tick(self):
         # pose freshness: 오래된 검출로 크립 금지(§4.3). stale이면 빈 리스트→lost/정지.
         now = self._now()
-        stale = (now - self._targets_s) > self.ctl.cfg.pose_stale_s
+        age = now - self._targets_stamp_s
+        stale = age > self.ctl.cfg.pose_stale_s or age < -0.1
         targets = [] if stale else self._targets
-        d = self.ctl.update(targets, self._speed, now)
-        self.pub_active.publish(Bool(data=bool(d.active)))
+        odom_fresh = (now - self._speed_s) <= self._odom_stale_s
+        speed = self._speed if odom_fresh else 1e9
+        d = self.ctl.update(targets, speed, now)
+        self.pub_active.publish(Bool(data=bool(d.active and self._enabled)))
         self.pub_state.publish(String(data="%s|%s" % (d.state, d.reason)))
         if self._enabled and d.active:
             cmd = Twist()
             cmd.linear.x = float(d.v)
             cmd.angular.z = float(d.omega)
             self.pub_cmd.publish(cmd)
-        if d.fire is not None:
-            self._call_arrive(d.fire)
+        if self._enabled and d.fire is not None:
+            self._pending_fire = d.fire
+        if (
+            self._pending_fire is not None
+            and d.state != ALIGNED
+            and not self._call_inflight
+        ):
+            self._pending_fire = None
+        if (
+            self._enabled
+            and self._pending_fire is not None
+            and not self._call_inflight
+        ):
+            self._call_arrive(self._pending_fire)
 
     def _call_arrive(self, status):
         cli = self.cli_pickup if status == ARRIVED_PICKUP else self.cli_drop
         if not cli.service_is_ready():
-            self.get_logger().warn("mission_arrive 서비스 미준비 — ACK 거부 처리")
-            self.ctl.on_service_ack(False, self._now())
+            self.get_logger().warn(
+                "mission_arrive 서비스 미준비 — 다음 tick 재시도",
+                throttle_duration_sec=2.0,
+            )
             return
         fut = cli.call_async(Trigger.Request())
+        self._call_inflight = True
         fut.add_done_callback(self._on_arrive_resp)
 
     def _on_arrive_resp(self, fut):
+        self._call_inflight = False
+        self._pending_fire = None
         try:
             resp = fut.result()
             ok = bool(resp.success)
@@ -152,6 +193,14 @@ class ApproachControllerNode(Node):
             ok = False
         self.ctl.on_service_ack(ok, self._now())
         self.get_logger().warn("mission_arrive ACK success=%s" % ok)
+
+    def _srv_reset(self, request, response):
+        del request
+        self.ctl.reset(self._now())
+        self._pending_fire = None
+        response.success = True
+        response.message = "reset"
+        return response
 
 
 def main():
