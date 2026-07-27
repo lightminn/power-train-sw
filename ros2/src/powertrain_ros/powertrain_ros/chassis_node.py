@@ -439,10 +439,10 @@ class ChassisNode(Node):
         self._remote_assist_event_period_ns = 1_000_000_000
         self._last_section_enforcement_event_ns = 0
         self._section_enforcement_event_period_ns = 1_000_000_000
-        self._arm_interlock = ArmInterlock(timeout_s=0.5)
+        self._arm_interlock = ArmInterlock(timeout_s=contract.HEARTBEAT_TIMEOUT_S)
         # arm_absent_field의 mock은 실제 sample/latch와 분리한다. publisher가
         # 나타나는 tick부터 이 객체를 선택하지 않아 즉시 real default-deny로 복귀한다.
-        self._arm_absent_interlock = ArmInterlock(timeout_s=0.5)
+        self._arm_absent_interlock = ArmInterlock(timeout_s=contract.HEARTBEAT_TIMEOUT_S)
         self._arm_override_requested = False
         self._arm_override_activated_s = None
         self._arm_override_expired = False

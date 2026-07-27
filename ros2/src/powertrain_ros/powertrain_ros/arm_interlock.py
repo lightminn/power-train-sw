@@ -18,7 +18,7 @@ class ArmSnapshot:
 class ArmInterlock:
     """Fail-closed arm heartbeat, drive-profile, and work-ACK state core."""
 
-    def __init__(self, timeout_s=0.5, future_tolerance_s=0.1):
+    def __init__(self, timeout_s=contract.HEARTBEAT_TIMEOUT_S, future_tolerance_s=0.1):
         self.timeout_s = float(timeout_s)
         self.future_tolerance_s = float(future_tolerance_s)
         self._sample = None

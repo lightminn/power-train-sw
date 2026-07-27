@@ -9,6 +9,11 @@
 default-deny 잠금 명령이다. 상세 정본은 WP5.2 협업 안전 계획을 따른다.
 """
 
+# ── 팔 ↔ 우리: heartbeat timing ──
+# 로봇팔 팀 contract.py와 mirror한 값이며, 변경할 때는 양쪽을 함께 바꾼다.
+HEARTBEAT_RATE_HZ = 10.0              # 팔 ArmStatus 발행률(관측값)
+HEARTBEAT_TIMEOUT_S = 0.5             # stale 기준(= 5 × 1/HEARTBEAT_RATE_HZ)
+
 # ── 우리 → 팔: ArrivalStatus.status ──
 ARRIVED_PICKUP = "ARRIVED_PICKUP"     # 박스 정렬 완료 → 팔이 집기 시작(팔 IDLE 조건)
 ARRIVED_DROP = "ARRIVED_DROP"         # 하역 지점 도착 → 팔이 내려놓기(팔 CARRY 조건)
