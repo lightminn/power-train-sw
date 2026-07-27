@@ -11,8 +11,10 @@ default-deny 잠금 명령이다. 상세 정본은 WP5.2 협업 안전 계획을
 
 # ── 팔 ↔ 우리: heartbeat timing ──
 # 로봇팔 팀 contract.py와 mirror한 값이며, 변경할 때는 양쪽을 함께 바꾼다.
-HEARTBEAT_RATE_HZ = 10.0              # 팔 ArmStatus 발행률(관측값)
-HEARTBEAT_TIMEOUT_S = 0.5             # stale 기준(= 5 × 1/HEARTBEAT_RATE_HZ)
+HEARTBEAT_RATE_HZ = 10.0              # 팔 ArmStatus 발행률(관측값, 참고용 — 코드 미참조)
+# stale 기준. 독립적으로 튜닝하는 안전 임계값이며 HEARTBEAT_RATE_HZ에서 유도하지 않는다.
+# 현재값 0.5 s는 10 Hz 기준 대략 5-beat 누락에 해당(정보용, 코드가 강제하는 불변식 아님).
+HEARTBEAT_TIMEOUT_S = 0.5
 
 # ── 우리 → 팔: ArrivalStatus.status ──
 ARRIVED_PICKUP = "ARRIVED_PICKUP"     # 박스 정렬 완료 → 팔이 집기 시작(팔 IDLE 조건)
