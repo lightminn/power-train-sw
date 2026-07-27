@@ -73,3 +73,123 @@ def creep_cmd(cfg: ApproachConfig, x: float, y: float) -> tuple:
     v = cfg.k_dist * (x - cfg.stop_m)
     v = max(0.0, min(cfg.v_approach_max, v))
     return v, omega
+
+
+class ApproachController:
+    """감지→능동 접근→정렬→발사. 상태와 카운터만 보유(순수)."""
+
+    def __init__(self, cfg: ApproachConfig = None, trigger: MissionTrigger = None):
+        self.cfg = cfg or ApproachConfig()
+        c = self.cfg
+        self.trigger = trigger or MissionTrigger(TriggerConfig(
+            rules=[
+                TriggerRule(c.pickup_class, ARRIVED_PICKUP, c.engage_m, c.min_confidence),
+                TriggerRule(c.drop_class, ARRIVED_DROP, c.engage_m, c.min_confidence),
+            ],
+            consecutive=c.consecutive,
+            cooldown_s=c.cooldown_s,
+        ))
+        self.state = SEARCHING
+        self.retries = 0
+        self.active_status = None       # ARRIVED_PICKUP / ARRIVED_DROP
+        self.active_class = None
+        self._enter_s = 0.0
+        self._backoff_until = 0.0
+        self._lost = 0
+        self._fired = False
+
+    def _match(self, targets):
+        """active_class에 맞는 가장 가까운 유효 대상."""
+        best = None
+        for t in targets:
+            if t.class_name != self.active_class:
+                continue
+            if t.confidence < self.cfg.min_confidence:
+                continue
+            if t.x <= 0.0:
+                continue
+            if best is None or t.x < best.x:
+                best = t
+        return best
+
+    def _result(self, state, active, v, omega, fire=None, reason=""):
+        self.state = state
+        return ApproachDecision(state, active, v, omega, fire, reason, self.retries)
+
+    def update(self, targets, speed_mps, now_s) -> ApproachDecision:
+        c = self.cfg
+        if self.state in (SEARCHING,):
+            dets = [(t.class_name, t.confidence, t.x) for t in targets]
+            hit = self.trigger.on_detections(dets, now_s)
+            if hit is None:
+                return self._result(SEARCHING, False, 0.0, 0.0, reason="searching")
+            status, cls = hit
+            self.active_status, self.active_class = status, cls
+            self.retries = 0
+            self._fired = False
+            self._enter_s = now_s
+            self._lost = 0
+            # 즉시 첫 크립
+            return self._enter_approaching(targets, speed_mps, now_s)
+
+        if self.state == APPROACHING:
+            return self._tick_approaching(targets, speed_mps, now_s)
+
+        if self.state == BACKOFF:
+            m = self._match(targets)
+            if now_s >= self._backoff_until:
+                if m is not None:
+                    self._enter_s = now_s
+                    self._lost = 0
+                    return self._enter_approaching(targets, speed_mps, now_s)
+                # 재획득 실패 → 다시 SEARCHING (쿨다운/디바운스 재적용)
+                self.active_status = self.active_class = None
+                return self._result(SEARCHING, False, 0.0, 0.0, reason="backoff_gaveup")
+            return self._result(BACKOFF, True, -c.backoff_creep, 0.0, reason="backoff")
+
+        if self.state == ALIGNED:
+            # 발사는 이미 방출됨 → 서비스 ACK 대기(노드가 on_service_ack 호출)
+            return self._result(ALIGNED, True, 0.0, 0.0, reason="await_ack")
+
+        if self.state == ARRIVED_FIRED:
+            return self._result(ARRIVED_FIRED, True, 0.0, 0.0, reason="arm_working")
+
+        if self.state == FAILED_HOLD:
+            return self._result(FAILED_HOLD, True, 0.0, 0.0, reason="align_failed")
+
+        if self.state == DONE:
+            return self._result(SEARCHING, False, 0.0, 0.0, reason="resumed")
+
+        return self._result(self.state, False, 0.0, 0.0, reason="unknown")
+
+    def _enter_approaching(self, targets, speed_mps, now_s):
+        self.state = APPROACHING
+        return self._tick_approaching(targets, speed_mps, now_s)
+
+    def _tick_approaching(self, targets, speed_mps, now_s):
+        c = self.cfg
+        m = self._match(targets)
+        if m is None:
+            self._lost += 1
+            if self._lost >= c.lost_frames:
+                self._backoff_until = now_s + c.backoff_time_s
+                return self._result(BACKOFF, True, -c.backoff_creep, 0.0, reason="lost")
+            return self._result(APPROACHING, True, 0.0, 0.0, reason="lost_grace")
+        self._lost = 0
+        # 정렬 판정
+        aligned = (abs(m.y) < c.lat_tol
+                   and abs(m.x - c.stop_m) < c.dist_tol
+                   and abs(speed_mps) < c.v_settle)
+        if aligned and not self._fired:
+            self._fired = True
+            return self._result(ALIGNED, True, 0.0, 0.0,
+                                fire=self.active_status, reason="aligned")
+        # 타임아웃 → 재시도/실패
+        if now_s - self._enter_s > c.align_timeout_s:
+            self.retries += 1
+            if self.retries > c.max_retries:
+                return self._result(FAILED_HOLD, True, 0.0, 0.0, reason="align_failed")
+            self._backoff_until = now_s + c.backoff_time_s
+            return self._result(BACKOFF, True, -c.backoff_creep, 0.0, reason="retry")
+        v, omega = creep_cmd(c, m.x, m.y)
+        return self._result(APPROACHING, True, v, omega, reason="approaching")
