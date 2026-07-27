@@ -10,10 +10,18 @@ from chassis.approach import ApproachController
 def test_creep_forward_and_center():
     cfg = ApproachConfig(stop_m=1.0, k_dist=0.8, v_approach_max=0.15,
                          k_yaw=1.5, omega_max=0.4)
-    # 멀고(전방 3m) 오른쪽으로 치우침(y=-0.2) → 전진 + 좌회전(omega>0)
+    # 멀고(전방 3m) 오른쪽으로 치우침(y=-0.2) → 전진 + 우회전(omega<0)
     v, omega = creep_cmd(cfg, x=3.0, y=-0.2)
     assert 0.0 < v <= 0.15                      # 전진, 상한 클램프
-    assert omega > 0.0                          # y<0(우측) → +omega(좌회전)로 중앙 복귀
+    assert omega < 0.0                          # y<0(우측) → -omega(우회전)로 접근
+    assert abs(omega) <= 0.4
+
+
+def test_creep_toward_left():
+    cfg = ApproachConfig(k_yaw=1.5, omega_max=0.4)
+    # 왼쪽 대상(y=+0.2) → +omega(좌회전)로 접근
+    v, omega = creep_cmd(cfg, x=1.8, y=0.2)
+    assert omega > 0.0
     assert abs(omega) <= 0.4
 
 
@@ -27,7 +35,7 @@ def test_creep_no_reverse_past_stop():
 def test_creep_yaw_clamped():
     cfg = ApproachConfig(k_yaw=100.0, omega_max=0.4)
     v, omega = creep_cmd(cfg, x=2.0, y=1.0)
-    assert omega == pytest.approx(-0.4)         # 큰 오차라도 omega_max로 클램프
+    assert omega == pytest.approx(0.4)          # 큰 좌측 오차도 +omega_max로 클램프
 
 
 def _targets(cls="box", conf=0.9, x=1.8, y=0.0):
@@ -56,6 +64,24 @@ def test_lock_after_debounce_enters_approaching():
     assert d.v > 0.0                            # 전진 크립
 
 
+def test_match_ignores_beyond_engage():
+    cfg = ApproachConfig(engage_m=2.0, consecutive=1)
+    ctl = ApproachController(cfg)
+    near = Target("box", 0.9, 1.2, 0.1)
+    far = Target("box", 0.9, 4.0, -0.2)
+    # lock 뒤 near+far가 함께 보여도 engage 안의 near를 향해 크립한다.
+    d = ctl.update([near, far], 0.0, 0.0)
+    assert d.state == APPROACHING
+    assert d.v > 0.0
+    assert d.omega > 0.0
+    # near가 사라지면 engage 밖 far를 이어서 추격하지 않는다.
+    d = ctl.update([far], 0.0, 0.1)
+    assert d.state == APPROACHING
+    assert d.v == 0.0
+    assert d.omega == 0.0
+    assert d.reason == "lost_grace"
+
+
 def test_aligned_fires_once_when_stopped_and_centered():
     cfg = ApproachConfig(engage_m=2.0, stop_m=1.0, lat_tol=0.05,
                          dist_tol=0.05, v_settle=0.03, consecutive=1)
@@ -69,6 +95,23 @@ def test_aligned_fires_once_when_stopped_and_centered():
     # 다음 tick은 중복 발사 금지
     d2 = ctl.update(_targets(x=1.0, y=0.0), 0.0, 0.2)
     assert d2.fire is None
+
+
+def test_aligned_ack_timeout_retries():
+    cfg = ApproachConfig(stop_m=1.0, align_timeout_s=1.0, max_retries=1,
+                         backoff_time_s=0.2, consecutive=1,
+                         lat_tol=0.05, dist_tol=0.05)
+    ctl = ApproachController(cfg)
+    ctl.update(_targets(x=1.8), 0.0, 9.9)
+    d = ctl.update(_targets(x=1.0, y=0.0), 0.0, 10.0)
+    assert d.state == ALIGNED
+    # 정확히 timeout 경계에서는 계속 ACK를 기다린다.
+    assert ctl.update([], 0.0, 11.0).state == ALIGNED
+    # 경계를 넘으면 ACK 실패와 같이 재시도 BACKOFF로 전이한다.
+    d = ctl.update([], 0.0, 11.01)
+    assert d.state == BACKOFF
+    assert d.v == pytest.approx(-cfg.backoff_creep)
+    assert ctl.retries == 1
 
 
 def test_not_aligned_while_moving():

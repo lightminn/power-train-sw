@@ -69,7 +69,7 @@ class ApproachDecision:
 
 def creep_cmd(cfg: ApproachConfig, x: float, y: float) -> tuple:
     """대상 상대위치(x 전방, y 횡) → (v, omega). 후진 없음, 전부 클램프."""
-    omega = max(-cfg.omega_max, min(cfg.omega_max, -cfg.k_yaw * y))
+    omega = max(-cfg.omega_max, min(cfg.omega_max, cfg.k_yaw * y))
     v = cfg.k_dist * (x - cfg.stop_m)
     v = max(0.0, min(cfg.v_approach_max, v))
     return v, omega
@@ -94,6 +94,7 @@ class ApproachController:
         self.active_status = None       # ARRIVED_PICKUP / ARRIVED_DROP
         self.active_class = None
         self._enter_s = 0.0
+        self._aligned_s = 0.0
         self._backoff_until = 0.0
         self._lost = 0
         self._fired = False
@@ -107,6 +108,8 @@ class ApproachController:
             if t.confidence < self.cfg.min_confidence:
                 continue
             if t.x <= 0.0:
+                continue
+            if t.x > self.cfg.engage_m:
                 continue
             if best is None or t.x < best.x:
                 best = t
@@ -149,6 +152,8 @@ class ApproachController:
 
         if self.state == ALIGNED:
             # 발사는 이미 방출됨 → 서비스 ACK 대기(노드가 on_service_ack 호출)
+            if now_s - self._aligned_s > c.align_timeout_s:
+                return self._fail_alignment(now_s)
             return self._result(ALIGNED, True, 0.0, 0.0, reason="await_ack")
 
         if self.state == ARRIVED_FIRED:
@@ -182,6 +187,7 @@ class ApproachController:
                    and abs(speed_mps) < c.v_settle)
         if aligned and not self._fired:
             self._fired = True
+            self._aligned_s = now_s
             return self._result(ALIGNED, True, 0.0, 0.0,
                                 fire=self.active_status, reason="aligned")
         # 타임아웃 → 재시도/실패
@@ -194,6 +200,17 @@ class ApproachController:
         v, omega = creep_cmd(c, m.x, m.y)
         return self._result(APPROACHING, True, v, omega, reason="approaching")
 
+    def _fail_alignment(self, now_s: float) -> ApproachDecision:
+        """정렬 서비스 실패/ACK 타임아웃을 동일한 재시도 정책으로 처리한다."""
+        self._fired = False
+        self.retries += 1
+        if self.retries > self.cfg.max_retries:
+            return self._result(FAILED_HOLD, True, 0.0, 0.0,
+                                reason="align_failed")
+        self._backoff_until = now_s + self.cfg.backoff_time_s
+        return self._result(BACKOFF, True, -self.cfg.backoff_creep, 0.0,
+                            reason="retry")
+
     def on_service_ack(self, success: bool, now_s: float) -> None:
         if self.state != ALIGNED:
             return
@@ -201,13 +218,7 @@ class ApproachController:
             self.state = ARRIVED_FIRED
             return
         # 서버 거부 → 재시도 또는 실패
-        self._fired = False
-        self.retries += 1
-        if self.retries > self.cfg.max_retries:
-            self.state = FAILED_HOLD
-        else:
-            self._backoff_until = now_s + self.cfg.backoff_time_s
-            self.state = BACKOFF
+        self._fail_alignment(now_s)
 
     def on_mission_done(self, now_s: float) -> None:
         if self.state not in (ARRIVED_FIRED, ALIGNED):
@@ -224,4 +235,5 @@ class ApproachController:
         self._fired = False
         self.retries = 0
         self._lost = 0
+        self._aligned_s = 0.0
         self.state = SEARCHING
