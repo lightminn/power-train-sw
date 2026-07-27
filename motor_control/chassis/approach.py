@@ -193,3 +193,35 @@ class ApproachController:
             return self._result(BACKOFF, True, -c.backoff_creep, 0.0, reason="retry")
         v, omega = creep_cmd(c, m.x, m.y)
         return self._result(APPROACHING, True, v, omega, reason="approaching")
+
+    def on_service_ack(self, success: bool, now_s: float) -> None:
+        if self.state != ALIGNED:
+            return
+        if success:
+            self.state = ARRIVED_FIRED
+            return
+        # 서버 거부 → 재시도 또는 실패
+        self._fired = False
+        self.retries += 1
+        if self.retries > self.cfg.max_retries:
+            self.state = FAILED_HOLD
+        else:
+            self._backoff_until = now_s + self.cfg.backoff_time_s
+            self.state = BACKOFF
+
+    def on_mission_done(self, now_s: float) -> None:
+        if self.state not in (ARRIVED_FIRED, ALIGNED):
+            return
+        if self.active_class is not None:
+            self.trigger.mission_finished(self.active_class, now_s)
+        self.active_status = self.active_class = None
+        self._fired = False
+        self.retries = 0
+        self.state = DONE
+
+    def reset(self, now_s: float) -> None:
+        self.active_status = self.active_class = None
+        self._fired = False
+        self.retries = 0
+        self._lost = 0
+        self.state = SEARCHING

@@ -111,3 +111,60 @@ def test_lost_target_backoff():
     d = ctl.update([], 0.0, 0.3)
     assert d.state == BACKOFF
     assert d.v == pytest.approx(-0.1)           # 뒤로 크립
+
+
+def test_service_ack_success_to_arrived_fired():
+    cfg = ApproachConfig(stop_m=1.0, v_settle=0.03, consecutive=1,
+                         lat_tol=0.05, dist_tol=0.05)
+    ctl = ApproachController(cfg)
+    ctl.update(_targets(x=1.8), 0.0, 0.0)
+    d = ctl.update(_targets(x=1.0, y=0.0), 0.0, 0.1)
+    assert d.fire == ARRIVED_PICKUP
+    ctl.on_service_ack(True, 0.2)
+    assert ctl.state == ARRIVED_FIRED
+    # 팔 작업 중엔 계속 정지 + active
+    d = ctl.update(_targets(x=1.0, y=0.0), 0.0, 0.3)
+    assert d.state == ARRIVED_FIRED
+    assert d.v == 0.0 and d.active is True
+
+
+def test_service_ack_reject_retries():
+    cfg = ApproachConfig(stop_m=1.0, v_settle=0.03, consecutive=1,
+                         lat_tol=0.05, dist_tol=0.05, max_retries=1,
+                         backoff_time_s=0.2)
+    ctl = ApproachController(cfg)
+    ctl.update(_targets(x=1.8), 0.0, 0.0)
+    ctl.update(_targets(x=1.0, y=0.0), 0.0, 0.1)     # ALIGNED, fire
+    ctl.on_service_ack(False, 0.2)                    # 서버 거부(예: wheel_stop_unqualified)
+    assert ctl.state == BACKOFF
+    assert ctl.retries == 1
+
+
+def test_mission_done_sets_cooldown_and_resumes():
+    cfg = ApproachConfig(stop_m=1.0, v_settle=0.03, consecutive=1,
+                         lat_tol=0.05, dist_tol=0.05, cooldown_s=10.0)
+    ctl = ApproachController(cfg)
+    ctl.update(_targets(x=1.8), 0.0, 0.0)
+    ctl.update(_targets(x=1.0, y=0.0), 0.0, 0.1)
+    ctl.on_service_ack(True, 0.2)
+    ctl.on_mission_done(0.3)
+    assert ctl.state == DONE
+    # 재출발: 다음 update는 SEARCHING, 그리고 쿨다운으로 같은 박스 재트리거 안 됨
+    d = ctl.update(_targets(x=1.0, y=0.0), 0.0, 0.4)
+    assert d.state == SEARCHING
+    assert d.active is False
+    # 쿨다운 동안 계속 봐도 lock 안 됨
+    for i in range(10):
+        d = ctl.update(_targets(x=1.0, y=0.0), 0.0, 0.5 + i * 0.1)
+    assert d.state == SEARCHING
+
+
+def test_reset_from_failed_hold():
+    cfg = ApproachConfig(align_timeout_s=1.0, max_retries=0, consecutive=1,
+                         lat_tol=0.001, dist_tol=0.001)
+    ctl = ApproachController(cfg)
+    ctl.update(_targets(x=1.8), 0.0, 0.0)
+    d = ctl.update(_targets(x=1.8), 0.0, 1.2)         # timeout, retries>max → FAILED_HOLD
+    assert d.state == FAILED_HOLD
+    ctl.reset(2.0)
+    assert ctl.state == SEARCHING
