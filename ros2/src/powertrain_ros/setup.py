@@ -60,6 +60,7 @@ setup(
             "joint_state_bridge = powertrain_ros.joint_state_bridge_node:main",
             "odometry = powertrain_ros.odometry_node:main",
             "autonomy_controller = powertrain_ros.autonomy_controller_node:main",
+            "approach_controller = powertrain_ros.approach_controller_node:main",
             "fake_wheels = powertrain_ros.fake_wheels_node:main",
             "obstacle_zones = powertrain_ros.obstacle_zones_node:main",
             "lane_follower = powertrain_ros.lane_follower_node:main",
