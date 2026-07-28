@@ -408,6 +408,20 @@ def fit_overlay_transform(
     )
 
 
+def overlay_size_matches(
+    metadata_width: int, metadata_height: int,
+    video_width: int | None, video_height: int | None,
+) -> bool:
+    """metadata 좌표를 영상 위에 겹쳐도 되는지.
+
+    송신부는 frame_width/height 를 파라미터 기본값으로 싣기 때문에 인식 해상도가
+    바뀌면 bbox 가 조용히 어긋난다.  영상 해상도를 알 수 없으면(협상 전) 허용한다.
+    """
+    if video_width is None or video_height is None:
+        return True
+    return (metadata_width, metadata_height) == (video_width, video_height)
+
+
 class MetadataCanvas(Gtk.DrawingArea):
     """Transparent D435 overlay drawn from latest-only UDP metadata."""
     def __init__(
@@ -421,7 +435,16 @@ class MetadataCanvas(Gtk.DrawingArea):
         self._target_tracker = target_tracker or DisplayTargetTracker()
         self._show_objects = True
         self._show_distance = True
+        self._video_width: int | None = None
+        self._video_height: int | None = None
         self.connect("draw", self._on_draw)
+
+    def set_video_size(self, width: int, height: int) -> None:
+        size = (int(width), int(height))
+        if size == (self._video_width, self._video_height):
+            return
+        self._video_width, self._video_height = size
+        self.queue_draw()
 
     def set_display_options(
         self, *, show_objects: bool, show_distance: bool,
@@ -440,6 +463,11 @@ class MetadataCanvas(Gtk.DrawingArea):
             > OVERLAY_STALE_AFTER_S
         ):
             return False
+        if not overlay_size_matches(
+            frame.width, frame.height,
+            self._video_width, self._video_height,
+        ):
+            return False
         allocation = self.get_allocation()
         scale, offset_x, offset_y = fit_overlay_transform(
             allocation.width, allocation.height, frame.width, frame.height,
@@ -448,7 +476,10 @@ class MetadataCanvas(Gtk.DrawingArea):
         context.set_line_width(2.0)
         context.select_font_face("Sans", 0, 1)
         context.set_font_size(15.0)
-        target_view = self._target_tracker.update(frame)
+        # 갱신 소유자는 _sync_overlay_rail 타이머 하나다.  draw 는 읽기만 한다 —
+        # 그리기 횟수가 필터(EMA/median/연속성) 진행을 바꾸면 창이 가려졌을 때
+        # 거리값이 달라진다.
+        target_view = self._target_tracker.view()
         detections = list(displayable_detections(frame))
         if (
             target_view.held
@@ -1068,6 +1099,7 @@ class VideoPanel(Gtk.Box):
         self._sample_start = time.monotonic()
         self._last_frame_monotonic: float | None = None
         self._last_fps: float | None = None
+        self._video_size: tuple[int, int] | None = None
         self._pipeline_live = False
         self._reconnects = 0
         self._freshness_state = "connecting"
@@ -1140,8 +1172,27 @@ class VideoPanel(Gtk.Box):
         # X11/Wayland surface through ``prepare-window-handle``.
         del message
 
-    def _on_video_buffer(self, _pad: Gst.Pad, _info: Gst.PadProbeInfo) -> Gst.PadProbeReturn:
+    def _on_video_buffer(
+        self, pad: Gst.Pad, _info: Gst.PadProbeInfo,
+    ) -> Gst.PadProbeReturn:
         self._frames += 1
+        caps = pad.get_current_caps()
+        if caps is not None and caps.is_fixed() and caps.get_size() > 0:
+            structure = caps.get_structure(0)
+            has_width, width = structure.get_int("width")
+            has_height, height = structure.get_int("height")
+            video_size = (width, height)
+            if (
+                has_width
+                and has_height
+                and width > 0
+                and height > 0
+                and video_size != self._video_size
+            ):
+                self._video_size = video_size
+                canvas = getattr(self, "_metadata_canvas", None)
+                if canvas is not None:
+                    GLib.idle_add(canvas.set_video_size, width, height)
         now = time.monotonic()
         self._last_frame_monotonic = now
         elapsed = now - self._sample_start
@@ -2895,6 +2946,7 @@ class OperatorConsole(Gtk.Window):
             <= OVERLAY_STALE_AFTER_S
             and metadata.source_camera_id == "work"
         )
+        # DisplayTargetTracker 갱신은 이 타이머 경로 한 곳에서만 수행한다.
         target_view = self._display_target_tracker.update(
             metadata if fresh else None, now_s=now_s,
         )
@@ -3126,19 +3178,12 @@ class OperatorConsole(Gtk.Window):
             "success": "status-live", "warning": "status-warn",
             "danger": "status-bad", "offline": "status-muted",
         }[safety_public_tone])
-        fresh_metadata = (
-            metadata is not None
-            and time.monotonic() - metadata.received_monotonic_s
-            <= OVERLAY_STALE_AFTER_S
-        )
-        target = self._display_target_tracker.update(
-            metadata if fresh_metadata else None,
-        ).detection
+        self._sync_overlay_rail(metadata)
+        target = self._display_target_tracker.view().detection
         self._rail_preparation_target.set_text(
             "작업 대상    대상 탐지 대기"
             if target is None else f"작업 대상    {target.class_name}"
         )
-        self._sync_overlay_rail(metadata)
         # No canonical end-effector ID or tool-name field exists today.
         self._mission_metrics["tool"].set_text("도구 정보 수신 대기")
         chassis_mode = self._ops_panel.latest_chassis_mode()

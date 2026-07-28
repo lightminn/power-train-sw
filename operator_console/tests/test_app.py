@@ -10,6 +10,7 @@ from operator_console.pipelines import pipeline_description, srt_uri
 from operator_console.metadata import (
     Detection,
     DisplayTargetTracker,
+    MetadataFrame,
     displayable_detections,
     parse_metadata,
     pick_display_target,
@@ -238,7 +239,7 @@ def test_ui_never_promotes_an_unselected_background_distance_to_target():
 
 def _target_frame(
     sequence, distance, *, bbox=(100, 100, 120, 100),
-    confidence=0.8, is_pick_target=False, received=10.0,
+    confidence=0.8, is_pick_target=True, received=10.0,
 ):
     payload = {
         "schema_version": 1, "capture_sequence": sequence,
@@ -255,11 +256,106 @@ def _target_frame(
     )
 
 
-def test_display_target_tracker_shows_unlatched_detection_distance():
+def _frame(detections, sequence=1, now_s=100.0):
+    return MetadataFrame(
+        sequence=sequence, width=848, height=480,
+        detections=tuple(detections), received_monotonic_s=now_s,
+        frame_id="camera_color_optical_frame",
+    )
+
+
+def test_no_pick_target_means_no_distance_number():
+    """송신자가 지정하지 않은 물체를 '대상'으로 승격하지 않는다."""
     tracker = DisplayTargetTracker()
-    view = tracker.update(_target_frame(1, 0.32), now_s=10.0)
+    high_conf = Detection(
+        "box-segmentation", 0.96, (503, 293, 219, 187),
+        (0.09, 0.07, 0.288), is_pick_target=False,
+    )
+    view = tracker.update(_frame([high_conf]), now_s=100.0)
+    assert view.detection is None
+    assert view.distance_m is None
+    assert view.distance_state == "대상 탐지 대기"
+
+
+def test_designated_pick_target_still_reports_depth():
+    tracker = DisplayTargetTracker()
+    target = Detection(
+        "box-segmentation", 0.96, (503, 293, 219, 187),
+        (0.09, 0.07, 0.288), is_pick_target=True,
+    )
+    view = tracker.update(_frame([target]), now_s=100.0)
+    assert view.distance_m == pytest.approx(0.288, abs=1e-3)
+
+
+def test_iou_continuity_survives_a_frame_without_the_flag():
+    """한 번 지정된 대상은 다음 프레임에서 플래그가 빠져도 같은 상자면 유지된다."""
+    tracker = DisplayTargetTracker()
+    first = Detection(
+        "box-segmentation", 0.96, (500, 290, 220, 190),
+        (0.09, 0.07, 0.288), is_pick_target=True,
+    )
+    tracker.update(_frame([first], sequence=1), now_s=100.0)
+    drifted = Detection(
+        "box-segmentation", 0.95, (503, 293, 219, 187),
+        (0.09, 0.07, 0.290), is_pick_target=False,
+    )
+    view = tracker.update(
+        _frame([drifted], sequence=2, now_s=100.1), now_s=100.1,
+    )
     assert view.detection is not None
-    assert view.distance_m == pytest.approx(0.32)
+    assert view.distance_m == pytest.approx(0.290, abs=2e-2)
+
+
+def test_unknown_frame_id_refuses_to_report_distance():
+    """좌표계가 바뀌면 depth 의 의미가 달라진다 — 숫자를 내지 않는다."""
+    tracker = DisplayTargetTracker()
+    target = Detection(
+        "box-segmentation", 0.96, (503, 293, 219, 187),
+        (0.09, 0.07, 0.288), is_pick_target=True,
+    )
+    frame = MetadataFrame(
+        sequence=1, width=848, height=480, detections=(target,),
+        received_monotonic_s=100.0, frame_id="base_link",
+    )
+    view = tracker.update(frame, now_s=100.0)
+    assert view.distance_m is None
+    assert view.distance_state == "거리 기준 불일치"
+
+
+def test_missing_frame_id_is_accepted_for_backward_compatibility():
+    tracker = DisplayTargetTracker()
+    target = Detection(
+        "box-segmentation", 0.96, (503, 293, 219, 187),
+        (0.09, 0.07, 0.288), is_pick_target=True,
+    )
+    frame = MetadataFrame(
+        sequence=1, width=848, height=480, detections=(target,),
+        received_monotonic_s=100.0, frame_id=None,
+    )
+    assert tracker.update(frame, now_s=100.0).distance_m == pytest.approx(0.288)
+
+
+def test_long_dropout_clears_the_distance_filter():
+    """10초 공백 뒤 재획득한 첫 값이 과거 EMA 와 섞이면 안 된다."""
+    tracker = DisplayTargetTracker()
+    near = Detection(
+        "box-segmentation", 0.96, (500, 290, 220, 190),
+        (0.0, 0.0, 0.30), is_pick_target=True,
+    )
+    for sequence in range(1, 6):
+        tracker.update(
+            _frame([near], sequence=sequence, now_s=100.0 + sequence * 0.1),
+            now_s=100.0 + sequence * 0.1,
+        )
+    tracker.update(None, now_s=110.0)
+    far = Detection(
+        "box-segmentation", 0.96, (500, 290, 220, 190),
+        (0.0, 0.0, 1.20), is_pick_target=True,
+    )
+    view = tracker.update(
+        _frame([far], sequence=99, now_s=110.5), now_s=110.5,
+    )
+    assert view.distance_m == pytest.approx(1.20, abs=1e-3)
 
 
 def test_display_target_tracker_rejects_single_tenfold_outlier():
@@ -1304,6 +1400,35 @@ def test_overlay_transform_preserves_aspect_and_letterbox_offsets():
     assert scale == 2.25
     assert offset_x == 240
     assert offset_y == 0
+
+
+def test_overlay_is_suppressed_when_metadata_size_differs_from_video():
+    from operator_console.app import overlay_size_matches
+
+    assert overlay_size_matches(848, 480, 848, 480) is True
+    assert overlay_size_matches(848, 480, None, None) is True
+    assert overlay_size_matches(848, 480, 1280, 720) is False
+
+
+def test_set_video_size_queues_draw_only_when_value_changes():
+    from operator_console.app import MetadataCanvas
+
+    class CanvasProbe:
+        _video_width = None
+        _video_height = None
+
+        def __init__(self):
+            self.draw_requests = 0
+
+        def queue_draw(self):
+            self.draw_requests += 1
+
+    canvas = CanvasProbe()
+    MetadataCanvas.set_video_size(canvas, 848, 480)
+    MetadataCanvas.set_video_size(canvas, 848, 480)
+    MetadataCanvas.set_video_size(canvas, 1280, 720)
+
+    assert canvas.draw_requests == 2
 
 
 def test_metadata_overlay_remains_owned_by_work_camera_during_swap():

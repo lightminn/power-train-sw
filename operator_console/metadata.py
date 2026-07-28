@@ -16,6 +16,7 @@ MIN_DISPLAY_CONFIDENCE = 0.5
 DISPLAY_BORDER_MARGIN_PX = 4
 DISPLAY_MAX_BORDER_CONTACTS = 2
 OVERLAY_STALE_AFTER_S = 0.50
+SUPPORTED_DISTANCE_FRAME_IDS = ("camera_color_optical_frame",)
 
 
 @dataclass(frozen=True)
@@ -143,10 +144,22 @@ class DisplayTargetTracker:
         self._last_valid_received_s: float | None = None
         self._cached = DisplayTargetView(None, None, "거리 확인 중")
 
+    def _reset_filter(self) -> None:
+        self._distances.clear()
+        self._ema = None
+        self._last_bbox = None
+        self._last_class = None
+
+    def view(self) -> DisplayTargetView:
+        """마지막 판정 결과를 상태 변경 없이 돌려준다(렌더 경로 전용)."""
+        return self._cached
+
     def update(
         self, frame: MetadataFrame | None, *, now_s: float | None = None,
     ) -> DisplayTargetView:
         if frame is None:
+            self._reset_filter()
+            self._last_valid_received_s = None
             self._cached = DisplayTargetView(None, None, "거리 정보 없음")
             return self._cached
         now_s = time.monotonic() if now_s is None else now_s
@@ -155,6 +168,13 @@ class DisplayTargetTracker:
             > self.config.max_frame_age_ms
         ):
             self._cached = DisplayTargetView(None, None, "거리 정보 지연")
+            return self._cached
+        if (
+            frame.frame_id is not None
+            and frame.frame_id not in SUPPORTED_DISTANCE_FRAME_IDS
+        ):
+            self._reset_filter()
+            self._cached = DisplayTargetView(None, None, "거리 기준 불일치")
             return self._cached
         if frame.sequence == self._last_sequence:
             if (
@@ -184,13 +204,10 @@ class DisplayTargetTracker:
             continuous = max(
                 candidates, key=lambda item: item.confidence, default=None,
             )
-        # The bridge can receive `/detected_objects` before the matching
-        # latched `/pick_target` callback.  Use the highest-confidence
-        # *display-quality-gated* detection only for that initial view frame;
-        # sender-designated and IoU-continuous targets take priority.
-        selected = explicit or continuous or max(
-            detections, key=lambda item: item.confidence, default=None,
-        )
+        # 표시 대상은 송신자가 지정한 pick target 과 그 IoU 연속 추적분뿐이다.
+        # 임의의 고신뢰 검출을 '대상'으로 승격하지 않는다(콘솔이 대상을 만들지
+        # 않는다는 pick_display_target 의 정책과 일치).
+        selected = explicit or continuous
         if selected is None:
             if (
                 self._cached.detection is not None
@@ -205,10 +222,18 @@ class DisplayTargetTracker:
                     held=True,
                 )
                 return self._cached
-            self._cached = DisplayTargetView(None, None, "거리 확인 중")
+            self._reset_filter()
+            self._cached = DisplayTargetView(None, None, "대상 탐지 대기")
             return self._cached
-        self._last_valid_received_s = frame.received_monotonic_s
 
+        stale_gap = (
+            self._last_valid_received_s is not None
+            and (frame.received_monotonic_s - self._last_valid_received_s)
+            * 1000.0 > self.config.dropout_hold_ms
+        )
+        if stale_gap:
+            self._reset_filter()
+        self._last_valid_received_s = frame.received_monotonic_s
         changed = (
             self._last_bbox is None
             or selected.class_name != self._last_class
