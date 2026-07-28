@@ -6,7 +6,33 @@
   블로커를 순차로 실증·규명했고, 본 계획은 그 블로커들을 구조적 개발 태스크로 전환한다.
 - **성격**: 반응적 box-hack이 아니라 **소관별·단계별 개발 계획**. 각 단계는 독립 검증 가능.
 
-## 0. 요약 (현 시점 정직한 상태)
+## 0-bis. 2026-07-28 후속 규명 — 아래 §0 의 충돌 서술을 대체한다
+
+측정 근거로 블로커가 재정의됐다. §0 이하의 상충하는 진단(특히 "비대칭 우측 에지 검출 버그",
+"혼합셀 roughness 계단")은 **오진으로 확인**됐으므로 이력으로만 읽는다.
+
+- **★근본원인 = 하네스 스폰 12.05 cm 편심.** as-built v2 URDF 에서 앞·중·뒤 바퀴쌍 중점이 전부
+  정확히 +0.1200 → **base_link 가 로버 중심선에서 벗어남**. 시뮬은 이를
+  `m3a.CERTIFIED_ROVER_CENTRE_LOCAL_X_M = 0.1205` 로 보정하며 **m3a 헬퍼 `centred_rover_root_x()`
+  와 m4 `initial_robot_spawn_pose`(m4_campaign.py:1357)는 적용**하는데, 이를 오버라이드한
+  **m5 만 누락**했다. ⇒ 모든 실코스 런이 편측 여유 6 cm 코스에서 12 cm 치우쳐 스폰됐다.
+  8패밀리(m4)는 보정을 적용하므로 무관·회귀 없음.
+- **estimator 무죄.** 로버 중심 기준 실제 능선 `[-0.330, +0.571]` vs 추정 corridor `[-0.350, +0.500]`
+  — **양쪽 다 보수적이고 편향 없음**. 중심정렬만으로 `erosion_empty` 999/1000 → **14/1000(1.4%)**.
+- **valley 누출의 실제 기전**: 파도 valley 에서 주행면이 바닥 위 **8.4 cm** 뿐 →
+  `max_support_step 0.12` 미만이라 flood-fill 이 아레나 바닥으로 샌다. 바닥이 support 가 되면
+  `_local_lower_floor_mask` 의 `~support_mask` 요건 때문에 **crest 의 0.39 m 진짜 절벽까지 전역
+  미검출**된다(국소 누출의 전역 증폭). 누출 셀 roughness 는 전부 0.00 → **roughness-gate 가설 기각**.
+- **실측 기하(로컬 STL ray-cast)**: 능선 폭 median **0.910 m**, 로버 0.789 m → 편측 실여유 6.05 cm.
+  요구 corridor = 2×(0.3945+0.05) = **0.889 m** → **총 여유 2.1 cm**. estimator 는 corridor 를
+  약 1격자(5 cm) 좁게 본다 ⇒ 마지막 관문은 **sub-cell 에지 정밀화**.
+- **pitch**: 축거 현경사 max 14.24° 이지만 **실측 차체 pitch 16.2°** > `EMPTY_STOWED` 15° 한계.
+  상향은 안전 판단이라 사용자 결정 사항.
+- **아레나 바닥 깊이 미해결**: "옆은 진짜 낭떠러지" 확정과 현행 z≈0 fixture 가 배치된다.
+- **커밋**: `3df0114` production `kinematics.py` 횡방향 기하 → as-built v2(편측 8 cm 과대 수정).
+  부수효과로 제자리 피벗 충실도 실제 악화(ω 복원 −1.10%→−3.91%) — 실기 벤치 재확인 권장.
+
+## 0. 요약 (현 시점 정직한 상태 — 0-bis 로 일부 대체됨)
 
 - **자율주행 loop 자체는 작동한다**: 무수정 프로덕션 depth→TerrainEstimator→controller가 실코스에서
   지형을 수용(100%)하고 TRACKING(주행)한다 — 단, 아래 블로커들이 순차로 완주를 막는다.
@@ -40,15 +66,17 @@
 
 블로커: `drop_boundaries_unobserved`(course.stl 아레나 바닥 누락) + stale geometry.
 
-- **T1.1 [dohyun/코스]** `course.stl`에 **도로 아래 아레나 바닥** 모델링. 도로면보다 >0.18 m 낮게,
-  카메라 FOV·6 m 사거리 안, 측당 ≥8 관측점, 지지 에지 FOV한계 안쪽 75 mm. (실증: 이것만으로 게이트 A가
-  전 코스에서 열림. sim 임시 스탠드인 = m5 `M5_ARENA_FLOOR_Z_M`/default −0.20.) **완료조건**: m5에서
-  전 코스 `drop_boundaries_unobserved` 소멸.
-- **T1.2 [기구+SW]** `motor_control/chassis/kinematics.py` `default_geometry()`를 **as-built v2 트랙**으로
-  갱신(현재 stale 0.949 m → 실측 0.79 m; mid ±0.360 등). ⚠️실물 4WS 제어에도 영향 → as-built 실측 확인
-  후. **완료조건**: 추정 footprint == 실측, erosion이 실제 폭 반영.
-- **T1.3 [기구/코스]** 최협 통로 실측 확정: `course.stl` 0.83 m vs 로봇 0.79 m(편측 2 cm). 이 핀치가
-  최종인지, 확폭 가능한지 확인. **완료조건**: 핀치 폭 확정값 + 확폭 가부 결정(S3 완주 가능성의 전제).
+- **T1.1 [✅ 사용자 확정 2026-07-28] 아레나 바닥 = sim 스탠드인 그대로 사용.** m5 default-on 슬래브
+  (base−0.20 m, `a98ad53` 커밋)로 확정 운용. dohyun의 course.stl 수정 대기 불필요. (실증: 게이트 A가
+  전 코스에서 열림.)
+- **T1.2 [✅ 사용자 확정: v2 CAD = as-built 정본] v2 geometry 반영.** footprint lateral 확정값 mid ±0.360
+  (외곽 0.79 m; front ±0.273·rear ±0.213). forward(x)는 v2 wheelbase가 구값과 동일(0.875 m)이라 구
+  ±0.4377/−0.0603 유지가 정확. **남은 실행**: 프로덕션 `default_geometry()`에 넣을 정밀값은 v2 URDF
+  `2026_07_24_URDF.urdf` FK 추출로 확정(내 Isaac 측정은 base_link 재센터링 ~19 mm 오차 → 하드코딩 금지).
+  ⚠️실물 4WS 애커만 제어도 이 track을 공유하므로(구 0.4395로 10모터 HIL 검증 이력) **트랙 축소 반영 시
+  4WS HIL 재검증 권고**. **완료조건**: default_geometry == v2 URDF 실측 + 4WS 재검증.
+- **T1.3 [기구/코스, R1 게이트] 최협 통로 실측 확정**: `course.stl` 0.83 m vs 로봇 0.79 m(편측 2 cm).
+  이 핀치가 최종인지, 확폭 가능한지 확인. **완료조건**: 핀치 폭 확정값 + 확폭 가부 결정(S3 완주 전제).
 
 ### Phase 2 — Perception 보정 (perception 소관)
 
@@ -68,11 +96,18 @@
 - **T3.1** 속도 프로파일(`controller/core.py` `clearance_full_m`·`curvature_slow_k`·프로파일 `max_speed`)을
   실코스 통로폭 분포에 맞게 튜닝. **안전 정지 임계 `clearance_hold_m`(에지 정지 마진)는 데이터 근거 없이
   낮추지 말 것.** **완료조건**: 넓은 구간 ≥0.3 m/s·좁은 구간 저속주행·에지 정지 유지(S1).
-- **T3.2** 램프/pitch 처리: 실코스 램프에서 `pitch_limit`(현 15°) 발동 규명 — 램프 경사 실측 vs 프로파일
-  `max_slope_rad`/`soft_slope_rad`. 로커보기는 물리적으로 램프를 넘으나 컨트롤러 pitch 게이트가 막는지,
-  아니면 좁은 도로서 바퀴가 아레나 바닥으로 빠져 기우는지 분리. **완료조건**: 램프 무정지 통과.
-- **T3.3** 헤어핀/급선회: 서펀타인 급코너에서 `max_yaw_rate`·애커만 클램프·경로추종 게인 검증.
-  **완료조건**: 한 코너 무정지 선회(S2).
+- **T3.2 [규명완료] 램프/pitch**: `core.py:399` 로봇 pitch > 프로파일 `max_slope_rad`(15°)면 하드
+  `pitch_limit` 정지. 실측 코스 램프 grade **max 16.8°**(median 9.5·p90 14.4) — **램프가 15° 초과**.
+  로커보기는 물리적으로 16.8°+를 넘음(v4가 15°/30° 경사 최적화). 15°는 프로파일 "PROVISIONAL" 임시값.
+  **수정: `profiles.py` EMPTY_STOWED `max_slope_rad` 15°→~22°(램프16.8+마진, 30° 설계한계 내)·
+  `soft_slope_rad` 상향.** ⚠️좁은 도로서 바퀴가 아레나 바닥(스탠드인 −0.20 m)으로 빠져 기우는 tilt와
+  램프 pitch를 구분해야 함(아레나 바닥 깊이 vs 게이트A 드롭요건 vs tilt 안전의 tension). **완료조건**:
+  램프 무정지 통과 + 이탈/전복 0.
+- **T3.3 [규명완료·프론티어] 코너 선회 항법**: Phase 3 튜닝(pitch 포함) 후 v2가 직선+램프
+  ~0.45 m 자율주행해 **첫 코너 벽에 도달** → 코리도어가 꺾이는데 직진 heading만 따라 벽 정면 정지
+  (`obstacle_blocks_path`). 로컬 추정 lookahead(0.3~4 m)로 급코너를 조향해 따라가는 능력이 필요 —
+  `max_yaw_rate`·애커만 클램프·경로추종(heading_error/path_offset 게인)·코너 예측. **파라미터 아니라
+  실질 자율 능력 갭.** **완료조건**: 첫 코너 무정지 선회 통과(S2 관문).
 
 ### Phase 4 — 장애물·통합·완주
 
