@@ -258,7 +258,7 @@ def test_flat_track_produces_central_available_path_and_near_zero_bank():
     assert result.heading_error_rad == pytest.approx(0.0, abs=0.04)
     assert result.bank_angle_rad == pytest.approx(0.0, abs=0.03)
     assert result.longitudinal_slope_rad == pytest.approx(0.0, abs=0.03)
-    expected_clearance = 1.4 / 2.0 - (0.4395 + 0.035)
+    expected_clearance = 1.4 / 2.0 - (0.3595 + 0.035)
     assert result.left_wheel_clearance_m == pytest.approx(expected_clearance, abs=0.08)
     assert result.right_wheel_clearance_m == pytest.approx(expected_clearance, abs=0.08)
     assert result.confidence > 0.54
@@ -314,7 +314,7 @@ def test_both_drop_boundaries_report_offset_and_geometry_clearance():
 
     result = estimate(estimator, frame)
 
-    footprint_half = 0.4395 + 0.035
+    footprint_half = 0.3595 + 0.035
     assert result.path_available, result.reject_reasons
     assert result.path_offset_m == pytest.approx(0.12, abs=0.07)
     assert result.left_wheel_clearance_m == pytest.approx(0.75 + 0.12 - footprint_half, abs=0.08)
@@ -436,14 +436,30 @@ def test_partial_occlusion_and_noise_reduce_confidence_in_expected_direction():
 
 
 def test_narrow_erosion_and_stale_input_fail_closed():
-    narrow = estimate(make_estimator(), render_track_depth(width_m=0.9))
+    narrow = estimate(make_estimator(), render_track_depth(width_m=0.75))
     stale_frame = render_track_depth(stamp_s=2.0, width_m=1.5)
     stale = estimate(make_estimator(), stale_frame, now_s=2.251)
 
     assert not narrow.path_available
-    assert "erosion_empty" in narrow.reject_reasons
+    assert narrow.reject_reasons == ("erosion_empty",)
     assert not stale.path_available
     assert stale.reject_reasons == ("stale_frame",)
+
+
+def test_as_built_v2_0_90_m_track_is_traversable_with_55_5_mm_wheel_clearance():
+    """The 0.90 m course clears each outer wheel edge by 55.5 mm.
+
+    The as-built v2 footprint half-width is 0.3595 + 0.035 = 0.3945 m, so
+    the physical wheel-edge clearance is 0.4500 - 0.3945 = 0.0555 m.
+    The 5 mm assertion tolerance is one tenth of the estimator's 50 mm grid
+    cell: tight enough to catch a one-cell boundary regression.
+    """
+    result = estimate(make_estimator(), render_track_depth(width_m=0.90))
+
+    assert result.path_available, result.reject_reasons
+    assert result.reject_reasons == ()
+    assert result.left_wheel_clearance_m == pytest.approx(0.0555, abs=0.005)
+    assert result.right_wheel_clearance_m == pytest.approx(0.0555, abs=0.005)
 
 
 def test_same_input_sequence_produces_identical_outputs():

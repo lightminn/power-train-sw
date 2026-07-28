@@ -16,6 +16,22 @@ def g():
     return default_geometry()
 
 
+@pytest.mark.parametrize(
+    ("left_name", "right_name", "half_separation_m"),
+    [
+        ("front_left", "front_right", 0.2725),
+        ("mid_left", "mid_right", 0.3595),
+        ("rear_left", "rear_right", 0.2125),
+    ],
+)
+def test_default_geometry_uses_as_built_v2_lateral_half_separations(
+        left_name, right_name, half_separation_m):
+    wheels = {wheel.name: wheel for wheel in g().wheels}
+
+    assert (wheels[left_name].y, wheels[right_name].y) == pytest.approx(
+        (half_separation_m, -half_separation_m))
+
+
 # ── 직진 / 정지 ──────────────────────────────────────────────────────────
 
 def test_straight_zero_steer_equal_speed():
@@ -66,8 +82,8 @@ def test_inner_wheel_steers_more():
 def test_front_rear_opposite_phase():
     """4WS 협조: 뒤축은 앞축과 **반대 부호**로 꺾인다.
 
-    ⚠️ 크기까지 같지는 않다. CAD 실측 기하는 **앞 윤거 705 mm ≠ 뒤 윤거 585 mm** 이므로
-    같은 선회에서 요구되는 조향각이 앞뒤가 다르다(예: 앞 +34.1° / 뒤 −31.7°).
+    ⚠️ 크기까지 같지는 않다. CAD 실측 기하는 **앞 윤거 545 mm ≠ 뒤 윤거 425 mm** 이므로
+    같은 선회에서 요구되는 조향각이 앞뒤가 다르다(예: 앞 +31.0° / 뒤 −29.1°).
     구 기하(앞뒤 윤거 동일)에서는 정확한 거울상이었다.
     """
     r = solve(g(), **TURN)
