@@ -8,6 +8,7 @@ import pytest
 
 from operator_console.pipelines import pipeline_description, srt_uri
 from operator_console.metadata import (
+    Detection,
     DisplayTargetTracker,
     displayable_detections,
     parse_metadata,
@@ -44,7 +45,7 @@ def test_metadata_contract_keeps_bbox_and_optical_position():
     assert frame.detections[0].position_m == (0.1, -0.2, 0.8)
 
 
-def test_target_distance_matches_sensor_only_three_dimensional_distance():
+def test_target_distance_matches_sdk_depth_axis():
     frame = parse_metadata(
         b'{"schema_version":1,"capture_sequence":8,"frame_width":848,'
         b'"frame_height":480,"detections":[{"class_name":"box",'
@@ -53,9 +54,43 @@ def test_target_distance_matches_sensor_only_three_dimensional_distance():
         received_monotonic_s=10.0,
     )
 
-    assert target_distance_m(frame.detections[0]) == pytest.approx(1.3)
+    assert target_distance_m(frame.detections[0]) == pytest.approx(1.2)
     assert frame.detections[0].yaw_rad is None
     assert frame.detections[0].is_pick_target is False
+
+
+def test_distance_uses_sdk_depth_not_3d_range():
+    """실기 대조값: position (0.0854,0.0704,0.2882) 의 SDK depth 는 0.2882 m,
+    3D magnitude 는 0.3199 m. 콘솔 정본은 depth 다."""
+    detection = Detection(
+        "box-segmentation", 0.96, (503, 293, 219, 187),
+        (0.0854, 0.0704, 0.2882),
+    )
+    assert target_distance_m(detection) == pytest.approx(0.2882, abs=1e-4)
+
+
+def test_explicit_depth_field_overrides_position_z():
+    detection = Detection(
+        "box-segmentation", 0.96, (0, 0, 10, 10), (0.1, 0.1, 0.30),
+        depth_m=0.2884,
+    )
+    assert target_distance_m(detection) == pytest.approx(0.2884, abs=1e-4)
+
+
+def test_parse_metadata_reads_optional_depth_m():
+    frame = parse_metadata(
+        b'{"schema_version":1,"capture_sequence":1,"frame_width":848,'
+        b'"frame_height":480,"detections":[{"class_name":"box-segmentation",'
+        b'"confidence":0.9,"bbox_xywh":[1,2,3,4],'
+        b'"position_m":[0.1,0.1,0.3],"depth_m":0.288}]}'
+    )
+    assert frame.detections[0].depth_m == pytest.approx(0.288)
+
+
+def test_non_positive_depth_is_unavailable():
+    assert target_distance_m(
+        Detection("x", 0.9, (0, 0, 1, 1), (0.1, 0.1, 0.0))
+    ) is None
 
 
 def test_metadata_contract_keeps_yaw_and_pick_target_marker():

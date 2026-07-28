@@ -26,6 +26,7 @@ class Detection:
     position_m: tuple[float, float, float] | None
     yaw_rad: float | None = None
     is_pick_target: bool = False
+    depth_m: float | None = None
 
 
 @dataclass(frozen=True)
@@ -77,12 +78,22 @@ def pick_display_target(frame: MetadataFrame | None) -> Detection | None:
 
 
 def target_distance_m(detection: Detection | None) -> float | None:
-    """Return the same 3D metric distance as the proven sensor-only tool."""
-    if detection is None or detection.position_m is None:
+    """대상까지의 **D435i SDK depth**(광축 Z, m).
+
+    3D 직선거리(√(x²+y²+z²))가 아니다.  magnitude 는 대상이 광축에서 벗어날수록
+    depth/cos θ 로 커져 SDK 값과 어긋난다 — 2026-07-29 실기 대조에서 29 cm 대상
+    기준 +3.16 cm(약 11%) 차이가 확인되어 정본을 depth 로 고정했다.  송신부가
+    명시적 `depth_m` 을 실어 주면 그 값이 우선한다.
+    """
+    if detection is None:
         return None
-    x_m, y_m, z_m = detection.position_m
-    distance_m = math.sqrt(x_m * x_m + y_m * y_m + z_m * z_m)
-    return distance_m if math.isfinite(distance_m) and distance_m > 0.0 else None
+    if detection.depth_m is not None:
+        depth_m = detection.depth_m
+    elif detection.position_m is not None:
+        depth_m = detection.position_m[2]
+    else:
+        return None
+    return depth_m if math.isfinite(depth_m) and depth_m > 0.0 else None
 
 
 @dataclass(frozen=True)
@@ -299,6 +310,15 @@ def parse_metadata(raw: bytes, received_monotonic_s: float | None = None) -> Met
             or position[2] <= 0.0
         ):
             position = None
+        raw_depth = item.get("depth_m")
+        try:
+            depth_m = None if raw_depth is None else float(raw_depth)
+        except (TypeError, OverflowError) as exc:
+            raise ValueError("invalid depth") from exc
+        if depth_m is not None and (
+            not math.isfinite(depth_m) or depth_m <= 0.0
+        ):
+            depth_m = None
         raw_yaw = item.get("yaw_rad")
         try:
             yaw_rad = None if raw_yaw is None else float(raw_yaw)
@@ -311,7 +331,7 @@ def parse_metadata(raw: bytes, received_monotonic_s: float | None = None) -> Met
             raise ValueError("invalid is_pick_target")
         detections.append(Detection(
             class_name, confidence, box, position,
-            yaw_rad, is_pick_target,
+            yaw_rad, is_pick_target, depth_m,
         ))
     capture_stamp_ns = payload.get("capture_stamp_ns")
     if capture_stamp_ns is not None:
