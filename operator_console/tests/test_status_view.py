@@ -1,11 +1,15 @@
+import inspect
+import json
 from pathlib import Path
 
+import operator_console.status_view as status_view
 from operator_console.status_view import (
     GRAPH_WINDOW_S,
     MAX_GRAPH_SAMPLES,
     RobotStatusDashboard,
     TimedSeries,
 )
+from operator_console.telemetry import parse_telemetry
 
 
 def test_timed_series_is_bounded_by_count_and_time_window():
@@ -63,3 +67,106 @@ def test_mission_display_options_only_change_overlay_visibility():
         source.index("def _on_display_option_toggled"):
         source.index("def _on_video_area_allocated")
     ]
+
+
+def _power_snapshot(**overrides):
+    payload = {
+        "schema_version": 1,
+        "sequence": 1,
+        "voltage_v": 47.8,
+        "current_a": None,
+        "power_w": None,
+        "drive_state": "PDIST unavailable",
+        "can_state": "unavailable",
+        "pdist_soc_percent": 80,
+        "pdist_battery_flags": 0,
+        "pdist_protection_flags": 0,
+        "rs485_state": "LIVE",
+        "rs485_consecutive_failures": 0,
+    }
+    payload.update(overrides)
+    return parse_telemetry(json.dumps(payload).encode("utf-8"))
+
+
+def test_power_card_is_not_normal_when_rs485_link_is_dead():
+    power_card_state = getattr(status_view, "power_card_state", None)
+    assert power_card_state is not None
+    snapshot = _power_snapshot(
+        voltage_v=None,
+        pdist_soc_percent=None,
+        pdist_battery_flags=None,
+        pdist_protection_flags=None,
+        rs485_state="ERROR",
+        rs485_consecutive_failures=3691,
+    )
+
+    state, reason = power_card_state(snapshot, fresh=True)
+
+    assert state == "확인 필요"
+    assert "ERROR" in reason or "전원" in reason
+
+
+def test_power_card_rs485_error_alone_is_enough_to_demote():
+    """rs485 분기를 **독립적으로** 검증한다.
+
+    바로 위 테스트는 전압·SOC 가 둘 다 결측이라 다른 분기가 대신 잡아 준다 —
+    그래서 rs485 검사를 통째로 빼도 통과했다(2026-07-29 음성 대조에서 확인).
+    계측값이 멀쩡한데 링크만 ERROR 인 경우를 따로 봐야 게이트가 성립한다.
+    """
+    power_card_state = getattr(status_view, "power_card_state", None)
+    assert power_card_state is not None
+    snapshot = _power_snapshot(
+        voltage_v=48.2,
+        pdist_soc_percent=91,
+        rs485_state="ERROR",
+        rs485_consecutive_failures=12,
+    )
+
+    state, reason = power_card_state(snapshot, fresh=True)
+
+    assert state == "확인 필요"
+    assert "ERROR" in reason
+
+
+def test_power_card_is_not_normal_when_voltage_and_soc_are_both_missing():
+    power_card_state = getattr(status_view, "power_card_state", None)
+    assert power_card_state is not None
+    snapshot = _power_snapshot(voltage_v=None, pdist_soc_percent=None)
+
+    assert power_card_state(snapshot, fresh=True) == (
+        "확인 필요",
+        "전원 계측값 없음",
+    )
+
+
+def test_power_card_preserves_protection_flag_warning():
+    power_card_state = getattr(status_view, "power_card_state", None)
+    assert power_card_state is not None
+    snapshot = _power_snapshot(pdist_protection_flags=2)
+
+    assert power_card_state(snapshot, fresh=True) == (
+        "확인 필요",
+        "보호 상태 확인 필요",
+    )
+
+
+def test_power_card_reports_normal_only_for_fresh_healthy_measurement():
+    power_card_state = getattr(status_view, "power_card_state", None)
+    assert power_card_state is not None
+    snapshot = _power_snapshot()
+
+    assert power_card_state(snapshot, fresh=True) == ("정상", "LIVE")
+    assert power_card_state(snapshot, fresh=False) == (
+        "확인 필요",
+        "전원 정보 수신 지연",
+    )
+    assert power_card_state(None, fresh=True) == (
+        "정보 없음",
+        "전원 장치 정보 수신 대기",
+    )
+
+
+def test_status_dashboard_uses_power_health_not_freshness_for_ready_count():
+    source = inspect.getsource(RobotStatusDashboard.update)
+
+    assert "power_card_state(power, fresh=power_fresh)" in source

@@ -28,6 +28,30 @@ GRAPH_REFRESH_MS = 200
 MAX_GRAPH_SAMPLES = 600
 
 
+def power_card_state(
+    power: object | None, *, fresh: bool,
+) -> tuple[str, str]:
+    """Judge power-device health separately from datagram freshness."""
+    if power is None:
+        return "정보 없음", "전원 장치 정보 수신 대기"
+    if not fresh:
+        return "확인 필요", "전원 정보 수신 지연"
+    rs485 = str(getattr(power, "rs485_state", "") or "").strip().upper()
+    if rs485 not in ("LIVE", "OK", "VALID", "NORMAL"):
+        return "확인 필요", f"전원 링크 {rs485 or '상태 없음'}"
+    if (
+        getattr(power, "voltage_v", None) is None
+        and getattr(power, "pdist_soc_percent", None) is None
+    ):
+        return "확인 필요", "전원 계측값 없음"
+    if (
+        getattr(power, "pdist_battery_flags", None) not in (None, 0)
+        or getattr(power, "pdist_protection_flags", None) not in (None, 0)
+    ):
+        return "확인 필요", "보호 상태 확인 필요"
+    return "정상", str(getattr(power, "rs485_state", "") or "정상")
+
+
 def _style(widget: Gtk.Widget, *classes: str) -> Gtk.Widget:
     context = widget.get_style_context()
     for css_class in classes:
@@ -684,17 +708,7 @@ class RobotStatusDashboard(Gtk.Box):
             )
         else:
             drive_reason = "주행 정보 수신 대기"
-        power_state = self._state(power, now_s)
-        if power_fresh and power is not None and (
-            power.pdist_battery_flags not in (None, 0)
-            or power.pdist_protection_flags not in (None, 0)
-        ):
-            power_state = "확인 필요"
-        power_reason = (
-            "전원 장치 정보 수신 대기" if power is None
-            else "보호 상태 확인 필요" if power_state == "확인 필요"
-            else power.rs485_state
-        )
+        power_state, power_reason = power_card_state(power, fresh=power_fresh)
         safety_state = self._state(chassis, now_s)
         safety_reason = "안전 정보 수신 대기"
         if chassis_fresh and chassis is not None:

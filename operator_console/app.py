@@ -91,10 +91,36 @@ VIDEO_STALE_RESTART_S = 5.0
 # Operator-visible copy below is Korean; the transport boundary remains this.
 SEND_SURFACE_CONTRACT = "OBSERVE: RX-ONLY  |  OPS: TOKEN-GATED  |  "
 
+
+def estop_availability(
+    *, token_available: bool, link_ready: bool,
+) -> tuple[bool, str, str | None]:
+    """Return dynamic E-STOP sensitivity, tooltip, and top warning."""
+    if not token_available:
+        return (
+            False,
+            "조작 토큰이 없어 비상정지 명령을 전송할 수 없습니다",
+            "조작 토큰 없음 — 콘솔 비상정지를 사용할 수 없습니다",
+        )
+    if not link_ready:
+        return (
+            False,
+            "조작 채널이 연결되지 않아 비상정지를 전송할 수 없습니다",
+            "조작 채널 연결 대기 — 콘솔 비상정지를 전송할 수 없습니다",
+        )
+    return (
+        True,
+        "확인 없이 즉시 토큰 인증 비상정지 명령을 전송합니다",
+        None,
+    )
+
+
 CONSOLE_CSS = b"""
 window { background: #070B11; color: #FFFFFF; font-family: "Pretendard", "Noto Sans CJK KR", "Noto Sans KR", "SUIT", sans-serif; }
 label { color: #f8fafc; }
 .topbar { background: #0B1119; border-bottom: 1px solid rgba(160,185,210,0.14); padding: 7px 16px; min-height: 52px; }
+.top-warning { background: #492025; color: #FFE8EA; border-radius: 5px; padding: 5px 9px; font-size: 11px; font-weight: 800; }
+.top-alert { background: #5A3012; color: #FFF0D8; border-radius: 5px; padding: 5px 9px; font-size: 11px; font-weight: 800; }
 .brand { color: #FFFFFF; font-size: 19px; font-weight: 900; }
 .eyebrow { color: #C4D0DE; font-size: 10px; font-weight: 600; }
 .health-strip { background: transparent; padding: 0; }
@@ -1744,10 +1770,12 @@ class OpsPanel(Gtk.Frame):
         token_file: str,
         *,
         event_sink: Callable[[str, str], None],
+        alert_sink: Callable[[str], None] | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         super().__init__(label="조작 (토큰 인증)")
         self._event_sink = event_sink
+        self._alert_sink = alert_sink or (lambda _message: None)
         self._clock = clock
         self._client: ConsoleOpsClient | None = None
         self._flow: ConfirmFlow | None = None
@@ -2016,7 +2044,9 @@ class OpsPanel(Gtk.Frame):
         try:
             request_id = self._client.submit(**submit_kwargs)
         except RuntimeError as exc:
-            self._emit(f"{action}: rejected — {exc}")
+            message = f"{action}: 전송 실패 · {exc}"
+            self._emit(message)
+            self._alert_sink(message)
         else:
             self._pending_requests[request_id] = action
             self._emit(f"{action}: submitted · request {request_id}")
@@ -2095,6 +2125,14 @@ class OpsPanel(Gtk.Frame):
     def ops_available(self) -> bool:
         return self._client is not None and self._flow is not None
 
+    def link_ready(self) -> bool:
+        """Return True only when token-gated controls have a live ops link."""
+        return (
+            self.ops_available()
+            and self._client is not None
+            and self._client.connected
+        )
+
     def trigger_estop(self) -> None:
         """Use the same immediate, token-gated path as the Ops-page button."""
         action = next(
@@ -2113,6 +2151,11 @@ class OpsPanel(Gtk.Frame):
         self._emit(message)
         self._latest_ack_text = ack_korean(status, detail)
         self._refresh_status_line()
+        if (
+            status == "OUTCOME_UNKNOWN"
+            or status.startswith("FINAL_") and status != "FINAL_SUCCESS"
+        ):
+            self._alert_sink(message)
         if status.startswith("FINAL_") or status == "OUTCOME_UNKNOWN":
             self._pending_requests.pop(request_id, None)
 
@@ -2344,6 +2387,20 @@ class OperatorConsole(Gtk.Window):
         title_row.pack_end(self._global_estop, False, False, 0)
         title_row.pack_end(self._health, False, False, 6)
         topbar.pack_start(title_row, False, False, 0)
+        self._estop_availability_warning = Gtk.Label()
+        self._estop_availability_warning.set_xalign(0.0)
+        self._estop_availability_warning.set_no_show_all(True)
+        _style(self._estop_availability_warning, "top-warning")
+        topbar.pack_start(
+            self._estop_availability_warning, False, False, 2,
+        )
+        self._alert_label = Gtk.Label()
+        self._alert_label.set_xalign(0.0)
+        self._alert_label.set_line_wrap(True)
+        self._alert_label.set_no_show_all(True)
+        _style(self._alert_label, "top-alert")
+        topbar.pack_start(self._alert_label, False, False, 2)
+        self._alert_serial = 0
         self._readiness_title = Gtk.Label(label="시스템 점검 중")
         self._readiness_detail = Gtk.Label(
             label="통신 및 안전 장치 연결 확인 중"
@@ -2363,12 +2420,9 @@ class OperatorConsole(Gtk.Window):
             ops_port,
             ops_token_file,
             event_sink=self._events.add_event,
+            alert_sink=self._show_alert,
         )
-        self._global_estop.set_sensitive(self._ops_panel.ops_available())
-        if not self._ops_panel.ops_available():
-            self._global_estop.set_tooltip_text(
-                "조작 토큰이 없어 비상정지 명령을 전송할 수 없습니다"
-            )
+        self._refresh_estop_availability()
         _style(self._ops_panel, "danger-card")
 
         mission_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -3014,7 +3068,35 @@ class OperatorConsole(Gtk.Window):
                 f"{target_view.distance_m:.2f} m"
             )
 
+    def _refresh_estop_availability(self) -> None:
+        sensitive, tooltip, warning = estop_availability(
+            token_available=self._ops_panel.ops_available(),
+            link_ready=self._ops_panel.link_ready(),
+        )
+        self._global_estop.set_sensitive(sensitive)
+        self._global_estop.set_tooltip_text(tooltip)
+        if warning is None:
+            self._estop_availability_warning.hide()
+            return
+        self._estop_availability_warning.set_text(warning)
+        self._estop_availability_warning.show()
+
+    def _show_alert(self, message: str) -> None:
+        """Show a command failure above the main content for eight seconds."""
+        self._alert_serial += 1
+        serial = self._alert_serial
+        self._alert_label.set_text(message)
+        self._alert_label.show()
+
+        def hide_if_current() -> bool:
+            if serial == self._alert_serial:
+                self._alert_label.hide()
+            return False
+
+        GLib.timeout_add(8000, hide_if_current)
+
     def _refresh_health(self) -> bool:
+        self._refresh_estop_availability()
         snapshot = self._telemetry_receiver.latest()
         chassis_snapshot = self._chassis_receiver.latest()
         metadata = self._metadata_receiver.latest()

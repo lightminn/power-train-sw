@@ -10,7 +10,8 @@ early exit. Run it (or the pytest wrapper) after every operator_console
 change:
 
     xvfb-run 없이 직접:  /usr/bin/python3 -m operator_console.runtime_smoke
-    (하니스가 스스로 xvfb-run -a 로 감싼다 — 사용자 화면에 창을 띄우지 않음)
+    (하니스가 WAYLAND_DISPLAY 를 제거하고 GDK_BACKEND=x11 로 고정한 뒤
+    xvfb-run -a 로 감싸므로 사용자 화면에 창을 띄우지 않는다.)
 """
 from __future__ import annotations
 
@@ -35,6 +36,16 @@ STARTUP_TIMEOUT_S = 40.0
 # 이 패널들은 주입 중 LIVE 에 도달하고, 주입을 끊으면 STALE 로 전이해야 한다.
 # 하나라도 못 하면 그 채널은 실제로는 죽어 있는 것이다.
 REQUIRED_PANELS = frozenset({"telemetry", "chassis", "metadata", "arm"})
+
+
+def smoke_child_env(
+    base: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Force the console child onto X11 so Xvfb actually isolates it."""
+    env = dict(os.environ if base is None else base)
+    env.pop("WAYLAND_DISPLAY", None)
+    env["GDK_BACKEND"] = "x11"
+    return env
 
 
 def _probe_states(probe_file: Path, wanted: str) -> set[str]:
@@ -209,6 +220,7 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,
+            env=smoke_child_env(),
         )
     except BaseException:
         Path(token_file).unlink(missing_ok=True)
