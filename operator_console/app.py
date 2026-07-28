@@ -1033,10 +1033,16 @@ class FixedSizeSlot(Gtk.Bin):
     (2026-07-29 실기 관측).  이 슬롯은 지정된 크기만 요구한다.
     """
 
+    # 첫 size-allocate 전에도 유효한 크기를 요구해야 한다.  1x1 로 두면 기동 시
+    # "Negative content width -1 ... owner VideoPanel" GTK 경고가 뜬다(테두리·패딩이
+    # 1 px 할당보다 크다).  최소 PiP 폭 300 과 848:480 비율을 초기값으로 쓴다.
+    DEFAULT_SLOT_WIDTH = 300
+    DEFAULT_SLOT_HEIGHT = 170
+
     def __init__(self) -> None:
         super().__init__()
-        self._slot_width = 1
-        self._slot_height = 1
+        self._slot_width = self.DEFAULT_SLOT_WIDTH
+        self._slot_height = self.DEFAULT_SLOT_HEIGHT
 
     def set_slot_size(self, width: int, height: int) -> None:
         width, height = max(1, int(width)), max(1, int(height))
