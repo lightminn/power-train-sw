@@ -226,7 +226,7 @@ def test_detection_metadata_is_console_schema_superset_with_pick_flag():
     assert detection["is_pick_target"] is True
 
 
-def test_detection_metadata_requires_exact_pick_target_bbox_match():
+def test_detection_metadata_matches_small_interframe_bbox_motion_by_iou():
     encoded = build_detection_metadata_payload(
         capture_stamp_ns=1,
         frame_id="camera_link",
@@ -234,6 +234,19 @@ def test_detection_metadata_requires_exact_pick_target_bbox_match():
         frame_height=480,
         detections=[_detection()],
         pick_target=(0, (10, 20, 31, 40)),
+    )
+
+    assert json.loads(encoded)["detections"][0]["is_pick_target"] is True
+
+
+def test_detection_metadata_rejects_spatially_unrelated_stale_pick():
+    encoded = build_detection_metadata_payload(
+        capture_stamp_ns=1,
+        frame_id="camera_link",
+        frame_width=848,
+        frame_height=480,
+        detections=[_detection()],
+        pick_target=(0, (500, 300, 31, 40)),
     )
 
     assert json.loads(encoded)["detections"][0]["is_pick_target"] is False

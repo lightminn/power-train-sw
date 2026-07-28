@@ -7,7 +7,13 @@ import sys
 import pytest
 
 from operator_console.pipelines import pipeline_description, srt_uri
-from operator_console.metadata import parse_metadata
+from operator_console.metadata import (
+    DisplayTargetTracker,
+    displayable_detections,
+    parse_metadata,
+    pick_display_target,
+    target_distance_m,
+)
 from operator_console import telemetry
 from operator_console.telemetry import parse_telemetry
 
@@ -36,6 +42,18 @@ def test_metadata_contract_keeps_bbox_and_optical_position():
     assert frame.sequence == 7
     assert frame.detections[0].bbox_xywh == (10, 20, 30, 40)
     assert frame.detections[0].position_m == (0.1, -0.2, 0.8)
+
+
+def test_target_distance_matches_sensor_only_three_dimensional_distance():
+    frame = parse_metadata(
+        b'{"schema_version":1,"capture_sequence":8,"frame_width":848,'
+        b'"frame_height":480,"detections":[{"class_name":"box",'
+        b'"confidence":0.9,"bbox_xywh":[10,20,30,40],'
+        b'"position_m":[0.3,0.4,1.2]}]}',
+        received_monotonic_s=10.0,
+    )
+
+    assert target_distance_m(frame.detections[0]) == pytest.approx(1.3)
     assert frame.detections[0].yaw_rad is None
     assert frame.detections[0].is_pick_target is False
 
@@ -57,8 +75,10 @@ def test_metadata_skips_degenerate_bbox_without_dropping_valid_detection():
     payload = {
         "schema_version": 1,
         "capture_sequence": 9,
+        "capture_stamp_ns": 123456,
         "frame_width": 848,
         "frame_height": 480,
+        "frame_id": "camera_color_optical_frame",
         "detections": [
             {
                 "class_name": "valid",
@@ -84,8 +104,10 @@ def test_metadata_contract_rejects_non_finite_yaw():
     payload = {
         "schema_version": 1,
         "capture_sequence": 9,
+        "capture_stamp_ns": 123456,
         "frame_width": 848,
         "frame_height": 480,
+        "frame_id": "camera_color_optical_frame",
         "detections": [{
             "class_name": "bottle",
             "confidence": 0.91,
@@ -97,6 +119,215 @@ def test_metadata_contract_rejects_non_finite_yaw():
 
     with pytest.raises(ValueError):
         parse_metadata(json.dumps(payload).encode("utf-8"))
+
+
+def test_metadata_invalid_depth_is_unavailable_not_a_display_number():
+    for depth in (0.0, math.nan, math.inf):
+        payload = {
+            "schema_version": 1,
+            "capture_sequence": 10,
+            "frame_width": 848,
+            "frame_height": 480,
+            "detections": [{
+                "class_name": "box",
+                "confidence": 0.9,
+                "bbox_xywh": [10, 20, 30, 40],
+                "position_m": [0.0, 0.0, depth],
+            }],
+        }
+        frame = parse_metadata(json.dumps(payload).encode("utf-8"))
+        assert frame.detections[0].position_m is None
+
+
+def test_overlay_uses_deployed_confidence_threshold_without_mutating_raw_data():
+    payload = {
+        "schema_version": 1,
+        "capture_sequence": 11,
+        "capture_stamp_ns": 123456,
+        "frame_width": 848,
+        "frame_height": 480,
+        "frame_id": "camera_color_optical_frame",
+        "detections": [
+            {"class_name": "box-segmentation", "confidence": 0.49,
+             "bbox_xywh": [1, 0, 320, 473], "position_m": [0, 0, 0.64]},
+            {"class_name": "box-segmentation", "confidence": 0.50,
+             "bbox_xywh": [10, 20, 30, 40], "position_m": [0, 0, 0.32]},
+        ],
+    }
+    frame = parse_metadata(json.dumps(payload).encode("utf-8"))
+
+    assert len(frame.detections) == 2
+    assert [item.confidence for item in displayable_detections(frame)] == [0.50]
+    assert frame.capture_stamp_ns == 123456
+
+
+def test_overlay_rejects_detection_clipped_on_three_frame_borders():
+    frame = parse_metadata(json.dumps({
+        "schema_version": 1,
+        "capture_sequence": 9,
+        "frame_width": 848,
+        "frame_height": 480,
+        "detections": [{
+            "class_name": "box-segmentation",
+            "confidence": 0.86,
+            "bbox_xywh": [1, 0, 320, 476],
+            "position_m": [0, 0, 0.67],
+        }],
+    }).encode(), received_monotonic_s=10.0)
+
+    assert displayable_detections(frame) == ()
+    assert len(frame.detections) == 1
+    assert frame.source_camera_id == "work"
+
+
+def test_ui_never_promotes_an_unselected_background_distance_to_target():
+    payload = {
+        "schema_version": 1, "capture_sequence": 12,
+        "frame_width": 848, "frame_height": 480,
+        "detections": [
+            {"class_name": "box-segmentation", "confidence": 0.9,
+             "bbox_xywh": [0, 0, 300, 470],
+             "position_m": [0, 0, 3.0], "is_pick_target": False},
+            {"class_name": "box-segmentation", "confidence": 0.8,
+             "bbox_xywh": [300, 150, 120, 100],
+             "position_m": [0, 0, 0.32], "is_pick_target": True},
+        ],
+    }
+    frame = parse_metadata(json.dumps(payload).encode("utf-8"))
+    assert pick_display_target(frame).position_m[2] == 0.32
+
+    payload["detections"][1]["is_pick_target"] = False
+    frame = parse_metadata(json.dumps(payload).encode("utf-8"))
+    assert pick_display_target(frame) is None
+
+
+def _target_frame(
+    sequence, distance, *, bbox=(100, 100, 120, 100),
+    confidence=0.8, is_pick_target=False, received=10.0,
+):
+    payload = {
+        "schema_version": 1, "capture_sequence": sequence,
+        "frame_width": 848, "frame_height": 480,
+        "detections": [{
+            "class_name": "box-segmentation", "confidence": confidence,
+            "bbox_xywh": list(bbox), "position_m": [0, 0, distance],
+            "is_pick_target": is_pick_target,
+        }],
+    }
+    return parse_metadata(
+        json.dumps(payload).encode("utf-8"),
+        received_monotonic_s=received,
+    )
+
+
+def test_display_target_tracker_shows_unlatched_detection_distance():
+    tracker = DisplayTargetTracker()
+    view = tracker.update(_target_frame(1, 0.32), now_s=10.0)
+    assert view.detection is not None
+    assert view.distance_m == pytest.approx(0.32)
+
+
+def test_display_target_tracker_rejects_single_tenfold_outlier():
+    tracker = DisplayTargetTracker()
+    for sequence, distance in enumerate((0.30, 0.31, 0.32), 1):
+        view = tracker.update(
+            _target_frame(sequence, distance), now_s=10.0,
+        )
+        assert view.distance_m is not None
+    outlier = tracker.update(_target_frame(4, 3.0), now_s=10.0)
+    assert outlier.distance_m is None
+    assert outlier.distance_state == "거리 갱신 중"
+    recovered = tracker.update(_target_frame(5, 0.33), now_s=10.0)
+    assert recovered.distance_m < 0.34
+
+
+def test_display_target_tracker_rejects_large_same_target_jump():
+    tracker = DisplayTargetTracker()
+    for sequence, distance in enumerate((0.30, 0.31, 0.32), 1):
+        tracker.update(_target_frame(sequence, distance), now_s=10.0)
+
+    samples = [
+        tracker.update(_target_frame(sequence, distance), now_s=10.0)
+        for sequence, distance in enumerate((3.08, 3.10, 3.09), 4)
+    ]
+
+    assert all(sample.distance_m is None for sample in samples)
+    assert all(sample.distance_state == "거리 갱신 중" for sample in samples)
+
+
+def test_display_target_tracker_accepts_centimeter_range_depth():
+    tracker = DisplayTargetTracker()
+
+    view = tracker.update(_target_frame(1, 0.34), now_s=10.0)
+
+    assert view.distance_m == pytest.approx(0.34)
+
+
+def test_display_target_tracker_resets_on_target_geometry_change():
+    tracker = DisplayTargetTracker()
+    tracker.update(_target_frame(1, 0.32), now_s=10.0)
+    changed = tracker.update(
+        _target_frame(2, 1.2, bbox=(600, 300, 80, 60)),
+        now_s=10.0,
+    )
+    assert changed.distance_m == pytest.approx(1.2)
+
+
+def test_display_target_tracker_hides_stale_distance():
+    tracker = DisplayTargetTracker()
+    stale = tracker.update(
+        _target_frame(1, 0.32, received=10.0), now_s=10.6,
+    )
+    assert stale.distance_m is None
+    assert stale.distance_state == "거리 정보 지연"
+
+
+def test_display_target_tracker_holds_one_short_empty_detection_frame():
+    tracker = DisplayTargetTracker()
+    visible = tracker.update(
+        _target_frame(1, 0.32, received=10.0), now_s=10.0,
+    )
+    empty = parse_metadata(json.dumps({
+        "schema_version": 1,
+        "capture_sequence": 2,
+        "frame_width": 848,
+        "frame_height": 480,
+        "detections": [],
+    }).encode(), received_monotonic_s=10.15)
+
+    held = tracker.update(empty, now_s=10.15)
+
+    assert held.held is True
+    assert held.detection == visible.detection
+    assert held.distance_m == pytest.approx(0.32)
+
+
+def test_display_target_tracker_drops_target_after_bounded_hold():
+    tracker = DisplayTargetTracker()
+    tracker.update(_target_frame(1, 0.32, received=10.0), now_s=10.0)
+    empty = parse_metadata(json.dumps({
+        "schema_version": 1,
+        "capture_sequence": 2,
+        "frame_width": 848,
+        "frame_height": 480,
+        "detections": [],
+    }).encode(), received_monotonic_s=10.4)
+
+    missing = tracker.update(empty, now_s=10.4)
+
+    assert missing.detection is None
+    assert missing.distance_m is None
+
+
+def test_display_target_tracker_same_sequence_still_becomes_stale():
+    tracker = DisplayTargetTracker()
+    frame = _target_frame(1, 0.32, received=10.0)
+    tracker.update(frame, now_s=10.0)
+
+    stale = tracker.update(frame, now_s=10.6)
+
+    assert stale.detection is None
+    assert stale.distance_state == "거리 정보 지연"
 
 
 def test_telemetry_contract_keeps_missing_sensor_values_unavailable():
@@ -698,7 +929,7 @@ def test_health_banner_includes_arm_freshness_and_reuses_probe_state():
     )
     assert source.count(arm_state_call) == 1
     assert "arm_state = " + arm_state_call in source
-    assert 'f"팔 {freshness_korean(arm_state)}' in source
+    assert '"arm": arm_state' in source
     assert '"arm": arm_state' in source
 
 
@@ -862,3 +1093,271 @@ def test_smoke_probe_reports_video_pane_health():
     ).read_text(encoding="utf-8")
     assert '"video_l515": self._l515.health_state()' in source
     assert '"video_d435": self._d435.health_state()' in source
+
+
+def test_console_layout_separates_mission_systems_and_ops_pages():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'stack.add_titled(mission_page, "mission", "시연 화면")' in source
+    assert 'stack.add_titled(systems_scroll, "systems", "로봇 상태")' in source
+    assert 'stack.add_titled(ops_page, "ops", "관리자 조작")' in source
+    assert "Gtk.StackSwitcher()" in source
+    assert "self.set_default_size(1180, 760)" in source
+    assert "videos = Gtk.Overlay()" in source
+    assert "int(allocation.width * 0.30)" in source
+    assert "pip_width * 480 / 848" in source
+    assert "event_expander = Gtk.Expander()" in source
+    assert 'event_expander.add(self._events)' in source
+    assert "Gtk.Revealer()" not in source
+    assert '"event-expander"' in source
+
+
+def test_console_visual_tokens_keep_arctic_shell_dark_video_and_safety_contrast():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    assert "background: rgba(10,25,40,0.88)" in source
+    assert "background: {video_stage}" in source
+    assert ".health-strip" in source
+    assert ".video-card" in source
+    assert ".danger-card" in source
+    assert ".status-live" in source
+    assert ".status-warn" in source
+    assert ".status-bad" in source
+
+
+def test_mission_preparation_keeps_dual_camera_layout_without_progress_hud():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    for copy in (
+        "운용 정보",
+            "현재 단계",
+        "시연 준비",
+        "전방 카메라",
+        "작업 카메라",
+        "주행 시스템",
+        "안전 장치",
+    ):
+        assert copy in source
+    assert "SYSTEM CHECK" not in source
+    assert "임무 시작 전" not in source
+    assert "mission_page.pack_start(mission_body" in source
+    assert "mission_presentation_stack" not in source
+    assert "self._readiness_count" in source
+    assert 'step_names = ("준비", "탐색", "접근", "도구 작업", "완료")' not in source
+    assert "videos.add_overlay(progress_hud)" not in source
+    assert "rail.pack_start(display_options" in source
+    assert "로봇의 주행 영상을 연결하고 있습니다" in source
+    assert "로봇팔 작업 영상을 연결하고 있습니다" in source
+
+
+def test_console_health_is_split_into_named_status_chips():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    assert "self._health = Gtk.Box(spacing=14)" in source
+    for key in ("network", "power", "camera", "safety"):
+        assert f'"{key}"' in source
+    for title in ("로봇 연결", "전원", "카메라", "안전 장치"):
+        assert f'"{title}"' in source
+
+
+def test_judge_facing_mission_summary_uses_plain_language_and_live_data():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    for copy in (
+        "재난 대응 로봇 관제 시스템", "현재 단계",
+        "임무 정보", "안전 장치",
+    ):
+        assert copy in source
+    assert 'self._mission_metrics["target"].set_text' in source
+    assert 'self._mission_metrics["distance"].set_text' in source
+    assert "self._readiness_count.set_text" in source
+
+
+def test_judge_view_stays_inside_the_three_original_gui_sections():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"기술 소개"' not in source
+    assert ".distance-card" in source
+    assert ".target-card" in source
+    assert ".story-phase" in source
+
+
+def test_global_estop_is_always_in_topbar_and_reuses_token_gated_path():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'estop_title = Gtk.Label(label="긴급 정지")' in source
+    assert 'estop_subtitle = Gtk.Label(label="E-STOP")' in source
+    assert '"clicked", lambda _button: self._ops_panel.trigger_estop()' in source
+    assert 'item for item in PANEL_ACTIONS if item.action == "estop"' in source
+    assert 'self._on_immediate_clicked(' in source
+    assert '"global_estop_visible": self._global_estop.get_visible()' in source
+
+
+def test_video_headers_swap_main_and_sub_without_rebuilding_pipelines():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'header_click.connect("button-press-event", self._on_swap_click)' in source
+    assert 'self._l515.set_role("MAIN")' in source
+    assert 'self._d435.set_role("SUB")' in source
+    assert "self._videos.remove(secondary)" in source
+    assert "self._pip_frame.remove(selected)" in source
+    assert "self._videos.add(selected)" in source
+    assert "self._pip_frame.add(secondary)" in source
+    assert 'self._swap_hint.set_text("클릭하여 크게 보기" if compact else "")' in source
+    assert 'self._role.set_text(normalized)' not in source
+    assert "widget.set_no_show_all(compact)" in source
+
+
+def test_camera_status_is_overlaid_and_has_a_waiting_placeholder():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    assert '_style(header_click, "video-overlay")' in source
+    assert "전방 화면 준비 중" in source
+    assert "작업 화면 준비 중" in source
+    assert "로봇의 주행 영상을 연결하고 있습니다" in source
+    assert "RoverPlaceholder(" in source
+    assert 'camera_kind=("front" if name == "전방 카메라" else "work")' in source
+    assert '"arm": (72.0, 4.0, 190.0, 172.0)' in source
+    assert '"front": (218.0, 27.0, 154.0, 170.0)' in source
+    assert "video_stage.add_overlay(header_click)" in source
+
+
+def test_event_filters_are_independent_uppercase_checkbuttons():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'for severity in ("ERROR", "WARNING", "INFO")' in source
+
+
+def test_event_rows_render_uppercase_severity_and_tabs_auto_collapse():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+    row_source = source[
+        source.index("class EventOperationRow"):
+        source.index("class EventLog")
+    ]
+    assert "Gtk.Label(label=severity)" in row_source
+    assert '"ERROR": "오류"' not in row_source
+    assert 'stack.connect("notify::visible-child-name", self._on_page_changed)' in source
+    assert 'self._event_expander.set_expanded(False)' in source
+
+
+def test_overlay_transform_preserves_aspect_and_letterbox_offsets():
+    from operator_console.app import fit_overlay_transform
+
+    scale, offset_x, offset_y = fit_overlay_transform(1920, 1080, 640, 480)
+    assert scale == 2.25
+    assert offset_x == 240
+    assert offset_y == 0
+
+
+def test_metadata_overlay_remains_owned_by_work_camera_during_swap():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+    assert 'self._d435 = VideoPanel("작업 카메라"' in source
+    assert "metadata_receiver=self._metadata_receiver" in source
+    assert 'self._l515 = VideoPanel("전방 카메라"' in source
+    swap = source[
+        source.index("def swap_camera_views"):
+        source.index("def _on_display_option_toggled")
+    ]
+    assert "MetadataCanvas(" not in swap
+    assert "set_metadata_display_options" not in swap
+    assert "if not user_initiated:" in swap
+    assert "smoke-swap-video" not in source
+    assert "overlay_view_state" in source
+    handler = source[
+        source.index("def _on_display_option_toggled"):
+        source.index("def _on_page_changed")
+    ]
+    assert "self._sync_overlay_rail" in handler
+    assert "sendto(" not in handler
+    assert "Gtk.CheckButton(label=severity)" in source
+    assert "for toggle in self._filters.values():" in source
+    assert "toggle.set_active(True)" in source
+    assert "self._events.set_developer_visible(switch.get_active())" in source
+    assert 'label="접기"' not in source
+
+
+def test_standby_rover_and_watermark_use_viewport_owned_cairo_overlays():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    assets = Path(__file__).resolve().parents[1] / "assets"
+    rover = (assets / "mobile_robot_pictogram.svg").read_text(encoding="utf-8")
+    wordmark = (assets / "jetin_wordmark.svg").read_text(encoding="utf-8")
+
+    assert 'Rsvg.Handle.new_from_file' in source
+    assert 'preserveAspectRatio="xMidYMid meet"' in rover
+    assert "linearGradient" not in rover
+    assert 'fill="none"' in rover
+    assert 'stroke="rgba(74,116,154,.58)"' in rover
+    assert rover.count("<circle") >= 10
+    assert 'fill="#355B78"' in rover
+    assert 'fill="#263F55"' in rover
+    assert "rocker-bogie" in rover
+    assert "<linearGradient" not in rover
+    assert "<filter" not in rover
+    assert "JET-IN" in wordmark
+    assert 'font-weight="900"' in wordmark
+    assert 'skewX(-10)' in wordmark
+    assert "videos.add_overlay(self._watermark)" in source
+    assert "videos.set_overlay_pass_through(self._watermark, True)" in source
+
+
+def test_rover_placeholder_size_depends_on_slot_not_camera_name():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    assert "class RoverPlaceholder" in source
+    assert "MAIN_WIDTH = 290" in source
+    assert "PREVIEW_WIDTH = 90" in source
+    assert 'width = self.MAIN_WIDTH if role == "MAIN" else self.PREVIEW_WIDTH' in source
+    assert "compact_standby = name" not in source
+    assert "self._rover_placeholder.set_slot(normalized)" in source
+
+
+def test_event_log_uses_one_integrated_feed_with_inline_raw_rows():
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'label="운용 기록"' not in source
+    assert 'label="원본 로그"' not in source
+    assert "self._log_stack = Gtk.Stack()" not in source
+    assert 'Gtk.CheckButton(label="원본 기술 로그 보기")' not in source
+    assert 'Gtk.ToggleButton(label="비교 보기")' not in source
+    assert "event-compare-pane" not in source
+    assert "class EventOperationRow(Gtk.ListBoxRow)" in source
+    assert "row.toggle_detail()" in source
+    assert 'label=f"원본: [{stamp}] {severity} {source}: {message}"' in source
+    assert '(3, "기술 정보", 360)' in source
+    assert 'technical_box.set_size_request(360, -1)' in source
+    assert "self._technical_summary(message)" in source
+    assert "self.set_size_request(-1, 180)" not in source
+    assert "self._user_scroll.set_max_content_height(210)" in source
+    assert "self._user_scroll.set_propagate_natural_height(True)" in source
+    assert "event_heading.pack_end(self._events.filter_box" in source

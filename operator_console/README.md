@@ -45,6 +45,47 @@ ros2 run powertrain_ros arm_console_bridge --ros-args -p console_host:=<laptop-i
 /usr/bin/python3 -m operator_console.app --host 192.168.8.106
 ```
 
+The interface is organized into three roles: **시연 화면** (mission/video), **로봇 상태** (device summaries with expandable raw diagnostics), and **관리자 조작** (unchanged token-gated safety controls). Press `F11` for the competition display. Camera panels can be clicked to exchange the large and preview views; technical stream errors remain in the collapsed event log and robot diagnostics.
+
+The **로봇 상태** tab is an RX-only live view. Its 주행/전원/로봇팔/안전/AI
+인식/영상·통신 checkboxes only show or hide visualization widgets; receiver
+threads and bounded 60-second buffers continue running, and no ops request,
+component-mask update, CAN command, or ROS parameter write is connected to
+them. 주행과 전원만 기본 표시한다. Missing contract fields are
+shown as `정보 없음` or `연동 예정`, never as synthetic zeroes; see
+`docs/ui_data_gap.md`.
+
+The **시연 화면 → 화면 표시** checkboxes independently control YOLO
+box/class/confidence and target-distance text. They do not stop metadata
+reception or alter target selection, and stale metadata still hides every
+overlay after the measured-inference-aware 500 ms deadline. A valid target is
+held for at most 350 ms across a brief empty detection frame to prevent visual
+flicker; the value is never extended past the stale deadline. The work-camera preview keeps
+the native 848:480 ratio and becomes the main view only after its explicit
+`클릭하여 크게 보기` action. Display quality gates omit detections clipped on
+three or more frame borders; the immutable raw metadata snapshot remains
+available to diagnostics.
+
+### Isolated telemetry replay
+
+Before hardware integration, captured JSONL packets can be sent through the
+same UDP decoders on ports isolated from live operation. Each line uses
+`{"t":0.0,"channel":"power","payload":{...}}`; the payload is transmitted
+unchanged.
+
+```bash
+/usr/bin/python3 -m operator_console.app \
+  --host 127.0.0.1 --metadata-port 15003 --telemetry-port 15004 \
+  --chassis-telemetry-port 15005 --arm-telemetry-port 15007 \
+  --input-source REPLAY
+
+/usr/bin/python3 tools/operator_console_replay.py capture.jsonl
+```
+
+The replay tool defaults to 15003/15004/15005/15007 and rejects the live UDP
+ports. Recorded video or a GStreamer test sender must still use the existing
+SRT receiver contract; no DEMO control is added to the operator UI.
+
 Use the system interpreter explicitly: a conda-base `python3` has no GTK
 bindings (`gi`) and dies with ModuleNotFoundError. The systemd unit already
 pins `/usr/bin/python3`.

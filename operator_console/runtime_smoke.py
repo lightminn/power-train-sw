@@ -51,6 +51,25 @@ def _probe_states(probe_file: Path, wanted: str) -> set[str]:
     return {name for name, state in states.items() if state == wanted}
 
 
+def _probe_main_video(probe_file: Path) -> str | None:
+    try:
+        states = json.loads(probe_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(states, dict):
+        return None
+    value = states.get("main_video")
+    return str(value) if value is not None else None
+
+
+def _probe_rover_widths(probe_file: Path) -> tuple[int, int] | None:
+    try:
+        states = json.loads(probe_file.read_text(encoding="utf-8"))
+        return int(states["rover_l515_width"]), int(states["rover_d435_width"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 def _free_udp_port() -> int:
     probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     probe.bind(("127.0.0.1", 0))
@@ -201,6 +220,8 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
     }
     live_seen: set[str] = set()
     stale_seen: set[str] = set()
+    unexpected_auto_swap_seen = False
+    role_sized_rovers_seen = False
     try:
         # 콘솔이 Gtk 루프에 진입하기 전에 주입 창을 소진하면 LIVE 를 한 번도
         # 못 보고 거짓 FAIL 이 난다(부하가 높으면 xvfb 기동이 수 초 걸린다).
@@ -232,6 +253,10 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
                 )
             time.sleep(0.2)
             live_seen |= _probe_states(probe_file, "LIVE")
+            unexpected_auto_swap_seen |= (
+                _probe_main_video(probe_file) == "작업 카메라"
+            )
+            role_sized_rovers_seen |= _probe_rover_widths(probe_file) == (290, 90)
         # phase 2 — 주입 중단: 전 패널 LIVE→STALE 전이 + 오버레이 숨김 경로.
         stale_deadline = time.monotonic() + 2.5
         while time.monotonic() < stale_deadline and console.poll() is None:
@@ -292,10 +317,16 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
             f"panels never went STALE after injection stopped: "
             f"{', '.join(missing_stale)}\n{text}"
         )
+    if unexpected_auto_swap_seen:
+        return False, "D435i became MAIN without an operator click\n" + text
+    if not role_sized_rovers_seen:
+        return False, (
+            "default front-MAIN/work-PiP placeholder sizes changed\n" + text
+        )
     return True, (
         f"PASS · {sequence} ticks on 4 channels · "
         f"LIVE+STALE observed on {', '.join(sorted(REQUIRED_PANELS))} · "
-        "no tracebacks"
+        "no automatic camera swap observed · no tracebacks"
     )
 
 
