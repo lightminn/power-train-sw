@@ -999,6 +999,39 @@ class EventLog(Gtk.Box):
         return severity, self._public_message(source, message)
 
 
+class FixedSizeSlot(Gtk.Bin):
+    """자식의 natural size 를 전파하지 않는 고정 크기 컨테이너.
+
+    Gtk 의 size request 는 '최소'라서, gtksink 가 영상 해상도를 natural size 로
+    보고하면 Overlay 가 그 크기로 할당해 PiP 가 스테이지를 덮어버린다
+    (2026-07-29 실기 관측).  이 슬롯은 지정된 크기만 요구한다.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._slot_width = 1
+        self._slot_height = 1
+
+    def set_slot_size(self, width: int, height: int) -> None:
+        width, height = max(1, int(width)), max(1, int(height))
+        if (width, height) == (self._slot_width, self._slot_height):
+            return
+        self._slot_width, self._slot_height = width, height
+        self.queue_resize()
+
+    def do_get_preferred_width(self) -> tuple[int, int]:
+        return self._slot_width, self._slot_width
+
+    def do_get_preferred_height(self) -> tuple[int, int]:
+        return self._slot_height, self._slot_height
+
+    def do_get_preferred_width_for_height(self, _height: int) -> tuple[int, int]:
+        return self._slot_width, self._slot_width
+
+    def do_get_preferred_height_for_width(self, _width: int) -> tuple[int, int]:
+        return self._slot_height, self._slot_height
+
+
 class VideoPanel(Gtk.Box):
     """One read-only SRT receiver panel embedded in the console."""
 
@@ -1035,18 +1068,16 @@ class VideoPanel(Gtk.Box):
         self._header_state = Gtk.Label(label="연결 대기")
         _style(self._header_state, "camera-connection-label")
         header.pack_start(self._header_state, False, False, 0)
-        swap_hint = Gtk.Label(label="클릭하여 화면 교체")
+        swap_hint = Gtk.Label(label="")
         self._swap_hint = swap_hint
         _style(swap_hint, "swap-hint")
         header.pack_end(swap_hint, False, False, 0)
         header_click = Gtk.EventBox()
         self._header_click = header_click
         header_click.add(header)
-        header_click.connect("button-press-event", self._on_swap_click)
         header_click.set_halign(Gtk.Align.FILL)
         header_click.set_valign(Gtk.Align.START)
         _style(header_click, "video-overlay")
-        self._swap_handler: Callable[[VideoPanel], None] | None = None
         if metadata_receiver is None:
             visual = self._video_widget
         else:
@@ -1128,15 +1159,12 @@ class VideoPanel(Gtk.Box):
         compact = normalized == "SUB"
         self._rover_placeholder.set_slot(normalized)
         self._status.set_max_width_chars(20 if compact else 38)
-        self._swap_hint.set_text("클릭하여 크게 보기" if compact else "")
+        self._swap_hint.set_text("")
         self._header_click.set_no_show_all(not compact)
         self._header_click.set_visible(compact)
         for widget in self._sub_optional:
             widget.set_no_show_all(compact)
             widget.set_visible(not compact)
-
-    def set_swap_handler(self, handler: Callable[[VideoPanel], None]) -> None:
-        self._swap_handler = handler
 
     def set_metadata_display_options(
         self, *, show_objects: bool, show_distance: bool,
@@ -1157,12 +1185,6 @@ class VideoPanel(Gtk.Box):
         if self._last_frame_monotonic is None:
             return None
         return max(0.0, time.monotonic() - self._last_frame_monotonic)
-
-    def _on_swap_click(self, _widget: Gtk.Widget, event: Gdk.EventButton) -> bool:
-        if event.button != 1 or self._swap_handler is None:
-            return False
-        self._swap_handler(self)
-        return True
 
     def _on_realize(self, _area: Gtk.DrawingArea) -> None:
         self._pipeline.set_state(Gst.State.PLAYING)
@@ -2187,7 +2209,7 @@ class OperatorConsole(Gtk.Window):
                                 event_sink=self._events.add_event)
         self._l515 = VideoPanel("전방 카메라", host, l515_port, latency_ms,
                                 event_sink=self._events.add_event)
-        # Fixed judge layout: forward view owns the stage; work view is 16:9 PiP.
+        # Fixed judge layout: forward view owns the stage; work view is 848:480 PiP.
         videos = Gtk.Overlay()
         videos.set_hexpand(True)
         videos.set_vexpand(True)
@@ -2199,7 +2221,9 @@ class OperatorConsole(Gtk.Window):
         pip_frame.set_margin_end(18)
         pip_frame.set_margin_bottom(18)
         _style(pip_frame, "pip-frame")
-        pip_frame.add(self._d435)
+        self._pip_slot = FixedSizeSlot()
+        self._pip_slot.add(self._d435)
+        pip_frame.add(self._pip_slot)
         videos.add_overlay(pip_frame)
         self._watermark = JetInWatermark()
         self._watermark.set_halign(Gtk.Align.END)
@@ -2233,6 +2257,19 @@ class OperatorConsole(Gtk.Window):
         display_options.pack_start(display_title, False, False, 0)
         display_options.pack_start(self._show_objects, False, False, 0)
         display_options.pack_start(self._show_distance, False, False, 0)
+        self._swap_button = Gtk.Button(label="주/보조 화면 교체")
+        _style(self._swap_button, "status-view-option")
+        self._swap_button.set_tooltip_text(
+            "큰 화면과 작은 화면의 카메라를 맞바꿉니다 (단축키 V)"
+        )
+        self._swap_button.connect(
+            "clicked",
+            lambda _button: self.swap_camera_views(
+                self._d435 if self._main_video is self._l515 else self._l515,
+                user_initiated=True,
+            ),
+        )
+        display_options.pack_start(self._swap_button, False, False, 0)
         self._display_options = display_options
         videos.connect("size-allocate", self._on_video_area_allocated)
         self._videos = videos
@@ -2240,12 +2277,6 @@ class OperatorConsole(Gtk.Window):
         self._main_video = self._l515
         self._l515.set_role("MAIN")
         self._d435.set_role("SUB")
-        self._l515.set_swap_handler(
-            lambda panel: self.swap_camera_views(panel, user_initiated=True)
-        )
-        self._d435.set_swap_handler(
-            lambda panel: self.swap_camera_views(panel, user_initiated=True)
-        )
         self._health = Gtk.Box(spacing=14)
         _style(self._health, "health-strip")
         # Keep only states that affect an operator's immediate go/no-go decision.
@@ -2556,7 +2587,7 @@ class OperatorConsole(Gtk.Window):
         self.add(layout)
         GLib.timeout_add(250, self._refresh_health)
         # Camera roles never change from connection/metadata/FSM callbacks.
-        # Swapping is wired only from a camera panel's explicit click handler.
+        # Swapping is wired only from the explicit button and V shortcut.
 
     def _build_diagnostic_cards(self) -> tuple[DiagnosticCard, ...]:
         drive = DiagnosticCard(
@@ -2868,9 +2899,9 @@ class OperatorConsole(Gtk.Window):
             return False
         secondary = self._main_video
         self._videos.remove(secondary)
-        self._pip_frame.remove(selected)
+        self._pip_slot.remove(selected)
         self._videos.add(selected)
-        self._pip_frame.add(secondary)
+        self._pip_slot.add(secondary)
         selected.set_role("MAIN")
         secondary.set_role("SUB")
         self._main_video = selected
@@ -2923,7 +2954,7 @@ class OperatorConsole(Gtk.Window):
         # D435i transport is 848x480.  Preserve the exact native ratio instead
         # of the close-but-not-identical 16:9 approximation.
         pip_height = int(round(pip_width * 480 / 848))
-        self._pip_frame.set_size_request(pip_width, pip_height)
+        self._pip_slot.set_slot_size(pip_width, pip_height)
 
     def _on_mission_body_allocated(
         self, _widget: Gtk.Box, allocation: Gdk.Rectangle,
@@ -3316,6 +3347,12 @@ class OperatorConsole(Gtk.Window):
         Gtk.main_quit()
 
     def _on_key_press(self, _widget: Gtk.Window, event: Gdk.EventKey) -> bool:
+        if event.keyval in (Gdk.KEY_v, Gdk.KEY_V):
+            self.swap_camera_views(
+                self._d435 if self._main_video is self._l515 else self._l515,
+                user_initiated=True,
+            )
+            return True
         if event.keyval != Gdk.KEY_F11:
             return False
         self._fullscreen = not self._fullscreen

@@ -1338,19 +1338,24 @@ def test_global_estop_is_always_in_topbar_and_reuses_token_gated_path():
     assert '"global_estop_visible": self._global_estop.get_visible()' in source
 
 
-def test_video_headers_swap_main_and_sub_without_rebuilding_pipelines():
+def test_explicit_controls_swap_main_and_sub_without_rebuilding_pipelines():
     source = (
         Path(__file__).resolve().parents[1] / "app.py"
     ).read_text(encoding="utf-8")
 
-    assert 'header_click.connect("button-press-event", self._on_swap_click)' in source
+    assert 'header_click.connect("button-press-event", self._on_swap_click)' not in source
+    assert "def _on_swap_click" not in source
+    assert "def set_swap_handler" not in source
+    assert 'Gtk.Button(label="주/보조 화면 교체")' in source
+    assert "Gdk.KEY_v" in source
+    assert "Gdk.KEY_V" in source
     assert 'self._l515.set_role("MAIN")' in source
     assert 'self._d435.set_role("SUB")' in source
     assert "self._videos.remove(secondary)" in source
-    assert "self._pip_frame.remove(selected)" in source
+    assert "self._pip_slot.remove(selected)" in source
     assert "self._videos.add(selected)" in source
-    assert "self._pip_frame.add(secondary)" in source
-    assert 'self._swap_hint.set_text("클릭하여 크게 보기" if compact else "")' in source
+    assert "self._pip_slot.add(secondary)" in source
+    assert "클릭하여 크게 보기" not in source
     assert 'self._role.set_text(normalized)' not in source
     assert "widget.set_no_show_all(compact)" in source
 
