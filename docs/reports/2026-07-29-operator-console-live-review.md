@@ -190,6 +190,36 @@ PiP 고정 크기 게이트는 음성 대조(결함 재주입 시 2건 FAIL)로 
 | 스모크 격리 | `env=` 제거 | FAIL |
 | 전원 health | rs485 분기 제거 | 처음엔 **통과**(다른 분기가 대신 잡음) → 링크만 ERROR 인 케이스를 테스트로 추가해 분기를 독립 검증하게 만든 뒤 FAIL |
 
+## 7-3. 종료 시 hang·세그폴트 (사용자 실사용 발견)
+
+**증상.** 창의 X 를 눌러도 터미널이 안 돌아오고, Ctrl+C 를 누르면
+`segmentation fault (core dumped)`.
+
+**근본 원인(코어 덤프로 확정).** 크래시 스레드는 `SRT:RcvQ:w1`(libsrt 수신
+워커)이고 메인 스레드 스택은
+`exit() → srt::CUDTUnited::~CUDTUnited() → srt::CSndQueue::~CSndQueue()
+→ srt::CSndUList::~CSndUList() → pthread_cond_destroy` 였다. 프로세스
+`exit()` 시점에 **libsrt 전역 소멸자가 자기 워커 스레드가 살아있는 채로 큐를
+파괴**한다. 메인 스레드는 `pthread_cond_destroy` 에서 막히고(=창은 닫혔는데
+터미널이 안 돌아옴) 워커는 해제된 메모리를 건드려 SEGV_MAPERR 로 죽는다.
+두 증상은 같은 원인이다.
+
+기각한 가설: 콘솔의 teardown 지연(실측 d435 0.005 s / l515 0.011 s /
+수신 소켓 0.374 s / ops 0.000 s — 문제 없음), GStreamer 자원 미해제
+(파이프라인을 명시적으로 NULL·해제해도 크래시 동일).
+
+**조치.** `_on_destroy` 가 이미 파이프라인·소켓·ops 를 정리하므로,
+`Gtk.main()` 반환 뒤 `os._exit(0)` 로 libc 의 exit 전역 소멸자 경로를 아예
+타지 않는다. Ctrl+C/SIGTERM 도 창 닫기와 같은 경로로 흐르게 GLib 신호
+워치를 걸었다(기본 SIGINT 는 `Gtk.main()` 안의 C 프레임을 파이썬 예외로
+깨뜨려 정리 없이 나간다).
+
+**게이트.** `runtime_smoke` 가 이제 SIGINT 로 콘솔을 내리고 **15초 내 종료 +
+종료코드 0** 을 단언한다(래퍼가 아니라 콘솔 자식 프로세스에 신호를 보낸다).
+음성 대조: `os._exit(0)` 을 빼면 `rc=139 · Segmentation fault (core dumped)`
+로 FAIL. 실사용 경로 재확인 — X 버튼 상당 `close()` 와 Ctrl+C 모두
+종료코드 0, 코어덤프 0.
+
 ## 8. 남은 일
 
 - C4 운용 IP 결정(DHCP 예약 / 파라미터화).

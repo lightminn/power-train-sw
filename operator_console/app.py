@@ -10,7 +10,10 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 from pathlib import Path
+import signal
+import sys
 import time
 from collections.abc import Callable
 
@@ -3453,6 +3456,23 @@ class OperatorConsole(Gtk.Window):
         return True
 
 
+def _add_unix_signal_watch(
+    stop_signal: int, handler: Callable[..., bool],
+) -> None:
+    """GLib 메인 루프에서 유닉스 신호를 받는다.
+
+    `GLib.unix_signal_add` 는 PyGObject 3.56 에서 deprecated 라 기동할 때마다
+    경고를 찍는다.  새 `GLibUnix.signal_add` 가 있으면 그쪽을 쓴다.
+    """
+    try:
+        gi.require_version("GLibUnix", "2.0")
+        from gi.repository import GLibUnix
+    except (ValueError, ImportError):
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, stop_signal, handler)
+    else:
+        GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, stop_signal, handler)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="192.168.8.106")
@@ -3494,7 +3514,27 @@ def main() -> None:
                               smoke_probe_file=args.smoke_probe_file,
                               input_source=args.input_source)
     console.show_all()
+
+    def _quit_on_signal(*_args: object) -> bool:
+        # Ctrl+C 를 창 닫기와 같은 경로로 흘린다.  기본 SIGINT 는 Gtk.main()
+        # 안의 C 프레임을 파이썬 예외로 깨뜨려 정리 없이 나가 버린다.
+        console.destroy()
+        return GLib.SOURCE_REMOVE
+
+    for stop_signal in (signal.SIGINT, signal.SIGTERM):
+        _add_unix_signal_watch(stop_signal, _quit_on_signal)
     Gtk.main()
+
+    # 여기 오면 OperatorConsole._on_destroy 가 이미 파이프라인·수신 소켓·ops
+    # 클라이언트를 정리했다.  그런데 libc 의 exit() 는 그 뒤 libsrt 의 전역
+    # 소멸자(srt::CUDTUnited::~CUDTUnited)를 부르고, 그것이 자기 워커 스레드
+    # (SRT:RcvQ/SndQ)가 아직 살아있는 채로 큐를 파괴한다.  2026-07-29 실사용
+    # 코어 덤프에서 메인 스레드는 pthread_cond_destroy 에 멈춰 있었고(창은
+    # 닫혔는데 터미널이 안 돌아온다) 수신 워커는 SEGV_MAPERR 로 죽었다.
+    # 우리 정리는 이미 끝났으므로 그 전역 소멸자 경로를 아예 타지 않는다.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ import math
 import os
 from pathlib import Path
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -46,6 +47,19 @@ def smoke_child_env(
     env.pop("WAYLAND_DISPLAY", None)
     env["GDK_BACKEND"] = "x11"
     return env
+
+
+def _console_child_pid(group_pid: int) -> int | None:
+    """xvfb-run 래퍼가 감싼 실제 콘솔 프로세스의 pid.
+
+    래퍼에 신호를 보내면 콘솔의 종료 코드가 가려져 종료 경로 결함을 못 본다.
+    """
+    result = subprocess.run(
+        ["pgrep", "-g", str(group_pid), "-f", "operator_console.app"],
+        capture_output=True, text=True,
+    )
+    pids = [int(line) for line in result.stdout.split() if line.isdigit()]
+    return max(pids) if pids else None
 
 
 def _probe_states(probe_file: Path, wanted: str) -> set[str]:
@@ -295,11 +309,23 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
         while time.monotonic() < sparse_deadline and console.poll() is None:
             time.sleep(0.2)
         early_exit = console.poll() is not None
+        shutdown_timed_out = False
         if not early_exit:
-            console.terminate()
+            # 사용자가 창을 닫거나 Ctrl+C 를 누르는 것과 같은 경로로 내린다.
+            # SIGKILL 로 내리면 종료 경로의 결함이 영원히 안 보인다 —
+            # 2026-07-29 실사고: 창을 닫으면 libsrt 전역 소멸자가 자기 워커
+            # 스레드가 살아있는 채로 큐를 파괴해 메인 스레드가
+            # pthread_cond_destroy 에서 멈추고(터미널 안 돌아옴) 수신 워커가
+            # SIGSEGV 로 죽었다.
+            # Popen 의 pid 는 xvfb-run 래퍼다.  래퍼째로 신호를 맞으면 콘솔의
+            # 종료 코드가 래퍼 것에 가려지므로, 그룹 안에서 콘솔 자식만 찾아
+            # 보낸다(xvfb-run 은 자식의 종료 코드를 그대로 돌려준다).
+            console_pid = _console_child_pid(console.pid)
+            os.kill(console_pid or console.pid, signal.SIGINT)
         try:
-            _, stderr = console.communicate(timeout=10)
+            _, stderr = console.communicate(timeout=15)
         except subprocess.TimeoutExpired:
+            shutdown_timed_out = True
             os.killpg(console.pid, 9)
             _, stderr = console.communicate()
     finally:
@@ -312,6 +338,20 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
     text = stderr.decode("utf-8", "replace")
     if early_exit:
         return False, f"console exited early (rc={console.returncode})\n{text}"
+    if shutdown_timed_out:
+        return False, (
+            "console did not exit within 15s of SIGINT — 종료 경로가 막혔다\n"
+            f"{text}"
+        )
+    if console.returncode != 0:
+        signal_name = (
+            signal.Signals(-console.returncode).name
+            if console.returncode < 0 else str(console.returncode)
+        )
+        return False, (
+            f"console shutdown was not clean (rc={console.returncode}"
+            f" · {signal_name})\n{text}"
+        )
     if "Traceback" in text:
         return False, f"callback traceback detected:\n{text}"
     # 기동·무traceback 만으로는 아무것도 보장하지 못한다. 수신 스레드를 통째로
