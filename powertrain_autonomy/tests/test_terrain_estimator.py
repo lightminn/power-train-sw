@@ -17,7 +17,7 @@ from powertrain_autonomy.terrain.estimator import (
     TerrainEstimatorConfig,
     TerrainFrame,
 )
-from powertrain_autonomy.terrain.grid import build_elevation_grid
+from powertrain_autonomy.terrain.grid import build_elevation_grid, empty_grid
 
 
 WIDE_INTRINSICS = CameraIntrinsics(fx=57.1, fy=57.6, cx=39.5, cy=29.5)
@@ -323,7 +323,7 @@ def test_both_drop_boundaries_report_offset_and_geometry_clearance():
 
 
 @pytest.mark.parametrize("missing_left", (True, False))
-def test_one_sided_drop_evidence_never_fabricates_a_two_sided_path(missing_left):
+def test_one_sided_drop_evidence_bounds_the_corridor_by_observed_support(missing_left):
     frame = remove_lower_floor_side(
         render_track_depth(width_m=1.5),
         left=missing_left,
@@ -331,17 +331,97 @@ def test_one_sided_drop_evidence_never_fabricates_a_two_sided_path(missing_left)
 
     result = estimate(make_estimator(), frame)
 
+    footprint_half = 0.3595 + 0.035
+    missing_unverified = "left_edge_unverified" if missing_left else "right_edge_unverified"
+    missing_drop = "left_drop_boundary" if missing_left else "right_drop_boundary"
+    missing_clearance = (
+        result.left_wheel_clearance_m
+        if missing_left
+        else result.right_wheel_clearance_m
+    )
+    assert result.path_available, result.reject_reasons
+    assert missing_unverified in result.degradation_reasons
+    assert missing_drop not in result.degradation_reasons
+    assert missing_clearance == pytest.approx(0.75 - footprint_half, abs=0.08)
+
+
+def test_fov_truncated_edges_bound_the_corridor_by_observed_support():
+    estimator = make_estimator()
+    result = estimate(estimator, render_track_depth(width_m=3.2))
+
+    footprint_half = 0.3595 + 0.035
+    support_columns = np.flatnonzero(np.any(estimator._grid.support_mask, axis=0))
+    observed_width = support_columns.size * estimator.config.grid_resolution_m
+    corridor_width = (
+        result.left_wheel_clearance_m
+        + result.right_wheel_clearance_m
+        + 2.0 * footprint_half
+    )
+    assert result.path_available, result.reject_reasons
+    assert "left_edge_unverified" in result.degradation_reasons
+    assert "right_edge_unverified" in result.degradation_reasons
+    assert corridor_width <= observed_width
+    assert corridor_width < 2.5
+
+
+def test_row_edge_ignores_support_island_beyond_a_no_data_gap():
+    estimator = make_estimator(
+        path_x_range_m=(0.40, 0.50),
+        min_path_rows=2,
+    )
+    grid = empty_grid(estimator.grid_shape)
+    support = np.zeros(estimator.grid_shape, dtype=bool)
+    support[2:4, 20:40] = True
+    support[2, 49] = True
+    finite_support = np.where(support, 0.0, np.nan)
+    support_height = finite_support.copy()
+    support_height[2, 49] = -0.25
+    grid = dataclasses.replace(
+        grid,
+        height_m=support_height,
+        slope_x=finite_support.copy(),
+        slope_y=finite_support.copy(),
+        roughness_m=finite_support.copy(),
+        confidence=support.astype(float),
+        valid_mask=support.copy(),
+        support_mask=support,
+    )
+
+    result = estimator._summarize(
+        grid,
+        stamp_s=1.0,
+        frame_confidence=1.0,
+        reasons=(),
+        carried_count=0,
+        odometry_residual_m=0.0,
+        left_limit_y=np.full(estimator.grid_shape[0], 1.5),
+        right_limit_y=np.full(estimator.grid_shape[0], -1.5),
+        left_floor_seen=True,
+        right_floor_seen=True,
+    )
+
+    # 기존 최외곽 셀 규칙이면 고립 셀 때문에 좌측 경계 0.75 m, 여유 0.3555 m가 된다.
+    assert result.path_available, result.reject_reasons
+    assert result.left_wheel_clearance_m == pytest.approx(0.1055, abs=0.005)
+
+
+def test_no_connected_support_still_fails_closed():
+    estimator = make_estimator()
+    result = estimator._summarize(
+        empty_grid(estimator.grid_shape),
+        stamp_s=1.0,
+        frame_confidence=1.0,
+        reasons=(),
+        carried_count=0,
+        odometry_residual_m=0.0,
+        left_limit_y=np.full(estimator.grid_shape[0], np.nan),
+        right_limit_y=np.full(estimator.grid_shape[0], np.nan),
+        left_floor_seen=False,
+        right_floor_seen=False,
+    )
+
     assert not result.path_available
-    assert "drop_boundaries_unobserved" in result.reject_reasons
-    missing_reason = "left_drop_boundary" if missing_left else "right_drop_boundary"
-    assert missing_reason not in result.degradation_reasons
-
-
-def test_fov_truncated_edges_fail_closed_without_drop_evidence():
-    result = estimate(make_estimator(), render_track_depth(width_m=3.2))
-
-    assert not result.path_available
-    assert "drop_boundaries_unobserved" in result.reject_reasons
+    assert result.reject_reasons == ("no_connected_support",)
 
 
 def test_local_choke_cannot_be_discarded_in_favour_of_wider_rows():

@@ -506,10 +506,38 @@ class TerrainEstimator:
         candidate_rows = []
         for x_index in range(self.grid_shape[0]):
             support_indices = np.flatnonzero(grid.support_mask[x_index])
-            if support_indices.size < 2:
+            if support_indices.size == 0:
                 continue
-            right_index = int(support_indices[0])
-            left_index = int(support_indices[-1])
+            split_points = np.flatnonzero(np.diff(support_indices) > 1) + 1
+            support_runs = np.split(support_indices, split_points)
+            merged_support_runs = [support_runs[0]]
+            for next_run in support_runs[1:]:
+                previous_run = merged_support_runs[-1]
+                previous_height = grid.height_m[x_index, previous_run[-1]]
+                next_height = grid.height_m[x_index, next_run[0]]
+                # 미관측 gap 양 끝의 높이 차가 support flood fill의 이웃 간
+                # 1-step 허용치 이하면 같은 지면이다. 더 큰 점프는 미관측
+                # 지면이 아니라 불연속이므로 경계를 확장하지 않는다.
+                if (
+                    np.isfinite(previous_height)
+                    and np.isfinite(next_height)
+                    and abs(float(next_height - previous_height))
+                    <= cfg.max_support_step_m
+                ):
+                    merged_support_runs[-1] = np.arange(
+                        int(previous_run[0]),
+                        int(next_run[-1]) + 1,
+                    )
+                else:
+                    merged_support_runs.append(next_run)
+            support_run = min(
+                merged_support_runs,
+                key=lambda run: abs(float(np.mean(y_centres[run]))),
+            )
+            if support_run.size < 2:
+                continue
+            right_index = int(support_run[0])
+            left_index = int(support_run[-1])
             right_edge = y_centres[right_index] - 0.5 * cfg.grid_resolution_m
             left_edge = y_centres[left_index] + 0.5 * cfg.grid_resolution_m
             right_limit = right_limit_y[x_index]
@@ -541,18 +569,35 @@ class TerrainEstimator:
             boundary_degradation.append("right_drop_boundary")
         if left_observed:
             boundary_degradation.append("left_drop_boundary")
-        if not (left_observed and right_observed):
-            if not np.any(grid.support_mask[lookahead]):
-                reason = "no_connected_support"
-            else:
-                reason = "drop_boundaries_unobserved"
-            return self._reject(stamp_s, reason, degradation=boundary_degradation)
-        right_corridor = float(
-            np.median([row[1] for row in candidate_rows if row[3]])
-        )
-        left_corridor = float(
-            np.median([row[2] for row in candidate_rows if row[4]])
-        )
+        if not np.any(grid.support_mask[lookahead]):
+            return self._reject(
+                stamp_s,
+                "no_connected_support",
+                degradation=boundary_degradation,
+            )
+        if not candidate_rows:
+            return self._reject(
+                stamp_s,
+                "drop_boundaries_unobserved",
+                degradation=boundary_degradation,
+            )
+        # 관측된 연속 support 로 복도를 제한하면 카메라가 실제 측정한 지면만
+        # 주장한다. 낙하 먼 쪽 바닥이 안 보인다는 이유로 정지하면 실코스에서
+        # 데드락하므로, 미검증 측만 모든 후보 행의 support 경계로 후퇴한다.
+        if right_observed:
+            right_corridor = float(
+                np.median([row[1] for row in candidate_rows if row[3]])
+            )
+        else:
+            right_corridor = float(np.median([row[1] for row in candidate_rows]))
+            boundary_degradation.append("right_edge_unverified")
+        if left_observed:
+            left_corridor = float(
+                np.median([row[2] for row in candidate_rows if row[4]])
+            )
+        else:
+            left_corridor = float(np.median([row[2] for row in candidate_rows]))
+            boundary_degradation.append("left_edge_unverified")
         safe_right_corridor = right_corridor + erosion_half
         safe_left_corridor = left_corridor - erosion_half
         if safe_right_corridor > safe_left_corridor:
