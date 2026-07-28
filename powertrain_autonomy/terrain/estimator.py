@@ -495,12 +495,6 @@ class TerrainEstimator:
         lookahead = (x_centres >= cfg.path_x_range_m[0]) & (x_centres <= cfg.path_x_range_m[1])
         footprint_half = max(abs(float(wheel.y)) for wheel in self.geometry.wheels) + cfg.wheel_half_width_m
         erosion_half = footprint_half + cfg.footprint_uncertainty_m + odometry_residual_m
-        if np.any(grid.obstacle_mask[lookahead]):
-            return self._reject(
-                stamp_s,
-                "obstacle_blocks_path",
-                degradation=(*reasons, "local_obstacle"),
-            )
         # 아래 바닥 증거는 가림 기하 때문에 가장자리 행보다 계통적으로 전방에
         # 맺힌다(에지 위를 넘어간 ray 가 더 큰 x 에서 바닥에 닿음). 그래서 측면별
         # 증거는 프레임 전역으로 판정하고, 행별 support 가장자리가 "실제 트랙
@@ -566,6 +560,16 @@ class TerrainEstimator:
                 stamp_s,
                 "erosion_empty",
                 degradation=(*boundary_degradation, "drop_boundary"),
+            )
+        corridor_cols = (
+            (y_centres >= right_corridor - erosion_half)
+            & (y_centres <= left_corridor + erosion_half)
+        )
+        if np.any(grid.obstacle_mask[lookahead][:, corridor_cols]):
+            return self._reject(
+                stamp_s,
+                "obstacle_blocks_path",
+                degradation=(*boundary_degradation, "local_obstacle"),
             )
         # 국소 choke: corridor 안쪽에서 아래 바닥이 검출되면(가림 변위 때문에
         # choke 의 바닥은 corridor 내부 열에 맺힌다) 트랙이 국소적으로 좁아진

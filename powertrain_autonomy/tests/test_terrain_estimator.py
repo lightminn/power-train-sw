@@ -597,6 +597,63 @@ def test_local_high_protrusion_is_an_obstacle_candidate_not_support():
     assert "obstacle_blocks_path" in result.reject_reasons
 
 
+@pytest.mark.parametrize(
+    ("obstacle_y_m", "expect_blocked"),
+    ((0.025, True), (1.425, False)),
+    ids=("inside_eroded_corridor", "outside_eroded_corridor"),
+)
+def test_obstacle_rejection_is_scoped_to_eroded_drivable_corridor(
+    obstacle_y_m,
+    expect_blocked,
+):
+    estimator = make_estimator()
+    frame = render_track_depth(width_m=1.5)
+    clean = estimate(estimator, frame)
+    assert clean.path_available, clean.reject_reasons
+
+    obstacle_mask = np.zeros(estimator.grid_shape, dtype=bool)
+    x_centres = (
+        estimator.config.grid_x_range_m[0]
+        + (np.arange(estimator.grid_shape[0]) + 0.5)
+        * estimator.config.grid_resolution_m
+    )
+    y_centres = (
+        estimator.config.grid_y_range_m[0]
+        + (np.arange(estimator.grid_shape[1]) + 0.5)
+        * estimator.config.grid_resolution_m
+    )
+    x_index = int(np.argmin(np.abs(x_centres - 1.0)))
+    y_index = int(np.argmin(np.abs(y_centres - obstacle_y_m)))
+    obstacle_mask[x_index, y_index] = True
+    grid = dataclasses.replace(estimator._grid, obstacle_mask=obstacle_mask)
+    left_limit_y, right_limit_y = estimator._fov_limits(
+        grid,
+        frame_intrinsics=frame.intrinsics,
+        extrinsic=BaseToCameraExtrinsic(),
+        tilt=BodyTilt(roll_rad=0.0, pitch_rad=0.0),
+    )
+
+    result = estimator._summarize(
+        grid,
+        stamp_s=frame.stamp_s,
+        frame_confidence=clean.confidence,
+        reasons=(),
+        carried_count=0,
+        odometry_residual_m=0.0,
+        left_limit_y=left_limit_y,
+        right_limit_y=right_limit_y,
+        left_floor_seen=True,
+        right_floor_seen=True,
+    )
+
+    if expect_blocked:
+        assert not result.path_available
+        assert "obstacle_blocks_path" in result.reject_reasons
+    else:
+        assert result.path_available, result.reject_reasons
+        assert "obstacle_blocks_path" not in result.reject_reasons
+
+
 def test_mujoco_wide_fov_recording_replay_matches_drop_clearance_and_offset(tmp_path):
     # Optional MuJoCo stays isolated to this integration test; production code is
     # simulator-free.  The Jetson autonomy image ships without powertrain_sim and
