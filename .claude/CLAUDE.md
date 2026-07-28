@@ -184,6 +184,12 @@ hardware lines, isolated by subfolder. **Never mix tracks on the same ODrive** (
   테스트: `odrive_*_test.py`(구스크립트 일부 pp=5 하드코딩 — 그대로 쓰지 말 것).
   `odrive_calibration.py`·`odrive_diff_drive_test.py` 는 pp=5/cpr=30(+UV 8V)을 NVM 에 써서
   **`archive/` 로 이동·import 시 하드스톱**(2026-07-19 적대적 리뷰 CRITICAL).
+  ⚠️ **우측 구동축 미러 장착(2026-07-28 실물 확인)**: 각 보드 M1 축 = node 12/14/16 = 로봇
+  오른쪽 바퀴이며 좌측과 반대로 돌아야 정방향. `DriveOdriveCan(invert=True)` 가 **CAN 프레임
+  경계에서만** 명령·엔코더 부호를 뒤집고(배선은 `build_real_corners` 가 wheel_map 의
+  `RIGHT_WHEELS` 에서 유도), 드라이버 바깥(chassis·odometry·텔레메트리)은 전부 바퀴 프레임
+  "+=전진" 그대로다. **raw 스크립트·`motor_gui` 는 모터 프레임** — `can_drive_test.py` 는
+  전진 = 좌(11/13/15)+ / 우(12/14/16)−, 제자리선회 = 6축 전부 +.
 - **drive/x2212_test/** (SunnySky X2212-13 + TLE5012B, **레거시·deprecated** — BL70200 도착 전
   임시 엔코더 테스트모터; 엔코더 기반 X2212 제어는 폐기(실전 BL70200=HALL), ODrive CAN 일반
   실험데이터는 유효 → 「AK + ODrive 동시 CAN」 정본으로 이관):
