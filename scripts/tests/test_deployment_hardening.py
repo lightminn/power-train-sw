@@ -10,6 +10,15 @@ ROOT = Path(__file__).resolve().parents[2]
 WATCHDOG = ROOT / "scripts/can_watchdog.sh"
 
 
+def _run_installer(name, *args):
+    return subprocess.run(
+        ["bash", str(ROOT / "scripts" / name), *args],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+
 def _executable(path, source):
     path.write_text(source, encoding="utf-8")
     path.chmod(0o755)
@@ -139,6 +148,75 @@ def test_restart_units_have_explicit_finite_start_limit_and_action(name):
     assert "StartLimitAction=none" in unit
 
 
+@pytest.mark.parametrize(
+    ("name", "usage"),
+    (
+        (
+            "install_chassis_telemetry_service.sh",
+            "usage: sudo bash scripts/install_chassis_telemetry_service.sh "
+            "[--operator-host IPV4]",
+        ),
+        (
+            "install_pdist80b_telemetry_service.sh",
+            "usage: sudo bash scripts/install_pdist80b_telemetry_service.sh "
+            "[--operator-host IPV4] PDIST_ID_PATH",
+        ),
+    ),
+)
+def test_telemetry_installers_expose_current_usage_without_root(name, usage):
+    result = _run_installer(name, "--help")
+
+    assert result.returncode == 0
+    assert result.stdout == f"{usage}\n"
+    assert result.stderr == ""
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="requires a non-root process")
+@pytest.mark.parametrize(
+    ("name", "args", "selection"),
+    (
+        (
+            "install_chassis_telemetry_service.sh",
+            (),
+            "operator host: 192.168.8.163 (default)",
+        ),
+        (
+            "install_chassis_telemetry_service.sh",
+            ("--operator-host", "192.0.2.10"),
+            "operator host: 192.0.2.10 (--operator-host)",
+        ),
+        (
+            "install_chassis_telemetry_service.sh",
+            ("192.0.2.11",),
+            "operator host: 192.0.2.11 (positional)",
+        ),
+        (
+            "install_pdist80b_telemetry_service.sh",
+            ("/devices/platform/test",),
+            "operator host: 192.168.8.163 (default)",
+        ),
+        (
+            "install_pdist80b_telemetry_service.sh",
+            ("--operator-host", "192.0.2.12", "/devices/platform/test"),
+            "operator host: 192.0.2.12 (--operator-host)",
+        ),
+        (
+            "install_pdist80b_telemetry_service.sh",
+            ("192.0.2.13", "/devices/platform/test"),
+            "operator host: 192.0.2.13 (positional)",
+        ),
+    ),
+)
+def test_telemetry_installers_select_default_option_and_legacy_hosts(
+    name, args, selection
+):
+    result = _run_installer(name, *args)
+
+    assert result.returncode != 0
+    assert selection in result.stdout
+    assert "must run as root" in result.stderr
+
+
 def test_pdist_udev_rule_requires_commissioned_id_path():
     rule = (ROOT / "scripts/systemd/99-powertrain-pdist80b.rules").read_text(
         encoding="utf-8"
@@ -150,7 +228,6 @@ def test_pdist_udev_rule_requires_commissioned_id_path():
     assert 'ENV{ID_PATH}=="@PDIST_ID_PATH@"' in rule
     assert 'ATTRS{idVendor}=="1a86"' in rule
     assert 'ATTRS{idProduct}=="7523"' in rule
-    assert 'pdist_id_path="$2"' in installer
     assert "@PDIST_ID_PATH@" in installer
 
 
