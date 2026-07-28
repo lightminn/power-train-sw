@@ -30,7 +30,7 @@ class ArmConsoleBridge(Node):
             "arm_console_bridge",
             parameter_overrides=parameter_overrides,
         )
-        self.declare_parameter("console_host", "")
+        self.declare_parameter("console_host", "192.168.8.163")
         self.declare_parameter("telemetry_port", 5007)
         self.declare_parameter("metadata_port", 5003)
         self.declare_parameter("publish_hz", 5.0)
