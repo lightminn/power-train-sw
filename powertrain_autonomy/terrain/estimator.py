@@ -83,6 +83,8 @@ class TerrainEstimatorConfig:
     seed_half_width_m: float = 0.30
     path_x_range_m: tuple[float, float] = (0.35, 2.50)
     min_path_rows: int = 4
+    # 0.05 m 격자 3셀 = 0.15 m: 에지 양자화 1셀과 낙하 그림자 1셀을 견딜 폭.
+    edge_adjacency_cells: int = 3
 
     def __post_init__(self) -> None:
         if (
@@ -150,6 +152,12 @@ class TerrainEstimatorConfig:
             raise ValueError("footprint widths must be nonnegative")
         if isinstance(self.min_path_rows, bool) or not isinstance(self.min_path_rows, int) or self.min_path_rows < 2:
             raise ValueError("min_path_rows must be an integer >= 2")
+        if (
+            isinstance(self.edge_adjacency_cells, bool)
+            or not isinstance(self.edge_adjacency_cells, int)
+            or self.edge_adjacency_cells < 1
+        ):
+            raise ValueError("edge_adjacency_cells must be a positive integer")
 
 
 @dataclass(frozen=True)
@@ -559,16 +567,51 @@ class TerrainEstimator:
                 and math.isfinite(left_limit)
                 and left_limit > left_edge + margin
             )
+            right_window_start = max(0, right_index - cfg.edge_adjacency_cells)
+            left_window_stop = min(
+                self.grid_shape[1],
+                left_index + 1 + cfg.edge_adjacency_cells,
+            )
+            # 프레임 전역 바닥증거와 기하 FOV 만으로는 "관측이 여기서 끝났다"와
+            # "여기가 트랙 에지다"를 구분하지 못한다. 그 행에서 에지 바로 바깥이
+            # 실제로 관측됐고 support 가 아닐 때만 실제 에지로 인정한다 —
+            # 그러지 않으면 복도가 트랙이 아니라 카메라 시야를, 따라서 로버를
+            # 따라다니고 횡오차가 관측 불가가 된다.
+            right_adjacent = bool(
+                np.any(
+                    grid.valid_mask[x_index, right_window_start:right_index]
+                    & ~grid.support_mask[x_index, right_window_start:right_index]
+                )
+            )
+            left_adjacent = bool(
+                np.any(
+                    grid.valid_mask[x_index, left_index + 1 : left_window_stop]
+                    & ~grid.support_mask[x_index, left_index + 1 : left_window_stop]
+                )
+            )
             candidate_rows.append(
-                (x_index, right_edge, left_edge, right_real, left_real)
+                (
+                    x_index,
+                    right_edge,
+                    left_edge,
+                    right_real,
+                    left_real,
+                    right_real and right_adjacent,
+                    left_real and left_adjacent,
+                )
             )
         right_observed = any(bool(row[3]) for row in candidate_rows)
         left_observed = any(bool(row[4]) for row in candidate_rows)
+        lateral_reference_observed = any(
+            bool(row[5]) or bool(row[6]) for row in candidate_rows
+        )
         boundary_degradation = list(reasons)
         if right_observed:
             boundary_degradation.append("right_drop_boundary")
         if left_observed:
             boundary_degradation.append("left_drop_boundary")
+        if not lateral_reference_observed:
+            boundary_degradation.append("lateral_reference_unobserved")
         if not np.any(grid.support_mask[lookahead]):
             return self._reject(
                 stamp_s,
@@ -638,12 +681,30 @@ class TerrainEstimator:
                 left_edge,
                 right_real and abs(right_edge - right_corridor) <= consistency_band,
                 left_real and abs(left_edge - left_corridor) <= consistency_band,
+                right_strict and abs(right_edge - right_corridor) <= consistency_band,
+                left_strict and abs(left_edge - left_corridor) <= consistency_band,
             )
-            for x_index, right_edge, left_edge, right_real, left_real in candidate_rows
+            for (
+                x_index,
+                right_edge,
+                left_edge,
+                right_real,
+                left_real,
+                right_strict,
+                left_strict,
+            ) in candidate_rows
         ]
         rows = []
         coverage_slack = cfg.grid_resolution_m
-        for x_index, right_edge, left_edge, right_real, left_real in candidate_rows:
+        for (
+            x_index,
+            right_edge,
+            left_edge,
+            right_real,
+            left_real,
+            right_strict,
+            left_strict,
+        ) in candidate_rows:
             if not lookahead[x_index]:
                 continue
             effective_right = right_edge if right_real else right_corridor
@@ -659,11 +720,11 @@ class TerrainEstimator:
                 # 폭 prior 로 복원(5 cm 격자에서 heading 기울기의 x-스팬을 확보),
                 # 둘 다 상속이면 corridor 중심(기울기 기여 없음 표시 direct=0).
                 corridor_width = left_corridor - right_corridor
-                if right_real and left_real:
+                if right_strict and left_strict:
                     centre, direct = 0.5 * (right_edge + left_edge), 1.0
-                elif right_real:
+                elif right_strict:
                     centre, direct = right_edge + 0.5 * corridor_width, 1.0
-                elif left_real:
+                elif left_strict:
                     centre, direct = left_edge - 0.5 * corridor_width, 1.0
                 else:
                     centre, direct = 0.5 * (right_corridor + left_corridor), 0.0

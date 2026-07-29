@@ -227,6 +227,12 @@ def test_public_values_are_immutable_and_grid_shape_is_fixed():
     )
     with pytest.raises(TypeError, match="uint16"):
         estimate(make_estimator(), float_frame)
+    for invalid_cells in (True, 0, -1, 1.5):
+        with pytest.raises(
+            ValueError,
+            match="edge_adjacency_cells must be a positive integer",
+        ):
+            TerrainEstimatorConfig(edge_adjacency_cells=invalid_cells)
 
 
 def test_estimator_routes_numpy_projection_and_scatter_through_pure_kernel(monkeypatch):
@@ -299,7 +305,11 @@ def test_longitudinal_slope_and_track_heading_are_local_grid_outputs():
     )
     heading = estimate(
         heading_estimator,
-        render_track_depth(heading_rad=0.08, width_m=1.3),
+        render_track_depth(
+            heading_rad=0.08,
+            width_m=1.0,
+            lower_floor_z_m=-0.19,
+        ),
     )
 
     assert slope.path_available, slope.reject_reasons
@@ -320,6 +330,46 @@ def test_both_drop_boundaries_report_offset_and_geometry_clearance():
     assert result.left_wheel_clearance_m == pytest.approx(0.75 + 0.12 - footprint_half, abs=0.08)
     assert result.right_wheel_clearance_m == pytest.approx(0.75 - 0.12 - footprint_half, abs=0.08)
     assert "drop_boundary" in result.degradation_reasons
+
+
+def test_row_local_observed_edges_still_track_offset():
+    estimator = make_estimator(edge_adjacency_cells=3)
+    frame = render_track_depth(
+        width_m=0.9,
+        center_offset_m=0.12,
+        lower_floor_z_m=-0.181,
+    )
+
+    result = estimate(estimator, frame)
+
+    assert result.path_available, result.reject_reasons
+    assert "lateral_reference_unobserved" not in result.degradation_reasons
+    assert result.path_offset_m == pytest.approx(0.12, abs=0.07)
+
+
+def test_observation_limit_edges_report_unobserved_lateral_reference():
+    frame = remove_lower_floor_side(
+        render_track_depth(width_m=1.5, center_offset_m=0.12),
+        left=True,
+    )
+
+    result = estimate(make_estimator(), frame)
+
+    assert result.path_available, result.reject_reasons
+    assert "lateral_reference_unobserved" in result.degradation_reasons
+
+
+def test_observation_limit_keeps_pre_change_corridor_bounds():
+    result = estimate(
+        make_estimator(),
+        render_track_depth(width_m=1.5, center_offset_m=0.12),
+    )
+
+    # HEAD 6cb0252 변경 전 값: provenance 분리만으로 corridor 경계는 움직이면 안 된다.
+    assert result.path_available
+    assert result.left_wheel_clearance_m == pytest.approx(0.5055, abs=1e-9)
+    assert result.right_wheel_clearance_m == pytest.approx(0.2555, abs=1e-9)
+    assert "lateral_reference_unobserved" in result.degradation_reasons
 
 
 @pytest.mark.parametrize("missing_left", (True, False))
