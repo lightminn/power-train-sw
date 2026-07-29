@@ -73,11 +73,14 @@ def test_assist_correction_requires_an_available_finite_path():
 
 def test_assist_correction_uses_separate_yaw_clamp_and_empty_speed_cap():
     config = AutonomyControllerConfig()
+    clearance_m = (
+        config.clearance_hold_m + config.clearance_full_m
+    ) / 2.0
     estimate = terrain(
         path_offset_m=1.0,
         heading_error_rad=1.0,
-        left_wheel_clearance_m=0.175,
-        right_wheel_clearance_m=0.175,
+        left_wheel_clearance_m=clearance_m,
+        right_wheel_clearance_m=clearance_m,
         bank_angle_rad=math.radians(11.0),
         longitudinal_slope_rad=math.radians(12.0),
         confidence=0.425,
@@ -565,16 +568,43 @@ def test_blocked_is_immediate_and_resets_slew_origin():
     assert 0.0 < resumed.v_m_s <= EMPTY_STOWED.max_accel_m_s2 * 0.1 + 1e-12
 
 
+def test_measured_course_corridor_keeps_at_least_quarter_profile_speed():
+    """0.95 m was measured from course.stl at the frozen real-course pose,
+    matching its ground-truth corridor width of 0.950 m exactly.
+    """
+    corridor_width_m = 0.95
+    as_built_v2_footprint_width_m = 0.789
+    clearance_m = (
+        corridor_width_m - as_built_v2_footprint_width_m
+    ) / 2.0
+
+    decision = steady_decision(
+        estimate=terrain(
+            left_wheel_clearance_m=clearance_m,
+            right_wheel_clearance_m=clearance_m,
+        ),
+    )
+
+    assert decision.v_m_s >= 0.25 * EMPTY_STOWED.max_speed_m_s
+
+
 @pytest.mark.parametrize(
     ("field", "full", "slow", "hold", "slow_reason"),
     (
-        ("clearance", 0.31, 0.175, 0.049, "clearance_slow"),
+        ("clearance", None, None, None, "clearance_slow"),
         ("bank", 0.0, math.radians(11.0), math.radians(15.1), "bank_slow"),
         ("slope", 0.0, math.radians(12.0), math.radians(15.1), "slope_slow"),
         ("confidence", 0.61, 0.40, 0.24, "confidence_slow"),
     ),
 )
 def test_terrain_speed_scales_are_monotonic_and_hold_beyond_boundary(field, full, slow, hold, slow_reason):
+    if field == "clearance":
+        config = AutonomyControllerConfig()
+        ramp_width = config.clearance_full_m - config.clearance_hold_m
+        full = config.clearance_full_m + ramp_width
+        slow = (config.clearance_hold_m + config.clearance_full_m) / 2.0
+        hold = config.clearance_hold_m - 0.001
+
     def configured(value):
         if field == "clearance":
             return terrain(left_wheel_clearance_m=value, right_wheel_clearance_m=value)

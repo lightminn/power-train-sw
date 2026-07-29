@@ -59,7 +59,11 @@ class AutonomyControllerConfig:
     yaw_damp_gate_rad_s: float = 0.25
     yaw_damp_tau_s: float = 0.7
     clearance_hold_m: float = 0.05
-    clearance_full_m: float = 0.30
+    # 실측 여유가 횡방향 불확실성 예산을 넘으면 전속도를 허용한다:
+    # 정지 임계(clearance_hold_m 0.05) + 지형 격자 한 셀 경계 양자화
+    # (grid_resolution_m 0.05) + 추정기 예약 위치 불확실성
+    # (footprint_uncertainty_m 0.05) = 0.15 m.
+    clearance_full_m: float = 0.15
     min_confidence: float = 0.25
     full_confidence: float = 0.6
     confidence_floor_scale: float = 0.4
