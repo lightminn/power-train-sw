@@ -20,6 +20,13 @@ DEV_SEED = 0
 # test_campaign 이 default_geometry() 에서 직접 유도해 대조한다.
 ROBOT_FOOTPRINT_WIDTH_M = 0.789
 
+# 좁은 곡선 family 폭 — 로버가 "전속도로 지나도 되는 가장 좁은 복도"다:
+# 차폭 + 2 * 컨트롤러의 clearance_full_m(0.15) = 0.789 + 0.30 = 1.089 m.
+# 중앙 정렬이면 편측 여유 0.15 m 로 전속도가 나오고, 곡률이 만든 횡오차가
+# 0.10 m 를 넘는 순간 정지 임계(clearance_hold_m 0.05)에 걸린다 —
+# 복도는 들어가는데 치우쳐서 걸리는 상태를 만드는 것이 이 family 의 목적이다.
+NARROW_CURVE_TRACK_WIDTH_M = ROBOT_FOOTPRINT_WIDTH_M + 0.30
+
 # 훈련 트랙 — 스펙 2026-07-20 §4.2.
 # 길이: 2.5 m 에서는 종단 fail-closed 정지거리 0.7 m 가 전체의 28% 라
 #       구조적 최대 완주율이 ~0.71 이었다. 15 m 에서는 5% 로 내려간다.
@@ -240,6 +247,44 @@ def clothoid_document(
     return document
 
 
+def narrow_curve_document(
+    *,
+    seed: int = DEV_SEED,
+    seed_class: str = "dev",
+) -> dict:
+    document = generate_scenario(
+        GenerationParameters(
+            track_length_range_m=(
+                TRAINING_TRACK_LENGTH_M,
+                TRAINING_TRACK_LENGTH_M,
+            ),
+            track_width_range_m=(
+                NARROW_CURVE_TRACK_WIDTH_M,
+                NARROW_CURVE_TRACK_WIDTH_M,
+            ),
+            track_height_range_m=(0.5, 0.5),
+            curvature_range_per_m=(-0.08, 0.08),
+            station_spacing_range_m=(0.35, 0.35),
+            linear_speed_range_m_s=(0.45, 0.45),
+            terrain_families=("flat",),
+            motion_profiles=("constant_speed",),
+            undulation_amplitude_m=UNDULATION_AMPLITUDE_M,
+            undulation_wavelength_m=UNDULATION_WAVELENGTH_M,
+            curvature_mode="clothoid",
+            expected_completion=False,
+        ),
+        seed=seed,
+        seed_class=seed_class,
+    )
+    document["clock"]["duration_s"] = TRAINING_DURATION_S
+    _repin_transient_hold_bounds(document, "narrow_curve", seed_class)
+    # clothoid 의 min_clearance_m 재핀(0.15)은 1.6 m 트랙 실측에 근거한 값이라
+    # 이 family 에 옮겨 쓰지 않는다. 여기서는 로버가 가장자리에 접근하는 것이
+    # 목적이므로 생성기 기하 기본값을 그대로 두고, 0 침범은 edge_overrun 이 잡는다.
+    document["faults"] = {name: [] for name in document["faults"]}
+    return document
+
+
 def undulating_document(
     *,
     seed: int = DEV_SEED,
@@ -315,6 +360,7 @@ def follow_document(
 
 __all__ = (
     "DEV_SEED",
+    "NARROW_CURVE_TRACK_WIDTH_M",
     "ROBOT_FOOTPRINT_WIDTH_M",
     "TRAINING_DURATION_S",
     "TRAINING_TRACK_LENGTH_M",
@@ -327,6 +373,7 @@ __all__ = (
     "flat_document",
     "follow_document",
     "friction_document",
+    "narrow_curve_document",
     "pinch_document",
     "undulating_document",
 )

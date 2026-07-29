@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from io import StringIO
 import json
+import math
 import re
 
 import pytest
@@ -11,6 +12,7 @@ pytest.importorskip("mujoco")
 
 from chassis.kinematics import default_geometry
 from powertrain_autonomy.controller import AutonomyControllerConfig
+from powertrain_sim import family_scenarios
 from powertrain_sim.campaign import (
     CampaignConfigurationError,
     DEV_SEEDS,
@@ -152,7 +154,11 @@ def test_robot_footprint_width_matches_production_geometry():
 
 @pytest.mark.parametrize(
     "family",
-    [name for name in FAMILIES if name not in ("pinch", "follow")],
+    [
+        name
+        for name in FAMILIES
+        if name not in ("pinch", "narrow_curve", "follow")
+    ],
 )
 def test_training_track_is_long_and_wide_enough_for_the_real_rover(family):
     document = build_family_document(family, seed=0, seed_class="dev")
@@ -187,6 +193,57 @@ def test_pinch_family_exercises_clearance_speed_ramp():
     clearance_m = (min(widths) - ROBOT_FOOTPRINT_WIDTH_M) / 2.0
     assert clearance_m > config.clearance_hold_m
     assert clearance_m < config.clearance_full_m
+
+
+def test_narrow_curve_width_tracks_controller_full_clearance():
+    """컨트롤러 full-clearance 재튜닝이 family 폭과 조용히 어긋나면 안 된다."""
+    config = AutonomyControllerConfig()
+
+    assert (
+        family_scenarios.NARROW_CURVE_TRACK_WIDTH_M
+        == ROBOT_FOOTPRINT_WIDTH_M + 2 * config.clearance_full_m
+    )
+
+
+def test_narrow_curve_puts_clearance_hold_within_reach():
+    """이 family가 없으면 어떤 campaign family도 clearance hold를 시험하지 않는다.
+
+    검증된 clothoid 횡오차 0.379 m보다 작은 0.11 m를 보수적인 횡오차
+    allowance로 잡아, 복도는 맞지만 치우치면 hold에 닿는 폭인지 확인한다.
+    """
+    document = build_family_document("narrow_curve", seed=0, seed_class="dev")
+    config = AutonomyControllerConfig()
+    lateral_error_allowance_m = 0.11
+
+    minimum_width_m = min(document["track"]["width_m"])
+    centred_clearance_m = (
+        minimum_width_m - ROBOT_FOOTPRINT_WIDTH_M
+    ) / 2.0
+
+    assert centred_clearance_m > config.clearance_hold_m
+    assert (
+        centred_clearance_m
+        <= config.clearance_full_m + lateral_error_allowance_m
+    )
+    assert (
+        centred_clearance_m - lateral_error_allowance_m
+        <= config.clearance_hold_m
+    )
+
+
+def test_narrow_curve_centerline_changes_heading():
+    document = build_family_document("narrow_curve", seed=0, seed_class="dev")
+
+    points = document["track"]["centerline_m"]
+    headings_rad = [
+        math.atan2(right[1] - left[1], right[0] - left[0])
+        for left, right in zip(points, points[1:])
+    ]
+    heading_excursion_rad = max(headings_rad) - min(headings_rad)
+
+    # ±0.08 /m 를 15 m에서 선형 전이하면 약 0.30 rad가 생긴다.
+    # 이산 station에서도 의미 있는 곡선을 요구하되 0.20 rad로 여유를 둔다.
+    assert heading_excursion_rad > 0.20
 
 
 def test_pinch_family_has_time_to_reach_its_own_narrowing():
