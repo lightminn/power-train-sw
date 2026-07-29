@@ -64,6 +64,12 @@ class AutonomyControllerConfig:
     # (grid_resolution_m 0.05) + 추정기 예약 위치 불확실성
     # (footprint_uncertainty_m 0.05) = 0.15 m.
     clearance_full_m: float = 0.15
+    # 재중앙 정렬 중에는 전진 속도를 저속 크리프로 제한한다.
+    recentring_speed_m_s: float = 0.08
+    # 5 cm 지형 격자 경계 양자화의 10분의 1인 5 mm까지 여유 흔들림을 허용한다.
+    recentring_margin_slack_m: float = 0.005
+    # 재중앙 정렬을 연속으로 허용하는 최대 시간이다.
+    recentring_timeout_s: float = 5.0
     min_confidence: float = 0.25
     full_confidence: float = 0.6
     confidence_floor_scale: float = 0.4
@@ -93,6 +99,19 @@ class AutonomyControllerConfig:
             raise ValueError(
                 "recovery_min_elapsed_s must be a finite non-negative number"
             )
+        for name in (
+            "recentring_speed_m_s",
+            "recentring_margin_slack_m",
+            "recentring_timeout_s",
+        ):
+            value = getattr(self, name)
+            if (
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or not math.isfinite(float(value))
+                or float(value) <= 0.0
+            ):
+                raise ValueError(f"{name} must be finite and positive")
         positive = (
             "terrain_stale_s",
             "motion_stale_s",
@@ -249,6 +268,9 @@ class AutonomyController:
         self._recovery_started_s: float | None = None
         self._recovery_samples = 0
         self._recovery_last_sample_stamp: float | None = None
+        self._recentring_started_s: float | None = None
+        self._recentring_best_margin_m: float | None = None
+        self._recentring_latched = False
 
     def _dt(self, now_s: float) -> float:
         if self._last_stamp_s is None:
@@ -342,6 +364,7 @@ class AutonomyController:
 
         dt = self._dt(now_s)
         hold_reasons: list[str] = []
+        recentring = False
         terrain_valid = terrain is not None
         if terrain is None:
             hold_reasons.append("terrain_missing")
@@ -368,11 +391,67 @@ class AutonomyController:
                     hold_reasons.append("path_unavailable")
                 if terrain.confidence < self.config.min_confidence:
                     hold_reasons.append("low_confidence")
-                if min(
+                wheel_clearance = min(
                     terrain.left_wheel_clearance_m,
                     terrain.right_wheel_clearance_m,
-                ) < self.config.clearance_hold_m:
+                )
+                centred_clearance = 0.5 * (
+                    terrain.left_wheel_clearance_m
+                    + terrain.right_wheel_clearance_m
+                )
+                if wheel_clearance > self.config.clearance_hold_m:
+                    self._recentring_started_s = None
+                    self._recentring_best_margin_m = None
+                    self._recentring_latched = False
+                elif wheel_clearance < self.config.clearance_hold_m:
+                    corridor_fits = (
+                        centred_clearance >= self.config.clearance_hold_m
+                    )
+                    wheels_supported = wheel_clearance >= 0.0
+                    if (
+                        self._recentring_latched
+                        or not corridor_fits
+                        or not wheels_supported
+                    ):
+                        self._recentring_latched = True
+                        hold_reasons.append("clearance_low")
+                    else:
+                        if self._recentring_started_s is None:
+                            self._recentring_started_s = now_s
+                            self._recentring_best_margin_m = wheel_clearance
+                        best_margin = self._recentring_best_margin_m
+                        margin_falling = (
+                            best_margin is not None
+                            and best_margin - wheel_clearance
+                            > self.config.recentring_margin_slack_m
+                        )
+                        time_regressed = (
+                            self._last_stamp_s is not None
+                            and now_s < self._last_stamp_s
+                        )
+                        timed_out = (
+                            time_regressed
+                            or (
+                                now_s - self._recentring_started_s
+                                > self.config.recentring_timeout_s
+                            )
+                        )
+                        if margin_falling or timed_out:
+                            self._recentring_latched = True
+                            hold_reasons.append("clearance_low")
+                        else:
+                            self._recentring_best_margin_m = max(
+                                best_margin
+                                if best_margin is not None
+                                else wheel_clearance,
+                                wheel_clearance,
+                            )
+                            recentring = True
+                elif self._recentring_latched:
                     hold_reasons.append("clearance_low")
+                else:
+                    self._recentring_started_s = None
+                    self._recentring_best_margin_m = None
                 if abs(terrain.bank_angle_rad) > self.profile.max_bank_rad:
                     hold_reasons.append("bank_limit")
                 if abs(terrain.longitudinal_slope_rad) > self.profile.max_slope_rad:
@@ -449,9 +528,19 @@ class AutonomyController:
             self._recovery_last_sample_stamp = None
 
         reasons: list[str] = []
-        clearance = min(
-            terrain.left_wheel_clearance_m,
-            terrain.right_wheel_clearance_m,
+        if recentring:
+            reasons.append("recentring")
+        clearance = (
+            0.5
+            * (
+                terrain.left_wheel_clearance_m
+                + terrain.right_wheel_clearance_m
+            )
+            if recentring
+            else min(
+                terrain.left_wheel_clearance_m,
+                terrain.right_wheel_clearance_m,
+            )
         )
         clearance_scale = _clamp(
             (clearance - self.config.clearance_hold_m)
@@ -505,10 +594,16 @@ class AutonomyController:
             if speed_cap < v_lim:
                 reasons.append("speed_cap")
                 v_lim = speed_cap
+        if recentring:
+            v_lim = min(v_lim, self.config.recentring_speed_m_s)
 
         omega_p = (
-            self.config.kp_heading * terrain.heading_error_rad
-            + self.config.kp_offset * terrain.path_offset_m
+            self.config.kp_offset * terrain.path_offset_m
+            if recentring
+            else (
+                self.config.kp_heading * terrain.heading_error_rad
+                + self.config.kp_offset * terrain.path_offset_m
+            )
         )
         if self.config.kd_yaw > 0.0:
             alpha = dt / (self.config.yaw_damp_tau_s + dt)
@@ -554,6 +649,8 @@ class AutonomyController:
             self.profile.max_decel_m_s2,
             dt,
         )
+        if recentring:
+            self._v_m_s = min(self._v_m_s, v_target)
         self._omega_rad_s = _slew(
             self._omega_rad_s,
             omega_target,

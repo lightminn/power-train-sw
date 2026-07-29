@@ -588,6 +588,152 @@ def test_measured_course_corridor_keeps_at_least_quarter_profile_speed():
     assert decision.v_m_s >= 0.25 * EMPTY_STOWED.max_speed_m_s
 
 
+def test_measured_offcentre_corridor_opens_guarded_recentering_arc():
+    with pytest.raises(ValueError, match="recentring_speed_m_s"):
+        AutonomyControllerConfig(recentring_speed_m_s=True)
+
+    config = AutonomyControllerConfig()
+    controller = AutonomyController(EMPTY_STOWED, config)
+    estimate = terrain(
+        path_offset_m=-0.075,
+        heading_error_rad=0.20,
+        left_wheel_clearance_m=0.0055,
+        right_wheel_clearance_m=0.1555,
+    )
+
+    for tick in range(5):
+        decide_fresh(controller, tick * 0.25)
+    decision = decide_fresh(controller, 1.25, estimate=estimate)
+
+    assert decision.state != "CONTROLLED_HOLD"
+    assert 0.0 < decision.v_m_s <= config.recentring_speed_m_s
+    assert "recentring" in decision.reasons
+    assert decision.omega_rad_s < 0.0
+
+
+def test_recentering_rejects_corridor_that_does_not_fit():
+    decision = decide_fresh(
+        AutonomyController(EMPTY_STOWED),
+        0.0,
+        estimate=terrain(
+            left_wheel_clearance_m=0.01,
+            right_wheel_clearance_m=0.01,
+        ),
+    )
+
+    assert decision.state == "CONTROLLED_HOLD"
+    assert "clearance_low" in decision.reasons
+    assert decision.v_m_s == 0.0
+
+
+def test_recentering_rejects_wheel_outside_support():
+    decision = decide_fresh(
+        AutonomyController(EMPTY_STOWED),
+        0.0,
+        estimate=terrain(
+            left_wheel_clearance_m=-0.02,
+            right_wheel_clearance_m=0.30,
+        ),
+    )
+
+    assert decision.state == "CONTROLLED_HOLD"
+    assert "clearance_low" in decision.reasons
+    assert decision.v_m_s == 0.0
+
+
+def test_recentering_falling_margin_latches_until_clearance_recovers():
+    config = AutonomyControllerConfig()
+    controller = AutonomyController(EMPTY_STOWED, config)
+    initial = terrain(
+        left_wheel_clearance_m=0.02,
+        right_wheel_clearance_m=0.12,
+    )
+    eroded = terrain(
+        left_wheel_clearance_m=0.02 - config.recentring_margin_slack_m - 0.001,
+        right_wheel_clearance_m=0.14,
+    )
+
+    decide_fresh(controller, 0.0, estimate=initial)
+    moving = decide_fresh(controller, 0.1, estimate=initial)
+    latched = decide_fresh(controller, 0.2, estimate=eroded)
+    still_latched = decide_fresh(controller, 0.3, estimate=eroded)
+
+    assert moving.state != "CONTROLLED_HOLD"
+    assert moving.v_m_s > 0.0
+    assert latched.state == "CONTROLLED_HOLD"
+    assert "clearance_low" in latched.reasons
+    assert still_latched.state == "CONTROLLED_HOLD"
+    assert "clearance_low" in still_latched.reasons
+
+
+def test_recentering_margin_slack_tolerates_quantisation_noise():
+    with pytest.raises(ValueError, match="recentring_margin_slack_m"):
+        AutonomyControllerConfig(recentring_margin_slack_m=True)
+
+    config = AutonomyControllerConfig()
+    controller = AutonomyController(EMPTY_STOWED, config)
+    initial = terrain(
+        left_wheel_clearance_m=0.02,
+        right_wheel_clearance_m=0.12,
+    )
+    dithered = terrain(
+        left_wheel_clearance_m=0.02 - 0.8 * config.recentring_margin_slack_m,
+        right_wheel_clearance_m=0.14,
+    )
+
+    decide_fresh(controller, 0.0, estimate=initial)
+    moving = decide_fresh(controller, 0.1, estimate=initial)
+    decision = decide_fresh(controller, 0.2, estimate=dithered)
+
+    assert moving.v_m_s > 0.0
+    assert decision.state != "CONTROLLED_HOLD"
+    assert "recentring" in decision.reasons
+
+
+def test_recentering_window_times_out_and_fails_closed_on_time_rollback():
+    config = AutonomyControllerConfig()
+    controller = AutonomyController(EMPTY_STOWED, config)
+    estimate = terrain(
+        left_wheel_clearance_m=0.02,
+        right_wheel_clearance_m=0.12,
+    )
+
+    decide_fresh(controller, 0.0, estimate=estimate)
+    moving = decide_fresh(controller, 0.1, estimate=estimate)
+    timed_out = decide_fresh(
+        controller,
+        config.recentring_timeout_s + 0.01,
+        estimate=estimate,
+    )
+
+    assert moving.v_m_s > 0.0
+    assert timed_out.state == "CONTROLLED_HOLD"
+    assert "clearance_low" in timed_out.reasons
+
+    rollback_controller = AutonomyController(EMPTY_STOWED, config)
+    decide_fresh(rollback_controller, 100.0, estimate=estimate)
+    assert decide_fresh(
+        rollback_controller,
+        100.1,
+        estimate=estimate,
+    ).v_m_s > 0.0
+    assert decide_fresh(
+        rollback_controller,
+        104.9,
+        estimate=estimate,
+    ).v_m_s > 0.0
+    rolled_back = decide_fresh(
+        rollback_controller,
+        104.0,
+        estimate=estimate,
+    )
+
+    assert rolled_back.state == "CONTROLLED_HOLD"
+    assert "clearance_low" in rolled_back.reasons
+    with pytest.raises(ValueError, match="recentring_timeout_s"):
+        AutonomyControllerConfig(recentring_timeout_s=True)
+
+
 @pytest.mark.parametrize(
     ("field", "full", "slow", "hold", "slow_reason"),
     (
