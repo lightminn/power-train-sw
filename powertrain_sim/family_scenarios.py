@@ -133,7 +133,9 @@ def pinch_document(
         seed=seed,
         seed_class=seed_class,
     )
-    document["clock"]["duration_s"] = 12.0
+    # 좁힘은 약 7 m 에 있지만 12 s 동안 Isaac 로버는 약 4 m 만 주행해,
+    # 이 family 가 시험하려는 형상에 한 번도 도달하지 못했다.
+    document["clock"]["duration_s"] = TRAINING_DURATION_S
     document["faults"] = {name: [] for name in document["faults"]}
     return document
 

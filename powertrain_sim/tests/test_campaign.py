@@ -189,6 +189,29 @@ def test_pinch_family_exercises_clearance_speed_ramp():
     assert clearance_m < config.clearance_full_m
 
 
+def test_pinch_family_has_time_to_reach_its_own_narrowing():
+    """도달 못할 좁힘은 아무것도 시험하지 않고 edge_overrun=0만 깨끗이 남긴다.
+
+    Isaac 실측/명목 속도 비는 0.34 / 0.45 = 0.76이며, 0.6으로 내림해
+    보수적으로 좁힘 도달 여유를 검증한다.
+    """
+    document = build_family_document("pinch", seed=0, seed_class="dev")
+
+    far_edge_x = max(
+        point[0]
+        for point, width in zip(
+            document["track"]["centerline_m"],
+            document["track"]["width_m"],
+        )
+        if width < TRAINING_TRACK_WIDTH_M
+    )
+    # pinch_document 의 linear_speed_range_m_s=(0.45, 0.45) 를 미러한다.
+    nominal_speed_m_s = 0.45
+    duration_s = document["clock"]["duration_s"]
+
+    assert duration_s * nominal_speed_m_s * 0.6 > far_edge_x
+
+
 def test_undulating_family_matches_the_measured_course_profile():
     document = build_family_document("undulating", seed=0, seed_class="dev")
 
