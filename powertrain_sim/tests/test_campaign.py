@@ -9,6 +9,8 @@ import pytest
 
 pytest.importorskip("mujoco")
 
+from chassis.kinematics import default_geometry
+from powertrain_autonomy.controller import AutonomyControllerConfig
 from powertrain_sim.campaign import (
     CampaignConfigurationError,
     DEV_SEEDS,
@@ -132,6 +134,22 @@ def test_regression_seed_class_is_delegated_to_environment_manifest(tmp_path):
         )
 
 
+def test_robot_footprint_width_matches_production_geometry():
+    """캠페인 차폭 기준은 production 기하와 함께 바뀌어야 한다."""
+    geometry = default_geometry()
+    widest_wheel_center_m = max(abs(wheel.y) for wheel in geometry.wheels)
+    # m4_campaign.WHEEL_HALF_WIDTH_M 를 미러한다(Isaac import 는 피한다).
+    wheel_half_width_m = 0.035
+    derived_footprint_width_m = 2.0 * (
+        widest_wheel_center_m + wheel_half_width_m
+    )
+
+    assert ROBOT_FOOTPRINT_WIDTH_M == pytest.approx(
+        derived_footprint_width_m,
+        abs=1e-9,
+    )
+
+
 @pytest.mark.parametrize(
     "family",
     [name for name in FAMILIES if name not in ("pinch", "follow")],
@@ -141,7 +159,7 @@ def test_training_track_is_long_and_wide_enough_for_the_real_rover(family):
 
     widths = document["track"]["width_m"]
     assert min(widths) == pytest.approx(TRAINING_TRACK_WIDTH_M, abs=1e-6)
-    # 차폭 949 mm 대비 편측 여유 325 mm
+    # 차폭 789 mm 대비 편측 여유 405.5 mm
     assert (min(widths) - ROBOT_FOOTPRINT_WIDTH_M) / 2.0 > 0.30
 
     centerline = document["track"]["centerline_m"]
@@ -158,6 +176,17 @@ def test_pinch_family_keeps_its_deliberate_narrowing():
     widths = document["track"]["width_m"]
     assert min(widths) < ROBOT_FOOTPRINT_WIDTH_M + 0.20
     assert max(widths) > min(widths)
+
+
+def test_pinch_family_exercises_clearance_speed_ramp():
+    """이 게이트가 없으면 전 구간 ramp 포화로 캠페인이 조용히 판별력을 잃는다."""
+    document = build_family_document("pinch", seed=0, seed_class="dev")
+    config = AutonomyControllerConfig()
+
+    widths = document["track"]["width_m"]
+    clearance_m = (min(widths) - ROBOT_FOOTPRINT_WIDTH_M) / 2.0
+    assert clearance_m > config.clearance_hold_m
+    assert clearance_m < config.clearance_full_m
 
 
 def test_undulating_family_matches_the_measured_course_profile():

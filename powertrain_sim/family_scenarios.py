@@ -14,14 +14,16 @@ from .procedural import (
 DEV_SEED = 0
 
 # CAD URDF wheel centres in chassis.kinematics.default_geometry() have their
-# widest |y| at 0.4395 m; model_builder gives each wheel 0.035 m half-width.
-# The simulated physical footprint is therefore 2 * (0.4395 + 0.035) = 0.949 m.
-ROBOT_FOOTPRINT_WIDTH_M = 0.949
+# widest |y| at 0.3595 m (as-built v2, commit 3df0114); model_builder gives each
+# wheel 0.035 m half-width. The physical footprint is 2 * (0.3595 + 0.035) = 0.789 m.
+# 이 값은 트랙 폭의 기준이라 기하가 바뀌면 반드시 같이 바뀌어야 한다 —
+# test_campaign 이 default_geometry() 에서 직접 유도해 대조한다.
+ROBOT_FOOTPRINT_WIDTH_M = 0.789
 
 # 훈련 트랙 — 스펙 2026-07-20 §4.2.
 # 길이: 2.5 m 에서는 종단 fail-closed 정지거리 0.7 m 가 전체의 28% 라
 #       구조적 최대 완주율이 ~0.71 이었다. 15 m 에서는 5% 로 내려간다.
-# 폭:   차폭 949 mm 대비 편측 여유 325 mm. 차폭을 진단 변수에서 제거한다.
+# 폭:   차폭 789 mm 대비 편측 여유 405.5 mm. 차폭을 진단 변수에서 제거한다.
 TRAINING_TRACK_LENGTH_M = 15.0
 TRAINING_TRACK_WIDTH_M = 1.6
 # 대회 코스 course.stl 실측: 0.085 <-> 0.388 m (peak-to-peak 0.303 m), 주기 4.4 m.
