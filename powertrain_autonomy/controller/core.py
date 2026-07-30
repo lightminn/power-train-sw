@@ -77,6 +77,11 @@ class AutonomyControllerConfig:
     recentring_margin_slack_m: float = 0.025
     # 재중앙 정렬을 연속으로 허용하는 최대 시간이다.
     recentring_timeout_s: float = 5.0
+    # 창은 다시 열려 가드가 일회성 래치가 되지 않지만, 각 개방은
+    # recentring_margin_slack_m 만큼의 여유만 소모한 뒤 닫힌다. 쿨다운은
+    # 이 반복 빈도를 제한한다. corridor가 맞고 측정 support 밖에 있는 바퀴가
+    # 없다는 하드 플로어가 여유를 얼마나 걸어 내려갈 수 있는지의 실제 한계다.
+    recentring_cooldown_s: float = 2.0
     min_confidence: float = 0.25
     full_confidence: float = 0.6
     confidence_floor_scale: float = 0.4
@@ -110,6 +115,7 @@ class AutonomyControllerConfig:
             "recentring_speed_m_s",
             "recentring_margin_slack_m",
             "recentring_timeout_s",
+            "recentring_cooldown_s",
         ):
             value = getattr(self, name)
             if (
@@ -277,7 +283,7 @@ class AutonomyController:
         self._recovery_last_sample_stamp: float | None = None
         self._recentring_started_s: float | None = None
         self._recentring_best_margin_m: float | None = None
-        self._recentring_latched = False
+        self._recentring_closed_s: float | None = None
 
     def _dt(self, now_s: float) -> float:
         if self._last_stamp_s is None:
@@ -409,18 +415,24 @@ class AutonomyController:
                 if wheel_clearance > self.config.clearance_hold_m:
                     self._recentring_started_s = None
                     self._recentring_best_margin_m = None
-                    self._recentring_latched = False
                 elif wheel_clearance < self.config.clearance_hold_m:
                     corridor_fits = (
                         centred_clearance >= self.config.clearance_hold_m
                     )
                     wheels_supported = wheel_clearance >= 0.0
+                    cooldown_elapsed = (
+                        self._recentring_closed_s is None
+                        or now_s < self._recentring_closed_s
+                        or (
+                            now_s - self._recentring_closed_s
+                            >= self.config.recentring_cooldown_s
+                        )
+                    )
                     if (
-                        self._recentring_latched
-                        or not corridor_fits
+                        not corridor_fits
                         or not wheels_supported
+                        or not cooldown_elapsed
                     ):
-                        self._recentring_latched = True
                         hold_reasons.append("clearance_low")
                     else:
                         if self._recentring_started_s is None:
@@ -444,7 +456,9 @@ class AutonomyController:
                             )
                         )
                         if margin_falling or timed_out:
-                            self._recentring_latched = True
+                            self._recentring_closed_s = now_s
+                            self._recentring_started_s = None
+                            self._recentring_best_margin_m = None
                             hold_reasons.append("clearance_low")
                         else:
                             self._recentring_best_margin_m = max(
@@ -454,8 +468,6 @@ class AutonomyController:
                                 wheel_clearance,
                             )
                             recentring = True
-                elif self._recentring_latched:
-                    hold_reasons.append("clearance_low")
                 else:
                     self._recentring_started_s = None
                     self._recentring_best_margin_m = None

@@ -675,29 +675,126 @@ def test_recentering_rejects_wheel_outside_support():
     assert decision.v_m_s == 0.0
 
 
-def test_recentering_falling_margin_latches_until_clearance_recovers():
+def test_recentering_falling_margin_pauses_window_during_cooldown():
+    """The tick after the violation still holds because it is inside the cooldown."""
     config = AutonomyControllerConfig()
     controller = AutonomyController(EMPTY_STOWED, config)
     initial = terrain(
-        left_wheel_clearance_m=0.02,
+        left_wheel_clearance_m=0.04,
         right_wheel_clearance_m=0.12,
     )
     eroded = terrain(
-        left_wheel_clearance_m=0.02 - config.recentring_margin_slack_m - 0.001,
+        left_wheel_clearance_m=0.04 - config.recentring_margin_slack_m - 0.001,
         right_wheel_clearance_m=0.14,
     )
 
     decide_fresh(controller, 0.0, estimate=initial)
     moving = decide_fresh(controller, 0.1, estimate=initial)
-    latched = decide_fresh(controller, 0.2, estimate=eroded)
-    still_latched = decide_fresh(controller, 0.3, estimate=eroded)
+    paused = decide_fresh(controller, 0.2, estimate=eroded)
+    still_paused = decide_fresh(controller, 0.3, estimate=eroded)
 
     assert moving.state != "CONTROLLED_HOLD"
     assert moving.v_m_s > 0.0
-    assert latched.state == "CONTROLLED_HOLD"
-    assert "clearance_low" in latched.reasons
-    assert still_latched.state == "CONTROLLED_HOLD"
-    assert "clearance_low" in still_latched.reasons
+    assert paused.state == "CONTROLLED_HOLD"
+    assert "clearance_low" in paused.reasons
+    assert still_paused.state == "CONTROLLED_HOLD"
+    assert "clearance_low" in still_paused.reasons
+
+
+def test_recentering_window_reopens_after_cooldown():
+    """A clock rollback must start a new cooldown epoch, not preserve the old one."""
+    config = AutonomyControllerConfig()
+    controller = AutonomyController(EMPTY_STOWED, config)
+    initial = terrain(
+        left_wheel_clearance_m=0.04,
+        right_wheel_clearance_m=0.12,
+    )
+    eroded = terrain(
+        left_wheel_clearance_m=0.04 - config.recentring_margin_slack_m - 0.001,
+        right_wheel_clearance_m=0.14,
+    )
+
+    decide_fresh(controller, 0.0, estimate=initial)
+    decide_fresh(controller, 0.1, estimate=initial)
+    decide_fresh(controller, 0.2, estimate=eroded)
+    decide_fresh(controller, 0.3, estimate=eroded)
+    decide_fresh(controller, 2.21, estimate=eroded)
+    decide_fresh(controller, 2.31, estimate=eroded)
+    reopened = decide_fresh(controller, 2.41, estimate=eroded)
+
+    assert reopened.state != "CONTROLLED_HOLD"
+    assert reopened.v_m_s > 0.0
+    assert "recentring" in reopened.reasons
+
+    rollback_controller = AutonomyController(EMPTY_STOWED, config)
+    decide_fresh(rollback_controller, 100.0, estimate=initial)
+    decide_fresh(rollback_controller, 100.1, estimate=initial)
+    decide_fresh(rollback_controller, 100.2, estimate=eroded)
+    rolled_back = decide_fresh(rollback_controller, 50.0, estimate=eroded)
+    decide_fresh(rollback_controller, 100.21, estimate=eroded)
+    decide_fresh(rollback_controller, 100.31, estimate=eroded)
+    reopened_after_rollback = decide_fresh(
+        rollback_controller,
+        100.41,
+        estimate=eroded,
+    )
+
+    assert rolled_back.state == "CONTROLLED_HOLD"
+    assert "clearance_low" in rolled_back.reasons
+    assert reopened_after_rollback.state != "CONTROLLED_HOLD"
+    assert reopened_after_rollback.v_m_s > 0.0
+    assert "recentring" in reopened_after_rollback.reasons
+
+
+def test_recentering_window_does_not_reopen_before_cooldown():
+    config = AutonomyControllerConfig()
+    controller = AutonomyController(EMPTY_STOWED, config)
+    initial = terrain(
+        left_wheel_clearance_m=0.04,
+        right_wheel_clearance_m=0.12,
+    )
+    eroded = terrain(
+        left_wheel_clearance_m=0.04 - config.recentring_margin_slack_m - 0.001,
+        right_wheel_clearance_m=0.14,
+    )
+
+    decide_fresh(controller, 0.0, estimate=initial)
+    decide_fresh(controller, 0.1, estimate=initial)
+    decide_fresh(controller, 0.2, estimate=eroded)
+    held = decide_fresh(controller, 2.199, estimate=eroded)
+
+    assert held.state == "CONTROLLED_HOLD"
+    assert "clearance_low" in held.reasons
+    with pytest.raises(ValueError, match="recentring_cooldown_s"):
+        AutonomyControllerConfig(recentring_cooldown_s=True)
+
+
+def test_recentering_wheel_outside_support_holds_after_cooldown():
+    config = AutonomyControllerConfig()
+    controller = AutonomyController(EMPTY_STOWED, config)
+    initial = terrain(
+        left_wheel_clearance_m=0.04,
+        right_wheel_clearance_m=0.12,
+    )
+    eroded = terrain(
+        left_wheel_clearance_m=0.04 - config.recentring_margin_slack_m - 0.001,
+        right_wheel_clearance_m=0.14,
+    )
+
+    decide_fresh(controller, 0.0, estimate=initial)
+    decide_fresh(controller, 0.1, estimate=initial)
+    decide_fresh(controller, 0.2, estimate=eroded)
+    held = decide_fresh(
+        controller,
+        2.21,
+        estimate=terrain(
+            left_wheel_clearance_m=-0.02,
+            right_wheel_clearance_m=0.30,
+        ),
+    )
+
+    assert held.state == "CONTROLLED_HOLD"
+    assert "clearance_low" in held.reasons
 
 
 def test_recentering_margin_slack_tolerates_quantisation_noise():
