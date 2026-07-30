@@ -185,6 +185,59 @@ def estimate(
     )
 
 
+def summarize_lateral_reference_frame(
+    estimator: TerrainEstimator,
+    *,
+    center_offset_m: float,
+    observed_edges: bool,
+    stamp_s: float,
+    odometry_delta: OdometryDelta = ZERO_ODOMETRY,
+) -> TerrainEstimate:
+    """Build a deterministic summary frame with or without strict edge evidence."""
+    resolution = estimator.config.grid_resolution_m
+    y_min = estimator.config.grid_y_range_m[0]
+    right_index = int(round((center_offset_m - 0.50 - y_min) / resolution))
+    left_stop = int(round((center_offset_m + 0.50 - y_min) / resolution))
+    support = np.zeros(estimator.grid_shape, dtype=bool)
+    support[2:14, right_index:left_stop] = True
+    valid = support.copy()
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    if observed_edges:
+        lower_floor[2:14, right_index - 1] = True
+        lower_floor[2:14, left_stop] = True
+        valid |= lower_floor
+    height = np.full(estimator.grid_shape, np.nan, dtype=float)
+    height[support] = 0.0
+    height[lower_floor] = -0.25
+    support_values = np.where(support, 0.0, np.nan)
+    grid = dataclasses.replace(
+        empty_grid(estimator.grid_shape),
+        height_m=height,
+        observed_count=valid.astype(np.int32),
+        slope_x=support_values.copy(),
+        slope_y=support_values.copy(),
+        roughness_m=support_values.copy(),
+        confidence=support.astype(float),
+        valid_mask=valid,
+        support_mask=support,
+        lower_floor_mask=lower_floor,
+        stamp_s=np.where(valid, stamp_s, np.nan),
+    )
+    return estimator._summarize(
+        grid,
+        stamp_s=stamp_s,
+        frame_confidence=1.0,
+        reasons=(),
+        carried_count=0,
+        odometry_residual_m=0.0,
+        left_limit_y=np.full(estimator.grid_shape[0], 1.5),
+        right_limit_y=np.full(estimator.grid_shape[0], -1.5),
+        left_floor_seen=True,
+        right_floor_seen=True,
+        odometry_delta=odometry_delta,
+    )
+
+
 def remove_lower_floor_side(frame: TerrainFrame, *, left: bool) -> TerrainFrame:
     """Remove only one side of the independently rendered lower floor."""
     rows, cols = np.indices(frame.depth_roi.shape, dtype=float)
@@ -233,6 +286,16 @@ def test_public_values_are_immutable_and_grid_shape_is_fixed():
             match="edge_adjacency_cells must be a positive integer",
         ):
             TerrainEstimatorConfig(edge_adjacency_cells=invalid_cells)
+    for field, invalid_values in (
+        ("lateral_reference_carry_m", (True, 0.0, -0.1, math.nan, math.inf)),
+        ("lateral_reference_carry_drift", (True, 0.0, -0.1, math.nan, math.inf)),
+    ):
+        for invalid_value in invalid_values:
+            with pytest.raises(
+                ValueError,
+                match="lateral reference carry thresholds must be positive",
+            ):
+                TerrainEstimatorConfig(**{field: invalid_value})
 
 
 def test_estimator_routes_numpy_projection_and_scatter_through_pure_kernel(monkeypatch):
@@ -370,6 +433,165 @@ def test_observation_limit_keeps_pre_change_corridor_bounds():
     assert result.left_wheel_clearance_m == pytest.approx(0.5055, abs=1e-9)
     assert result.right_wheel_clearance_m == pytest.approx(0.2555, abs=1e-9)
     assert "lateral_reference_unobserved" in result.degradation_reasons
+
+
+def test_unobserved_frame_uses_transported_last_observed_lateral_reference():
+    estimator = make_estimator()
+    first = summarize_lateral_reference_frame(
+        estimator,
+        center_offset_m=0.10,
+        observed_edges=True,
+        stamp_s=1.0,
+    )
+    fallback = summarize_lateral_reference_frame(
+        make_estimator(),
+        center_offset_m=-0.10,
+        observed_edges=False,
+        stamp_s=1.1,
+        odometry_delta=OdometryDelta(dx_m=0.10, dy_m=0.0, dyaw_rad=0.0),
+    )
+
+    carried = summarize_lateral_reference_frame(
+        estimator,
+        center_offset_m=-0.10,
+        observed_edges=False,
+        stamp_s=1.1,
+        odometry_delta=OdometryDelta(dx_m=0.10, dy_m=0.0, dyaw_rad=0.0),
+    )
+
+    assert first.path_offset_m == pytest.approx(0.10, abs=1e-9)
+    assert fallback.path_offset_m == pytest.approx(-0.10, abs=1e-9)
+    assert carried.path_offset_m == pytest.approx(first.path_offset_m, abs=1e-9)
+    assert "lateral_reference_carried" in carried.degradation_reasons
+    assert "lateral_reference_unobserved" not in carried.degradation_reasons
+
+
+def test_positive_lateral_odometry_moves_carried_reference_right():
+    """dy>0 means rover-left in the previous body frame, so the track offset decreases."""
+    estimator = make_estimator()
+    first = summarize_lateral_reference_frame(
+        estimator,
+        center_offset_m=0.10,
+        observed_edges=True,
+        stamp_s=1.0,
+    )
+
+    carried = summarize_lateral_reference_frame(
+        estimator,
+        center_offset_m=-0.10,
+        observed_edges=False,
+        stamp_s=1.1,
+        odometry_delta=OdometryDelta(dx_m=0.0, dy_m=0.04, dyaw_rad=0.0),
+    )
+
+    assert carried.path_offset_m == pytest.approx(first.path_offset_m - 0.04, abs=1e-9)
+    assert "lateral_reference_carried" in carried.degradation_reasons
+
+
+def test_lateral_reference_carry_expires_after_accumulated_travel_budget():
+    estimator = make_estimator(lateral_reference_carry_m=1.0)
+    summarize_lateral_reference_frame(
+        estimator,
+        center_offset_m=0.10,
+        observed_edges=True,
+        stamp_s=1.0,
+    )
+    within_budget = summarize_lateral_reference_frame(
+        estimator,
+        center_offset_m=-0.10,
+        observed_edges=False,
+        stamp_s=1.1,
+        odometry_delta=OdometryDelta(dx_m=0.60, dy_m=0.0, dyaw_rad=0.0),
+    )
+
+    expired = summarize_lateral_reference_frame(
+        estimator,
+        center_offset_m=-0.10,
+        observed_edges=False,
+        stamp_s=1.2,
+        odometry_delta=OdometryDelta(dx_m=0.41, dy_m=0.0, dyaw_rad=0.0),
+    )
+
+    assert "lateral_reference_carried" in within_budget.degradation_reasons
+    assert "lateral_reference_unobserved" not in within_budget.degradation_reasons
+    assert "lateral_reference_unobserved" in expired.degradation_reasons
+    assert "lateral_reference_carried" not in expired.degradation_reasons
+
+
+def test_longer_lateral_reference_carry_reduces_reported_wheel_clearance():
+    def carry(distance_m: float) -> TerrainEstimate:
+        estimator = make_estimator(lateral_reference_carry_drift=0.03)
+        summarize_lateral_reference_frame(
+            estimator,
+            center_offset_m=0.0,
+            observed_edges=True,
+            stamp_s=1.0,
+        )
+        return summarize_lateral_reference_frame(
+            estimator,
+            center_offset_m=0.0,
+            observed_edges=False,
+            stamp_s=1.1,
+            odometry_delta=OdometryDelta(
+                dx_m=distance_m,
+                dy_m=0.0,
+                dyaw_rad=0.0,
+            ),
+        )
+
+    shorter = carry(0.20)
+    longer = carry(0.60)
+    expected_reduction_m = (0.60 - 0.20) * 0.03
+
+    assert "lateral_reference_carried" in shorter.degradation_reasons
+    assert "lateral_reference_carried" in longer.degradation_reasons
+    assert shorter.left_wheel_clearance_m - longer.left_wheel_clearance_m == pytest.approx(
+        expected_reduction_m,
+        abs=1e-9,
+    )
+    assert shorter.right_wheel_clearance_m - longer.right_wheel_clearance_m == pytest.approx(
+        expected_reduction_m,
+        abs=1e-9,
+    )
+
+
+def test_rejected_frame_clears_carried_lateral_reference():
+    control = make_estimator()
+    summarize_lateral_reference_frame(
+        control,
+        center_offset_m=0.10,
+        observed_edges=True,
+        stamp_s=1.0,
+    )
+    still_carried = summarize_lateral_reference_frame(
+        control,
+        center_offset_m=-0.10,
+        observed_edges=False,
+        stamp_s=1.1,
+        odometry_delta=OdometryDelta(dx_m=0.10, dy_m=0.0, dyaw_rad=0.0),
+    )
+
+    rejected_estimator = make_estimator()
+    summarize_lateral_reference_frame(
+        rejected_estimator,
+        center_offset_m=0.10,
+        observed_edges=True,
+        stamp_s=1.0,
+    )
+    stale_frame = render_track_depth(stamp_s=2.0, width_m=1.5)
+    rejected = estimate(rejected_estimator, stale_frame, now_s=2.251)
+    after_reject = summarize_lateral_reference_frame(
+        rejected_estimator,
+        center_offset_m=-0.10,
+        observed_edges=False,
+        stamp_s=2.1,
+        odometry_delta=OdometryDelta(dx_m=0.10, dy_m=0.0, dyaw_rad=0.0),
+    )
+
+    assert "lateral_reference_carried" in still_carried.degradation_reasons
+    assert rejected.reject_reasons == ("stale_frame",)
+    assert "lateral_reference_unobserved" in after_reject.degradation_reasons
+    assert "lateral_reference_carried" not in after_reject.degradation_reasons
 
 
 @pytest.mark.parametrize("missing_left", (True, False))

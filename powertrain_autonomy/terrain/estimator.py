@@ -41,6 +41,14 @@ class OdometryDelta:
 
 
 @dataclass(frozen=True)
+class _LateralReference:
+    offset_m: float
+    heading_rad: float
+    travelled_m: float
+    captured_stamp_s: float
+
+
+@dataclass(frozen=True)
 class BaseToCameraExtrinsic:
     x_m: float = 0.0
     y_m: float = 0.0
@@ -73,6 +81,12 @@ class TerrainEstimatorConfig:
     history_horizon_s: float = 1.5
     wheel_half_width_m: float = 0.035
     footprint_uncertainty_m: float = 0.05
+    # 실코스 한쪽당 여유 약 0.08 m 중 기존 0.05 m 예약 뒤 남는 약 0.03 m를
+    # 1 m 이동 안에서 쓰도록 제한한 관측 횡기준의 이동거리 예산.
+    lateral_reference_carry_m: float = 1.0
+    # 미끄럼 가능한 rocker-bogie 휠 오도메트리의 3% drift를 가정한다.
+    # 이 3%는 이 차량에서 측정한 값이 아닌 물리 가정이며 simulation으로 튜닝하지 않는다.
+    lateral_reference_carry_drift: float = 0.03
     min_depth_m: float = 0.2
     max_depth_m: float = 6.0
     max_support_step_m: float = 0.12
@@ -109,6 +123,18 @@ class TerrainEstimatorConfig:
             for sampled, tile in zip(sampled_shape, self.quality_tile_shape_px)
         ):
             raise ValueError("quality tiles must divide the fixed sampled ROI and be >= 3")
+        if (
+            isinstance(self.lateral_reference_carry_m, bool)
+            or isinstance(self.lateral_reference_carry_drift, bool)
+            or not math.isfinite(self.lateral_reference_carry_m)
+            or not math.isfinite(self.lateral_reference_carry_drift)
+            or min(
+                self.lateral_reference_carry_m,
+                self.lateral_reference_carry_drift,
+            )
+            <= 0.0
+        ):
+            raise ValueError("lateral reference carry thresholds must be positive")
         finite = (
             self.grid_resolution_m,
             *self.grid_x_range_m,
@@ -117,6 +143,8 @@ class TerrainEstimatorConfig:
             self.history_horizon_s,
             self.wheel_half_width_m,
             self.footprint_uncertainty_m,
+            self.lateral_reference_carry_m,
+            self.lateral_reference_carry_drift,
             self.min_depth_m,
             self.max_depth_m,
             self.max_support_step_m,
@@ -197,9 +225,11 @@ class TerrainEstimator:
             max_depth_m=self.config.max_depth_m,
         )
         self._grid: ElevationGrid = empty_grid(self.grid_shape)
+        self._lateral_reference: _LateralReference | None = None
 
     def _reset(self, *, clear_quality: bool) -> None:
         self._grid = empty_grid(self.grid_shape)
+        self._lateral_reference = None
         if clear_quality:
             self._frame_quality = None
             self._tile_quality.clear()
@@ -242,6 +272,7 @@ class TerrainEstimator:
             raise ValueError(f"{label} must be finite")
 
     def _reject(self, stamp_s: float, *reasons: str, degradation=()) -> TerrainEstimate:
+        self._lateral_reference = None
         return TerrainEstimate(
             stamp_s=float(stamp_s),
             path_offset_m=0.0,
@@ -255,6 +286,51 @@ class TerrainEstimator:
             degradation_reasons=tuple(dict.fromkeys(degradation)),
             reject_reasons=tuple(dict.fromkeys(reasons)),
             path_available=False,
+        )
+
+    def _transport_lateral_reference(
+        self,
+        reference: _LateralReference,
+        *,
+        odometry_delta: OdometryDelta,
+        stamp_s: float,
+    ) -> _LateralReference | None:
+        age_s = stamp_s - reference.captured_stamp_s
+        if age_s < 0.0 or age_s >= self.config.history_horizon_s:
+            return None
+        travelled_m = reference.travelled_m + math.hypot(
+            odometry_delta.dx_m,
+            odometry_delta.dy_m,
+        )
+        if travelled_m > self.config.lateral_reference_carry_m:
+            return None
+
+        # 새 상태 의존성이 아니라 grid history를 운반하는 기존 OdometryDelta
+        # 의존성을 연장한다. 이전 body frame의 선을
+        # nₚ·pₚ=ρₚ, nₚ=(-sin(hₚ), cos(hₚ)), ρₚ=oₚ cos(hₚ)라 두면,
+        # grid와 같은 pₚ=R(dyaw)p꜀+[dx,dy]에서
+        # n꜀=R(-dyaw)nₚ, ρ꜀=ρₚ-nₚ·[dx,dy]다. 따라서
+        # h꜀=hₚ-dyaw, o꜀=ρ꜀/cos(h꜀)가 rigid-body 운반식이다.
+        previous_heading = reference.heading_rad
+        previous_normal_x = -math.sin(previous_heading)
+        previous_normal_y = math.cos(previous_heading)
+        previous_rho = reference.offset_m * previous_normal_y
+        current_heading = math.atan2(
+            math.sin(previous_heading - odometry_delta.dyaw_rad),
+            math.cos(previous_heading - odometry_delta.dyaw_rad),
+        )
+        current_cosine = math.cos(current_heading)
+        if abs(current_cosine) < 1e-9:
+            return None
+        current_rho = previous_rho - (
+            previous_normal_x * odometry_delta.dx_m
+            + previous_normal_y * odometry_delta.dy_m
+        )
+        return _LateralReference(
+            offset_m=current_rho / current_cosine,
+            heading_rad=current_heading,
+            travelled_m=travelled_m,
+            captured_stamp_s=reference.captured_stamp_s,
         )
 
     def _quality_and_mask(
@@ -496,13 +572,18 @@ class TerrainEstimator:
         right_limit_y: np.ndarray,
         left_floor_seen: bool,
         right_floor_seen: bool,
+        odometry_delta: OdometryDelta | None = None,
     ):
         cfg = self.config
+        odometry_delta = odometry_delta or OdometryDelta(
+            dx_m=0.0,
+            dy_m=0.0,
+            dyaw_rad=0.0,
+        )
         x_centres = cfg.grid_x_range_m[0] + (np.arange(self.grid_shape[0]) + 0.5) * cfg.grid_resolution_m
         y_centres = cfg.grid_y_range_m[0] + (np.arange(self.grid_shape[1]) + 0.5) * cfg.grid_resolution_m
         lookahead = (x_centres >= cfg.path_x_range_m[0]) & (x_centres <= cfg.path_x_range_m[1])
         footprint_half = max(abs(float(wheel.y)) for wheel in self.geometry.wheels) + cfg.wheel_half_width_m
-        erosion_half = footprint_half + cfg.footprint_uncertainty_m + odometry_residual_m
         # 아래 바닥 증거는 가림 기하 때문에 가장자리 행보다 계통적으로 전방에
         # 맺힌다(에지 위를 넘어간 ray 가 더 큰 x 에서 바닥에 닿음). 그래서 측면별
         # 증거는 프레임 전역으로 판정하고, 행별 support 가장자리가 "실제 트랙
@@ -605,12 +686,31 @@ class TerrainEstimator:
         lateral_reference_observed = any(
             bool(row[5]) or bool(row[6]) for row in candidate_rows
         )
+        carried_reference = None
+        if not lateral_reference_observed and self._lateral_reference is not None:
+            carried_reference = self._transport_lateral_reference(
+                self._lateral_reference,
+                odometry_delta=odometry_delta,
+                stamp_s=stamp_s,
+            )
+            self._lateral_reference = carried_reference
+        lateral_reference_margin_m = (
+            carried_reference.travelled_m * cfg.lateral_reference_carry_drift
+            if carried_reference is not None
+            else 0.0
+        )
+        erosion_half = (
+            footprint_half
+            + cfg.footprint_uncertainty_m
+            + odometry_residual_m
+            + lateral_reference_margin_m
+        )
         boundary_degradation = list(reasons)
         if right_observed:
             boundary_degradation.append("right_drop_boundary")
         if left_observed:
             boundary_degradation.append("left_drop_boundary")
-        if not lateral_reference_observed:
+        if not lateral_reference_observed and carried_reference is None:
             boundary_degradation.append("lateral_reference_unobserved")
         if not np.any(grid.support_mask[lookahead]):
             return self._reject(
@@ -751,18 +851,28 @@ class TerrainEstimator:
         # offset·heading 은 corridor 상속 행(상수 중심, direct=0)이 기울기를
         # 오염시키지 않도록 실측 기반 행(direct=1)만으로 계산하고, 부족하면
         # 전체 행으로 후퇴한다.
-        direct_rows = row_values[row_values[:, 6] > 0.5]
-        basis = direct_rows if direct_rows.shape[0] >= 2 else row_values
-        basis_centres = basis[:, 5]
-        path_offset = float(np.median(basis_centres))
-        basis_x = x_centres[basis[:, 0].astype(int)]
-        if np.unique(basis_x).size >= 2:
-            slope = float(np.polyfit(basis_x, basis_centres, 1)[0])
+        if carried_reference is not None:
+            path_offset = carried_reference.offset_m
+            heading = carried_reference.heading_rad
         else:
-            slope = 0.0
-        heading = math.atan(slope)
-        left_clearance = float(np.median(row_values[:, 2] - footprint_half))
-        right_clearance = float(np.median(-footprint_half - row_values[:, 1]))
+            direct_rows = row_values[row_values[:, 6] > 0.5]
+            basis = direct_rows if direct_rows.shape[0] >= 2 else row_values
+            basis_centres = basis[:, 5]
+            path_offset = float(np.median(basis_centres))
+            basis_x = x_centres[basis[:, 0].astype(int)]
+            if np.unique(basis_x).size >= 2:
+                slope = float(np.polyfit(basis_x, basis_centres, 1)[0])
+            else:
+                slope = 0.0
+            heading = math.atan(slope)
+        left_clearance = float(
+            np.median(row_values[:, 2] - footprint_half)
+            - lateral_reference_margin_m
+        )
+        right_clearance = float(
+            np.median(-footprint_half - row_values[:, 1])
+            - lateral_reference_margin_m
+        )
 
         selected = np.zeros(grid.support_mask.shape, dtype=bool)
         selected[row_indices, :] = grid.support_mask[row_indices, :]
@@ -779,10 +889,19 @@ class TerrainEstimator:
         degradation = list(boundary_degradation)
         if carried_count:
             degradation.append("odometry_carried")
+        if carried_reference is not None:
+            degradation.append("lateral_reference_carried")
         if left_observed and right_observed:
             degradation.append("drop_boundary")
         if np.any(grid.obstacle_mask):
             degradation.append("local_obstacle")
+        if lateral_reference_observed:
+            self._lateral_reference = _LateralReference(
+                offset_m=path_offset,
+                heading_rad=heading,
+                travelled_m=0.0,
+                captured_stamp_s=stamp_s,
+            )
         return TerrainEstimate(
             stamp_s=stamp_s,
             path_offset_m=path_offset,
@@ -937,6 +1056,7 @@ class TerrainEstimator:
             right_limit_y=right_limit_y,
             left_floor_seen=left_floor_seen,
             right_floor_seen=right_floor_seen,
+            odometry_delta=odometry_delta,
         )
 
 
