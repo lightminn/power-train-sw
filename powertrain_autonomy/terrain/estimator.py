@@ -87,6 +87,10 @@ class TerrainEstimatorConfig:
     # 미끄럼 가능한 rocker-bogie 휠 오도메트리의 3% drift를 가정한다.
     # 이 3%는 이 차량에서 측정한 값이 아닌 물리 가정이며 simulation으로 튜닝하지 않는다.
     lateral_reference_carry_drift: float = 0.03
+    # 같은 구간의 추정치 이동은 약 0.14 m인데 실제 횡오차 이동은 약 0.02 m였다.
+    # 차량 운동을 평활화하는 게 아니라 프레임별 재구성 잡음을 거르는 필터다.
+    # 0.03~0.24 m/s에서 0.5 s 지연 비용은 주행거리 0.015~0.12 m다.
+    path_estimate_tau_s: float = 0.5
     min_depth_m: float = 0.2
     max_depth_m: float = 6.0
     max_support_step_m: float = 0.12
@@ -133,6 +137,12 @@ class TerrainEstimatorConfig:
             <= 0.0
         ):
             raise ValueError("lateral reference carry thresholds must be positive")
+        if (
+            isinstance(self.path_estimate_tau_s, bool)
+            or not math.isfinite(self.path_estimate_tau_s)
+            or self.path_estimate_tau_s <= 0.0
+        ):
+            raise ValueError("path_estimate_tau_s must be positive")
         finite = (
             self.grid_resolution_m,
             *self.grid_x_range_m,
@@ -218,10 +228,14 @@ class TerrainEstimator:
         )
         self._grid: ElevationGrid = empty_grid(self.grid_shape)
         self._lateral_reference: _LateralReference | None = None
+        self._filtered_path_estimate: tuple[float, float] | None = None
+        self._path_estimate_stamp_s: float | None = None
 
     def _reset(self, *, clear_quality: bool) -> None:
         self._grid = empty_grid(self.grid_shape)
         self._lateral_reference = None
+        self._filtered_path_estimate = None
+        self._path_estimate_stamp_s = None
         if clear_quality:
             self._frame_quality = None
             self._tile_quality.clear()
@@ -265,6 +279,8 @@ class TerrainEstimator:
 
     def _reject(self, stamp_s: float, *reasons: str, degradation=()) -> TerrainEstimate:
         self._lateral_reference = None
+        self._filtered_path_estimate = None
+        self._path_estimate_stamp_s = None
         return TerrainEstimate(
             stamp_s=float(stamp_s),
             path_offset_m=0.0,
@@ -883,6 +899,19 @@ class TerrainEstimator:
                 travelled_m=0.0,
                 captured_stamp_s=stamp_s,
             )
+        if (
+            self._filtered_path_estimate is not None
+            and self._path_estimate_stamp_s is not None
+        ):
+            dt = stamp_s - self._path_estimate_stamp_s
+            alpha = dt / (cfg.path_estimate_tau_s + dt)
+            previous_offset, previous_heading = self._filtered_path_estimate
+            path_offset = previous_offset + alpha * (
+                path_offset - previous_offset
+            )
+            heading = previous_heading + alpha * (heading - previous_heading)
+        self._filtered_path_estimate = (path_offset, heading)
+        self._path_estimate_stamp_s = stamp_s
         return TerrainEstimate(
             stamp_s=stamp_s,
             path_offset_m=path_offset,

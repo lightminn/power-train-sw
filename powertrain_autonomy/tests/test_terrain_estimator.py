@@ -311,6 +311,12 @@ def test_public_values_are_immutable_and_grid_shape_is_fixed():
                 match="lateral reference carry thresholds must be positive",
             ):
                 TerrainEstimatorConfig(**{field: invalid_value})
+    for invalid_value in (True, 0.0, -0.1, math.nan, math.inf):
+        with pytest.raises(
+            ValueError,
+            match="path_estimate_tau_s must be positive",
+        ):
+            TerrainEstimatorConfig(path_estimate_tau_s=invalid_value)
 
 
 def test_estimator_routes_numpy_projection_and_scatter_through_pure_kernel(monkeypatch):
@@ -408,6 +414,133 @@ def test_both_drop_boundaries_report_offset_and_geometry_clearance():
     assert result.left_wheel_clearance_m == pytest.approx(0.75 + 0.12 - footprint_half, abs=0.08)
     assert result.right_wheel_clearance_m == pytest.approx(0.75 - 0.12 - footprint_half, abs=0.08)
     assert "drop_boundary" in result.degradation_reasons
+
+
+def test_published_path_offset_follows_step_without_jumping():
+    """The publication contract applies alpha; carry transport is checked separately."""
+    estimator = make_estimator()
+    frame_interval_s = 0.1
+    initial = summarize_lateral_reference_frame(
+        estimator,
+        center_offset_m=0.15,
+        observed_edges=True,
+        stamp_s=1.0,
+    )
+    target_offset_m = -0.15
+    filtered = [
+        summarize_lateral_reference_frame(
+            estimator,
+            center_offset_m=target_offset_m,
+            observed_edges=True,
+            stamp_s=1.0 + frame_interval_s * index,
+        ).path_offset_m
+        for index in range(1, 21)
+    ]
+
+    alpha = frame_interval_s / (
+        estimator.config.path_estimate_tau_s + frame_interval_s
+    )
+    expected_first = initial.path_offset_m + alpha * (
+        target_offset_m - initial.path_offset_m
+    )
+    assert filtered[0] == pytest.approx(expected_first, abs=1e-9)
+    assert target_offset_m < filtered[0] < initial.path_offset_m
+    assert all(current < previous for previous, current in zip(filtered, filtered[1:]))
+    assert filtered[-1] == pytest.approx(target_offset_m, abs=0.01)
+
+
+def test_alternating_path_offset_noise_is_attenuated():
+    """At τ=0.5 s and Δt=0.1 s, alternating spread falls to 1/11, or 9.1%."""
+    estimator = make_estimator()
+    frame_interval_s = 0.1
+    noise_amplitude_m = 0.20
+    summarize_lateral_reference_frame(
+        estimator,
+        center_offset_m=0.0,
+        observed_edges=True,
+        stamp_s=1.0,
+    )
+    filtered = [
+        summarize_lateral_reference_frame(
+            estimator,
+            center_offset_m=noise_amplitude_m if index % 2 else -noise_amplitude_m,
+            observed_edges=True,
+            stamp_s=1.0 + frame_interval_s * index,
+        ).path_offset_m
+        for index in range(1, 21)
+    ]
+
+    alpha = frame_interval_s / (
+        estimator.config.path_estimate_tau_s + frame_interval_s
+    )
+    expected_spread_ratio = alpha / (2.0 - alpha)
+    input_spread_m = 2.0 * noise_amplitude_m
+    settled_spread_m = abs(filtered[-1] - filtered[-2])
+    assert settled_spread_m < 0.15 * input_spread_m
+    assert settled_spread_m == pytest.approx(
+        expected_spread_ratio * input_spread_m,
+        rel=0.02,
+    )
+
+
+def test_rejected_frame_clears_published_path_filter():
+    estimator = make_estimator()
+    summarize_lateral_reference_frame(
+        estimator,
+        center_offset_m=0.15,
+        observed_edges=True,
+        stamp_s=1.0,
+    )
+    accumulated = None
+    for index in range(1, 5):
+        accumulated = summarize_lateral_reference_frame(
+            estimator,
+            center_offset_m=0.25,
+            observed_edges=True,
+            stamp_s=1.0 + 0.1 * index,
+        )
+
+    stale_frame = render_track_depth(stamp_s=2.0, width_m=1.5)
+    rejected = estimate(estimator, stale_frame, now_s=2.251)
+    after_reject = summarize_lateral_reference_frame(
+        estimator,
+        center_offset_m=-0.15,
+        observed_edges=True,
+        stamp_s=2.1,
+    )
+
+    assert accumulated is not None
+    assert accumulated.path_offset_m != pytest.approx(0.25, abs=1e-9)
+    assert rejected.reject_reasons == ("stale_frame",)
+    assert after_reject.path_offset_m == pytest.approx(-0.15, abs=1e-9)
+
+
+def test_path_filter_does_not_lag_wheel_clearances():
+    estimator = make_estimator()
+    first = summarize_lateral_reference_frame(
+        estimator,
+        center_offset_m=0.10,
+        observed_edges=True,
+        stamp_s=1.0,
+    )
+    second = summarize_lateral_reference_frame(
+        estimator,
+        center_offset_m=-0.10,
+        observed_edges=True,
+        stamp_s=1.1,
+    )
+
+    footprint_half_m = 0.3595 + estimator.config.wheel_half_width_m
+    assert second.path_offset_m != pytest.approx(-0.10, abs=1e-9)
+    assert -0.10 < second.path_offset_m < first.path_offset_m
+    assert second.left_wheel_clearance_m == pytest.approx(
+        0.50 - 0.10 - footprint_half_m,
+        abs=1e-9,
+    )
+    assert second.right_wheel_clearance_m == pytest.approx(
+        0.50 + 0.10 - footprint_half_m,
+        abs=1e-9,
+    )
 
 
 def test_shadowed_row_local_drop_evidence_certifies_lateral_reference():
@@ -532,9 +665,14 @@ def test_unobserved_frame_uses_transported_last_observed_lateral_reference():
 
 
 def test_positive_lateral_odometry_moves_carried_reference_right():
-    """dy>0 means rover-left in the previous body frame, so the track offset decreases."""
+    """Odometry lateral steps move the carried reference by the full displacement.
+
+    이 테스트의 주제는 횡 odometry step이 carry된 기준을 그만큼 옮기는가다.
+    새 필터는 발행값에만 걸리므로 운반은 내부 상태로, 발행 경로는 alpha로
+    별도 검증한다. assertion을 약화하는 대신 하나의 계약을 둘로 나눈다.
+    """
     estimator = make_estimator()
-    first = summarize_lateral_reference_frame(
+    summarize_lateral_reference_frame(
         estimator,
         center_offset_m=0.10,
         observed_edges=True,
@@ -549,7 +687,9 @@ def test_positive_lateral_odometry_moves_carried_reference_right():
         odometry_delta=OdometryDelta(dx_m=0.0, dy_m=0.04, dyaw_rad=0.0),
     )
 
-    assert carried.path_offset_m == pytest.approx(first.path_offset_m - 0.04, abs=1e-9)
+    # 공개 경로는 필터된 발행값만 노출하므로 운반 자체는 내부 상태로 검증한다.
+    assert estimator._lateral_reference is not None
+    assert estimator._lateral_reference.offset_m == pytest.approx(0.06, abs=1e-9)
     assert "lateral_reference_carried" in carried.degradation_reasons
 
 
