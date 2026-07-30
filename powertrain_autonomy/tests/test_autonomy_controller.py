@@ -568,6 +568,20 @@ def test_blocked_is_immediate_and_resets_slew_origin():
     assert 0.0 < resumed.v_m_s <= EMPTY_STOWED.max_accel_m_s2 * 0.1 + 1e-12
 
 
+def test_recentering_slack_matches_one_clearance_quantisation_step():
+    """보고 clearance 는 0.05 m 격자 에지의 중앙값이라 0.025 m 단위로 계단진다.
+    슬랙이 그보다 작으면 첫 양자화 하강에 창이 래치돼 재정렬이 불가능해진다 —
+    실측에서 개방 0.40 s 뒤 drop 0.0250 으로 닫힌 뒤 78 틱 내내 닫혀 있었다.
+    한 스텝 하락은 통과하고 두 스텝은 잡아야 한다.
+    """
+    config = AutonomyControllerConfig()
+    step_m = 0.025
+
+    assert config.recentring_margin_slack_m == pytest.approx(step_m)
+    assert not step_m > config.recentring_margin_slack_m
+    assert 2 * step_m > config.recentring_margin_slack_m
+
+
 def test_curvature_slow_is_reported_only_when_it_actually_costs_speed():
     """조향이 0 이 아니기만 하면 붙던 사유가 감속량과 무관해져, 실측 2415/3000 틱을
     병목으로 오독하게 만들었다. 실제 감속이 1% 를 넘을 때만 붙어야 한다.
@@ -692,12 +706,15 @@ def test_recentering_margin_slack_tolerates_quantisation_noise():
 
     config = AutonomyControllerConfig()
     controller = AutonomyController(EMPTY_STOWED, config)
+    # 슬랙이 한 양자화 스텝(0.025)으로 커지면서 기존 기저값 0.02 는 dither 뒤
+    # 부동소수점상 음수가 되어 "바퀴가 support 밖" 가드에 먼저 걸렸다. 의도는
+    # 그대로 두고 기저값만 올려 dither 뒤에도 양수이면서 정지 임계 아래에 남게 한다.
     initial = terrain(
-        left_wheel_clearance_m=0.02,
+        left_wheel_clearance_m=0.04,
         right_wheel_clearance_m=0.12,
     )
     dithered = terrain(
-        left_wheel_clearance_m=0.02 - 0.8 * config.recentring_margin_slack_m,
+        left_wheel_clearance_m=0.04 - 0.8 * config.recentring_margin_slack_m,
         right_wheel_clearance_m=0.14,
     )
 

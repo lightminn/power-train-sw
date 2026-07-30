@@ -69,8 +69,12 @@ class AutonomyControllerConfig:
     clearance_full_m: float = 0.15
     # 재중앙 정렬 중에는 전진 속도를 저속 크리프로 제한한다.
     recentring_speed_m_s: float = 0.08
-    # 5 cm 지형 격자 경계 양자화의 10분의 1인 5 mm까지 여유 흔들림을 허용한다.
-    recentring_margin_slack_m: float = 0.005
+    # 보고되는 wheel clearance 는 지형 격자(0.05 m) 에지의 중앙값이라 실제로
+    # 0.025 m 단위로 계단진다(실측: 0.0055·0.0305·0.0555·0.0805·0.1055 …).
+    # 슬랙은 그 한 스텝과 같아야 한다 — 한 칸 흔들림은 통과시키고 두 칸 하락은
+    # 잡는다. 이전 값 0.005 는 한 스텝의 1/5 이라 첫 양자화 하강에 창이 즉시
+    # 래치됐다(실측: 개방 0.40 s 뒤 drop 0.0250 으로 래치, 이후 78 틱 계속 닫힘).
+    recentring_margin_slack_m: float = 0.025
     # 재중앙 정렬을 연속으로 허용하는 최대 시간이다.
     recentring_timeout_s: float = 5.0
     min_confidence: float = 0.25
