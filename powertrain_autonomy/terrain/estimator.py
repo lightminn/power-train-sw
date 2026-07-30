@@ -97,8 +97,6 @@ class TerrainEstimatorConfig:
     seed_half_width_m: float = 0.30
     path_x_range_m: tuple[float, float] = (0.35, 2.50)
     min_path_rows: int = 4
-    # 0.05 m 격자 3셀 = 0.15 m: 에지 양자화 1셀과 낙하 그림자 1셀을 견딜 폭.
-    edge_adjacency_cells: int = 3
 
     def __post_init__(self) -> None:
         if (
@@ -180,12 +178,6 @@ class TerrainEstimatorConfig:
             raise ValueError("footprint widths must be nonnegative")
         if isinstance(self.min_path_rows, bool) or not isinstance(self.min_path_rows, int) or self.min_path_rows < 2:
             raise ValueError("min_path_rows must be an integer >= 2")
-        if (
-            isinstance(self.edge_adjacency_cells, bool)
-            or not isinstance(self.edge_adjacency_cells, int)
-            or self.edge_adjacency_cells < 1
-        ):
-            raise ValueError("edge_adjacency_cells must be a positive integer")
 
 
 @dataclass(frozen=True)
@@ -648,27 +640,16 @@ class TerrainEstimator:
                 and math.isfinite(left_limit)
                 and left_limit > left_edge + margin
             )
-            right_window_start = max(0, right_index - cfg.edge_adjacency_cells)
-            left_window_stop = min(
-                self.grid_shape[1],
-                left_index + 1 + cfg.edge_adjacency_cells,
-            )
             # 프레임 전역 바닥증거와 기하 FOV 만으로는 "관측이 여기서 끝났다"와
-            # "여기가 트랙 에지다"를 구분하지 못한다. 그 행에서 에지 바로 바깥이
-            # 실제로 관측됐고 support 가 아닐 때만 실제 에지로 인정한다 —
-            # 그러지 않으면 복도가 트랙이 아니라 카메라 시야를, 따라서 로버를
-            # 따라다니고 횡오차가 관측 불가가 된다.
-            right_adjacent = bool(
-                np.any(
-                    grid.valid_mask[x_index, right_window_start:right_index]
-                    & ~grid.support_mask[x_index, right_window_start:right_index]
-                )
+            # "여기가 트랙 에지다"를 구분하지 못한다. strict 횡기준은 같은 행에서
+            # 그 에지 바깥의 lower floor 가 실제 관측됐을 때만 인정한다. 가림 그림자
+            # 폭은 낙차·카메라 높이·횡거리에 따라 달라 고정할 수 없고, 실코스 pose의
+            # 최초 바닥 관측은 0.75~0.80 m 밖이라 기존 0.15 m 창은 실패했다.
+            right_row_drop = bool(
+                np.any(grid.lower_floor_mask[x_index, :right_index])
             )
-            left_adjacent = bool(
-                np.any(
-                    grid.valid_mask[x_index, left_index + 1 : left_window_stop]
-                    & ~grid.support_mask[x_index, left_index + 1 : left_window_stop]
-                )
+            left_row_drop = bool(
+                np.any(grid.lower_floor_mask[x_index, left_index + 1 :])
             )
             candidate_rows.append(
                 (
@@ -677,8 +658,8 @@ class TerrainEstimator:
                     left_edge,
                     right_real,
                     left_real,
-                    right_real and right_adjacent,
-                    left_real and left_adjacent,
+                    right_real and right_row_drop,
+                    left_real and left_row_drop,
                 )
             )
         right_observed = any(bool(row[3]) for row in candidate_rows)

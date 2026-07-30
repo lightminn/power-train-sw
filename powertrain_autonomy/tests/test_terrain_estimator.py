@@ -259,6 +259,27 @@ def remove_lower_floor_side(frame: TerrainFrame, *, left: bool) -> TerrainFrame:
     return TerrainFrame(depth, frame.depth_scale_m, frame.intrinsics, frame.stamp_s)
 
 
+def remove_planning_window_lower_floor(frame: TerrainFrame) -> TerrainFrame:
+    """Leave remote side evidence, but remove lower floor from candidate edge rows."""
+    rows, cols = np.indices(frame.depth_roi.shape, dtype=float)
+    optical_z = frame.depth_roi.astype(float) * frame.depth_scale_m
+    camera = np.stack(
+        (
+            (cols - frame.intrinsics.cx) * optical_z / frame.intrinsics.fx,
+            (rows - frame.intrinsics.cy) * optical_z / frame.intrinsics.fy,
+            optical_z,
+        ),
+        axis=-1,
+    )
+    points = camera @ _camera_to_base(BaseToCameraExtrinsic()).T
+    points += np.array((0.0, 0.0, 0.60))
+    lower_floor = points[..., 2] < -0.20
+    planning_window = (points[..., 0] >= 0.30) & (points[..., 0] <= 2.50)
+    depth = np.array(frame.depth_roi, copy=True)
+    depth[lower_floor & planning_window] = 0
+    return TerrainFrame(depth, frame.depth_scale_m, frame.intrinsics, frame.stamp_s)
+
+
 def test_public_values_are_immutable_and_grid_shape_is_fixed():
     estimator = make_estimator()
     frame = render_track_depth()
@@ -280,12 +301,6 @@ def test_public_values_are_immutable_and_grid_shape_is_fixed():
     )
     with pytest.raises(TypeError, match="uint16"):
         estimate(make_estimator(), float_frame)
-    for invalid_cells in (True, 0, -1, 1.5):
-        with pytest.raises(
-            ValueError,
-            match="edge_adjacency_cells must be a positive integer",
-        ):
-            TerrainEstimatorConfig(edge_adjacency_cells=invalid_cells)
     for field, invalid_values in (
         ("lateral_reference_carry_m", (True, 0.0, -0.1, math.nan, math.inf)),
         ("lateral_reference_carry_drift", (True, 0.0, -0.1, math.nan, math.inf)),
@@ -395,12 +410,13 @@ def test_both_drop_boundaries_report_offset_and_geometry_clearance():
     assert "drop_boundary" in result.degradation_reasons
 
 
-def test_row_local_observed_edges_still_track_offset():
-    estimator = make_estimator(edge_adjacency_cells=3)
+def test_shadowed_row_local_drop_evidence_certifies_lateral_reference():
+    """The old 3-cell window rejected this fixture's deeply shadowed drop floor."""
+    estimator = make_estimator()
     frame = render_track_depth(
         width_m=0.9,
         center_offset_m=0.12,
-        lower_floor_z_m=-0.181,
+        lower_floor_z_m=-0.95,
     )
 
     result = estimate(estimator, frame)
@@ -410,10 +426,56 @@ def test_row_local_observed_edges_still_track_offset():
     assert result.path_offset_m == pytest.approx(0.12, abs=0.07)
 
 
+def test_cross_row_drop_evidence_does_not_certify_lateral_reference():
+    """Only row 4 has drop cells; the tested edge rows 2-3 have none."""
+    estimator = make_estimator(
+        path_x_range_m=(0.40, 0.50),
+        min_path_rows=2,
+    )
+    support = np.zeros(estimator.grid_shape, dtype=bool)
+    support[2:4, 20:40] = True
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[4, 18] = True
+    lower_floor[4, 41] = True
+    valid = support | lower_floor
+    height = np.full(estimator.grid_shape, np.nan, dtype=float)
+    height[support] = 0.0
+    height[lower_floor] = -0.25
+    support_values = np.where(support, 0.0, np.nan)
+    grid = dataclasses.replace(
+        empty_grid(estimator.grid_shape),
+        height_m=height,
+        observed_count=valid.astype(np.int32),
+        slope_x=support_values.copy(),
+        slope_y=support_values.copy(),
+        roughness_m=support_values.copy(),
+        confidence=support.astype(float),
+        valid_mask=valid,
+        support_mask=support,
+        lower_floor_mask=lower_floor,
+        stamp_s=np.where(valid, 1.0, np.nan),
+    )
+
+    result = estimator._summarize(
+        grid,
+        stamp_s=1.0,
+        frame_confidence=1.0,
+        reasons=(),
+        carried_count=0,
+        odometry_residual_m=0.0,
+        left_limit_y=np.full(estimator.grid_shape[0], 1.5),
+        right_limit_y=np.full(estimator.grid_shape[0], -1.5),
+        left_floor_seen=True,
+        right_floor_seen=True,
+    )
+
+    assert result.path_available, result.reject_reasons
+    assert "lateral_reference_unobserved" in result.degradation_reasons
+
+
 def test_observation_limit_edges_report_unobserved_lateral_reference():
-    frame = remove_lower_floor_side(
-        render_track_depth(width_m=1.5, center_offset_m=0.12),
-        left=True,
+    frame = remove_planning_window_lower_floor(
+        render_track_depth(width_m=1.5, center_offset_m=0.12)
     )
 
     result = estimate(make_estimator(), frame)
@@ -423,9 +485,12 @@ def test_observation_limit_edges_report_unobserved_lateral_reference():
 
 
 def test_observation_limit_keeps_pre_change_corridor_bounds():
+    frame = remove_planning_window_lower_floor(
+        render_track_depth(width_m=1.5, center_offset_m=0.12)
+    )
     result = estimate(
         make_estimator(),
-        render_track_depth(width_m=1.5, center_offset_m=0.12),
+        frame,
     )
 
     # HEAD 6cb0252 변경 전 값: provenance 분리만으로 corridor 경계는 움직이면 안 된다.
