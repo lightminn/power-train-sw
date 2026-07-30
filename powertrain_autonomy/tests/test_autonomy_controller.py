@@ -568,6 +568,26 @@ def test_blocked_is_immediate_and_resets_slew_origin():
     assert 0.0 < resumed.v_m_s <= EMPTY_STOWED.max_accel_m_s2 * 0.1 + 1e-12
 
 
+def test_curvature_slow_is_reported_only_when_it_actually_costs_speed():
+    """조향이 0 이 아니기만 하면 붙던 사유가 감속량과 무관해져, 실측 2415/3000 틱을
+    병목으로 오독하게 만들었다. 실제 감속이 1% 를 넘을 때만 붙어야 한다.
+    """
+    config = AutonomyControllerConfig()
+
+    negligible = steady_decision(estimate=terrain(path_offset_m=0.001))
+    substantial = steady_decision(estimate=terrain(path_offset_m=0.5))
+
+    # 0.8 * 0.001 = 0.0008 -> 나눗수 1.0008, 0.08% 감속
+    assert "curvature_slow" not in negligible.reasons
+    # 0.8 * 0.5 = 0.4 -> 나눗수 1.4, 29% 감속
+    assert "curvature_slow" in substantial.reasons
+    # 보고 임계일 뿐이므로 감속식 자체는 그대로다.
+    assert substantial.v_m_s == pytest.approx(
+        negligible.v_m_s / (1.0 + config.kp_offset * 0.5),
+        rel=0.05,
+    )
+
+
 def test_measured_course_corridor_keeps_at_least_quarter_profile_speed():
     """0.95 m was measured from course.stl at the frozen real-course pose,
     matching its ground-truth corridor width of 0.950 m exactly.

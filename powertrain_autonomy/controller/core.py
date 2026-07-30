@@ -12,6 +12,9 @@ if TYPE_CHECKING:
 
 
 _FUTURE_TOLERANCE_S = 0.1
+# curvature_slow 를 보고할 최소 감속 — 속도를 1% 미만으로 깎는 조향은 사유로
+# 남기지 않는다(보고 임계일 뿐 감속식 자체는 바뀌지 않는다).
+_CURVATURE_SLOW_REPORT_FRACTION = 0.01
 ASSIST_MAX_OMEGA_CORRECTION_RAD_S = 0.4
 
 
@@ -635,12 +638,15 @@ class AutonomyController:
         )
         if omega_target != omega_raw:
             reasons.append("yaw_rate_limited")
-        if omega_p:
+        curvature_divisor = 1.0 + self.config.curvature_slow_k * abs(omega_p)
+        # 다른 *_slow 사유는 각자의 soft 임계 아래에서 스케일이 정확히 1.0 이라
+        # 조용하지만, 곡률 항에는 데드존이 없어 omega_p 가 0 이 아니기만 하면
+        # 붙었다. 그래서 조향 중 거의 모든 틱에 사유가 찍히고 실제 감속량과
+        # 무관해진다 — 실측 2415/3000 틱에서 감속은 2% 였고, 그 수를 병목으로
+        # 오독하게 만들었다. 속도를 실제로 깎을 때만 보고한다.
+        if curvature_divisor > 1.0 + _CURVATURE_SLOW_REPORT_FRACTION:
             reasons.append("curvature_slow")
-        v_target = max(
-            0.0,
-            v_lim / (1.0 + self.config.curvature_slow_k * abs(omega_p)),
-        )
+        v_target = max(0.0, v_lim / curvature_divisor)
 
         self._v_m_s = _slew(
             self._v_m_s,
