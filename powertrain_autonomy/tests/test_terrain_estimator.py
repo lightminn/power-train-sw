@@ -209,14 +209,18 @@ def summarize_centreline_frame(
 
 
 def support_grid(estimator: TerrainEstimator, spans) -> object:
-    """Build a deterministic grid from (rows, first_col, stop_col) spans."""
+    """Build a grid from (rows, first_col, stop_col[, height_m]) spans."""
     support = np.zeros(estimator.grid_shape, dtype=bool)
-    for rows, first_col, stop_col in spans:
+    height = np.full(estimator.grid_shape, np.nan, dtype=float)
+    for span in spans:
+        rows, first_col, stop_col = span[:3]
+        support_height_m = float(span[3]) if len(span) == 4 else 0.0
         support[rows, first_col:stop_col] = True
+        height[rows, first_col:stop_col] = support_height_m
     support_values = np.where(support, 0.0, np.nan)
     return dataclasses.replace(
         empty_grid(estimator.grid_shape),
-        height_m=support_values.copy(),
+        height_m=height,
         observed_count=support.astype(np.int32),
         slope_x=support_values.copy(),
         slope_y=support_values.copy(),
@@ -233,13 +237,17 @@ def summarize_grid(
     grid,
     *,
     stamp_s: float = 1.0,
+    odometry_delta: OdometryDelta | None = None,
 ) -> TerrainEstimate:
-    return estimator._summarize(
-        grid,
-        stamp_s=stamp_s,
-        frame_confidence=1.0,
-        reasons=(),
-    )
+    kwargs = {
+        "grid": grid,
+        "stamp_s": stamp_s,
+        "frame_confidence": 1.0,
+        "reasons": (),
+    }
+    if odometry_delta is not None:
+        kwargs["odometry_delta"] = odometry_delta
+    return estimator._summarize(**kwargs)
 
 
 def test_public_values_are_immutable_and_grid_shape_is_fixed():
@@ -483,6 +491,93 @@ def test_path_filter_does_not_lag_wheel_clearances():
         0.70 + 0.10 - footprint_half_m,
         abs=1e-9,
     )
+
+
+def test_parallel_wider_surface_is_not_adopted_mid_frame():
+    estimator = make_estimator()
+    spans = []
+    for step, row in enumerate(range(2, 10)):
+        spans.extend(
+            (
+                (slice(row, row + 1), 21 - 2 * step, 39 - 2 * step, 0.0),
+                (slice(row, row + 1), 40 - 2 * step, 60 - 2 * step, 0.20),
+            )
+        )
+
+    result = summarize_grid(estimator, support_grid(estimator, spans))
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(-0.35, abs=1e-9)
+    assert result.heading_error_rad == pytest.approx(math.atan(-2.0), abs=1e-9)
+
+
+def test_centreline_rows_stop_when_surface_splits_without_overlap():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 6), 20, 40, 0.0),
+            (slice(6, 14), 0, 18, -0.20),
+            (slice(6, 14), 40, 60, 0.20),
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(0.0, abs=1e-9)
+    assert result.heading_error_rad == pytest.approx(0.0, abs=1e-9)
+
+
+def test_previous_centre_seed_is_transported_before_nearest_row_selection():
+    estimator = make_estimator(path_x_range_m=(0.40, 0.50), min_path_rows=2)
+    first_grid = support_grid(estimator, ((slice(2, 4), 22, 48, 0.0),))
+    first = summarize_grid(estimator, first_grid, stamp_s=1.0)
+    second_grid = support_grid(
+        estimator,
+        (
+            (slice(2, 3), 18, 34, 0.20),
+            (slice(2, 3), 36, 52, 0.0),
+            (slice(3, 4), 22, 48, 0.0),
+        ),
+    )
+
+    second = summarize_grid(
+        estimator,
+        second_grid,
+        stamp_s=1.1,
+        odometry_delta=OdometryDelta(dx_m=0.0, dy_m=-0.20, dyaw_rad=0.0),
+    )
+
+    assert first.path_offset_m == pytest.approx(0.25, abs=1e-9)
+    assert second.path_available, second.reject_reasons
+    assert second.path_offset_m == pytest.approx(0.2875, abs=1e-9)
+
+
+def test_rejected_frame_clears_surface_seed_before_next_selection():
+    estimator = make_estimator(path_x_range_m=(0.40, 0.50), min_path_rows=2)
+    first_grid = support_grid(estimator, ((slice(2, 4), 22, 48, 0.0),))
+    summarize_grid(estimator, first_grid, stamp_s=1.0)
+    rejected = summarize_grid(estimator, empty_grid(estimator.grid_shape), stamp_s=1.05)
+    nearest_grid = support_grid(
+        estimator,
+        (
+            (slice(2, 3), 18, 34, 0.20),
+            (slice(2, 3), 36, 52, 0.0),
+            (slice(3, 4), 20, 38, 0.20),
+        ),
+    )
+
+    result = summarize_grid(
+        estimator,
+        nearest_grid,
+        stamp_s=1.1,
+        odometry_delta=OdometryDelta(dx_m=0.0, dy_m=-0.20, dyaw_rad=0.0),
+    )
+
+    assert rejected.reject_reasons == ("no_connected_support",)
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(-0.125, abs=1e-9)
 
 
 def test_path_offset_is_fit_median_at_contributing_rows_not_intercept():

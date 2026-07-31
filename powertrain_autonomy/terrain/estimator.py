@@ -44,6 +44,12 @@ class OdometryDelta:
 
 
 @dataclass(frozen=True)
+class _LateralReference:
+    offset_m: float
+    heading_rad: float
+
+
+@dataclass(frozen=True)
 class BaseToCameraExtrinsic:
     x_m: float = 0.0
     y_m: float = 0.0
@@ -178,11 +184,13 @@ class TerrainEstimator:
             max_depth_m=self.config.max_depth_m,
         )
         self._grid: ElevationGrid = empty_grid(self.grid_shape)
+        self._lateral_reference: _LateralReference | None = None
         self._filtered_path_estimate: tuple[float, float] | None = None
         self._path_estimate_stamp_s: float | None = None
 
     def _reset(self, *, clear_quality: bool) -> None:
         self._grid = empty_grid(self.grid_shape)
+        self._lateral_reference = None
         self._filtered_path_estimate = None
         self._path_estimate_stamp_s = None
         if clear_quality:
@@ -227,6 +235,7 @@ class TerrainEstimator:
             raise ValueError(f"{label} must be finite")
 
     def _reject(self, stamp_s: float, *reasons: str, degradation=()) -> TerrainEstimate:
+        self._lateral_reference = None
         self._filtered_path_estimate = None
         self._path_estimate_stamp_s = None
         return TerrainEstimate(
@@ -242,6 +251,38 @@ class TerrainEstimator:
             degradation_reasons=tuple(dict.fromkeys(degradation)),
             reject_reasons=tuple(dict.fromkeys(reasons)),
             path_available=False,
+        )
+
+    def _transport_lateral_reference(
+        self,
+        reference: _LateralReference,
+        *,
+        odometry_delta: OdometryDelta,
+    ) -> _LateralReference | None:
+        # 새 상태 의존성이 아니라 grid history를 운반하는 기존 OdometryDelta
+        # 의존성을 연장한다. 이전 body frame의 선을
+        # nₚ·pₚ=ρₚ, nₚ=(-sin(hₚ), cos(hₚ)), ρₚ=oₚ cos(hₚ)라 두면,
+        # grid와 같은 pₚ=R(dyaw)p꜀+[dx,dy]에서
+        # n꜀=R(-dyaw)nₚ, ρ꜀=ρₚ-nₚ·[dx,dy]다. 따라서
+        # h꜀=hₚ-dyaw, o꜀=ρ꜀/cos(h꜀)가 rigid-body 운반식이다.
+        previous_heading = reference.heading_rad
+        previous_normal_x = -math.sin(previous_heading)
+        previous_normal_y = math.cos(previous_heading)
+        previous_rho = reference.offset_m * previous_normal_y
+        current_heading = math.atan2(
+            math.sin(previous_heading - odometry_delta.dyaw_rad),
+            math.cos(previous_heading - odometry_delta.dyaw_rad),
+        )
+        current_cosine = math.cos(current_heading)
+        if abs(current_cosine) < 1e-9:
+            return None
+        current_rho = previous_rho - (
+            previous_normal_x * odometry_delta.dx_m
+            + previous_normal_y * odometry_delta.dy_m
+        )
+        return _LateralReference(
+            offset_m=current_rho / current_cosine,
+            heading_rad=current_heading,
         )
 
     def _quality_and_mask(
@@ -369,16 +410,28 @@ class TerrainEstimator:
         stamp_s: float,
         frame_confidence: float,
         reasons,
+        odometry_delta: OdometryDelta | None = None,
     ):
         cfg = self.config
+        if odometry_delta is None:
+            odometry_delta = OdometryDelta(dx_m=0.0, dy_m=0.0, dyaw_rad=0.0)
+        transported_reference = None
+        if self._lateral_reference is not None:
+            transported_reference = self._transport_lateral_reference(
+                self._lateral_reference,
+                odometry_delta=odometry_delta,
+            )
         x_centres = cfg.grid_x_range_m[0] + (np.arange(self.grid_shape[0]) + 0.5) * cfg.grid_resolution_m
         y_centres = cfg.grid_y_range_m[0] + (np.arange(self.grid_shape[1]) + 0.5) * cfg.grid_resolution_m
         lookahead = (x_centres >= cfg.path_x_range_m[0]) & (x_centres <= cfg.path_x_range_m[1])
         footprint_half = max(abs(float(wheel.y)) for wheel in self.geometry.wheels) + cfg.wheel_half_width_m
         candidate_rows = []
-        for x_index in range(self.grid_shape[0]):
+        previous_support_run = None
+        for x_index in np.flatnonzero(lookahead):
             support_indices = np.flatnonzero(grid.support_mask[x_index])
             if support_indices.size == 0:
+                if previous_support_run is not None:
+                    break
                 continue
             split_points = np.flatnonzero(np.diff(support_indices) > 1) + 1
             support_runs = np.split(support_indices, split_points)
@@ -402,10 +455,36 @@ class TerrainEstimator:
                     )
                 else:
                     merged_support_runs.append(next_run)
-            support_run = min(
-                merged_support_runs,
-                key=lambda run: abs(float(np.mean(y_centres[run]))),
-            )
+            if previous_support_run is None:
+                if transported_reference is None:
+                    support_run = min(
+                        merged_support_runs,
+                        key=lambda run: abs(float(np.mean(y_centres[run]))),
+                    )
+                else:
+                    seed_y = transported_reference.offset_m
+
+                    def distance_from_seed(run) -> float:
+                        right_edge = y_centres[int(run[0])] - 0.5 * cfg.grid_resolution_m
+                        left_edge = y_centres[int(run[-1])] + 0.5 * cfg.grid_resolution_m
+                        return max(right_edge - seed_y, seed_y - left_edge, 0.0)
+
+                    support_run = min(merged_support_runs, key=distance_from_seed)
+            else:
+                overlapping_runs = []
+                previous_first = int(previous_support_run[0])
+                previous_last = int(previous_support_run[-1])
+                for run in merged_support_runs:
+                    overlap = min(previous_last, int(run[-1])) - max(
+                        previous_first,
+                        int(run[0]),
+                    ) + 1
+                    if overlap > 0:
+                        overlapping_runs.append((overlap, run))
+                if not overlapping_runs:
+                    break
+                support_run = max(overlapping_runs, key=lambda item: item[0])[1]
+            previous_support_run = support_run
             if support_run.size < 2:
                 continue
             right_index = int(support_run[0])
@@ -466,6 +545,10 @@ class TerrainEstimator:
 
         path_offset = float(np.median(intercept + slope * basis_x))
         heading = math.atan(slope)
+        self._lateral_reference = _LateralReference(
+            offset_m=path_offset,
+            heading_rad=heading,
+        )
         left_clearance = float(np.median(row_values[:, 2] - footprint_half))
         right_clearance = float(np.median(-footprint_half - row_values[:, 1]))
 
@@ -627,6 +710,7 @@ class TerrainEstimator:
             stamp_s=frame.stamp_s,
             frame_confidence=frame_quality.confidence,
             reasons=reasons,
+            odometry_delta=odometry_delta,
         )
 
 
