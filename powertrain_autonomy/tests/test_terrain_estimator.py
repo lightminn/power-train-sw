@@ -633,6 +633,50 @@ def test_observation_limit_keeps_pre_change_corridor_bounds():
     assert "lateral_reference_unobserved" in result.degradation_reasons
 
 
+def test_unverified_right_clearance_does_not_claim_wheel_outside_support():
+    frame = remove_lower_floor_side(
+        render_track_depth(width_m=1.0, center_offset_m=0.30),
+        left=False,
+    )
+
+    result = estimate(make_estimator(), frame)
+
+    assert result.path_available, result.reject_reasons
+    assert result.right_wheel_clearance_m >= 0.0
+    assert "right_clearance_unverified" in result.degradation_reasons
+
+
+def test_verified_right_drop_preserves_negative_clearance():
+    """Safety case: a certified drop must keep negative clearance for the controller."""
+    result = estimate(
+        make_estimator(),
+        render_track_depth(width_m=1.0, center_offset_m=0.30),
+    )
+
+    assert result.path_available, result.reject_reasons
+    assert result.right_wheel_clearance_m < 0.0
+    assert "right_clearance_unverified" not in result.degradation_reasons
+
+
+def test_centred_verified_track_preserves_pre_change_clearances():
+    result = estimate(
+        make_estimator(),
+        render_track_depth(width_m=1.0, center_offset_m=0.0),
+    )
+
+    # HEAD 0237a3c 변경 전 값: 정상 프레임의 clearance 는 바뀌면 안 된다.
+    assert result.left_wheel_clearance_m == pytest.approx(
+        0.10550000000000015,
+        abs=1e-9,
+    )
+    assert result.right_wheel_clearance_m == pytest.approx(
+        0.10549999999999993,
+        abs=1e-9,
+    )
+    assert "left_clearance_unverified" not in result.degradation_reasons
+    assert "right_clearance_unverified" not in result.degradation_reasons
+
+
 def test_unobserved_frame_uses_transported_last_observed_lateral_reference():
     estimator = make_estimator()
     first = summarize_lateral_reference_frame(

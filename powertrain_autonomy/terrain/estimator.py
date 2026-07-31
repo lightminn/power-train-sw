@@ -680,9 +680,9 @@ class TerrainEstimator:
             )
         right_observed = any(bool(row[3]) for row in candidate_rows)
         left_observed = any(bool(row[4]) for row in candidate_rows)
-        lateral_reference_observed = any(
-            bool(row[5]) or bool(row[6]) for row in candidate_rows
-        )
+        right_strict_observed = any(bool(row[5]) for row in candidate_rows)
+        left_strict_observed = any(bool(row[6]) for row in candidate_rows)
+        lateral_reference_observed = right_strict_observed or left_strict_observed
         carried_reference = None
         if not lateral_reference_observed and self._lateral_reference is not None:
             carried_reference = self._transport_lateral_reference(
@@ -870,6 +870,17 @@ class TerrainEstimator:
             np.median(-footprint_half - row_values[:, 1])
             - lateral_reference_margin_m
         )
+        # 인증된 에지가 없는 쪽의 음수 clearance 는 "바퀴가 support 밖에 있다"는
+        # 적극적 주장인데, 그 근거는 관측이 거기서 끝났다는 것뿐이다. bank seed 1
+        # 에서는 프레임 전체에 낙하 증거가 없는데도 -0.1945 를 보고해 영구 정지를
+        # 만들었다(실제 여유 0.4091). 관측한 적 없는 사실을 만들지 않는다 —
+        # 인증된 쪽의 음수는 실제 이탈이므로 그대로 둔다.
+        if not right_strict_observed:
+            right_clearance = max(0.0, right_clearance)
+            boundary_degradation.append("right_clearance_unverified")
+        if not left_strict_observed:
+            left_clearance = max(0.0, left_clearance)
+            boundary_degradation.append("left_clearance_unverified")
 
         selected = np.zeros(grid.support_mask.shape, dtype=bool)
         selected[row_indices, :] = grid.support_mask[row_indices, :]
