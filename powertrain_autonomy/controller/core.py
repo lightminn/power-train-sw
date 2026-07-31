@@ -5,6 +5,10 @@ from dataclasses import dataclass
 import math
 from typing import TYPE_CHECKING
 
+from ..validation import (
+    require_all_finite, require_int_at_least, require_non_negative,
+    require_ordered, require_positive,
+)
 from .profiles import EMPTY_STOWED, DriveProfile
 
 if TYPE_CHECKING:
@@ -88,77 +92,50 @@ class AutonomyControllerConfig:
     slip_scale: float = 0.5
 
     def __post_init__(self) -> None:
-        if (
-            isinstance(self.recovery_ticks, bool)
-            or not isinstance(self.recovery_ticks, int)
-            or self.recovery_ticks <= 0
-        ):
-            raise ValueError("recovery_ticks must be a positive integer")
-        if (
-            isinstance(self.recovery_min_samples, bool)
-            or not isinstance(self.recovery_min_samples, int)
-            or self.recovery_min_samples <= 0
-        ):
-            raise ValueError(
-                "recovery_min_samples must be a positive integer"
-            )
-        if (
-            not isinstance(self.recovery_min_elapsed_s, (int, float))
-            or isinstance(self.recovery_min_elapsed_s, bool)
-            or not math.isfinite(float(self.recovery_min_elapsed_s))
-            or float(self.recovery_min_elapsed_s) < 0.0
-        ):
-            raise ValueError(
-                "recovery_min_elapsed_s must be a finite non-negative number"
-            )
+        require_int_at_least(self.recovery_ticks, 1, "recovery_ticks must be a positive integer")
+        samples_message = "recovery_min_samples must be a positive integer"
+        require_int_at_least(self.recovery_min_samples, 1, samples_message)
+        recovery_elapsed_message = "recovery_min_elapsed_s must be a finite non-negative number"
+        if not isinstance(self.recovery_min_elapsed_s, (int, float)):
+            raise ValueError(recovery_elapsed_message)
+        require_non_negative(self.recovery_min_elapsed_s, recovery_elapsed_message)
         for name in (
-            "recentring_speed_m_s",
-            "recentring_margin_slack_m",
-            "recentring_timeout_s",
-            "recentring_cooldown_s",
+            "recentring_speed_m_s", "recentring_margin_slack_m",
+            "recentring_timeout_s", "recentring_cooldown_s",
         ):
             value = getattr(self, name)
-            if (
-                not isinstance(value, (int, float))
-                or isinstance(value, bool)
-                or not math.isfinite(float(value))
-                or float(value) <= 0.0
-            ):
-                raise ValueError(f"{name} must be finite and positive")
+            message = f"{name} must be finite and positive"
+            if not isinstance(value, (int, float)):
+                raise ValueError(message)
+            require_positive(value, message)
         positive = (
-            "terrain_stale_s",
-            "motion_stale_s",
-            "gate_stale_s",
-            "diagnostics_stale_s",
-            "kp_heading",
-            "kp_offset",
-            "curvature_slow_k",
-            "yaw_damp_gate_rad_s",
-            "yaw_damp_tau_s",
-            "clearance_hold_m",
-            "clearance_full_m",
-            "min_confidence",
-            "full_confidence",
+            "terrain_stale_s", "motion_stale_s", "gate_stale_s",
+            "diagnostics_stale_s", "kp_heading", "kp_offset",
+            "curvature_slow_k", "yaw_damp_gate_rad_s", "yaw_damp_tau_s",
+            "clearance_hold_m", "clearance_full_m",
+            "min_confidence", "full_confidence",
         )
         for name in positive:
             value = getattr(self, name)
-            if not math.isfinite(value) or value <= 0.0:
-                raise ValueError(f"{name} must be finite and positive")
-        if (
-            not isinstance(self.kd_yaw, (int, float))
-            or isinstance(self.kd_yaw, bool)
-            or not math.isfinite(float(self.kd_yaw))
-            or float(self.kd_yaw) < 0.0
-        ):
-            raise ValueError("kd_yaw must be finite and non-negative")
-        if self.clearance_hold_m >= self.clearance_full_m:
-            raise ValueError("clearance_hold_m must be below clearance_full_m")
-        if not self.min_confidence < self.full_confidence <= 1.0:
-            raise ValueError("confidence thresholds must be ordered within 0..1")
+            message = f"{name} must be finite and positive"
+            require_all_finite((value,), message)
+            require_ordered(0.0, value, message)
+        kd_yaw_message = "kd_yaw must be finite and non-negative"
+        if not isinstance(self.kd_yaw, (int, float)):
+            raise ValueError(kd_yaw_message)
+        require_non_negative(self.kd_yaw, kd_yaw_message)
+        clearance_message = "clearance_hold_m must be below clearance_full_m"
+        require_ordered(self.clearance_hold_m, self.clearance_full_m, clearance_message)
+        confidence_message = "confidence thresholds must be ordered within 0..1"
+        require_ordered(self.min_confidence, self.full_confidence, confidence_message)
+        if self.full_confidence > 1.0:
+            raise ValueError(confidence_message)
         for name in ("confidence_floor_scale", "slip_scale"):
             value = getattr(self, name)
-            if not math.isfinite(value) or not 0.0 < value <= 1.0:
-                raise ValueError(f"{name} must be within (0, 1]")
+            message = f"{name} must be within (0, 1]"
+            require_all_finite((value,), message)
+            if not 0.0 < value <= 1.0:
+                raise ValueError(message)
 
 
 @dataclass(frozen=True)

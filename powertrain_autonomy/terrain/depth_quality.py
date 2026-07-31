@@ -7,6 +7,8 @@ from typing import Iterable
 
 import numpy as np
 
+from ..validation import require_all_finite, require_ordered
+
 
 @dataclass(frozen=True)
 class CameraIntrinsics:
@@ -19,10 +21,8 @@ class CameraIntrinsics:
 
     def __post_init__(self) -> None:
         values = (self.fx, self.fy, self.cx, self.cy)
-        if not all(math.isfinite(value) for value in values):
-            raise ValueError("camera intrinsics must be finite")
-        if self.fx <= 0.0 or self.fy <= 0.0:
-            raise ValueError("camera focal lengths must be positive")
+        require_all_finite(values, "camera intrinsics must be finite")
+        require_ordered(0.0, min(self.fx, self.fy), "camera focal lengths must be positive")
 
 
 @dataclass(frozen=True)
@@ -50,49 +50,35 @@ class DepthQualityConfig:
 
     def __post_init__(self) -> None:
         finite_values = (
-            self.min_depth_m,
-            self.max_depth_m,
-            self.lower_percentile,
-            self.upper_percentile,
-            self.min_valid_ratio,
-            self.max_invalid_ratio,
-            self.max_zero_ratio,
-            self.max_out_of_range_ratio,
-            self.max_mad_m,
-            self.max_percentile_span_m,
-            self.connectivity_delta_m,
-            self.min_connected_ratio,
-            self.min_normal_consistency,
-            self.max_temporal_delta_m,
-            self.isolated_spike_mad_multiplier,
-            self.disconnected_floor_separation_m,
+            self.min_depth_m, self.max_depth_m,
+            self.lower_percentile, self.upper_percentile,
+            self.min_valid_ratio, self.max_invalid_ratio, self.max_zero_ratio,
+            self.max_out_of_range_ratio, self.max_mad_m, self.max_percentile_span_m,
+            self.connectivity_delta_m, self.min_connected_ratio,
+            self.min_normal_consistency, self.max_temporal_delta_m,
+            self.isolated_spike_mad_multiplier, self.disconnected_floor_separation_m,
             self.min_disconnected_floor_ratio,
         )
-        if not all(math.isfinite(value) for value in finite_values):
-            raise ValueError("depth quality thresholds must be finite")
-        if not 0.0 < self.min_depth_m < self.max_depth_m:
-            raise ValueError("depth range must be positive and ordered")
+        require_all_finite(finite_values, "depth quality thresholds must be finite")
+        depth_range_message = "depth range must be positive and ordered"
+        require_ordered(0.0, self.min_depth_m, depth_range_message)
+        require_ordered(self.min_depth_m, self.max_depth_m, depth_range_message)
         if not 0.0 <= self.lower_percentile < self.upper_percentile <= 100.0:
             raise ValueError("depth percentiles must be ordered within 0..100")
         for value in (
-            self.min_valid_ratio,
-            self.max_invalid_ratio,
-            self.max_zero_ratio,
-            self.max_out_of_range_ratio,
-            self.min_connected_ratio,
+            self.min_valid_ratio, self.max_invalid_ratio, self.max_zero_ratio,
+            self.max_out_of_range_ratio, self.min_connected_ratio,
             self.min_normal_consistency,
             self.min_disconnected_floor_ratio,
         ):
             if not 0.0 <= value <= 1.0:
                 raise ValueError("depth quality ratios must be within 0..1")
-        if min(
-            self.max_mad_m,
-            self.max_percentile_span_m,
-            self.connectivity_delta_m,
-            self.max_temporal_delta_m,
-            self.isolated_spike_mad_multiplier,
+        positive = (
+            self.max_mad_m, self.max_percentile_span_m, self.connectivity_delta_m,
+            self.max_temporal_delta_m, self.isolated_spike_mad_multiplier,
             self.disconnected_floor_separation_m,
-        ) <= 0.0:
+        )
+        if min(positive) <= 0.0:
             raise ValueError("depth quality distance thresholds must be positive")
         if self.max_isolated_spike_pixels < 1 or self.min_hole_pixels < 1:
             raise ValueError("depth component sizes must be positive")

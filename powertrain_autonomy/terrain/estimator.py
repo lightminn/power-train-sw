@@ -9,6 +9,9 @@ import numpy as np
 
 from chassis.kinematics import default_geometry
 
+from ..validation import (
+    require_all_finite, require_int_at_least, require_ordered, require_positive,
+)
 from .depth_quality import (
     CameraIntrinsics,
     DepthQualityConfig,
@@ -103,19 +106,18 @@ class TerrainEstimatorConfig:
     min_path_rows: int = 4
 
     def __post_init__(self) -> None:
-        if (
-            len(self.depth_shape_px) != 2
-            or any(isinstance(value, bool) or not isinstance(value, int) or value < 3 for value in self.depth_shape_px)
-        ):
-            raise ValueError("depth_shape_px must contain two integers >= 3")
+        depth_shape_message = "depth_shape_px must contain two integers >= 3"
+        if len(self.depth_shape_px) != 2:
+            raise ValueError(depth_shape_message)
+        for value in self.depth_shape_px:
+            require_int_at_least(value, 3, depth_shape_message)
         for bounds, size, name in (
             (self.roi_rows, self.depth_shape_px[0], "roi_rows"),
             (self.roi_cols, self.depth_shape_px[1], "roi_cols"),
         ):
             if len(bounds) != 2 or not (0 <= bounds[0] < bounds[1] <= size):
                 raise ValueError(f"{name} must be ordered within depth_shape_px")
-        if isinstance(self.stride, bool) or not isinstance(self.stride, int) or self.stride < 1:
-            raise ValueError("stride must be a positive integer")
+        require_int_at_least(self.stride, 1, "stride must be a positive integer")
         sampled_shape = (
             len(range(self.roi_rows[0], self.roi_rows[1], self.stride)),
             len(range(self.roi_cols[0], self.roi_cols[1], self.stride)),
@@ -125,69 +127,42 @@ class TerrainEstimatorConfig:
             for sampled, tile in zip(sampled_shape, self.quality_tile_shape_px)
         ):
             raise ValueError("quality tiles must divide the fixed sampled ROI and be >= 3")
-        if (
-            isinstance(self.lateral_reference_carry_m, bool)
-            or isinstance(self.lateral_reference_carry_drift, bool)
-            or not math.isfinite(self.lateral_reference_carry_m)
-            or not math.isfinite(self.lateral_reference_carry_drift)
-            or min(
-                self.lateral_reference_carry_m,
-                self.lateral_reference_carry_drift,
-            )
-            <= 0.0
-        ):
-            raise ValueError("lateral reference carry thresholds must be positive")
-        if (
-            isinstance(self.path_estimate_tau_s, bool)
-            or not math.isfinite(self.path_estimate_tau_s)
-            or self.path_estimate_tau_s <= 0.0
-        ):
-            raise ValueError("path_estimate_tau_s must be positive")
-        finite = (
-            self.grid_resolution_m,
-            *self.grid_x_range_m,
-            *self.grid_y_range_m,
-            self.max_frame_age_s,
-            self.history_horizon_s,
-            self.wheel_half_width_m,
-            self.footprint_uncertainty_m,
+        for value in (
             self.lateral_reference_carry_m,
             self.lateral_reference_carry_drift,
-            self.min_depth_m,
-            self.max_depth_m,
-            self.max_support_step_m,
-            self.drop_height_m,
-            self.obstacle_height_m,
-            self.drop_reference_radius_m,
-            self.seed_max_x_m,
-            self.seed_half_width_m,
+        ):
+            require_positive(value, "lateral reference carry thresholds must be positive")
+        require_positive(self.path_estimate_tau_s, "path_estimate_tau_s must be positive")
+        finite = (
+            self.grid_resolution_m, *self.grid_x_range_m, *self.grid_y_range_m,
+            self.max_frame_age_s, self.history_horizon_s,
+            self.wheel_half_width_m, self.footprint_uncertainty_m,
+            self.lateral_reference_carry_m, self.lateral_reference_carry_drift,
+            self.min_depth_m, self.max_depth_m, self.max_support_step_m,
+            self.drop_height_m, self.obstacle_height_m, self.drop_reference_radius_m,
+            self.seed_max_x_m, self.seed_half_width_m,
             *self.path_x_range_m,
         )
-        if not all(math.isfinite(value) for value in finite):
-            raise ValueError("terrain estimator thresholds must be finite")
-        if self.grid_resolution_m <= 0.0 or not (
-            self.grid_x_range_m[0] < self.grid_x_range_m[1]
-            and self.grid_y_range_m[0] < self.grid_y_range_m[1]
-            and self.path_x_range_m[0] < self.path_x_range_m[1]
-        ):
-            raise ValueError("grid and path ranges must be positive and ordered")
-        if not 0.0 < self.min_depth_m < self.max_depth_m:
-            raise ValueError("depth range must be positive and ordered")
-        if min(
-            self.max_frame_age_s,
-            self.history_horizon_s,
-            self.max_support_step_m,
-            self.drop_height_m,
-            self.obstacle_height_m,
-            self.drop_reference_radius_m,
-            self.seed_max_x_m,
-            self.seed_half_width_m,
-        ) <= 0.0:
+        require_all_finite(finite, "terrain estimator thresholds must be finite")
+        range_message = "grid and path ranges must be positive and ordered"
+        if self.grid_resolution_m <= 0.0:
+            raise ValueError(range_message)
+        require_ordered(*self.grid_x_range_m, range_message)
+        require_ordered(*self.grid_y_range_m, range_message)
+        require_ordered(*self.path_x_range_m, range_message)
+        depth_range_message = "depth range must be positive and ordered"
+        require_ordered(0.0, self.min_depth_m, depth_range_message)
+        require_ordered(self.min_depth_m, self.max_depth_m, depth_range_message)
+        positive = (
+            self.max_frame_age_s, self.history_horizon_s, self.max_support_step_m,
+            self.drop_height_m, self.obstacle_height_m, self.drop_reference_radius_m,
+            self.seed_max_x_m, self.seed_half_width_m,
+        )
+        if min(positive) <= 0.0:
             raise ValueError("terrain time, support, and classification thresholds must be positive")
         if min(self.wheel_half_width_m, self.footprint_uncertainty_m) < 0.0:
             raise ValueError("footprint widths must be nonnegative")
-        if isinstance(self.min_path_rows, bool) or not isinstance(self.min_path_rows, int) or self.min_path_rows < 2:
-            raise ValueError("min_path_rows must be an integer >= 2")
+        require_int_at_least(self.min_path_rows, 2, "min_path_rows must be an integer >= 2")
 
 
 @dataclass(frozen=True)
