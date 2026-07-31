@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from ..validation import (
     require_all_finite, require_int_at_least, require_non_negative,
-    require_ordered, require_positive,
+    require_ordered,
 )
 from .profiles import EMPTY_STOWED, DriveProfile
 
@@ -65,27 +65,6 @@ class AutonomyControllerConfig:
     kd_yaw: float = 0.0
     yaw_damp_gate_rad_s: float = 0.25
     yaw_damp_tau_s: float = 0.7
-    clearance_hold_m: float = 0.05
-    # 실측 여유가 횡방향 불확실성 예산을 넘으면 전속도를 허용한다:
-    # 정지 임계(clearance_hold_m 0.05) + 지형 격자 한 셀 경계 양자화
-    # (grid_resolution_m 0.05) + 추정기 예약 위치 불확실성
-    # (footprint_uncertainty_m 0.05) = 0.15 m.
-    clearance_full_m: float = 0.15
-    # 재중앙 정렬 중에는 전진 속도를 저속 크리프로 제한한다.
-    recentring_speed_m_s: float = 0.08
-    # 보고되는 wheel clearance 는 지형 격자(0.05 m) 에지의 중앙값이라 실제로
-    # 0.025 m 단위로 계단진다(실측: 0.0055·0.0305·0.0555·0.0805·0.1055 …).
-    # 슬랙은 그 한 스텝과 같아야 한다 — 한 칸 흔들림은 통과시키고 두 칸 하락은
-    # 잡는다. 이전 값 0.005 는 한 스텝의 1/5 이라 첫 양자화 하강에 창이 즉시
-    # 래치됐다(실측: 개방 0.40 s 뒤 drop 0.0250 으로 래치, 이후 78 틱 계속 닫힘).
-    recentring_margin_slack_m: float = 0.025
-    # 재중앙 정렬을 연속으로 허용하는 최대 시간이다.
-    recentring_timeout_s: float = 5.0
-    # 창은 다시 열려 가드가 일회성 래치가 되지 않지만, 각 개방은
-    # recentring_margin_slack_m 만큼의 여유만 소모한 뒤 닫힌다. 쿨다운은
-    # 이 반복 빈도를 제한한다. corridor가 맞고 측정 support 밖에 있는 바퀴가
-    # 없다는 하드 플로어가 여유를 얼마나 걸어 내려갈 수 있는지의 실제 한계다.
-    recentring_cooldown_s: float = 2.0
     min_confidence: float = 0.25
     full_confidence: float = 0.6
     confidence_floor_scale: float = 0.4
@@ -99,20 +78,10 @@ class AutonomyControllerConfig:
         if not isinstance(self.recovery_min_elapsed_s, (int, float)):
             raise ValueError(recovery_elapsed_message)
         require_non_negative(self.recovery_min_elapsed_s, recovery_elapsed_message)
-        for name in (
-            "recentring_speed_m_s", "recentring_margin_slack_m",
-            "recentring_timeout_s", "recentring_cooldown_s",
-        ):
-            value = getattr(self, name)
-            message = f"{name} must be finite and positive"
-            if not isinstance(value, (int, float)):
-                raise ValueError(message)
-            require_positive(value, message)
         positive = (
             "terrain_stale_s", "motion_stale_s", "gate_stale_s",
             "diagnostics_stale_s", "kp_heading", "kp_offset",
             "curvature_slow_k", "yaw_damp_gate_rad_s", "yaw_damp_tau_s",
-            "clearance_hold_m", "clearance_full_m",
             "min_confidence", "full_confidence",
         )
         for name in positive:
@@ -124,8 +93,6 @@ class AutonomyControllerConfig:
         if not isinstance(self.kd_yaw, (int, float)):
             raise ValueError(kd_yaw_message)
         require_non_negative(self.kd_yaw, kd_yaw_message)
-        clearance_message = "clearance_hold_m must be below clearance_full_m"
-        require_ordered(self.clearance_hold_m, self.clearance_full_m, clearance_message)
         confidence_message = "confidence thresholds must be ordered within 0..1"
         require_ordered(self.min_confidence, self.full_confidence, confidence_message)
         if self.full_confidence > 1.0:
@@ -183,8 +150,6 @@ def assist_correction_from_terrain(
         terrain.stamp_s,
         terrain.path_offset_m,
         terrain.heading_error_rad,
-        terrain.left_wheel_clearance_m,
-        terrain.right_wheel_clearance_m,
         terrain.bank_angle_rad,
         terrain.longitudinal_slope_rad,
         terrain.confidence,
@@ -192,16 +157,6 @@ def assist_correction_from_terrain(
     if not _finite(values) or not 0.0 <= terrain.confidence <= 1.0:
         return None
 
-    clearance = min(
-        terrain.left_wheel_clearance_m,
-        terrain.right_wheel_clearance_m,
-    )
-    clearance_scale = _clamp(
-        (clearance - config.clearance_hold_m)
-        / (config.clearance_full_m - config.clearance_hold_m),
-        0.0,
-        1.0,
-    )
     bank_scale = _scale_down(
         abs(terrain.bank_angle_rad),
         EMPTY_STOWED.soft_bank_rad,
@@ -233,8 +188,7 @@ def assist_correction_from_terrain(
     # Manual assist has no payload profile; EMPTY_STOWED is the conservative
     # fixed basis until braking, bank, and slope HIL qualifies another cap.
     speed_cap = EMPTY_STOWED.max_speed_m_s * (
-        clearance_scale
-        * bank_scale
+        bank_scale
         * slope_scale
         * confidence_scale
     )
@@ -258,9 +212,6 @@ class AutonomyController:
         self._recovery_started_s: float | None = None
         self._recovery_samples = 0
         self._recovery_last_sample_stamp: float | None = None
-        self._recentring_started_s: float | None = None
-        self._recentring_best_margin_m: float | None = None
-        self._recentring_closed_s: float | None = None
 
     def _dt(self, now_s: float) -> float:
         if self._last_stamp_s is None:
@@ -354,7 +305,6 @@ class AutonomyController:
 
         dt = self._dt(now_s)
         hold_reasons: list[str] = []
-        recentring = False
         terrain_valid = terrain is not None
         if terrain is None:
             hold_reasons.append("terrain_missing")
@@ -363,8 +313,6 @@ class AutonomyController:
                 terrain.stamp_s,
                 terrain.path_offset_m,
                 terrain.heading_error_rad,
-                terrain.left_wheel_clearance_m,
-                terrain.right_wheel_clearance_m,
                 terrain.bank_angle_rad,
                 terrain.longitudinal_slope_rad,
                 terrain.confidence,
@@ -381,73 +329,6 @@ class AutonomyController:
                     hold_reasons.append("path_unavailable")
                 if terrain.confidence < self.config.min_confidence:
                     hold_reasons.append("low_confidence")
-                wheel_clearance = min(
-                    terrain.left_wheel_clearance_m,
-                    terrain.right_wheel_clearance_m,
-                )
-                centred_clearance = 0.5 * (
-                    terrain.left_wheel_clearance_m
-                    + terrain.right_wheel_clearance_m
-                )
-                if wheel_clearance > self.config.clearance_hold_m:
-                    self._recentring_started_s = None
-                    self._recentring_best_margin_m = None
-                elif wheel_clearance < self.config.clearance_hold_m:
-                    corridor_fits = (
-                        centred_clearance >= self.config.clearance_hold_m
-                    )
-                    wheels_supported = wheel_clearance >= 0.0
-                    cooldown_elapsed = (
-                        self._recentring_closed_s is None
-                        or now_s < self._recentring_closed_s
-                        or (
-                            now_s - self._recentring_closed_s
-                            >= self.config.recentring_cooldown_s
-                        )
-                    )
-                    if (
-                        not corridor_fits
-                        or not wheels_supported
-                        or not cooldown_elapsed
-                    ):
-                        hold_reasons.append("clearance_low")
-                    else:
-                        if self._recentring_started_s is None:
-                            self._recentring_started_s = now_s
-                            self._recentring_best_margin_m = wheel_clearance
-                        best_margin = self._recentring_best_margin_m
-                        margin_falling = (
-                            best_margin is not None
-                            and best_margin - wheel_clearance
-                            > self.config.recentring_margin_slack_m
-                        )
-                        time_regressed = (
-                            self._last_stamp_s is not None
-                            and now_s < self._last_stamp_s
-                        )
-                        timed_out = (
-                            time_regressed
-                            or (
-                                now_s - self._recentring_started_s
-                                > self.config.recentring_timeout_s
-                            )
-                        )
-                        if margin_falling or timed_out:
-                            self._recentring_closed_s = now_s
-                            self._recentring_started_s = None
-                            self._recentring_best_margin_m = None
-                            hold_reasons.append("clearance_low")
-                        else:
-                            self._recentring_best_margin_m = max(
-                                best_margin
-                                if best_margin is not None
-                                else wheel_clearance,
-                                wheel_clearance,
-                            )
-                            recentring = True
-                else:
-                    self._recentring_started_s = None
-                    self._recentring_best_margin_m = None
                 if abs(terrain.bank_angle_rad) > self.profile.max_bank_rad:
                     hold_reasons.append("bank_limit")
                 if abs(terrain.longitudinal_slope_rad) > self.profile.max_slope_rad:
@@ -524,29 +405,6 @@ class AutonomyController:
             self._recovery_last_sample_stamp = None
 
         reasons: list[str] = []
-        if recentring:
-            reasons.append("recentring")
-        clearance = (
-            0.5
-            * (
-                terrain.left_wheel_clearance_m
-                + terrain.right_wheel_clearance_m
-            )
-            if recentring
-            else min(
-                terrain.left_wheel_clearance_m,
-                terrain.right_wheel_clearance_m,
-            )
-        )
-        clearance_scale = _clamp(
-            (clearance - self.config.clearance_hold_m)
-            / (self.config.clearance_full_m - self.config.clearance_hold_m),
-            0.0,
-            1.0,
-        )
-        if clearance_scale < 1.0:
-            reasons.append("clearance_slow")
-
         bank = max(abs(terrain.bank_angle_rad), abs(motion.roll_rad))
         bank_scale = _scale_down(
             bank,
@@ -580,7 +438,7 @@ class AutonomyController:
             ) * _clamp(fraction, 0.0, 1.0)
             reasons.append("confidence_slow")
 
-        scales = [clearance_scale, bank_scale, slope_scale, confidence_scale]
+        scales = [bank_scale, slope_scale, confidence_scale]
         if diagnostics_fresh and diagnostics.slip_candidate:
             scales.append(self.config.slip_scale)
             reasons.append("slip_candidate")
@@ -590,16 +448,9 @@ class AutonomyController:
             if speed_cap < v_lim:
                 reasons.append("speed_cap")
                 v_lim = speed_cap
-        if recentring:
-            v_lim = min(v_lim, self.config.recentring_speed_m_s)
-
         omega_p = (
-            self.config.kp_offset * terrain.path_offset_m
-            if recentring
-            else (
-                self.config.kp_heading * terrain.heading_error_rad
-                + self.config.kp_offset * terrain.path_offset_m
-            )
+            self.config.kp_heading * terrain.heading_error_rad
+            + self.config.kp_offset * terrain.path_offset_m
         )
         if self.config.kd_yaw > 0.0:
             alpha = dt / (self.config.yaw_damp_tau_s + dt)
@@ -648,8 +499,6 @@ class AutonomyController:
             self.profile.max_decel_m_s2,
             dt,
         )
-        if recentring:
-            self._v_m_s = min(self._v_m_s, v_target)
         self._omega_rad_s = _slew(
             self._omega_rad_s,
             omega_target,

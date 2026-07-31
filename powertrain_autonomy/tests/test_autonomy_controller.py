@@ -73,14 +73,11 @@ def test_assist_correction_requires_an_available_finite_path():
 
 def test_assist_correction_uses_separate_yaw_clamp_and_empty_speed_cap():
     config = AutonomyControllerConfig()
-    clearance_m = (
-        config.clearance_hold_m + config.clearance_full_m
-    ) / 2.0
     estimate = terrain(
         path_offset_m=1.0,
         heading_error_rad=1.0,
-        left_wheel_clearance_m=clearance_m,
-        right_wheel_clearance_m=clearance_m,
+        left_wheel_clearance_m=math.nan,
+        right_wheel_clearance_m=math.nan,
         bank_angle_rad=math.radians(11.0),
         longitudinal_slope_rad=math.radians(12.0),
         confidence=0.425,
@@ -91,7 +88,7 @@ def test_assist_correction_uses_separate_yaw_clamp_and_empty_speed_cap():
     assert correction is not None
     omega, speed_cap, confidence = correction
     assert omega == pytest.approx(0.4)
-    assert speed_cap == pytest.approx(0.096)
+    assert speed_cap == pytest.approx(0.192)
     assert confidence == pytest.approx(0.425)
 
 
@@ -214,6 +211,22 @@ def test_central_path_tracks_forward_without_yaw():
     assert decision.state == "TRACKING"
     assert decision.v_m_s > 0.0
     assert decision.omega_rad_s == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize("clearance_m", (-0.20, math.nan))
+def test_clearance_telemetry_does_not_gate_or_slow_controller(clearance_m):
+    baseline = steady_decision()
+    reported = steady_decision(
+        estimate=terrain(
+            left_wheel_clearance_m=clearance_m,
+            right_wheel_clearance_m=clearance_m,
+        )
+    )
+
+    assert reported.state == "TRACKING"
+    assert reported.v_m_s == pytest.approx(baseline.v_m_s)
+    assert reported.omega_rad_s == pytest.approx(baseline.omega_rad_s)
+    assert reported.reasons == baseline.reasons
 
 
 @pytest.mark.parametrize(
@@ -568,20 +581,6 @@ def test_blocked_is_immediate_and_resets_slew_origin():
     assert 0.0 < resumed.v_m_s <= EMPTY_STOWED.max_accel_m_s2 * 0.1 + 1e-12
 
 
-def test_recentering_slack_matches_one_clearance_quantisation_step():
-    """보고 clearance 는 0.05 m 격자 에지의 중앙값이라 0.025 m 단위로 계단진다.
-    슬랙이 그보다 작으면 첫 양자화 하강에 창이 래치돼 재정렬이 불가능해진다 —
-    실측에서 개방 0.40 s 뒤 drop 0.0250 으로 닫힌 뒤 78 틱 내내 닫혀 있었다.
-    한 스텝 하락은 통과하고 두 스텝은 잡아야 한다.
-    """
-    config = AutonomyControllerConfig()
-    step_m = 0.025
-
-    assert config.recentring_margin_slack_m == pytest.approx(step_m)
-    assert not step_m > config.recentring_margin_slack_m
-    assert 2 * step_m > config.recentring_margin_slack_m
-
-
 def test_curvature_slow_is_reported_only_when_it_actually_costs_speed():
     """조향이 0 이 아니기만 하면 붙던 사유가 감속량과 무관해져, 실측 2415/3000 틱을
     병목으로 오독하게 만들었다. 실제 감속이 1% 를 넘을 때만 붙어야 한다.
@@ -602,292 +601,22 @@ def test_curvature_slow_is_reported_only_when_it_actually_costs_speed():
     )
 
 
-def test_measured_course_corridor_keeps_at_least_quarter_profile_speed():
-    """0.95 m was measured from course.stl at the frozen real-course pose,
-    matching its ground-truth corridor width of 0.950 m exactly.
-    """
-    corridor_width_m = 0.95
-    as_built_v2_footprint_width_m = 0.789
-    clearance_m = (
-        corridor_width_m - as_built_v2_footprint_width_m
-    ) / 2.0
-
-    decision = steady_decision(
-        estimate=terrain(
-            left_wheel_clearance_m=clearance_m,
-            right_wheel_clearance_m=clearance_m,
-        ),
-    )
-
-    assert decision.v_m_s >= 0.25 * EMPTY_STOWED.max_speed_m_s
-
-
-def test_measured_offcentre_corridor_opens_guarded_recentering_arc():
-    with pytest.raises(ValueError, match="recentring_speed_m_s"):
-        AutonomyControllerConfig(recentring_speed_m_s=True)
-
-    config = AutonomyControllerConfig()
-    controller = AutonomyController(EMPTY_STOWED, config)
-    estimate = terrain(
-        path_offset_m=-0.075,
-        heading_error_rad=0.20,
-        left_wheel_clearance_m=0.0055,
-        right_wheel_clearance_m=0.1555,
-    )
-
-    for tick in range(5):
-        decide_fresh(controller, tick * 0.25)
-    decision = decide_fresh(controller, 1.25, estimate=estimate)
-
-    assert decision.state != "CONTROLLED_HOLD"
-    assert 0.0 < decision.v_m_s <= config.recentring_speed_m_s
-    assert "recentring" in decision.reasons
-    assert decision.omega_rad_s < 0.0
-
-
-def test_recentering_rejects_corridor_that_does_not_fit():
-    decision = decide_fresh(
-        AutonomyController(EMPTY_STOWED),
-        0.0,
-        estimate=terrain(
-            left_wheel_clearance_m=0.01,
-            right_wheel_clearance_m=0.01,
-        ),
-    )
-
-    assert decision.state == "CONTROLLED_HOLD"
-    assert "clearance_low" in decision.reasons
-    assert decision.v_m_s == 0.0
-
-
-def test_recentering_rejects_wheel_outside_support():
-    decision = decide_fresh(
-        AutonomyController(EMPTY_STOWED),
-        0.0,
-        estimate=terrain(
-            left_wheel_clearance_m=-0.02,
-            right_wheel_clearance_m=0.30,
-        ),
-    )
-
-    assert decision.state == "CONTROLLED_HOLD"
-    assert "clearance_low" in decision.reasons
-    assert decision.v_m_s == 0.0
-
-
-def test_recentering_falling_margin_pauses_window_during_cooldown():
-    """The tick after the violation still holds because it is inside the cooldown."""
-    config = AutonomyControllerConfig()
-    controller = AutonomyController(EMPTY_STOWED, config)
-    initial = terrain(
-        left_wheel_clearance_m=0.04,
-        right_wheel_clearance_m=0.12,
-    )
-    eroded = terrain(
-        left_wheel_clearance_m=0.04 - config.recentring_margin_slack_m - 0.001,
-        right_wheel_clearance_m=0.14,
-    )
-
-    decide_fresh(controller, 0.0, estimate=initial)
-    moving = decide_fresh(controller, 0.1, estimate=initial)
-    paused = decide_fresh(controller, 0.2, estimate=eroded)
-    still_paused = decide_fresh(controller, 0.3, estimate=eroded)
-
-    assert moving.state != "CONTROLLED_HOLD"
-    assert moving.v_m_s > 0.0
-    assert paused.state == "CONTROLLED_HOLD"
-    assert "clearance_low" in paused.reasons
-    assert still_paused.state == "CONTROLLED_HOLD"
-    assert "clearance_low" in still_paused.reasons
-
-
-def test_recentering_window_reopens_after_cooldown():
-    """A clock rollback must start a new cooldown epoch, not preserve the old one."""
-    config = AutonomyControllerConfig()
-    controller = AutonomyController(EMPTY_STOWED, config)
-    initial = terrain(
-        left_wheel_clearance_m=0.04,
-        right_wheel_clearance_m=0.12,
-    )
-    eroded = terrain(
-        left_wheel_clearance_m=0.04 - config.recentring_margin_slack_m - 0.001,
-        right_wheel_clearance_m=0.14,
-    )
-
-    decide_fresh(controller, 0.0, estimate=initial)
-    decide_fresh(controller, 0.1, estimate=initial)
-    decide_fresh(controller, 0.2, estimate=eroded)
-    decide_fresh(controller, 0.3, estimate=eroded)
-    decide_fresh(controller, 2.21, estimate=eroded)
-    decide_fresh(controller, 2.31, estimate=eroded)
-    reopened = decide_fresh(controller, 2.41, estimate=eroded)
-
-    assert reopened.state != "CONTROLLED_HOLD"
-    assert reopened.v_m_s > 0.0
-    assert "recentring" in reopened.reasons
-
-    rollback_controller = AutonomyController(EMPTY_STOWED, config)
-    decide_fresh(rollback_controller, 100.0, estimate=initial)
-    decide_fresh(rollback_controller, 100.1, estimate=initial)
-    decide_fresh(rollback_controller, 100.2, estimate=eroded)
-    rolled_back = decide_fresh(rollback_controller, 50.0, estimate=eroded)
-    decide_fresh(rollback_controller, 100.21, estimate=eroded)
-    decide_fresh(rollback_controller, 100.31, estimate=eroded)
-    reopened_after_rollback = decide_fresh(
-        rollback_controller,
-        100.41,
-        estimate=eroded,
-    )
-
-    assert rolled_back.state == "CONTROLLED_HOLD"
-    assert "clearance_low" in rolled_back.reasons
-    assert reopened_after_rollback.state != "CONTROLLED_HOLD"
-    assert reopened_after_rollback.v_m_s > 0.0
-    assert "recentring" in reopened_after_rollback.reasons
-
-
-def test_recentering_window_does_not_reopen_before_cooldown():
-    config = AutonomyControllerConfig()
-    controller = AutonomyController(EMPTY_STOWED, config)
-    initial = terrain(
-        left_wheel_clearance_m=0.04,
-        right_wheel_clearance_m=0.12,
-    )
-    eroded = terrain(
-        left_wheel_clearance_m=0.04 - config.recentring_margin_slack_m - 0.001,
-        right_wheel_clearance_m=0.14,
-    )
-
-    decide_fresh(controller, 0.0, estimate=initial)
-    decide_fresh(controller, 0.1, estimate=initial)
-    decide_fresh(controller, 0.2, estimate=eroded)
-    held = decide_fresh(controller, 2.199, estimate=eroded)
-
-    assert held.state == "CONTROLLED_HOLD"
-    assert "clearance_low" in held.reasons
-    with pytest.raises(ValueError, match="recentring_cooldown_s"):
-        AutonomyControllerConfig(recentring_cooldown_s=True)
-
-
-def test_recentering_wheel_outside_support_holds_after_cooldown():
-    config = AutonomyControllerConfig()
-    controller = AutonomyController(EMPTY_STOWED, config)
-    initial = terrain(
-        left_wheel_clearance_m=0.04,
-        right_wheel_clearance_m=0.12,
-    )
-    eroded = terrain(
-        left_wheel_clearance_m=0.04 - config.recentring_margin_slack_m - 0.001,
-        right_wheel_clearance_m=0.14,
-    )
-
-    decide_fresh(controller, 0.0, estimate=initial)
-    decide_fresh(controller, 0.1, estimate=initial)
-    decide_fresh(controller, 0.2, estimate=eroded)
-    held = decide_fresh(
-        controller,
-        2.21,
-        estimate=terrain(
-            left_wheel_clearance_m=-0.02,
-            right_wheel_clearance_m=0.30,
-        ),
-    )
-
-    assert held.state == "CONTROLLED_HOLD"
-    assert "clearance_low" in held.reasons
-
-
-def test_recentering_margin_slack_tolerates_quantisation_noise():
-    with pytest.raises(ValueError, match="recentring_margin_slack_m"):
-        AutonomyControllerConfig(recentring_margin_slack_m=True)
-
-    config = AutonomyControllerConfig()
-    controller = AutonomyController(EMPTY_STOWED, config)
-    # 슬랙이 한 양자화 스텝(0.025)으로 커지면서 기존 기저값 0.02 는 dither 뒤
-    # 부동소수점상 음수가 되어 "바퀴가 support 밖" 가드에 먼저 걸렸다. 의도는
-    # 그대로 두고 기저값만 올려 dither 뒤에도 양수이면서 정지 임계 아래에 남게 한다.
-    initial = terrain(
-        left_wheel_clearance_m=0.04,
-        right_wheel_clearance_m=0.12,
-    )
-    dithered = terrain(
-        left_wheel_clearance_m=0.04 - 0.8 * config.recentring_margin_slack_m,
-        right_wheel_clearance_m=0.14,
-    )
-
-    decide_fresh(controller, 0.0, estimate=initial)
-    moving = decide_fresh(controller, 0.1, estimate=initial)
-    decision = decide_fresh(controller, 0.2, estimate=dithered)
-
-    assert moving.v_m_s > 0.0
-    assert decision.state != "CONTROLLED_HOLD"
-    assert "recentring" in decision.reasons
-
-
-def test_recentering_window_times_out_and_fails_closed_on_time_rollback():
-    config = AutonomyControllerConfig()
-    controller = AutonomyController(EMPTY_STOWED, config)
-    estimate = terrain(
-        left_wheel_clearance_m=0.02,
-        right_wheel_clearance_m=0.12,
-    )
-
-    decide_fresh(controller, 0.0, estimate=estimate)
-    moving = decide_fresh(controller, 0.1, estimate=estimate)
-    timed_out = decide_fresh(
-        controller,
-        config.recentring_timeout_s + 0.01,
-        estimate=estimate,
-    )
-
-    assert moving.v_m_s > 0.0
-    assert timed_out.state == "CONTROLLED_HOLD"
-    assert "clearance_low" in timed_out.reasons
-
-    rollback_controller = AutonomyController(EMPTY_STOWED, config)
-    decide_fresh(rollback_controller, 100.0, estimate=estimate)
-    assert decide_fresh(
-        rollback_controller,
-        100.1,
-        estimate=estimate,
-    ).v_m_s > 0.0
-    assert decide_fresh(
-        rollback_controller,
-        104.9,
-        estimate=estimate,
-    ).v_m_s > 0.0
-    rolled_back = decide_fresh(
-        rollback_controller,
-        104.0,
-        estimate=estimate,
-    )
-
-    assert rolled_back.state == "CONTROLLED_HOLD"
-    assert "clearance_low" in rolled_back.reasons
-    with pytest.raises(ValueError, match="recentring_timeout_s"):
-        AutonomyControllerConfig(recentring_timeout_s=True)
-
-
 @pytest.mark.parametrize(
     ("field", "full", "slow", "hold", "slow_reason"),
     (
-        ("clearance", None, None, None, "clearance_slow"),
         ("bank", 0.0, math.radians(11.0), math.radians(15.1), "bank_slow"),
         ("slope", 0.0, math.radians(12.0), math.radians(15.1), "slope_slow"),
         ("confidence", 0.61, 0.40, 0.24, "confidence_slow"),
     ),
 )
-def test_terrain_speed_scales_are_monotonic_and_hold_beyond_boundary(field, full, slow, hold, slow_reason):
-    if field == "clearance":
-        config = AutonomyControllerConfig()
-        ramp_width = config.clearance_full_m - config.clearance_hold_m
-        full = config.clearance_full_m + ramp_width
-        slow = (config.clearance_hold_m + config.clearance_full_m) / 2.0
-        hold = config.clearance_hold_m - 0.001
-
+def test_attitude_and_confidence_scales_are_monotonic_and_hold_beyond_boundary(
+    field,
+    full,
+    slow,
+    hold,
+    slow_reason,
+):
     def configured(value):
-        if field == "clearance":
-            return terrain(left_wheel_clearance_m=value, right_wheel_clearance_m=value)
         if field == "bank":
             return terrain(bank_angle_rad=value)
         if field == "slope":
@@ -904,13 +633,38 @@ def test_terrain_speed_scales_are_monotonic_and_hold_beyond_boundary(field, full
     assert stopped.v_m_s == 0.0
 
 
-def test_measured_roll_alone_can_trigger_controlled_hold():
+@pytest.mark.parametrize(
+    ("estimate", "state", "reason"),
+    (
+        (
+            terrain(bank_angle_rad=EMPTY_STOWED.max_bank_rad + 0.01),
+            motion(),
+            "bank_limit",
+        ),
+        (
+            terrain(longitudinal_slope_rad=EMPTY_STOWED.max_slope_rad + 0.01),
+            motion(),
+            "slope_limit",
+        ),
+        (
+            terrain(),
+            motion(roll_rad=EMPTY_STOWED.max_bank_rad + 0.01),
+            "roll_limit",
+        ),
+        (
+            terrain(),
+            motion(pitch_rad=EMPTY_STOWED.max_slope_rad + 0.01),
+            "pitch_limit",
+        ),
+    ),
+)
+def test_vehicle_attitude_limits_trigger_controlled_hold(estimate, state, reason):
     decision = steady_decision(
-        estimate=terrain(bank_angle_rad=0.0),
-        state=motion(roll_rad=EMPTY_STOWED.max_bank_rad + 0.01),
+        estimate=estimate,
+        state=state,
     )
     assert decision.state == "CONTROLLED_HOLD"
-    assert "roll_limit" in decision.reasons
+    assert reason in decision.reasons
 
 
 def test_fresh_diagnostics_hold_scale_and_cap_but_stale_diagnostics_are_ignored():
@@ -1032,8 +786,6 @@ def test_blocked_rollback_does_not_move_slew_origin_back():
         ("yaw_damp_gate_rad_s", -0.1),
         ("yaw_damp_tau_s", 0.0),
         ("yaw_damp_tau_s", -0.1),
-        ("clearance_hold_m", -0.1),
-        ("clearance_full_m", 0.04),
         ("min_confidence", -0.1),
         ("full_confidence", 0.20),
         ("confidence_floor_scale", 0.0),
