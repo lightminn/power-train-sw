@@ -232,6 +232,42 @@ def support_grid(estimator: TerrainEstimator, spans) -> object:
     )
 
 
+def branching_surface_grid(
+    estimator: TerrainEstimator,
+    *,
+    track_drop_rows: slice | None,
+) -> object:
+    """Build a narrow track beside a wider, more-overlapping branch."""
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 3), 20, 60, 0.0),
+            (slice(3, 14), 20, 39, 0.0),
+            (slice(3, 14), 40, 60, 0.20),
+        ),
+    )
+    if track_drop_rows is None:
+        return grid
+
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[track_drop_rows, 19] = True
+    lower_floor[track_drop_rows, 39] = True
+    height = np.array(grid.height_m, copy=True)
+    height[lower_floor] = -0.25
+    observed_count = np.array(grid.observed_count, copy=True)
+    observed_count[lower_floor] = 1
+    stamp_s = np.array(grid.stamp_s, copy=True)
+    stamp_s[lower_floor] = 1.0
+    return dataclasses.replace(
+        grid,
+        height_m=height,
+        observed_count=observed_count,
+        valid_mask=grid.valid_mask | lower_floor,
+        lower_floor_mask=lower_floor,
+        stamp_s=stamp_s,
+    )
+
+
 def summarize_grid(
     estimator: TerrainEstimator,
     grid,
@@ -511,6 +547,46 @@ def test_parallel_wider_surface_is_not_adopted_mid_frame():
     assert result.heading_error_rad == pytest.approx(math.atan(-2.0), abs=1e-9)
 
 
+def test_wider_branch_without_drop_evidence_is_not_adopted():
+    """Regression for the observed ramp departure beside the real-course track."""
+    estimator = make_estimator()
+    grid = branching_surface_grid(
+        estimator,
+        track_drop_rows=slice(3, 14),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(-0.025, abs=1e-9)
+
+
+def test_no_drop_evidence_keeps_greatest_overlap_selection():
+    estimator = make_estimator()
+    grid = branching_surface_grid(
+        estimator,
+        track_drop_rows=None,
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(1.0, abs=1e-9)
+
+
+def test_drop_evidence_from_another_row_does_not_change_current_row_selection():
+    estimator = make_estimator()
+    grid = branching_surface_grid(
+        estimator,
+        track_drop_rows=slice(14, 15),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(1.0, abs=1e-9)
+
+
 def test_centreline_rows_stop_when_surface_splits_without_overlap():
     estimator = make_estimator()
     grid = support_grid(
@@ -554,30 +630,93 @@ def test_previous_centre_seed_is_transported_before_nearest_row_selection():
     assert second.path_offset_m == pytest.approx(0.2875, abs=1e-9)
 
 
-def test_rejected_frame_clears_surface_seed_before_next_selection():
-    estimator = make_estimator(path_x_range_m=(0.40, 0.50), min_path_rows=2)
-    first_grid = support_grid(estimator, ((slice(2, 4), 22, 48, 0.0),))
-    summarize_grid(estimator, first_grid, stamp_s=1.0)
-    rejected = summarize_grid(estimator, empty_grid(estimator.grid_shape), stamp_s=1.05)
-    nearest_grid = support_grid(
+def test_rejected_frame_preserves_surface_seed_until_history_horizon_then_expires():
+    results = []
+    for age_s in (1.5, 1.500001):
+        estimator = make_estimator(path_x_range_m=(0.40, 0.50), min_path_rows=2)
+        first_grid = support_grid(estimator, ((slice(2, 4), 22, 48, 0.0),))
+        summarize_grid(estimator, first_grid, stamp_s=1.0)
+        rejected = summarize_grid(
+            estimator,
+            empty_grid(estimator.grid_shape),
+            stamp_s=1.05,
+            odometry_delta=OdometryDelta(
+                dx_m=0.0,
+                dy_m=-0.20,
+                dyaw_rad=0.0,
+            ),
+        )
+        nearest_grid = support_grid(
+            estimator,
+            (
+                (slice(2, 3), 18, 34, 0.20),
+                (slice(2, 3), 36, 52, 0.0),
+                (slice(3, 4), 20, 38, 0.20),
+            ),
+        )
+
+        result = summarize_grid(
+            estimator,
+            nearest_grid,
+            stamp_s=1.0 + age_s,
+            odometry_delta=ZERO_ODOMETRY,
+        )
+
+        assert rejected.reject_reasons == ("no_connected_support",)
+        assert result.path_available, result.reject_reasons
+        results.append(result)
+
+    assert results[0].path_offset_m == pytest.approx(0.325, abs=1e-9)
+    assert results[1].path_offset_m == pytest.approx(-0.125, abs=1e-9)
+
+
+def test_support_gap_wider_than_three_cells_is_not_merged_into_reported_width():
+    estimator = make_estimator()
+    grid = support_grid(
         estimator,
         (
-            (slice(2, 3), 18, 34, 0.20),
-            (slice(2, 3), 36, 52, 0.0),
-            (slice(3, 4), 20, 38, 0.20),
+            (slice(2, 14), 20, 39, 0.0),
+            (slice(2, 14), 43, 50, 0.0),
         ),
     )
 
-    result = summarize_grid(
+    result = summarize_grid(estimator, grid)
+
+    footprint_width_m = 2.0 * (
+        0.3595 + estimator.config.wheel_half_width_m
+    )
+    reported_width_m = (
+        result.left_wheel_clearance_m
+        + result.right_wheel_clearance_m
+        + footprint_width_m
+    )
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(-0.025, abs=1e-9)
+    assert reported_width_m == pytest.approx(0.95, abs=1e-9)
+
+
+def test_support_gap_of_three_cells_is_still_merged():
+    estimator = make_estimator()
+    grid = support_grid(
         estimator,
-        nearest_grid,
-        stamp_s=1.1,
-        odometry_delta=OdometryDelta(dx_m=0.0, dy_m=-0.20, dyaw_rad=0.0),
+        (
+            (slice(2, 14), 20, 39, 0.0),
+            (slice(2, 14), 42, 50, 0.0),
+        ),
     )
 
-    assert rejected.reject_reasons == ("no_connected_support",)
+    result = summarize_grid(estimator, grid)
+
+    footprint_width_m = 2.0 * (
+        0.3595 + estimator.config.wheel_half_width_m
+    )
+    reported_width_m = (
+        result.left_wheel_clearance_m
+        + result.right_wheel_clearance_m
+        + footprint_width_m
+    )
     assert result.path_available, result.reject_reasons
-    assert result.path_offset_m == pytest.approx(-0.125, abs=1e-9)
+    assert reported_width_m == pytest.approx(1.50, abs=1e-9)
 
 
 def test_path_offset_is_fit_median_at_contributing_rows_not_intercept():

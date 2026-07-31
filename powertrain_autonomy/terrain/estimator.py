@@ -47,6 +47,7 @@ class OdometryDelta:
 class _LateralReference:
     offset_m: float
     heading_rad: float
+    stamp_s: float
 
 
 @dataclass(frozen=True)
@@ -235,7 +236,6 @@ class TerrainEstimator:
             raise ValueError(f"{label} must be finite")
 
     def _reject(self, stamp_s: float, *reasons: str, degradation=()) -> TerrainEstimate:
-        self._lateral_reference = None
         self._filtered_path_estimate = None
         self._path_estimate_stamp_s = None
         return TerrainEstimate(
@@ -283,6 +283,7 @@ class TerrainEstimator:
         return _LateralReference(
             offset_m=current_rho / current_cosine,
             heading_rad=current_heading,
+            stamp_s=reference.stamp_s,
         )
 
     def _quality_and_mask(
@@ -417,10 +418,15 @@ class TerrainEstimator:
             odometry_delta = OdometryDelta(dx_m=0.0, dy_m=0.0, dyaw_rad=0.0)
         transported_reference = None
         if self._lateral_reference is not None:
-            transported_reference = self._transport_lateral_reference(
-                self._lateral_reference,
-                odometry_delta=odometry_delta,
-            )
+            reference_age_s = stamp_s - self._lateral_reference.stamp_s
+            if reference_age_s <= cfg.history_horizon_s:
+                transported_reference = self._transport_lateral_reference(
+                    self._lateral_reference,
+                    odometry_delta=odometry_delta,
+                )
+            # grid history와 같은 수명 동안 rejection을 지나서도 기준면을
+            # 운반하되, horizon을 넘기거나 운반할 수 없으면 폐기한다.
+            self._lateral_reference = transported_reference
         x_centres = cfg.grid_x_range_m[0] + (np.arange(self.grid_shape[0]) + 0.5) * cfg.grid_resolution_m
         y_centres = cfg.grid_y_range_m[0] + (np.arange(self.grid_shape[1]) + 0.5) * cfg.grid_resolution_m
         lookahead = (x_centres >= cfg.path_x_range_m[0]) & (x_centres <= cfg.path_x_range_m[1])
@@ -440,11 +446,14 @@ class TerrainEstimator:
                 previous_run = merged_support_runs[-1]
                 previous_height = grid.height_m[x_index, previous_run[-1]]
                 next_height = grid.height_m[x_index, next_run[0]]
+                gap_cells = int(next_run[0]) - int(previous_run[-1]) - 1
                 # 미관측 gap 양 끝의 높이 차가 support flood fill의 이웃 간
-                # 1-step 허용치 이하면 같은 지면이다. 더 큰 점프는 미관측
-                # 지면이 아니라 불연속이므로 경계를 확장하지 않는다.
+                # 1-step 허용치 이내이고 gap이 grid 3칸 이하일 때만 같은
+                # 지면이다. 더 넓은 미관측 구간이나 높이 점프는 경계를
+                # 확장하지 않는다.
                 if (
-                    np.isfinite(previous_height)
+                    gap_cells <= 3
+                    and np.isfinite(previous_height)
                     and np.isfinite(next_height)
                     and abs(float(next_height - previous_height))
                     <= cfg.max_support_step_m
@@ -483,7 +492,23 @@ class TerrainEstimator:
                         overlapping_runs.append((overlap, run))
                 if not overlapping_runs:
                     break
-                support_run = max(overlapping_runs, key=lambda item: item[0])[1]
+                drop_bounded_runs = [
+                    item
+                    for item in overlapping_runs
+                    if np.any(
+                        grid.lower_floor_mask[x_index, : int(item[1][0])]
+                    )
+                    and np.any(
+                        grid.lower_floor_mask[
+                            x_index,
+                            int(item[1][-1]) + 1 :,
+                        ]
+                    )
+                ]
+                # overlap은 연속성 제약과 동률 해소에만 쓰고, 양쪽 바깥의
+                # lower-floor가 실제 관측된 후보가 있으면 그 지면을 우선한다.
+                selection_pool = drop_bounded_runs or overlapping_runs
+                support_run = max(selection_pool, key=lambda item: item[0])[1]
             previous_support_run = support_run
             if support_run.size < 2:
                 continue
@@ -548,6 +573,7 @@ class TerrainEstimator:
         self._lateral_reference = _LateralReference(
             offset_m=path_offset,
             heading_rad=heading,
+            stamp_s=stamp_s,
         )
         left_clearance = float(np.median(row_values[:, 2] - footprint_half))
         right_clearance = float(np.median(-footprint_half - row_values[:, 1]))
