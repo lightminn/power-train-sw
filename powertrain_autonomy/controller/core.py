@@ -9,6 +9,7 @@ from ..validation import (
     require_all_finite, require_int_at_least, require_non_negative,
     require_ordered,
 )
+from ..terrain.estimator import TerrainEstimatorConfig
 from .profiles import EMPTY_STOWED, DriveProfile
 
 if TYPE_CHECKING:
@@ -20,6 +21,10 @@ _FUTURE_TOLERANCE_S = 0.1
 # 남기지 않는다(보고 임계일 뿐 감속식 자체는 바뀌지 않는다).
 _CURVATURE_SLOW_REPORT_FRACTION = 0.01
 ASSIST_MAX_OMEGA_CORRECTION_RAD_S = 0.4
+# footprint_uncertainty_m no longer exists after the centre-line rewrite.
+# The estimator's existing 0.05 m grid resolution is the nearest remaining
+# spatial uncertainty quantity and is not exposed as another controller knob.
+_EDGE_REFERENCE_CLEARANCE_M = TerrainEstimatorConfig.grid_resolution_m
 
 
 @dataclass(frozen=True)
@@ -57,7 +62,7 @@ class AutonomyControllerConfig:
     recovery_min_elapsed_s: float = 0.15
     recovery_min_samples: int = 3
     kp_heading: float = 1.2
-    kp_offset: float = 0.8
+    kp_edge: float = 0.8
     curvature_slow_k: float = 1.0
     # 0.0 preserves the pure-P baseline for tests/backward compatibility.
     # Production enables the clothoid fix through autonomy_controller_node's
@@ -80,7 +85,7 @@ class AutonomyControllerConfig:
         require_non_negative(self.recovery_min_elapsed_s, recovery_elapsed_message)
         positive = (
             "terrain_stale_s", "motion_stale_s", "gate_stale_s",
-            "diagnostics_stale_s", "kp_heading", "kp_offset",
+            "diagnostics_stale_s", "kp_heading", "kp_edge",
             "curvature_slow_k", "yaw_damp_gate_rad_s", "yaw_damp_tau_s",
             "min_confidence", "full_confidence",
         )
@@ -133,6 +138,18 @@ def _scale_down(value: float, soft: float, hard: float) -> float:
     return (hard - value) / (hard - soft)
 
 
+def _edge_lateral_term(terrain: TerrainEstimate) -> float:
+    push_right = max(
+        0.0,
+        _EDGE_REFERENCE_CLEARANCE_M - terrain.left_wheel_clearance_m,
+    )
+    push_left = max(
+        0.0,
+        _EDGE_REFERENCE_CLEARANCE_M - terrain.right_wheel_clearance_m,
+    )
+    return push_left - push_right
+
+
 def _slew(current: float, target: float, rise_rate: float, fall_rate: float, dt: float) -> float:
     if target >= current:
         return min(target, current + rise_rate * dt)
@@ -150,6 +167,8 @@ def assist_correction_from_terrain(
         terrain.stamp_s,
         terrain.path_offset_m,
         terrain.heading_error_rad,
+        terrain.left_wheel_clearance_m,
+        terrain.right_wheel_clearance_m,
         terrain.bank_angle_rad,
         terrain.longitudinal_slope_rad,
         terrain.confidence,
@@ -178,7 +197,7 @@ def assist_correction_from_terrain(
 
     omega_raw = (
         config.kp_heading * terrain.heading_error_rad
-        + config.kp_offset * terrain.path_offset_m
+        + config.kp_edge * _edge_lateral_term(terrain)
     )
     omega_correction = _clamp(
         omega_raw,
@@ -313,6 +332,8 @@ class AutonomyController:
                 terrain.stamp_s,
                 terrain.path_offset_m,
                 terrain.heading_error_rad,
+                terrain.left_wheel_clearance_m,
+                terrain.right_wheel_clearance_m,
                 terrain.bank_angle_rad,
                 terrain.longitudinal_slope_rad,
                 terrain.confidence,
@@ -450,7 +471,7 @@ class AutonomyController:
                 v_lim = speed_cap
         omega_p = (
             self.config.kp_heading * terrain.heading_error_rad
-            + self.config.kp_offset * terrain.path_offset_m
+            + self.config.kp_edge * _edge_lateral_term(terrain)
         )
         if self.config.kd_yaw > 0.0:
             alpha = dt / (self.config.yaw_damp_tau_s + dt)
