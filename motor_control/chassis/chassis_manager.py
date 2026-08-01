@@ -86,6 +86,10 @@ DEFAULT_WHEEL_MAP = [
     WheelMap("rear_right",  4,    16),
 ]
 
+# ⚠️ 각 ODrive 보드의 M1 축(=node 12/14/16)이 로봇 오른쪽 바퀴이며 좌측과 미러로
+#    장착돼 있다(2026-07-28 실물 확인). 구동 드라이버에서 부호를 반전한다.
+RIGHT_WHEELS = ("front_right", "mid_right", "rear_right")
+
 #: 🛠️ **중륜 2개를 뺀 4륜 매핑** — 중간 ODrive 보드(node 13/14)를 부하모터(다이나모)에
 #: 쓰고 있을 때. `kinematics.four_wheel_geometry()` 와 **반드시 짝으로** 쓴다
 #: (기하와 매핑의 바퀴 이름이 어긋나면 KeyError).
@@ -128,6 +132,7 @@ def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
 
     friction_ff/v_knee_turns_s 는 저속 마찰/코깅 보상 노브(스펙 r6 §2.2b, 기본 off),
     gear_ratio 는 모터 회전수/바퀴 회전수이며 DriveOdriveCan 으로 그대로 전달된다.
+    우측 바퀴의 미러 장착 부호 반전은 wheel_map에서 유도해 구동 드라이버에만 건다.
 
     CAN 단독 소유권은 라이브러리 함수가 아니라 실물 실행 진입점의
     ``chassis.runtime_lock.RealCanSession``이 이 함수 호출 전에 획득한다. Fake/MuJoCo
@@ -135,14 +140,18 @@ def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
     """
     import corner_module.steer_ak40 as steer_mod
     import corner_module.drive_odrive_can as drive_mod   # WP1 완료 필요
+    source_map = wheel_map or DEFAULT_WHEEL_MAP
+    inverted_nodes = frozenset(
+        wm.drive_node_id for wm in source_map if wm.wheel in RIGHT_WHEELS
+    )
     return build_corners(
         steer_factory=lambda cid: steer_mod.SteerAk40(motor_id=cid, channel=channel),
         drive_factory=lambda nid: drive_mod.DriveOdriveCan(
             node_id=nid, channel=channel,
             friction_ff=friction_ff, v_knee=v_knee_turns_s,
-            gear_ratio=gear_ratio,
+            gear_ratio=gear_ratio, invert=(nid in inverted_nodes),
         ),
-        cfg=cfg, wheel_map=wheel_map,
+        cfg=cfg, wheel_map=source_map,
     )
 
 

@@ -69,12 +69,15 @@ class DriveOdriveCan(DriveActuator):
         friction_ff 적용 상한(모터 turns/s, 기본 0.5). 경계값은 포함하지 않는다.
     gear_ratio:
         모터 회전수 / 바퀴 회전수(기본 5.0). 반드시 양수여야 한다.
+    invert:
+        우측 바퀴의 물리적 미러 장착이면 모터 프레임 부호를 반전한다. 반전은
+        CAN 프레임 경계에서만 수행하며, 드라이버 바깥은 모두 바퀴 프레임이다.
     """
 
     def __init__(self, node_id: int = 11, channel: str = "can0",
                  stale_ms: float = 200.0, bus=None, clock=None,
                  friction_ff: float = 0.0, v_knee: float = 0.5,
-                 gear_ratio: float = 5.0):
+                 gear_ratio: float = 5.0, invert: bool = False):
         self._node_id = node_id
         self._channel = channel
         self._stale_ms = stale_ms
@@ -87,6 +90,8 @@ class DriveOdriveCan(DriveActuator):
             raise ValueError("gear_ratio must be finite and positive")
         # BL70200 감속 1:5 — 2026-07-18 사용자 확인. 물리 검증은 바퀴 회전수 카운트.
         self._gear_ratio = gear_ratio
+        self._invert = bool(invert)
+        self._sign = -1.0 if self._invert else 1.0
         self._target_vel = 0.0
         self._actual_vel = 0.0
         self._cur_a = 0.0
@@ -98,6 +103,10 @@ class DriveOdriveCan(DriveActuator):
         self._now = time.monotonic if clock is None else clock
         self._rx_packets = 0
         self._recovery_count = 0
+
+    @property
+    def invert(self) -> bool:
+        return self._invert
 
     # ------------------------------------------------------------------
     # 내부 헬퍼
@@ -218,7 +227,7 @@ class DriveOdriveCan(DriveActuator):
     def tick(self) -> None:
         """제어 루프마다: 목표 속도(+저속 마찰 보상 ff) 전송 + RTR 폴링."""
         self._drain_available()
-        motor_tps = self._target_vel * self._gear_ratio
+        motor_tps = self._target_vel * self._gear_ratio * self._sign
         self._send(_SET_INPUT_VEL,
                    struct.pack("<ff", motor_tps, self._friction_torque_ff(motor_tps)))
         self._send(_GET_ENCODER_ESTIMATES, rtr=True)
@@ -248,7 +257,7 @@ class DriveOdriveCan(DriveActuator):
         return {
             "node_id": self._node_id,
             "target_vel": self._target_vel,
-            "actual_vel": self._actual_vel / self._gear_ratio,
+            "actual_vel": self._actual_vel * self._sign / self._gear_ratio,
             "cur_a": self._cur_a,
             "axis_error": self._axis_error,
             "axis_state": self._axis_state,

@@ -186,6 +186,17 @@ def test_submit_rejects_when_disconnected_or_current_connection_has_no_state(
     assert console.submit("estop")
 
 
+def test_connected_reflects_live_client_lifecycle(monkeypatch):
+    console, client, _thread = _console(monkeypatch)
+
+    assert console.connected is False
+    console.run_once()
+    assert console.connected is True
+
+    console._disconnect(client)
+    assert console.connected is False
+
+
 def test_disconnect_clears_latest_state_and_rejects_unsent_queue(monkeypatch):
     submits = []
     states = []

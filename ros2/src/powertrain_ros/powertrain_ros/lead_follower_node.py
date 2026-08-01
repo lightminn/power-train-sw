@@ -18,6 +18,7 @@ import sys
 
 import rclpy
 from geometry_msgs.msg import Twist
+from rclpy.clock import Clock, ClockType
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.time import Time
@@ -116,7 +117,10 @@ class LeadFollowerNode(Node):
         self.follower = LeadFollower(self.cfg)
         self.tf_buf = Buffer()
         self.tf_listener = TransformListener(self.tf_buf, self)
+        self._steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
         self._allow_drive = True
+        self._approach_active = False
+        self._approach_active_s = 0.0
         self._last = None
         self._command_was_publishable = False
 
@@ -124,6 +128,8 @@ class LeadFollowerNode(Node):
                                  self._on_detections, 10)
         self.create_subscription(Bool, "/mission/allow_drive",
                                  lambda m: setattr(self, "_allow_drive", m.data), 10)
+        self.create_subscription(Bool, "/approach/active",
+                                 self._on_approach_active, 10)
 
         self.pub_cmd = self.create_publisher(Twist, "/autonomy/cmd_vel", 10)
         self.pub_state = self.create_publisher(Float32MultiArray, "/follow/state", 10)
@@ -133,6 +139,13 @@ class LeadFollowerNode(Node):
         self.get_logger().info(
             f"lead_follower 시작 — '{self.cfg.class_name}' 추종, 목표 {self.cfg.target_m} m, "
             f"최소 {self.cfg.min_m} m")
+
+    def _steady_now_s(self):
+        return self._steady_clock.now().nanoseconds * 1e-9
+
+    def _on_approach_active(self, msg: Bool):
+        self._approach_active = bool(msg.data)
+        self._approach_active_s = self._steady_now_s()
 
     def _on_detections(self, msg: DetectedObjectArray):
         now_s = self.get_clock().now().nanoseconds * 1e-9
@@ -187,6 +200,10 @@ class LeadFollowerNode(Node):
 
     def _publish_result(self, r: FollowResult, allow_command=True):
         self._last = r
+        approach_active = (
+            self._approach_active
+            and (self._steady_now_s() - self._approach_active_s) < 0.5
+        )
 
         self.pub_state.publish(Float32MultiArray(data=[
             1.0 if r.ok else 0.0, r.v, r.omega, r.distance_m, r.closing_mps,
@@ -198,6 +215,7 @@ class LeadFollowerNode(Node):
             allow_command
             and r.ok
             and self._allow_drive
+            and not approach_active
             and bool(self.get_parameter("enabled").value)
         )
         if command_publishable:

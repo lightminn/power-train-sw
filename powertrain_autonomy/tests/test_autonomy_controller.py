@@ -76,8 +76,8 @@ def test_assist_correction_uses_separate_yaw_clamp_and_empty_speed_cap():
     estimate = terrain(
         path_offset_m=1.0,
         heading_error_rad=1.0,
-        left_wheel_clearance_m=0.175,
-        right_wheel_clearance_m=0.175,
+        left_wheel_clearance_m=math.nan,
+        right_wheel_clearance_m=math.nan,
         bank_angle_rad=math.radians(11.0),
         longitudinal_slope_rad=math.radians(12.0),
         confidence=0.425,
@@ -88,7 +88,7 @@ def test_assist_correction_uses_separate_yaw_clamp_and_empty_speed_cap():
     assert correction is not None
     omega, speed_cap, confidence = correction
     assert omega == pytest.approx(0.4)
-    assert speed_cap == pytest.approx(0.096)
+    assert speed_cap == pytest.approx(0.192)
     assert confidence == pytest.approx(0.425)
 
 
@@ -211,6 +211,22 @@ def test_central_path_tracks_forward_without_yaw():
     assert decision.state == "TRACKING"
     assert decision.v_m_s > 0.0
     assert decision.omega_rad_s == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize("clearance_m", (-0.20, math.nan))
+def test_clearance_telemetry_does_not_gate_or_slow_controller(clearance_m):
+    baseline = steady_decision()
+    reported = steady_decision(
+        estimate=terrain(
+            left_wheel_clearance_m=clearance_m,
+            right_wheel_clearance_m=clearance_m,
+        )
+    )
+
+    assert reported.state == "TRACKING"
+    assert reported.v_m_s == pytest.approx(baseline.v_m_s)
+    assert reported.omega_rad_s == pytest.approx(baseline.omega_rad_s)
+    assert reported.reasons == baseline.reasons
 
 
 @pytest.mark.parametrize(
@@ -565,19 +581,42 @@ def test_blocked_is_immediate_and_resets_slew_origin():
     assert 0.0 < resumed.v_m_s <= EMPTY_STOWED.max_accel_m_s2 * 0.1 + 1e-12
 
 
+def test_curvature_slow_is_reported_only_when_it_actually_costs_speed():
+    """조향이 0 이 아니기만 하면 붙던 사유가 감속량과 무관해져, 실측 2415/3000 틱을
+    병목으로 오독하게 만들었다. 실제 감속이 1% 를 넘을 때만 붙어야 한다.
+    """
+    config = AutonomyControllerConfig()
+
+    negligible = steady_decision(estimate=terrain(path_offset_m=0.001))
+    substantial = steady_decision(estimate=terrain(path_offset_m=0.5))
+
+    # 0.8 * 0.001 = 0.0008 -> 나눗수 1.0008, 0.08% 감속
+    assert "curvature_slow" not in negligible.reasons
+    # 0.8 * 0.5 = 0.4 -> 나눗수 1.4, 29% 감속
+    assert "curvature_slow" in substantial.reasons
+    # 보고 임계일 뿐이므로 감속식 자체는 그대로다.
+    assert substantial.v_m_s == pytest.approx(
+        negligible.v_m_s / (1.0 + config.kp_offset * 0.5),
+        rel=0.05,
+    )
+
+
 @pytest.mark.parametrize(
     ("field", "full", "slow", "hold", "slow_reason"),
     (
-        ("clearance", 0.31, 0.175, 0.049, "clearance_slow"),
         ("bank", 0.0, math.radians(11.0), math.radians(15.1), "bank_slow"),
         ("slope", 0.0, math.radians(12.0), math.radians(15.1), "slope_slow"),
         ("confidence", 0.61, 0.40, 0.24, "confidence_slow"),
     ),
 )
-def test_terrain_speed_scales_are_monotonic_and_hold_beyond_boundary(field, full, slow, hold, slow_reason):
+def test_attitude_and_confidence_scales_are_monotonic_and_hold_beyond_boundary(
+    field,
+    full,
+    slow,
+    hold,
+    slow_reason,
+):
     def configured(value):
-        if field == "clearance":
-            return terrain(left_wheel_clearance_m=value, right_wheel_clearance_m=value)
         if field == "bank":
             return terrain(bank_angle_rad=value)
         if field == "slope":
@@ -594,13 +633,38 @@ def test_terrain_speed_scales_are_monotonic_and_hold_beyond_boundary(field, full
     assert stopped.v_m_s == 0.0
 
 
-def test_measured_roll_alone_can_trigger_controlled_hold():
+@pytest.mark.parametrize(
+    ("estimate", "state", "reason"),
+    (
+        (
+            terrain(bank_angle_rad=EMPTY_STOWED.max_bank_rad + 0.01),
+            motion(),
+            "bank_limit",
+        ),
+        (
+            terrain(longitudinal_slope_rad=EMPTY_STOWED.max_slope_rad + 0.01),
+            motion(),
+            "slope_limit",
+        ),
+        (
+            terrain(),
+            motion(roll_rad=EMPTY_STOWED.max_bank_rad + 0.01),
+            "roll_limit",
+        ),
+        (
+            terrain(),
+            motion(pitch_rad=EMPTY_STOWED.max_slope_rad + 0.01),
+            "pitch_limit",
+        ),
+    ),
+)
+def test_vehicle_attitude_limits_trigger_controlled_hold(estimate, state, reason):
     decision = steady_decision(
-        estimate=terrain(bank_angle_rad=0.0),
-        state=motion(roll_rad=EMPTY_STOWED.max_bank_rad + 0.01),
+        estimate=estimate,
+        state=state,
     )
     assert decision.state == "CONTROLLED_HOLD"
-    assert "roll_limit" in decision.reasons
+    assert reason in decision.reasons
 
 
 def test_fresh_diagnostics_hold_scale_and_cap_but_stale_diagnostics_are_ignored():
@@ -722,8 +786,6 @@ def test_blocked_rollback_does_not_move_slew_origin_back():
         ("yaw_damp_gate_rad_s", -0.1),
         ("yaw_damp_tau_s", 0.0),
         ("yaw_damp_tau_s", -0.1),
-        ("clearance_hold_m", -0.1),
-        ("clearance_full_m", 0.04),
         ("min_confidence", -0.1),
         ("full_confidence", 0.20),
         ("confidence_floor_scale", 0.0),

@@ -18,6 +18,7 @@ import rclpy
 from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
+from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.qos import (
     DurabilityPolicy,
@@ -27,7 +28,7 @@ from rclpy.qos import (
     qos_profile_sensor_data,
 )
 from sensor_msgs.msg import CameraInfo, Image, Imu
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 
 from robot_arm_msgs.msg import ArmStatus
 
@@ -190,6 +191,9 @@ class AutonomyControllerNode(Node):
             event_client if event_client is not None else EventClient()
         )
         self._enabled = bool(self.get_parameter("enabled").value)
+        self._steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
+        self._approach_active = False
+        self._approach_active_s = 0.0
         qualification_path = str(
             self.get_parameter("terrain_qualification_file").value
         )
@@ -333,6 +337,12 @@ class AutonomyControllerNode(Node):
             self._on_diagnostics,
             10,
         )
+        self.create_subscription(
+            Bool,
+            "/approach/active",
+            self._on_approach_active,
+            10,
+        )
         self.create_timer(1.0 / tick_hz, self._tick)
         self._degradation_timer = self.create_timer(
             1.0,
@@ -353,6 +363,13 @@ class AutonomyControllerNode(Node):
 
     def _now_s(self) -> float:
         return self.get_clock().now().nanoseconds * 1e-9
+
+    def _steady_now_s(self) -> float:
+        return self._steady_clock.now().nanoseconds * 1e-9
+
+    def _on_approach_active(self, message: Bool) -> None:
+        self._approach_active = bool(message.data)
+        self._approach_active_s = self._steady_now_s()
 
     def _depth_is_stopping(self) -> bool:
         with self._depth_condition:
@@ -834,7 +851,11 @@ class AutonomyControllerNode(Node):
                 )
             )
         )
-        if not self._enabled or not terrain_seen:
+        approach_active = (
+            self._approach_active
+            and (self._steady_now_s() - self._approach_active_s) < 0.5
+        )
+        if not self._enabled or not terrain_seen or approach_active:
             return
         command = Twist()
         command.linear.x = decision.v_m_s

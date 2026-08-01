@@ -13,7 +13,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from .kernel import (
+from ..terrain.kernel import (
     TerrainKernelConfig,
     TerrainKernelResult,
     validate_kernel_inputs,

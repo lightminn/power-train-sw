@@ -185,6 +185,13 @@ This section is newer than every embedded migrated note below and overrides conf
   `odrive_calibration.py` and `odrive_diff_drive_test.py` were moved to
   `drive/bl70200/archive/` and hard-stop on import (2026-07-19) — they wrote pp=5 / cpr=30
   and, in the calibration script, dc_bus_undervoltage_trip_level=8.0 V to NVM.
+- ⚠️ **Right-side drive axes are mirror-mounted (confirmed on the robot 2026-07-28)**: each
+  board's M1 axis = node 12/14/16 = the robot's right wheels, so they must spin opposite to the
+  left ones. `DriveOdriveCan(invert=True)` flips the command and encoder sign **only at the CAN
+  frame boundary**; `build_real_corners` derives the wiring from `RIGHT_WHEELS` in the wheel map.
+  Everything above the driver (chassis, odometry, telemetry) stays in the wheel frame where
+  "+ = forward". Raw scripts and `motor_gui` remain in the motor frame — `can_drive_test.py`
+  now drives forward with left(11/13/15)=+ / right(12/14/16)=−, and pivots with all six at +.
 - Parameter-optimization v4 remains final at **50 kg**; do not plan an 86 kg rerun. Treat 86 kg as
   an old design estimate, not the v4 calculation mass.
 - Jetson audit on 2026-07-10: powertrain had no unpushed commits but contained untracked

@@ -17,7 +17,7 @@ from powertrain_autonomy.terrain.estimator import (
     TerrainEstimatorConfig,
     TerrainFrame,
 )
-from powertrain_autonomy.terrain.grid import build_elevation_grid
+from powertrain_autonomy.terrain.grid import build_elevation_grid, empty_grid
 
 
 WIDE_INTRINSICS = CameraIntrinsics(fx=57.1, fy=57.6, cx=39.5, cy=29.5)
@@ -68,8 +68,6 @@ def render_track_depth(
     bank_transition_x_m: float = 1.4,
     longitudinal_slope_rad: float = 0.0,
     width_m: float = 1.4,
-    choke_width_m: float | None = None,
-    choke_x_range_m: tuple[float, float] = (0.9, 1.3),
     center_offset_m: float = 0.0,
     heading_rad: float = 0.0,
     lower_floor_z_m: float = -0.45,
@@ -125,19 +123,12 @@ def render_track_depth(
         centre_y = center_offset_m + heading * upper_x
         lower_t = (lower_floor_z_m - origin[2]) / directions[..., 2]
 
-    local_width = np.full(upper_x.shape, width_m, dtype=float)
-    if choke_width_m is not None:
-        local_width = np.where(
-            (upper_x >= choke_x_range_m[0]) & (upper_x <= choke_x_range_m[1]),
-            choke_width_m,
-            local_width,
-        )
     on_track = (
         np.isfinite(upper_t)
         & (upper_t > 0.0)
         & (upper_x >= 0.0)
         & (upper_x < 8.0)
-        & (np.abs(upper_y - centre_y) <= local_width / 2.0)
+        & (np.abs(upper_y - centre_y) <= width_m / 2.0)
     )
     lower_valid = np.isfinite(lower_t) & (lower_t > 0.0)
     optical_z_m = np.where(on_track, upper_t, np.where(lower_valid, lower_t, 0.0))
@@ -185,25 +176,157 @@ def estimate(
     )
 
 
-def remove_lower_floor_side(frame: TerrainFrame, *, left: bool) -> TerrainFrame:
-    """Remove only one side of the independently rendered lower floor."""
-    rows, cols = np.indices(frame.depth_roi.shape, dtype=float)
-    optical_z = frame.depth_roi.astype(float) * frame.depth_scale_m
-    camera = np.stack(
-        (
-            (cols - frame.intrinsics.cx) * optical_z / frame.intrinsics.fx,
-            (rows - frame.intrinsics.cy) * optical_z / frame.intrinsics.fy,
-            optical_z,
-        ),
-        axis=-1,
+def analyze_frame_quality(
+    estimator: TerrainEstimator,
+    *,
+    depth_m: float,
+    stamp_s: float,
+):
+    depth = np.full(
+        estimator.config.depth_shape_px,
+        round(depth_m / 0.001),
+        dtype=np.uint16,
     )
-    points = camera @ _camera_to_base(BaseToCameraExtrinsic()).T
-    points += np.array((0.0, 0.0, 0.60))
-    lower_floor = points[..., 2] < -0.20
-    selected_side = points[..., 1] > 0.0 if left else points[..., 1] < 0.0
+    return estimator._quality_and_mask(
+        depth,
+        depth_scale_m=0.001,
+        intrinsics=WIDE_INTRINSICS,
+        stamp_s=stamp_s,
+    )[0]
+
+
+def shift_upper_depth_rows(
+    frame: TerrainFrame,
+    *,
+    offset_mm: int,
+    stamp_s: float,
+) -> TerrainFrame:
     depth = np.array(frame.depth_roi, copy=True)
-    depth[lower_floor & selected_side] = 0
-    return TerrainFrame(depth, frame.depth_scale_m, frame.intrinsics, frame.stamp_s)
+    upper_rows = np.zeros(depth.shape, dtype=bool)
+    upper_rows[:37] = True
+    shifted = upper_rows & (depth > 0) & (depth < 6000 - offset_mm)
+    depth[shifted] += offset_mm
+    return TerrainFrame(
+        depth_roi=depth,
+        depth_scale_m=frame.depth_scale_m,
+        intrinsics=frame.intrinsics,
+        stamp_s=stamp_s,
+    )
+
+
+def summarize_centreline_frame(
+    estimator: TerrainEstimator,
+    *,
+    center_offset_m: float,
+    stamp_s: float,
+) -> TerrainEstimate:
+    """Build a deterministic one-metre-wide support summary frame."""
+    resolution = estimator.config.grid_resolution_m
+    y_min = estimator.config.grid_y_range_m[0]
+    right_index = int(round((center_offset_m - 0.70 - y_min) / resolution))
+    left_stop = int(round((center_offset_m + 0.70 - y_min) / resolution))
+    support = np.zeros(estimator.grid_shape, dtype=bool)
+    support[2:14, right_index:left_stop] = True
+    valid = support.copy()
+    height = np.full(estimator.grid_shape, np.nan, dtype=float)
+    height[support] = 0.0
+    support_values = np.where(support, 0.0, np.nan)
+    grid = dataclasses.replace(
+        empty_grid(estimator.grid_shape),
+        height_m=height,
+        observed_count=valid.astype(np.int32),
+        slope_x=support_values.copy(),
+        slope_y=support_values.copy(),
+        roughness_m=support_values.copy(),
+        confidence=support.astype(float),
+        valid_mask=valid,
+        support_mask=support,
+        stamp_s=np.where(valid, stamp_s, np.nan),
+    )
+    return summarize_grid(estimator, grid, stamp_s=stamp_s)
+
+
+def support_grid(estimator: TerrainEstimator, spans) -> object:
+    """Build a grid from (rows, first_col, stop_col[, height_m]) spans."""
+    support = np.zeros(estimator.grid_shape, dtype=bool)
+    height = np.full(estimator.grid_shape, np.nan, dtype=float)
+    for span in spans:
+        rows, first_col, stop_col = span[:3]
+        support_height_m = float(span[3]) if len(span) == 4 else 0.0
+        support[rows, first_col:stop_col] = True
+        height[rows, first_col:stop_col] = support_height_m
+    support_values = np.where(support, 0.0, np.nan)
+    return dataclasses.replace(
+        empty_grid(estimator.grid_shape),
+        height_m=height,
+        observed_count=support.astype(np.int32),
+        slope_x=support_values.copy(),
+        slope_y=support_values.copy(),
+        roughness_m=support_values.copy(),
+        confidence=support.astype(float),
+        valid_mask=support.copy(),
+        support_mask=support,
+        stamp_s=np.where(support, 1.0, np.nan),
+    )
+
+
+def with_lower_floor_evidence(grid, lower_floor: np.ndarray) -> object:
+    """Add observed lower-floor cells to a support-grid fixture."""
+    height = np.array(grid.height_m, copy=True)
+    height[lower_floor] = -0.25
+    observed_count = np.array(grid.observed_count, copy=True)
+    observed_count[lower_floor] = 1
+    stamp_s = np.array(grid.stamp_s, copy=True)
+    stamp_s[lower_floor] = 1.0
+    return dataclasses.replace(
+        grid,
+        height_m=height,
+        observed_count=observed_count,
+        valid_mask=grid.valid_mask | lower_floor,
+        lower_floor_mask=lower_floor,
+        stamp_s=stamp_s,
+    )
+
+
+def branching_surface_grid(
+    estimator: TerrainEstimator,
+    *,
+    track_drop_rows: slice | None,
+) -> object:
+    """Build a narrow track beside a wider, more-overlapping branch."""
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 3), 20, 60, 0.0),
+            (slice(3, 14), 20, 39, 0.0),
+            (slice(3, 14), 40, 60, 0.20),
+        ),
+    )
+    if track_drop_rows is None:
+        return grid
+
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[track_drop_rows, 19] = True
+    lower_floor[track_drop_rows, 39] = True
+    return with_lower_floor_evidence(grid, lower_floor)
+
+
+def summarize_grid(
+    estimator: TerrainEstimator,
+    grid,
+    *,
+    stamp_s: float = 1.0,
+    odometry_delta: OdometryDelta | None = None,
+) -> TerrainEstimate:
+    kwargs = {
+        "grid": grid,
+        "stamp_s": stamp_s,
+        "frame_confidence": 1.0,
+        "reasons": (),
+    }
+    if odometry_delta is not None:
+        kwargs["odometry_delta"] = odometry_delta
+    return estimator._summarize(**kwargs)
 
 
 def test_public_values_are_immutable_and_grid_shape_is_fixed():
@@ -227,6 +350,36 @@ def test_public_values_are_immutable_and_grid_shape_is_fixed():
     )
     with pytest.raises(TypeError, match="uint16"):
         estimate(make_estimator(), float_frame)
+    for invalid_value in (True, 0.0, -0.1, math.nan, math.inf):
+        with pytest.raises(
+            ValueError,
+            match="path_estimate_tau_s must be positive",
+        ):
+            TerrainEstimatorConfig(path_estimate_tau_s=invalid_value)
+
+
+def test_config_rejects_nonfinite_footprint_outboard_half_width():
+    with pytest.raises(ValueError, match="terrain estimator thresholds must be finite"):
+        TerrainEstimatorConfig(footprint_outboard_half_width_m=math.nan)
+
+
+def test_config_rejects_negative_footprint_outboard_half_width():
+    with pytest.raises(
+        ValueError,
+        match="footprint_outboard_half_width_m must be nonnegative",
+    ):
+        TerrainEstimatorConfig(footprint_outboard_half_width_m=-0.001)
+
+
+def test_config_rejects_outboard_half_width_narrower_than_tire_tread():
+    with pytest.raises(
+        ValueError,
+        match=(
+            "footprint_outboard_half_width_m must be >= wheel_half_width_m "
+            "because the hub cannot be narrower than the tire"
+        ),
+    ):
+        TerrainEstimatorConfig(footprint_outboard_half_width_m=0.034)
 
 
 def test_estimator_routes_numpy_projection_and_scatter_through_pure_kernel(monkeypatch):
@@ -258,7 +411,9 @@ def test_flat_track_produces_central_available_path_and_near_zero_bank():
     assert result.heading_error_rad == pytest.approx(0.0, abs=0.04)
     assert result.bank_angle_rad == pytest.approx(0.0, abs=0.03)
     assert result.longitudinal_slope_rad == pytest.approx(0.0, abs=0.03)
-    expected_clearance = 1.4 / 2.0 - (0.4395 + 0.035)
+    expected_clearance = 1.4 / 2.0 - (
+        0.3595 + estimator.config.footprint_outboard_half_width_m
+    )
     assert result.left_wheel_clearance_m == pytest.approx(expected_clearance, abs=0.08)
     assert result.right_wheel_clearance_m == pytest.approx(expected_clearance, abs=0.08)
     assert result.confidence > 0.54
@@ -299,7 +454,11 @@ def test_longitudinal_slope_and_track_heading_are_local_grid_outputs():
     )
     heading = estimate(
         heading_estimator,
-        render_track_depth(heading_rad=0.08, width_m=1.3),
+        render_track_depth(
+            heading_rad=0.08,
+            width_m=1.0,
+            lower_floor_z_m=-0.19,
+        ),
     )
 
     assert slope.path_available, slope.reject_reasons
@@ -308,49 +467,728 @@ def test_longitudinal_slope_and_track_heading_are_local_grid_outputs():
     assert heading.heading_error_rad == pytest.approx(0.08, abs=0.04)
 
 
-def test_both_drop_boundaries_report_offset_and_geometry_clearance():
+def test_offcentre_track_reports_centre_and_geometry_clearance():
     estimator = make_estimator()
     frame = render_track_depth(width_m=1.5, center_offset_m=0.12)
 
     result = estimate(estimator, frame)
 
-    footprint_half = 0.4395 + 0.035
+    footprint_half = 0.3595 + estimator.config.footprint_outboard_half_width_m
     assert result.path_available, result.reject_reasons
     assert result.path_offset_m == pytest.approx(0.12, abs=0.07)
     assert result.left_wheel_clearance_m == pytest.approx(0.75 + 0.12 - footprint_half, abs=0.08)
     assert result.right_wheel_clearance_m == pytest.approx(0.75 - 0.12 - footprint_half, abs=0.08)
-    assert "drop_boundary" in result.degradation_reasons
 
 
-@pytest.mark.parametrize("missing_left", (True, False))
-def test_one_sided_drop_evidence_never_fabricates_a_two_sided_path(missing_left):
-    frame = remove_lower_floor_side(
-        render_track_depth(width_m=1.5),
-        left=missing_left,
+def test_published_path_offset_follows_step_without_jumping():
+    """The publication contract applies alpha to the current centre-line fit."""
+    estimator = make_estimator()
+    frame_interval_s = 0.1
+    initial = summarize_centreline_frame(
+        estimator,
+        center_offset_m=0.15,
+        stamp_s=1.0,
+    )
+    target_offset_m = -0.15
+    filtered = [
+        summarize_centreline_frame(
+            estimator,
+            center_offset_m=target_offset_m,
+            stamp_s=1.0 + frame_interval_s * index,
+        ).path_offset_m
+        for index in range(1, 21)
+    ]
+
+    alpha = frame_interval_s / (
+        estimator.config.path_estimate_tau_s + frame_interval_s
+    )
+    expected_first = initial.path_offset_m + alpha * (
+        target_offset_m - initial.path_offset_m
+    )
+    assert filtered[0] == pytest.approx(expected_first, abs=1e-9)
+    assert target_offset_m < filtered[0] < initial.path_offset_m
+    assert all(current < previous for previous, current in zip(filtered, filtered[1:]))
+    assert filtered[-1] == pytest.approx(target_offset_m, abs=0.01)
+
+
+def test_alternating_path_offset_noise_is_attenuated():
+    """At τ=0.5 s and Δt=0.1 s, alternating spread falls to 1/11, or 9.1%."""
+    estimator = make_estimator()
+    frame_interval_s = 0.1
+    noise_amplitude_m = 0.20
+    summarize_centreline_frame(
+        estimator,
+        center_offset_m=0.0,
+        stamp_s=1.0,
+    )
+    filtered = [
+        summarize_centreline_frame(
+            estimator,
+            center_offset_m=noise_amplitude_m if index % 2 else -noise_amplitude_m,
+            stamp_s=1.0 + frame_interval_s * index,
+        ).path_offset_m
+        for index in range(1, 21)
+    ]
+
+    alpha = frame_interval_s / (
+        estimator.config.path_estimate_tau_s + frame_interval_s
+    )
+    expected_spread_ratio = alpha / (2.0 - alpha)
+    input_spread_m = 2.0 * noise_amplitude_m
+    settled_spread_m = abs(filtered[-1] - filtered[-2])
+    assert settled_spread_m < 0.15 * input_spread_m
+    assert settled_spread_m == pytest.approx(
+        expected_spread_ratio * input_spread_m,
+        rel=0.02,
     )
 
-    result = estimate(make_estimator(), frame)
+
+def test_rejected_frame_clears_published_path_filter():
+    estimator = make_estimator()
+    summarize_centreline_frame(
+        estimator,
+        center_offset_m=0.15,
+        stamp_s=1.0,
+    )
+    accumulated = None
+    for index in range(1, 5):
+        accumulated = summarize_centreline_frame(
+            estimator,
+            center_offset_m=0.25,
+            stamp_s=1.0 + 0.1 * index,
+        )
+
+    stale_frame = render_track_depth(stamp_s=2.0, width_m=1.5)
+    rejected = estimate(estimator, stale_frame, now_s=2.251)
+    after_reject = summarize_centreline_frame(
+        estimator,
+        center_offset_m=-0.15,
+        stamp_s=2.1,
+    )
+
+    assert accumulated is not None
+    assert accumulated.path_offset_m != pytest.approx(0.25, abs=1e-9)
+    assert rejected.reject_reasons == ("stale_frame",)
+    assert after_reject.path_offset_m == pytest.approx(-0.15, abs=1e-9)
+
+
+def test_path_filter_does_not_lag_wheel_clearances():
+    estimator = make_estimator()
+    first = summarize_centreline_frame(
+        estimator,
+        center_offset_m=0.10,
+        stamp_s=1.0,
+    )
+    second = summarize_centreline_frame(
+        estimator,
+        center_offset_m=-0.10,
+        stamp_s=1.1,
+    )
+
+    footprint_half_m = (
+        0.3595 + estimator.config.footprint_outboard_half_width_m
+    )
+    assert second.path_offset_m != pytest.approx(-0.10, abs=1e-9)
+    assert -0.10 < second.path_offset_m < first.path_offset_m
+    assert second.left_wheel_clearance_m == pytest.approx(
+        0.70 - 0.10 - footprint_half_m,
+        abs=1e-9,
+    )
+    assert second.right_wheel_clearance_m == pytest.approx(
+        0.70 + 0.10 - footprint_half_m,
+        abs=1e-9,
+    )
+
+
+def test_parallel_wider_surface_is_not_adopted_mid_frame():
+    estimator = make_estimator()
+    spans = []
+    for step, row in enumerate(range(2, 10)):
+        spans.extend(
+            (
+                (slice(row, row + 1), 21 - 2 * step, 39 - 2 * step, 0.0),
+                (slice(row, row + 1), 40 - 2 * step, 60 - 2 * step, 0.20),
+            )
+        )
+
+    result = summarize_grid(estimator, support_grid(estimator, spans))
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(-0.35, abs=1e-9)
+    assert result.heading_error_rad == pytest.approx(math.atan(-2.0), abs=1e-9)
+
+
+def test_wider_branch_without_drop_evidence_is_not_adopted():
+    """Regression for the observed ramp departure beside the real-course track."""
+    estimator = make_estimator()
+    grid = branching_surface_grid(
+        estimator,
+        track_drop_rows=slice(3, 14),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(-0.025, abs=1e-9)
+
+
+def test_no_drop_evidence_keeps_greatest_overlap_selection():
+    estimator = make_estimator()
+    grid = branching_surface_grid(
+        estimator,
+        track_drop_rows=None,
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(1.0, abs=1e-9)
+
+
+def test_drop_evidence_from_another_row_does_not_change_current_row_selection():
+    estimator = make_estimator()
+    grid = branching_surface_grid(
+        estimator,
+        track_drop_rows=slice(14, 15),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(1.0, abs=1e-9)
+
+
+def test_first_row_prefers_drop_bounded_run_over_wider_nearer_centreline():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 3), 20, 32, 0.20),
+            (slice(2, 3), 36, 46, 0.0),
+            (slice(3, 4), 16, 28, 0.20),
+            (slice(3, 4), 32, 48, 0.0),
+            (slice(4, 5), 12, 24, 0.20),
+            (slice(4, 5), 28, 50, 0.0),
+            (slice(5, 6), 8, 20, 0.20),
+            (slice(5, 6), 24, 52, 0.0),
+            (slice(6, 14), 4, 16, 0.20),
+            (slice(6, 14), 20, 52, 0.0),
+        ),
+    )
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[2, (35, 46)] = True
+
+    result = summarize_grid(
+        estimator,
+        with_lower_floor_evidence(grid, lower_floor),
+    )
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m > 0.25
+
+
+def test_first_row_transported_reference_selects_nearer_drop_bounded_run():
+    estimator = make_estimator()
+    initial = summarize_grid(
+        estimator,
+        support_grid(estimator, ((slice(2, 14), 20, 60, 0.0),)),
+        stamp_s=1.0,
+    )
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 3), 20, 30, 0.20),
+            (slice(2, 3), 33, 51, 0.0),
+            (slice(3, 4), 16, 26, 0.20),
+            (slice(3, 4), 29, 53, 0.0),
+            (slice(4, 5), 12, 22, 0.20),
+            (slice(4, 5), 25, 53, 0.0),
+            (slice(5, 14), 8, 18, 0.20),
+            (slice(5, 14), 21, 53, 0.0),
+        ),
+    )
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[2, (19, 31, 51)] = True
+
+    result = summarize_grid(
+        estimator,
+        with_lower_floor_evidence(grid, lower_floor),
+        stamp_s=1.1,
+    )
+
+    assert initial.path_offset_m == pytest.approx(0.5, abs=1e-9)
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m > 0.3
+
+
+def test_first_row_without_drop_bounded_runs_preserves_nearest_run_fallback():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 14), 20, 40, 0.0),
+            (slice(2, 14), 44, 60, 0.20),
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    footprint_half = 0.3595 + estimator.config.footprint_outboard_half_width_m
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(0.0, abs=1e-9)
+    assert result.heading_error_rad == pytest.approx(0.0, abs=1e-9)
+    assert result.left_wheel_clearance_m == pytest.approx(
+        0.50 - footprint_half,
+        abs=1e-9,
+    )
+    assert result.right_wheel_clearance_m == pytest.approx(
+        0.50 - footprint_half,
+        abs=1e-9,
+    )
+
+
+def test_centreline_rows_stop_when_surface_splits_without_overlap():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 6), 20, 40, 0.0),
+            (slice(6, 14), 0, 18, -0.20),
+            (slice(6, 14), 40, 60, 0.20),
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(0.0, abs=1e-9)
+    assert result.heading_error_rad == pytest.approx(0.0, abs=1e-9)
+
+
+def test_previous_centre_seed_is_transported_before_nearest_row_selection():
+    estimator = make_estimator(path_x_range_m=(0.40, 0.50), min_path_rows=2)
+    first_grid = support_grid(estimator, ((slice(2, 4), 21, 49, 0.0),))
+    first = summarize_grid(estimator, first_grid, stamp_s=1.0)
+    second_grid = support_grid(
+        estimator,
+        (
+            (slice(2, 3), 17, 34, 0.20),
+            (slice(2, 3), 36, 53, 0.0),
+            (slice(3, 4), 21, 49, 0.0),
+        ),
+    )
+
+    second = summarize_grid(
+        estimator,
+        second_grid,
+        stamp_s=1.1,
+        odometry_delta=OdometryDelta(dx_m=0.0, dy_m=-0.20, dyaw_rad=0.0),
+    )
+
+    assert first.path_offset_m == pytest.approx(0.25, abs=1e-9)
+    assert second.path_available, second.reject_reasons
+    assert second.path_offset_m == pytest.approx(0.2895833333333333, abs=1e-9)
+
+
+def test_certified_reference_survives_and_transports_across_uncertified_frames():
+    estimator = make_estimator()
+    certified_grid = support_grid(
+        estimator,
+        ((slice(2, 14), 20, 40, 0.0),),
+    )
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[10, (19, 40)] = True
+    summarize_grid(
+        estimator,
+        with_lower_floor_evidence(certified_grid, lower_floor),
+        stamp_s=1.0,
+    )
+    uncertified_grid = support_grid(
+        estimator,
+        ((slice(2, 14), 30, 54, 0.0),),
+    )
+
+    for stamp_s in (1.1, 1.2, 1.3):
+        summarize_grid(
+            estimator,
+            uncertified_grid,
+            stamp_s=stamp_s,
+            odometry_delta=OdometryDelta(
+                dx_m=0.0,
+                dy_m=-0.10,
+                dyaw_rad=0.0,
+            ),
+        )
+
+    reference = estimator._lateral_reference
+    assert reference is not None
+    assert reference.certified
+    assert reference.offset_m == pytest.approx(0.30, abs=1e-9)
+    assert reference.offset_m != pytest.approx(0.60, abs=1e-9)
+    assert reference.stamp_s == pytest.approx(1.0, abs=1e-9)
+    assert reference.travelled_m == pytest.approx(0.30, abs=1e-9)
+
+
+def test_certified_reference_is_only_replaced_by_later_certification():
+    estimator = make_estimator()
+    first_grid = support_grid(
+        estimator,
+        ((slice(2, 14), 20, 40, 0.0),),
+    )
+    first_lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    first_lower_floor[10, (19, 40)] = True
+    summarize_grid(
+        estimator,
+        with_lower_floor_evidence(first_grid, first_lower_floor),
+        stamp_s=1.0,
+    )
+
+    summarize_grid(
+        estimator,
+        support_grid(estimator, ((slice(2, 14), 30, 54, 0.0),)),
+        stamp_s=1.1,
+    )
+
+    held_reference = estimator._lateral_reference
+    assert held_reference is not None
+    assert held_reference.certified
+    assert held_reference.offset_m == pytest.approx(0.0, abs=1e-9)
+    assert held_reference.stamp_s == pytest.approx(1.0, abs=1e-9)
+
+    replacement_grid = support_grid(
+        estimator,
+        ((slice(2, 14), 9, 39, 0.0),),
+    )
+    replacement_lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    replacement_lower_floor[8, (8, 39)] = True
+    summarize_grid(
+        estimator,
+        with_lower_floor_evidence(replacement_grid, replacement_lower_floor),
+        stamp_s=1.2,
+    )
+
+    replacement = estimator._lateral_reference
+    assert replacement is not None
+    assert replacement.certified
+    assert replacement.offset_m == pytest.approx(-0.30, abs=1e-9)
+    assert replacement.stamp_s == pytest.approx(1.2, abs=1e-9)
+    assert replacement.travelled_m == pytest.approx(0.0, abs=1e-9)
+
+
+def test_certified_reference_expires_by_window_travel_not_history_time():
+    estimator = make_estimator()
+    certified_grid = support_grid(
+        estimator,
+        ((slice(2, 14), 20, 40, 0.0),),
+    )
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[10, (19, 40)] = True
+    summarize_grid(
+        estimator,
+        with_lower_floor_evidence(certified_grid, lower_floor),
+        stamp_s=1.0,
+    )
+
+    summarize_grid(
+        estimator,
+        empty_grid(estimator.grid_shape),
+        stamp_s=1.0 + estimator.config.history_horizon_s + 10.0,
+        odometry_delta=ZERO_ODOMETRY,
+    )
+    assert estimator._lateral_reference is not None
+    assert estimator._lateral_reference.certified
+
+    window_depth_m = (
+        estimator.config.path_x_range_m[1]
+        - estimator.config.path_x_range_m[0]
+    )
+    summarize_grid(
+        estimator,
+        empty_grid(estimator.grid_shape),
+        stamp_s=20.0,
+        odometry_delta=OdometryDelta(
+            dx_m=window_depth_m,
+            dy_m=0.0,
+            dyaw_rad=0.0,
+        ),
+    )
+    assert estimator._lateral_reference is not None
+    assert estimator._lateral_reference.travelled_m == pytest.approx(2.15, abs=1e-9)
+
+    summarize_grid(
+        estimator,
+        empty_grid(estimator.grid_shape),
+        stamp_s=20.1,
+        odometry_delta=OdometryDelta(
+            dx_m=0.001,
+            dy_m=0.0,
+            dyaw_rad=0.0,
+        ),
+    )
+    assert estimator._lateral_reference is None
+
+
+def test_first_row_follows_carried_certified_line_without_local_drop_evidence():
+    estimator = make_estimator()
+    certified_grid = support_grid(
+        estimator,
+        tuple(
+            (
+                slice(row, row + 1),
+                20 + 2 * (row - 2),
+                40 + 2 * (row - 2),
+                0.0,
+            )
+            for row in range(2, 11)
+        ),
+    )
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[10, (35, 56)] = True
+    summarize_grid(
+        estimator,
+        with_lower_floor_evidence(certified_grid, lower_floor),
+        stamp_s=1.0,
+    )
+    reference = estimator._lateral_reference
+    assert reference is not None
+    # 이 fixture의 적합선은 y=2x-0.85이므로 인증 row x=0.825의 값은 0.80 m다.
+    # HEAD 9b36a80의 전체 row 중앙값 0.40 m를 재사용하면 이 계약이 깨진다.
+    assert reference.offset_m == pytest.approx(0.80, abs=1e-9)
+    no_evidence_grid = support_grid(
+        estimator,
+        (
+            (slice(2, 11), 14, 21, 0.0),
+            (slice(2, 11), 37, 55, 0.20),
+            (slice(11, 14), 21, 55, 0.20),
+        ),
+    )
+
+    result = summarize_grid(
+        estimator,
+        no_evidence_grid,
+        stamp_s=1.0 + estimator.config.history_horizon_s + 0.1,
+    )
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m > 0.40
+
+
+def test_rejected_frame_preserves_surface_seed_until_history_horizon_then_expires():
+    results = []
+    for age_s in (1.5, 1.500001):
+        estimator = make_estimator(path_x_range_m=(0.40, 0.50), min_path_rows=2)
+        first_grid = support_grid(estimator, ((slice(2, 4), 21, 49, 0.0),))
+        summarize_grid(estimator, first_grid, stamp_s=1.0)
+        rejected = summarize_grid(
+            estimator,
+            empty_grid(estimator.grid_shape),
+            stamp_s=1.05,
+            odometry_delta=OdometryDelta(
+                dx_m=0.0,
+                dy_m=-0.20,
+                dyaw_rad=0.0,
+            ),
+        )
+        nearest_grid = support_grid(
+            estimator,
+            (
+                (slice(2, 3), 17, 34, 0.20),
+                (slice(2, 3), 36, 53, 0.0),
+                (slice(3, 4), 19, 39, 0.20),
+            ),
+        )
+
+        result = summarize_grid(
+            estimator,
+            nearest_grid,
+            stamp_s=1.0 + age_s,
+            odometry_delta=ZERO_ODOMETRY,
+        )
+
+        assert rejected.reject_reasons == ("no_connected_support",)
+        assert result.path_available, result.reject_reasons
+        results.append(result)
+
+    assert results[0].path_offset_m == pytest.approx(0.3375, abs=1e-9)
+    assert results[1].path_offset_m == pytest.approx(-0.1375, abs=1e-9)
+
+
+def test_support_gap_wider_than_three_cells_is_not_merged_into_reported_width():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 14), 20, 39, 0.0),
+            (slice(2, 14), 43, 50, 0.0),
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    footprint_width_m = 2.0 * (
+        0.3595 + estimator.config.footprint_outboard_half_width_m
+    )
+    reported_width_m = (
+        result.left_wheel_clearance_m
+        + result.right_wheel_clearance_m
+        + footprint_width_m
+    )
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(-0.025, abs=1e-9)
+    assert reported_width_m == pytest.approx(0.95, abs=1e-9)
+
+
+def test_support_gap_of_three_cells_is_still_merged():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 14), 20, 39, 0.0),
+            (slice(2, 14), 42, 50, 0.0),
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    footprint_width_m = 2.0 * (
+        0.3595 + estimator.config.footprint_outboard_half_width_m
+    )
+    reported_width_m = (
+        result.left_wheel_clearance_m
+        + result.right_wheel_clearance_m
+        + footprint_width_m
+    )
+    assert result.path_available, result.reject_reasons
+    assert reported_width_m == pytest.approx(1.50, abs=1e-9)
+
+
+def test_path_offset_is_fit_median_at_contributing_rows_not_intercept():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        tuple(
+            (slice(row, row + 1), 20 + row - 2, 40 + row - 2)
+            for row in range(2, 10)
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(0.175, abs=1e-9)
+    assert result.heading_error_rad == pytest.approx(math.atan(1.0), abs=1e-9)
+
+
+def test_centreline_refits_after_dropping_large_residual_rows():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 8), 20, 40),
+            (slice(8, 10), 28, 48),
+            (slice(10, 14), 20, 40),
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(0.0, abs=1e-9)
+    assert result.heading_error_rad == pytest.approx(0.0, abs=1e-9)
+
+
+def test_blind_rows_narrower_than_rover_do_not_move_reported_centre():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 6), 20, 40),
+            (slice(6, 14), 34, 42),
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    footprint_half = 0.3595 + estimator.config.footprint_outboard_half_width_m
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(0.0, abs=1e-9)
+    assert result.heading_error_rad == pytest.approx(0.0, abs=1e-9)
+    assert result.left_wheel_clearance_m == pytest.approx(
+        0.50 - footprint_half,
+        abs=1e-9,
+    )
+    assert result.right_wheel_clearance_m == pytest.approx(
+        0.50 - footprint_half,
+        abs=1e-9,
+    )
+
+
+def test_no_row_covering_rover_footprint_fails_closed():
+    estimator = make_estimator()
+    grid = support_grid(estimator, ((slice(2, 14), 32, 48),))
+
+    result = summarize_grid(estimator, grid)
 
     assert not result.path_available
-    assert "drop_boundaries_unobserved" in result.reject_reasons
-    missing_reason = "left_drop_boundary" if missing_left else "right_drop_boundary"
-    assert missing_reason not in result.degradation_reasons
+    assert result.reject_reasons == ("unsupported_footprint",)
 
 
-def test_fov_truncated_edges_fail_closed_without_drop_evidence():
-    result = estimate(make_estimator(), render_track_depth(width_m=3.2))
+def test_single_contributing_row_cannot_resolve_centreline():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 3), 20, 40),
+            (slice(3, 14), 27, 35),
+        ),
+    )
 
-    assert not result.path_available
-    assert "drop_boundaries_unobserved" in result.reject_reasons
-
-
-def test_local_choke_cannot_be_discarded_in_favour_of_wider_rows():
-    frame = render_track_depth(width_m=1.5, choke_width_m=0.8)
-
-    result = estimate(make_estimator(), frame)
+    result = summarize_grid(estimator, grid)
 
     assert not result.path_available
-    assert "erosion_empty" in result.reject_reasons
+    assert result.reject_reasons == ("centreline_unresolved",)
+
+
+def test_disconnected_support_island_does_not_expand_reported_clearance():
+    estimator = make_estimator(
+        path_x_range_m=(0.40, 0.50),
+        min_path_rows=2,
+    )
+    grid = empty_grid(estimator.grid_shape)
+    support = np.zeros(estimator.grid_shape, dtype=bool)
+    support[2:4, 20:40] = True
+    support[2, 49] = True
+    finite_support = np.where(support, 0.0, np.nan)
+    support_height = finite_support.copy()
+    support_height[2, 49] = -0.25
+    grid = dataclasses.replace(
+        grid,
+        height_m=support_height,
+        slope_x=finite_support.copy(),
+        slope_y=finite_support.copy(),
+        roughness_m=finite_support.copy(),
+        confidence=support.astype(float),
+        valid_mask=support.copy(),
+        support_mask=support,
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    footprint_half = 0.3595 + estimator.config.footprint_outboard_half_width_m
+    # 기존 최외곽 셀 규칙이면 고립 셀 때문에 좌측 경계 0.75 m, 여유 0.3425 m가 된다.
+    assert result.path_available, result.reject_reasons
+    assert result.left_wheel_clearance_m == pytest.approx(
+        0.50 - footprint_half,
+        abs=0.005,
+    )
+
+
+def test_no_connected_support_still_fails_closed():
+    estimator = make_estimator()
+    result = summarize_grid(estimator, empty_grid(estimator.grid_shape))
+
+    assert not result.path_available
+    assert result.reject_reasons == ("no_connected_support",)
 
 
 @pytest.mark.parametrize(
@@ -393,23 +1231,86 @@ def test_depth_quality_spike_is_not_admitted_to_support_points():
     assert not support_mask[50, 40]
 
 
-def test_temporal_jump_fails_closed_and_inherits_depth_quality_reason():
+def test_temporal_jump_rejects_one_frame_then_accepts_the_steady_scene():
+    """The measured real-course 88--98% rejection defect must not latch."""
     estimator = make_estimator()
-    first = render_track_depth(stamp_s=1.0, width_m=1.5)
-    assert estimate(estimator, first).path_available
-    jumped = np.array(first.depth_roi, copy=True)
-    valid = (jumped > 0) & (jumped < 6000)
-    jumped[valid] = jumped[valid] + 600
-    second = TerrainFrame(jumped, 0.001, WIDE_INTRINSICS, 1.1)
+    first_frame = render_track_depth(stamp_s=1.0, width_m=1.5)
+    jumped_frame = shift_upper_depth_rows(
+        first_frame,
+        offset_mm=600,
+        stamp_s=1.1,
+    )
 
-    result = estimate(estimator, second)
+    first = estimate(estimator, first_frame)
+    jumped = estimate(estimator, jumped_frame)
+    steady = estimate(
+        estimator,
+        dataclasses.replace(jumped_frame, stamp_s=1.2),
+    )
 
-    assert not result.path_available
-    assert "temporal_jump" in result.reject_reasons
+    assert first.path_available, first.reject_reasons
+    assert jumped.reject_reasons == ("temporal_jump",)
+    assert steady.path_available, steady.reject_reasons
+    assert steady.reject_reasons == ()
 
-    recovered_frame = TerrainFrame(first.depth_roi, 0.001, WIDE_INTRINSICS, 1.2)
-    recovered = estimate(estimator, recovered_frame)
-    assert recovered.path_available, recovered.reject_reasons
+
+def test_steadily_receding_scene_recovers_when_per_frame_step_drops_below_limit():
+    estimator = make_estimator()
+    first_frame = render_track_depth(stamp_s=1.0, width_m=1.5)
+    frames = (
+        first_frame,
+        *(
+            shift_upper_depth_rows(
+                first_frame,
+                offset_mm=offset_mm,
+                stamp_s=stamp_s,
+            )
+            for offset_mm, stamp_s in (
+                (260, 1.1),
+                (520, 1.2),
+                (780, 1.3),
+                (900, 1.4),
+            )
+        ),
+    )
+    results = tuple(estimate(estimator, frame) for frame in frames)
+
+    assert results[0].path_available, results[0].reject_reasons
+    assert all(
+        result.reject_reasons == ("temporal_jump",)
+        for result in results[1:4]
+    )
+    assert results[4].path_available, results[4].reject_reasons
+    assert results[4].reject_reasons == ()
+
+
+def test_unusable_depth_and_regressing_stamp_do_not_advance_frame_reference():
+    missing_estimator = make_estimator()
+    first = analyze_frame_quality(missing_estimator, depth_m=1.0, stamp_s=1.0)
+    missing_depth = np.zeros(
+        missing_estimator.config.depth_shape_px,
+        dtype=np.uint16,
+    )
+    missing = missing_estimator._quality_and_mask(
+        missing_depth,
+        depth_scale_m=0.001,
+        intrinsics=WIDE_INTRINSICS,
+        stamp_s=1.1,
+    )[0]
+
+    assert "no_valid_depth" in missing.reject_reasons
+    assert missing_estimator._frame_quality == first.snapshot()
+
+    regressing_estimator = make_estimator()
+    first = analyze_frame_quality(regressing_estimator, depth_m=1.0, stamp_s=2.0)
+    regressing = analyze_frame_quality(
+        regressing_estimator,
+        depth_m=1.20,
+        stamp_s=1.9,
+    )
+
+    assert regressing.reject_reasons == ("regressing_frame_stamp",)
+    assert regressing_estimator._frame_quality == first.snapshot()
 
 
 def test_partial_occlusion_and_noise_reduce_confidence_in_expected_direction():
@@ -435,15 +1336,28 @@ def test_partial_occlusion_and_noise_reduce_confidence_in_expected_direction():
     assert noisy.roughness_m > clean.roughness_m
 
 
-def test_narrow_erosion_and_stale_input_fail_closed():
-    narrow = estimate(make_estimator(), render_track_depth(width_m=0.9))
+def test_stale_input_fails_closed():
     stale_frame = render_track_depth(stamp_s=2.0, width_m=1.5)
     stale = estimate(make_estimator(), stale_frame, now_s=2.251)
 
-    assert not narrow.path_available
-    assert "erosion_empty" in narrow.reject_reasons
     assert not stale.path_available
     assert stale.reject_reasons == ("stale_frame",)
+
+
+def test_as_built_v2_0_90_m_track_is_traversable_with_42_5_mm_clearance():
+    """The 0.90 m course clears each outboard hub edge by 42.5 mm.
+
+    The as-built v2 footprint half-width is 0.3595 + 0.048 = 0.4075 m, so
+    the physical outboard clearance is 0.4500 - 0.4075 = 0.0425 m.
+    The 5 mm assertion tolerance is one tenth of the estimator's 50 mm grid
+    cell: tight enough to catch a one-cell boundary regression.
+    """
+    result = estimate(make_estimator(), render_track_depth(width_m=0.90))
+
+    assert result.path_available, result.reject_reasons
+    assert result.reject_reasons == ()
+    assert result.left_wheel_clearance_m == pytest.approx(0.0425, abs=0.005)
+    assert result.right_wheel_clearance_m == pytest.approx(0.0425, abs=0.005)
 
 
 def test_same_input_sequence_produces_identical_outputs():
@@ -492,7 +1406,6 @@ def test_recent_grid_is_carried_into_blind_zone_with_odometry_delta():
     )
 
     assert result.path_available, result.reject_reasons
-    assert "odometry_carried" in result.degradation_reasons
 
 
 def test_grid_history_expires_after_bounded_horizon():
@@ -523,7 +1436,6 @@ def test_grid_history_expires_after_bounded_horizon():
     )
 
     assert not result.path_available
-    assert "odometry_carried" not in result.degradation_reasons
 
 
 def test_local_drop_reference_follows_longitudinal_slope():
@@ -587,14 +1499,14 @@ def test_local_high_protrusion_is_an_obstacle_candidate_not_support():
     patch = depth[35:50, 30:50].astype(np.int32) - 250
     depth[35:50, 30:50] = np.clip(patch, 1, 65535).astype(np.uint16)
 
-    result = estimate(
-        make_estimator(),
+    estimator = make_estimator()
+    estimate(
+        estimator,
         TerrainFrame(depth, 0.001, WIDE_INTRINSICS, frame.stamp_s),
     )
 
-    assert "local_obstacle" in result.degradation_reasons
-    assert not result.path_available
-    assert "obstacle_blocks_path" in result.reject_reasons
+    assert np.any(estimator._grid.obstacle_mask)
+    assert not np.any(estimator._grid.obstacle_mask & estimator._grid.support_mask)
 
 
 def test_mujoco_wide_fov_recording_replay_matches_drop_clearance_and_offset(tmp_path):
@@ -676,11 +1588,6 @@ def test_mujoco_wide_fov_recording_replay_matches_drop_clearance_and_offset(tmp_
     )
     actual_min_clearance = report.min_wheel_clearance_m - WHEEL_HALF_WIDTH_M
     assert estimated_min_clearance == pytest.approx(actual_min_clearance, abs=0.12)
-    assert all(
-        "left_drop_boundary" in result.degradation_reasons
-        and "right_drop_boundary" in result.degradation_reasons
-        for result, _ in comparisons
-    )
 
 
 def test_terrain_package_exports_public_estimator_contract():

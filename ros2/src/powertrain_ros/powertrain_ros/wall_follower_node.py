@@ -22,6 +22,7 @@ import numpy as np
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Point, Twist
+from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import PointCloud2
@@ -82,7 +83,10 @@ class WallFollowerNode(Node):
 
         self.tf_buf = Buffer()
         self.tf_listener = TransformListener(self.tf_buf, self)
+        self._steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
         self._allow_drive = True
+        self._approach_active = False
+        self._approach_active_s = 0.0
         self._n = 0
         self._last = None
 
@@ -93,6 +97,8 @@ class WallFollowerNode(Node):
                        history=HistoryPolicy.KEEP_LAST, depth=1))
         self.create_subscription(Bool, "/mission/allow_drive",
                                  lambda m: setattr(self, "_allow_drive", m.data), 10)
+        self.create_subscription(Bool, "/approach/active",
+                                 self._on_approach_active, 10)
 
         self.pub_state = self.create_publisher(Float32MultiArray, "/wall/state", 10)
         self.pub_cmd = self.create_publisher(Twist, "/autonomy/cmd_vel", 10)
@@ -102,6 +108,13 @@ class WallFollowerNode(Node):
         self.get_logger().info(
             f"wall_follower 시작 — {self.cfg.side} 벽, 목표 {self.cfg.target_m} m, "
             f"제안 {'ON' if bool(self.get_parameter('enabled').value) else 'OFF'}")
+
+    def _steady_now_s(self):
+        return self._steady_clock.now().nanoseconds * 1e-9
+
+    def _on_approach_active(self, msg: Bool):
+        self._approach_active = bool(msg.data)
+        self._approach_active_s = self._steady_now_s()
 
     def _on_cloud(self, msg: PointCloud2):
         try:
@@ -126,8 +139,17 @@ class WallFollowerNode(Node):
         self._publish_marker(res)
 
         v, omega, ok = self.follower.update(res)
+        approach_active = (
+            self._approach_active
+            and (self._steady_now_s() - self._approach_active_s) < 0.5
+        )
         # ⚠️ 못 보면 아무것도 발행하지 않는다. 미션이 정차를 명령해도 마찬가지.
-        if ok and self._allow_drive and bool(self.get_parameter("enabled").value):
+        if (
+            ok
+            and self._allow_drive
+            and not approach_active
+            and bool(self.get_parameter("enabled").value)
+        ):
             cmd = Twist()
             cmd.linear.x = v
             cmd.angular.z = omega

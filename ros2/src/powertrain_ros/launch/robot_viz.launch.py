@@ -15,8 +15,8 @@
 모터가 꺼져 있어도 `joint_state_bridge` 가 0 자세를 계속 발행하므로 **로봇은 화면에 뜬다.**
 모터를 돌리면(ChassisManager → `/wheel_states`) 바퀴와 조향이 화면에서 실제로 움직인다.
 
-⚠️ URDF 치수 중 **윤거·차체·센서 마운트는 미실측 플레이스홀더**다. 설계팀 정본이 오면
-   `urdf/jetin_rover.urdf.xacro` 의 property 만 갈아끼운다. 파이프라인은 그대로 산다.
+윤거·차체는 **as-built v2 CAD 실측으로 확정**했다. 센서 마운트만 v2 CAD 에도 형상이
+없어 미실측 플레이스홀더이며, 실측 후 `urdf/jetin_rover.urdf.xacro` property 를 갱신한다.
 """
 import os
 

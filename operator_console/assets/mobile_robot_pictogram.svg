@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="390" height="230" viewBox="0 0 390 230"
+     preserveAspectRatio="xMidYMid meet">
+  <ellipse cx="198" cy="202" rx="150" ry="8"
+           fill="rgba(0,8,18,.22)"/>
+  <!-- Far-side wheels remain visible behind the chassis. -->
+  <g fill="#263F55" opacity=".72" stroke="rgba(90,134,173,.62)"
+     stroke-width="1.7">
+    <circle cx="118" cy="153" r="24"/>
+    <circle cx="206" cy="157" r="24"/>
+    <circle cx="294" cy="161" r="24"/>
+  </g>
+  <!-- Visible rocker-bogie links communicate the rough-terrain suspension. -->
+  <g fill="none" stroke="rgba(90,134,173,.62)" stroke-width="3"
+     stroke-linecap="round" stroke-linejoin="round" opacity=".78">
+    <path d="M93 126L138 151L190 126L242 155L304 132"/>
+    <path d="M138 151L116 169M242 155L292 169"/>
+    <circle cx="190" cy="126" r="7" fill="#476F8E"/>
+    <circle cx="138" cy="151" r="5" fill="#476F8E"/>
+    <circle cx="242" cy="155" r="5" fill="#476F8E"/>
+  </g>
+
+  <!-- Low, rectangular disaster-response chassis with two restrained planes. -->
+  <g stroke="rgba(74,116,154,.58)" stroke-width="1.7"
+     stroke-linejoin="round">
+    <path d="M58 93L302 97L337 119L316 168L75 163L45 139Z"
+          fill="#355B78" opacity=".82"/>
+    <path d="M77 65L286 69L329 100L302 112L58 108Z"
+          fill="#5D83A0" opacity=".68"/>
+    <path d="M302 112L337 119L316 168L298 158Z"
+          fill="#476F8E" opacity=".72"/>
+  </g>
+
+  <!-- Near-side wheels: three equal wheels make the six-wheel layout explicit. -->
+  <g fill="#263F55" opacity=".88" stroke="rgba(90,134,173,.62)"
+     stroke-width="1.8">
+    <circle cx="88" cy="165" r="27"/>
+    <circle cx="190" cy="167" r="27"/>
+    <circle cx="292" cy="169" r="27"/>
+  </g>
+  <g fill="none" stroke="#5D83A0" stroke-width="1.6" opacity=".70">
+    <circle cx="88" cy="165" r="11"/>
+    <circle cx="190" cy="167" r="11"/>
+    <circle cx="292" cy="169" r="11"/>
+  </g>
+
+  <!-- Wheel guards connect the running gear without tank-like tracks. -->
+  <g fill="rgba(54,92,126,.34)" stroke="rgba(74,116,154,.46)"
+     stroke-width="1.5" stroke-linejoin="round">
+    <path d="M57 145L70 130H103L118 147"/>
+    <path d="M159 147L173 132H206L220 149"/>
+    <path d="M261 149L275 134H308L321 151"/>
+  </g>
+
+  <!-- Forward sensor module. -->
+  <g stroke="rgba(74,116,154,.58)" stroke-width="1.6"
+     stroke-linejoin="round">
+    <path d="M254 75L261 54H292L299 80Z" fill="#355B78" opacity=".82"/>
+    <rect x="260" y="38" width="39" height="20" rx="3"
+          fill="#5D83A0" opacity=".76"/>
+    <rect x="270" y="44" width="19" height="7" rx="2"
+          fill="#3478C9" stroke="#3478C9" opacity=".86"/>
+  </g>
+
+  <!-- Parked upper manipulator and compact work-tool mount. -->
+  <g stroke="rgba(74,116,154,.58)" stroke-width="1.8"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M104 72L115 52H143L153 78Z"
+          fill="#355B78" opacity=".82"/>
+    <circle cx="130" cy="53" r="9" fill="#476F8E"/>
+    <path d="M130 45L148 21L164 31L148 59Z"
+          fill="#5D83A0" opacity=".76"/>
+    <circle cx="157" cy="27" r="8" fill="#355B78"/>
+    <path d="M164 28L211 42L206 58L158 36Z"
+          fill="#476F8E"/>
+    <circle cx="211" cy="51" r="8" fill="#355B78"/>
+    <path d="M217 52L235 43M217 55L234 66" fill="none"/>
+  </g>
+</svg>

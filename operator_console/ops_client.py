@@ -89,6 +89,12 @@ class ConsoleOpsClient:
         with self._queue_lock:
             return self._dropped_send_count
 
+    @property
+    def connected(self):
+        """Whether the liveness-monitored ops connection currently exists."""
+        with self._client_lock:
+            return self._client is not None and not self._stopping.is_set()
+
     def submit(self, action, params=None, expected_state_revision=None):
         """Queue one command without blocking the GTK thread."""
         if self._stopping.is_set():

@@ -2,8 +2,8 @@
 """구동 6축(node 11~16) CAN 동시 주행 브링업 테스트.
 
 can0 로 6축 전부 속도제어(VELOCITY/VEL_RAMP) arm →
-  ① 전진 동시 +1.0 rev/s
-  ② 제자리선회: 좌(11/13/15)=+1.0 / 우(12/14/16)=−1.0
+  ① 전진: 좌(11/13/15)=+1.0 / 우(12/14/16)=−1.0
+  ② 제자리선회: 6축 전부 +1.0 rev/s
   ③ 정지 →0
 각 축 RTR(Get_Encoder_Estimates cmd 0x09)로 실제 vel 읽어 추종 확인 + heartbeat err 감시.
 CANSimple: Set_Controller_Mode(0x0B)=<ii(2,2), Set_Input_Vel(0x0D)=<ff, Set_Axis_State(0x07).
@@ -29,6 +29,7 @@ S_IDLE, S_CLOSED_LOOP = 1, 8
 CTRL_VELOCITY, INPUT_VEL_RAMP = 2, 2
 NODES = [11, 12, 13, 14, 15, 16]
 LEFT, RIGHT = [11, 13, 15], [12, 14, 16]
+# 우측 M1 축은 좌측과 미러 장착되어 물리적 전진에 모터 프레임 음수가 필요하다.
 
 
 def arb(n, c):
@@ -138,17 +139,17 @@ def main():
             n_arm = sum(armed.values())
             print("  → %d/%d arm" % (n_arm, len(NODES)))
 
-            print("\n① 전진 동시 +%.1f rev/s (2s)" % sp)
-            for n in NODES:
-                set_vel(bus, n, sp)
-            time.sleep(2.0)
-            readall(bus, "전진")
-
-            print("\n② 제자리선회: 좌(11/13/15)=+%.1f / 우(12/14/16)=−%.1f (2s)" % (sp, sp))
+            print("\n① 전진: 좌(11/13/15)=+%.1f / 우(12/14/16)=−%.1f rev/s (2s)" % (sp, sp))
             for n in LEFT:
                 set_vel(bus, n, sp)
             for n in RIGHT:
                 set_vel(bus, n, -sp)
+            time.sleep(2.0)
+            readall(bus, "전진")
+
+            print("\n② 제자리선회: 6축 전부 +%.1f rev/s (2s)" % sp)
+            for n in NODES:
+                set_vel(bus, n, sp)
             time.sleep(2.0)
             readall(bus, "선회")
 

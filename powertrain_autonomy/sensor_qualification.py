@@ -11,6 +11,8 @@ from typing import Mapping, Sequence
 
 import numpy as np
 
+from .validation import require_non_negative
+
 
 def _finite(value: float, name: str) -> float:
     converted = float(value)
@@ -335,22 +337,17 @@ class PitchMetrics:
 
     def __post_init__(self) -> None:
         for name in (
-            "pitch_deg",
-            "near_blind_spot_m",
-            "coverage_min_m",
-            "coverage_max_m",
-            "footprint_clearance_m",
+            "pitch_deg", "near_blind_spot_m", "coverage_min_m",
+            "coverage_max_m", "footprint_clearance_m",
             "below_floor_separation_m",
         ):
             value = _finite(getattr(self, name), name)
             object.__setattr__(self, name, value)
-        if min(
-            self.near_blind_spot_m,
-            self.coverage_min_m,
-            self.coverage_max_m,
-            self.footprint_clearance_m,
-            self.below_floor_separation_m,
-        ) < 0.0:
+        minimum_distance = min(
+            self.near_blind_spot_m, self.coverage_min_m, self.coverage_max_m,
+            self.footprint_clearance_m, self.below_floor_separation_m,
+        )
+        if minimum_distance < 0.0:
             raise ValueError("pitch distance metrics must be nonnegative metres")
         if self.coverage_min_m > self.coverage_max_m:
             raise ValueError("coverage range must be ordered")
@@ -366,15 +363,12 @@ class PitchRequirements:
 
     def __post_init__(self) -> None:
         for name in (
-            "max_near_blind_spot_m",
-            "required_coverage_min_m",
-            "required_coverage_max_m",
-            "min_footprint_clearance_m",
+            "max_near_blind_spot_m", "required_coverage_min_m",
+            "required_coverage_max_m", "min_footprint_clearance_m",
             "min_below_floor_separation_m",
         ):
             value = _finite(getattr(self, name), name)
-            if value < 0.0:
-                raise ValueError("pitch requirements must be nonnegative metres")
+            require_non_negative(value, "pitch requirements must be nonnegative metres")
             object.__setattr__(self, name, value)
         if self.required_coverage_min_m > self.required_coverage_max_m:
             raise ValueError("required coverage range must be ordered")
