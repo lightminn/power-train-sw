@@ -185,6 +185,7 @@ def build_arm_telemetry_payload(
 def _metadata_detection(
     detection,
     pick_target,
+    pick_iou_threshold: float,
 ) -> dict[str, Any] | None:
     (
         class_id,
@@ -213,12 +214,24 @@ def _metadata_detection(
             position = list(position_values)
 
     class_id = int(class_id)
-    # The latched pick target is best effort.  Exact matching prevents an old
-    # target from marking a new detection after the arm stack has moved on.
+    def bbox_iou(first, second) -> float:
+        ax, ay, aw, ah = first
+        bx, by, bw, bh = second
+        left, top = max(ax, bx), max(ay, by)
+        right, bottom = min(ax + aw, bx + bw), min(ay + ah, by + bh)
+        intersection = max(0, right - left) * max(0, bottom - top)
+        union = aw * ah + bw * bh - intersection
+        return 0.0 if union <= 0 else intersection / union
+
+    # `/pick_target` is published immediately after `/detected_objects`, so
+    # the bridge normally compares the current detection against the previous
+    # inference bbox.  Exact equality made the target flag disappear on normal
+    # one-pixel motion.  Same-class IoU continuity preserves identity without
+    # accepting a spatially unrelated stale target.
     is_pick_target = (
         pick_target is not None
         and class_id == int(pick_target[0])
-        and bbox == tuple(pick_target[1])
+        and bbox_iou(bbox, tuple(pick_target[1])) >= pick_iou_threshold
     )
     return {
         "class_id": class_id,
@@ -240,6 +253,7 @@ def build_detection_metadata_payload(
     detections,
     pick_target,
     capture_sequence=None,
+    pick_iou_threshold=0.5,
 ) -> bytes:
     """Encode the arm metadata schema superset accepted by the console.
 
@@ -249,7 +263,9 @@ def build_detection_metadata_payload(
     """
     encoded_detections = []
     for detection in detections:
-        encoded = _metadata_detection(detection, pick_target)
+        encoded = _metadata_detection(
+            detection, pick_target, float(pick_iou_threshold),
+        )
         if encoded is not None:
             encoded_detections.append(encoded)
     payload = {

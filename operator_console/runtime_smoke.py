@@ -10,7 +10,8 @@ early exit. Run it (or the pytest wrapper) after every operator_console
 change:
 
     xvfb-run 없이 직접:  /usr/bin/python3 -m operator_console.runtime_smoke
-    (하니스가 스스로 xvfb-run -a 로 감싼다 — 사용자 화면에 창을 띄우지 않음)
+    (하니스가 WAYLAND_DISPLAY 를 제거하고 GDK_BACKEND=x11 로 고정한 뒤
+    xvfb-run -a 로 감싸므로 사용자 화면에 창을 띄우지 않는다.)
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ import math
 import os
 from pathlib import Path
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -37,6 +39,29 @@ STARTUP_TIMEOUT_S = 40.0
 REQUIRED_PANELS = frozenset({"telemetry", "chassis", "metadata", "arm"})
 
 
+def smoke_child_env(
+    base: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Force the console child onto X11 so Xvfb actually isolates it."""
+    env = dict(os.environ if base is None else base)
+    env.pop("WAYLAND_DISPLAY", None)
+    env["GDK_BACKEND"] = "x11"
+    return env
+
+
+def _console_child_pid(group_pid: int) -> int | None:
+    """xvfb-run 래퍼가 감싼 실제 콘솔 프로세스의 pid.
+
+    래퍼에 신호를 보내면 콘솔의 종료 코드가 가려져 종료 경로 결함을 못 본다.
+    """
+    result = subprocess.run(
+        ["pgrep", "-g", str(group_pid), "-f", "operator_console.app"],
+        capture_output=True, text=True,
+    )
+    pids = [int(line) for line in result.stdout.split() if line.isdigit()]
+    return max(pids) if pids else None
+
+
 def _probe_states(probe_file: Path, wanted: str) -> set[str]:
     """프로브 파일에서 지금 `wanted` 상태인 패널 이름을 읽는다.
 
@@ -49,6 +74,25 @@ def _probe_states(probe_file: Path, wanted: str) -> set[str]:
     if not isinstance(states, dict):
         return set()
     return {name for name, state in states.items() if state == wanted}
+
+
+def _probe_main_video(probe_file: Path) -> str | None:
+    try:
+        states = json.loads(probe_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(states, dict):
+        return None
+    value = states.get("main_video")
+    return str(value) if value is not None else None
+
+
+def _probe_rover_widths(probe_file: Path) -> tuple[int, int] | None:
+    try:
+        states = json.loads(probe_file.read_text(encoding="utf-8"))
+        return int(states["rover_l515_width"]), int(states["rover_d435_width"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 def _free_udp_port() -> int:
@@ -190,6 +234,7 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,
+            env=smoke_child_env(),
         )
     except BaseException:
         Path(token_file).unlink(missing_ok=True)
@@ -201,6 +246,8 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
     }
     live_seen: set[str] = set()
     stale_seen: set[str] = set()
+    unexpected_auto_swap_seen = False
+    role_sized_rovers_seen = False
     try:
         # 콘솔이 Gtk 루프에 진입하기 전에 주입 창을 소진하면 LIVE 를 한 번도
         # 못 보고 거짓 FAIL 이 난다(부하가 높으면 xvfb 기동이 수 초 걸린다).
@@ -232,6 +279,10 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
                 )
             time.sleep(0.2)
             live_seen |= _probe_states(probe_file, "LIVE")
+            unexpected_auto_swap_seen |= (
+                _probe_main_video(probe_file) == "작업 카메라"
+            )
+            role_sized_rovers_seen |= _probe_rover_widths(probe_file) == (290, 90)
         # phase 2 — 주입 중단: 전 패널 LIVE→STALE 전이 + 오버레이 숨김 경로.
         stale_deadline = time.monotonic() + 2.5
         while time.monotonic() < stale_deadline and console.poll() is None:
@@ -258,11 +309,23 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
         while time.monotonic() < sparse_deadline and console.poll() is None:
             time.sleep(0.2)
         early_exit = console.poll() is not None
+        shutdown_timed_out = False
         if not early_exit:
-            console.terminate()
+            # 사용자가 창을 닫거나 Ctrl+C 를 누르는 것과 같은 경로로 내린다.
+            # SIGKILL 로 내리면 종료 경로의 결함이 영원히 안 보인다 —
+            # 2026-07-29 실사고: 창을 닫으면 libsrt 전역 소멸자가 자기 워커
+            # 스레드가 살아있는 채로 큐를 파괴해 메인 스레드가
+            # pthread_cond_destroy 에서 멈추고(터미널 안 돌아옴) 수신 워커가
+            # SIGSEGV 로 죽었다.
+            # Popen 의 pid 는 xvfb-run 래퍼다.  래퍼째로 신호를 맞으면 콘솔의
+            # 종료 코드가 래퍼 것에 가려지므로, 그룹 안에서 콘솔 자식만 찾아
+            # 보낸다(xvfb-run 은 자식의 종료 코드를 그대로 돌려준다).
+            console_pid = _console_child_pid(console.pid)
+            os.kill(console_pid or console.pid, signal.SIGINT)
         try:
-            _, stderr = console.communicate(timeout=10)
+            _, stderr = console.communicate(timeout=15)
         except subprocess.TimeoutExpired:
+            shutdown_timed_out = True
             os.killpg(console.pid, 9)
             _, stderr = console.communicate()
     finally:
@@ -275,6 +338,20 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
     text = stderr.decode("utf-8", "replace")
     if early_exit:
         return False, f"console exited early (rc={console.returncode})\n{text}"
+    if shutdown_timed_out:
+        return False, (
+            "console did not exit within 15s of SIGINT — 종료 경로가 막혔다\n"
+            f"{text}"
+        )
+    if console.returncode != 0:
+        signal_name = (
+            signal.Signals(-console.returncode).name
+            if console.returncode < 0 else str(console.returncode)
+        )
+        return False, (
+            f"console shutdown was not clean (rc={console.returncode}"
+            f" · {signal_name})\n{text}"
+        )
     if "Traceback" in text:
         return False, f"callback traceback detected:\n{text}"
     # 기동·무traceback 만으로는 아무것도 보장하지 못한다. 수신 스레드를 통째로
@@ -292,10 +369,16 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
             f"panels never went STALE after injection stopped: "
             f"{', '.join(missing_stale)}\n{text}"
         )
+    if unexpected_auto_swap_seen:
+        return False, "D435i became MAIN without an operator click\n" + text
+    if not role_sized_rovers_seen:
+        return False, (
+            "default front-MAIN/work-PiP placeholder sizes changed\n" + text
+        )
     return True, (
         f"PASS · {sequence} ticks on 4 channels · "
         f"LIVE+STALE observed on {', '.join(sorted(REQUIRED_PANELS))} · "
-        "no tracebacks"
+        "no automatic camera swap observed · no tracebacks"
     )
 
 

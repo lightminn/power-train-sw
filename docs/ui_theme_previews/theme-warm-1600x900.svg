@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<rect x="0.0" y="0.0" width="1600.0" height="900.0" rx="0.0" fill="#F2F0EB" stroke="none" stroke-width="0.0"/>
+<rect x="0.0" y="0.0" width="1600.0" height="60.0" rx="0.0" fill="#FCFBF8" stroke="none" stroke-width="0.0"/>
+<rect x="0.0" y="60.0" width="1600.0" height="40.0" rx="0.0" fill="#FCFBF8" stroke="none" stroke-width="0.0"/>
+<rect x="0.0" y="99.2" width="1600.0" height="0.8" rx="0.0" fill="#DDD9D1" stroke="none" stroke-width="0.0"/>
+<text x="23.3" y="25.0" fill="#17202A" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="18.3" font-weight="800" text-anchor="start">재난 대응 로봇 관제 시스템</text>
+<text x="23.3" y="44.2" fill="#5E6873" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="9.2" font-weight="500" text-anchor="start">실시간 임무 수행 및 안전 상태 확인</text>
+<circle cx="775.0" cy="29.2" r="3.3" fill="#939AA2"/>
+<text x="784.2" y="26.7" fill="#939AA2" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="8.3" font-weight="600" text-anchor="start">로봇 연결</text>
+<text x="784.2" y="40.0" fill="#17202A" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="9.2" font-weight="700" text-anchor="start">연결 대기</text>
+<circle cx="916.7" cy="29.2" r="3.3" fill="#939AA2"/>
+<text x="925.8" y="26.7" fill="#939AA2" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="8.3" font-weight="600" text-anchor="start">카메라</text>
+<text x="925.8" y="40.0" fill="#17202A" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="9.2" font-weight="700" text-anchor="start">연결 대기</text>
+<circle cx="1058.3" cy="29.2" r="3.3" fill="#E69B00"/>
+<text x="1067.5" y="26.7" fill="#939AA2" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="8.3" font-weight="600" text-anchor="start">전원</text>
+<text x="1067.5" y="40.0" fill="#17202A" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="9.2" font-weight="700" text-anchor="start">정보 확인 중</text>
+<circle cx="1200.0" cy="29.2" r="3.3" fill="#939AA2"/>
+<text x="1209.2" y="26.7" fill="#939AA2" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="8.3" font-weight="600" text-anchor="start">안전</text>
+<text x="1209.2" y="40.0" fill="#17202A" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="9.2" font-weight="700" text-anchor="start">확인 중</text>
+<rect x="1463.3" y="10.0" width="120.0" height="40.0" rx="10.0" fill="#D92D20" stroke="none" stroke-width="0.0"/>
+<text x="1523.3" y="28.3" fill="#FFFFFF" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="11.7" font-weight="800" text-anchor="middle">긴급 정지</text>
+<text x="1523.3" y="41.7" fill="#FFFFFF" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="7.5" font-weight="700" text-anchor="middle">E-STOP</text>
+<text x="26.7" y="85.8" fill="#FF6B35" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="10.0" font-weight="700" text-anchor="start">시연 화면</text>
+<text x="133.3" y="85.8" fill="#5E6873" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="10.0" font-weight="700" text-anchor="start">로봇 상태</text>
+<text x="240.0" y="85.8" fill="#5E6873" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="10.0" font-weight="700" text-anchor="start">관리자 조작</text>
+<rect x="20.8" y="97.5" width="76.7" height="2.5" rx="1.7" fill="#FF6B35" stroke="none" stroke-width="0.0"/>
+<rect x="15.0" y="115.0" width="1240.0" height="746.7" rx="13.3" fill="#101214" stroke="none" stroke-width="0.0"/>
+<text x="33.3" y="143.3" fill="#FAFAF8" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="9.2" font-weight="700" text-anchor="start">전방 카메라</text>
+<circle cx="635.0" cy="460.0" r="25.0" fill="none" stroke="#939AA2" stroke-width="1.7"/>
+<text x="635.0" y="509.2" fill="#FAFAF8" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="16.7" font-weight="700" text-anchor="middle">전방 시야 준비 중</text>
+<text x="635.0" y="531.7" fill="#939AA2" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="10.0" font-weight="400" text-anchor="middle">로봇의 영상 신호를 연결하고 있습니다</text>
+<rect x="901.0" y="654.2" width="339.8" height="193.3" rx="13.3" fill="#FFFFFF" stroke="none" stroke-width="0.0"/>
+<rect x="903.5" y="656.7" width="334.8" height="188.3" rx="11.7" fill="#101214" stroke="none" stroke-width="0.0"/>
+<text x="916.0" y="677.5" fill="#FAFAF8" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="8.3" font-weight="700" text-anchor="start">작업 카메라</text>
+<text x="1070.9" y="755.8" fill="#FAFAF8" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="10.8" font-weight="700" text-anchor="middle">작업 시야 준비 중</text>
+<text x="1070.9" y="774.2" fill="#939AA2" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="7.5" font-weight="400" text-anchor="middle">로봇팔 영상 신호를 확인하고 있습니다</text>
+<rect x="1268.3" y="115.0" width="316.7" height="746.7" rx="13.3" fill="#FFFFFF" stroke="none" stroke-width="0.0"/>
+<text x="1290.0" y="147.5" fill="#FF6B35" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="8.3" font-weight="800" text-anchor="start">CURRENT MISSION</text>
+<text x="1290.0" y="185.8" fill="#17202A" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="25.0" font-weight="800" text-anchor="start">상태 확인 중</text>
+<text x="1290.0" y="212.5" fill="#5E6873" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="10.0" font-weight="400" text-anchor="start">로봇의 현재 임무 상태를</text>
+<text x="1290.0" y="230.0" fill="#5E6873" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="10.0" font-weight="400" text-anchor="start">확인하고 있습니다</text>
+<text x="1324.2" y="276.7" fill="#FF6B35" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="8.3" font-weight="700" text-anchor="middle">탐색</text>
+<rect x="1290.0" y="287.5" width="64.2" height="1.7" rx="0.8" fill="#FF6B35" stroke="none" stroke-width="0.0"/>
+<text x="1392.5" y="276.7" fill="#939AA2" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="8.3" font-weight="700" text-anchor="middle">접근</text>
+<rect x="1358.3" y="287.5" width="64.2" height="1.7" rx="0.8" fill="#DDD9D1" stroke="none" stroke-width="0.0"/>
+<text x="1460.8" y="276.7" fill="#939AA2" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="8.3" font-weight="700" text-anchor="middle">도구 작업</text>
+<rect x="1426.7" y="287.5" width="64.2" height="1.7" rx="0.8" fill="#DDD9D1" stroke="none" stroke-width="0.0"/>
+<text x="1529.2" y="276.7" fill="#939AA2" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="8.3" font-weight="700" text-anchor="middle">완료</text>
+<rect x="1495.0" y="287.5" width="64.2" height="1.7" rx="0.8" fill="#DDD9D1" stroke="none" stroke-width="0.0"/>
+<rect x="1290.0" y="331.7" width="273.3" height="98.3" rx="11.7" fill="#FFF0E8" stroke="none" stroke-width="0.0"/>
+<text x="1305.0" y="362.5" fill="#17202A" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="11.7" font-weight="700" text-anchor="start">시스템 정보를 준비하고 있습니다</text>
+<text x="1305.0" y="389.2" fill="#5E6873" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="8.3" font-weight="400" text-anchor="start">대상이 탐지되면 거리와 작업 도구</text>
+<text x="1305.0" y="405.8" fill="#5E6873" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="8.3" font-weight="400" text-anchor="start">정보가 표시됩니다</text>
+<rect x="1290.0" y="450.0" width="273.3" height="48.3" rx="11.7" fill="#F7F4EE" stroke="none" stroke-width="0.0"/>
+<text x="1304.2" y="479.2" fill="#5E6873" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="9.2" font-weight="700" text-anchor="start">안전 장치</text>
+<text x="1549.2" y="479.2" fill="#17202A" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="9.2" font-weight="700" text-anchor="end">연결 상태 확인 중</text>
+<text x="1570.0" y="846.7" fill="#939AA2" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="6.7" font-weight="600" text-anchor="end">THEME C · WARM TECH EXHIBITION</text>
+<rect x="0.0" y="876.7" width="1600.0" height="23.3" rx="0.0" fill="#FCFBF8" stroke="none" stroke-width="0.0"/>
+<rect x="0.0" y="876.7" width="1600.0" height="0.8" rx="0.0" fill="#DDD9D1" stroke="none" stroke-width="0.0"/>
+<text x="23.3" y="892.5" fill="#939AA2" font-family="'Pretendard','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="7.5" font-weight="600" text-anchor="start">이벤트 로그  ∧</text>
+</svg>

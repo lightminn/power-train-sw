@@ -37,6 +37,8 @@ class ArmConsoleBridge(Node):
         self.declare_parameter("frame_width", 848)
         self.declare_parameter("frame_height", 480)
         self.declare_parameter("send_detection_metadata", True)
+        self.declare_parameter("pick_target_fresh_s", 0.75)
+        self.declare_parameter("pick_target_iou", 0.5)
 
         host = str(self.get_parameter("console_host").value)
         telemetry_port = int(self.get_parameter("telemetry_port").value)
@@ -47,6 +49,12 @@ class ArmConsoleBridge(Node):
         self._send_detection_metadata = bool(
             self.get_parameter("send_detection_metadata").value
         )
+        self._pick_target_fresh_s = float(
+            self.get_parameter("pick_target_fresh_s").value
+        )
+        self._pick_target_iou = float(
+            self.get_parameter("pick_target_iou").value
+        )
         if (
             not host
             or not 1 <= telemetry_port <= 65535
@@ -54,6 +62,8 @@ class ArmConsoleBridge(Node):
             or not 0.2 <= publish_hz <= 10.0
             or self._frame_width < 1
             or self._frame_height < 1
+            or not 0.1 <= self._pick_target_fresh_s <= 2.0
+            or not 0.1 <= self._pick_target_iou <= 1.0
         ):
             raise ValueError("arm console bridge parameters are invalid")
 
@@ -174,7 +184,12 @@ class ArmConsoleBridge(Node):
         )
 
     def _pick_comparison(self):
-        if self._pick_target is None:
+        if (
+            self._pick_target is None
+            or self._pick_target_at is None
+            or time.monotonic() - self._pick_target_at
+            > self._pick_target_fresh_s
+        ):
             return None
         return (
             int(self._pick_target.class_id),
@@ -220,6 +235,7 @@ class ArmConsoleBridge(Node):
                 frame_height=self._frame_height,
                 detections=detections,
                 pick_target=self._pick_comparison(),
+                pick_iou_threshold=self._pick_target_iou,
             )
             self._udp.sendto(payload, self._metadata_endpoint)
             self._metadata_sequence += 1
