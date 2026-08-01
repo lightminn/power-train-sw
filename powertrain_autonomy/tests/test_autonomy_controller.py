@@ -76,6 +76,8 @@ def test_assist_correction_uses_separate_yaw_clamp_and_empty_speed_cap():
     estimate = terrain(
         path_offset_m=1.0,
         heading_error_rad=1.0,
+        left_wheel_clearance_m=math.nan,
+        right_wheel_clearance_m=math.nan,
         bank_angle_rad=math.radians(11.0),
         longitudinal_slope_rad=math.radians(12.0),
         confidence=0.425,
@@ -92,11 +94,11 @@ def test_assist_correction_uses_separate_yaw_clamp_and_empty_speed_cap():
 
 def test_assist_speed_cap_is_empty_stowed_max_on_clear_confident_path():
     omega, speed_cap, confidence = assist_correction_from_terrain(
-        terrain(heading_error_rad=-0.1),
+        terrain(path_offset_m=-0.1, heading_error_rad=0.05),
         AutonomyControllerConfig(),
     )
 
-    assert omega == pytest.approx(-0.12)
+    assert omega == pytest.approx(-0.02)
     assert speed_cap == pytest.approx(EMPTY_STOWED.max_speed_m_s)
     assert confidence == pytest.approx(0.9)
 
@@ -211,80 +213,35 @@ def test_central_path_tracks_forward_without_yaw():
     assert decision.omega_rad_s == pytest.approx(0.0)
 
 
-def test_clearance_telemetry_does_not_gate_or_slow_controller():
-    """The old no-steering assertion is dropped because clearance now steers.
-
-    A low clearance may create steering, but it must add no hold, speed penalty,
-    or clearance-derived reason beyond the equivalent heading-only turn.
-    """
-    heading_only = steady_decision(
-        estimate=terrain(heading_error_rad=-0.02)
-    )
-    low_clearance = steady_decision(
+@pytest.mark.parametrize("clearance_m", (-0.20, math.nan))
+def test_clearance_telemetry_does_not_gate_or_slow_controller(clearance_m):
+    baseline = steady_decision()
+    reported = steady_decision(
         estimate=terrain(
-            left_wheel_clearance_m=0.02,
-            right_wheel_clearance_m=0.40,
+            left_wheel_clearance_m=clearance_m,
+            right_wheel_clearance_m=clearance_m,
         )
     )
 
-    assert low_clearance.state == "TRACKING"
-    assert low_clearance.v_m_s == pytest.approx(heading_only.v_m_s)
-    assert low_clearance.omega_rad_s == pytest.approx(heading_only.omega_rad_s)
-    assert low_clearance.reasons == heading_only.reasons
-    assert not any("clearance" in reason for reason in low_clearance.reasons)
-
-
-def test_equal_edge_pushes_cancel_regardless_of_path_offset():
-    decision = steady_decision(
-        estimate=terrain(
-            path_offset_m=0.75,
-            left_wheel_clearance_m=0.02,
-            right_wheel_clearance_m=0.02,
-        )
-    )
-
-    assert decision.state == "TRACKING"
-    assert decision.omega_rad_s == pytest.approx(0.0)
+    assert reported.state == "TRACKING"
+    assert reported.v_m_s == pytest.approx(baseline.v_m_s)
+    assert reported.omega_rad_s == pytest.approx(baseline.omega_rad_s)
+    assert reported.reasons == baseline.reasons
 
 
 @pytest.mark.parametrize(
-    ("left_clearance_m", "right_clearance_m", "expected_omega_rad_s"),
-    (
-        (0.02, 0.40, -0.024),
-        (0.40, 0.02, 0.024),
-    ),
+    ("offset", "heading", "expected_sign"),
+    ((0.10, 0.10, 1), (0.10, -0.02, 1), (-0.10, 0.02, -1), (-0.10, -0.10, -1)),
 )
-def test_near_edge_pushes_rover_away_in_both_directions(
-    left_clearance_m,
-    right_clearance_m,
-    expected_omega_rad_s,
-):
+def test_offset_and_heading_signs_steer_toward_positive_left_path(offset, heading, expected_sign):
     decision = steady_decision(
-        estimate=terrain(
-            left_wheel_clearance_m=left_clearance_m,
-            right_wheel_clearance_m=right_clearance_m,
-        )
+        estimate=terrain(path_offset_m=offset, heading_error_rad=heading)
     )
-
-    # REP-103: positive omega is a left/CCW turn.
-    assert decision.omega_rad_s == pytest.approx(expected_omega_rad_s)
-
-
-def test_one_sided_widening_does_not_pull_rover_into_real_course_branch():
-    """The real-course failure is a branch pulling the rover off its current line."""
-    decision = steady_decision(
-        estimate=terrain(
-            path_offset_m=0.50,
-            left_wheel_clearance_m=0.08,
-            right_wheel_clearance_m=0.50,
-        )
-    )
-
-    assert decision.omega_rad_s == pytest.approx(0.0)
+    assert math.copysign(1.0, decision.omega_rad_s) == expected_sign
 
 
 def test_sustained_turn_intent_opens_measured_yaw_rate_damping_gate():
-    estimate = terrain(heading_error_rad=0.20)
+    estimate = terrain(path_offset_m=0.10, heading_error_rad=0.20)
     state = motion(yaw_rate_rad_s=0.30)
 
     def decision_for(kd_yaw):
@@ -311,9 +268,8 @@ def test_sustained_turn_intent_opens_measured_yaw_rate_damping_gate():
     damped = decision_for(0.4)
 
     assert proportional.state == damped.state == "TRACKING"
-    # Literal heading-only outputs captured at 4252dc5 before the edge-law change.
-    assert proportional.omega_rad_s == pytest.approx(0.24)
-    assert damped.omega_rad_s == pytest.approx(0.12505641366934933)
+    assert proportional.omega_rad_s == pytest.approx(0.32)
+    assert damped.omega_rad_s == pytest.approx(0.20)
     assert 0.0 < damped.omega_rad_s < proportional.omega_rad_s
 
 
@@ -322,8 +278,7 @@ def test_curvature_governor_uses_turn_intent_when_damping_cancels_yaw_command():
         EMPTY_STOWED,
         AutonomyControllerConfig(kd_yaw=0.5),
     )
-    # Heading-only turn intent is 1.2 * 4/15 = 0.32 rad/s.
-    estimate = terrain(heading_error_rad=4.0 / 15.0)
+    estimate = terrain(path_offset_m=0.10, heading_error_rad=0.20)
     state = motion(yaw_rate_rad_s=0.64)
 
     for tick in range(21):
@@ -632,16 +587,16 @@ def test_curvature_slow_is_reported_only_when_it_actually_costs_speed():
     """
     config = AutonomyControllerConfig()
 
-    negligible = steady_decision(estimate=terrain(heading_error_rad=1.0 / 1500.0))
-    substantial = steady_decision(estimate=terrain(heading_error_rad=1.0 / 3.0))
+    negligible = steady_decision(estimate=terrain(path_offset_m=0.001))
+    substantial = steady_decision(estimate=terrain(path_offset_m=0.5))
 
-    # 1.2 / 1500 = 0.0008 -> 나눗수 1.0008, 0.08% 감속
+    # 0.8 * 0.001 = 0.0008 -> 나눗수 1.0008, 0.08% 감속
     assert "curvature_slow" not in negligible.reasons
-    # 1.2 / 3 = 0.4 -> 나눗수 1.4, 29% 감속
+    # 0.8 * 0.5 = 0.4 -> 나눗수 1.4, 29% 감속
     assert "curvature_slow" in substantial.reasons
     # 보고 임계일 뿐이므로 감속식 자체는 그대로다.
     assert substantial.v_m_s == pytest.approx(
-        negligible.v_m_s / (1.0 + config.kp_heading / 3.0),
+        negligible.v_m_s / (1.0 + config.kp_offset * 0.5),
         rel=0.05,
     )
 
@@ -825,7 +780,7 @@ def test_blocked_rollback_does_not_move_slew_origin_back():
         ("gate_stale_s", math.inf),
         ("diagnostics_stale_s", math.nan),
         ("kp_heading", -0.1),
-        ("kp_edge", -0.1),
+        ("kp_offset", -0.1),
         ("curvature_slow_k", -0.1),
         ("yaw_damp_gate_rad_s", 0.0),
         ("yaw_damp_gate_rad_s", -0.1),
