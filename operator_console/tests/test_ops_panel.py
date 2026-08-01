@@ -543,12 +543,12 @@ def test_estop_availability_copy_distinguishes_token_and_link_failures():
     assert availability(token_available=False, link_ready=False) == (
         False,
         "조작 토큰이 없어 비상정지 명령을 전송할 수 없습니다",
-        "조작 토큰 없음 — 콘솔 비상정지를 사용할 수 없습니다",
+        None,
     )
     assert availability(token_available=True, link_ready=False) == (
         False,
         "조작 채널이 연결되지 않아 비상정지를 전송할 수 없습니다",
-        "조작 채널 연결 대기 — 콘솔 비상정지를 전송할 수 없습니다",
+        None,
     )
     assert availability(token_available=True, link_ready=True) == (
         True,

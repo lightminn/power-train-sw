@@ -1231,7 +1231,7 @@ def test_console_layout_separates_mission_systems_and_ops_pages():
         Path(__file__).resolve().parents[1] / "app.py"
     ).read_text(encoding="utf-8")
 
-    assert 'stack.add_titled(mission_page, "mission", "시연 화면")' in source
+    assert 'stack.add_titled(mission_page, "mission", "실시간 화면")' in source
     assert 'stack.add_titled(systems_scroll, "systems", "로봇 상태")' in source
     assert 'stack.add_titled(ops_page, "ops", "관리자 조작")' in source
     assert "Gtk.StackSwitcher()" in source
@@ -1268,7 +1268,7 @@ def test_mission_preparation_keeps_dual_camera_layout_without_progress_hud():
     for copy in (
         "운용 정보",
             "현재 단계",
-        "시연 준비",
+        "운용 준비",
         "전방 카메라",
         "작업 카메라",
         "주행 시스템",
@@ -1346,7 +1346,9 @@ def test_explicit_controls_swap_main_and_sub_without_rebuilding_pipelines():
     assert 'header_click.connect("button-press-event", self._on_swap_click)' not in source
     assert "def _on_swap_click" not in source
     assert "def set_swap_handler" not in source
-    assert 'Gtk.Button(label="주/보조 화면 교체")' in source
+    assert 'Gtk.Button(label="큰 화면으로 보기")' in source
+    assert "pip_overlay.add_overlay(self._swap_button)" in source
+    assert "display_options.pack_start(self._swap_button" not in source
     assert "Gdk.KEY_v" in source
     assert "Gdk.KEY_V" in source
     assert 'self._l515.set_role("MAIN")' in source

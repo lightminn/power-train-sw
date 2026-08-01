@@ -132,8 +132,8 @@ def test_operator_console_pip_size_and_swap_use_fixed_slot():
 # GStreamer 위에서 Gst.parse_launch 가 돌아 **세그폴트로 스위트 전체가 죽는다**
 # (2026-07-29 실측: app.py:1046 에서 코어 덤프).  클릭 스왑 경로 제거는 아래
 # 소스 수준 가드로 확인하고, 실제 클릭 동작은 실기 라이브 검증에서 본다.
-def test_swap_is_reachable_only_from_the_explicit_control():
-    """VideoPanel 클릭 경로는 없고 버튼과 V 키 경로만 명시 스왑을 요청한다."""
+def test_swap_is_reachable_from_the_pip_control():
+    """VideoPanel 전체 클릭은 없고 작은 영상 버튼과 V 키만 스왑한다."""
     import inspect
 
     from operator_console import app as console_app
@@ -148,7 +148,9 @@ def test_swap_is_reachable_only_from_the_explicit_control():
 
     constructor = inspect.getsource(console_app.OperatorConsole.__init__)
     key_handler = inspect.getsource(console_app.OperatorConsole._on_key_press)
-    assert "주/보조 화면 교체" in constructor, "명시 스왑 버튼이 없다"
+    assert 'Gtk.Button(label="큰 화면으로 보기")' in constructor
+    assert "pip_overlay.add_overlay(self._swap_button)" in constructor
+    assert "display_options.pack_start(self._swap_button" not in constructor
     assert "Gdk.KEY_v" in key_handler and "Gdk.KEY_V" in key_handler
     assert "user_initiated=True" in constructor
     assert "user_initiated=True" in key_handler
@@ -187,22 +189,26 @@ def test_event_filters_all_off_show_empty_without_clearing_buffer():
 
 
 @requires_gtk
-def test_status_toggle_buttons_are_multi_select_and_compact():
+def test_status_summary_cards_select_one_detail_panel():
     dashboard = RobotStatusDashboard()
     assert all(
-        isinstance(button, Gtk.ToggleButton)
-        and not isinstance(button, Gtk.CheckButton)
-        for button in dashboard._toggles.values()
+        isinstance(button, Gtk.Button)
+        for button in dashboard._card_buttons.values()
     )
-    dashboard._toggles["safety"].set_active(True)
     assert dashboard.view_enabled("drive")
-    assert dashboard.view_enabled("power")
-    assert dashboard.view_enabled("safety")
+    assert not dashboard.view_enabled("power")
 
-    for button in dashboard._toggles.values():
-        button.set_active(False)
-    assert dashboard._no_panels.get_visible()
-    assert not dashboard._panel_flow.get_visible()
+    dashboard._card_buttons["safety"].clicked()
+    assert dashboard.view_enabled("safety")
+    assert not dashboard.view_enabled("drive")
+    assert dashboard._detail_title.get_text() == "안전 상세 정보"
+    assert dashboard._card_buttons["safety"].get_style_context().has_class(
+        "selected"
+    )
+
+    dashboard._card_buttons["network"].clicked()
+    assert dashboard.view_enabled("network")
+    assert dashboard._detail_title.get_text() == "영상·통신 상세 정보"
 
 
 @requires_gtk

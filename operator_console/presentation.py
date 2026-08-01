@@ -18,10 +18,10 @@ class MissionPresentation:
 
 _MISSION_STATES = {
     "IDLE": MissionPresentation(
-        "시연 준비", "임무 시작을 기다리고 있습니다", 0, "idle",
+        "운용 준비", "임무 시작을 기다리고 있습니다", 0, "idle",
     ),
-    "WAITING": MissionPresentation("시연 준비", "임무 시작을 기다리고 있습니다", 0, "idle"),
-    "READY": MissionPresentation("시연 준비", "임무 시작을 기다리고 있습니다", 0, "idle"),
+    "WAITING": MissionPresentation("운용 준비", "임무 시작을 기다리고 있습니다", 0, "idle"),
+    "READY": MissionPresentation("운용 준비", "임무 시작을 기다리고 있습니다", 0, "idle"),
     "ARMED": MissionPresentation(
         "탐색", "주변에서 작업 대상을 찾고 있습니다", 1, "active",
     ),
@@ -87,7 +87,7 @@ def mission_presentation(
     state = canonical_mission_state(chassis_mode, drive_state)
     if state == "UNKNOWN":
         return MissionPresentation(
-            "시연 준비", "로봇의 현재 작업 단계를 확인하고 있습니다", 0, "offline",
+            "운용 준비", "로봇의 현재 작업 단계를 확인하고 있습니다", 0, "offline",
         )
     return _MISSION_STATES[state]
 

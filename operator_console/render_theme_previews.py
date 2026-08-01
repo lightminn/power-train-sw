@@ -94,7 +94,7 @@ def _svg(theme_name: str, width: int, height: int) -> str:
     ]
 
     tab_y = header_h + 31 * scale
-    for index, label in enumerate(("시연 화면", "로봇 상태", "관리자 조작")):
+    for index, label in enumerate(("실시간 화면", "로봇 상태", "관리자 조작")):
         x = 32 * scale + index * 128 * scale
         color = t["primary"] if index == 0 else t["text_secondary"]
         out.append(text(x, tab_y, label, 12, color, 700))

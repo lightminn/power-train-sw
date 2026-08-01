@@ -98,18 +98,18 @@ SEND_SURFACE_CONTRACT = "OBSERVE: RX-ONLY  |  OPS: TOKEN-GATED  |  "
 def estop_availability(
     *, token_available: bool, link_ready: bool,
 ) -> tuple[bool, str, str | None]:
-    """Return dynamic E-STOP sensitivity, tooltip, and top warning."""
+    """Return E-STOP sensitivity and tooltip without a persistent warning."""
     if not token_available:
         return (
             False,
             "조작 토큰이 없어 비상정지 명령을 전송할 수 없습니다",
-            "조작 토큰 없음 — 콘솔 비상정지를 사용할 수 없습니다",
+            None,
         )
     if not link_ready:
         return (
             False,
             "조작 채널이 연결되지 않아 비상정지를 전송할 수 없습니다",
-            "조작 채널 연결 대기 — 콘솔 비상정지를 전송할 수 없습니다",
+            None,
         )
     return (
         True,
@@ -273,6 +273,8 @@ label { color: #f8fafc; }
 .developer-box { background: #EDF3F8; border-top: 1px solid #D8E2EC; padding: 8px; }
 .developer-box label { color: #71869A; font-size: 9px; }
 .pip-frame { background: #020810; border: 1px solid rgba(150,175,198,0.60); border-radius: 7px; box-shadow: 0 8px 22px rgba(0,12,28,0.28); }
+.pip-swap-button { min-height: 28px; padding: 3px 10px; margin: 8px; border-radius: 6px; border: 1px solid rgba(166,190,214,0.72); background: rgba(8,25,42,0.90); color: #FFFFFF; font-size: 11px; font-weight: 800; }
+.pip-swap-button:hover { background: rgba(35,83,130,0.96); border-color: #8EC5FF; }
 .preparation-status-value { color: #8B9AAA; font-size: 11px; font-weight: 800; }
 .preparation-status-dot { background: #8B9AAA; border-radius: 999px; min-width: 7px; min-height: 7px; }
 .preparation-status-dot.prep-ready { background: #228764; }
@@ -288,7 +290,9 @@ label { color: #f8fafc; }
 .status-overall { color: #17263A; font-size: 22px; font-weight: 900; }
 .status-readiness { background: #FFFFFF; border: 1px solid #D0DBE5; border-radius: 8px; padding: 12px 14px; }
 .status-priority { color: #C98718; font-size: 12px; font-weight: 700; }
-.status-summary-card { background: #FFFFFF; border: 1px solid #D0DBE5; border-left: 3px solid #8796A8; border-radius: 8px; padding: 10px 12px; }
+.status-summary-card { background: #FFFFFF; border: 1px solid #D0DBE5; border-left: 3px solid #8796A8; border-radius: 8px; padding: 10px 12px; box-shadow: none; }
+.status-summary-card:hover { background: #F4F8FE; border-color: #9CB9E8; }
+.status-summary-card.selected { background: #E8F0FE; border-color: #2D6EDB; border-left-color: #2D6EDB; }
 .status-summary-value { color: #8796A8; font-size: 16px; font-weight: 900; }
 .status-summary-value.status-live { color: #218A63; }
 .status-summary-value.status-progress { color: #2767D8; }
@@ -2275,7 +2279,24 @@ class OperatorConsole(Gtk.Window):
         _style(pip_frame, "pip-frame")
         self._pip_slot = FixedSizeSlot()
         self._pip_slot.add(self._d435)
-        pip_frame.add(self._pip_slot)
+        pip_overlay = Gtk.Overlay()
+        pip_overlay.add(self._pip_slot)
+        self._swap_button = Gtk.Button(label="큰 화면으로 보기")
+        self._swap_button.set_halign(Gtk.Align.END)
+        self._swap_button.set_valign(Gtk.Align.START)
+        _style(self._swap_button, "pip-swap-button")
+        self._swap_button.set_tooltip_text(
+            "이 작은 카메라 영상을 큰 화면으로 전환합니다 (단축키 V)"
+        )
+        self._swap_button.connect(
+            "clicked",
+            lambda _button: self.swap_camera_views(
+                self._d435 if self._main_video is self._l515 else self._l515,
+                user_initiated=True,
+            ),
+        )
+        pip_overlay.add_overlay(self._swap_button)
+        pip_frame.add(pip_overlay)
         videos.add_overlay(pip_frame)
         self._watermark = JetInWatermark()
         self._watermark.set_halign(Gtk.Align.END)
@@ -2309,19 +2330,6 @@ class OperatorConsole(Gtk.Window):
         display_options.pack_start(display_title, False, False, 0)
         display_options.pack_start(self._show_objects, False, False, 0)
         display_options.pack_start(self._show_distance, False, False, 0)
-        self._swap_button = Gtk.Button(label="주/보조 화면 교체")
-        _style(self._swap_button, "status-view-option")
-        self._swap_button.set_tooltip_text(
-            "큰 화면과 작은 화면의 카메라를 맞바꿉니다 (단축키 V)"
-        )
-        self._swap_button.connect(
-            "clicked",
-            lambda _button: self.swap_camera_views(
-                self._d435 if self._main_video is self._l515 else self._l515,
-                user_initiated=True,
-            ),
-        )
-        display_options.pack_start(self._swap_button, False, False, 0)
         self._display_options = display_options
         videos.connect("size-allocate", self._on_video_area_allocated)
         self._videos = videos
@@ -2480,7 +2488,7 @@ class OperatorConsole(Gtk.Window):
         system_check = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         _style(system_check, "rail-section")
         system_check_heading = Gtk.Box(spacing=8)
-        check_title = Gtk.Label(label="시연 준비")
+        check_title = Gtk.Label(label="운용 준비")
         check_title.set_xalign(0.0)
         _style(check_title, "rail-section-title")
         self._readiness_count = Gtk.Label(label="0 / 4")
@@ -2525,7 +2533,7 @@ class OperatorConsole(Gtk.Window):
         preparation_title = Gtk.Label(label="임무 정보")
         preparation_title.set_xalign(0.0)
         _style(preparation_title, "rail-title")
-        preparation_detail = Gtk.Label(label="현재 단계    시연 준비")
+        preparation_detail = Gtk.Label(label="현재 단계    운용 준비")
         preparation_detail.set_xalign(0.0)
         preparation_detail.set_line_wrap(True)
         _style(preparation_detail, "rail-description")
@@ -2608,7 +2616,7 @@ class OperatorConsole(Gtk.Window):
         stack.set_vhomogeneous(False)
         stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         stack.set_transition_duration(160)
-        stack.add_titled(mission_page, "mission", "시연 화면")
+        stack.add_titled(mission_page, "mission", "실시간 화면")
         stack.add_titled(systems_scroll, "systems", "로봇 상태")
         stack.add_titled(ops_page, "ops", "관리자 조작")
         self._stack = stack
@@ -3078,17 +3086,13 @@ class OperatorConsole(Gtk.Window):
             )
 
     def _refresh_estop_availability(self) -> None:
-        sensitive, tooltip, warning = estop_availability(
+        sensitive, tooltip, _warning = estop_availability(
             token_available=self._ops_panel.ops_available(),
             link_ready=self._ops_panel.link_ready(),
         )
         self._global_estop.set_sensitive(sensitive)
         self._global_estop.set_tooltip_text(tooltip)
-        if warning is None:
-            self._estop_availability_warning.hide()
-            return
-        self._estop_availability_warning.set_text(warning)
-        self._estop_availability_warning.show()
+        self._estop_availability_warning.hide()
 
     def _show_alert(self, message: str) -> None:
         """Show a command failure above the main content for eight seconds."""

@@ -16,7 +16,7 @@ def test_mission_mapping_prefers_real_ops_state_then_telemetry_state():
 
 def test_unknown_mission_does_not_invent_ready_state():
     view = mission_presentation("UNKNOWN", "unavailable")
-    assert view.title == "시연 준비"
+    assert view.title == "운용 준비"
     assert view.step == 0
 
 

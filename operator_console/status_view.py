@@ -345,6 +345,7 @@ class BarList(Gtk.DrawingArea):
 class StatusPanel(Gtk.Box):
     def __init__(self, title: str) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.set_size_request(-1, 360)
         _style(self, "status-panel")
         heading = Gtk.Label(label=title)
         heading.set_xalign(0.0)
@@ -372,10 +373,7 @@ class RobotStatusDashboard(Gtk.Box):
     """Status-tab composition. It has no command client or transmit callback."""
 
     PANEL_ORDER = ("drive", "power", "arm", "safety", "ai", "network")
-    DEFAULT_VISIBLE = {
-        "drive": True, "power": True, "arm": False, "safety": False,
-        "ai": False, "network": False,
-    }
+    CARD_TO_PANEL = {"camera": "network"}
 
     def __init__(
         self, *, input_source: str = "LIVE",
@@ -421,6 +419,7 @@ class RobotStatusDashboard(Gtk.Box):
         self.pack_start(issues_title, False, False, 0)
         self.pack_start(self._issues, False, False, 0)
         self._cards: dict[str, tuple[Gtk.Label, Gtk.Label, Gtk.Label]] = {}
+        self._card_buttons: dict[str, Gtk.Button] = {}
         card_grid = Gtk.Grid(column_spacing=10, row_spacing=10)
         card_grid.set_column_homogeneous(True)
         specs = (
@@ -429,9 +428,12 @@ class RobotStatusDashboard(Gtk.Box):
             ("arm", "로봇팔·작업 장치"), ("ai", "AI 인식"),
         )
         for index, (key, title) in enumerate(specs):
-            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            card = Gtk.Button()
+            card.set_relief(Gtk.ReliefStyle.NONE)
             card.set_size_request(-1, 98)
+            card.set_tooltip_text(f"{title} 상세 정보 보기")
             _style(card, "status-summary-card", "summary-offline")
+            content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             title_row = Gtk.Box(spacing=7)
             dot = Gtk.Label(label="")
             dot.set_size_request(8, 8)
@@ -448,31 +450,22 @@ class RobotStatusDashboard(Gtk.Box):
             reason.set_xalign(0.0)
             reason.set_ellipsize(Pango.EllipsizeMode.END)
             _style(reason, "muted")
-            card.pack_start(title_row, False, False, 0)
-            card.pack_start(state, False, False, 0)
-            card.pack_start(reason, False, False, 0)
+            content.pack_start(title_row, False, False, 0)
+            content.pack_start(state, False, False, 0)
+            content.pack_start(reason, False, False, 0)
+            card.add(content)
+            panel_key = self.CARD_TO_PANEL.get(key, key)
+            card.connect("clicked", self._on_card_clicked, panel_key)
             card_grid.attach(card, index % 3, index // 3, 1, 1)
             self._cards[key] = (state, reason, dot)
+            self._card_buttons[panel_key] = card
         self.pack_start(card_grid, False, False, 0)
 
-        option_title = Gtk.Label(label="실시간 보기")
-        option_title.set_xalign(0.0)
-        _style(option_title, "section-title")
-        self.pack_start(option_title, False, False, 0)
-        options = Gtk.Box(spacing=16)
-        self._toggles: dict[str, Gtk.ToggleButton] = {}
-        labels = {
-            "drive": "주행", "power": "전원", "arm": "로봇팔",
-            "safety": "안전", "ai": "AI 인식", "network": "영상·통신",
-        }
-        for key in self.PANEL_ORDER:
-            toggle = Gtk.ToggleButton(label=labels[key])
-            toggle.set_active(self.DEFAULT_VISIBLE[key])
-            toggle.connect("toggled", self._on_view_toggled, key)
-            _style(toggle, "status-view-option")
-            options.pack_start(toggle, False, False, 0)
-            self._toggles[key] = toggle
-        self.pack_start(options, False, False, 0)
+        self._selected_panel = "drive"
+        self._detail_title = Gtk.Label(label="주행 시스템 상세 정보")
+        self._detail_title.set_xalign(0.0)
+        _style(self._detail_title, "section-title")
+        self.pack_start(self._detail_title, False, False, 0)
 
         self.drive_speed = TimedSeries()
         self.power_voltage = TimedSeries()
@@ -517,7 +510,7 @@ class RobotStatusDashboard(Gtk.Box):
         self._panel_flow.set_column_spacing(12)
         self._panel_flow.set_row_spacing(12)
         self._panel_flow.set_min_children_per_line(1)
-        self._panel_flow.set_max_children_per_line(2)
+        self._panel_flow.set_max_children_per_line(1)
         self._panel_flow.set_homogeneous(True)
         for key in self.PANEL_ORDER:
             self._panel_flow.add(self._panels[key])
@@ -554,12 +547,16 @@ class RobotStatusDashboard(Gtk.Box):
         return self._developer_toggle.get_active()
 
     def view_enabled(self, key: str) -> bool:
-        return self._toggles[key].get_active()
+        return key == self._selected_panel
 
     def _toggle_developer(self, *_args: object) -> None:
         self._developer.set_visible(self.developer_visible)
 
-    def _on_view_toggled(self, _button: Gtk.ToggleButton, _key: str) -> None:
+    def _on_card_clicked(self, _button: Gtk.Button, key: str) -> None:
+        self._selected_panel = key
+        self._detail_title.set_text(
+            f"{self._panels[key].get_children()[0].get_text()} 상세 정보"
+        )
         self._apply_panel_visibility()
 
     def _apply_panel_visibility(self) -> None:
@@ -581,6 +578,11 @@ class RobotStatusDashboard(Gtk.Box):
                 panel.hide()
         self._panel_flow.set_visible(visible_count > 0)
         self._no_panels.set_visible(visible_count == 0)
+        for key, button in self._card_buttons.items():
+            context = button.get_style_context()
+            context.remove_class("selected")
+            if key == self._selected_panel:
+                context.add_class("selected")
 
     def _redraw_graphs(self) -> bool:
         for graph in (
