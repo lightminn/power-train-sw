@@ -55,6 +55,7 @@ class ImuTiltNode(Node):
         self.declare_parameter("publish_hz", 50.0)
         self.declare_parameter("bias_samples", 200)
         self.declare_parameter("sample_timeout_s", 0.25)
+        # ⚠️ v2 CAD 에도 센서 형상이 없어 실측 게이트로 남음(2026-08-01 확인)
         self.declare_parameter("mount_x", 0.30)
         self.declare_parameter("mount_y", 0.0)
         self.declare_parameter("mount_z", 0.35)

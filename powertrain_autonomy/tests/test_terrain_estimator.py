@@ -320,6 +320,30 @@ def test_public_values_are_immutable_and_grid_shape_is_fixed():
             TerrainEstimatorConfig(path_estimate_tau_s=invalid_value)
 
 
+def test_config_rejects_nonfinite_footprint_outboard_half_width():
+    with pytest.raises(ValueError, match="terrain estimator thresholds must be finite"):
+        TerrainEstimatorConfig(footprint_outboard_half_width_m=math.nan)
+
+
+def test_config_rejects_negative_footprint_outboard_half_width():
+    with pytest.raises(
+        ValueError,
+        match="footprint_outboard_half_width_m must be nonnegative",
+    ):
+        TerrainEstimatorConfig(footprint_outboard_half_width_m=-0.001)
+
+
+def test_config_rejects_outboard_half_width_narrower_than_tire_tread():
+    with pytest.raises(
+        ValueError,
+        match=(
+            "footprint_outboard_half_width_m must be >= wheel_half_width_m "
+            "because the hub cannot be narrower than the tire"
+        ),
+    ):
+        TerrainEstimatorConfig(footprint_outboard_half_width_m=0.034)
+
+
 def test_estimator_routes_numpy_projection_and_scatter_through_pure_kernel(monkeypatch):
     from powertrain_autonomy.terrain import estimator as estimator_module
     from powertrain_autonomy.terrain.kernel import build_terrain_grid_numpy
@@ -349,7 +373,9 @@ def test_flat_track_produces_central_available_path_and_near_zero_bank():
     assert result.heading_error_rad == pytest.approx(0.0, abs=0.04)
     assert result.bank_angle_rad == pytest.approx(0.0, abs=0.03)
     assert result.longitudinal_slope_rad == pytest.approx(0.0, abs=0.03)
-    expected_clearance = 1.4 / 2.0 - (0.3595 + 0.035)
+    expected_clearance = 1.4 / 2.0 - (
+        0.3595 + estimator.config.footprint_outboard_half_width_m
+    )
     assert result.left_wheel_clearance_m == pytest.approx(expected_clearance, abs=0.08)
     assert result.right_wheel_clearance_m == pytest.approx(expected_clearance, abs=0.08)
     assert result.confidence > 0.54
@@ -409,7 +435,7 @@ def test_offcentre_track_reports_centre_and_geometry_clearance():
 
     result = estimate(estimator, frame)
 
-    footprint_half = 0.3595 + 0.035
+    footprint_half = 0.3595 + estimator.config.footprint_outboard_half_width_m
     assert result.path_available, result.reject_reasons
     assert result.path_offset_m == pytest.approx(0.12, abs=0.07)
     assert result.left_wheel_clearance_m == pytest.approx(0.75 + 0.12 - footprint_half, abs=0.08)
@@ -521,7 +547,9 @@ def test_path_filter_does_not_lag_wheel_clearances():
         stamp_s=1.1,
     )
 
-    footprint_half_m = 0.3595 + estimator.config.wheel_half_width_m
+    footprint_half_m = (
+        0.3595 + estimator.config.footprint_outboard_half_width_m
+    )
     assert second.path_offset_m != pytest.approx(-0.10, abs=1e-9)
     assert -0.10 < second.path_offset_m < first.path_offset_m
     assert second.left_wheel_clearance_m == pytest.approx(
@@ -632,13 +660,13 @@ def test_first_row_transported_reference_selects_nearer_drop_bounded_run():
         estimator,
         (
             (slice(2, 3), 20, 30, 0.20),
-            (slice(2, 3), 34, 50, 0.0),
+            (slice(2, 3), 33, 51, 0.0),
             (slice(3, 4), 16, 26, 0.20),
-            (slice(3, 4), 30, 52, 0.0),
+            (slice(3, 4), 29, 53, 0.0),
             (slice(4, 5), 12, 22, 0.20),
-            (slice(4, 5), 26, 52, 0.0),
+            (slice(4, 5), 25, 53, 0.0),
             (slice(5, 14), 8, 18, 0.20),
-            (slice(5, 14), 22, 52, 0.0),
+            (slice(5, 14), 21, 53, 0.0),
         ),
     )
     lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
@@ -655,7 +683,7 @@ def test_first_row_transported_reference_selects_nearer_drop_bounded_run():
     assert result.path_offset_m > 0.3
 
 
-def test_first_row_without_drop_bounded_runs_matches_9b36a80():
+def test_first_row_without_drop_bounded_runs_preserves_nearest_run_fallback():
     estimator = make_estimator()
     grid = support_grid(
         estimator,
@@ -667,12 +695,18 @@ def test_first_row_without_drop_bounded_runs_matches_9b36a80():
 
     result = summarize_grid(estimator, grid)
 
-    # HEAD 9b36a80에서 이 fixture를 실행해 기록한 기존 동작의 literal 값이다.
+    footprint_half = 0.3595 + estimator.config.footprint_outboard_half_width_m
     assert result.path_available, result.reject_reasons
     assert result.path_offset_m == pytest.approx(0.0, abs=1e-9)
     assert result.heading_error_rad == pytest.approx(0.0, abs=1e-9)
-    assert result.left_wheel_clearance_m == pytest.approx(0.1055, abs=1e-9)
-    assert result.right_wheel_clearance_m == pytest.approx(0.1055, abs=1e-9)
+    assert result.left_wheel_clearance_m == pytest.approx(
+        0.50 - footprint_half,
+        abs=1e-9,
+    )
+    assert result.right_wheel_clearance_m == pytest.approx(
+        0.50 - footprint_half,
+        abs=1e-9,
+    )
 
 
 def test_centreline_rows_stop_when_surface_splits_without_overlap():
@@ -695,14 +729,14 @@ def test_centreline_rows_stop_when_surface_splits_without_overlap():
 
 def test_previous_centre_seed_is_transported_before_nearest_row_selection():
     estimator = make_estimator(path_x_range_m=(0.40, 0.50), min_path_rows=2)
-    first_grid = support_grid(estimator, ((slice(2, 4), 22, 48, 0.0),))
+    first_grid = support_grid(estimator, ((slice(2, 4), 21, 49, 0.0),))
     first = summarize_grid(estimator, first_grid, stamp_s=1.0)
     second_grid = support_grid(
         estimator,
         (
-            (slice(2, 3), 18, 34, 0.20),
-            (slice(2, 3), 36, 52, 0.0),
-            (slice(3, 4), 22, 48, 0.0),
+            (slice(2, 3), 17, 34, 0.20),
+            (slice(2, 3), 36, 53, 0.0),
+            (slice(3, 4), 21, 49, 0.0),
         ),
     )
 
@@ -715,7 +749,7 @@ def test_previous_centre_seed_is_transported_before_nearest_row_selection():
 
     assert first.path_offset_m == pytest.approx(0.25, abs=1e-9)
     assert second.path_available, second.reject_reasons
-    assert second.path_offset_m == pytest.approx(0.2875, abs=1e-9)
+    assert second.path_offset_m == pytest.approx(0.2895833333333333, abs=1e-9)
 
 
 def test_certified_reference_survives_and_transports_across_uncertified_frames():
@@ -785,10 +819,10 @@ def test_certified_reference_is_only_replaced_by_later_certification():
 
     replacement_grid = support_grid(
         estimator,
-        ((slice(2, 14), 10, 38, 0.0),),
+        ((slice(2, 14), 9, 39, 0.0),),
     )
     replacement_lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
-    replacement_lower_floor[8, (9, 38)] = True
+    replacement_lower_floor[8, (8, 39)] = True
     summarize_grid(
         estimator,
         with_lower_floor_evidence(replacement_grid, replacement_lower_floor),
@@ -886,8 +920,8 @@ def test_first_row_follows_carried_certified_line_without_local_drop_evidence():
         estimator,
         (
             (slice(2, 11), 14, 21, 0.0),
-            (slice(2, 11), 38, 54, 0.20),
-            (slice(11, 14), 22, 54, 0.20),
+            (slice(2, 11), 37, 55, 0.20),
+            (slice(11, 14), 21, 55, 0.20),
         ),
     )
 
@@ -905,7 +939,7 @@ def test_rejected_frame_preserves_surface_seed_until_history_horizon_then_expire
     results = []
     for age_s in (1.5, 1.500001):
         estimator = make_estimator(path_x_range_m=(0.40, 0.50), min_path_rows=2)
-        first_grid = support_grid(estimator, ((slice(2, 4), 22, 48, 0.0),))
+        first_grid = support_grid(estimator, ((slice(2, 4), 21, 49, 0.0),))
         summarize_grid(estimator, first_grid, stamp_s=1.0)
         rejected = summarize_grid(
             estimator,
@@ -920,9 +954,9 @@ def test_rejected_frame_preserves_surface_seed_until_history_horizon_then_expire
         nearest_grid = support_grid(
             estimator,
             (
-                (slice(2, 3), 18, 34, 0.20),
-                (slice(2, 3), 36, 52, 0.0),
-                (slice(3, 4), 20, 38, 0.20),
+                (slice(2, 3), 17, 34, 0.20),
+                (slice(2, 3), 36, 53, 0.0),
+                (slice(3, 4), 19, 39, 0.20),
             ),
         )
 
@@ -937,8 +971,8 @@ def test_rejected_frame_preserves_surface_seed_until_history_horizon_then_expire
         assert result.path_available, result.reject_reasons
         results.append(result)
 
-    assert results[0].path_offset_m == pytest.approx(0.325, abs=1e-9)
-    assert results[1].path_offset_m == pytest.approx(-0.125, abs=1e-9)
+    assert results[0].path_offset_m == pytest.approx(0.3375, abs=1e-9)
+    assert results[1].path_offset_m == pytest.approx(-0.1375, abs=1e-9)
 
 
 def test_support_gap_wider_than_three_cells_is_not_merged_into_reported_width():
@@ -954,7 +988,7 @@ def test_support_gap_wider_than_three_cells_is_not_merged_into_reported_width():
     result = summarize_grid(estimator, grid)
 
     footprint_width_m = 2.0 * (
-        0.3595 + estimator.config.wheel_half_width_m
+        0.3595 + estimator.config.footprint_outboard_half_width_m
     )
     reported_width_m = (
         result.left_wheel_clearance_m
@@ -979,7 +1013,7 @@ def test_support_gap_of_three_cells_is_still_merged():
     result = summarize_grid(estimator, grid)
 
     footprint_width_m = 2.0 * (
-        0.3595 + estimator.config.wheel_half_width_m
+        0.3595 + estimator.config.footprint_outboard_half_width_m
     )
     reported_width_m = (
         result.left_wheel_clearance_m
@@ -1037,11 +1071,18 @@ def test_blind_rows_narrower_than_rover_do_not_move_reported_centre():
 
     result = summarize_grid(estimator, grid)
 
+    footprint_half = 0.3595 + estimator.config.footprint_outboard_half_width_m
     assert result.path_available, result.reject_reasons
     assert result.path_offset_m == pytest.approx(0.0, abs=1e-9)
     assert result.heading_error_rad == pytest.approx(0.0, abs=1e-9)
-    assert result.left_wheel_clearance_m == pytest.approx(0.1055, abs=1e-9)
-    assert result.right_wheel_clearance_m == pytest.approx(0.1055, abs=1e-9)
+    assert result.left_wheel_clearance_m == pytest.approx(
+        0.50 - footprint_half,
+        abs=1e-9,
+    )
+    assert result.right_wheel_clearance_m == pytest.approx(
+        0.50 - footprint_half,
+        abs=1e-9,
+    )
 
 
 def test_no_row_covering_rover_footprint_fails_closed():
@@ -1095,9 +1136,13 @@ def test_disconnected_support_island_does_not_expand_reported_clearance():
 
     result = summarize_grid(estimator, grid)
 
-    # 기존 최외곽 셀 규칙이면 고립 셀 때문에 좌측 경계 0.75 m, 여유 0.3555 m가 된다.
+    footprint_half = 0.3595 + estimator.config.footprint_outboard_half_width_m
+    # 기존 최외곽 셀 규칙이면 고립 셀 때문에 좌측 경계 0.75 m, 여유 0.3425 m가 된다.
     assert result.path_available, result.reject_reasons
-    assert result.left_wheel_clearance_m == pytest.approx(0.1055, abs=0.005)
+    assert result.left_wheel_clearance_m == pytest.approx(
+        0.50 - footprint_half,
+        abs=0.005,
+    )
 
 
 def test_no_connected_support_still_fails_closed():
@@ -1198,11 +1243,11 @@ def test_stale_input_fails_closed():
     assert stale.reject_reasons == ("stale_frame",)
 
 
-def test_as_built_v2_0_90_m_track_is_traversable_with_55_5_mm_wheel_clearance():
-    """The 0.90 m course clears each outer wheel edge by 55.5 mm.
+def test_as_built_v2_0_90_m_track_is_traversable_with_42_5_mm_clearance():
+    """The 0.90 m course clears each outboard hub edge by 42.5 mm.
 
-    The as-built v2 footprint half-width is 0.3595 + 0.035 = 0.3945 m, so
-    the physical wheel-edge clearance is 0.4500 - 0.3945 = 0.0555 m.
+    The as-built v2 footprint half-width is 0.3595 + 0.048 = 0.4075 m, so
+    the physical outboard clearance is 0.4500 - 0.4075 = 0.0425 m.
     The 5 mm assertion tolerance is one tenth of the estimator's 50 mm grid
     cell: tight enough to catch a one-cell boundary regression.
     """
@@ -1210,8 +1255,8 @@ def test_as_built_v2_0_90_m_track_is_traversable_with_55_5_mm_wheel_clearance():
 
     assert result.path_available, result.reject_reasons
     assert result.reject_reasons == ()
-    assert result.left_wheel_clearance_m == pytest.approx(0.0555, abs=0.005)
-    assert result.right_wheel_clearance_m == pytest.approx(0.0555, abs=0.005)
+    assert result.left_wheel_clearance_m == pytest.approx(0.0425, abs=0.005)
+    assert result.right_wheel_clearance_m == pytest.approx(0.0425, abs=0.005)
 
 
 def test_same_input_sequence_produces_identical_outputs():

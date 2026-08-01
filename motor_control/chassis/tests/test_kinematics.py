@@ -32,6 +32,16 @@ def test_default_geometry_uses_as_built_v2_lateral_half_separations(
         (half_separation_m, -half_separation_m))
 
 
+def test_default_geometry_uses_the_as_built_v2_tyre_radius():
+    """바퀴 반경은 as-built v2 타이어 STL 외경 207.13 mm 의 절반이다.
+
+    공칭 스펙 100 mm 가 아니다. 이 값은 모든 속도 지령과 오도메트리에 원주로
+    곱해지므로, 3.4 % 어긋나면 전 주행거리·속도가 같은 비율로 틀어진다.
+    여기서만 고정한다 — 나머지 테스트는 `geom.wheel_radius_m` 에서 유도한다.
+    """
+    assert g().wheel_radius_m == pytest.approx(0.10356, abs=5e-5)
+
+
 # ── 직진 / 정지 ──────────────────────────────────────────────────────────
 
 def test_straight_zero_steer_equal_speed():

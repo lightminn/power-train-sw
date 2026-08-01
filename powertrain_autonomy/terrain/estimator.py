@@ -80,7 +80,12 @@ class TerrainEstimatorConfig:
     grid_y_range_m: tuple[float, float] = (-1.5, 1.5)
     max_frame_age_s: float = 0.25
     history_horizon_s: float = 1.5
+    # 타이어 트레드 반폭 — 접지 밴드 전용.
     wheel_half_width_m: float = 0.035
+    # as-built v2 인휠 허브가 타이어보다 편측 13 mm 돌출한다. 외곽 반폭은
+    # 48.0 mm이며 차폭 = 2 × (0.35950 + 0.048) = 0.8150 m이다.
+    # 원시 STL 실측: 허브 −48.0~+87.0 mm, 타이어 ±35.0 mm.
+    footprint_outboard_half_width_m: float = 0.048
     # 같은 구간의 추정치 이동은 약 0.14 m인데 실제 횡오차 이동은 약 0.02 m였다.
     # 차량 운동을 평활화하는 게 아니라 프레임별 재구성 잡음을 거르는 필터다.
     # 0.03~0.24 m/s에서 0.5 s 지연 비용은 주행거리 0.015~0.12 m다.
@@ -122,7 +127,7 @@ class TerrainEstimatorConfig:
         finite = (
             self.grid_resolution_m, *self.grid_x_range_m, *self.grid_y_range_m,
             self.max_frame_age_s, self.history_horizon_s,
-            self.wheel_half_width_m,
+            self.wheel_half_width_m, self.footprint_outboard_half_width_m,
             self.min_depth_m, self.max_depth_m, self.max_support_step_m,
             self.drop_height_m, self.obstacle_height_m, self.drop_reference_radius_m,
             self.seed_max_x_m, self.seed_half_width_m,
@@ -147,6 +152,13 @@ class TerrainEstimatorConfig:
             raise ValueError("terrain time, support, and classification thresholds must be positive")
         if self.wheel_half_width_m < 0.0:
             raise ValueError("wheel_half_width_m must be nonnegative")
+        if self.footprint_outboard_half_width_m < 0.0:
+            raise ValueError("footprint_outboard_half_width_m must be nonnegative")
+        if self.footprint_outboard_half_width_m < self.wheel_half_width_m:
+            raise ValueError(
+                "footprint_outboard_half_width_m must be >= wheel_half_width_m "
+                "because the hub cannot be narrower than the tire"
+            )
         require_int_at_least(self.min_path_rows, 2, "min_path_rows must be an integer >= 2")
 
 
@@ -447,7 +459,10 @@ class TerrainEstimator:
         x_centres = cfg.grid_x_range_m[0] + (np.arange(self.grid_shape[0]) + 0.5) * cfg.grid_resolution_m
         y_centres = cfg.grid_y_range_m[0] + (np.arange(self.grid_shape[1]) + 0.5) * cfg.grid_resolution_m
         lookahead = (x_centres >= cfg.path_x_range_m[0]) & (x_centres <= cfg.path_x_range_m[1])
-        footprint_half = max(abs(float(wheel.y)) for wheel in self.geometry.wheels) + cfg.wheel_half_width_m
+        footprint_half = (
+            max(abs(float(wheel.y)) for wheel in self.geometry.wheels)
+            + cfg.footprint_outboard_half_width_m
+        )
         candidate_rows = []
         drop_bounded_row_indices = set()
         previous_support_run = None

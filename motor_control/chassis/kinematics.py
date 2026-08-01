@@ -38,7 +38,8 @@ class Wheel:
 class ChassisGeometry:
     """차체 기하 + 한계. CAD 확정 시 이 값만 교체하면 kinematics 전체가 따라감."""
     wheels: list                       # list[Wheel]
-    wheel_radius_m: float = 0.10       # BL70200 인휠 R_w=100mm
+    wheel_radius_m: float = 0.10356    # as-built v2 CAD 타이어 STL 외경 207.13 mm 실측
+    # 무하중 기하값이며 하중 눌림 실효 반경은 직진 실측으로 별도 커미셔닝한다.
     steer_limit_deg: float = 45.0      # AK 조향 출력축 ±한계 (corner config 와 동일)
     drive_limit_mps: float = 0.80      # 바퀴 선속도 상한 (v4 최적화 v_max=0.80 m/s)
 
@@ -155,7 +156,7 @@ def solve(geom: ChassisGeometry, v_mps: float, omega_rad_s: float) -> SolveResul
     return SolveResult(wheels, omega, steer_clamped, speed_clamped)
 
 
-# ── 기본 기하 (⚠️ 잠정 플레이스홀더) ─────────────────────────────────────
+# ── 기본 기하 (as-built v2 CAD 실측) ──────────────────────────────────────
 
 
 def default_geometry() -> ChassisGeometry:
@@ -168,6 +169,9 @@ def default_geometry() -> ChassisGeometry:
     좌우 대칭 중심선 · 지면이다.
 
       축거(앞−뒤) 875.5 mm   |   윤거: 앞 545.0 / 중간 719.0 / 뒤 425.0 mm
+      타이어 반경 103.56 mm  |   트레드 폭 70 mm
+      허브 외측 돌출 반폭 48.0 mm → 차폭 815.0 mm   |   최저 지상고 71.2 mm
+      서스펜션 한계: 로커 ±20° / 보기 ±45°
 
     ⚠️ **윤거가 세 축 모두 다르다.** 앞 545 / 중간 719 / 뒤 425 mm — 중간이 가장 넓고
        뒤가 가장 좁다. CAD 상 실측이며 오독이 아니다(조향 4륜의 타이어 링크 원점이
