@@ -790,6 +790,114 @@ def test_previous_centre_seed_is_transported_before_nearest_row_selection():
     assert second.path_offset_m == pytest.approx(0.2895833333333333, abs=1e-9)
 
 
+def test_drop_bounded_contributing_rows_keep_wider_adjacent_ground_out_of_fit():
+    """Regression for the real-course failure beside the open ramp surface."""
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 6), 20, 40, 0.0),
+            (slice(6, 10), 20, 48, 0.0),
+        ),
+    )
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[2:6, 19] = True
+    lower_floor[2:6, 40] = True
+
+    result = summarize_grid(
+        estimator,
+        with_lower_floor_evidence(grid, lower_floor),
+    )
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(0.0, abs=1e-9)
+    assert result.heading_error_rad == pytest.approx(0.0, abs=1e-9)
+
+
+def test_one_drop_bounded_row_pins_offset_with_all_row_slope():
+    estimator = make_estimator()
+    spans = []
+    for row in range(2, 10):
+        shift = row - 2
+        if row == 5:
+            shift += 1
+        spans.append(
+            (slice(row, row + 1), 20 + shift, 40 + shift, 0.0)
+        )
+    grid = support_grid(estimator, tuple(spans))
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[5, 23] = True
+    lower_floor[5, 44] = True
+
+    result = summarize_grid(
+        estimator,
+        with_lower_floor_evidence(grid, lower_floor),
+    )
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(
+        0.224702380952381,
+        abs=1e-9,
+    )
+    assert result.heading_error_rad == pytest.approx(
+        0.7794102110135346,
+        abs=1e-9,
+    )
+
+
+def test_held_certified_reference_replaces_uncertified_wide_ground_fit():
+    estimator = make_estimator()
+    certified_grid = support_grid(
+        estimator,
+        ((slice(2, 10), 20, 40, 0.0),),
+    )
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[2:4, 19] = True
+    lower_floor[2:4, 40] = True
+    first = summarize_grid(
+        estimator,
+        with_lower_floor_evidence(certified_grid, lower_floor),
+        stamp_s=1.0,
+    )
+    rejected = summarize_grid(
+        estimator,
+        empty_grid(estimator.grid_shape),
+        stamp_s=1.1,
+        odometry_delta=ZERO_ODOMETRY,
+    )
+
+    result = summarize_grid(
+        estimator,
+        support_grid(estimator, ((slice(2, 10), 20, 60, 0.0),)),
+        stamp_s=1.2,
+        odometry_delta=ZERO_ODOMETRY,
+    )
+
+    assert first.path_available, first.reject_reasons
+    assert rejected.reject_reasons == ("no_connected_support",)
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(0.0, abs=1e-9)
+    assert result.heading_error_rad == pytest.approx(0.0, abs=1e-9)
+
+
+def test_no_certification_preserves_9da3afc_all_row_fit_bit_identically():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        tuple(
+            (slice(row, row + 1), 18 + row, 38 + row, 0.0)
+            for row in range(2, 10)
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert result.path_available, result.reject_reasons
+    # HEAD 9da3afc produced these exact literals with no certification anywhere.
+    assert result.path_offset_m == 0.17500000000000038
+    assert result.heading_error_rad == 0.7853981633974477
+
+
 def test_certified_reference_survives_and_transports_across_uncertified_frames():
     estimator = make_estimator()
     certified_grid = support_grid(

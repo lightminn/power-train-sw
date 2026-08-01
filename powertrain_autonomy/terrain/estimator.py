@@ -636,11 +636,48 @@ class TerrainEstimator:
             )[0]
             return float(intercept), float(slope)
 
-        intercept, slope = fit_centreline(basis_x, basis_centres)
-        fitted = intercept + slope * basis_x
-        keep = np.abs(basis_centres - fitted) <= 2.0 * cfg.grid_resolution_m
-        if 2 <= int(np.count_nonzero(keep)) < row_values.shape[0]:
-            intercept, slope = fit_centreline(basis_x[keep], basis_centres[keep])
+        def fit_centreline_with_trim(x_values, centre_values):
+            intercept, slope = fit_centreline(x_values, centre_values)
+            fitted = intercept + slope * x_values
+            keep = (
+                np.abs(centre_values - fitted)
+                <= 2.0 * cfg.grid_resolution_m
+            )
+            if 2 <= int(np.count_nonzero(keep)) < centre_values.shape[0]:
+                intercept, slope = fit_centreline(
+                    x_values[keep],
+                    centre_values[keep],
+                )
+            return intercept, slope
+
+        drop_bounded_mask = np.asarray(
+            [
+                row_index in drop_bounded_row_indices
+                for row_index in row_indices
+            ],
+            dtype=bool,
+        )
+        drop_bounded_count = int(np.count_nonzero(drop_bounded_mask))
+        if drop_bounded_count >= 2:
+            intercept, slope = fit_centreline_with_trim(
+                basis_x[drop_bounded_mask],
+                basis_centres[drop_bounded_mask],
+            )
+        elif drop_bounded_count == 1:
+            _, slope = fit_centreline_with_trim(basis_x, basis_centres)
+            anchor_index = int(np.flatnonzero(drop_bounded_mask)[0])
+            intercept = float(
+                basis_centres[anchor_index]
+                - slope * basis_x[anchor_index]
+            )
+        elif transported_reference is not None and transported_reference.certified:
+            intercept = transported_reference.offset_m
+            slope = math.tan(transported_reference.heading_rad)
+        else:
+            intercept, slope = fit_centreline_with_trim(
+                basis_x,
+                basis_centres,
+            )
 
         path_offset = float(np.median(intercept + slope * basis_x))
         heading = math.atan(slope)
