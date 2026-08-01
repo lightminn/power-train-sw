@@ -98,18 +98,18 @@ SEND_SURFACE_CONTRACT = "OBSERVE: RX-ONLY  |  OPS: TOKEN-GATED  |  "
 def estop_availability(
     *, token_available: bool, link_ready: bool,
 ) -> tuple[bool, str, str | None]:
-    """Return E-STOP sensitivity and tooltip without a persistent warning."""
+    """Return E-STOP sensitivity, tooltip, and persistent top warning."""
     if not token_available:
         return (
             False,
             "조작 토큰이 없어 비상정지 명령을 전송할 수 없습니다",
-            None,
+            "조작 토큰 없음 — 콘솔 비상정지를 사용할 수 없습니다",
         )
     if not link_ready:
         return (
             False,
             "조작 채널이 연결되지 않아 비상정지를 전송할 수 없습니다",
-            None,
+            "조작 채널 연결 대기 — 콘솔 비상정지를 전송할 수 없습니다",
         )
     return (
         True,
@@ -3086,13 +3086,17 @@ class OperatorConsole(Gtk.Window):
             )
 
     def _refresh_estop_availability(self) -> None:
-        sensitive, tooltip, _warning = estop_availability(
+        sensitive, tooltip, warning = estop_availability(
             token_available=self._ops_panel.ops_available(),
             link_ready=self._ops_panel.link_ready(),
         )
         self._global_estop.set_sensitive(sensitive)
         self._global_estop.set_tooltip_text(tooltip)
-        self._estop_availability_warning.hide()
+        if warning:
+            self._estop_availability_warning.set_text(warning)
+            self._estop_availability_warning.show()
+        else:
+            self._estop_availability_warning.hide()
 
     def _show_alert(self, message: str) -> None:
         """Show a command failure above the main content for eight seconds."""

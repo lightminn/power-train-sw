@@ -1,6 +1,9 @@
+import ast
 import inspect
 import json
 from pathlib import Path
+import textwrap
+from types import SimpleNamespace
 
 import operator_console.status_view as status_view
 from operator_console.status_view import (
@@ -31,10 +34,38 @@ def test_timed_series_keeps_explicit_stale_gap():
     assert [sample.value for sample in series.samples()] == [2.0, None]
 
 
-def test_status_view_defaults_match_operator_view_options():
-    assert RobotStatusDashboard.DEFAULT_VISIBLE == {
+def test_status_view_defaults_to_drive_detail_only():
+    constructor = ast.parse(textwrap.dedent(
+        inspect.getsource(RobotStatusDashboard.__init__)
+    ))
+    selected_panel_values = []
+    for node in ast.walk(constructor):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = (node.target,)
+        else:
+            continue
+        if any(
+            isinstance(target, ast.Attribute)
+            and isinstance(target.value, ast.Name)
+            and target.value.id == "self"
+            and target.attr == "_selected_panel"
+            for target in targets
+        ):
+            selected_panel_values.append(node.value)
+
+    assert len(selected_panel_values) == 1
+    default_panel = ast.literal_eval(selected_panel_values[0])
+    assert default_panel == "drive"
+
+    dashboard = SimpleNamespace(_selected_panel=default_panel)
+    assert {
+        key: RobotStatusDashboard.view_enabled(dashboard, key)
+        for key in RobotStatusDashboard.PANEL_ORDER
+    } == {
         "drive": True,
-        "power": True,
+        "power": False,
         "arm": False,
         "safety": False,
         "ai": False,

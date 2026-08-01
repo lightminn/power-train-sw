@@ -1,4 +1,6 @@
+import ast
 import inspect
+import textwrap
 from types import MethodType, SimpleNamespace
 
 import pytest
@@ -543,18 +545,76 @@ def test_estop_availability_copy_distinguishes_token_and_link_failures():
     assert availability(token_available=False, link_ready=False) == (
         False,
         "조작 토큰이 없어 비상정지 명령을 전송할 수 없습니다",
-        None,
+        "조작 토큰 없음 — 콘솔 비상정지를 사용할 수 없습니다",
     )
     assert availability(token_available=True, link_ready=False) == (
         False,
         "조작 채널이 연결되지 않아 비상정지를 전송할 수 없습니다",
-        None,
+        "조작 채널 연결 대기 — 콘솔 비상정지를 전송할 수 없습니다",
     )
     assert availability(token_available=True, link_ready=True) == (
         True,
         "확인 없이 즉시 토큰 인증 비상정지 명령을 전송합니다",
         None,
     )
+
+
+def test_refresh_estop_availability_keeps_operator_visible_warning_branch():
+    """2026-07-28 실기에서 ``ops_broker`` 가 1시간 죽어도 보이는 신호가 없었다.
+
+    경고 반환값을 ``_warning`` 으로 버리거나 ``hide()`` 를 무조건 호출하는
+    회귀가 생기면 운용자는 다시 툴팁을 열어야만 E-STOP 불가 사유를 안다.
+    """
+    method = ast.parse(textwrap.dedent(inspect.getsource(
+        app.OperatorConsole._refresh_estop_availability
+    )))
+
+    assignments = [
+        node for node in ast.walk(method)
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+        and node.value.func.id == "estop_availability"
+    ]
+    assert len(assignments) == 1
+    target = assignments[0].targets[0]
+    assert isinstance(target, ast.Tuple)
+    assert [element.id for element in target.elts] == [
+        "sensitive", "tooltip", "warning",
+    ]
+
+    warning_branches = [
+        node for node in ast.walk(method)
+        if isinstance(node, ast.If)
+        and isinstance(node.test, ast.Name)
+        and node.test.id == "warning"
+    ]
+    assert len(warning_branches) == 1
+    warning_branch = warning_branches[0]
+
+    def warning_label_calls(nodes, method_name):
+        return [
+            node for root in nodes for node in ast.walk(root)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == method_name
+            and isinstance(node.func.value, ast.Attribute)
+            and node.func.value.attr == "_estop_availability_warning"
+            and isinstance(node.func.value.value, ast.Name)
+            and node.func.value.value.id == "self"
+        ]
+
+    set_text_calls = warning_label_calls(warning_branch.body, "set_text")
+    show_calls = warning_label_calls(warning_branch.body, "show")
+    else_hide_calls = warning_label_calls(warning_branch.orelse, "hide")
+    all_hide_calls = warning_label_calls((method,), "hide")
+    assert len(set_text_calls) == 1
+    assert len(set_text_calls[0].args) == 1
+    assert isinstance(set_text_calls[0].args[0], ast.Name)
+    assert set_text_calls[0].args[0].id == "warning"
+    assert len(show_calls) == 1
+    assert len(else_hide_calls) == 1
+    assert all_hide_calls == else_hide_calls
 
 
 def test_refresh_health_rechecks_estop_availability():
