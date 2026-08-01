@@ -1123,9 +1123,68 @@ def test_blind_rows_narrower_than_rover_do_not_move_reported_centre():
     )
 
 
-def test_no_row_covering_rover_footprint_fails_closed():
+def test_disjoint_support_under_every_wheel_band_passes_footprint_gate():
+    """The 93% case may leave the unloaded space between wheel tracks unseen."""
     estimator = make_estimator()
-    grid = support_grid(estimator, ((slice(2, 14), 32, 48),))
+    grid = support_grid(
+        estimator,
+        (
+            # The 0.20 m centre hole separates the runs while each strip
+            # covers all three wheel bands on its side, including the margin.
+            (slice(2, 14), 21, 28),
+            (slice(2, 14), 32, 39),
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert "unsupported_footprint" not in result.reject_reasons
+
+
+def test_total_support_wider_than_rover_still_fails_when_one_band_is_missing():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            # The combined 1.20 m support exceeds the 0.815 m rover width,
+            # but the right strip stops short of the outermost wheel margin.
+            (slice(2, 14), 22, 28),
+            (slice(2, 14), 32, 50),
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert not result.path_available
+    assert result.reject_reasons == ("unsupported_footprint",)
+
+
+def test_bare_wheel_band_coverage_without_measurement_margin_fails():
+    """The bare-band gate from 20792de was too permissive without the margin."""
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 14), 22, 27),
+            (slice(2, 14), 33, 38),
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert not result.path_available
+    assert result.reject_reasons == ("unsupported_footprint",)
+
+
+def test_no_lookahead_row_covering_every_wheel_band_fails_closed():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 8), 21, 28),
+            (slice(8, 14), 32, 39),
+        ),
+    )
 
     result = summarize_grid(estimator, grid)
 

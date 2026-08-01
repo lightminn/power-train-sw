@@ -465,8 +465,26 @@ class TerrainEstimator:
             max(abs(float(wheel.y)) for wheel in self.geometry.wheels)
             + cfg.footprint_outboard_half_width_m
         )
+        wheel_band_half_width = (
+            cfg.wheel_half_width_m + cfg.grid_resolution_m
+        )
+        wheel_bands = tuple(
+            sorted(
+                {
+                    (
+                        signed_y - wheel_band_half_width,
+                        signed_y + wheel_band_half_width,
+                    )
+                    for abs_y in {
+                        abs(float(wheel.y)) for wheel in self.geometry.wheels
+                    }
+                    for signed_y in {-abs_y, abs_y}
+                }
+            )
+        )
         candidate_rows = []
         drop_bounded_row_indices = set()
+        wheel_supported_row_indices = set()
         previous_support_run = None
 
         def is_drop_bounded(x_index, run) -> bool:
@@ -508,6 +526,21 @@ class TerrainEstimator:
                     )
                 else:
                     merged_support_runs.append(next_run)
+            merged_support_edges = [
+                (
+                    y_centres[int(run[0])] - 0.5 * cfg.grid_resolution_m,
+                    y_centres[int(run[-1])] + 0.5 * cfg.grid_resolution_m,
+                )
+                for run in merged_support_runs
+            ]
+            if all(
+                any(
+                    run_right <= band_right and run_left >= band_left
+                    for run_right, run_left in merged_support_edges
+                )
+                for band_right, band_left in wheel_bands
+            ):
+                wheel_supported_row_indices.add(int(x_index))
             if previous_support_run is None:
                 drop_bounded_runs = [
                     run
@@ -571,10 +604,7 @@ class TerrainEstimator:
         lookahead_rows = [
             row for row in candidate_rows if lookahead[int(row[0])]
         ]
-        if not any(
-            right_edge <= -footprint_half and left_edge >= footprint_half
-            for _, right_edge, left_edge in lookahead_rows
-        ):
+        if not wheel_supported_row_indices:
             return self._reject(
                 stamp_s,
                 "unsupported_footprint",
