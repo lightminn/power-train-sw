@@ -655,7 +655,7 @@ def test_first_row_transported_reference_selects_nearer_drop_bounded_run():
     assert result.path_offset_m > 0.3
 
 
-def test_first_row_without_drop_bounded_runs_matches_64ec93f():
+def test_first_row_without_drop_bounded_runs_matches_9b36a80():
     estimator = make_estimator()
     grid = support_grid(
         estimator,
@@ -667,7 +667,7 @@ def test_first_row_without_drop_bounded_runs_matches_64ec93f():
 
     result = summarize_grid(estimator, grid)
 
-    # HEAD 64ec93f에서 이 fixture를 실행해 기록한 기존 동작의 literal 값이다.
+    # HEAD 9b36a80에서 이 fixture를 실행해 기록한 기존 동작의 literal 값이다.
     assert result.path_available, result.reject_reasons
     assert result.path_offset_m == pytest.approx(0.0, abs=1e-9)
     assert result.heading_error_rad == pytest.approx(0.0, abs=1e-9)
@@ -716,6 +716,189 @@ def test_previous_centre_seed_is_transported_before_nearest_row_selection():
     assert first.path_offset_m == pytest.approx(0.25, abs=1e-9)
     assert second.path_available, second.reject_reasons
     assert second.path_offset_m == pytest.approx(0.2875, abs=1e-9)
+
+
+def test_certified_reference_survives_and_transports_across_uncertified_frames():
+    estimator = make_estimator()
+    certified_grid = support_grid(
+        estimator,
+        ((slice(2, 14), 20, 40, 0.0),),
+    )
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[10, (19, 40)] = True
+    summarize_grid(
+        estimator,
+        with_lower_floor_evidence(certified_grid, lower_floor),
+        stamp_s=1.0,
+    )
+    uncertified_grid = support_grid(
+        estimator,
+        ((slice(2, 14), 30, 54, 0.0),),
+    )
+
+    for stamp_s in (1.1, 1.2, 1.3):
+        summarize_grid(
+            estimator,
+            uncertified_grid,
+            stamp_s=stamp_s,
+            odometry_delta=OdometryDelta(
+                dx_m=0.0,
+                dy_m=-0.10,
+                dyaw_rad=0.0,
+            ),
+        )
+
+    reference = estimator._lateral_reference
+    assert reference is not None
+    assert reference.certified
+    assert reference.offset_m == pytest.approx(0.30, abs=1e-9)
+    assert reference.offset_m != pytest.approx(0.60, abs=1e-9)
+    assert reference.stamp_s == pytest.approx(1.0, abs=1e-9)
+    assert reference.travelled_m == pytest.approx(0.30, abs=1e-9)
+
+
+def test_certified_reference_is_only_replaced_by_later_certification():
+    estimator = make_estimator()
+    first_grid = support_grid(
+        estimator,
+        ((slice(2, 14), 20, 40, 0.0),),
+    )
+    first_lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    first_lower_floor[10, (19, 40)] = True
+    summarize_grid(
+        estimator,
+        with_lower_floor_evidence(first_grid, first_lower_floor),
+        stamp_s=1.0,
+    )
+
+    summarize_grid(
+        estimator,
+        support_grid(estimator, ((slice(2, 14), 30, 54, 0.0),)),
+        stamp_s=1.1,
+    )
+
+    held_reference = estimator._lateral_reference
+    assert held_reference is not None
+    assert held_reference.certified
+    assert held_reference.offset_m == pytest.approx(0.0, abs=1e-9)
+    assert held_reference.stamp_s == pytest.approx(1.0, abs=1e-9)
+
+    replacement_grid = support_grid(
+        estimator,
+        ((slice(2, 14), 10, 38, 0.0),),
+    )
+    replacement_lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    replacement_lower_floor[8, (9, 38)] = True
+    summarize_grid(
+        estimator,
+        with_lower_floor_evidence(replacement_grid, replacement_lower_floor),
+        stamp_s=1.2,
+    )
+
+    replacement = estimator._lateral_reference
+    assert replacement is not None
+    assert replacement.certified
+    assert replacement.offset_m == pytest.approx(-0.30, abs=1e-9)
+    assert replacement.stamp_s == pytest.approx(1.2, abs=1e-9)
+    assert replacement.travelled_m == pytest.approx(0.0, abs=1e-9)
+
+
+def test_certified_reference_expires_by_window_travel_not_history_time():
+    estimator = make_estimator()
+    certified_grid = support_grid(
+        estimator,
+        ((slice(2, 14), 20, 40, 0.0),),
+    )
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[10, (19, 40)] = True
+    summarize_grid(
+        estimator,
+        with_lower_floor_evidence(certified_grid, lower_floor),
+        stamp_s=1.0,
+    )
+
+    summarize_grid(
+        estimator,
+        empty_grid(estimator.grid_shape),
+        stamp_s=1.0 + estimator.config.history_horizon_s + 10.0,
+        odometry_delta=ZERO_ODOMETRY,
+    )
+    assert estimator._lateral_reference is not None
+    assert estimator._lateral_reference.certified
+
+    window_depth_m = (
+        estimator.config.path_x_range_m[1]
+        - estimator.config.path_x_range_m[0]
+    )
+    summarize_grid(
+        estimator,
+        empty_grid(estimator.grid_shape),
+        stamp_s=20.0,
+        odometry_delta=OdometryDelta(
+            dx_m=window_depth_m,
+            dy_m=0.0,
+            dyaw_rad=0.0,
+        ),
+    )
+    assert estimator._lateral_reference is not None
+    assert estimator._lateral_reference.travelled_m == pytest.approx(2.15, abs=1e-9)
+
+    summarize_grid(
+        estimator,
+        empty_grid(estimator.grid_shape),
+        stamp_s=20.1,
+        odometry_delta=OdometryDelta(
+            dx_m=0.001,
+            dy_m=0.0,
+            dyaw_rad=0.0,
+        ),
+    )
+    assert estimator._lateral_reference is None
+
+
+def test_first_row_follows_carried_certified_line_without_local_drop_evidence():
+    estimator = make_estimator()
+    certified_grid = support_grid(
+        estimator,
+        tuple(
+            (
+                slice(row, row + 1),
+                20 + 2 * (row - 2),
+                40 + 2 * (row - 2),
+                0.0,
+            )
+            for row in range(2, 11)
+        ),
+    )
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[10, (35, 56)] = True
+    summarize_grid(
+        estimator,
+        with_lower_floor_evidence(certified_grid, lower_floor),
+        stamp_s=1.0,
+    )
+    reference = estimator._lateral_reference
+    assert reference is not None
+    # 이 fixture의 적합선은 y=2x-0.85이므로 인증 row x=0.825의 값은 0.80 m다.
+    # HEAD 9b36a80의 전체 row 중앙값 0.40 m를 재사용하면 이 계약이 깨진다.
+    assert reference.offset_m == pytest.approx(0.80, abs=1e-9)
+    no_evidence_grid = support_grid(
+        estimator,
+        (
+            (slice(2, 11), 14, 21, 0.0),
+            (slice(2, 11), 38, 54, 0.20),
+            (slice(11, 14), 22, 54, 0.20),
+        ),
+    )
+
+    result = summarize_grid(
+        estimator,
+        no_evidence_grid,
+        stamp_s=1.0 + estimator.config.history_horizon_s + 0.1,
+    )
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m > 0.40
 
 
 def test_rejected_frame_preserves_surface_seed_until_history_horizon_then_expires():

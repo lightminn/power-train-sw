@@ -48,6 +48,8 @@ class _LateralReference:
     offset_m: float
     heading_rad: float
     stamp_s: float
+    certified: bool
+    travelled_m: float
 
 
 @dataclass(frozen=True)
@@ -284,6 +286,13 @@ class TerrainEstimator:
             offset_m=current_rho / current_cosine,
             heading_rad=current_heading,
             stamp_s=reference.stamp_s,
+            certified=reference.certified,
+            travelled_m=(
+                reference.travelled_m
+                + math.hypot(odometry_delta.dx_m, odometry_delta.dy_m)
+                if reference.certified
+                else 0.0
+            ),
         )
 
     def _quality_and_mask(
@@ -418,20 +427,29 @@ class TerrainEstimator:
             odometry_delta = OdometryDelta(dx_m=0.0, dy_m=0.0, dyaw_rad=0.0)
         transported_reference = None
         if self._lateral_reference is not None:
-            reference_age_s = stamp_s - self._lateral_reference.stamp_s
-            if reference_age_s <= cfg.history_horizon_s:
+            reference = self._lateral_reference
+            reference_age_s = stamp_s - reference.stamp_s
+            if reference.certified or reference_age_s <= cfg.history_horizon_s:
                 transported_reference = self._transport_lateral_reference(
-                    self._lateral_reference,
+                    reference,
                     odometry_delta=odometry_delta,
                 )
-            # grid history와 같은 수명 동안 rejection을 지나서도 기준면을
-            # 운반하되, horizon을 넘기거나 운반할 수 없으면 폐기한다.
+                if (
+                    reference.certified
+                    and transported_reference is not None
+                    and transported_reference.travelled_m
+                    > cfg.path_x_range_m[1] - cfg.path_x_range_m[0]
+                ):
+                    transported_reference = None
+            # 인증된 기준선은 시간이 아니라 planning window를 주행한
+            # 거리까지, 미인증 기준선은 기존 history horizon까지 운반한다.
             self._lateral_reference = transported_reference
         x_centres = cfg.grid_x_range_m[0] + (np.arange(self.grid_shape[0]) + 0.5) * cfg.grid_resolution_m
         y_centres = cfg.grid_y_range_m[0] + (np.arange(self.grid_shape[1]) + 0.5) * cfg.grid_resolution_m
         lookahead = (x_centres >= cfg.path_x_range_m[0]) & (x_centres <= cfg.path_x_range_m[1])
         footprint_half = max(abs(float(wheel.y)) for wheel in self.geometry.wheels) + cfg.wheel_half_width_m
         candidate_rows = []
+        drop_bounded_row_indices = set()
         previous_support_run = None
 
         def is_drop_bounded(x_index, run) -> bool:
@@ -524,6 +542,8 @@ class TerrainEstimator:
             right_edge = y_centres[right_index] - 0.5 * cfg.grid_resolution_m
             left_edge = y_centres[left_index] + 0.5 * cfg.grid_resolution_m
             candidate_rows.append((x_index, right_edge, left_edge))
+            if is_drop_bounded(x_index, support_run):
+                drop_bounded_row_indices.add(int(x_index))
         if not np.any(grid.support_mask[lookahead]):
             return self._reject(
                 stamp_s,
@@ -577,11 +597,31 @@ class TerrainEstimator:
 
         path_offset = float(np.median(intercept + slope * basis_x))
         heading = math.atan(slope)
-        self._lateral_reference = _LateralReference(
-            offset_m=path_offset,
-            heading_rad=heading,
-            stamp_s=stamp_s,
+        certified_row_indices = np.asarray(
+            [
+                row_index
+                for row_index in row_indices
+                if row_index in drop_bounded_row_indices
+            ],
+            dtype=int,
         )
+        if certified_row_indices.size:
+            certification_x = float(np.median(x_centres[certified_row_indices]))
+            self._lateral_reference = _LateralReference(
+                offset_m=intercept + slope * certification_x,
+                heading_rad=heading,
+                stamp_s=stamp_s,
+                certified=True,
+                travelled_m=0.0,
+            )
+        elif transported_reference is None or not transported_reference.certified:
+            self._lateral_reference = _LateralReference(
+                offset_m=path_offset,
+                heading_rad=heading,
+                stamp_s=stamp_s,
+                certified=False,
+                travelled_m=0.0,
+            )
         left_clearance = float(np.median(row_values[:, 2] - footprint_half))
         right_clearance = float(np.median(-footprint_half - row_values[:, 1]))
 
