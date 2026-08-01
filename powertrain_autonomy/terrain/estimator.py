@@ -433,6 +433,15 @@ class TerrainEstimator:
         footprint_half = max(abs(float(wheel.y)) for wheel in self.geometry.wheels) + cfg.wheel_half_width_m
         candidate_rows = []
         previous_support_run = None
+
+        def is_drop_bounded(x_index, run) -> bool:
+            return bool(
+                np.any(grid.lower_floor_mask[x_index, : int(run[0])])
+                and np.any(
+                    grid.lower_floor_mask[x_index, int(run[-1]) + 1 :]
+                )
+            )
+
         for x_index in np.flatnonzero(lookahead):
             support_indices = np.flatnonzero(grid.support_mask[x_index])
             if support_indices.size == 0:
@@ -465,9 +474,15 @@ class TerrainEstimator:
                 else:
                     merged_support_runs.append(next_run)
             if previous_support_run is None:
+                drop_bounded_runs = [
+                    run
+                    for run in merged_support_runs
+                    if is_drop_bounded(x_index, run)
+                ]
+                selection_pool = drop_bounded_runs or merged_support_runs
                 if transported_reference is None:
                     support_run = min(
-                        merged_support_runs,
+                        selection_pool,
                         key=lambda run: abs(float(np.mean(y_centres[run]))),
                     )
                 else:
@@ -478,7 +493,7 @@ class TerrainEstimator:
                         left_edge = y_centres[int(run[-1])] + 0.5 * cfg.grid_resolution_m
                         return max(right_edge - seed_y, seed_y - left_edge, 0.0)
 
-                    support_run = min(merged_support_runs, key=distance_from_seed)
+                    support_run = min(selection_pool, key=distance_from_seed)
             else:
                 overlapping_runs = []
                 previous_first = int(previous_support_run[0])
@@ -495,15 +510,7 @@ class TerrainEstimator:
                 drop_bounded_runs = [
                     item
                     for item in overlapping_runs
-                    if np.any(
-                        grid.lower_floor_mask[x_index, : int(item[1][0])]
-                    )
-                    and np.any(
-                        grid.lower_floor_mask[
-                            x_index,
-                            int(item[1][-1]) + 1 :,
-                        ]
-                    )
+                    if is_drop_bounded(x_index, item[1])
                 ]
                 # overlap은 연속성 제약과 동률 해소에만 쓰고, 양쪽 바깥의
                 # lower-floor가 실제 관측된 후보가 있으면 그 지면을 우선한다.

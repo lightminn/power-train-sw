@@ -232,6 +232,24 @@ def support_grid(estimator: TerrainEstimator, spans) -> object:
     )
 
 
+def with_lower_floor_evidence(grid, lower_floor: np.ndarray) -> object:
+    """Add observed lower-floor cells to a support-grid fixture."""
+    height = np.array(grid.height_m, copy=True)
+    height[lower_floor] = -0.25
+    observed_count = np.array(grid.observed_count, copy=True)
+    observed_count[lower_floor] = 1
+    stamp_s = np.array(grid.stamp_s, copy=True)
+    stamp_s[lower_floor] = 1.0
+    return dataclasses.replace(
+        grid,
+        height_m=height,
+        observed_count=observed_count,
+        valid_mask=grid.valid_mask | lower_floor,
+        lower_floor_mask=lower_floor,
+        stamp_s=stamp_s,
+    )
+
+
 def branching_surface_grid(
     estimator: TerrainEstimator,
     *,
@@ -252,20 +270,7 @@ def branching_surface_grid(
     lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
     lower_floor[track_drop_rows, 19] = True
     lower_floor[track_drop_rows, 39] = True
-    height = np.array(grid.height_m, copy=True)
-    height[lower_floor] = -0.25
-    observed_count = np.array(grid.observed_count, copy=True)
-    observed_count[lower_floor] = 1
-    stamp_s = np.array(grid.stamp_s, copy=True)
-    stamp_s[lower_floor] = 1.0
-    return dataclasses.replace(
-        grid,
-        height_m=height,
-        observed_count=observed_count,
-        valid_mask=grid.valid_mask | lower_floor,
-        lower_floor_mask=lower_floor,
-        stamp_s=stamp_s,
-    )
+    return with_lower_floor_evidence(grid, lower_floor)
 
 
 def summarize_grid(
@@ -585,6 +590,89 @@ def test_drop_evidence_from_another_row_does_not_change_current_row_selection():
 
     assert result.path_available, result.reject_reasons
     assert result.path_offset_m == pytest.approx(1.0, abs=1e-9)
+
+
+def test_first_row_prefers_drop_bounded_run_over_wider_nearer_centreline():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 3), 20, 32, 0.20),
+            (slice(2, 3), 36, 46, 0.0),
+            (slice(3, 4), 16, 28, 0.20),
+            (slice(3, 4), 32, 48, 0.0),
+            (slice(4, 5), 12, 24, 0.20),
+            (slice(4, 5), 28, 50, 0.0),
+            (slice(5, 6), 8, 20, 0.20),
+            (slice(5, 6), 24, 52, 0.0),
+            (slice(6, 14), 4, 16, 0.20),
+            (slice(6, 14), 20, 52, 0.0),
+        ),
+    )
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[2, (35, 46)] = True
+
+    result = summarize_grid(
+        estimator,
+        with_lower_floor_evidence(grid, lower_floor),
+    )
+
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m > 0.25
+
+
+def test_first_row_transported_reference_selects_nearer_drop_bounded_run():
+    estimator = make_estimator()
+    initial = summarize_grid(
+        estimator,
+        support_grid(estimator, ((slice(2, 14), 20, 60, 0.0),)),
+        stamp_s=1.0,
+    )
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 3), 20, 30, 0.20),
+            (slice(2, 3), 34, 50, 0.0),
+            (slice(3, 4), 16, 26, 0.20),
+            (slice(3, 4), 30, 52, 0.0),
+            (slice(4, 5), 12, 22, 0.20),
+            (slice(4, 5), 26, 52, 0.0),
+            (slice(5, 14), 8, 18, 0.20),
+            (slice(5, 14), 22, 52, 0.0),
+        ),
+    )
+    lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+    lower_floor[2, (19, 31, 51)] = True
+
+    result = summarize_grid(
+        estimator,
+        with_lower_floor_evidence(grid, lower_floor),
+        stamp_s=1.1,
+    )
+
+    assert initial.path_offset_m == pytest.approx(0.5, abs=1e-9)
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m > 0.3
+
+
+def test_first_row_without_drop_bounded_runs_matches_64ec93f():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            (slice(2, 14), 20, 40, 0.0),
+            (slice(2, 14), 44, 60, 0.20),
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    # HEAD 64ec93f에서 이 fixture를 실행해 기록한 기존 동작의 literal 값이다.
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(0.0, abs=1e-9)
+    assert result.heading_error_rad == pytest.approx(0.0, abs=1e-9)
+    assert result.left_wheel_clearance_m == pytest.approx(0.1055, abs=1e-9)
+    assert result.right_wheel_clearance_m == pytest.approx(0.1055, abs=1e-9)
 
 
 def test_centreline_rows_stop_when_surface_splits_without_overlap():
