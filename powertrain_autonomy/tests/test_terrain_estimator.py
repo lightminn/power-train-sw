@@ -176,6 +176,44 @@ def estimate(
     )
 
 
+def analyze_frame_quality(
+    estimator: TerrainEstimator,
+    *,
+    depth_m: float,
+    stamp_s: float,
+):
+    depth = np.full(
+        estimator.config.depth_shape_px,
+        round(depth_m / 0.001),
+        dtype=np.uint16,
+    )
+    return estimator._quality_and_mask(
+        depth,
+        depth_scale_m=0.001,
+        intrinsics=WIDE_INTRINSICS,
+        stamp_s=stamp_s,
+    )[0]
+
+
+def shift_upper_depth_rows(
+    frame: TerrainFrame,
+    *,
+    offset_mm: int,
+    stamp_s: float,
+) -> TerrainFrame:
+    depth = np.array(frame.depth_roi, copy=True)
+    upper_rows = np.zeros(depth.shape, dtype=bool)
+    upper_rows[:37] = True
+    shifted = upper_rows & (depth > 0) & (depth < 6000 - offset_mm)
+    depth[shifted] += offset_mm
+    return TerrainFrame(
+        depth_roi=depth,
+        depth_scale_m=frame.depth_scale_m,
+        intrinsics=frame.intrinsics,
+        stamp_s=stamp_s,
+    )
+
+
 def summarize_centreline_frame(
     estimator: TerrainEstimator,
     *,
@@ -1193,23 +1231,86 @@ def test_depth_quality_spike_is_not_admitted_to_support_points():
     assert not support_mask[50, 40]
 
 
-def test_temporal_jump_fails_closed_and_inherits_depth_quality_reason():
+def test_temporal_jump_rejects_one_frame_then_accepts_the_steady_scene():
+    """The measured real-course 88--98% rejection defect must not latch."""
     estimator = make_estimator()
-    first = render_track_depth(stamp_s=1.0, width_m=1.5)
-    assert estimate(estimator, first).path_available
-    jumped = np.array(first.depth_roi, copy=True)
-    valid = (jumped > 0) & (jumped < 6000)
-    jumped[valid] = jumped[valid] + 600
-    second = TerrainFrame(jumped, 0.001, WIDE_INTRINSICS, 1.1)
+    first_frame = render_track_depth(stamp_s=1.0, width_m=1.5)
+    jumped_frame = shift_upper_depth_rows(
+        first_frame,
+        offset_mm=600,
+        stamp_s=1.1,
+    )
 
-    result = estimate(estimator, second)
+    first = estimate(estimator, first_frame)
+    jumped = estimate(estimator, jumped_frame)
+    steady = estimate(
+        estimator,
+        dataclasses.replace(jumped_frame, stamp_s=1.2),
+    )
 
-    assert not result.path_available
-    assert "temporal_jump" in result.reject_reasons
+    assert first.path_available, first.reject_reasons
+    assert jumped.reject_reasons == ("temporal_jump",)
+    assert steady.path_available, steady.reject_reasons
+    assert steady.reject_reasons == ()
 
-    recovered_frame = TerrainFrame(first.depth_roi, 0.001, WIDE_INTRINSICS, 1.2)
-    recovered = estimate(estimator, recovered_frame)
-    assert recovered.path_available, recovered.reject_reasons
+
+def test_steadily_receding_scene_recovers_when_per_frame_step_drops_below_limit():
+    estimator = make_estimator()
+    first_frame = render_track_depth(stamp_s=1.0, width_m=1.5)
+    frames = (
+        first_frame,
+        *(
+            shift_upper_depth_rows(
+                first_frame,
+                offset_mm=offset_mm,
+                stamp_s=stamp_s,
+            )
+            for offset_mm, stamp_s in (
+                (260, 1.1),
+                (520, 1.2),
+                (780, 1.3),
+                (900, 1.4),
+            )
+        ),
+    )
+    results = tuple(estimate(estimator, frame) for frame in frames)
+
+    assert results[0].path_available, results[0].reject_reasons
+    assert all(
+        result.reject_reasons == ("temporal_jump",)
+        for result in results[1:4]
+    )
+    assert results[4].path_available, results[4].reject_reasons
+    assert results[4].reject_reasons == ()
+
+
+def test_unusable_depth_and_regressing_stamp_do_not_advance_frame_reference():
+    missing_estimator = make_estimator()
+    first = analyze_frame_quality(missing_estimator, depth_m=1.0, stamp_s=1.0)
+    missing_depth = np.zeros(
+        missing_estimator.config.depth_shape_px,
+        dtype=np.uint16,
+    )
+    missing = missing_estimator._quality_and_mask(
+        missing_depth,
+        depth_scale_m=0.001,
+        intrinsics=WIDE_INTRINSICS,
+        stamp_s=1.1,
+    )[0]
+
+    assert "no_valid_depth" in missing.reject_reasons
+    assert missing_estimator._frame_quality == first.snapshot()
+
+    regressing_estimator = make_estimator()
+    first = analyze_frame_quality(regressing_estimator, depth_m=1.0, stamp_s=2.0)
+    regressing = analyze_frame_quality(
+        regressing_estimator,
+        depth_m=1.20,
+        stamp_s=1.9,
+    )
+
+    assert regressing.reject_reasons == ("regressing_frame_stamp",)
+    assert regressing_estimator._frame_quality == first.snapshot()
 
 
 def test_partial_occlusion_and_noise_reduce_confidence_in_expected_direction():

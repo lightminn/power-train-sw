@@ -324,7 +324,9 @@ class TerrainEstimator:
             config=self._quality_config,
         )
         temporal_rejects = {"no_valid_depth", "temporal_jump", "regressing_frame_stamp"}
-        if not temporal_rejects.intersection(frame_quality.reject_reasons):
+        if not {"no_valid_depth", "regressing_frame_stamp"}.intersection(
+            frame_quality.reject_reasons
+        ):
             self._frame_quality = frame_quality.snapshot()
         point_confidence = np.zeros(depth.shape, dtype=float)
         support_mask = np.zeros(depth.shape, dtype=bool)
