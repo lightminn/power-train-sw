@@ -329,6 +329,31 @@ def summarize_grid(
     return estimator._summarize(**kwargs)
 
 
+def seed_lateral_reference(
+    estimator: TerrainEstimator,
+    *,
+    certified: bool,
+    stamp_s: float,
+):
+    """Seed an offset reference with or without drop-bounded evidence."""
+    grid = support_grid(
+        estimator,
+        ((slice(2, 14), 20, 44, 0.0),),
+    )
+    if certified:
+        lower_floor = np.zeros(estimator.grid_shape, dtype=bool)
+        lower_floor[10, (19, 44)] = True
+        grid = with_lower_floor_evidence(grid, lower_floor)
+
+    result = summarize_grid(estimator, grid, stamp_s=stamp_s)
+
+    assert result.path_available, result.reject_reasons
+    reference = estimator._lateral_reference
+    assert reference is not None
+    assert reference.certified is certified
+    return reference
+
+
 def test_public_values_are_immutable_and_grid_shape_is_fixed():
     estimator = make_estimator()
     frame = render_track_depth()
@@ -1419,6 +1444,155 @@ def test_temporal_jump_rejects_one_frame_then_accepts_the_steady_scene():
     assert jumped.reject_reasons == ("temporal_jump",)
     assert steady.path_available, steady.reject_reasons
     assert steady.reject_reasons == ()
+
+
+def test_temporal_jump_keeps_certified_reference_for_the_next_normal_frame():
+    """At t=7.40 one bad frame killed the measured run's remaining 53 seconds."""
+    estimator = make_estimator()
+    first_frame = render_track_depth(stamp_s=1.0, width_m=1.5)
+    first = estimate(estimator, first_frame)
+    certified_reference = seed_lateral_reference(
+        estimator,
+        certified=True,
+        stamp_s=1.0,
+    )
+    jumped_frame = shift_upper_depth_rows(
+        first_frame,
+        offset_mm=600,
+        stamp_s=1.1,
+    )
+
+    jumped = estimate(estimator, jumped_frame)
+    reference_after_jump = estimator._lateral_reference
+    grid_cleared_after_jump = not np.any(estimator._grid.valid_mask)
+    normal = estimate(
+        estimator,
+        dataclasses.replace(jumped_frame, stamp_s=1.2),
+    )
+
+    assert first.path_available, first.reject_reasons
+    assert jumped.reject_reasons == ("temporal_jump",)
+    assert normal.path_available, normal.reject_reasons
+    assert normal.path_offset_m == pytest.approx(
+        certified_reference.offset_m,
+        abs=1e-9,
+    )
+    assert normal.path_offset_m != pytest.approx(0.0, abs=1e-9)
+    assert reference_after_jump == certified_reference
+    assert grid_cleared_after_jump
+    assert estimator._lateral_reference is not None
+    assert estimator._lateral_reference.certified
+    assert estimator._lateral_reference.stamp_s == pytest.approx(1.0, abs=1e-9)
+
+
+def test_temporal_jump_still_clears_an_uncertified_reference():
+    estimator = make_estimator()
+    first_frame = render_track_depth(stamp_s=1.0, width_m=1.5)
+    first = estimate(estimator, first_frame)
+    reference = seed_lateral_reference(
+        estimator,
+        certified=False,
+        stamp_s=1.0,
+    )
+    jumped_frame = shift_upper_depth_rows(
+        first_frame,
+        offset_mm=600,
+        stamp_s=1.1,
+    )
+
+    jumped = estimate(estimator, jumped_frame)
+
+    assert first.path_available, first.reject_reasons
+    assert not reference.certified
+    assert jumped.reject_reasons == ("temporal_jump",)
+    assert estimator._lateral_reference is None
+
+
+def test_clock_faults_clear_certified_and_uncertified_references():
+    cases = (
+        (1.999, "future_frame"),
+        (2.251, "stale_frame"),
+    )
+    for certified in (False, True):
+        for now_s, reason in cases:
+            estimator = make_estimator()
+            first_frame = render_track_depth(stamp_s=1.0, width_m=1.5)
+            first = estimate(estimator, first_frame)
+            reference = seed_lateral_reference(
+                estimator,
+                certified=certified,
+                stamp_s=1.0,
+            )
+            clock_fault_frame = dataclasses.replace(first_frame, stamp_s=2.0)
+
+            rejected = estimate(
+                estimator,
+                clock_fault_frame,
+                now_s=now_s,
+            )
+
+            assert first.path_available, first.reject_reasons
+            assert reference.certified is certified
+            assert rejected.reject_reasons == (reason,), (certified, reason)
+            assert estimator._lateral_reference is None, (certified, reason)
+            assert not np.any(estimator._grid.valid_mask), (certified, reason)
+            assert estimator._frame_quality is None, (certified, reason)
+            assert estimator._tile_quality == {}, (certified, reason)
+
+
+def test_certified_reference_kept_across_jump_still_expires_by_travel():
+    estimator = make_estimator()
+    first_frame = render_track_depth(stamp_s=1.0, width_m=1.5)
+    first = estimate(estimator, first_frame)
+    seed_lateral_reference(
+        estimator,
+        certified=True,
+        stamp_s=1.0,
+    )
+    jumped_frame = shift_upper_depth_rows(
+        first_frame,
+        offset_mm=600,
+        stamp_s=1.1,
+    )
+    jumped = estimate(estimator, jumped_frame)
+    window_depth_m = (
+        estimator.config.path_x_range_m[1]
+        - estimator.config.path_x_range_m[0]
+    )
+
+    at_limit = estimate(
+        estimator,
+        dataclasses.replace(jumped_frame, stamp_s=1.2),
+        odometry_delta=OdometryDelta(
+            dx_m=window_depth_m,
+            dy_m=0.0,
+            dyaw_rad=0.0,
+        ),
+    )
+    reference_at_limit = estimator._lateral_reference
+    beyond_limit = estimate(
+        estimator,
+        dataclasses.replace(jumped_frame, stamp_s=1.3),
+        odometry_delta=OdometryDelta(
+            dx_m=0.001,
+            dy_m=0.0,
+            dyaw_rad=0.0,
+        ),
+    )
+
+    assert first.path_available, first.reject_reasons
+    assert jumped.reject_reasons == ("temporal_jump",)
+    assert at_limit.path_available, at_limit.reject_reasons
+    assert reference_at_limit is not None
+    assert reference_at_limit.certified
+    assert reference_at_limit.travelled_m == pytest.approx(
+        window_depth_m,
+        abs=1e-9,
+    )
+    assert beyond_limit.path_available, beyond_limit.reject_reasons
+    assert estimator._lateral_reference is not None
+    assert not estimator._lateral_reference.certified
+    assert estimator._lateral_reference.stamp_s == pytest.approx(1.3, abs=1e-9)
 
 
 def test_steadily_receding_scene_recovers_when_per_frame_step_drops_below_limit():

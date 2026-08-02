@@ -805,7 +805,12 @@ class TerrainEstimator:
             frame_quality.reject_reasons
         )
         if fatal:
+            certified_reference = self._lateral_reference
+            if certified_reference is not None and not certified_reference.certified:
+                certified_reference = None
+            # 이 프레임의 grid history는 버리되 거리로 만료되는 인증 기준선은 유지한다.
             self._reset(clear_quality=False)
+            self._lateral_reference = certified_reference
             return self._reject(frame.stamp_s, *sorted(fatal), degradation=reasons)
 
         rotation, translation = self._projection_transform(extrinsic, tilt)
