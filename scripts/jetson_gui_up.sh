@@ -121,6 +121,44 @@ read_operator_host() {
     "$environment_file" 2>/dev/null
 }
 
+is_ipv4() {
+  local address="$1"
+  local first second third fourth octet
+  [[ "$address" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+  IFS=. read -r first second third fourth <<< "$address"
+  for octet in "$first" "$second" "$third" "$fourth"; do
+    (( 10#$octet <= 255 )) || return 1
+  done
+}
+
+route_source_ipv4() {
+  local destination="$1"
+  local route source
+  route="$(ip route get "$destination" 2>/dev/null || true)"
+  source="$(
+    printf '%s\n' "$route" \
+      | awk '{
+          for (field = 1; field < NF; field++) {
+            if ($field == "src") {
+              print $(field + 1)
+              exit
+            }
+          }
+        }'
+  )"
+  is_ipv4 "$source" && printf '%s\n' "$source"
+}
+
+interface_ipv4() {
+  local interface="$1"
+  local address
+  address="$(
+    ip -4 -o addr show dev "$interface" 2>/dev/null \
+      | awk '$3 == "inet" { sub(/\/.*/, "", $4); print $4; exit }'
+  )"
+  is_ipv4 "$address" && printf '%s\n' "$address"
+}
+
 wait_for_active_unit() {
   local unit="$1"
   local limit_s="$2"
@@ -156,6 +194,17 @@ wait_udp_listen() {
     sleep "$POLL_S"
   done
 }
+
+ssh_client_ip=""
+ssh_server_ip=""
+if [ -n "${SSH_CONNECTION:-}" ]; then
+  read -r ssh_client_ip _ssh_client_port ssh_server_ip _ssh_server_port \
+    <<< "$SSH_CONNECTION"
+fi
+client_ipv4=""
+if is_ipv4 "$ssh_client_ip"; then
+  client_ipv4="$ssh_client_ip"
+fi
 
 banner '1/7 호스트 준비'
 
@@ -209,10 +258,51 @@ if [ -e /etc/default/powertrain-chassis-telemetry ]; then
 fi
 
 OPERATOR_HOST=""
+operator_host_source=""
 if [ -n "$CLI_OPERATOR_HOST" ]; then
   OPERATOR_HOST="$CLI_OPERATOR_HOST"
-  if [ "$CLI_OPERATOR_HOST" != "$existing_operator_host" ]; then
-    printf 'OPERATOR_HOST 변경을 두 텔레메트리 환경 파일에 반영합니다.\n'
+  operator_host_source=--operator-host
+elif [ -n "$client_ipv4" ]; then
+  OPERATOR_HOST="$client_ipv4"
+  operator_host_source=SSH_CONNECTION
+elif [ -n "$existing_operator_host" ]; then
+  OPERATOR_HOST="$existing_operator_host"
+  operator_host_source=installed
+fi
+
+# mDNS(jetson-orin.local)로 접속하면 SSH가 IPv6 링크로컬을 잡는 일이 흔하고,
+# 그러면 운영 PC의 IPv4를 알 길이 없어 낡은 설치값으로 조용히 되돌아간다.
+# 그 상태를 침묵시키지 않고 `ssh -4` 재실행을 안내한다.
+if [ -z "$CLI_OPERATOR_HOST" ] && [ -z "$client_ipv4" ] \
+  && [ -n "$ssh_client_ip" ]; then
+  add_result '⚠️' 'OPERATOR_HOST 자동감지' \
+    "SSH가 IPv6($ssh_client_ip)로 접속돼 운영 PC IP를 판별하지 못했습니다 — 'ssh -4 ...' 로 다시 실행하면 자동으로 맞춰집니다"
+fi
+
+if [ -n "$OPERATOR_HOST" ] && ! is_ipv4 "$OPERATOR_HOST"; then
+  printf '⚠️ 결정된 OPERATOR_HOST가 IPv4 형식이 아니어서 브리지 기동을 건너뜁니다.\n'
+  OPERATOR_HOST=""
+  add_result '⚠️' 'OPERATOR_HOST 형식' 'IPv4 형식 아님 — 브리지 기동 스킵'
+elif [ -z "$OPERATOR_HOST" ]; then
+  printf '⚠️ OPERATOR_HOST를 결정할 수 없어 브리지 기동을 건너뜁니다.\n'
+  add_result '⚠️' 'OPERATOR_HOST' '미확정 — arm_console_bridge 기동 스킵'
+elif [ "$OPERATOR_HOST" = "$existing_operator_host" ]; then
+  if [ "$operator_host_source" = installed ]; then
+    add_result '✅' 'OPERATOR_HOST' "$OPERATOR_HOST (설치된 텔레메트리 설정)"
+  else
+    add_result '✅' 'OPERATOR_HOST' \
+      "$OPERATOR_HOST (설치값과 동일 — 재시작 생략)"
+  fi
+else
+  printf 'OPERATOR_HOST 변경을 두 텔레메트리 환경 파일에 반영합니다.\n'
+  if sudo -n /usr/local/sbin/powertrain-set-operator-host "$OPERATOR_HOST"; then
+    operator_apply_rc=0
+  else
+    operator_apply_rc=1
+  fi
+
+  if [ "$operator_apply_rc" -ne 0 ]; then
+    printf '전용 헬퍼 실패 — 기존 sudo -n 반영 경로를 시도합니다.\n'
     sudo -n bash -c '
       set -euo pipefail
       new_host="$1"
@@ -232,7 +322,7 @@ if [ -n "$CLI_OPERATOR_HOST" ]; then
             > "$environment_file"
         fi
       done
-    ' bash "$CLI_OPERATOR_HOST"
+    ' bash "$OPERATOR_HOST"
     operator_update_rc=$?
     if [ "$operator_update_rc" -eq 0 ]; then
       sudo -n systemctl restart \
@@ -243,31 +333,19 @@ if [ -n "$CLI_OPERATOR_HOST" ]; then
       operator_restart_rc=1
     fi
     if [ "$operator_update_rc" -eq 0 ] && [ "$operator_restart_rc" -eq 0 ]; then
-      add_result '✅' 'OPERATOR_HOST' "$OPERATOR_HOST로 갱신하고 유닛 재시작"
+      operator_apply_rc=0
     else
-      OPERATOR_HOST="$existing_operator_host"
-      printf '⚠️ sudo 자동 변경 실패. 기존 값 %s로 계속합니다.\n' "$OPERATOR_HOST"
-      printf '수동 재설치: sudo bash scripts/install_chassis_telemetry_service.sh %s\n' \
-        "$CLI_OPERATOR_HOST"
-      add_result '⚠️' 'OPERATOR_HOST' \
-        "자동 변경 실패 — 기존 값 $OPERATOR_HOST 사용; sudo bash scripts/install_chassis_telemetry_service.sh $CLI_OPERATOR_HOST"
+      operator_apply_rc=1
     fi
-  else
-    add_result '✅' 'OPERATOR_HOST' "$OPERATOR_HOST (--operator-host)"
   fi
-elif [ -n "$existing_operator_host" ]; then
-  OPERATOR_HOST="$existing_operator_host"
-  add_result '✅' 'OPERATOR_HOST' "$OPERATOR_HOST (설치된 텔레메트리 설정)"
-else
-  printf '⚠️ OPERATOR_HOST를 결정할 수 없어 브리지 기동을 건너뜁니다.\n'
-  add_result '⚠️' 'OPERATOR_HOST' '미확정 — arm_console_bridge 기동 스킵'
-fi
 
-if [ -n "$OPERATOR_HOST" ] \
-  && ! [[ "$OPERATOR_HOST" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-  printf '⚠️ 설치된 OPERATOR_HOST가 IPv4 형식이 아니어서 브리지 기동을 건너뜁니다.\n'
-  OPERATOR_HOST=""
-  add_result '⚠️' 'OPERATOR_HOST 형식' 'IPv4 형식 아님 — 브리지 기동 스킵'
+  if [ "$operator_apply_rc" -eq 0 ]; then
+    add_result '✅' 'OPERATOR_HOST' "$OPERATOR_HOST로 갱신하고 유닛 재시작"
+  else
+    existing_host_display="${existing_operator_host:-미확정}"
+    add_result '⚠️' 'OPERATOR_HOST' \
+      "반영 실패 — :5004/:5005 텔레메트리는 여전히 $existing_host_display 으로 나갑니다. 젯슨에서 'sudo bash scripts/install_operator_host_helper.sh' 를 1회 실행하면 이후 자동 반영됩니다"
+  fi
 fi
 
 banner '2/7 파워트레인 compose'
@@ -642,19 +720,19 @@ else
 fi
 
 jetson_ip=""
-if [ -n "$OPERATOR_HOST" ]; then
-  route_to_operator="$(ip route get "$OPERATOR_HOST" 2>/dev/null || true)"
-  jetson_ip="$(
-    printf '%s\n' "$route_to_operator" \
-      | awk '{
-          for (field = 1; field < NF; field++) {
-            if ($field == "src") {
-              print $(field + 1)
-              exit
-            }
-          }
-        }'
-  )"
+if is_ipv4 "$ssh_server_ip"; then
+  jetson_ip="$ssh_server_ip"
+elif [[ "${ssh_server_ip,,}" == fe80::*%* ]]; then
+  ssh_server_interface="${ssh_server_ip##*%}"
+  if [ -n "$ssh_server_interface" ]; then
+    jetson_ip="$(interface_ipv4 "$ssh_server_interface")"
+  fi
+fi
+if [ -z "$jetson_ip" ] && [ -n "$client_ipv4" ]; then
+  jetson_ip="$(route_source_ipv4 "$client_ipv4")"
+fi
+if [ -z "$jetson_ip" ] && [ -n "$OPERATOR_HOST" ]; then
+  jetson_ip="$(route_source_ipv4 "$OPERATOR_HOST")"
 fi
 if [ -z "$jetson_ip" ]; then
   jetson_addresses="$(hostname -I 2>/dev/null || true)"

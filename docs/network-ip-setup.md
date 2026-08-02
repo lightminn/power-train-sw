@@ -23,17 +23,34 @@ ping -c1 <JETSON>
 ssh zetin@<JETSON> 'echo ok'
 ```
 
-## 1. 젯슨 스택 기동 — 운용 PC IP 를 넘긴다
+## 1. 젯슨 스택 기동 — 목적지는 접속한 PC 로 자동 설정된다
 
 젯슨은 텔레메트리를 **운용 PC 로 UDP 송신**하므로 상대 주소를 알아야 한다.
+`ssh -4` 로 접속하면 원클릭이 **지금 접속해 온 그 PC** 를 목적지로 자동 설정한다.
 
 ```bash
 # 노트북에서 (SSH 접속 직후, 홈 ~)
-ssh zetin@<JETSON> 'bash ~/power-train-sw/scripts/jetson_gui_up.sh --operator-host <OPERATOR>'
+ssh -4 zetin@<JETSON> 'bash ~/power-train-sw/scripts/jetson_gui_up.sh'
 ```
 
-`--operator-host` 는 두 텔레메트리 서비스의 환경파일(`OPERATOR_HOST=`)까지 자동으로
-고쳐 쓴다. 한 번 넘기면 다음부터는 생략해도 그 값이 유지된다.
+⚠️ `-4` 를 빼면 mDNS 가 IPv6 link-local 로 잡혀 운용 PC 의 IPv4 를 판별하지 못한다.
+그때는 요약표에 `⚠️ OPERATOR_HOST 자동감지` 행이 뜬다 — `ssh -4` 로 다시 실행하면 된다.
+
+데이터를 **다른 PC 로** 보낼 때만 주소를 직접 넘긴다:
+
+```bash
+ssh -4 zetin@<JETSON> 'bash ~/power-train-sw/scripts/jetson_gui_up.sh --operator-host <OPERATOR>'
+```
+
+⚠️ 목적지를 두 텔레메트리 서비스의 환경파일(`OPERATOR_HOST=`)에 반영하려면 root 권한이
+필요하고, 젯슨 sudo 는 **항상 비밀번호를 요구**한다. 아래를 **1회** 실행해 두면 이후로는
+비밀번호 없이 자동 반영된다. 안 해 두면 요약표에 `OPERATOR_HOST | 반영 실패` 가 뜨고
+`:5004`/`:5005` 는 예전 주소로 계속 나간다:
+
+```bash
+# 젯슨에서 1회 (비밀번호 입력)
+cd ~/power-train-sw && sudo bash scripts/install_operator_host_helper.sh
+```
 
 옵션:
 
