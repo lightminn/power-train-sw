@@ -199,12 +199,14 @@ class TerrainEstimator:
             max_depth_m=self.config.max_depth_m,
         )
         self._grid: ElevationGrid = empty_grid(self.grid_shape)
+        self._travelled_m = 0.0
         self._lateral_reference: _LateralReference | None = None
         self._filtered_path_estimate: tuple[float, float] | None = None
         self._path_estimate_stamp_s: float | None = None
 
     def _reset(self, *, clear_quality: bool) -> None:
         self._grid = empty_grid(self.grid_shape)
+        self._travelled_m = 0.0
         self._lateral_reference = None
         self._filtered_path_estimate = None
         self._path_estimate_stamp_s = None
@@ -831,6 +833,10 @@ class TerrainEstimator:
         points = kernel_result.points_m
 
         previous_grid = self._grid
+        current_travelled_m = self._travelled_m + math.hypot(
+            odometry_delta.dx_m,
+            odometry_delta.dy_m,
+        )
         current_grid = build_elevation_grid(
             points,
             classification_mask,
@@ -838,6 +844,7 @@ class TerrainEstimator:
             support_point_mask=support_mask,
             kernel_result=kernel_result,
             stamp_s=frame.stamp_s,
+            travelled_m=current_travelled_m,
             shape=self.grid_shape,
             resolution_m=self.config.grid_resolution_m,
             x_range_m=self.config.grid_x_range_m,
@@ -855,8 +862,7 @@ class TerrainEstimator:
             dx_m=odometry_delta.dx_m,
             dy_m=odometry_delta.dy_m,
             dyaw_rad=odometry_delta.dyaw_rad,
-            current_stamp_s=frame.stamp_s,
-            history_horizon_s=self.config.history_horizon_s,
+            current_travelled_m=current_travelled_m,
             resolution_m=self.config.grid_resolution_m,
             x_range_m=self.config.grid_x_range_m,
             y_range_m=self.config.grid_y_range_m,
@@ -867,6 +873,7 @@ class TerrainEstimator:
             seed_max_x_m=self.config.seed_max_x_m,
             seed_half_width_m=self.config.seed_half_width_m,
         )
+        self._travelled_m = current_travelled_m
         return self._summarize(
             self._grid,
             stamp_s=frame.stamp_s,
