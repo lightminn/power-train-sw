@@ -26,7 +26,6 @@ class ElevationGrid:
     lower_floor_mask: np.ndarray
     obstacle_mask: np.ndarray
     stamp_s: np.ndarray
-    travelled_m: np.ndarray
 
 
 def _cell_statistics(
@@ -185,7 +184,6 @@ def build_elevation_grid(
     support_point_mask: np.ndarray | None = None,
     kernel_result: TerrainKernelResult | None = None,
     stamp_s: float,
-    travelled_m: float = 0.0,
     shape: tuple[int, int],
     resolution_m: float,
     x_range_m: tuple[float, float],
@@ -299,11 +297,6 @@ def build_elevation_grid(
         reference_radius_m=drop_reference_radius_m,
     )
     slope_x, slope_y = _finite_differences(support_height, support, resolution_m)
-    observation_travelled = np.where(
-        np.isfinite(stamps),
-        float(travelled_m),
-        np.nan,
-    )
     return ElevationGrid(
         height_m=height,
         observed_count=counts,
@@ -316,7 +309,6 @@ def build_elevation_grid(
         lower_floor_mask=lower_floor,
         obstacle_mask=obstacle,
         stamp_s=stamps,
-        travelled_m=observation_travelled,
     )
 
 
@@ -337,7 +329,6 @@ def empty_grid(shape: tuple[int, int]) -> ElevationGrid:
         lower_floor_mask=false.copy(),
         obstacle_mask=false.copy(),
         stamp_s=nan.copy(),
-        travelled_m=nan.copy(),
     )
 
 
@@ -348,7 +339,8 @@ def warp_and_fuse_grid(
     dx_m: float,
     dy_m: float,
     dyaw_rad: float,
-    current_travelled_m: float,
+    current_stamp_s: float,
+    history_horizon_s: float,
     resolution_m: float,
     x_range_m: tuple[float, float],
     y_range_m: tuple[float, float],
@@ -365,21 +357,15 @@ def warp_and_fuse_grid(
     carried confidence and is returned to the caller for footprint inflation.
     """
     shape = current.height_m.shape
-    valid_previous = (
-        previous.valid_mask
-        & np.isfinite(previous.stamp_s)
-        & np.isfinite(previous.travelled_m)
-    )
-    carry_travel_m = x_range_m[1] - x_range_m[0]
-    travel = current_travelled_m - previous.travelled_m
-    valid_previous &= (travel >= 0.0) & (travel < carry_travel_m)
+    valid_previous = previous.valid_mask & np.isfinite(previous.stamp_s)
+    ages = current_stamp_s - previous.stamp_s
+    valid_previous &= (ages >= 0.0) & (ages < history_horizon_s)
     source_x, source_y = np.nonzero(valid_previous)
     warped_height = np.full(shape, np.nan, dtype=float)
     warped_count = np.zeros(shape, dtype=np.int32)
     warped_roughness = np.full(shape, np.nan, dtype=float)
     warped_confidence = np.zeros(shape, dtype=float)
     warped_stamp = np.full(shape, np.nan, dtype=float)
-    warped_travelled = np.full(shape, np.nan, dtype=float)
     residual_grid = np.full(shape, np.inf, dtype=float)
     if source_x.size:
         x = x_range_m[0] + (source_x + 0.5) * resolution_m
@@ -404,16 +390,11 @@ def warp_and_fuse_grid(
         centre_x = x_range_m[0] + (dx + 0.5) * resolution_m
         centre_y = y_range_m[0] + (dy + 0.5) * resolution_m
         residual = np.hypot(current_x[inside] - centre_x, current_y[inside] - centre_y)
-        travel_score = np.maximum(
-            0.0,
-            1.0 - travel[sx, sy] / carry_travel_m,
-        )
+        age_score = np.maximum(0.0, 1.0 - ages[sx, sy] / history_horizon_s)
         residual_score = np.maximum(
             0.25, 1.0 - 0.5 * residual / (math.sqrt(0.5) * resolution_m)
         )
-        candidate_confidence = (
-            previous.confidence[sx, sy] * travel_score * residual_score
-        )
+        candidate_confidence = previous.confidence[sx, sy] * age_score * residual_score
         # 목적지 셀당 하나만 남긴다: 신뢰도 최대, 동률이면 잔차 최소(결정적 lexsort).
         destination = dx * shape[1] + dy
         order = np.lexsort((residual, -candidate_confidence, destination))
@@ -427,9 +408,6 @@ def warp_and_fuse_grid(
         warped_roughness[flat_dx, flat_dy] = previous.roughness_m[sx[chosen], sy[chosen]]
         warped_confidence[flat_dx, flat_dy] = candidate_confidence[chosen]
         warped_stamp[flat_dx, flat_dy] = previous.stamp_s[sx[chosen], sy[chosen]]
-        warped_travelled[flat_dx, flat_dy] = previous.travelled_m[
-            sx[chosen], sy[chosen]
-        ]
 
     warped_count[warped_confidence <= 0.0] = 0
     carried = (warped_count > 0) & ~current.valid_mask
@@ -441,11 +419,6 @@ def warp_and_fuse_grid(
     roughness = np.where(current.valid_mask, current.roughness_m, warped_roughness)
     confidence = np.where(current.valid_mask, current.confidence, warped_confidence)
     stamps = np.where(current.valid_mask, current.stamp_s, warped_stamp)
-    travelled = np.where(
-        current.valid_mask,
-        current.travelled_m,
-        warped_travelled,
-    )
     valid = count > 0
     x_centres = x_range_m[0] + (np.arange(shape[0]) + 0.5) * resolution_m
     y_centres = y_range_m[0] + (np.arange(shape[1]) + 0.5) * resolution_m
@@ -490,7 +463,6 @@ def warp_and_fuse_grid(
             lower_floor_mask=lower_floor,
             obstacle_mask=obstacle,
             stamp_s=stamps,
-            travelled_m=travelled,
         ),
         int(np.count_nonzero(carried)),
         residual_max,

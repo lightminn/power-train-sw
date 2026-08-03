@@ -214,43 +214,6 @@ def shift_upper_depth_rows(
     )
 
 
-def hide_base_region(
-    frame: TerrainFrame,
-    *,
-    x_range_m: tuple[float, float],
-    y_range_m: tuple[float, float],
-    stamp_s: float,
-) -> TerrainFrame:
-    """Remove depth samples whose independently projected base point is in a box."""
-    depth = np.array(frame.depth_roi, copy=True)
-    rows, cols = np.indices(depth.shape, dtype=float)
-    optical_z = depth.astype(float) * frame.depth_scale_m
-    camera = np.stack(
-        (
-            (cols - frame.intrinsics.cx) * optical_z / frame.intrinsics.fx,
-            (rows - frame.intrinsics.cy) * optical_z / frame.intrinsics.fy,
-            optical_z,
-        ),
-        axis=-1,
-    )
-    base = camera @ _camera_to_base(BaseToCameraExtrinsic()).T
-    base += np.array((0.0, 0.0, BaseToCameraExtrinsic().z_m))
-    hidden = (
-        (depth > 0)
-        & (base[..., 0] >= x_range_m[0])
-        & (base[..., 0] <= x_range_m[1])
-        & (base[..., 1] >= y_range_m[0])
-        & (base[..., 1] <= y_range_m[1])
-    )
-    depth[hidden] = 0
-    return TerrainFrame(
-        depth_roi=depth,
-        depth_scale_m=frame.depth_scale_m,
-        intrinsics=frame.intrinsics,
-        stamp_s=stamp_s,
-    )
-
-
 def summarize_centreline_frame(
     estimator: TerrainEstimator,
     *,
@@ -1786,141 +1749,34 @@ def test_recent_grid_is_carried_into_blind_zone_with_odometry_delta():
     assert result.path_available, result.reject_reasons
 
 
-def test_stationary_rover_keeps_observed_grid_cell_past_history_horizon():
-    """A stationary rover must not lose its map merely because wall time advances."""
+def test_grid_history_expires_after_bounded_horizon():
     estimator = make_estimator(path_x_range_m=(0.70, 0.90), min_path_rows=2)
     first = render_track_depth(stamp_s=1.0, width_m=1.5)
     assert estimate(estimator, first).path_available
-    first_valid = np.array(estimator._grid.valid_mask, copy=True)
-    blind = hide_base_region(
-        first,
-        x_range_m=(0.70, 0.80),
-        y_range_m=(-0.10, 0.10),
-        stamp_s=1.75,
+    depth = np.array(first.depth_roi, copy=True)
+    rows, cols = np.indices(depth.shape, dtype=float)
+    optical_z = depth.astype(float) * 0.001
+    camera = np.stack(
+        (
+            (cols - WIDE_INTRINSICS.cx) * optical_z / WIDE_INTRINSICS.fx,
+            (rows - WIDE_INTRINSICS.cy) * optical_z / WIDE_INTRINSICS.fy,
+            optical_z,
+        ),
+        axis=-1,
     )
-    current_only = make_estimator(path_x_range_m=(0.70, 0.90), min_path_rows=2)
-    estimate(current_only, blind)
-    remembered_only = first_valid & ~current_only._grid.valid_mask
-    assert np.any(remembered_only)
-    cell = tuple(np.argwhere(remembered_only)[0])
-
-    estimate(estimator, blind)
-    result = estimate(estimator, dataclasses.replace(blind, stamp_s=2.60))
-
-    assert result.path_available, result.reject_reasons
-    assert estimator._grid.valid_mask[cell]
-    assert estimator._grid.stamp_s[cell] == pytest.approx(1.0, abs=1e-9)
-
-
-def test_grid_history_expires_after_grid_depth_of_travel():
-    estimator = make_estimator(path_x_range_m=(0.70, 0.90), min_path_rows=2)
-    first = render_track_depth(stamp_s=1.0, width_m=1.5)
-    assert estimate(estimator, first).path_available
-    right_outer_blind = hide_base_region(
-        first,
-        x_range_m=(0.60, 1.00),
-        y_range_m=(-0.90, -0.27),
-        stamp_s=1.01,
-    )
-    travel_step_m = estimator.config.grid_resolution_m
-    carry_travel_m = (
-        estimator.config.grid_x_range_m[1]
-        - estimator.config.grid_x_range_m[0]
-    )
-    step_count = int(carry_travel_m / travel_step_m) + 2
-
-    result = None
-    for step in range(1, step_count + 1):
-        result = estimate(
-            estimator,
-            dataclasses.replace(right_outer_blind, stamp_s=1.0 + 0.01 * step),
-            odometry_delta=OdometryDelta(
-                dx_m=travel_step_m if step % 2 else -travel_step_m,
-                dy_m=0.0,
-                dyaw_rad=0.0,
-            ),
-        )
-
-    assert result is not None
-    assert estimator._travelled_m > carry_travel_m
-    assert result.reject_reasons == ("unsupported_footprint",)
-
-    estimator._reset(clear_quality=False)
-    assert estimator._travelled_m == 0.0
-
-
-def test_remembered_outer_wheel_ground_prevents_real_course_footprint_stop():
-    """The real-course stop must not recur when only an outer wheel band is unseen."""
-    estimator = make_estimator(path_x_range_m=(0.70, 0.90), min_path_rows=2)
-    first = render_track_depth(stamp_s=1.0, width_m=1.5)
-    assert estimate(estimator, first).path_available
-    right_outer_blind = hide_base_region(
-        first,
-        x_range_m=(0.60, 1.00),
-        y_range_m=(-0.90, -0.27),
-        stamp_s=2.70,
-    )
-    current_only = estimate(
-        make_estimator(path_x_range_m=(0.70, 0.90), min_path_rows=2),
-        right_outer_blind,
-    )
+    base = camera @ _camera_to_base(BaseToCameraExtrinsic()).T
+    base += np.array((0.0, 0.0, 0.60))
+    blind = (base[..., 0] >= 0.70) & (base[..., 0] <= 0.90) & (np.abs(base[..., 1]) < 0.9)
+    depth[blind] = 0
+    expired_frame = TerrainFrame(depth, 0.001, WIDE_INTRINSICS, 2.500)
 
     result = estimate(
         estimator,
-        right_outer_blind,
-        odometry_delta=OdometryDelta(dx_m=0.05, dy_m=0.0, dyaw_rad=0.0),
+        expired_frame,
+        odometry_delta=OdometryDelta(dx_m=0.10, dy_m=0.0, dyaw_rad=0.0),
     )
 
-    assert current_only.reject_reasons == ("unsupported_footprint",)
-    assert "unsupported_footprint" not in result.reject_reasons
-
-
-def test_grid_carry_confidence_decays_by_travel_and_never_exceeds_fresh():
-    estimator = make_estimator(path_x_range_m=(0.70, 0.90), min_path_rows=2)
-    first = render_track_depth(stamp_s=1.0, width_m=1.5)
-    assert estimate(estimator, first).path_available
-    fresh_grid = estimator._grid
-    travel_m = estimator.config.grid_resolution_m
-    right_outer_blind = hide_base_region(
-        first,
-        x_range_m=(0.60, 1.00),
-        y_range_m=(-0.90, -0.27),
-        stamp_s=1.001,
-    )
-
-    estimate(
-        estimator,
-        right_outer_blind,
-        odometry_delta=OdometryDelta(dx_m=travel_m, dy_m=0.0, dyaw_rad=0.0),
-    )
-
-    carried = (
-        estimator._grid.valid_mask
-        & np.isclose(estimator._grid.stamp_s, first.stamp_s, atol=1e-12)
-        & (estimator._grid.confidence > 0.0)
-    )
-    cell = None
-    for destination_x, destination_y in np.argwhere(carried):
-        source_x = int(destination_x) + 1
-        if source_x < estimator.grid_shape[0] and fresh_grid.valid_mask[
-            source_x, destination_y
-        ]:
-            cell = (int(destination_x), int(destination_y), source_x)
-            break
-    assert cell is not None
-    destination_x, destination_y, source_x = cell
-    fresh_confidence = fresh_grid.confidence[source_x, destination_y]
-    carry_travel_m = (
-        estimator.config.grid_x_range_m[1]
-        - estimator.config.grid_x_range_m[0]
-    )
-    expected = fresh_confidence * (1.0 - travel_m / carry_travel_m)
-    carried_confidence = estimator._grid.confidence[
-        destination_x, destination_y
-    ]
-
-    assert carried_confidence == pytest.approx(expected, rel=1e-9, abs=1e-12)
-    assert carried_confidence < fresh_confidence
+    assert not result.path_available
 
 
 def test_local_drop_reference_follows_longitudinal_slope():
