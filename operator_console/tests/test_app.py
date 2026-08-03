@@ -1346,8 +1346,11 @@ def test_explicit_controls_swap_main_and_sub_without_rebuilding_pipelines():
     assert 'header_click.connect("button-press-event", self._on_swap_click)' not in source
     assert "def _on_swap_click" not in source
     assert "def set_swap_handler" not in source
-    assert 'Gtk.Button(label="큰 화면으로 보기")' in source
-    assert "pip_overlay.add_overlay(self._swap_button)" in source
+    assert 'Gtk.Button(label="화면 전환")' in source
+    assert "self._d435.set_header_action(self._swap_button)" in source
+    assert "secondary.set_header_action(self._swap_button)" in source
+    assert "pip_overlay.add_overlay(self._swap_button)" not in source
+    assert "self._swap_button.set_size_request(88, 28)" in source
     assert "display_options.pack_start(self._swap_button" not in source
     assert "Gdk.KEY_v" in source
     assert "Gdk.KEY_V" in source

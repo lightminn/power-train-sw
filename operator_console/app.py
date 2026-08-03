@@ -273,7 +273,7 @@ label { color: #f8fafc; }
 .developer-box { background: #EDF3F8; border-top: 1px solid #D8E2EC; padding: 8px; }
 .developer-box label { color: #71869A; font-size: 9px; }
 .pip-frame { background: #020810; border: 1px solid rgba(150,175,198,0.60); border-radius: 7px; box-shadow: 0 8px 22px rgba(0,12,28,0.28); }
-.pip-swap-button { min-height: 28px; padding: 3px 10px; margin: 8px; border-radius: 6px; border: 1px solid rgba(166,190,214,0.72); background: rgba(8,25,42,0.90); color: #FFFFFF; font-size: 11px; font-weight: 800; }
+.pip-swap-button { min-height: 28px; min-width: 88px; padding: 3px 9px; border-radius: 6px; border: 1px solid rgba(166,190,214,0.72); background: rgba(8,25,42,0.90); color: #FFFFFF; font-size: 10px; font-weight: 800; }
 .pip-swap-button:hover { background: rgba(35,83,130,0.96); border-color: #8EC5FF; }
 .preparation-status-value { color: #8B9AAA; font-size: 11px; font-weight: 800; }
 .preparation-status-dot { background: #8B9AAA; border-radius: 999px; min-width: 7px; min-height: 7px; }
@@ -307,10 +307,13 @@ label { color: #f8fafc; }
 .status-panel-title { color: #17263A; font-size: 16px; font-weight: 900; }
 .status-panel-values { color: #34495E; font-size: 12px; }
 .status-panel-updated { color: #8796A8; font-size: 10px; }
+.power-metric, .detail-metric { background: #F5F8FC; border: 1px solid #D8E2EC; border-radius: 7px; padding: 9px 11px; }
+.power-metric-title, .detail-metric-title { color: #71869A; font-size: 10px; font-weight: 700; }
+.power-metric-value, .detail-metric-value { color: #17263A; font-size: 18px; font-weight: 900; }
+.power-state-summary { background: #F8FAFC; border-left: 3px solid #2D6EDB; color: #34495E; padding: 8px 11px; font-size: 11px; }
 .soc-progress trough { min-height: 6px; background: #E3EAF1; border: none; }
 .soc-progress progress { min-height: 6px; background: #218A63; border: none; }
 .soc-progress text { color: #607287; font-size: 10px; }
-.status-issues { background: #FFFFFF; border: 1px solid #D0DBE5; border-radius: 8px; color: #607287; padding: 10px; }
 .display-options { background: #FFFFFF; border: 1px solid #D0DBE5; border-radius: 7px; padding: 8px 10px; }
 .display-options-title { color: #17263A; font-size: 11px; font-weight: 900; }
 .display-option { color: #17263A; font-size: 12px; padding: 0; }
@@ -1026,10 +1029,12 @@ class EventLog(Gtk.Box):
         self._render()
 
     def latest_public(self) -> tuple[str, str]:
-        if not self._entries:
-            return "INFO", "이벤트 수신 대기"
-        _stamp, severity, source, message = self._entries[-1]
-        return severity, self._public_message(source, message)
+        for _stamp, severity, source, message in reversed(self._entries):
+            if self.event_filter_state[severity]:
+                return severity, self._public_message(source, message)
+        if not any(self.event_filter_state.values()):
+            return "INFO", "표시할 이벤트 수준을 선택해 주세요"
+        return "INFO", "선택한 수준의 기록이 없습니다"
 
 
 class FixedSizeSlot(Gtk.Bin):
@@ -1098,6 +1103,7 @@ class VideoPanel(Gtk.Box):
         self._detail.set_xalign(0.0)
         self._detail.set_ellipsize(Pango.EllipsizeMode.END)
         header = Gtk.Box(spacing=10)
+        self._header = header
         header.set_border_width(8)
         header.pack_start(self._role, False, False, 0)
         self._connection_dot = Gtk.Label(label="")
@@ -1181,6 +1187,14 @@ class VideoPanel(Gtk.Box):
         bus.enable_sync_message_emission()
         bus.connect("sync-message::element", self._on_sync_message)
         GLib.timeout_add(200, self._refresh_video_health)
+
+    def set_header_action(self, action: Gtk.Widget) -> None:
+        """Place the PiP action inside this panel's header without overlap."""
+        parent = action.get_parent()
+        if parent is not None:
+            parent.remove(action)
+        self._header.pack_end(action, False, False, 0)
+        action.show_all()
 
     def set_rover_component_states(
         self, *, front_live: bool, work_live: bool,
@@ -2279,11 +2293,10 @@ class OperatorConsole(Gtk.Window):
         _style(pip_frame, "pip-frame")
         self._pip_slot = FixedSizeSlot()
         self._pip_slot.add(self._d435)
-        pip_overlay = Gtk.Overlay()
-        pip_overlay.add(self._pip_slot)
-        self._swap_button = Gtk.Button(label="큰 화면으로 보기")
+        self._swap_button = Gtk.Button(label="화면 전환")
         self._swap_button.set_halign(Gtk.Align.END)
-        self._swap_button.set_valign(Gtk.Align.START)
+        self._swap_button.set_valign(Gtk.Align.CENTER)
+        self._swap_button.set_size_request(88, 28)
         _style(self._swap_button, "pip-swap-button")
         self._swap_button.set_tooltip_text(
             "이 작은 카메라 영상을 큰 화면으로 전환합니다 (단축키 V)"
@@ -2295,8 +2308,8 @@ class OperatorConsole(Gtk.Window):
                 user_initiated=True,
             ),
         )
-        pip_overlay.add_overlay(self._swap_button)
-        pip_frame.add(pip_overlay)
+        self._d435.set_header_action(self._swap_button)
+        pip_frame.add(self._pip_slot)
         videos.add_overlay(pip_frame)
         self._watermark = JetInWatermark()
         self._watermark.set_halign(Gtk.Align.END)
@@ -2973,6 +2986,7 @@ class OperatorConsole(Gtk.Window):
         self._pip_slot.remove(selected)
         self._videos.add(selected)
         self._pip_slot.add(secondary)
+        secondary.set_header_action(self._swap_button)
         selected.set_role("MAIN")
         secondary.set_role("SUB")
         self._main_video = selected
@@ -3474,7 +3488,11 @@ def _add_unix_signal_watch(
     except (ValueError, ImportError):
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, stop_signal, handler)
     else:
-        GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, stop_signal, handler)
+        signal_add = getattr(GLibUnix, "signal_add", None)
+        if signal_add is None:
+            GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, stop_signal, handler)
+        else:
+            signal_add(GLib.PRIORITY_DEFAULT, stop_signal, handler)
 
 
 def main() -> None:

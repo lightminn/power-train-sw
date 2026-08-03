@@ -8,6 +8,7 @@ from operator_console.status_view import (
     MAX_GRAPH_SAMPLES,
     RobotStatusDashboard,
     TimedSeries,
+    pdist_alarm_names,
 )
 from operator_console.telemetry import parse_telemetry
 
@@ -31,15 +32,17 @@ def test_timed_series_keeps_explicit_stale_gap():
     assert [sample.value for sample in series.samples()] == [2.0, None]
 
 
+def test_pdist_operating_bits_are_not_misclassified_as_alarms():
+    assert pdist_alarm_names(0b00000011, 0b11100000) == ()
+    assert pdist_alarm_names(1 << 3, 1 << 1) == (
+        "저전압 보호", "방전 과전류",
+    )
+
+
 def test_status_view_defaults_match_operator_view_options():
-    assert RobotStatusDashboard.DEFAULT_VISIBLE == {
-        "drive": True,
-        "power": True,
-        "arm": False,
-        "safety": False,
-        "ai": False,
-        "network": False,
-    }
+    assert RobotStatusDashboard.PANEL_ORDER == (
+        "drive", "power", "arm", "safety", "network",
+    )
 
 
 def test_status_dashboard_has_no_control_or_transport_send_surface():

@@ -15,7 +15,6 @@ from gi.repository import GLib, Gtk, Pango  # noqa: E402
 from .arm_telemetry import ArmTelemetrySnapshot, temperature_state
 from .metadata import (
     MetadataFrame,
-    displayable_detections,
     pick_display_target,
     target_distance_m,
 )
@@ -26,6 +25,34 @@ STALE_AFTER_S = 1.0
 GRAPH_WINDOW_S = 60.0
 GRAPH_REFRESH_MS = 200
 MAX_GRAPH_SAMPLES = 600
+
+PDIST_BATTERY_ALARMS = {
+    2: "과전압 보호", 3: "저전압 보호",
+    4: "충전 과온도", 5: "충전 저온",
+    6: "방전 과온도", 7: "방전 저온",
+}
+PDIST_PROTECTION_ALARMS = {
+    0: "충전 과전류", 1: "방전 과전류", 2: "단락 보호",
+}
+PDIST_BATTERY_STATES = {0: "수동 충전기", 1: "자동 충전기"}
+PDIST_CONTROL_STATES = {
+    5: "외부 제어", 6: "통신 제어", 7: "충전 중",
+}
+
+
+def _flag_names(value: int | None, mapping: dict[int, str]) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    return tuple(name for bit, name in mapping.items() if value & (1 << bit))
+
+
+def pdist_alarm_names(
+    battery_flags: int | None, protection_flags: int | None,
+) -> tuple[str, ...]:
+    return (
+        *_flag_names(battery_flags, PDIST_BATTERY_ALARMS),
+        *_flag_names(protection_flags, PDIST_PROTECTION_ALARMS),
+    )
 
 
 def power_card_state(
@@ -44,9 +71,9 @@ def power_card_state(
         and getattr(power, "pdist_soc_percent", None) is None
     ):
         return "확인 필요", "전원 계측값 없음"
-    if (
-        getattr(power, "pdist_battery_flags", None) not in (None, 0)
-        or getattr(power, "pdist_protection_flags", None) not in (None, 0)
+    if pdist_alarm_names(
+        getattr(power, "pdist_battery_flags", None),
+        getattr(power, "pdist_protection_flags", None),
     ):
         return "확인 필요", "보호 상태 확인 필요"
     return "정상", str(getattr(power, "rs485_state", "") or "정상")
@@ -290,10 +317,13 @@ class SteeringCanvas(Gtk.DrawingArea):
 class BarList(Gtk.DrawingArea):
     """Compact horizontal bars for joints or motor temperatures."""
 
-    def __init__(self, *, temperature: bool = False) -> None:
+    def __init__(
+        self, *, temperature: bool = False, suffix: str = "°",
+    ) -> None:
         super().__init__()
         self._rows: tuple[tuple[str, float], ...] = ()
         self._temperature = temperature
+        self._suffix = suffix
         self.set_size_request(260, 130)
         self.connect("draw", self._draw)
 
@@ -321,7 +351,7 @@ class BarList(Gtk.DrawingArea):
             y = 6.0 + index * row_h
             cr.set_source_rgb(0.376, 0.447, 0.529)
             cr.move_to(7.0, y + 11.0)
-            suffix = "℃" if self._temperature else "°"
+            suffix = "℃" if self._temperature else self._suffix
             cr.show_text(f"{name}  {value:+.1f}{suffix}")
             bar_x, bar_y, bar_w = 116.0, y + 2.0, max(20.0, width - 124.0)
             cr.set_source_rgb(0.88, 0.91, 0.94)
@@ -372,7 +402,7 @@ class StatusPanel(Gtk.Box):
 class RobotStatusDashboard(Gtk.Box):
     """Status-tab composition. It has no command client or transmit callback."""
 
-    PANEL_ORDER = ("drive", "power", "arm", "safety", "ai", "network")
+    PANEL_ORDER = ("drive", "power", "arm", "safety", "network")
     CARD_TO_PANEL = {"camera": "network"}
 
     def __init__(
@@ -409,15 +439,6 @@ class RobotStatusDashboard(Gtk.Box):
         readiness.pack_start(self._priority, False, False, 0)
         self.pack_start(readiness, False, False, 0)
 
-        issues_title = Gtk.Label(label="우선 확인할 문제")
-        issues_title.set_xalign(0.0)
-        _style(issues_title, "section-title")
-        self._issues = Gtk.Label(label="정보 수신 대기")
-        self._issues.set_xalign(0.0)
-        self._issues.set_line_wrap(True)
-        _style(self._issues, "status-issues")
-        self.pack_start(issues_title, False, False, 0)
-        self.pack_start(self._issues, False, False, 0)
         self._cards: dict[str, tuple[Gtk.Label, Gtk.Label, Gtk.Label]] = {}
         self._card_buttons: dict[str, Gtk.Button] = {}
         card_grid = Gtk.Grid(column_spacing=10, row_spacing=10)
@@ -425,7 +446,7 @@ class RobotStatusDashboard(Gtk.Box):
         specs = (
             ("drive", "주행 시스템"), ("power", "전원 시스템"),
             ("safety", "안전 장치"), ("camera", "카메라·통신"),
-            ("arm", "로봇팔·작업 장치"), ("ai", "AI 인식"),
+            ("arm", "로봇팔·작업 장치"),
         )
         for index, (key, title) in enumerate(specs):
             card = Gtk.Button()
@@ -469,12 +490,16 @@ class RobotStatusDashboard(Gtk.Box):
 
         self.drive_speed = TimedSeries()
         self.power_voltage = TimedSeries()
+        self.power_current = TimedSeries()
         self.safety_distance = TimedSeries()
         self.ai_confidence = TimedSeries()
         self.ai_distance = TimedSeries()
         self.video_fps = TimedSeries()
         self._drive_graph = Sparkline((("Wheel", self.drive_speed),), "turn/s")
         self._power_graph = Sparkline((("Voltage", self.power_voltage),), "V")
+        self._power_current_graph = Sparkline(
+            (("Current", self.power_current),), "A",
+        )
         self._safety_graph = Sparkline((("Distance", self.safety_distance),), "mm")
         self._ai_graph = Sparkline(
             (("Confidence", self.ai_confidence), ("Distance", self.ai_distance)),
@@ -484,26 +509,103 @@ class RobotStatusDashboard(Gtk.Box):
         self._steering = SteeringCanvas()
         self._joints = BarList()
         self._temperatures = BarList(temperature=True)
+        self._arm_currents = BarList(suffix=" raw")
         self._panels = {
             key: StatusPanel(title)
             for key, title in (
                 ("drive", "주행"), ("power", "전원"),
                 ("arm", "로봇팔·작업 장치"), ("safety", "안전"),
-                ("ai", "AI 인식"), ("network", "영상·통신"),
+                ("network", "카메라·통신·AI 상태"),
             )
         }
+        self._detail_metrics: dict[str, dict[str, Gtk.Label]] = {}
+
+        def add_metric_grid(
+            panel_key: str, specs: tuple[tuple[str, str], ...],
+        ) -> None:
+            grid = Gtk.Grid(column_spacing=8, row_spacing=8)
+            grid.set_column_homogeneous(True)
+            metrics: dict[str, Gtk.Label] = {}
+            for index, (key, title) in enumerate(specs):
+                metric = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+                _style(metric, "detail-metric")
+                heading = Gtk.Label(label=title)
+                heading.set_xalign(0.0)
+                _style(heading, "detail-metric-title")
+                value = Gtk.Label(label="수신 대기")
+                value.set_xalign(0.0)
+                value.set_ellipsize(Pango.EllipsizeMode.END)
+                _style(value, "detail-metric-value")
+                metric.pack_start(heading, False, False, 0)
+                metric.pack_start(value, False, False, 0)
+                grid.attach(metric, index % 3, index // 3, 1, 1)
+                metrics[key] = value
+            self._panels[panel_key].body.pack_start(grid, False, False, 0)
+            self._detail_metrics[panel_key] = metrics
+
+        add_metric_grid("drive", (
+            ("speed", "평균 바퀴 속도"), ("state", "주행 상태"),
+            ("can", "CAN 통신"), ("odom", "오도메트리"),
+            ("pose", "로봇 자세"), ("wheels", "4WS 상태"),
+        ))
+        add_metric_grid("safety", (
+            ("estop", "긴급 정지"), ("sensor", "근접 센서"),
+            ("distance", "장애물 거리"), ("failures", "연속 실패"),
+        ))
+        add_metric_grid("arm", (
+            ("joints", "관절 수"), ("motors", "다이나믹셀"),
+            ("mode", "조종 모드"), ("tool", "엔드이펙터"),
+        ))
+        add_metric_grid("network", (
+            ("front", "전방 카메라"), ("work", "작업 카메라"),
+            ("fps", "표시 FPS"), ("metadata", "AI 데이터"),
+            ("drop", "영상 드랍"),
+        ))
         self._panels["drive"].body.pack_start(self._drive_graph, False, False, 0)
         self._panels["drive"].body.pack_start(self._steering, False, False, 0)
+        self._power_metrics: dict[str, Gtk.Label] = {}
+        power_grid = Gtk.Grid(column_spacing=8, row_spacing=8)
+        power_grid.set_column_homogeneous(True)
+        for index, (key, title) in enumerate((
+            ("voltage", "입력 전압"), ("current", "방전 전류"),
+            ("soc", "배터리 잔량"), ("power", "사용 전력"),
+            ("charge", "충전 전류"), ("link", "전원 통신"),
+        )):
+            metric = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+            _style(metric, "power-metric")
+            heading = Gtk.Label(label=title)
+            heading.set_xalign(0.0)
+            _style(heading, "power-metric-title")
+            value = Gtk.Label(label="수신 대기")
+            value.set_xalign(0.0)
+            value.set_ellipsize(Pango.EllipsizeMode.END)
+            _style(value, "power-metric-value")
+            metric.pack_start(heading, False, False, 0)
+            metric.pack_start(value, False, False, 0)
+            power_grid.attach(metric, index % 3, index // 3, 1, 1)
+            self._power_metrics[key] = value
+        self._panels["power"].body.pack_start(power_grid, False, False, 0)
+        self._power_state = Gtk.Label(label="보호 상태 · 수신 대기\n운용 상태 · 수신 대기")
+        self._power_state.set_xalign(0.0)
+        self._power_state.set_line_wrap(True)
+        _style(self._power_state, "power-state-summary")
+        self._panels["power"].body.pack_start(
+            self._power_state, False, False, 0,
+        )
         self._soc_bar = Gtk.ProgressBar()
         self._soc_bar.set_show_text(True)
         self._soc_bar.set_no_show_all(True)
         _style(self._soc_bar, "soc-progress")
         self._panels["power"].body.pack_start(self._soc_bar, False, False, 0)
-        self._panels["power"].body.pack_start(self._power_graph, False, False, 0)
+        power_graphs = Gtk.Box(spacing=8)
+        power_graphs.set_homogeneous(True)
+        power_graphs.pack_start(self._power_graph, True, True, 0)
+        power_graphs.pack_start(self._power_current_graph, True, True, 0)
+        self._panels["power"].body.pack_start(power_graphs, False, False, 0)
         self._panels["arm"].body.pack_start(self._joints, False, False, 0)
+        self._panels["arm"].body.pack_start(self._arm_currents, False, False, 0)
         self._panels["arm"].body.pack_start(self._temperatures, False, False, 0)
         self._panels["safety"].body.pack_start(self._safety_graph, False, False, 0)
-        self._panels["ai"].body.pack_start(self._ai_graph, False, False, 0)
         self._panels["network"].body.pack_start(self._video_graph, False, False, 0)
         self._panel_flow = Gtk.FlowBox()
         self._panel_flow.set_selection_mode(Gtk.SelectionMode.NONE)
@@ -586,7 +688,8 @@ class RobotStatusDashboard(Gtk.Box):
 
     def _redraw_graphs(self) -> bool:
         for graph in (
-            self._drive_graph, self._power_graph, self._safety_graph,
+            self._drive_graph, self._power_graph, self._power_current_graph,
+            self._safety_graph,
             self._ai_graph, self._video_graph,
         ):
             graph.queue_draw()
@@ -611,6 +714,7 @@ class RobotStatusDashboard(Gtk.Box):
             "정상": "status-live", "연결 중": "status-progress",
             "확인 필요": "status-warn", "연결 끊김": "status-bad",
             "사용 안 함": "status-muted", "정보 없음": "status-muted",
+            "연동 예정": "status-progress",
         }.get(state, "status-muted")
         for candidate in (
             "status-live", "status-progress", "status-warn",
@@ -648,8 +752,10 @@ class RobotStatusDashboard(Gtk.Box):
             self._last_sequences["power"] = power.sequence
             self._last_updates["power"] = power.received_monotonic_s
             self.power_voltage.append(power.received_monotonic_s, power.voltage_v)
+            self.power_current.append(power.received_monotonic_s, power.current_a)
         elif not power_fresh:
             self.power_voltage.mark_gap(now_s)
+            self.power_current.mark_gap(now_s)
         if chassis is not None and self._last_sequences.get("chassis") != chassis.sequence:
             self._last_sequences["chassis"] = chassis.sequence
             self._last_updates["chassis"] = chassis.received_monotonic_s
@@ -750,13 +856,12 @@ class RobotStatusDashboard(Gtk.Box):
             "safety": (safety_state, safety_reason),
             "camera": (camera_state, camera_reason),
             "arm": (arm_state, arm_reason),
-            "ai": (ai_state, ai_reason),
         }
         for key, (state, reason) in states.items():
             self._set_card(key, state, reason)
         required_keys = ("drive", "power", "safety", "camera")
         required_ready = sum(states[key][0] == "정상" for key in required_keys)
-        work_attention = any(states[key][0] != "정상" for key in ("arm", "ai"))
+        work_attention = states["arm"][0] != "정상" or ai_state != "정상"
         self._required_count.set_text(f"필수 시스템 {required_ready} / 4 준비")
         problems = [
             (key, reason)
@@ -781,13 +886,24 @@ class RobotStatusDashboard(Gtk.Box):
                 for wheel in chassis.wheel_statuses
                 if wheel.drive_turns_per_s is not None
             ]
-            speed_text = (
-                "바퀴 속도 정보 없음"
-                if not speeds else f"평균 바퀴 속도 {sum(abs(v) for v in speeds) / len(speeds):.2f} turn/s"
+            drive_metrics = self._detail_metrics["drive"]
+            drive_metrics["speed"].set_text(
+                "수신 대기" if not speeds
+                else f"{sum(abs(v) for v in speeds) / len(speeds):.2f} turn/s"
+            )
+            drive_metrics["state"].set_text(chassis.drive_state)
+            drive_metrics["can"].set_text(chassis.can_state)
+            drive_metrics["odom"].set_text(chassis.odometry_source)
+            drive_metrics["pose"].set_text(
+                "수신 대기" if chassis.yaw_rad is None
+                else f"yaw {math.degrees(chassis.yaw_rad):+.1f}°"
+            )
+            drive_metrics["wheels"].set_text(
+                f"{len(chassis.wheel_statuses)}개 · fault "
+                f"{chassis.wheel_fault_count if chassis.wheel_fault_count is not None else '--'}"
             )
             self._panels["drive"].values.set_text(
-                f"{speed_text}   ·   주행 상태 {chassis.drive_state}\n"
-                f"Command / Actual 차체 속도(m/s) 정보 없음   ·   CAN {chassis.can_state}"
+                "주행·4WS 상태   ·   최근 60초 속도와 실시간 조향각"
             )
             self._steering.update_wheels(chassis.wheel_statuses)
             self._panels["drive"].set_data_available(
@@ -795,10 +911,14 @@ class RobotStatusDashboard(Gtk.Box):
                 "",
             )
         else:
+            for value in self._detail_metrics["drive"].values():
+                value.set_text("수신 대기")
             self._steering.update_wheels(())
             self._panels["drive"].set_data_available(
-                False,
-                "속도 정보 수신 대기\n주행 데이터 수신 후 속도와 조향 상태를 표시합니다",
+                True, "",
+            )
+            self._panels["drive"].values.set_text(
+                "주행·4WS 상태   ·   최근 60초 속도와 실시간 조향각"
             )
         if power_fresh and power is not None:
             voltage = "정보 없음" if power.voltage_v is None else f"{power.voltage_v:.1f} V"
@@ -806,17 +926,46 @@ class RobotStatusDashboard(Gtk.Box):
                 "정보 없음" if power.pdist_soc_percent is None
                 else f"{power.pdist_soc_percent}%"
             )
-            protection = (
-                "확인 필요" if power.pdist_protection_flags not in (None, 0)
-                else "정상" if power.pdist_protection_flags == 0
-                else "정보 없음"
+            alarms = pdist_alarm_names(
+                power.pdist_battery_flags, power.pdist_protection_flags,
             )
+            protection = " · ".join(alarms) if alarms else (
+                "정상" if power.pdist_battery_flags is not None
+                and power.pdist_protection_flags is not None else "정보 없음"
+            )
+            charger_states = _flag_names(
+                power.pdist_battery_flags, PDIST_BATTERY_STATES,
+            )
+            control_states = _flag_names(
+                power.pdist_protection_flags, PDIST_CONTROL_STATES,
+            )
+            operating_states = (*charger_states, *control_states)
             self._panels["power"].values.set_text(
-                f"배터리 전압 {voltage}   ·   SOC {soc}   ·   보호 상태 {protection}\n"
-                "전원 Rail 정보 없음"
+                "PDIST80B 전원 분배 시스템   ·   DC 24–48 V / 최대 80 A"
+            )
+            self._power_metrics["voltage"].set_text(voltage)
+            self._power_metrics["current"].set_text(
+                "수신 대기" if power.current_a is None else f"{power.current_a:.1f} A"
+            )
+            self._power_metrics["soc"].set_text(soc)
+            self._power_metrics["power"].set_text(
+                "수신 대기" if power.power_w is None else f"{power.power_w:.0f} W"
+            )
+            self._power_metrics["charge"].set_text(
+                "수신 대기" if power.pdist_charge_current_a is None
+                else f"{power.pdist_charge_current_a:.1f} A"
+            )
+            self._power_metrics["link"].set_text(power.rs485_state or "수신 대기")
+            self._power_state.set_text(
+                f"보호 상태  ·  {protection}\n"
+                f"운용 상태  ·  {' · '.join(operating_states) if operating_states else '활성 상태 없음'}\n"
+                f"진단  ·  BMS 0xEE   Battery "
+                f"{'--' if power.pdist_battery_flags is None else f'0x{power.pdist_battery_flags:02X}'}   "
+                f"Protection {'--' if power.pdist_protection_flags is None else f'0x{power.pdist_protection_flags:02X}'}   "
+                f"통신 실패 {power.rs485_consecutive_failures if power.rs485_consecutive_failures is not None else '--'}회"
             )
             self._panels["power"].set_data_available(
-                power.voltage_v is not None,
+                True,
                 "",
             )
             if power.pdist_soc_percent is None:
@@ -828,9 +977,18 @@ class RobotStatusDashboard(Gtk.Box):
                 self._soc_bar.show()
         else:
             self._soc_bar.hide()
+            for value in self._power_metrics.values():
+                value.set_text("수신 대기")
+            self._power_state.set_text(
+                "보호 상태  ·  수신 대기\n"
+                "운용 상태  ·  수신 대기\n"
+                "진단  ·  BMS Monitor PID 0xEE / RS485 57,600 bps"
+            )
+            self._panels["power"].values.set_text(
+                "PDIST80B 전원 분배 시스템   ·   DC 24–48 V / 최대 80 A"
+            )
             self._panels["power"].set_data_available(
-                False,
-                "전원 정보 수신 대기\n배터리 데이터 수신 후 전압 추이를 표시합니다",
+                True, "",
             )
         if arm_fresh and arm is not None:
             self._joints.set_rows(
@@ -841,21 +999,35 @@ class RobotStatusDashboard(Gtk.Box):
                 (f"ID {motor.id}", float(motor.temperature_c))
                 for motor in (arm.dynamixel or ())
             )
+            self._arm_currents.set_rows(
+                (f"ID {motor.id}", float(motor.current))
+                for motor in (arm.dynamixel or ())
+            )
+            arm_metrics = self._detail_metrics["arm"]
+            arm_metrics["joints"].set_text(f"{len(arm.joint_names)}개")
+            arm_metrics["motors"].set_text(
+                "수신 대기" if arm.dynamixel is None else f"{len(arm.dynamixel)}개"
+            )
+            arm_metrics["mode"].set_text("연동 예정")
+            arm_metrics["tool"].set_text("연동 예정")
             self._panels["arm"].values.set_text(
-                "동작 모드 정보 없음   ·   엔드이펙터 정보 없음\n"
-                f"관절 {len(arm.joint_names)}개   ·   다이나믹셀 "
-                f"{'정보 없음' if arm.dynamixel is None else f'{len(arm.dynamixel)}개'}"
+                "로봇팔 상태   ·   관절각·전류(raw)·온도 시각화"
             )
             self._panels["arm"].set_data_available(
                 bool(arm.joint_names or arm.dynamixel),
                 "",
             )
         else:
+            for key, value in self._detail_metrics["arm"].items():
+                value.set_text("연동 예정" if key in ("mode", "tool") else "수신 대기")
             self._joints.set_rows(())
             self._temperatures.set_rows(())
+            self._arm_currents.set_rows(())
             self._panels["arm"].set_data_available(
-                False,
-                "로봇팔 정보 수신 대기\n관절 데이터 수신 후 각도와 온도를 표시합니다",
+                True, "",
+            )
+            self._panels["arm"].values.set_text(
+                "로봇팔 상태   ·   관절각·전류(raw)·온도 시각화"
             )
         if chassis_fresh and chassis is not None:
             distance = (
@@ -867,43 +1039,30 @@ class RobotStatusDashboard(Gtk.Box):
                 else "정상" if chassis.safety_estop_required is False
                 else "정보 없음"
             )
+            safety_metrics = self._detail_metrics["safety"]
+            safety_metrics["estop"].set_text(estop)
+            safety_metrics["sensor"].set_text(chassis.safety_status)
+            safety_metrics["distance"].set_text(distance)
+            safety_metrics["failures"].set_text(
+                "수신 대기" if chassis.safety_consecutive_failures is None
+                else f"{chassis.safety_consecutive_failures}회"
+            )
             self._panels["safety"].values.set_text(
-                f"긴급 정지 {estop}   ·   근접 안전 센서 {chassis.safety_status}\n"
-                f"장애물 거리 {distance}   ·   MOTION HOLD {chassis.drive_state}"
+                f"충돌 방지·E-STOP 상태   ·   {chassis.safety_detail or '상세 원인 없음'}"
             )
             self._panels["safety"].set_data_available(
                 chassis.safety_distance_mm is not None,
                 "",
             )
         else:
+            for value in self._detail_metrics["safety"].values():
+                value.set_text("수신 대기")
             self._panels["safety"].set_data_available(
-                False,
-                "안전 정보 수신 대기\n안전 상태 수신 후 핵심 상태를 표시합니다",
+                True, "",
             )
-        target = None
-        if metadata_fresh and metadata is not None:
-            target = pick_display_target(metadata)
-        if target is None:
-            self._panels["ai"].set_data_available(
-                False,
-                "대상 탐지 대기\n탐지 결과 수신 후 신뢰도와 거리를 표시합니다",
+            self._panels["safety"].values.set_text(
+                "충돌 방지·E-STOP 상태   ·   최근 60초 장애물 거리"
             )
-        else:
-            distance = (
-                "정보 없음"
-                if target_distance_m(target) is None
-                else f"{target_distance_m(target):.2f} m"
-            )
-            yaw = (
-                "정보 없음" if target.yaw_rad is None
-                else f"{math.degrees(target.yaw_rad):+.0f}°"
-            )
-            self._panels["ai"].values.set_text(
-                f"탐지 대상 {target.class_name}   ·   신뢰도 {target.confidence:.0%}\n"
-                f"거리 {distance}   ·   방향 {yaw}   ·   "
-                f"{'Pick Target' if target.is_pick_target else '일반 탐지'}"
-            )
-            self._panels["ai"].set_data_available(True, "")
         front_age = (
             "정보 없음" if front_frame_age_s is None
             else f"{front_frame_age_s:.1f}s"
@@ -920,17 +1079,23 @@ class RobotStatusDashboard(Gtk.Box):
             None if chassis is None or chassis.l515_drop_hz is None
             else f"{chassis.l515_drop_hz:.1f} Hz"
         )
+        network_metrics = self._detail_metrics["network"]
+        network_metrics["front"].set_text(front_video_state)
+        network_metrics["work"].set_text(work_video_state)
+        network_metrics["fps"].set_text(
+            "수신 대기" if not available_fps
+            else " / ".join(f"{value:.1f}" for value in available_fps)
+        )
+        network_metrics["metadata"].set_text(
+            "정상" if metadata_fresh else "수신 대기" if metadata is None else "갱신 지연"
+        )
+        network_metrics["drop"].set_text(drop_rate or "수신 대기")
         self._panels["network"].values.set_text(
-            f"전방 영상 {front_video_state}   ·   작업 영상 {work_video_state}\n"
-            f"Video FPS {front_fps if front_fps is not None else '정보 없음'} / "
-            f"{work_fps if work_fps is not None else '정보 없음'}   ·   "
-            f"Last Frame {front_age} / {work_age}\n"
-            f"Metadata Age {metadata_age}"
-            + ("" if drop_rate is None else f"   ·   L515 Drop {drop_rate}")
+            "카메라·통신 상태   ·   최근 60초 표시 FPS"
+            + f"\nFrame age {front_age} / {work_age}   ·   Metadata age {metadata_age}"
         )
         self._panels["network"].set_data_available(
-            bool(available_fps),
-            "",
+            True, "",
         )
         stale = {
             "drive": not chassis_fresh, "power": not power_fresh,
@@ -939,13 +1104,14 @@ class RobotStatusDashboard(Gtk.Box):
         }
         for key, graph in (
             ("drive", self._drive_graph), ("power", self._power_graph),
+            ("power", self._power_current_graph),
             ("safety", self._safety_graph), ("ai", self._ai_graph),
             ("network", self._video_graph),
         ):
             graph.set_stale(stale[key])
         for key, source in (
             ("drive", chassis), ("power", power), ("arm", arm),
-            ("safety", chassis), ("ai", metadata),
+            ("safety", chassis),
         ):
             received = getattr(source, "received_monotonic_s", None)
             text = (
@@ -954,18 +1120,6 @@ class RobotStatusDashboard(Gtk.Box):
             )
             self._panels[key].updated.set_text(f"마지막 업데이트 · {text}")
         self._panels["network"].updated.set_text("마지막 업데이트 · 영상 수신 상태 기준")
-        public_names = {
-            "drive": "주행 시스템", "power": "전원 시스템",
-            "safety": "안전 장치", "camera": "카메라·통신",
-            "arm": "로봇팔·작업 장치", "ai": "AI 인식",
-        }
-        issues = [
-            f"{public_names[key]} — {reason}" for key, reason in problems[:3]
-        ]
-        self._issues.set_text(
-            "확인 필요한 항목이 없습니다"
-            if not issues else "\n".join(f"• {item}" for item in issues)
-        )
         def age_text(source: object | None) -> str:
             received = getattr(source, "received_monotonic_s", None)
             return "None" if received is None else f"{now_s - received:.3f}"

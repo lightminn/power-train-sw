@@ -148,12 +148,16 @@ def test_swap_is_reachable_from_the_pip_control():
 
     constructor = inspect.getsource(console_app.OperatorConsole.__init__)
     key_handler = inspect.getsource(console_app.OperatorConsole._on_key_press)
-    assert 'Gtk.Button(label="큰 화면으로 보기")' in constructor
-    assert "pip_overlay.add_overlay(self._swap_button)" in constructor
+    assert 'Gtk.Button(label="화면 전환")' in constructor
+    assert "self._d435.set_header_action(self._swap_button)" in constructor
+    assert "pip_overlay.add_overlay(self._swap_button)" not in constructor
     assert "display_options.pack_start(self._swap_button" not in constructor
     assert "Gdk.KEY_v" in key_handler and "Gdk.KEY_V" in key_handler
     assert "user_initiated=True" in constructor
     assert "user_initiated=True" in key_handler
+    assert "secondary.set_header_action(self._swap_button)" in inspect.getsource(
+        console_app.OperatorConsole.swap_camera_views
+    )
 
 
 @requires_gtk
@@ -189,6 +193,27 @@ def test_event_filters_all_off_show_empty_without_clearing_buffer():
 
 
 @requires_gtk
+def test_event_latest_summary_respects_selected_levels():
+    log = EventLog()
+    log.add_event("SYSTEM", "ERROR fault")
+    log.add_event("SYSTEM", "NOTICE ready")
+
+    log._filters["INFO"].set_active(False)
+    severity, _message = log.latest_public()
+    assert severity == "ERROR"
+
+    log._filters["ERROR"].set_active(False)
+    assert log.latest_public() == (
+        "INFO", "선택한 수준의 기록이 없습니다",
+    )
+
+    log._filters["WARNING"].set_active(False)
+    assert log.latest_public() == (
+        "INFO", "표시할 이벤트 수준을 선택해 주세요",
+    )
+
+
+@requires_gtk
 def test_status_summary_cards_select_one_detail_panel():
     dashboard = RobotStatusDashboard()
     assert all(
@@ -208,7 +233,7 @@ def test_status_summary_cards_select_one_detail_panel():
 
     dashboard._card_buttons["network"].clicked()
     assert dashboard.view_enabled("network")
-    assert dashboard._detail_title.get_text() == "영상·통신 상세 정보"
+    assert dashboard._detail_title.get_text() == "카메라·통신·AI 상태 상세 정보"
 
 
 @requires_gtk
