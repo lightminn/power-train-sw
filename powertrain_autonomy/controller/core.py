@@ -150,6 +150,7 @@ def assist_correction_from_terrain(
         terrain.stamp_s,
         terrain.path_offset_m,
         terrain.heading_error_rad,
+        terrain.confirmed_support_m,
         terrain.bank_angle_rad,
         terrain.longitudinal_slope_rad,
         terrain.confidence,
@@ -313,6 +314,7 @@ class AutonomyController:
                 terrain.stamp_s,
                 terrain.path_offset_m,
                 terrain.heading_error_rad,
+                terrain.confirmed_support_m,
                 terrain.bank_angle_rad,
                 terrain.longitudinal_slope_rad,
                 terrain.confidence,
@@ -327,6 +329,8 @@ class AutonomyController:
             if terrain_valid:
                 if not terrain.path_available:
                     hold_reasons.append("path_unavailable")
+                elif terrain.confirmed_support_m <= 0.0:
+                    hold_reasons.append("unconfirmed_support")
                 if terrain.confidence < self.config.min_confidence:
                     hold_reasons.append("low_confidence")
                 if abs(terrain.bank_angle_rad) > self.profile.max_bank_rad:

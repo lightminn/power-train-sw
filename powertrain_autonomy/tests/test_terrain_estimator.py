@@ -1263,7 +1263,7 @@ def test_disjoint_support_under_every_wheel_band_passes_footprint_gate():
         estimator,
         (
             # The 0.20 m centre hole separates the runs while each strip
-            # covers all three wheel bands on its side, including the margin.
+            # covers all three tire bands on its side.
             (slice(2, 14), 21, 28),
             (slice(2, 14), 32, 39),
         ),
@@ -1271,42 +1271,95 @@ def test_disjoint_support_under_every_wheel_band_passes_footprint_gate():
 
     result = summarize_grid(estimator, grid)
 
-    assert "unsupported_footprint" not in result.reject_reasons
+    assert "unsupported_footprint" not in result.degradation_reasons
 
 
-def test_total_support_wider_than_rover_still_fails_when_one_band_is_missing():
+def test_confirmed_support_reports_farthest_wheel_supported_row_distance():
     estimator = make_estimator()
     grid = support_grid(
         estimator,
         (
-            # The combined 1.20 m support exceeds the 0.815 m rover width,
-            # but the right strip stops short of the outermost wheel margin.
-            (slice(2, 14), 22, 28),
-            (slice(2, 14), 32, 50),
+            # Rows 2..9 cover every tire band and resolve the centreline;
+            # row 9 is centred at x=0.775 m.
+            (slice(2, 10), 20, 40),
+        ),
+    )
+
+    result = summarize_grid(estimator, grid)
+
+    assert result.path_available, result.reject_reasons
+    assert result.confirmed_support_m == pytest.approx(0.775, abs=1e-9)
+
+
+def test_unconfirmed_wheel_support_keeps_path_and_filtered_estimate_alive():
+    estimator = make_estimator()
+    initial_grid = support_grid(
+        estimator,
+        (
+            (slice(2, 14), 20, 40),
+        ),
+    )
+    initial = summarize_grid(estimator, initial_grid, stamp_s=1.0)
+    grid = support_grid(
+        estimator,
+        (
+            # The 1.35 m surface resolves a centreline, but its right edge at
+            # y=-0.35 m stops inside the outer tire edge at y=-0.3945 m.
+            (slice(2, 14), 23, 50),
+        ),
+    )
+
+    result = summarize_grid(estimator, grid, stamp_s=1.1)
+
+    assert initial.path_available, initial.reject_reasons
+    assert result.path_available, result.reject_reasons
+    assert result.path_offset_m == pytest.approx(0.05416666666666667, abs=1e-9)
+    assert result.heading_error_rad == pytest.approx(0.0, abs=1e-9)
+    assert result.confirmed_support_m == 0.0
+    assert result.degradation_reasons == ("unsupported_footprint",)
+    assert result.reject_reasons == ()
+    assert estimator._filtered_path_estimate == pytest.approx(
+        (result.path_offset_m, result.heading_error_rad),
+        abs=1e-9,
+    )
+    assert estimator._path_estimate_stamp_s == pytest.approx(1.1)
+
+
+def test_support_ending_inside_outer_tire_edge_fails_footprint_gate():
+    estimator = make_estimator()
+    grid = support_grid(
+        estimator,
+        (
+            # Column 37 ends at y=+0.35 m, before the outer tire edge
+            # at y=+0.3945 m.
+            (slice(2, 14), 22, 37),
         ),
     )
 
     result = summarize_grid(estimator, grid)
 
     assert not result.path_available
-    assert result.reject_reasons == ("unsupported_footprint",)
+    assert result.confirmed_support_m == 0.0
+    assert result.degradation_reasons == ("unsupported_footprint",)
+    assert result.reject_reasons == ("centreline_unresolved",)
 
 
-def test_bare_wheel_band_coverage_without_measurement_margin_fails():
-    """The bare-band gate from 20792de was too permissive without the margin."""
+def test_zero_margin_tire_width_passes_wheel_footprint_gate():
     estimator = make_estimator()
     grid = support_grid(
         estimator,
         (
-            (slice(2, 14), 22, 27),
-            (slice(2, 14), 33, 38),
+            # 실코스 정지 지점의 0.800 m support run은 타이어 요구 폭
+            # 0.789 m를 덮지만, 기존 여유 포함 요구 폭 0.889 m보다는 좁다.
+            (slice(2, 14), 22, 38),
         ),
     )
 
     result = summarize_grid(estimator, grid)
 
+    # 바퀴 게이트는 통과하고, 별도 as-built 차체 폭 조건(0.815 m)은 남는다.
     assert not result.path_available
-    assert result.reject_reasons == ("unsupported_footprint",)
+    assert result.reject_reasons == ("centreline_unresolved",)
 
 
 def test_no_lookahead_row_covering_every_wheel_band_fails_closed():
@@ -1322,7 +1375,9 @@ def test_no_lookahead_row_covering_every_wheel_band_fails_closed():
     result = summarize_grid(estimator, grid)
 
     assert not result.path_available
-    assert result.reject_reasons == ("unsupported_footprint",)
+    assert result.confirmed_support_m == 0.0
+    assert result.degradation_reasons == ("unsupported_footprint",)
+    assert result.reject_reasons == ("centreline_unresolved",)
 
 
 def test_single_contributing_row_cannot_resolve_centreline():
@@ -1380,6 +1435,7 @@ def test_no_connected_support_still_fails_closed():
     result = summarize_grid(estimator, empty_grid(estimator.grid_shape))
 
     assert not result.path_available
+    assert result.confirmed_support_m == 0.0
     assert result.reject_reasons == ("no_connected_support",)
 
 

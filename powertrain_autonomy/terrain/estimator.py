@@ -167,6 +167,7 @@ class TerrainEstimate:
     stamp_s: float
     path_offset_m: float
     heading_error_rad: float
+    confirmed_support_m: float
     left_wheel_clearance_m: float
     right_wheel_clearance_m: float
     bank_angle_rad: float
@@ -256,6 +257,7 @@ class TerrainEstimator:
             stamp_s=float(stamp_s),
             path_offset_m=0.0,
             heading_error_rad=0.0,
+            confirmed_support_m=0.0,
             left_wheel_clearance_m=0.0,
             right_wheel_clearance_m=0.0,
             bank_angle_rad=0.0,
@@ -465,9 +467,11 @@ class TerrainEstimator:
             max(abs(float(wheel.y)) for wheel in self.geometry.wheels)
             + cfg.footprint_outboard_half_width_m
         )
-        wheel_band_half_width = (
-            cfg.wheel_half_width_m + cfg.grid_resolution_m
-        )
+        # 바퀴를 받치는 것은 타이어 접지면이다. 격자 한 칸(0.05 m)을 더하면
+        # 타이어 바깥 5 cm 지면까지 관측해야 하므로, 이 게이트는 여섯 바퀴가
+        # 설 수 있는지만 확인한다. as-built 차체 폭은 아래 중심선 기여 행과
+        # clearance 계산에서 footprint_half로 계속 요구한다.
+        wheel_band_half_width = cfg.wheel_half_width_m
         wheel_bands = tuple(
             sorted(
                 {
@@ -604,11 +608,14 @@ class TerrainEstimator:
         lookahead_rows = [
             row for row in candidate_rows if lookahead[int(row[0])]
         ]
-        if not wheel_supported_row_indices:
-            return self._reject(
-                stamp_s,
-                "unsupported_footprint",
-                degradation=reasons,
+        if wheel_supported_row_indices:
+            confirmed_support_m = float(
+                x_centres[max(wheel_supported_row_indices)]
+            )
+        else:
+            confirmed_support_m = 0.0
+            reasons = tuple(
+                dict.fromkeys((*reasons, "unsupported_footprint"))
             )
         contributing_rows = [
             (*row, 0.5 * (row[1] + row[2]))
@@ -744,6 +751,7 @@ class TerrainEstimator:
             stamp_s=stamp_s,
             path_offset_m=path_offset,
             heading_error_rad=heading,
+            confirmed_support_m=confirmed_support_m,
             left_wheel_clearance_m=left_clearance,
             right_wheel_clearance_m=right_clearance,
             bank_angle_rad=bank,

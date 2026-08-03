@@ -27,6 +27,7 @@ def terrain(stamp_s=0.0, **overrides):
         "stamp_s": stamp_s,
         "path_offset_m": 0.0,
         "heading_error_rad": 0.0,
+        "confirmed_support_m": 2.0,
         "left_wheel_clearance_m": 0.40,
         "right_wheel_clearance_m": 0.40,
         "bank_angle_rad": 0.0,
@@ -67,6 +68,10 @@ def test_assist_correction_requires_an_available_finite_path():
     ) is None
     assert assist_correction_from_terrain(
         terrain(path_offset_m=math.nan),
+        config,
+    ) is None
+    assert assist_correction_from_terrain(
+        terrain(confirmed_support_m=math.nan),
         config,
     ) is None
 
@@ -211,6 +216,43 @@ def test_central_path_tracks_forward_without_yaw():
     assert decision.state == "TRACKING"
     assert decision.v_m_s > 0.0
     assert decision.omega_rad_s == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize("confirmed_support_m", (0.0, -0.1))
+def test_available_path_without_confirmed_support_holds_forward_separately(
+    confirmed_support_m,
+):
+    decision = steady_decision(
+        estimate=terrain(confirmed_support_m=confirmed_support_m),
+    )
+
+    assert decision.state == "CONTROLLED_HOLD"
+    assert decision.v_m_s == 0.0
+    assert "unconfirmed_support" in decision.reasons
+    assert "path_unavailable" not in decision.reasons
+
+
+def test_unavailable_path_reports_path_reason_without_support_reason():
+    decision = steady_decision(
+        estimate=terrain(path_available=False, confirmed_support_m=0.0),
+    )
+
+    assert decision.state == "CONTROLLED_HOLD"
+    assert "path_unavailable" in decision.reasons
+    assert "unconfirmed_support" not in decision.reasons
+
+
+@pytest.mark.parametrize("confirmed_support_m", (math.nan, math.inf))
+def test_nonfinite_confirmed_support_cannot_enter_control_path(
+    confirmed_support_m,
+):
+    decision = steady_decision(
+        estimate=terrain(confirmed_support_m=confirmed_support_m),
+    )
+
+    assert decision.state == "CONTROLLED_HOLD"
+    assert decision.v_m_s == 0.0
+    assert "terrain_nonfinite" in decision.reasons
 
 
 @pytest.mark.parametrize("clearance_m", (-0.20, math.nan))
