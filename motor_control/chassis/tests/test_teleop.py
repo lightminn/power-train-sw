@@ -289,3 +289,63 @@ def test_direct_can_teleop_noninteractive_confirmation_bypasses_prompt(module):
     )
 
     assert args.confirm_arm_stowed is True
+
+
+from chassis import teleop_server
+
+
+def test_skid_usb_and_four_wheel_are_mutually_exclusive():
+    with pytest.raises(SystemExit):
+        teleop_server._parse_args([
+            "--diagnostic-direct-can", "--confirm-arm-stowed",
+            "--skid-usb", "--four-wheel",
+        ])
+
+
+def test_skid_usb_defaults_are_declared():
+    args = teleop_server._parse_args([
+        "--diagnostic-direct-can", "--confirm-arm-stowed", "--skid-usb",
+    ])
+
+    assert args.skid_usb is True
+    assert args.track_gain == pytest.approx(1.0)
+    assert args.board_registry.endswith("bl70200_boards.json")
+
+
+def test_skid_usb_builds_usb_corners_and_never_touches_can(monkeypatch):
+    """can0 을 안 여는 것이 이 모드의 존재 이유다 — 워치독도 lock 도 없어야 한다."""
+    calls = {"watchdog": 0, "can_session": 0, "usb_corners": 0}
+
+    class _Watchdog:
+        def __init__(self, *_a, **_k):
+            calls["watchdog"] += 1
+
+        def start(self):
+            pass
+
+    class _Session:
+        def __init__(self, *_a, **_k):
+            calls["can_session"] += 1
+
+    import corner_module.can_watchdog as watchdog_mod
+    import chassis.runtime_lock as lock_mod
+    import chassis.chassis_manager as manager_mod
+
+    monkeypatch.setattr(watchdog_mod, "CanWatchdog", _Watchdog)
+    monkeypatch.setattr(lock_mod, "RealCanSession", _Session)
+
+    def _fake_usb_corners(*_a, **_k):
+        calls["usb_corners"] += 1
+        raise RuntimeError("stop here — 초기화 경로만 검증한다")
+
+    monkeypatch.setattr(manager_mod, "build_usb_skid_corners", _fake_usb_corners)
+
+    with pytest.raises(RuntimeError, match="stop here"):
+        teleop_server.main([
+            "--diagnostic-direct-can", "--confirm-arm-stowed",
+            "--skid-usb", "--no-us100",
+        ])
+
+    assert calls["usb_corners"] == 1
+    assert calls["watchdog"] == 0
+    assert calls["can_session"] == 0
