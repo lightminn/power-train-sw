@@ -296,3 +296,73 @@ def test_four_wheel_pivot_degrades_slightly():
     est = solve_twist(geom, observe(geom, r))
     assert est.omega == pytest.approx(0.5, rel=0.05)
     assert est.residual_mps > 0.0            # 조향 클램프 → 스크럽 (6륜과 동일)
+
+
+from chassis.kinematics import skid_geometry, solve
+
+
+def _observations_from_command(geom, v_mps, omega_rad_s):
+    """명령을 그대로 실측이라고 가정한 관측 — 슬립 0 인 이상적 케이스."""
+    result = solve(geom, v_mps, omega_rad_s)
+    return [
+        WheelObservation(name=name, drive_mps=wc.drive_mps, steer_deg=wc.steer_deg)
+        for name, wc in result.wheels.items()
+    ]
+
+
+def test_skid_twist_is_recovered_from_wheel_speeds():
+    """수정 전에는 정규방정식이 특이해 (0,0,0) fail-safe 가 나왔다 — 음성 대조."""
+    geom = skid_geometry()
+    observations = _observations_from_command(geom, 0.3, 0.5)
+
+    twist = solve_twist(geom, observations)
+
+    assert twist.vx == pytest.approx(0.3, abs=1e-6)
+    assert twist.omega == pytest.approx(0.5, abs=1e-6)
+    assert twist.vy == pytest.approx(0.0, abs=1e-6)
+    assert twist.used == 6
+
+
+def test_skid_pivot_twist_is_recovered():
+    geom = skid_geometry()
+    observations = _observations_from_command(geom, 0.0, -0.8)
+
+    twist = solve_twist(geom, observations)
+
+    assert twist.vx == pytest.approx(0.0, abs=1e-6)
+    assert twist.omega == pytest.approx(-0.8, abs=1e-6)
+
+
+def test_vy_prior_is_not_counted_as_a_wheel():
+    """사전분포 행이 used·rejected·잔차 집계에 새면 신뢰도 지표가 오염된다."""
+    geom = skid_geometry()
+    observations = _observations_from_command(geom, 0.3, 0.5)
+
+    twist = solve_twist(geom, observations)
+
+    assert twist.used == 6
+    assert twist.rejected == ()
+    assert twist.residual_mps == pytest.approx(0.0, abs=1e-6)
+
+
+def test_ackermann_rows_are_unchanged_by_the_prior():
+    """조향륜이 하나라도 있으면 사전분포 행을 넣지 않는다 (4WS 회귀 0)."""
+    from chassis.odometry import OdometryConfig, _rows
+
+    geom = default_geometry()
+    observations = _observations_from_command(geom, 0.3, 0.3)
+    obs_map = {o.name: o for o in observations}
+
+    rows = _rows(geom, obs_map, OdometryConfig())
+
+    assert all(name is not None for name, *_ in rows)
+    # 조향 4륜 × 2행 + 고정 2륜 × 1행
+    assert len(rows) == 10
+
+
+def test_no_observations_produces_no_lone_prior_row():
+    from chassis.odometry import OdometryConfig, _rows
+
+    geom = skid_geometry()
+
+    assert _rows(geom, {}, OdometryConfig()) == []
