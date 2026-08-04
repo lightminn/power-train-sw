@@ -155,6 +155,77 @@ def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
     )
 
 
+def build_usb_skid_corners(registry_path, cfg: CornerConfig = None,
+                           wheel_map=None, gear_ratio: float = 5.0,
+                           current_lim_a: float = 9.0,
+                           stale_ms: float = 500.0, pool=None) -> dict:
+    """🛠️ **USB 스키드 구성** — 조향 없이 ODrive USB 구동만으로 코너를 만든다.
+
+    AK 조향을 전혀 쓰지 않으므로 조향은 전부 `NullSteer` 이고, **can0 을 열지
+    않는다**(`RealCanSession`·`CanWatchdog` 도 필요 없다). 반드시
+    `kinematics.skid_geometry()` 와 **짝으로** 쓴다 — 애커만 기하와 섞으면
+    조향 명령이 갈 곳이 없다.
+
+    바퀴↔노드 권위는 `DEFAULT_WHEEL_MAP` 을 그대로 쓰고, 노드↔(시리얼, 축) 만
+    보드 레지스트리에서 해석한다. 표를 새로 만들지 않아 CAN 경로와 권위가
+    하나로 유지된다.
+
+    ⚠️ 레지스트리에 없는 노드는 **거부**한다. 바퀴를 잘못 배정하면 조용히 틀린
+    방향으로 주행한다.
+
+    Parameters
+    ----------
+    registry_path:
+        `drive.bl70200.board_registry` JSON — ``{serial: [axis0_node, axis1_node]}``.
+    pool:
+        테스트 주입용 `UsbBoardPool` 대체품.
+    """
+    import importlib
+
+    board_registry = importlib.import_module("drive.bl70200.board_registry")
+    usb_mod = importlib.import_module("corner_module.drive_odrive_usb_axis")
+
+    source_map = tuple(wheel_map or DEFAULT_WHEEL_MAP)
+    registry = board_registry.load(registry_path)
+
+    node_to_axis = {}
+    for serial, (node_axis0, node_axis1) in registry.items():
+        node_to_axis[node_axis0] = (serial, 0)
+        node_to_axis[node_axis1] = (serial, 1)
+
+    resolved = []
+    for wm in source_map:
+        if wm.drive_node_id not in node_to_axis:
+            raise ValueError(
+                "보드 레지스트리에 구동 node %d(%s)가 없다: %s"
+                % (wm.drive_node_id, wm.wheel, registry_path))
+        serial, axis_index = node_to_axis[wm.drive_node_id]
+        inverted = wm.wheel in RIGHT_WHEELS
+        if inverted != (axis_index == 1):
+            # 각 보드의 M1(axis1)이 로봇 우측이며 좌측과 미러로 장착돼 있다
+            # (2026-07-28 실물 확인). 레지스트리가 이를 어기면 부호가 뒤집힌다.
+            raise ValueError(
+                "레지스트리가 미러 장착 규약을 어긴다: %s(node %d) → %s/axis%d. "
+                "우측 바퀴(%s)는 반드시 axis1 이어야 한다."
+                % (wm.wheel, wm.drive_node_id, serial, axis_index,
+                   ", ".join(RIGHT_WHEELS)))
+        resolved.append((wm, serial, axis_index, inverted))
+
+    pool = pool if pool is not None else usb_mod.UsbBoardPool()
+    period = len(resolved)
+    cfg = cfg or CornerConfig()
+    corners = {}
+    for slot, (wm, serial, axis_index, inverted) in enumerate(resolved):
+        drive = usb_mod.DriveOdriveUsbAxis(
+            pool, serial, axis_index, node_id=wm.drive_node_id,
+            gear_ratio=gear_ratio, invert=inverted,
+            current_lim_a=current_lim_a, stale_ms=stale_ms,
+            poll_slot=slot, poll_period_ticks=period,
+        )
+        corners[wm.wheel] = CornerModule(NullSteer(), drive, cfg)
+    return corners
+
+
 # ── 차체 매니저 ───────────────────────────────────────────────────────────
 
 

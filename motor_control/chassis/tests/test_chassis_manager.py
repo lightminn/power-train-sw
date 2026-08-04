@@ -1300,3 +1300,107 @@ def test_speed_scale_floored_by_cogging_floor():
     m.set(v_cap, 0.0)
     m.tick()
     assert _drive(m) == 0.0
+
+
+import json
+
+from chassis.chassis_manager import build_usb_skid_corners
+from corner_module.null_steer import NullSteer
+
+
+class _FakePool:
+    """UsbBoardPool 스텁 — 어떤 (serial, axis) 든 고유 객체를 돌려준다."""
+
+    def __init__(self):
+        self.requested = []
+
+    def axis(self, serial, axis_index):
+        self.requested.append((serial, axis_index))
+        return object()
+
+    def close(self):
+        pass
+
+
+def _write_registry(tmp_path, mapping):
+    path = tmp_path / "boards.json"
+    path.write_text(json.dumps(mapping), encoding="utf-8")
+    return path
+
+
+def _good_registry(tmp_path):
+    # axis0 = 좌(홀수 node), axis1 = 우(짝수 node)
+    return _write_registry(tmp_path, {
+        "SN-A": [11, 12], "SN-B": [13, 14], "SN-C": [15, 16],
+    })
+
+
+def test_usb_skid_corners_cover_every_default_wheel(tmp_path):
+    corners = build_usb_skid_corners(_good_registry(tmp_path), pool=_FakePool())
+
+    assert sorted(corners) == [
+        "front_left", "front_right", "mid_left", "mid_right",
+        "rear_left", "rear_right"]
+
+
+def test_usb_skid_corners_use_null_steer_everywhere(tmp_path):
+    """AK 를 전혀 쓰지 않는 구성이므로 조향 액추에이터가 하나도 없어야 한다."""
+    corners = build_usb_skid_corners(_good_registry(tmp_path), pool=_FakePool())
+
+    assert all(isinstance(c.steer, NullSteer) for c in corners.values())
+
+
+def test_usb_skid_inverts_exactly_the_right_wheels(tmp_path):
+    corners = build_usb_skid_corners(_good_registry(tmp_path), pool=_FakePool())
+
+    inverted = {name for name, c in corners.items() if c.drive.invert}
+    assert inverted == {"front_right", "mid_right", "rear_right"}
+
+
+def test_usb_skid_assigns_a_distinct_poll_slot_per_wheel(tmp_path):
+    """전 축이 같은 tick 에 폴링하면 라운드로빈이 무의미해진다."""
+    corners = build_usb_skid_corners(_good_registry(tmp_path), pool=_FakePool())
+
+    slots = sorted(c.drive._poll_slot for c in corners.values())
+    assert slots == [0, 1, 2, 3, 4, 5]
+    assert all(c.drive._poll_period_ticks == 6 for c in corners.values())
+
+
+def test_usb_skid_rejects_a_registry_missing_a_drive_node(tmp_path):
+    path = _write_registry(tmp_path, {"SN-A": [11, 12], "SN-B": [13, 14]})
+
+    with pytest.raises(ValueError, match="node 15"):
+        build_usb_skid_corners(path, pool=_FakePool())
+
+
+def test_usb_skid_rejects_a_registry_that_breaks_the_mirror_convention(tmp_path):
+    """우측 바퀴(node 12/14/16)는 반드시 각 보드의 axis1 이어야 한다 — 실물 미러 장착."""
+    path = _write_registry(tmp_path, {
+        "SN-A": [12, 11], "SN-B": [13, 14], "SN-C": [15, 16],
+    })
+
+    with pytest.raises(ValueError, match="axis1"):
+        build_usb_skid_corners(path, pool=_FakePool())
+
+
+def test_usb_skid_never_opens_can(tmp_path, monkeypatch):
+    """can0 을 아예 건드리지 않는 것이 이 구성의 존재 이유다."""
+    import corner_module.drive_odrive_can as drive_can
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("CAN driver must not be constructed")
+
+    monkeypatch.setattr(drive_can, "DriveOdriveCan", explode)
+
+    build_usb_skid_corners(_good_registry(tmp_path), pool=_FakePool())
+
+
+def test_usb_skid_pairs_with_a_four_wheel_map(tmp_path):
+    from chassis.chassis_manager import FOUR_WHEEL_MAP
+
+    corners = build_usb_skid_corners(
+        _good_registry(tmp_path), wheel_map=FOUR_WHEEL_MAP, pool=_FakePool())
+
+    assert sorted(corners) == [
+        "front_left", "front_right", "rear_left", "rear_right"]
+    assert all(c.drive._poll_period_ticks == 4 for c in corners.values())
