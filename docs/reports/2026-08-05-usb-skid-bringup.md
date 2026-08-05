@@ -78,22 +78,31 @@ print(sorted(build_usb_skid_corners('/workspace/config/bl70200_boards.json')))\"
 ### 2-1. 젯슨 — 서버
 
 ```bash
-docker exec -it powertrain_jetson sh -c \
+docker exec -it powertrain_jetson sh -lc \
   "cd /workspace/motor_control && python3 -m chassis.teleop_server \
-     --skid-usb --diagnostic-direct-can"
+     --skid-usb --no-us100 --diagnostic-direct-can --confirm-arm-stowed"
 ```
 
 - `--skid-usb` 가 **can0 을 아예 열지 않는다** — CanWatchdog·RealCanSession 미기동.
 - 레지스트리 경로는 기본값이 레포 루트로 풀리므로 지정할 필요 없다.
-- US-100 은 UART 라 그대로 살아 있다. 끄려면 `--no-us100`.
-- 팔 stowed 확인 프롬프트에 `yes` 를 입력해야 진행된다.
+- `--no-us100` — **컨테이너에 pyserial 이 없어 US-100 을 켜면 기동이 죽는다**
+  (`ModuleNotFoundError: No module named 'serial'`, 2026-08-05 젯슨 실측).
+  import 가 `if use_us100:` 블록 안에 있어 이 플래그면 아예 안 탄다.
+- `--confirm-arm-stowed` — 로봇팔 미사용이라 확인 프롬프트를 건너뛴다.
+
+> ⚠️ **US-100 을 끄면 접근 시 자동 정지가 없다.** 차체 워치독·estop 전파·링크
+> 끊김 보호는 그대로지만 장애물 감지는 사라진다. 바퀴 들고 하는 벤치 전용이며
+> 지상 주행 전에 다시 판단할 것.
+>
+> 되살리려면 컨테이너에 pyserial 이 있어야 한다 — 인터넷 되는 곳에서 이미지
+> 재빌드.
 
 ✅ 기대 출력:
 
 ```
 🛠️ USB 스키드 모드 — AK 조향 미사용, can0 미개방 (track_gain 1.00)
 ⚠️ 조향축이 무통전이다. 스키드 중 각이 밀리는지 육안 확인할 것.
-=== 차체 4WS 무선 텔레옵 서버 — 포트 9000 대기 (US-100 ON) ===
+=== 차체 4WS 무선 텔레옵 서버 — 포트 9000 대기 (US-100 OFF) ===
 ```
 
 ### 2-2. 노트북 — 클라이언트
@@ -150,7 +159,7 @@ USB 는 속성 하나가 왕복 1회다. 50 Hz = 20 ms 안에 쓰기 6축 + 읽�
 
 - ○ estop → 6축 0
 - 노트북 클라이언트 강제 종료 → 6축 0
-- US-100 앞에 손 → 구동 0
+- (US-100 은 이번 구성에서 미사용 — pyserial 미설치. 장애물 자동정지 없음)
 
 ⚠️ 바퀴 지령 0.3 rev/s 미만은 HALL 코깅존이라 텔레메트리만 그럴듯하고 실물이
 안 돈다. **v ≥ 0.4 m/s 로 시험하고 육안 확인 필수.**

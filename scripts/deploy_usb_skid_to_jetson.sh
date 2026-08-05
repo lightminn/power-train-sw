@@ -17,8 +17,9 @@
 #   8) 보드 레지스트리 자동 생성 (USB 로 can_node_id 읽음, CAN 버스 무관)
 #   9) 무하드웨어 검증 + 실행 명령 출력
 #
-# 로봇팔은 안 쓰는 구성이다 — 팔 스택은 건드리지 않고, 실행 명령도 팔 확인
-# 프롬프트 없이 나온다.
+# 로봇팔·US-100 은 안 쓰는 구성이다 — 팔 스택은 건드리지 않고, 실행 명령은
+# --no-us100 --confirm-arm-stowed 로 나온다.
+# ⚠️ US-100 이 없으면 접근 시 자동 정지가 없다. 바퀴 들고 하는 벤치 전용.
 #
 # 모터는 돌리지 않는다. 마지막에 나오는 명령을 사람이 직접 친다.
 set -euo pipefail
@@ -263,9 +264,13 @@ $(printf '\033[1m══ 다음: 실제 주행 ══\033[0m')
 
   [젯슨]  docker exec -it $CONTAINER sh -lc \\
             "cd /workspace/motor_control && python3 -m chassis.teleop_server \\
-               --skid-usb --diagnostic-direct-can --confirm-arm-stowed"
+               --skid-usb --no-us100 --diagnostic-direct-can --confirm-arm-stowed"
 
-          (로봇팔 미사용 구성이라 --confirm-arm-stowed 로 확인 프롬프트를 건너뛴다)
+          --no-us100        : US-100 미사용 (컨테이너에 pyserial 없음)
+          --confirm-arm-stowed : 로봇팔 미사용이라 확인 프롬프트 생략
+
+  ⚠️  US-100 을 끄면 접근 시 자동 정지가 없다. 바퀴 들고 하는 벤치 전용이며,
+      지상 주행 전에는 다시 켜거나 다른 안전장치를 둘 것.
 
   [노트북] python3 motor_control/laptop/laptop_client_chassis.py \\
              --host $HOST --port 9000
