@@ -7,6 +7,18 @@ ROS-free 순수 모듈 — 호스트 pytest 로 검증한다. ops_contract.py �
 DRIVE_TRANSPORTS = ("can", "usb")
 
 
+def steering_mode_from_safety_state(payload, default="ackermann"):
+    """안전 상태 payload 에서 검증된 조향모드를 꺼낸다."""
+    if not isinstance(payload, dict):
+        return default
+    steering_mode = payload.get("steering_mode")
+    if not isinstance(steering_mode, str):
+        return default
+    if steering_mode not in ("ackermann", "skid"):
+        return default
+    return steering_mode
+
+
 def validate_transport_mode(drive_transport, steering_mode):
     """기동 파라미터 조합을 검증한다. 잘못되면 ``ValueError``.
 

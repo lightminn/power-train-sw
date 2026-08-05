@@ -5,6 +5,7 @@ injected into ``StateEstimator``.  The existing ``/imu/filtered`` and optional
 TF contracts remain unchanged.
 """
 
+import json
 import math
 import os
 import sys
@@ -14,6 +15,7 @@ from geometry_msgs.msg import TransformStamped
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu
+from std_msgs.msg import String
 from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 
 from powertrain_msgs.msg import WheelStates
@@ -27,6 +29,10 @@ from powertrain_ros.state_estimation import (  # noqa: E402
     StateEstimatorConfig,
     WheelSample,
     WheelValue,
+    geometry_for_steering_mode,
+)
+from powertrain_ros.steering_contract import (  # noqa: E402
+    steering_mode_from_safety_state,
 )
 
 
@@ -63,6 +69,8 @@ class ImuTiltNode(Node):
         self.declare_parameter("publish_odom_tf", True)
 
         self.geom = default_geometry()
+        self._steering_mode = "ackermann"
+        self._skid_track_gain = 1.0
         self.estimator = self._new_estimator()
         self.roll = self.pitch = self.yaw = 0.0
         self._accel = None
@@ -111,6 +119,12 @@ class ImuTiltNode(Node):
             self._on_wheels,
             10,
         )
+        self.create_subscription(
+            String,
+            "/chassis/safety_state",
+            self._on_safety_state,
+            10,
+        )
         hz = float(self.get_parameter("publish_hz").value)
         self.create_timer(1.0 / hz, self._publish_tf)
         self.create_timer(2.0, self._log)
@@ -122,6 +136,20 @@ class ImuTiltNode(Node):
     @staticmethod
     def _stamp_s(stamp):
         return float(stamp.sec) + float(stamp.nanosec) * 1e-9
+
+    def _on_safety_state(self, message):
+        """조향모드가 바뀌면 추정 기하를 함께 갈아끼운다."""
+        try:
+            payload = json.loads(message.data)
+        except (TypeError, ValueError):
+            return
+        mode = steering_mode_from_safety_state(payload, self._steering_mode)
+        if mode == self._steering_mode:
+            return
+        self._steering_mode = mode
+        self.geom = geometry_for_steering_mode(mode, self._skid_track_gain)
+        self.estimator.set_geometry(self.geom)
+        self.get_logger().warning("추정 기하 전환: %s" % mode)
 
     def _new_estimator(self):
         return StateEstimator(

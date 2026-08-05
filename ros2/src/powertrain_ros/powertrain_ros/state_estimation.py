@@ -138,6 +138,21 @@ def _wrap(angle):
     return math.atan2(math.sin(angle), math.cos(angle))
 
 
+def geometry_for_steering_mode(steering_mode, track_gain=1.0):
+    """조향모드 문자열 → 추정용 기하.
+
+    스키드에서 애커만 기하를 쓰면 조향륜마다 측면식이 들어가 추정이 오염된다 —
+    유령 횡속도(실측 −0.35 m/s), 정상 바퀴 오배제, 배제 여유가 없는 구성에서는
+    ω 39~49 % 과소추정. 설계문서 §1.5 표 참조. 알 수 없는 값이면 조용히
+    스키드로 바꾸지 않고 애커만으로 남는다(보수적 기본값).
+    """
+    from chassis.kinematics import default_geometry, skid_geometry
+
+    if str(steering_mode) == "skid":
+        return skid_geometry(float(track_gain))
+    return default_geometry()
+
+
 class StateEstimator:
     """Fuse qualified wheel and IMU values into one immutable snapshot."""
 
@@ -181,6 +196,10 @@ class StateEstimator:
         self._imu_reinitialized = False
         self._reconnect_count = 0
         self._yaw_source = "none"
+
+    def set_geometry(self, geometry) -> None:
+        """조향모드 전환에 맞춰 추정 기하를 갈아끼운다."""
+        self.geometry = geometry
 
     def _validate_config(self):
         cfg = self.config

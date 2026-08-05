@@ -41,3 +41,23 @@ def test_safety_state_payload_carries_the_mode_fields():
         "drive_transport": "usb",
     }
     json.dumps(payload)          # 직렬화 가능해야 한다
+
+
+@pytest.mark.parametrize("mode", ["ackermann", "skid"])
+def test_steering_mode_from_safety_state_accepts_known_modes(mode):
+    assert contract.steering_mode_from_safety_state(
+        {"steering_mode": mode}, default="skid"
+    ) == mode
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        [],
+        {},
+        {"steering_mode": 1},
+        {"steering_mode": "crab"},
+    ],
+)
+def test_steering_mode_from_safety_state_uses_default_for_invalid_payload(payload):
+    assert contract.steering_mode_from_safety_state(payload, default="skid") == "skid"
