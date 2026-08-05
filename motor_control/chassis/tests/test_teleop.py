@@ -349,3 +349,45 @@ def test_skid_usb_builds_usb_corners_and_never_touches_can(monkeypatch):
     assert calls["usb_corners"] == 1
     assert calls["watchdog"] == 0
     assert calls["can_session"] == 0
+
+
+def test_skid_usb_reports_skid_steering_mode_and_geometry(monkeypatch):
+    """--skid-usb 로 만든 매니저는 스키드라고 보고해야 한다.
+
+    cfg.geometry 를 직접 덮으면 ChassisManager 가 그걸 애커만 원본으로 오인해
+    steering_mode 를 ackermann 으로 보고하고, 오도메트리 노드가 애커만 기하로
+    스왑해 요레이트 추정이 0 으로 눌린다(설계문서 §6.2 결함 B).
+    """
+    import chassis.chassis_manager as manager_mod
+
+    real_manager = manager_mod.ChassisManager
+    captured = {}
+
+    def _fake_usb_corners(*_a, **_k):
+        return {
+            wheel.name: object()
+            for wheel in manager_mod.ChassisConfig().geometry.wheels
+        }
+
+    def _capture_manager(corners, cfg):
+        captured["manager"] = real_manager(corners, cfg)
+        raise RuntimeError("stop after manager construction")
+
+    monkeypatch.setattr(manager_mod, "build_usb_skid_corners", _fake_usb_corners)
+    monkeypatch.setattr(manager_mod, "ChassisManager", _capture_manager)
+
+    track_gain = 1.4
+    v_max = 1.7
+    with pytest.raises(RuntimeError, match="stop after manager construction"):
+        teleop_server.main([
+            "--diagnostic-direct-can", "--confirm-arm-stowed",
+            "--skid-usb", "--no-us100",
+            "--track-gain", str(track_gain), "--v-max", str(v_max),
+        ])
+
+    manager = captured["manager"]
+    wheels = {wheel.name: wheel for wheel in manager.cfg.geometry.wheels}
+    assert manager.steering_mode == "skid"
+    assert all(not wheel.steerable for wheel in wheels.values())
+    assert wheels["front_left"].y == pytest.approx(0.2725 * track_gain)
+    assert manager.cfg.geometry.drive_limit_mps == pytest.approx(v_max)

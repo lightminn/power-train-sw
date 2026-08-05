@@ -365,7 +365,11 @@ def main(argv=None):
     use_us100 = not args.no_us100
 
     import chassis.chassis_manager as manager_mod
-    from chassis.chassis_manager import ChassisManager, ChassisConfig
+    from chassis.chassis_manager import (
+        ChassisConfig,
+        ChassisManager,
+        STEERING_SKID,
+    )
 
     if not args.skid_usb:
         # USB 스키드는 can0 을 아예 열지 않으므로 워치독도 lock 도 필요 없다.
@@ -405,14 +409,16 @@ def main(argv=None):
             wheel_map = FOUR_WHEEL_MAP
             print("🛠️ 4륜 모드 — 중륜(node 13/14) 없이 앞뒤 4륜만 구동한다 (임시 구성)")
         if args.skid_usb:
-            # ★ 기하와 코너는 **반드시 짝** — 조향이 NullSteer 뿐이므로 애커만
-            #   기하를 물리면 조향 명령이 갈 곳이 없다.
-            from chassis.kinematics import skid_geometry
+            # ★ 기하는 ChassisManager 가 steering_mode 를 보고 파생한다.
+            #   여기서 cfg.geometry 를 스키드로 덮으면 매니저가 그걸 "애커만 원본"으로
+            #   오인해 steering_mode 를 ackermann 으로 보고하고, 오도메트리 노드가
+            #   애커만 기하로 스왑해 요레이트 추정이 0 으로 눌린다(설계문서 §6.2).
             corners = manager_mod.build_usb_skid_corners(
                 args.board_registry, wheel_map=wheel_map,
                 current_lim_a=args.usb_current_lim,
             )
-            cfg.geometry = skid_geometry(args.track_gain)
+            cfg.steering_mode = STEERING_SKID
+            cfg.skid_track_gain = args.track_gain
             print("🛠️ USB 스키드 모드 — AK 조향 미사용, can0 미개방 "
                   "(track_gain %.2f)" % args.track_gain)
             print("⚠️ 조향축이 무통전이다. 스키드 중 각이 밀리는지 육안 확인할 것.")
