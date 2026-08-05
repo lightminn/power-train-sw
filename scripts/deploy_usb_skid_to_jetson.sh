@@ -10,8 +10,10 @@
 #   1) 젯슨 접속 확인 + 원격 레포 상태 표시(미커밋 작업 경고)
 #   2) 덮어쓸 파일 백업 (원격, 타임스탬프)
 #   3) 이번 작업 파일 전송 (tar over ssh — rsync 불필요)
-#   4) 보드 레지스트리 자동 생성 (USB 로 can_node_id 읽음, CAN 버스 무관)
-#   5) 무하드웨어 검증 + 실행 명령 출력
+#   4) 컨테이너 기동 (없으면 compose up, 정지면 start, 이미 떠 있으면 그대로)
+#   5) 컨테이너 안 odrive·pyusb 확인
+#   6) 보드 레지스트리 자동 생성 (USB 로 can_node_id 읽음, CAN 버스 무관)
+#   7) 무하드웨어 검증 + 실행 명령 출력
 #
 # 모터는 돌리지 않는다. 마지막에 나오는 명령을 사람이 직접 친다.
 set -euo pipefail
@@ -46,6 +48,11 @@ done
    시도한 주소: ${CANDIDATES[*]}"
 ok "접속: ${REMOTE_USER}@${HOST}"
 RSH=("${SSH[@]}" "${REMOTE_USER}@${HOST}")
+
+# 원격 실행 헬퍼 — 스크립트를 stdin 으로 흘려보낸다. 중첩 따옴표는 현장에서
+# 디버깅 못 하는 자리라 인용 규칙을 최대한 단순하게 유지한다.
+run_host()   { "${RSH[@]}" "sh -s"; }               # 젯슨 호스트 셸
+run_remote() { "${RSH[@]}" "$REMOTE_SH"; }          # 컨테이너 안 (REMOTE_SH 설정 후)
 
 "${RSH[@]}" "test -d '$REMOTE_REPO'" \
   || die "원격에 레포가 없다: $REMOTE_REPO  (JETSON_REPO 로 지정)"
@@ -102,20 +109,75 @@ tar -czf - -C "$REPO_LOCAL" "${FILES[@]}" \
   | "${RSH[@]}" "mkdir -p '$REMOTE_REPO' && tar -xzf - -C '$REMOTE_REPO'"
 ok "전송 완료"
 
-# ── 4. 원격 실행 헬퍼 ─────────────────────────────────────────────────────
-# 중첩 따옴표를 피하려고 스크립트를 stdin 으로 흘려보낸다. 현장에서 디버깅
-# 못 하는 자리라 인용 규칙을 최대한 단순하게 유지한다.
-if "${RSH[@]}" "docker ps --format '{{.Names}}'" 2>/dev/null | grep -qx "$CONTAINER"; then
-  ok "컨테이너 $CONTAINER 가동 중"
-  REMOTE_SH="docker exec -i $CONTAINER sh -s"
+# ── 4. 컨테이너 기동 ──────────────────────────────────────────────────────
+# odrive·pyusb 는 컨테이너에만 있다. 호스트 파이썬으로는 USB 열거가 안 된다.
+# CAN 을 안 쓰므로 canwatchdog 서비스는 띄우지 않는다 — powertrain 하나면 된다.
+say "컨테이너 $CONTAINER 확인"
+container_state() {
+  "${RSH[@]}" "docker inspect -f '{{.State.Running}}' '$CONTAINER' 2>/dev/null || echo missing"
+}
+STATE=$(container_state | tr -d '\r')
+case "$STATE" in
+  true)
+    ok "이미 가동 중" ;;
+  false)
+    warn "정지 상태 — 시작한다"
+    "${RSH[@]}" "docker start '$CONTAINER'" >/dev/null \
+      || die "docker start 실패. 젯슨에서 직접 확인하라: docker logs $CONTAINER" ;;
+  *)
+    warn "컨테이너가 없다 — compose 로 띄운다 (서비스 powertrain)"
+    # ⚠️ powertrain 서비스에는 build: 가 있다. 이미지가 없으면 compose 가 빌드를
+    #    시도하는데 그건 인터넷이 필요하다 — 젯슨에 붙은 지금은 못 한다.
+    #    그래서 이미지 존재를 먼저 확인하고 --no-build 로 띄운다.
+    if ! "${RSH[@]}" "docker image inspect powertrain-sw:jetson >/dev/null 2>&1"; then
+      die "이미지 powertrain-sw:jetson 이 없다.
+   컨테이너를 처음 만들려면 빌드가 필요하고 빌드는 인터넷이 있어야 한다.
+   인터넷 되는 곳에서 먼저:
+     cd $REMOTE_REPO && docker compose -f docker/docker-compose.jetson.yml build powertrain"
+    fi
+    set +e
+    run_host <<REMOTE
+set -e
+cd '$REMOTE_REPO'
+if docker compose version >/dev/null 2>&1; then
+  docker compose -f docker/docker-compose.jetson.yml up -d --no-build powertrain
 else
-  warn "컨테이너 $CONTAINER 가 안 떠 있다 — 호스트 파이썬으로 시도한다"
-  warn "(odrive/pyusb 는 보통 컨테이너에만 있다. 실패하면 컨테이너를 먼저 띄워라)"
-  REMOTE_SH="sh -s"
+  docker-compose -f docker/docker-compose.jetson.yml up -d --no-build powertrain
 fi
-# 컨테이너 안 레포는 /workspace, 호스트는 $REMOTE_REPO
-run_remote() { "${RSH[@]}" "$REMOTE_SH"; }
+REMOTE
+    UP_RC=$?
+    set -e
+    [ $UP_RC -eq 0 ] || die "compose up 실패. 젯슨에서 직접: \
+cd $REMOTE_REPO && docker compose -f docker/docker-compose.jetson.yml up -d powertrain"
+    ;;
+esac
 
+# 뜰 때까지 기다린다 (이미지 로드·초기화에 몇 초 걸린다)
+for i in $(seq 1 30); do
+  [ "$(container_state | tr -d '\r')" = "true" ] && break
+  sleep 2
+done
+[ "$(container_state | tr -d '\r')" = "true" ] \
+  || die "컨테이너가 뜨지 않았다. 젯슨에서: docker logs $CONTAINER"
+ok "컨테이너 가동 확인"
+
+# ── 5. 컨테이너 안 환경 확인 ──────────────────────────────────────────────
+REMOTE_SH="docker exec -i $CONTAINER sh -s"
+
+say "컨테이너 안 파이썬 환경"
+run_remote <<'REMOTE'
+python3 - <<'PY'
+import importlib
+for mod in ("odrive", "usb.core"):
+    try:
+        importlib.import_module(mod)
+        print("   ✅ %s" % mod)
+    except Exception as exc:
+        print("   ❌ %s — %s" % (mod, exc))
+PY
+REMOTE
+
+# ── 6. 레지스트리 자동 생성 ───────────────────────────────────────────────
 say "보드 레지스트리 생성 (USB 로 can_node_id 읽음 — CAN 버스 무관)"
 set +e
 run_remote <<REMOTE
@@ -132,7 +194,7 @@ else
   ok "레지스트리 생성·검증 완료"
 fi
 
-# ── 5. 무하드웨어 검증 ────────────────────────────────────────────────────
+# ── 7. 무하드웨어 검증 ────────────────────────────────────────────────────
 say "원격 검증 (모터 안 돌림)"
 set +e
 run_remote <<REMOTE
@@ -150,7 +212,7 @@ REMOTE
 [ $? -eq 0 ] || warn "검증 실패 — 위 오류 확인"
 set -e
 
-# ── 6. 다음 단계 ──────────────────────────────────────────────────────────
+# ── 8. 다음 단계 ──────────────────────────────────────────────────────────
 cat <<EOF
 
 $(printf '\033[1m══ 다음: 실제 주행 ══\033[0m')
