@@ -760,25 +760,113 @@ def test_metadata_rejects_string_pick_target_boolean():
         parse_metadata(json.dumps(payload).encode("utf-8"))
 
 
-def test_power_summary_covers_normal_unavailable_and_warning():
+def test_power_summary_shows_current_based_charging_with_status_flags():
     summary = getattr(telemetry, "power_summary", None)
     assert summary is not None
-    normal = parse_telemetry(
+    charging = parse_telemetry(
         b'{"schema_version":1,"sequence":20,"voltage_v":47.6,'
-        b'"pdist_soc_percent":80,"pdist_battery_flags":0,'
-        b'"pdist_protection_flags":0}',
-        received_monotonic_s=10.0,
-    )
-    warning = parse_telemetry(
-        b'{"schema_version":1,"sequence":21,"voltage_v":47.6,'
-        b'"pdist_soc_percent":80,"pdist_battery_flags":0,'
-        b'"pdist_protection_flags":2}',
+        b'"pdist_soc_percent":80,"pdist_battery_flags":2,'
+        b'"pdist_protection_flags":32,"pdist_charge_current_a":2.0}',
         received_monotonic_s=10.0,
     )
 
-    assert summary(normal) == "47.6 V · 80% · 정상"
+    assert summary(charging) == "47.6 V · 80% · 정상 · 충전 중"
+
+
+def test_power_summary_names_over_voltage_fault_before_charging_status():
+    summary = getattr(telemetry, "power_summary", None)
+    fault = parse_telemetry(
+        b'{"schema_version":1,"sequence":21,"voltage_v":47.6,'
+        b'"pdist_soc_percent":80,"pdist_battery_flags":4,'
+        b'"pdist_protection_flags":32,"pdist_charge_current_a":2.0}',
+        received_monotonic_s=10.0,
+    )
+
+    assert summary(fault) == "47.6 V · 80% · ⚠ 과전압 보호"
+
+
+def test_power_summary_preserves_unavailable_wording_for_missing_flags():
+    summary = getattr(telemetry, "power_summary", None)
+    unknown = parse_telemetry(
+        b'{"schema_version":1,"sequence":22,"voltage_v":47.6,'
+        b'"pdist_soc_percent":80,"pdist_charge_current_a":2.0}',
+        received_monotonic_s=10.0,
+    )
+
     assert summary(None) == "미수신(UNAVAILABLE)"
-    assert summary(warning) == "47.6 V · 80% · ⚠ 보호 경고"
+    assert summary(unknown) == "47.6 V · 80% · 상태 미수신"
+
+
+@pytest.mark.parametrize(
+    ("battery_flags", "protection_flags"),
+    ((None, 0x01), (0x04, None)),
+)
+def test_power_summary_treats_a_partially_missing_flag_pair_as_unavailable(
+    battery_flags,
+    protection_flags,
+):
+    summary = getattr(telemetry, "power_summary", None)
+    snapshot = parse_telemetry(json.dumps({
+        "schema_version": 1,
+        "sequence": 23,
+        "voltage_v": 47.6,
+        "pdist_soc_percent": 80,
+        "pdist_battery_flags": battery_flags,
+        "pdist_protection_flags": protection_flags,
+    }).encode("utf-8"))
+
+    assert summary(snapshot) == "47.6 V · 80% · 상태 미수신"
+
+
+@pytest.mark.parametrize("charge_current_a", (-0.1, 0.0, 0.1))
+def test_power_summary_ignores_charge_current_idle_deadband(charge_current_a):
+    summary = getattr(telemetry, "power_summary", None)
+    snapshot = parse_telemetry(json.dumps({
+        "schema_version": 1,
+        "sequence": 24,
+        "voltage_v": 47.6,
+        "pdist_soc_percent": 80,
+        "pdist_battery_flags": 0,
+        "pdist_protection_flags": 0,
+        "pdist_charge_current_a": charge_current_a,
+    }).encode("utf-8"))
+
+    assert summary(snapshot) == "47.6 V · 80% · 정상"
+
+
+def test_power_summary_does_not_infer_charging_from_d6_bit6():
+    summary = getattr(telemetry, "power_summary", None)
+    snapshot = parse_telemetry(
+        b'{"schema_version":1,"sequence":25,"voltage_v":47.6,'
+        b'"pdist_soc_percent":80,"pdist_battery_flags":0,'
+        b'"pdist_protection_flags":64,"pdist_charge_current_a":0.0}',
+        received_monotonic_s=10.0,
+    )
+
+    assert summary(snapshot) == "47.6 V · 80% · 정상"
+
+
+def test_power_summary_caps_multiple_fault_reasons_at_two():
+    summary = getattr(telemetry, "power_summary", None)
+    fault = parse_telemetry(
+        b'{"schema_version":1,"sequence":26,"voltage_v":47.6,'
+        b'"pdist_soc_percent":80,"pdist_battery_flags":252,'
+        b'"pdist_protection_flags":15}',
+        received_monotonic_s=10.0,
+    )
+
+    assert summary(fault) == (
+        "47.6 V · 80% · ⚠ 과전압 보호, 저전압 보호 외 7건"
+    )
+
+
+def test_detailed_power_health_uses_fault_masks_and_concrete_reasons():
+    from operator_console.app import TelemetryPanel
+
+    assert TelemetryPanel._power_health_text(0x02, 0x20) == "정상"
+    assert TelemetryPanel._power_health_text(0, 0x40) == "정상"
+    assert TelemetryPanel._power_health_text(0x04, 0) == "⚠ 과전압 보호"
+    assert TelemetryPanel._power_health_text(None, 0) == "미수신(UNAVAILABLE)"
 
 
 def test_chassis_summary_covers_normal_unavailable_and_warning():

@@ -97,7 +97,7 @@ def test_estop_reset_and_arm_use_distinct_gestures_with_spacer_between():
     assert PANEL_ACTIONS[reset_index + 1].gesture == GESTURE_SPACER
 
 
-def test_panel_keeps_eight_basic_actions_and_preserves_existing_action_keys():
+def test_panel_keeps_nine_basic_actions_and_preserves_existing_action_keys():
     actions = tuple(action for action in PANEL_ACTIONS if action.action is not None)
     basic = {action.action for action in actions if not action.advanced}
     advanced = {action.action for action in actions if action.advanced}
@@ -111,6 +111,7 @@ def test_panel_keeps_eight_basic_actions_and_preserves_existing_action_keys():
         "steer_enable",
         "us100_enable",
         "robot_arm_enable",
+        "steer_mode_skid",
     }
     assert {
         "authority_manual",
@@ -134,6 +135,7 @@ def test_panel_keeps_eight_basic_actions_and_preserves_existing_action_keys():
         "steer_enable",
         "us100_enable",
         "robot_arm_enable",
+        "steer_mode_skid",
         "arm_lock_override",
         "mission_arrive_pickup",
         "mission_arrive_drop",
@@ -703,3 +705,80 @@ def test_top_alert_shows_latest_failure_for_eight_seconds(monkeypatch):
     assert label.visible is True
     assert timers[1][1]() is False
     assert label.visible is False
+
+
+from operator_console.ops_panel import (
+    PANEL_ACTIONS, action_is_available, drive_transport_from_state,
+    steering_available_from_state, steering_mode_from_state,
+)
+
+
+def _state(**kw):
+    base = {
+        "steering_mode": "ackermann",
+        "steering_available": True,
+        "drive_transport": "can",
+        "component_mask": {"drive": True, "steer": True,
+                           "us100": True, "robot_arm": True},
+    }
+    base.update(kw)
+    return base
+
+
+def test_steering_fields_are_read_from_state():
+    state = _state(steering_mode="skid", drive_transport="usb",
+                   steering_available=False)
+
+    assert steering_mode_from_state(state) == "skid"
+    assert steering_available_from_state(state) is False
+    assert drive_transport_from_state(state) == "usb"
+
+
+def test_steering_fields_tolerate_a_missing_state():
+    assert steering_mode_from_state(None) is None
+    assert steering_available_from_state(None) is False
+    assert drive_transport_from_state({}) is None
+
+
+def test_steer_mode_row_exists_and_is_a_bool_toggle():
+    row = next(a for a in PANEL_ACTIONS if a.action == "steer_mode_skid")
+
+    assert row.needs_bool is True
+    assert row.bool_value_from_state is not None
+    assert row.confirm_text
+
+
+def test_steer_mode_toggle_requests_the_opposite_mode():
+    row = next(a for a in PANEL_ACTIONS if a.action == "steer_mode_skid")
+
+    assert row.bool_value_from_state(_state(steering_mode="ackermann")) is True
+    assert row.bool_value_from_state(_state(steering_mode="skid")) is False
+
+
+def test_steer_mode_is_greyed_out_without_steering_hardware():
+    """USB 스택에는 조향 액추에이터가 없어 애커만으로 되돌릴 수 없다."""
+    state = _state(steering_mode="skid", steering_available=False,
+                   drive_transport="usb")
+
+    available, reason = action_is_available("steer_mode_skid", state)
+
+    assert available is False
+    assert "조향" in reason
+
+
+def test_steer_mode_is_available_on_a_can_stack():
+    available, reason = action_is_available("steer_mode_skid", _state())
+
+    assert available is True
+    assert reason == ""
+
+
+def test_other_actions_are_unaffected_by_the_availability_gate():
+    for action in ("estop", "arm", "drive_enable"):
+        assert action_is_available(action, _state()) == (True, "")
+
+
+def test_availability_gate_is_conservative_without_state():
+    available, _reason = action_is_available("steer_mode_skid", None)
+
+    assert available is False

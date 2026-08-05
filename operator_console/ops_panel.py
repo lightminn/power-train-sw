@@ -165,6 +165,54 @@ def _component_toggle_value(component: str) -> Callable[[dict[str, Any]], bool]:
     return value_from_state
 
 
+_STEERING_KOREAN = {"ackermann": "애커만", "skid": "스키드"}
+_TRANSPORT_KOREAN = {"can": "CAN", "usb": "USB"}
+
+
+def steering_mode_from_state(state: Mapping[str, Any] | None) -> str | None:
+    if state is None:
+        return None
+    mode = state.get("steering_mode")
+    return mode if isinstance(mode, str) and mode else None
+
+
+def steering_available_from_state(state: Mapping[str, Any] | None) -> bool:
+    if state is None:
+        return False
+    return state.get("steering_available") is True
+
+
+def drive_transport_from_state(state: Mapping[str, Any] | None) -> str | None:
+    if state is None:
+        return None
+    transport = state.get("drive_transport")
+    return transport if isinstance(transport, str) and transport else None
+
+
+def _steer_mode_toggle_value(state: dict[str, Any]) -> bool:
+    """현재가 애커만이면 True(스키드로), 스키드면 False(애커만으로)."""
+    mode = steering_mode_from_state(state)
+    if mode is None:
+        raise RuntimeError("steering mode unavailable")
+    return mode != "skid"
+
+
+def action_is_available(action: str, state: Mapping[str, Any] | None) -> tuple:
+    """행을 누를 수 있는지와 회색 사유. 상태를 모르면 보수적으로 막는다.
+
+    USB 스택에는 조향 액추에이터가 아예 없어(AK 는 CAN 전용) 애커만으로 되돌릴
+    수 없다. 그 칸은 눌러도 서버가 거부하므로 콘솔에서 먼저 막는다.
+    """
+    if str(action) != "steer_mode_skid":
+        return True, ""
+    if state is None or steering_mode_from_state(state) is None:
+        return False, "차대 상태 수신 전"
+    if steering_mode_from_state(state) == "skid" and \
+            not steering_available_from_state(state):
+        return False, "조향 모터가 없는 구성입니다 (USB 스택)"
+    return True, ""
+
+
 PANEL_ACTIONS: tuple[PanelAction, ...] = (
     PanelAction(
         "estop",
@@ -226,6 +274,15 @@ PANEL_ACTIONS: tuple[PanelAction, ...] = (
         needs_bool=True,
         confirm_text="이번 세션의 로봇팔 사용 상태를 전환합니까?",
         bool_value_from_state=_component_toggle_value("robot_arm"),
+    ),
+    PanelAction(
+        "steer_mode_skid",
+        "조향: 스키드",
+        GESTURE_STRIP,
+        needs_bool=True,
+        confirm_text="조향 방식을 전환합니까? 차대가 멈추고 조향이 0° 로 돌아온 "
+                     "뒤에 적용됩니다.",
+        bool_value_from_state=_steer_mode_toggle_value,
     ),
     PanelAction(
         "authority_manual",

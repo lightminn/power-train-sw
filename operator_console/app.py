@@ -59,6 +59,7 @@ from .ops_panel import (
     PANEL_ACTIONS,
     ConfirmFlow,
     PanelAction,
+    action_is_available,
     component_mask_from_state,
     format_ops_status_line,
     mode_allows_action,
@@ -81,6 +82,7 @@ from .telemetry import (
     chassis_summary,
     chassis_component_states,
     mask_banner_text,
+    power_fault_reasons,
     power_summary,
     safety_banner_state,
 )
@@ -1446,13 +1448,12 @@ class TelemetryPanel(Gtk.Frame):
 
     @staticmethod
     def _power_health_text(battery_flags: int | None, protection_flags: int | None) -> str:
-        if protection_flags not in (None, 0):
-            return f"보호 경고 {protection_flags:#04x}"
-        if battery_flags not in (None, 0):
-            return f"배터리 경고 {battery_flags:#04x}"
-        if battery_flags == 0 and protection_flags == 0:
-            return "정상"
-        return "미수신(UNAVAILABLE)"
+        reasons = power_fault_reasons(battery_flags, protection_flags)
+        if reasons is None:
+            return "미수신(UNAVAILABLE)"
+        if reasons:
+            return f"⚠ {', '.join(reasons)}"
+        return "정상"
 
     def _report_power_health(self, battery_flags: int | None, protection_flags: int | None) -> None:
         key = (battery_flags, protection_flags)
@@ -2112,8 +2113,13 @@ class OpsPanel(Gtk.Frame):
             if action.action is None or action.bool_value_from_state is None:
                 continue
             button = self._action_buttons[action.action]
-            allowed = mode_allows_action(action.action, chassis_mode)
-            gate_hint = " · 대기에서만" if not allowed else ""
+            mode_allowed = mode_allows_action(action.action, chassis_mode)
+            available, unavailable_reason = action_is_available(
+                action.action, state,
+            )
+            allowed = mode_allowed and available
+            gate_hint = " · 대기에서만" if not mode_allowed else ""
+            button.set_tooltip_text(unavailable_reason or None)
             try:
                 next_enabled = action.bool_value_from_state(state)
             except RuntimeError:
@@ -2134,6 +2140,11 @@ class OpsPanel(Gtk.Frame):
 
     def latest_chassis_mode(self) -> str:
         return self._latest_chassis_mode
+
+    def latest_state(self) -> dict | None:
+        if self._client is None:
+            return None
+        return self._client.latest_state()
 
     def ops_available(self) -> bool:
         return self._client is not None and self._flow is not None
@@ -2820,9 +2831,12 @@ class OperatorConsole(Gtk.Window):
             else f"{power_snapshot.current_a:.1f} A")
         flags = None if power_snapshot is None else (
             power_snapshot.pdist_battery_flags, power_snapshot.pdist_protection_flags)
+        protection_reasons = (
+            None if flags is None else power_fault_reasons(*flags)
+        )
         power.values["protection"].set_text(
-            "수신 대기" if flags is None or flags == (None, None)
-            else "정상" if flags == (0, 0) else "확인 필요")
+            "수신 대기" if protection_reasons is None
+            else "확인 필요" if protection_reasons else "정상")
         power.values["device"].set_text(
             "수신 대기" if power_snapshot is None else
             public_freshness(power_snapshot.rs485_state, waiting="수신 대기"))
@@ -3172,11 +3186,13 @@ class OperatorConsole(Gtk.Window):
             "network", "로봇 연결", network_public,
             self._chip_tone(chassis_state),
         )
-        power_ok = (
-            telemetry == "LIVE" and snapshot is not None
-            and snapshot.pdist_battery_flags in (None, 0)
-            and snapshot.pdist_protection_flags in (None, 0)
+        power_reasons = (
+            None if snapshot is None else power_fault_reasons(
+                snapshot.pdist_battery_flags,
+                snapshot.pdist_protection_flags,
+            )
         )
+        power_ok = telemetry == "LIVE" and power_reasons == ()
         power_public = (
             "정상" if power_ok
             else "확인 필요" if telemetry == "LIVE"
@@ -3363,6 +3379,7 @@ class OperatorConsole(Gtk.Window):
             work_fps=self._d435.last_fps,
             front_frame_age_s=self._l515.last_frame_age_s,
             work_frame_age_s=self._d435.last_frame_age_s,
+            ops_state=self._ops_panel.latest_state(),
         )
         self._l515.set_rover_component_states(
             front_live=l515_video == "LIVE",
