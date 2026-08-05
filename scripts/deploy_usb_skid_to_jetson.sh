@@ -10,10 +10,15 @@
 #   1) 젯슨 접속 확인 + 원격 레포 상태 표시(미커밋 작업 경고)
 #   2) 덮어쓸 파일 백업 (원격, 타임스탬프)
 #   3) 이번 작업 파일 전송 (tar over ssh — rsync 불필요)
-#   4) 컨테이너 기동 (없으면 compose up, 정지면 start, 이미 떠 있으면 그대로)
-#   5) 컨테이너 안 odrive·pyusb 확인
-#   6) 보드 레지스트리 자동 생성 (USB 로 can_node_id 읽음, CAN 버스 무관)
-#   7) 무하드웨어 검증 + 실행 명령 출력
+#   4) 충돌 스택 정지 (같은 모터를 잡는 컨테이너들)  ※ KEEP_OTHERS=1 로 생략
+#   5) powertrain 컨테이너 기동 (없으면 compose up, 정지면 start)
+#   6) 컨테이너 안 좀비 제어 프로세스 kill
+#   7) odrive·pyusb 확인
+#   8) 보드 레지스트리 자동 생성 (USB 로 can_node_id 읽음, CAN 버스 무관)
+#   9) 무하드웨어 검증 + 실행 명령 출력
+#
+# 로봇팔은 안 쓰는 구성이다 — 팔 스택은 건드리지 않고, 실행 명령도 팔 확인
+# 프롬프트 없이 나온다.
 #
 # 모터는 돌리지 않는다. 마지막에 나오는 명령을 사람이 직접 친다.
 set -euo pipefail
@@ -109,7 +114,28 @@ tar -czf - -C "$REPO_LOCAL" "${FILES[@]}" \
   | "${RSH[@]}" "mkdir -p '$REMOTE_REPO' && tar -xzf - -C '$REMOTE_REPO'"
 ok "전송 완료"
 
-# ── 4. 컨테이너 기동 ──────────────────────────────────────────────────────
+# ── 4. 충돌 정리 (이미 돌고 있는 것 끄기) ─────────────────────────────────
+# 같은 모터를 잡는 스택이 떠 있으면 새로 띄운 teleop 과 싸운다. 좀비 제어루프가
+# v=0 을 계속 명령해 반나절을 날린 전례가 있다(2026-07-05).
+#
+# 로봇팔은 이번 구성에서 안 쓴다. 팔 스택은 팀이 별도 레포로 돌리므로 여기서
+# 건드리지 않고, 우리 쪽 팔 연동(arm_console_bridge 등)이 든 컨테이너만 내린다.
+CONFLICTS=(powertrain_control powertrain_chassis powertrain_ros powertrain_autonomy canwatchdog)
+if [ "${KEEP_OTHERS:-0}" = "1" ]; then
+  warn "KEEP_OTHERS=1 — 다른 컨테이너를 그대로 둔다 (모터 충돌 주의)"
+else
+  say "충돌 스택 정리"
+  for c in "${CONFLICTS[@]}"; do
+    st=$("${RSH[@]}" "docker inspect -f '{{.State.Running}}' '$c' 2>/dev/null || echo missing" | tr -d '\r')
+    if [ "$st" = "true" ]; then
+      "${RSH[@]}" "docker stop '$c'" >/dev/null 2>&1 && ok "정지: $c" || warn "정지 실패: $c"
+    else
+      printf '   · %s 안 떠 있음\n' "$c"
+    fi
+  done
+fi
+
+# ── 5. 컨테이너 기동 ──────────────────────────────────────────────────────
 # odrive·pyusb 는 컨테이너에만 있다. 호스트 파이썬으로는 USB 열거가 안 된다.
 # CAN 을 안 쓰므로 canwatchdog 서비스는 띄우지 않는다 — powertrain 하나면 된다.
 say "컨테이너 $CONTAINER 확인"
@@ -161,9 +187,24 @@ done
   || die "컨테이너가 뜨지 않았다. 젯슨에서: docker logs $CONTAINER"
 ok "컨테이너 가동 확인"
 
-# ── 5. 컨테이너 안 환경 확인 ──────────────────────────────────────────────
+# ── 6. 컨테이너 안 좀비 정리 ──────────────────────────────────────────────
 REMOTE_SH="docker exec -i $CONTAINER sh -s"
 
+say "좀비 제어 프로세스 정리"
+run_remote <<'REMOTE'
+found=$(ps -eo pid,args 2>/dev/null | grep -E 'teleop_server|teleop_dualsense|chassis\.|chassis_node|dualsense_usb_teleop' | grep -v grep)
+if [ -n "$found" ]; then
+  echo "$found" | sed 's/^/   죽일 것: /'
+  echo "$found" | awk '{print $1}' | xargs -r kill 2>/dev/null
+  sleep 1
+  echo "$found" | awk '{print $1}' | xargs -r kill -9 2>/dev/null
+  echo "   정리 완료"
+else
+  echo "   좀비 없음"
+fi
+REMOTE
+
+# ── 7. 컨테이너 안 환경 확인 ──────────────────────────────────────────────
 say "컨테이너 안 파이썬 환경"
 run_remote <<'REMOTE'
 python3 - <<'PY'
@@ -177,7 +218,7 @@ for mod in ("odrive", "usb.core"):
 PY
 REMOTE
 
-# ── 6. 레지스트리 자동 생성 ───────────────────────────────────────────────
+# ── 8. 레지스트리 자동 생성 ───────────────────────────────────────────────
 say "보드 레지스트리 생성 (USB 로 can_node_id 읽음 — CAN 버스 무관)"
 set +e
 run_remote <<REMOTE
@@ -194,7 +235,7 @@ else
   ok "레지스트리 생성·검증 완료"
 fi
 
-# ── 7. 무하드웨어 검증 ────────────────────────────────────────────────────
+# ── 9. 무하드웨어 검증 ────────────────────────────────────────────────────
 say "원격 검증 (모터 안 돌림)"
 set +e
 run_remote <<REMOTE
@@ -212,7 +253,7 @@ REMOTE
 [ $? -eq 0 ] || warn "검증 실패 — 위 오류 확인"
 set -e
 
-# ── 8. 다음 단계 ──────────────────────────────────────────────────────────
+# ── 10. 다음 단계 ──────────────────────────────────────────────────────────
 cat <<EOF
 
 $(printf '\033[1m══ 다음: 실제 주행 ══\033[0m')
@@ -222,9 +263,9 @@ $(printf '\033[1m══ 다음: 실제 주행 ══\033[0m')
 
   [젯슨]  docker exec -it $CONTAINER sh -lc \\
             "cd /workspace/motor_control && python3 -m chassis.teleop_server \\
-               --skid-usb --diagnostic-direct-can"
+               --skid-usb --diagnostic-direct-can --confirm-arm-stowed"
 
-          → 팔 stowed 확인 프롬프트에 yes 입력
+          (로봇팔 미사용 구성이라 --confirm-arm-stowed 로 확인 프롬프트를 건너뛴다)
 
   [노트북] python3 motor_control/laptop/laptop_client_chassis.py \\
              --host $HOST --port 9000
