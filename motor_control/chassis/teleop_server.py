@@ -310,6 +310,19 @@ def parse_input_line(text):
     return lx, rt, lt, (1 if sq else 0), (1 if ci else 0)
 
 
+def _default_board_registry():
+    """보드 레지스트리 기본 경로 — **레포 루트 기준 절대경로**로 푼다.
+
+    이 서버는 `cd motor_control && python3 -m chassis.teleop_server` 로 띄우는 게
+    문서화된 실행법이라, 상대경로 `config/…` 를 그대로 두면 `motor_control/config/`
+    를 찾아 못 찾는다. 실기 브링업에서 바로 걸리는 자리라 파일 위치에서 유도한다.
+    """
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))       # …/motor_control/chassis
+    repo_root = os.path.dirname(os.path.dirname(here))      # …/<repo>
+    return os.path.join(repo_root, "config", "bl70200_boards.json")
+
+
 def _parse_args(argv=None, input_fn=None):
     import argparse
 
@@ -346,7 +359,7 @@ def _parse_args(argv=None, input_fn=None):
                         "스키드(차동) 조향한다. can0 을 열지 않는다. "
                         "⚠️ 조향축이 무통전이라 스키드 중 밀릴 수 있다 — "
                         "바퀴 띄운 벤치에서 먼저 확인할 것")
-    p.add_argument("--board-registry", default="config/bl70200_boards.json",
+    p.add_argument("--board-registry", default=_default_board_registry(),
                    help="USB 보드 시리얼↔CAN node 레지스트리 JSON "
                         "(--skid-usb 전용, 만드는 법은 config/README-bl70200-boards.md)")
     p.add_argument("--track-gain", type=float, default=1.0,
