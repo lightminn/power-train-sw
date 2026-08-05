@@ -2502,18 +2502,30 @@ steering_available / drive_transport 를 /chassis/safety_state 로 방송한다.
 `ros2/src/powertrain_ros/test/test_state_estimation_geometry_sync.py` 신규:
 
 ```python
-"""스키드 주행 중 추정 노드가 애커만 기하로 남으면 요레이트가 0 으로 눌린다."""
+"""스키드 주행 중 추정 노드가 애커만 기하로 남으면 추정이 오염된다.
+
+⚠️ 초판은 "요레이트가 0 으로 눌린다"고 적었으나 2026-08-05 실측에서 틀린 것으로
+확인됐다. 측면식은 경성 제약이 아니라 가중최소자승의 한 항이라, 종방향 식들과
+타협한다. 실제 증상은 구성마다 다르다 (설계문서 §1.5 표):
+
+  · 6륜 기본 설정 — ω 는 살아나지만(이상치 배제가 뒷바퀴 2개를 버리면서 모순되는
+    측면식도 함께 빠진다) **유령 횡속도 −0.35 m/s** 와 **정상 바퀴 2개 오배제**가
+    남아 슬립 감지와 잔차 신뢰도가 무력화된다.
+  · 배제 여유가 없는 구성(4륜 등) — ω 가 **39~49 % 로 과소추정**된다.
+"""
 import pytest
 
-from chassis.kinematics import default_geometry, skid_geometry, solve
-from chassis.odometry import WheelObservation, solve_twist
+from chassis.kinematics import (
+    default_geometry, four_wheel_geometry, skid_geometry, solve,
+)
+from chassis.odometry import OdometryConfig, WheelObservation, solve_twist
 from powertrain_ros.state_estimation import (
     StateEstimator, geometry_for_steering_mode,
 )
 
 
-def _skid_observations(v_mps, omega_rad_s):
-    geom = skid_geometry()
+def _skid_observations(v_mps, omega_rad_s, base=None):
+    geom = skid_geometry(base=base)
     result = solve(geom, v_mps, omega_rad_s)
     return [
         WheelObservation(name=name, drive_mps=wc.drive_mps, steer_deg=0.0)
@@ -2521,11 +2533,43 @@ def _skid_observations(v_mps, omega_rad_s):
     ]
 
 
-def test_ackermann_geometry_crushes_yaw_for_skid_observations():
-    """이것이 결함 B 다 — 기하가 어긋나면 요레이트가 0 으로 눌린다."""
+def test_ackermann_geometry_invents_lateral_velocity_for_skid_observations():
+    """결함 B ① — 있지도 않은 횡속도가 생긴다 (스키드는 vy 를 명령하지 않는다)."""
     twist = solve_twist(default_geometry(), _skid_observations(0.0, 0.8))
 
-    assert twist.omega == pytest.approx(0.0, abs=1e-3)
+    assert abs(twist.vy) > 0.1          # 실측 −0.35016
+    assert solve_twist(skid_geometry(), _skid_observations(0.0, 0.8)).vy == \
+        pytest.approx(0.0, abs=1e-9)
+
+
+def test_ackermann_geometry_wrongly_rejects_healthy_wheels():
+    """결함 B ② — 멀쩡한 바퀴가 슬립으로 배제되어 슬립 감지가 무력화된다."""
+    ackermann = solve_twist(default_geometry(), _skid_observations(0.0, 0.8))
+    skid = solve_twist(skid_geometry(), _skid_observations(0.0, 0.8))
+
+    assert len(ackermann.rejected) == 2 and ackermann.used == 4
+    assert skid.rejected == () and skid.used == 6
+
+
+def test_ackermann_geometry_underestimates_yaw_without_rejection_headroom():
+    """결함 B ③ — 배제가 못 구해주는 구성에서는 ω 자체가 과소추정된다.
+
+    6륜 기본 설정에서 ω 가 살아나는 것은 이상치 배제가 뒷바퀴를 버려준 덕이다.
+    배제를 끄면(또는 4륜처럼 여유가 없으면) 그 우연이 사라진다.
+    """
+    twist = solve_twist(
+        default_geometry(),
+        _skid_observations(0.0, 0.8),
+        OdometryConfig(max_reject=0),
+    )
+
+    assert twist.omega < 0.8 * 0.6      # 실측 0.39093 = 49 %
+
+    four = solve_twist(
+        four_wheel_geometry(),
+        _skid_observations(0.0, 0.8, base=four_wheel_geometry()),
+    )
+    assert four.omega < 0.8 * 0.6       # 실측 0.31577 = 39 %
 
 
 def test_skid_geometry_recovers_yaw_for_the_same_observations():
@@ -2574,9 +2618,10 @@ import 에 `skid_geometry` 를 더하고(`from chassis.kinematics import ... ski
 def geometry_for_steering_mode(steering_mode, track_gain=1.0):
     """조향모드 문자열 → 추정용 기하.
 
-    스키드에서 애커만 기하를 쓰면 조향륜마다 측면식이 들어가고, 앞뒤 x 부호가
-    반대라 vy 뿐 아니라 **요레이트까지 0 으로 강제**된다. 알 수 없는 값이면
-    조용히 스키드로 바꾸지 않고 애커만으로 남는다(보수적 기본값).
+    스키드에서 애커만 기하를 쓰면 조향륜마다 측면식이 들어가 추정이 오염된다 —
+    유령 횡속도(실측 −0.35 m/s), 정상 바퀴 오배제, 배제 여유가 없는 구성에서는
+    ω 39~49 % 과소추정. 설계문서 §1.5 표 참조. 알 수 없는 값이면 조용히
+    스키드로 바꾸지 않고 애커만으로 남는다(보수적 기본값).
     """
     from chassis.kinematics import default_geometry, skid_geometry
 
@@ -2656,9 +2701,9 @@ git add ros2/src/powertrain_ros/powertrain_ros/state_estimation.py \
 git commit -m "fix(ros): 조향모드 전환 시 추정 노드 기하 동기화
 
 odometry_node 와 imu_tilt_node 가 default_geometry() 를 고정으로 들고 있어,
-스키드 주행 중 조향륜 측면식이 들어가고 앞뒤 x 부호가 반대라 vy 뿐 아니라
-요레이트까지 0 으로 눌렸다. /chassis/safety_state 의 steering_mode 를 구독해
-기하를 함께 갈아끼운다."
+스키드 주행 중 조향륜 측면식이 들어가 추정이 오염됐다 — 유령 횡속도 -0.35 m/s,
+정상 바퀴 2개 오배제, 배제 여유가 없는 구성에서는 omega 39~49% 과소추정.
+/chassis/safety_state 의 steering_mode 를 구독해 기하를 함께 갈아끼운다."
 ```
 
 ---
