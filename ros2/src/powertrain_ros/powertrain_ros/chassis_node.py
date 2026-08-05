@@ -52,6 +52,10 @@ from powertrain_ros.chassis_safety import (
     validate_runtime_clock_mode,
 )
 from powertrain_ros.message_adapter import fill_wheel_states_message
+from powertrain_ros.steering_contract import (
+    steering_state_fields,
+    validate_transport_mode,
+)
 from robot_arm_msgs.msg import ArmStatus, ArrivalStatus, ChassisMode
 
 
@@ -163,6 +167,23 @@ class ChassisNode(Node):
         )
         self.declare_parameter(
             "gear_ratio", 5.0, descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "drive_transport", "can", descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "steering_mode", "ackermann", descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "board_registry",
+            "config/bl70200_boards.json",
+            descriptor=read_only_safety_parameter,
+        )
+        self.declare_parameter(
+            "skid_track_gain", 1.0, descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "usb_current_lim", 9.0, descriptor=read_only_safety_parameter
         )
         self.declare_parameter(
             "v_max", 1.5, descriptor=read_only_safety_parameter
@@ -322,6 +343,7 @@ class ChassisNode(Node):
                 "mission_contract_owner=chassis_supervisor"
             )
 
+        import chassis.chassis_manager as manager_mod
         from chassis.chassis_manager import (
             ChassisConfig,
             ChassisManager,
@@ -330,10 +352,16 @@ class ChassisNode(Node):
         )
 
         four_wheel = bool(self.get_parameter("four_wheel").value)
+        drive_transport = str(self.get_parameter("drive_transport").value)
+        steering_mode = str(self.get_parameter("steering_mode").value)
+        validate_transport_mode(drive_transport, steering_mode)
+        self._drive_transport = drive_transport
         cfg = ChassisConfig(
             watchdog_ms=self._cmd_timeout * 1000.0,
             min_drive_turns_per_s=min_rev,
             extraction_enabled=extraction_enabled,
+            steering_mode=steering_mode,
+            skid_track_gain=float(self.get_parameter("skid_track_gain").value),
         )
         self._section_floor_v_m_s = (
             cfg.min_drive_turns_per_s * 2.0 * math.pi * 0.10
@@ -364,6 +392,17 @@ class ChassisNode(Node):
             self.get_logger().warning(
                 "FAKE mode: no real motors are controlled"
             )
+        elif drive_transport == "usb":
+            # USB 스키드 — can0 을 아예 열지 않으므로 RealCanSession 을 잡지 않는다.
+            corners = manager_mod.build_usb_skid_corners(
+                str(self.get_parameter("board_registry").value),
+                wheel_map=wheel_map,
+                gear_ratio=gear_ratio,
+                current_lim_a=float(self.get_parameter("usb_current_lim").value),
+            )
+            self.get_logger().warning(
+                "🛠️ USB 스키드 — AK 조향 미사용, can0 미개방. "
+                "조향축이 무통전이니 각이 밀리는지 확인할 것.")
         else:
             from chassis.runtime_lock import RealCanSession
 
@@ -691,6 +730,11 @@ class ChassisNode(Node):
             SetBool,
             "~/arm_lock_override",
             self._srv_arm_lock_override,
+        )
+        self.create_service(
+            SetBool,
+            "~/steer_mode_skid",
+            self._srv_steer_mode_skid,
         )
         for component in ("drive", "steer", "us100", "robot_arm"):
             self.create_service(
@@ -1285,6 +1329,19 @@ class ChassisNode(Node):
         )
         return response
 
+    def _srv_steer_mode_skid(self, request, response):
+        """SetBool: true=스키드, false=애커만. 즉시 바뀌지 않고 수렴 후 적용된다."""
+        mode = "skid" if bool(request.data) else "ackermann"
+        manager = getattr(self, "cm", None)
+        if manager is None:
+            response.success = False
+            response.message = "chassis manager unavailable"
+            return response
+        accepted, reason = manager.request_steering_mode(mode)
+        response.success = bool(accepted)
+        response.message = reason or mode
+        return response
+
     def _srv_component_enable(self, component, request, response):
         enabled = bool(request.data)
         manager = getattr(self, "cm", None)
@@ -1685,6 +1742,8 @@ class ChassisNode(Node):
                 "component_mask": dict(
                     getattr(safety, "component_mask", {})
                 ),
+                **steering_state_fields(
+                    self.cm, getattr(self, "_drive_transport", "can")),
                 "stamp_s": time.monotonic(),
             },
             separators=(",", ":"),
