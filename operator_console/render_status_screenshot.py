@@ -38,6 +38,11 @@ def main() -> int:
     parser.add_argument("--height", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--page", choices=("mission", "systems"), default="systems")
+    parser.add_argument(
+        "--status-panel",
+        choices=("drive", "power", "safety", "network", "ai", "arm"),
+        default="drive",
+    )
     parser.add_argument("--scroll-y", type=float, default=0.0)
     args = parser.parse_args()
     Gst.init(None)
@@ -56,6 +61,8 @@ def main() -> int:
     window.move(0, 0)
     window.show_all()
     window._stack.set_visible_child_name(args.page)
+    if args.page == "systems":
+        window._robot_status._card_buttons[args.status_panel].clicked()
     sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sequence = 0
 

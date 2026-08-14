@@ -410,6 +410,273 @@ label {{ color: {text_main}; }}
 .log-expander, .event-drawer {{ background: {header_bg}; border-top: 1px solid {divider}; }}
 .log-expander > title {{ color: {text_secondary}; }}
 scrollbar slider {{ background: {border_strong}; }}
+
+/* Premium command-center finish: restrained depth, crisp hierarchy. */
+window {{ background: #EEF2F6; }}
+.topbar {{
+  background: #0B1726;
+  border-bottom: 1px solid #22364B;
+  padding: 11px 20px;
+  min-height: 62px;
+}}
+.topbar .brand {{ color: #F7FAFC; font-size: 21px; font-weight: 900; }}
+.topbar .eyebrow {{ color: #8EA3B8; font-size: 10px; letter-spacing: 0.4px; }}
+.topbar .status-chip {{ color: #91A5B8; font-size: 10px; }}
+.topbar .status-chip.status-live {{ color: #79D9AE; }}
+.topbar .status-chip.status-camera-live {{ color: #7DC8FF; }}
+.nav {{ background: #0B1726; border-bottom: 1px solid #203449; padding: 0 18px; }}
+.nav button {{ color: #93A8BB; min-height: 48px; padding: 8px 28px; font-size: 13px; }}
+.nav button label {{ color: #93A8BB; font-weight: 800; }}
+.nav button:hover {{ color: #EAF1F7; background: rgba(255,255,255,0.035); }}
+.nav button:hover label {{ color: #EAF1F7; }}
+.nav button:checked {{ color: #FFFFFF; background: rgba(64,132,255,0.08); border-bottom-color: #5A9BFF; }}
+.nav button:checked label {{ color: #FFFFFF; }}
+.page {{ background: #EEF2F6; padding: 12px 14px 0 14px; }}
+.global-estop {{
+  background: #D85A64;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  box-shadow: 0 7px 18px rgba(103,22,31,0.25);
+  padding: 8px 20px;
+}}
+.global-estop:hover {{ background: #C94B56; box-shadow: 0 9px 22px rgba(103,22,31,0.32); }}
+.global-estop:active {{ background: #B93843; box-shadow: inset 0 2px 5px rgba(71,8,15,0.28); }}
+.status-readiness {{
+  background: #10243A;
+  border: 1px solid #233B54;
+  border-radius: 12px;
+  padding: 15px 18px;
+  box-shadow: 0 8px 22px rgba(22,42,62,0.10);
+}}
+.status-readiness .system-name {{ color: #8FA6BA; letter-spacing: 0.4px; }}
+.status-overall {{ color: #F6F9FC; font-size: 24px; }}
+.status-readiness .muted {{ color: #91A6B9; }}
+.status-priority {{ color: #F0B74A; }}
+.status-summary-card {{
+  background: #FFFFFF;
+  border: 1px solid #D7E0E9;
+  border-left: 3px solid #8D9DAE;
+  border-radius: 11px;
+  padding: 12px 14px;
+  box-shadow: 0 4px 14px rgba(27,48,70,0.055);
+}}
+.status-summary-card:hover {{
+  background: #FBFDFF;
+  border-color: #AFC7E3;
+  box-shadow: 0 7px 18px rgba(27,48,70,0.09);
+}}
+.status-summary-card.selected {{
+  background: #F1F6FF;
+  border-color: #6E9FEA;
+  border-left-color: #2F7CF6;
+  box-shadow: 0 7px 20px rgba(47,124,246,0.12);
+}}
+.status-panel {{
+  background: #FFFFFF;
+  border: 1px solid #D7E0E9;
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 8px 24px rgba(27,48,70,0.065);
+}}
+.status-panel-title {{ color: #132A42; font-size: 17px; }}
+.power-metric, .detail-metric {{
+  background: #F5F8FB;
+  border: 1px solid #DDE5ED;
+  border-radius: 9px;
+  padding: 11px 13px;
+}}
+.power-metric-value, .detail-metric-value {{ color: #112940; font-size: 18px; }}
+.power-state-summary {{ background: #F4F8FD; border-left-color: #4B8CF5; border-radius: 7px; }}
+.power-reference {{
+  background: #10243A;
+  color: #B8C9D9;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 10px;
+}}
+.mission-rail {{ background: #F3F6F9; border-left-color: #D6E0E9; padding: 17px 16px; }}
+.rail-section, .rail-preparation, .rail-safety {{
+  background: #FFFFFF;
+  border-color: #D9E2EA;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(24,48,70,0.045);
+}}
+.rail-heading-ko {{ color: #10243A; font-size: 19px; letter-spacing: -0.2px; }}
+.rail-section {{
+  border-top: 3px solid #2F7CF6;
+  padding: 12px;
+  box-shadow: 0 7px 18px rgba(24,48,70,0.075);
+}}
+.rail-section-title {{ color: #10243A; font-size: 14px; }}
+.rail-section-count {{
+  background: #E8F0FE;
+  color: #246BE0;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 12px;
+}}
+.rail-device-row {{ min-height: 37px; }}
+.rail-device-name {{ color: #3E556B; font-size: 12px; }}
+.rail-preparation {{ padding: 12px; }}
+.rail-title {{ color: #10243A; font-size: 14px; }}
+.rail-description {{ color: #5F7488; font-size: 12px; }}
+.video-card {{ border-color: #31465B; border-radius: 9px; box-shadow: 0 10px 26px rgba(3,12,23,0.24); }}
+.pip-frame {{ border-color: #607B95; border-radius: 10px; box-shadow: 0 12px 30px rgba(0,12,28,0.34); }}
+.display-options {{ background: #F7F9FC; border-color: #DDE5ED; border-radius: 9px; box-shadow: none; }}
+.display-options-title {{ color: #52677B; font-size: 10px; }}
+.display-option {{ color: #667B8F; font-size: 11px; }}
+.event-expander {{
+  background: #FAFCFE;
+  border-top: 1px solid #D5DFE8;
+  padding: 0 16px;
+  box-shadow: 0 -4px 14px rgba(23,45,66,0.045);
+}}
+.event-expander:hover {{ background: #F6F9FC; }}
+.event-header {{ min-height: 48px; }}
+.event-status-title {{ color: #425A70; font-weight: 800; }}
+.event-status-message {{ color: #8394A5; }}
+.event-filter {{ color: #485F74; font-weight: 700; }}
+.event-filter check {{ background: #FFFFFF; border-color: #9CABB9; border-radius: 4px; }}
+.event-filter check:checked {{ background: #347FF0; border-color: #347FF0; }}
+.event-column-header {{ background: #EDF2F7; border-bottom-color: #D7E0E9; }}
+.event-operation-row {{ background: #FAFCFE; border-bottom-color: #E1E7ED; }}
+.event-operation-row:hover {{ background: #F1F6FB; }}
+scrollbar slider {{ background: #A8B6C4; border-radius: 999px; min-width: 7px; min-height: 7px; }}
+
+/* Competition palette: one navy family, cyan technology, red only for danger. */
+.mission-page {{ background: #091421; padding: 10px 12px 0 12px; }}
+.mission-rail {{
+  background: #102033;
+  border-left: 1px solid #263B50;
+  padding: 18px 16px;
+}}
+.mission-rail .rail-heading-ko {{ color: #F4F8FC; font-size: 20px; }}
+.mission-rail .rail-section,
+.mission-rail .rail-preparation,
+.mission-rail .rail-technology {{
+  background: #162A40;
+  border: 1px solid #29425A;
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: none;
+}}
+.mission-rail .rail-section {{ border-top: 3px solid #42BFF5; }}
+.mission-rail .rail-section-title,
+.mission-rail .rail-title {{ color: #F3F8FC; }}
+.mission-rail .rail-section-count {{
+  background: #153F5B;
+  color: #7DDAFF;
+}}
+.mission-rail .rail-device-name {{ color: #D9E5EF; }}
+.mission-rail .rail-section-divider {{ background: #29425A; }}
+.mission-rail .rail-description {{ color: #9FB2C5; }}
+.mission-rail .preparation-status-value.prep-ready {{ color: #69D6A1; }}
+.mission-rail .preparation-status-value.prep-connecting {{ color: #72CFFF; }}
+.mission-rail .preparation-status-value.prep-attention {{ color: #F2C86A; }}
+.mission-rail .preparation-status-value.prep-error {{ color: #FF8089; }}
+.mission-rail .preparation-status-value.prep-offline {{ color: #8297AA; }}
+.rail-technology {{ padding: 12px; }}
+.technology-row {{ min-height: 38px; }}
+.technology-marker {{ background: #42BFF5; border-radius: 999px; }}
+.technology-vision .technology-marker {{ background: #8B7CF6; }}
+.technology-safety .technology-marker {{ background: #49C98A; }}
+.technology-arm .technology-marker {{ background: #F2B84B; }}
+.technology-name {{ color: #EDF5FB; font-size: 11px; font-weight: 900; }}
+.technology-detail {{ color: #8FA6BA; font-size: 9px; }}
+.mission-rail .display-options {{
+  background: transparent;
+  border: 1px solid #29425A;
+  box-shadow: none;
+}}
+.mission-rail .display-options-title,
+.mission-rail .display-option {{ color: #8FA6BA; }}
+.mission-rail .display-option check {{ background: #102033; border-color: #587087; }}
+.mission-rail .rail-data-row {{ background: #162A40; border-color: #29425A; }}
+.mission-rail .rail-data-label {{ color: #8298AC; }}
+.mission-rail .rail-data-value {{ color: #F4F8FC; }}
+.mission-rail .rail-data-target,
+.mission-rail .rail-data-distance {{ color: #72D6FF; }}
+
+/* Category accents make the implemented subsystems scannable without a legend. */
+.status-summary-card.category-drive {{ border-left-color: #2F7CF6; }}
+.status-summary-card.category-power {{ border-left-color: #E3A132; }}
+.status-summary-card.category-safety {{ border-left-color: #2FA36B; }}
+.status-summary-card.category-camera {{ border-left-color: #26A7D8; }}
+.status-summary-card.category-ai {{ border-left-color: #806CE8; }}
+.status-summary-card.category-arm {{ border-left-color: #D96C92; }}
+.status-summary-card.category-drive.selected {{ border-left-color: #2F7CF6; }}
+.status-summary-card.category-power.selected {{ border-left-color: #E3A132; }}
+.status-summary-card.category-safety.selected {{ border-left-color: #2FA36B; }}
+.status-summary-card.category-camera.selected {{ border-left-color: #26A7D8; }}
+.status-summary-card.category-ai.selected {{ border-left-color: #806CE8; }}
+.status-summary-card.category-arm.selected {{ border-left-color: #D96C92; }}
+
+/* Bright exhibition mode: keep only the camera stage dark. */
+window {{ background: #F3F7FB; }}
+.topbar {{
+  background: #FFFFFF;
+  border-bottom: 1px solid #D9E4EE;
+  box-shadow: 0 3px 14px rgba(20,48,72,0.06);
+}}
+.topbar .brand {{ color: #102A43; }}
+.topbar .eyebrow {{ color: #70869A; }}
+.topbar .status-chip {{ color: #6F8497; }}
+.topbar .status-chip.status-live {{ color: #218A63; }}
+.topbar .status-chip.status-camera-live {{ color: #247FC1; }}
+.nav {{ background: #FFFFFF; border-bottom: 1px solid #D9E4EE; }}
+.nav button {{ color: #71869A; }}
+.nav button label {{ color: #71869A; }}
+.nav button:hover {{ color: #102A43; background: #F2F6FA; }}
+.nav button:hover label {{ color: #102A43; }}
+.nav button:checked {{
+  color: #174EA6;
+  background: #EEF5FF;
+  border-bottom-color: #2F7CF6;
+}}
+.nav button:checked label {{ color: #174EA6; }}
+.mission-page {{ background: #EDF3F8; }}
+.mission-rail {{
+  background: #F7FAFD;
+  border-left: 1px solid #D5E1EB;
+}}
+.mission-rail .rail-heading-ko {{ color: #102A43; }}
+.mission-rail .rail-section,
+.mission-rail .rail-preparation,
+.mission-rail .rail-technology {{
+  background: #FFFFFF;
+  border-color: #D6E2EC;
+  box-shadow: 0 5px 16px rgba(25,55,78,0.055);
+}}
+.mission-rail .rail-section {{ border-top-color: #2F7CF6; }}
+.mission-rail .rail-section-title,
+.mission-rail .rail-title {{ color: #17324A; }}
+.mission-rail .rail-section-count {{ background: #E8F2FF; color: #246BE0; }}
+.mission-rail .rail-device-name {{ color: #405A70; }}
+.mission-rail .rail-section-divider {{ background: #DCE6EE; }}
+.mission-rail .rail-description {{ color: #6C8295; }}
+.mission-rail .preparation-status-value.prep-ready {{ color: #218A63; }}
+.mission-rail .preparation-status-value.prep-connecting {{ color: #247FC1; }}
+.mission-rail .preparation-status-value.prep-attention {{ color: #C98718; }}
+.mission-rail .preparation-status-value.prep-error {{ color: #C43B43; }}
+.mission-rail .preparation-status-value.prep-offline {{ color: #8799AA; }}
+.technology-name {{ color: #213D54; }}
+.technology-detail {{ color: #71869A; }}
+.mission-rail .rail-data-row {{ background: #FFFFFF; border-color: #D6E2EC; }}
+.mission-rail .rail-data-label {{ color: #7A8EA0; }}
+.mission-rail .rail-data-value {{ color: #17324A; }}
+.mission-rail .rail-data-target,
+.mission-rail .rail-data-distance {{ color: #2478D4; }}
+.mission-rail .display-options {{
+  background: #FFFFFF;
+  border-color: #D6E2EC;
+  box-shadow: 0 4px 12px rgba(25,55,78,0.045);
+}}
+.mission-rail .display-options-title {{ color: #405A70; }}
+.mission-rail .display-option {{ color: #314B62; }}
+.mission-rail .display-option check {{ background: #FFFFFF; border-color: #91A4B5; }}
+.mission-rail .display-option check:checked {{ background: #2F7CF6; border-color: #2F7CF6; }}
+.event-expander {{ background: #FFFFFF; border-top-color: #D5E1EB; }}
+.event-expander:hover {{ background: #F7FAFD; }}
 """.format(**token)
     return css.encode("utf-8")
 
@@ -1035,6 +1302,55 @@ class EventLog(Gtk.Box):
         if not any(self.event_filter_state.values()):
             return "INFO", "표시할 이벤트 수준을 선택해 주세요"
         return "INFO", "선택한 수준의 기록이 없습니다"
+
+
+class EventDrawer(Gtk.Box):
+    """Event footer whose filters are outside the disclosure button."""
+
+    def __init__(self, events: EventLog) -> None:
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        _style(self, "event-expander")
+        heading = Gtk.Box(spacing=12)
+        _style(heading, "event-header")
+        self._disclosure = Gtk.Button(label="›  이벤트 기록")
+        self._disclosure.set_relief(Gtk.ReliefStyle.NONE)
+        _style(self._disclosure, "event-status-title", "event-collapse")
+        self._disclosure.connect("clicked", self._on_disclosure_clicked)
+        self.latest = Gtk.Label(label="최근: 이벤트 수신 대기")
+        self.latest.set_xalign(0.0)
+        self.latest.set_ellipsize(Pango.EllipsizeMode.END)
+        _style(self.latest, "event-status-message")
+        heading.pack_start(self._disclosure, False, False, 0)
+        heading.pack_start(self.latest, True, True, 0)
+        # These are ordinary sibling controls, not children of a GtkExpander
+        # label.  Every checkbox therefore owns its complete click area.
+        heading.pack_end(events.filter_box, False, False, 0)
+        events.filter_box.set_no_show_all(True)
+        self.pack_start(heading, False, False, 0)
+        self._events = events
+        events.set_no_show_all(True)
+        self.pack_start(events, False, True, 0)
+        self.set_expanded(False)
+
+    def _on_disclosure_clicked(self, _button: Gtk.Button) -> None:
+        self.set_expanded(not self.get_expanded())
+
+    def get_expanded(self) -> bool:
+        return self._events.get_visible()
+
+    def set_expanded(self, expanded: bool) -> None:
+        expanded = bool(expanded)
+        self._events.set_no_show_all(not expanded)
+        self._events.filter_box.set_no_show_all(not expanded)
+        if expanded:
+            self._events.show_all()
+            self._events.filter_box.show_all()
+        else:
+            self._events.hide()
+            self._events.filter_box.hide()
+        self._disclosure.set_label(
+            "⌄  이벤트 기록" if expanded else "›  이벤트 기록"
+        )
 
 
 class FixedSizeSlot(Gtk.Bin):
@@ -2262,7 +2578,7 @@ class OperatorConsole(Gtk.Window):
         )
         # Compact laptop-first default. The user can maximize or use F11 when
         # the full display is useful; status chips wrap at narrower widths.
-        self.set_default_size(1180, 760)
+        self.set_default_size(1100, 680)
         self.set_position(Gtk.WindowPosition.CENTER)
         self.connect("destroy", self._on_destroy)
         self.connect("key-press-event", self._on_key_press)
@@ -2273,12 +2589,13 @@ class OperatorConsole(Gtk.Window):
         self._chassis_receiver = LatestTelemetryReceiver(chassis_telemetry_port)
         self._arm_receiver = LatestArmTelemetryReceiver(arm_telemetry_port)
         self._events = EventLog()
+        self._mission_events = EventLog()
         self._d435 = VideoPanel("작업 카메라", host, d435_port, latency_ms,
                                 metadata_receiver=self._metadata_receiver,
                                 target_tracker=self._display_target_tracker,
-                                event_sink=self._events.add_event)
+                                event_sink=self._add_event)
         self._l515 = VideoPanel("전방 카메라", host, l515_port, latency_ms,
-                                event_sink=self._events.add_event)
+                                event_sink=self._add_event)
         # Fixed judge layout: forward view owns the stage; work view is 848:480 PiP.
         videos = Gtk.Overlay()
         videos.set_hexpand(True)
@@ -2325,10 +2642,12 @@ class OperatorConsole(Gtk.Window):
             orientation=Gtk.Orientation.VERTICAL, spacing=3,
         )
         _style(display_options, "display-options")
-        display_title = Gtk.Label(label="화면 표시")
+        display_title = Gtk.Label(label="영상 표시")
         display_title.set_xalign(0.0)
         _style(display_title, "display-options-title")
-        self._show_objects = Gtk.CheckButton(label="객체 인식")
+        self._show_objects = Gtk.CheckButton(
+            label="인식 대상"
+        )
         self._show_distance = Gtk.CheckButton(label="대상 거리")
         self.overlay_view_state = {
             "show_detection": True,
@@ -2438,18 +2757,18 @@ class OperatorConsole(Gtk.Window):
         layout.pack_start(topbar, False, False, 0)
 
         telemetry = TelemetryPanel(self._telemetry_receiver, telemetry_port,
-                                   event_sink=self._events.add_event)
+                                   event_sink=self._add_event)
         chassis = ChassisTelemetryPanel(self._chassis_receiver, chassis_telemetry_port,
-                                        event_sink=self._events.add_event)
+                                        event_sink=self._add_event)
         arm = ArmTelemetryPanel(self._arm_receiver, arm_telemetry_port,
-                                event_sink=self._events.add_event)
+                                event_sink=self._add_event)
         for panel in (telemetry, chassis, arm):
             _style(panel, "card")
         self._ops_panel = OpsPanel(
             host if ops_host is None else ops_host,
             ops_port,
             ops_token_file,
-            event_sink=self._events.add_event,
+            event_sink=self._add_event,
             alert_sink=self._show_alert,
         )
         self._refresh_estop_availability()
@@ -2492,7 +2811,7 @@ class OperatorConsole(Gtk.Window):
         _style(rail, "mission-rail")
         self._mission_rail = rail
         rail_heading = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        rail_heading_ko = Gtk.Label(label="운용 정보")
+        rail_heading_ko = Gtk.Label(label="로봇 실시간 상태")
         rail_heading_ko.set_xalign(0.0)
         _style(rail_heading_ko, "rail-heading-ko")
         rail_heading.pack_start(rail_heading_ko, False, False, 0)
@@ -2501,7 +2820,7 @@ class OperatorConsole(Gtk.Window):
         system_check = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         _style(system_check, "rail-section")
         system_check_heading = Gtk.Box(spacing=8)
-        check_title = Gtk.Label(label="운용 준비")
+        check_title = Gtk.Label(label="주요 장치")
         check_title.set_xalign(0.0)
         _style(check_title, "rail-section-title")
         self._readiness_count = Gtk.Label(label="0 / 4")
@@ -2543,7 +2862,7 @@ class OperatorConsole(Gtk.Window):
 
         preparation = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
         _style(preparation, "rail-preparation")
-        preparation_title = Gtk.Label(label="임무 정보")
+        preparation_title = Gtk.Label(label="현재 임무")
         preparation_title.set_xalign(0.0)
         _style(preparation_title, "rail-title")
         preparation_detail = Gtk.Label(label="현재 단계    운용 준비")
@@ -2556,21 +2875,51 @@ class OperatorConsole(Gtk.Window):
         _style(preparation_target, "rail-description")
         preparation.pack_start(preparation_title, False, False, 0)
         preparation.pack_start(preparation_detail, False, False, 0)
-        preparation.pack_start(preparation_target, False, False, 0)
-        rail.pack_start(preparation, False, False, 0)
         self._rail_preparation = preparation
         self._rail_preparation_detail = preparation_detail
         self._rail_preparation_target = preparation_target
 
-        # Display-only controls live in the rail so they never cover video,
-        # the source-owned AI overlay, or the JET-IN watermark.
-        rail.pack_start(display_options, False, False, 0)
+        technology = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
+        _style(technology, "rail-technology")
+        technology_title = Gtk.Label(label="구현 기술")
+        technology_title.set_xalign(0.0)
+        _style(technology_title, "rail-title")
+        technology.pack_start(technology_title, False, False, 0)
+        for name, detail, tone in (
+            ("4륜 독립 구동·조향", "험지 기동과 제자리 방향 전환", "drive"),
+            ("RGB-D 인공지능 인식", "물체 종류·방향·거리 동시 판단", "vision"),
+            ("독립 충돌 방지", "US-100 감지와 즉시 정지", "safety"),
+            ("다관절 작업 장치", "인식 대상 접근·파지 작업", "arm"),
+        ):
+            row = Gtk.Box(spacing=9)
+            _style(row, "technology-row", f"technology-{tone}")
+            marker = Gtk.Label(label="")
+            marker.set_size_request(5, 30)
+            _style(marker, "technology-marker")
+            copy = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            name_label = Gtk.Label(label=name)
+            name_label.set_xalign(0.0)
+            detail_label = Gtk.Label(label=detail)
+            detail_label.set_xalign(0.0)
+            detail_label.set_ellipsize(Pango.EllipsizeMode.END)
+            _style(name_label, "technology-name")
+            _style(detail_label, "technology-detail")
+            copy.pack_start(name_label, False, False, 0)
+            copy.pack_start(detail_label, False, False, 0)
+            row.pack_start(marker, False, False, 0)
+            row.pack_start(copy, True, True, 0)
+            technology.pack_start(row, False, False, 0)
+        self._rail_technology = technology
+
+        # These are live view controls, not explanatory content. Keep them in
+        # the compact rail so judges/operators can verify the AI overlay.
+        rail.pack_end(display_options, False, False, 0)
 
         rail_data = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=11)
         rail_data.set_no_show_all(True)
         self._mission_metrics = {}
         self._mission_metric_rows: dict[str, Gtk.Box] = {}
-        for key, heading in (("target", "대상"), ("distance", "거리"), ("tool", "작업 도구")):
+        for key, heading in (("target", "인식 대상"), ("distance", "대상 거리"), ("tool", "작업 도구")):
             row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             _style(row, "rail-data-row")
             row_heading = Gtk.Label(label=heading)
@@ -2582,7 +2931,8 @@ class OperatorConsole(Gtk.Window):
             _style(row_value, "rail-data-value", f"rail-data-{key}")
             row.pack_start(row_heading, False, False, 0)
             row.pack_start(row_value, False, False, 0)
-            rail_data.pack_start(row, False, False, 0)
+            if key != "tool":
+                rail_data.pack_start(row, False, False, 0)
             self._mission_metrics[key] = row_value
             self._mission_metric_rows[key] = row
         rail.pack_start(rail_data, False, False, 0)
@@ -2594,6 +2944,11 @@ class OperatorConsole(Gtk.Window):
         mission_body.pack_end(rail, False, False, 0)
         self._mission_body = mission_body
         mission_page.pack_start(mission_body, True, True, 0)
+        mission_event_expander, self._mission_event_latest = (
+            self._make_event_expander(self._mission_events)
+        )
+        self._mission_event_expander = mission_event_expander
+        mission_page.pack_end(mission_event_expander, False, True, 0)
 
         systems_page = RobotStatusDashboard(
             input_source=input_source,
@@ -2631,7 +2986,8 @@ class OperatorConsole(Gtk.Window):
         stack.set_transition_duration(160)
         stack.add_titled(mission_page, "mission", "실시간 화면")
         stack.add_titled(systems_scroll, "systems", "로봇 상태")
-        stack.add_titled(ops_page, "ops", "관리자 조작")
+        # The token-gated controls remain implemented for a future maintenance
+        # surface, but are not exposed in the judge-facing competition console.
         self._stack = stack
         switcher = Gtk.StackSwitcher()
         switcher.set_stack(stack)
@@ -2641,37 +2997,29 @@ class OperatorConsole(Gtk.Window):
         nav.pack_start(switcher, False, False, 0)
         layout.pack_start(nav, False, False, 0)
         layout.pack_start(stack, True, True, 0)
-        event_expander = Gtk.Expander()
-        event_expander.set_expanded(False)
-        _style(event_expander, "event-expander")
-        event_heading = Gtk.Box(spacing=12)
-        _style(event_heading, "event-header")
-        event_title = Gtk.Label(label="이벤트 기록")
-        _style(event_title, "event-status-title")
-        self._event_latest = Gtk.Label(label="최근: 이벤트 수신 대기")
-        self._event_latest.set_xalign(0.0)
-        self._event_latest.set_ellipsize(Pango.EllipsizeMode.END)
-        _style(self._event_latest, "event-status-message")
-        event_heading.pack_start(event_title, False, False, 0)
-        event_heading.pack_start(self._event_latest, True, True, 0)
-        event_heading.pack_end(self._events.filter_box, False, False, 0)
-        event_expander.set_label_widget(event_heading)
-        event_expander.add(self._events)
+        event_expander = EventDrawer(self._events)
+        self._event_latest = event_expander.latest
         self._event_expander = event_expander
-        self._event_filter_expanded_before_click = False
-        for toggle in self._events._filters.values():
-            toggle.connect(
-                "button-press-event", self._on_event_filter_press,
-            )
-            toggle.connect(
-                "button-release-event", self._on_event_filter_release,
-            )
         stack.connect("notify::visible-child-name", self._on_page_changed)
         layout.pack_start(event_expander, False, True, 0)
         self.add(layout)
+        GLib.idle_add(
+            lambda: (self._on_page_changed(self._stack, None), False)[1]
+        )
         GLib.timeout_add(250, self._refresh_health)
         # Camera roles never change from connection/metadata/FSM callbacks.
         # Swapping is wired only from the explicit button and V shortcut.
+
+    @staticmethod
+    def _make_event_expander(events: EventLog) -> tuple[EventDrawer, Gtk.Label]:
+        """Build the screenshot-matched event footer for one page."""
+        drawer = EventDrawer(events)
+        return drawer, drawer.latest
+
+    def _add_event(self, source: str, message: str) -> None:
+        """Keep the Mission footer and the other-tab footer identical."""
+        self._events.add_event(source, message)
+        self._mission_events.add_event(source, message)
 
     def _build_diagnostic_cards(self) -> tuple[DiagnosticCard, ...]:
         drive = DiagnosticCard(
@@ -2745,6 +3093,7 @@ class OperatorConsole(Gtk.Window):
         for card in self._diagnostic_cards:
             card.show_developer(switch.get_active())
         self._events.set_developer_visible(switch.get_active())
+        self._mission_events.set_developer_visible(switch.get_active())
 
     def _on_summary_card_clicked(
         self, _widget: Gtk.Widget, event: Gdk.EventButton, key: str,
@@ -2992,7 +3341,7 @@ class OperatorConsole(Gtk.Window):
         self._main_video = selected
         self._main_camera_label.set_text(selected._name)
         self._videos.show_all()
-        self._events.add_event("VIDEO", f"main view changed: {selected._name}")
+        self._add_event("VIDEO", f"main view changed: {selected._name}")
         return True
 
     def _on_display_option_toggled(
@@ -3011,31 +3360,21 @@ class OperatorConsole(Gtk.Window):
         self._sync_overlay_rail(self._metadata_receiver.latest())
 
     def _on_page_changed(self, stack: Gtk.Stack, _param: object) -> None:
-        """Collapse the drawer outside Mission without touching its data."""
-        if stack.get_visible_child_name() != "mission":
+        """Use the in-page Mission footer; keep one footer on every tab."""
+        mission_visible = stack.get_visible_child_name() == "mission"
+        self._event_expander.set_visible(not mission_visible)
+        if not mission_visible:
+            self._mission_event_expander.set_expanded(False)
             self._event_expander.set_expanded(False)
-
-    def _on_event_filter_press(
-        self, _button: Gtk.CheckButton, _event: Gdk.EventButton,
-    ) -> bool:
-        self._event_filter_expanded_before_click = (
-            self._event_expander.get_expanded()
-        )
-        return False
-
-    def _on_event_filter_release(
-        self, _button: Gtk.CheckButton, _event: Gdk.EventButton,
-    ) -> bool:
-        expanded = self._event_filter_expanded_before_click
-        GLib.idle_add(self._event_expander.set_expanded, expanded)
-        return False
 
     def _on_video_area_allocated(
         self, _widget: Gtk.Overlay, allocation: Gdk.Rectangle,
     ) -> None:
         if allocation.width < 1:
             return
-        pip_width = min(430, max(300, int(allocation.width * 0.30)))
+        # The compact placeholder needs ~150 px height for its header, rover,
+        # and two text rows; smaller PiP slots clip their own content.
+        pip_width = min(360, max(270, int(allocation.width * 0.27)))
         # D435i transport is 848x480.  Preserve the exact native ratio instead
         # of the close-but-not-identical 16:9 approximation.
         pip_height = int(round(pip_width * 480 / 848))
@@ -3044,17 +3383,13 @@ class OperatorConsole(Gtk.Window):
     def _on_mission_body_allocated(
         self, _widget: Gtk.Box, allocation: Gdk.Rectangle,
     ) -> None:
-        rail_width = min(350, max(230, int(allocation.width * 0.19)))
+        rail_width = min(330, max(235, int(allocation.width * 0.21)))
         if allocation.width >= 1500:
-            rail_width = max(310, rail_width)
+            rail_width = max(290, rail_width)
         self._mission_rail.set_size_request(rail_width, -1)
 
     def _sync_overlay_rail(self, metadata: MetadataFrame | None) -> None:
-        """Apply display options to rail rows without changing metadata RX."""
-        show_detection = self.overlay_view_state["show_detection"]
-        show_distance = (
-            show_detection and self.overlay_view_state["show_distance"]
-        )
+        """Keep target cards live independently from video overlay choices."""
         now_s = time.monotonic()
         fresh = (
             metadata is not None
@@ -3071,22 +3406,13 @@ class OperatorConsole(Gtk.Window):
         self._rail_data.set_no_show_all(False)
         self._rail_data.show()
         self._mission_metric_rows["tool"].show_all()
-        if not show_detection:
-            self._mission_metric_rows["target"].hide()
-            self._mission_metric_rows["distance"].hide()
-            return
-
         self._mission_metric_rows["target"].show_all()
         if target is None:
-            self._mission_metrics["target"].set_text("대상 탐지 대기")
+            self._mission_metrics["target"].set_text("인식 대상 없음")
         else:
             self._mission_metrics["target"].set_text(
                 f"{target.class_name}  {target.confidence:.0%}"
             )
-        if not show_distance:
-            self._mission_metric_rows["distance"].hide()
-            return
-
         self._mission_metric_rows["distance"].show_all()
         if metadata is not None and not fresh:
             self._mission_metrics["distance"].set_text("거리 정보 지연")
@@ -3157,7 +3483,7 @@ class OperatorConsole(Gtk.Window):
             telemetry_live=chassis_state == "LIVE",
         )
         if safety != self._last_safety_banner:
-            self._events.add_event("SAFETY", safety)
+            self._add_event("SAFETY", safety)
             self._last_safety_banner = safety
         if chassis_state != "LIVE" or chassis_snapshot is None:
             l515_transport = "L515 transport unavailable"
@@ -3173,7 +3499,7 @@ class OperatorConsole(Gtk.Window):
         else:
             l515_transport = "L515 SRT transport normal"
         if l515_transport != self._last_l515_transport:
-            self._events.add_event("L515", l515_transport)
+            self._add_event("L515", l515_transport)
             self._last_l515_transport = l515_transport
         network_public = public_freshness(
             chassis_state, waiting="연결 대기", unavailable="연결 대기",
@@ -3373,6 +3699,8 @@ class OperatorConsole(Gtk.Window):
             work_fps=self._d435.last_fps,
             front_frame_age_s=self._l515.last_frame_age_s,
             work_frame_age_s=self._d435.last_frame_age_s,
+            control_link_ready=self._ops_panel.link_ready(),
+            chassis_mode=chassis_mode,
         )
         self._l515.set_rover_component_states(
             front_live=l515_video == "LIVE",
@@ -3388,6 +3716,7 @@ class OperatorConsole(Gtk.Window):
         )
         _severity, latest_event = self._events.latest_public()
         self._event_latest.set_text(f"최근: {latest_event}")
+        self._mission_event_latest.set_text(f"최근: {latest_event}")
         ready = (
             chassis_state == "LIVE" and power_ok
             and l515_video == d435_video == "LIVE"
@@ -3467,10 +3796,10 @@ class OperatorConsole(Gtk.Window):
         self._fullscreen = not self._fullscreen
         if self._fullscreen:
             self.fullscreen()
-            self._events.add_event("CONSOLE", "fullscreen enabled")
+            self._add_event("CONSOLE", "fullscreen enabled")
         else:
             self.unfullscreen()
-            self._events.add_event("CONSOLE", "fullscreen disabled")
+            self._add_event("CONSOLE", "fullscreen disabled")
         return True
 
 
@@ -3536,6 +3865,7 @@ def main() -> None:
                               smoke_probe_file=args.smoke_probe_file,
                               input_source=args.input_source)
     console.show_all()
+    console.maximize()
 
     def _quit_on_signal(*_args: object) -> bool:
         # Ctrl+C 를 창 닫기와 같은 경로로 흘린다.  기본 SIGINT 는 Gtk.main()

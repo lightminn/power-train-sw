@@ -1239,8 +1239,9 @@ def test_console_layout_separates_mission_systems_and_ops_pages():
     assert "videos = Gtk.Overlay()" in source
     assert "int(allocation.width * 0.30)" in source
     assert "pip_width * 480 / 848" in source
-    assert "event_expander = Gtk.Expander()" in source
-    assert 'event_expander.add(self._events)' in source
+    assert "event_expander = EventDrawer(self._events)" in source
+    assert "heading.pack_end(events.filter_box" in source
+    assert "self._disclosure.connect(\"clicked\"" in source
     assert "Gtk.Revealer()" not in source
     assert '"event-expander"' in source
 
@@ -1266,7 +1267,7 @@ def test_mission_preparation_keeps_dual_camera_layout_without_progress_hud():
     ).read_text(encoding="utf-8")
 
     for copy in (
-        "운용 정보",
+        "로봇 실시간 상태",
             "현재 단계",
         "운용 준비",
         "전방 카메라",
@@ -1282,7 +1283,7 @@ def test_mission_preparation_keeps_dual_camera_layout_without_progress_hud():
     assert "self._readiness_count" in source
     assert 'step_names = ("준비", "탐색", "접근", "도구 작업", "완료")' not in source
     assert "videos.add_overlay(progress_hud)" not in source
-    assert "rail.pack_start(display_options" in source
+    assert "rail.pack_end(display_options" in source
     assert "로봇의 주행 영상을 연결하고 있습니다" in source
     assert "로봇팔 작업 영상을 연결하고 있습니다" in source
 
@@ -1530,4 +1531,4 @@ def test_event_log_uses_one_integrated_feed_with_inline_raw_rows():
     assert "self.set_size_request(-1, 180)" not in source
     assert "self._user_scroll.set_max_content_height(210)" in source
     assert "self._user_scroll.set_propagate_natural_height(True)" in source
-    assert "event_heading.pack_end(self._events.filter_box" in source
+    assert "heading.pack_end(events.filter_box" in source

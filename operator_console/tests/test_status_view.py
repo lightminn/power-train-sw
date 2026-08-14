@@ -41,7 +41,7 @@ def test_pdist_operating_bits_are_not_misclassified_as_alarms():
 
 def test_status_view_defaults_match_operator_view_options():
     assert RobotStatusDashboard.PANEL_ORDER == (
-        "drive", "power", "arm", "safety", "network",
+        "drive", "power", "safety", "network", "ai", "arm",
     )
 
 
@@ -165,7 +165,7 @@ def test_power_card_reports_normal_only_for_fresh_healthy_measurement():
     )
     assert power_card_state(None, fresh=True) == (
         "정보 없음",
-        "전원 장치 정보 수신 대기",
+        "전원 장치 정보 없음",
     )
 
 
