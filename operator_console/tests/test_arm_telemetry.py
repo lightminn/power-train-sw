@@ -69,6 +69,20 @@ def test_parse_arm_telemetry_round_trips_motors_joints_and_ages():
     assert snapshot.received_monotonic_s == 10.0
 
 
+def test_parse_arm_telemetry_round_trips_end_effector_identity():
+    snapshot = parse_arm_telemetry(_payload(
+        end_effector_id="EE-GRIPPER-01",
+        end_effector_type="범용 그리퍼",
+        end_effector_attached=True,
+        end_effector_interface="동력·제어",
+    ))
+
+    assert snapshot.end_effector_id == "EE-GRIPPER-01"
+    assert snapshot.end_effector_type == "범용 그리퍼"
+    assert snapshot.end_effector_attached is True
+    assert snapshot.end_effector_interface == "동력·제어"
+
+
 def test_null_sources_remain_explicitly_unavailable():
     snapshot = parse_arm_telemetry(
         _payload(dynamixel=None, joints=None, source_age_s={}),
@@ -82,6 +96,10 @@ def test_null_sources_remain_explicitly_unavailable():
     assert snapshot.dynamixel_age_s is None
     assert snapshot.joints_age_s is None
     assert snapshot.detections_age_s is None
+    assert snapshot.end_effector_id is None
+    assert snapshot.end_effector_type is None
+    assert snapshot.end_effector_attached is None
+    assert snapshot.end_effector_interface is None
 
 
 def test_more_than_eight_dynamixel_motors_is_rejected():

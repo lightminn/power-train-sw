@@ -138,6 +138,26 @@ def test_arm_telemetry_payload_round_trips_null_sources_and_ages():
     }
 
 
+def test_arm_telemetry_payload_can_include_end_effector_identity():
+    encoded = build_arm_telemetry_payload(
+        sequence=8,
+        stamp_s=124.0,
+        motors=None,
+        joints=None,
+        source_age_s={},
+        end_effector_id="EE-PROBE-01",
+        end_effector_type="접촉식 센서 프로브",
+        end_effector_attached=True,
+        end_effector_interface="센서 데이터",
+    )
+
+    payload = json.loads(encoded)
+    assert payload["end_effector_id"] == "EE-PROBE-01"
+    assert payload["end_effector_type"] == "접촉식 센서 프로브"
+    assert payload["end_effector_attached"] is True
+    assert payload["end_effector_interface"] == "센서 데이터"
+
+
 def test_arm_telemetry_payload_degrades_mismatched_joints_without_killing_motors():
     # ROS 관례상 JointState 는 velocity 를 생략(빈 배열)할 수 있다. 이런
     # 합법 변형이 datagram 전체(모터 온도 포함)를 침묵시키면 안 된다 —

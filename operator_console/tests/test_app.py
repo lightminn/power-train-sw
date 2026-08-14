@@ -1267,7 +1267,7 @@ def test_mission_preparation_keeps_dual_camera_layout_without_progress_hud():
     ).read_text(encoding="utf-8")
 
     for copy in (
-        "로봇 실시간 상태",
+        "임무·AI 상태",
             "현재 단계",
         "운용 준비",
         "전방 카메라",

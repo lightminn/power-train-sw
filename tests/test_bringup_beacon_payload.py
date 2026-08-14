@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 from scripts.pdist80b_telemetry_sender import (
     build_bringup_status,
@@ -96,3 +97,27 @@ def test_payload_for_preserves_existing_fields_when_bringup_status_is_added():
     }
     assert decoded["compose_status"] == {"powertrain_control": "running"}
     assert decoded["journal_tail"] == ["ready"]
+
+
+def test_payload_for_keeps_missing_pdist_measurements_as_none():
+    status = SimpleNamespace(
+        voltage_v=None,
+        discharge_current_a=None,
+        soc_percent=None,
+        battery_flags=0,
+        protection_flags=0,
+        charge_current_a=None,
+    )
+
+    payload = payload_for(
+        status,
+        sequence=8,
+        rs485_state="LIVE",
+        consecutive_failures=0,
+        detail="pid 238",
+    )
+
+    assert payload["voltage_v"] is None
+    assert payload["current_a"] is None
+    assert payload["power_w"] is None
+    assert payload["pdist_soc_percent"] is None

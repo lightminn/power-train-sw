@@ -2792,7 +2792,7 @@ class OperatorConsole(Gtk.Window):
         self._main_camera_dot = Gtk.Label(label="")
         self._main_camera_dot.set_size_request(7, 7)
         _style(self._main_camera_dot, "status-dot", "status-muted")
-        self._main_camera_label = Gtk.Label(label="전방 카메라")
+        self._main_camera_label = Gtk.Label(label="전방 카메라 · L515")
         _style(self._main_camera_label, "camera-name")
         self._main_camera_state_label = Gtk.Label(label="연결 대기")
         _style(self._main_camera_state_label, "camera-connection-label")
@@ -2811,7 +2811,7 @@ class OperatorConsole(Gtk.Window):
         _style(rail, "mission-rail")
         self._mission_rail = rail
         rail_heading = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        rail_heading_ko = Gtk.Label(label="로봇 실시간 상태")
+        rail_heading_ko = Gtk.Label(label="임무·AI 상태")
         rail_heading_ko.set_xalign(0.0)
         _style(rail_heading_ko, "rail-heading-ko")
         rail_heading.pack_start(rail_heading_ko, False, False, 0)
@@ -2831,8 +2831,8 @@ class OperatorConsole(Gtk.Window):
         system_check.pack_start(system_check_heading, False, False, 2)
         self._preparation_status: dict[str, tuple[Gtk.Label, Gtk.Label]] = {}
         device_specs = (
-            ("front", "전방 카메라", "연결 중"),
-            ("work", "작업 카메라", "연결 중"),
+            ("front", "전방 카메라 · L515", "연결 중"),
+            ("work", "작업 카메라 · D435i", "연결 중"),
             ("drive", "주행 시스템", "정보 없음"),
             ("safety", "안전 장치", "정보 없음"),
         )
@@ -2919,7 +2919,7 @@ class OperatorConsole(Gtk.Window):
         rail_data.set_no_show_all(True)
         self._mission_metrics = {}
         self._mission_metric_rows: dict[str, Gtk.Box] = {}
-        for key, heading in (("target", "인식 대상"), ("distance", "대상 거리"), ("tool", "작업 도구")):
+        for key, heading in (("target", "인식 대상"), ("distance", "대상 거리"), ("tool", "장착 엔드이펙터")):
             row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             _style(row, "rail-data-row")
             row_heading = Gtk.Label(label=heading)
@@ -2931,8 +2931,7 @@ class OperatorConsole(Gtk.Window):
             _style(row_value, "rail-data-value", f"rail-data-{key}")
             row.pack_start(row_heading, False, False, 0)
             row.pack_start(row_value, False, False, 0)
-            if key != "tool":
-                rail_data.pack_start(row, False, False, 0)
+            rail_data.pack_start(row, False, False, 0)
             self._mission_metrics[key] = row_value
             self._mission_metric_rows[key] = row
         rail.pack_start(rail_data, False, False, 0)
@@ -3339,7 +3338,10 @@ class OperatorConsole(Gtk.Window):
         selected.set_role("MAIN")
         secondary.set_role("SUB")
         self._main_video = selected
-        self._main_camera_label.set_text(selected._name)
+        self._main_camera_label.set_text({
+            "전방 카메라": "전방 카메라 · L515",
+            "작업 카메라": "작업 카메라 · D435i",
+        }.get(selected._name, selected._name))
         self._videos.show_all()
         self._add_event("VIDEO", f"main view changed: {selected._name}")
         return True
@@ -3650,8 +3652,11 @@ class OperatorConsole(Gtk.Window):
             "작업 대상    대상 탐지 대기"
             if target is None else f"작업 대상    {target.class_name}"
         )
-        # No canonical end-effector ID or tool-name field exists today.
-        self._mission_metrics["tool"].set_text("도구 정보 수신 대기")
+        # Prefer the robot-arm telemetry identity; a clearly labelled manual
+        # confirmation is used only while those optional fields are absent.
+        self._mission_metrics["tool"].set_text(
+            self._robot_status.end_effector_plan_text()
+        )
         chassis_mode = self._ops_panel.latest_chassis_mode()
         drive_state = "" if chassis_snapshot is None else chassis_snapshot.drive_state
         mission = mission_presentation(chassis_mode, drive_state)

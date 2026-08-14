@@ -141,6 +141,10 @@ def build_arm_telemetry_payload(
     motors,
     joints,
     source_age_s,
+    end_effector_id=None,
+    end_effector_type=None,
+    end_effector_attached=None,
+    end_effector_interface=None,
 ) -> bytes:
     """Encode one bounded telemetry snapshot for UDP :5007."""
     joint_payload = None
@@ -170,6 +174,16 @@ def build_arm_telemetry_payload(
         },
         "truncated": truncated,
     }
+    end_effector = {
+        "end_effector_id": end_effector_id,
+        "end_effector_type": end_effector_type,
+        "end_effector_attached": end_effector_attached,
+        "end_effector_interface": end_effector_interface,
+    }
+    payload.update(
+        (name, value) for name, value in end_effector.items()
+        if value is not None
+    )
     encoded = _encode(payload)
     if len(encoded) <= MAX_TELEMETRY_BYTES:
         return encoded

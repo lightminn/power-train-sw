@@ -34,6 +34,10 @@ class ArmTelemetrySnapshot:
     dynamixel_age_s: float | None
     joints_age_s: float | None
     detections_age_s: float | None
+    end_effector_id: str | None
+    end_effector_type: str | None
+    end_effector_attached: bool | None
+    end_effector_interface: str | None
     truncated: bool
     received_monotonic_s: float
 
@@ -59,6 +63,25 @@ def _optional_number(payload: dict[str, Any], name: str) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"invalid {name}")
     return float(value)
+
+
+def _optional_string(payload: dict[str, Any], name: str) -> str | None:
+    value = payload.get(name)
+    if value is None:
+        return None
+    if not isinstance(value, str) or len(value) > 80:
+        raise ValueError(f"invalid {name}")
+    value = value.strip()
+    return value or None
+
+
+def _optional_bool(payload: dict[str, Any], name: str) -> bool | None:
+    value = payload.get(name)
+    if value is None:
+        return None
+    if not isinstance(value, bool):
+        raise ValueError(f"invalid {name}")
+    return value
 
 
 def _parse_dynamixel(payload: dict[str, Any]) -> tuple[DynamixelMotorStatus, ...] | None:
@@ -149,6 +172,12 @@ def parse_arm_telemetry(
         dynamixel_age_s=_optional_number(source_age_s, "dynamixel"),
         joints_age_s=_optional_number(source_age_s, "joints"),
         detections_age_s=_optional_number(source_age_s, "detections"),
+        end_effector_id=_optional_string(payload, "end_effector_id"),
+        end_effector_type=_optional_string(payload, "end_effector_type"),
+        end_effector_attached=_optional_bool(payload, "end_effector_attached"),
+        end_effector_interface=_optional_string(
+            payload, "end_effector_interface",
+        ),
         truncated=payload.get("truncated") is True,
         received_monotonic_s=(
             time.monotonic() if received_monotonic_s is None else received_monotonic_s
