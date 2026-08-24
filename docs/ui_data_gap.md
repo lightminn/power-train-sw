@@ -1,7 +1,8 @@
 # Operator Console UI 데이터 공백
 
-2026-07-29 현재 `operator_console` 파서, 실제 UDP 발행 코드, ROS 메시지
-미러와 테스트 계약을 대조한 결과다. `구현 가능 여부`가 `불가` 또는 `부분`인
+2026-07-29 작성 후 2026-08-02 PDIST80B 플래그 정본을 반영했다.
+`operator_console` 파서, 실제 UDP 발행 코드, ROS 메시지 미러와 테스트 계약을
+대조한 결과다. `구현 가능 여부`가 `불가` 또는 `부분`인
 항목은 화면 완성도를 위해 0이나 임의 값을 만들지 않는다.
 
 | UI 항목 | 필요한 데이터 | 현재 소스 | 상태 | 부족한 필드 | 확인 담당 |
@@ -9,7 +10,7 @@
 | 배터리 전압 | V | Power UDP :5004 `voltage_v` | 가능 | 없음 | 김선 확인 |
 | 배터리 전류 | 방전/충전 부호와 A 스케일 | :5004 `current_a`, `pdist_charge_current_a` | 부분(기본 그래프 제외) | 운용 기준 부호·스케일 검증 결과 | 김선 확인 |
 | SOC | % | :5004 `pdist_soc_percent` | 가능 | 없음 | 김선 확인 |
-| 전원 보호 상태 | 배터리·보호 플래그 의미 | :5004 `pdist_battery_flags`, `pdist_protection_flags` | 가능 | 사용자용 원인 문구 매핑 | 김선 확인 |
+| 전원 보호 상태 | 배터리·보호 플래그 의미 | :5004 `pdist_battery_flags`, `pdist_protection_flags` | 해결 | 없음 — 매뉴얼 V1.7 p.16, fault mask D5 `0xFC` / D6 `0x0F` 적용 | 김선 확인 |
 | 전원 장치 연결 | RS485 상태·age | :5004 `rs485_state`, 로컬 수신 age | 가능 | 없음 | 김선 확인 |
 | 각 전원 Rail | 48/24/18/12/5V별 상태 | 데이터 소스 없음 | 불가 | rail 이름·전압·enabled/health | 담당자 협의 필요 |
 | Command Velocity | 선속도 지령 m/s | 데이터 소스 없음 | 불가 | command linear velocity | 김선 확인 |
@@ -48,6 +49,35 @@
 | Connection State | SRT/UDP freshness | VideoPanel·Latest Receiver 로컬 상태 | 가능 | 없음 | 김선 확인 |
 | Packet Drop | L515 SRT drop Hz | :5005 `l515_drop_hz` | 부분 | 작업 카메라 drop | 광민 확인 |
 | RTT | 왕복 지연 ms | 데이터 소스 없음 | 불가 | receiver feedback RTT | 담당자 협의 필요 |
+
+## PDIST80B BMS 플래그 정본
+
+정본은 저장소의 [PDIST 사용자 매뉴얼 V1.7](PDIST_사용자매뉴얼_V1.7.pdf)
+p.16, PID 238 `PID_BMS_MONITOR`다.
+
+| byte | bit | 한글 의미 | 분류 |
+|---|---:|---|---|
+| D5 | 0 | 수동 충전기 결합 | 상태 |
+| D5 | 1 | 자동 충전기 결합 | 상태 |
+| D5 | 2 | 과전압 보호 | fault |
+| D5 | 3 | 저전압 보호 | fault |
+| D5 | 4 | 충전 과온 보호 | fault |
+| D5 | 5 | 충전 저온 보호 | fault |
+| D5 | 6 | 방전 과온 보호 | fault |
+| D5 | 7 | 방전 저온 보호 | fault |
+| D6 | 0 | 충전 과전류 보호 | fault |
+| D6 | 1 | 방전 과전류 보호 | fault |
+| D6 | 2, 3 | 단락 보호 | fault |
+| D6 | 4 | 예약 | 예약 |
+| D6 | 5 | 외부 제어 | 상태 |
+| D6 | 6 | 충전 플래그 | 상태 |
+
+따라서 실제 fault 판정은 D5 `battery_flags & 0xFC` 또는 D6
+`protection_flags & 0x0F`만 사용한다. D5 bit0/1과 D6 bit5/6은 fault가
+아니다. 2026-08-02 실기에서 약 2 A로 충전하는 동안 D6 bit6(`0x40`)은
+꺼져 있고 bit5(`0x20`)만 켜졌으므로, **충전 중 판정은 D6 bit6이 아니라
+D8/D9의 충전 전류를 사용한다.** 콘솔은 ±0.1 A idle 흔들림을 제외하기 위해
+충전 전류가 0.1 A보다 클 때만 충전 중으로 표시한다.
 
 Raw CAN frame, ODrive 전체 parameter, PID gain, encoder raw count,
 PDIST raw hex, ROS topic 전체 목록, TF tree와 point cloud는 기본 화면에
