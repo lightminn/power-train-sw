@@ -51,3 +51,10 @@ yolov8n*_*.engine
 # Kate editor swap
 .*.kate-swp
 config/bl70200_boards.json
+
+# 시뮬 자산 원본 (USD/STL/zip 141MB — 정본은 power-train-sim 레포)
+urdf/
+
+# 에이전트 작업 부스러기
+scratchpad/
+.playwright-mcp/
