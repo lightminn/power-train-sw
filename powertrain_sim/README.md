@@ -1,5 +1,10 @@
 # WP6-S simulator-neutral fixtures and replay
 
+> ⛔ **DEPRECATED — 이 트랙은 2026-07-24 에 폐기됐다.** 읽기전용 레거시로만 남긴다.
+> 시뮬레이션은 별도 저장소 **Isaac (`power-train-sim`)** 만 쓴다. 여기 수치는 역사적
+> 앵커로만 인용하고, 새 기능을 추가하거나 실패한 테스트를 고치지 않는다
+> (현재 17건 실패는 이 폐기 트랙 안이다).
+
 `powertrain_sim` implements the simulator-independent part of WP6-S P0. It has
 no ROS or simulator runtime dependency. MuJoCo and ROS adapters must consume
 these value contracts; production packages must not gain simulator-name

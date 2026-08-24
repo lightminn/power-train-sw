@@ -4,12 +4,11 @@
 노드·컨테이너를 소유하고, `robot_arm_msgs` 계약만 공유하며 DDS(host network, domain 0)로
 통신한다.
 
-> **WP5.1 상태 (2026-07-11): HIL 완료.** 기존 `/cmd_vel → 10모터` 실증과 새
-> `/safety_verdict`·`/wheel_states`·latched E-stop·실제 50 Hz 결과를 합쳐 완료 판정했다.
-> 실행 HEAD `ec452f6474b6fc57437d576298f2bc954649be42`에서 `motor_control` 198,
-> `motor_gui` 91, Jetson `powertrain_ros` 32/32가 통과했다. 지상 제동과 최종 `stop_mm`은
-> 차체 조립 후 실차 커미셔닝으로 분리한다. 상세는
-> [`WP5.1 HIL 보고서`](../docs/reports/2026-07-10-wp5-control-safety-hil.md)를 따른다.
+> **현재 상태 정본은 [`.claude/CLAUDE.md`](../.claude/CLAUDE.md) §2 다.** 아래 WP5.1 HIL
+> 기록은 역사적 근거다: 2026-07-11 `/cmd_vel → 10모터` 실증 + `/safety_verdict`·
+> `/wheel_states`·latched E-stop·실제 50 Hz 로 완료 판정했고, 지상 제동과 최종 `stop_mm`
+> 선정은 차체 조립 후 실차 커미셔닝으로 분리했다. 상세:
+> [`WP5.1 HIL 보고서`](../docs/reports/2026-07-10-wp5-control-safety-hil.md).
 
 ## 구조
 
@@ -18,14 +17,46 @@ ros2/
 ├── src/
 │   ├── robot_arm_msgs/      벤더링 사본(정본=ksp118). VENDORED.md 참조
 │   ├── powertrain_msgs/     SafetyVerdict·WheelState·WheelStates
-│   └── powertrain_ros/      얇은 내부 ROS 어댑터
-│       ├── bringup_node     WP4 공유 메시지 왕복 진단
-│       ├── us100_safety     블로킹 UART 측정, 5~10 Hz 판정 발행
-│       ├── chassis          50 Hz 최종 안전 집행·10모터·wheel state
-│       ├── message_adapter  순수 Python 상태↔ROS 메시지 변환
-│       ├── contract.py      로봇팔 공유 문자열의 단일 출처
+│   └── powertrain_ros/      얇은 내부 ROS 어댑터 — 노드 22종
+│       │
+│       │  ── 제어·안전 ──────────────────────────────────────────
+│       ├── chassis              50 Hz 최종 안전 집행·10모터·wheel state
+│       ├── us100_safety         블로킹 UART 측정, 5~10 Hz 판정 발행
+│       ├── ops_broker           운용·복구 명령 단일 게이트 (:9001 역할 토큰)
+│       ├── teleop_command       텔레옵 명령 어댑터
+│       ├── bringup              WP4 공유 메시지 왕복 진단
+│       │
+│       │  ── 상태 추정 ──────────────────────────────────────────
+│       ├── odometry             휠+IMU 오도메트리
+│       ├── imu_tilt             차체 자세(roll/pitch)
+│       ├── joint_state_bridge   조인트 상태 브리지
+│       ├── fake_wheels          하드웨어 없는 휠 소스 (FAKE/벤치)
+│       │
+│       │  ── 자율주행 (WP6~WP8) ────────────────────────────────
+│       ├── autonomy_controller  지형 기반 주행 컨트롤러
+│       ├── approach_controller  접근 제어
+│       ├── lane_follower        레인 추종
+│       ├── wall_follower        벽 추종
+│       ├── lead_follower        선두 추종 (WP7)
+│       ├── obstacle_zones       장애물 구역
+│       ├── mission              미션 노드
+│       ├── section_supervisor   구간 감독자 (WP8 골격)
+│       ├── wp8_handshake_probe  로봇팔 핸드셰이크 프로브
+│       │
+│       │  ── 센서·텔레메트리 ────────────────────────────────────
+│       ├── l515_cloud           L515 포인트/영상 발행
+│       ├── pdist80b_monitor     전원 분배 보드 RS485 모니터
+│       ├── chassis_telemetry    차대 텔레메트리 송신
+│       ├── arm_console_bridge   로봇팔 토픽 read-only 미러 → 콘솔
+│       │
+│       ├── contract.py          로봇팔 공유 문자열의 단일 출처
+│       ├── message_adapter      순수 Python 상태↔ROS 메시지 변환
+│       ├── transport_mode.py    구동 트랜스포트(CAN/USB) 모드 파일
+│       ├── steering_contract.py 조향 모드(애커만/스키드) 계약
 │       └── launch/
-│           └── wp5_control.launch.py  stop_mm 필수인 HIL/생산 결합 기동
+│           ├── wp5_control.launch.py  stop_mm 필수인 HIL/생산 결합 기동
+│           ├── control.launch.py      teleop + ops_broker
+│           └── autonomy.launch.py     자율주행 스택
 └── scripts/
     └── sync_check_msgs.sh   벤더 msg와 로봇팔 정본 드리프트 검사
 ```
