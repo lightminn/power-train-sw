@@ -4,6 +4,7 @@ import math
 
 import pytest
 
+from powertrain_ros import ops_contract
 from powertrain_ros import ops_contract as oc
 
 
@@ -159,3 +160,27 @@ def test_encode_response_optionally_marks_successful_status_query():
 
     assert marked["queried_request_id"] == "target-1"
     assert "queried_request_id" not in ordinary
+
+
+def test_steer_mode_action_is_console_only_setbool():
+    spec = ops_contract.ACTIONS["steer_mode_skid"]
+
+    assert spec.kind == "service_setbool"
+    assert spec.target == ("/chassis_node/steer_mode_skid",)
+    assert spec.roles == frozenset({ops_contract.ROLE_CONSOLE})
+
+
+def test_steer_mode_action_is_not_an_emergency_action():
+    """비상 2단계 검증 대상이 아니다 — 전환 자체가 정지를 동반한다."""
+    assert ops_contract.ACTIONS["steer_mode_skid"].emergency_roles == frozenset()
+
+
+def test_steer_mode_request_decodes():
+    line = json.dumps({
+        "schema_version": ops_contract.SCHEMA_VERSION,
+        "token": "t", "request_id": "r1", "sequence": 0,
+        "action": "steer_mode_skid", "params": {"value": True},
+        "stamp_s": 1.0,
+    })
+
+    assert ops_contract.decode_request(line)["action"] == "steer_mode_skid"

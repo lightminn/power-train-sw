@@ -310,6 +310,19 @@ def parse_input_line(text):
     return lx, rt, lt, (1 if sq else 0), (1 if ci else 0)
 
 
+def _default_board_registry():
+    """보드 레지스트리 기본 경로 — **레포 루트 기준 절대경로**로 푼다.
+
+    이 서버는 `cd motor_control && python3 -m chassis.teleop_server` 로 띄우는 게
+    문서화된 실행법이라, 상대경로 `config/…` 를 그대로 두면 `motor_control/config/`
+    를 찾아 못 찾는다. 실기 브링업에서 바로 걸리는 자리라 파일 위치에서 유도한다.
+    """
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))       # …/motor_control/chassis
+    repo_root = os.path.dirname(os.path.dirname(here))      # …/<repo>
+    return os.path.join(repo_root, "config", "bl70200_boards.json")
+
+
 def _parse_args(argv=None, input_fn=None):
     import argparse
 
@@ -341,7 +354,21 @@ def _parse_args(argv=None, input_fn=None):
                    help="저속 마찰/코깅 보상 torque_ff (raw 단위, 0=off — 스펙 r6 §2.2b)")
     p.add_argument("--v-knee", type=float, default=0.5,
                    help="friction-ff 적용 상한 turns/s (기본 0.5)")
+    p.add_argument("--skid-usb", action="store_true",
+                   help="🛠️ AK 조향을 전혀 쓰지 않고 ODrive USB 6축만으로 "
+                        "스키드(차동) 조향한다. can0 을 열지 않는다. "
+                        "⚠️ 조향축이 무통전이라 스키드 중 밀릴 수 있다 — "
+                        "바퀴 띄운 벤치에서 먼저 확인할 것")
+    p.add_argument("--board-registry", default=_default_board_registry(),
+                   help="USB 보드 시리얼↔CAN node 레지스트리 JSON "
+                        "(--skid-usb 전용, 만드는 법은 config/README-bl70200-boards.md)")
+    p.add_argument("--track-gain", type=float, default=1.0,
+                   help="스키드 유효 윤거 배수 (>1.0 이 보정 방향, 기본 1.0=무보정)")
+    p.add_argument("--usb-current-lim", type=float, default=9.0,
+                   help="USB 축당 전류 제한 A (기본 9.0, 전원 약하면 2.0)")
     args = p.parse_args(argv)
+    if args.skid_usb and args.four_wheel:
+        p.error("--skid-usb 와 --four-wheel 은 같이 쓸 수 없다 (v1 미지원)")
     require_diagnostic_direct_can(p, args, input_fn=input_fn)
     return args
 
@@ -350,19 +377,28 @@ def main(argv=None):
     args = _parse_args(argv)
     use_us100 = not args.no_us100
 
-    from chassis.chassis_manager import ChassisManager, ChassisConfig, build_real_corners
-    from chassis.runtime_lock import RealCanSession
-    from corner_module.can_watchdog import CanWatchdog
+    import chassis.chassis_manager as manager_mod
+    from chassis.chassis_manager import (
+        ChassisConfig,
+        ChassisManager,
+        STEERING_SKID,
+    )
 
-    CanWatchdog(args.channel).start()    # mttcan TX 웻지 자가복구 (데몬 스레드)
+    if not args.skid_usb:
+        # USB 스키드는 can0 을 아예 열지 않으므로 워치독도 lock 도 필요 없다.
+        from corner_module.can_watchdog import CanWatchdog
+        CanWatchdog(args.channel).start()   # mttcan TX 웻지 자가복구 (데몬 스레드)
 
     background = None
     sensor = None
     cm = None
-    can_session = RealCanSession(
-        channel=args.channel,
-        owner="teleop_server",
-    )
+    can_session = None
+    if not args.skid_usb:
+        from chassis.runtime_lock import RealCanSession
+        can_session = RealCanSession(
+            channel=args.channel,
+            owner="teleop_server",
+        )
     try:
         if use_us100:
             from safety_us100.background_monitor import BackgroundSafetyMonitor
@@ -377,22 +413,37 @@ def main(argv=None):
             )
             background.start()
 
-        can_session.__enter__()
+        if can_session is not None:
+            can_session.__enter__()
         wheel_map = None
+        cfg = ChassisConfig(min_drive_turns_per_s=args.min_rev)
         if args.four_wheel:
             from chassis.chassis_manager import FOUR_WHEEL_MAP
             wheel_map = FOUR_WHEEL_MAP
             print("🛠️ 4륜 모드 — 중륜(node 13/14) 없이 앞뒤 4륜만 구동한다 (임시 구성)")
-        corners = build_real_corners(
-            args.channel, wheel_map=wheel_map,
-            friction_ff=args.friction_ff, v_knee_turns_s=args.v_knee,
-        )
-
-        cfg = ChassisConfig(min_drive_turns_per_s=args.min_rev)
-        if args.four_wheel:
-            # ★ 기하와 매핑은 **반드시 짝**이어야 한다 (이름이 어긋나면 KeyError)
-            from chassis.kinematics import four_wheel_geometry
-            cfg.geometry = four_wheel_geometry()
+        if args.skid_usb:
+            # ★ 기하는 ChassisManager 가 steering_mode 를 보고 파생한다.
+            #   여기서 cfg.geometry 를 스키드로 덮으면 매니저가 그걸 "애커만 원본"으로
+            #   오인해 steering_mode 를 ackermann 으로 보고하고, 오도메트리 노드가
+            #   애커만 기하로 스왑해 요레이트 추정이 0 으로 눌린다(설계문서 §6.2).
+            corners = manager_mod.build_usb_skid_corners(
+                args.board_registry, wheel_map=wheel_map,
+                current_lim_a=args.usb_current_lim,
+            )
+            cfg.steering_mode = STEERING_SKID
+            cfg.skid_track_gain = args.track_gain
+            print("🛠️ USB 스키드 모드 — AK 조향 미사용, can0 미개방 "
+                  "(track_gain %.2f)" % args.track_gain)
+            print("⚠️ 조향축이 무통전이다. 스키드 중 각이 밀리는지 육안 확인할 것.")
+        else:
+            corners = manager_mod.build_real_corners(
+                args.channel, wheel_map=wheel_map,
+                friction_ff=args.friction_ff, v_knee_turns_s=args.v_knee,
+            )
+            if args.four_wheel:
+                # ★ 기하와 매핑은 **반드시 짝**이어야 한다 (이름이 어긋나면 KeyError)
+                from chassis.kinematics import four_wheel_geometry
+                cfg.geometry = four_wheel_geometry()
         cfg.geometry.drive_limit_mps = max(
             args.v_max,
             cfg.geometry.drive_limit_mps,
@@ -407,7 +458,8 @@ def main(argv=None):
                 _safe_exception_detail(exc),
             )
         cleanup_chassis_resources(cm, background, sensor)
-        can_session.close()
+        if can_session is not None:
+            can_session.close()
         raise
 
     shared = {"lx": 0.0, "rt": 0.0, "lt": 0.0, "sq": 0, "ci": 0, "rx_ms": None,
@@ -532,7 +584,8 @@ def main(argv=None):
             background,
             sensor,
         )
-        can_session.close()
+        if can_session is not None:
+            can_session.close()
         raise
     print("=== 차체 4WS 무선 텔레옵 서버 — 포트 %d 대기 (%s) ===" % (args.port,
           "US-100 ON" if use_us100 else "US-100 OFF"), flush=True)
@@ -623,7 +676,8 @@ def main(argv=None):
         if errors:
             print("[server] 정리 예외 %d건: %s" % (len(errors), errors[0]),
                   flush=True)
-        can_session.close()
+        if can_session is not None:
+            can_session.close()
         print("[server] IDLE — 종료", flush=True)
 
 

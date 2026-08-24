@@ -1300,3 +1300,275 @@ def test_speed_scale_floored_by_cogging_floor():
     m.set(v_cap, 0.0)
     m.tick()
     assert _drive(m) == 0.0
+
+
+import json
+
+from chassis.chassis_manager import build_usb_skid_corners
+from corner_module.null_steer import NullSteer
+
+
+class _FakePool:
+    """UsbBoardPool 스텁 — 어떤 (serial, axis) 든 고유 객체를 돌려준다."""
+
+    def __init__(self):
+        self.requested = []
+
+    def axis(self, serial, axis_index):
+        self.requested.append((serial, axis_index))
+        return object()
+
+    def close(self):
+        pass
+
+
+def _write_registry(tmp_path, mapping):
+    path = tmp_path / "boards.json"
+    path.write_text(json.dumps(mapping), encoding="utf-8")
+    return path
+
+
+def _good_registry(tmp_path):
+    # axis0 = 좌(홀수 node), axis1 = 우(짝수 node)
+    return _write_registry(tmp_path, {
+        "SN-A": [11, 12], "SN-B": [13, 14], "SN-C": [15, 16],
+    })
+
+
+def test_usb_skid_corners_cover_every_default_wheel(tmp_path):
+    corners = build_usb_skid_corners(_good_registry(tmp_path), pool=_FakePool())
+
+    assert sorted(corners) == [
+        "front_left", "front_right", "mid_left", "mid_right",
+        "rear_left", "rear_right"]
+
+
+def test_usb_skid_corners_use_null_steer_everywhere(tmp_path):
+    """AK 를 전혀 쓰지 않는 구성이므로 조향 액추에이터가 하나도 없어야 한다."""
+    corners = build_usb_skid_corners(_good_registry(tmp_path), pool=_FakePool())
+
+    assert all(isinstance(c.steer, NullSteer) for c in corners.values())
+
+
+def test_usb_skid_inverts_exactly_the_right_wheels(tmp_path):
+    corners = build_usb_skid_corners(_good_registry(tmp_path), pool=_FakePool())
+
+    inverted = {name for name, c in corners.items() if c.drive.invert}
+    assert inverted == {"front_right", "mid_right", "rear_right"}
+
+
+def test_usb_skid_assigns_a_distinct_poll_slot_per_wheel(tmp_path):
+    """전 축이 같은 tick 에 폴링하면 라운드로빈이 무의미해진다."""
+    corners = build_usb_skid_corners(_good_registry(tmp_path), pool=_FakePool())
+
+    slots = sorted(c.drive._poll_slot for c in corners.values())
+    assert slots == [0, 1, 2, 3, 4, 5]
+    assert all(c.drive._poll_period_ticks == 6 for c in corners.values())
+
+
+def test_usb_skid_rejects_a_registry_missing_a_drive_node(tmp_path):
+    path = _write_registry(tmp_path, {"SN-A": [11, 12], "SN-B": [13, 14]})
+
+    with pytest.raises(ValueError, match="node 15"):
+        build_usb_skid_corners(path, pool=_FakePool())
+
+
+def test_usb_skid_rejects_a_registry_that_breaks_the_mirror_convention(tmp_path):
+    """우측 바퀴(node 12/14/16)는 반드시 각 보드의 axis1 이어야 한다 — 실물 미러 장착."""
+    path = _write_registry(tmp_path, {
+        "SN-A": [12, 11], "SN-B": [13, 14], "SN-C": [15, 16],
+    })
+
+    with pytest.raises(ValueError, match="axis1"):
+        build_usb_skid_corners(path, pool=_FakePool())
+
+
+def test_usb_skid_never_opens_can(tmp_path, monkeypatch):
+    """can0 을 아예 건드리지 않는 것이 이 구성의 존재 이유다."""
+    import corner_module.drive_odrive_can as drive_can
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("CAN driver must not be constructed")
+
+    monkeypatch.setattr(drive_can, "DriveOdriveCan", explode)
+
+    build_usb_skid_corners(_good_registry(tmp_path), pool=_FakePool())
+
+
+def test_usb_skid_pairs_with_a_four_wheel_map(tmp_path):
+    from chassis.chassis_manager import FOUR_WHEEL_MAP
+
+    corners = build_usb_skid_corners(
+        _good_registry(tmp_path), wheel_map=FOUR_WHEEL_MAP, pool=_FakePool())
+
+    assert sorted(corners) == [
+        "front_left", "front_right", "rear_left", "rear_right"]
+    assert all(c.drive._poll_period_ticks == 4 for c in corners.values())
+
+
+from chassis.chassis_manager import STEERING_ACKERMANN, STEERING_SKID
+
+
+def _skid_cfg(**kw):
+    """조향모드 관련 인자를 얹은 ChassisConfig — 기존 _armed_manager 에 넘긴다."""
+    return ChassisConfig(**kw)
+
+
+def _steer_hard_left(manager, ticks=6):
+    """조향을 한계 근처까지 꺾어 놓는다 (전환 게이트를 실제로 시험하려면 필요)."""
+    manager.set(0.3, 0.6)
+    for _ in range(ticks):
+        manager.tick()
+    return abs(manager.corners["front_left"].steer.state()["actual_deg"])
+
+
+def test_manager_starts_in_ackermann_by_default():
+    manager = _armed_manager()
+
+    assert manager.steering_mode == STEERING_ACKERMANN
+    assert [w.steerable for w in manager.cfg.geometry.wheels] == [
+        True, True, False, False, True, True]
+
+
+def test_manager_can_start_in_skid():
+    manager = _armed_manager(_skid_cfg(steering_mode=STEERING_SKID))
+
+    assert manager.steering_mode == STEERING_SKID
+    assert all(not w.steerable for w in manager.cfg.geometry.wheels)
+
+
+def test_switch_to_skid_holds_until_steering_settles():
+    manager = _armed_manager()
+    assert _steer_hard_left(manager) > 3.0
+
+    ok, _reason = manager.request_steering_mode(STEERING_SKID)
+
+    assert ok is True
+    assert manager.steering_mode == STEERING_ACKERMANN      # 아직 안 바뀜
+    assert "steer_mode_change" in manager.safety_snapshot().hold_sources
+
+
+def test_switch_to_skid_completes_once_steering_reaches_zero():
+    manager = _armed_manager()
+    _steer_hard_left(manager)
+    manager.request_steering_mode(STEERING_SKID)
+
+    for _ in range(40):
+        manager.tick()
+
+    assert manager.steering_mode == STEERING_SKID
+    assert all(not w.steerable for w in manager.cfg.geometry.wheels)
+    assert "steer_mode_change" not in manager.safety_snapshot().hold_sources
+
+
+def test_drive_is_gated_to_zero_while_the_mode_change_is_pending():
+    """45° 꺾인 채 차동이 걸리면 격렬한 스크럽이 난다."""
+    manager = _armed_manager()
+    _steer_hard_left(manager)
+    manager.request_steering_mode(STEERING_SKID)
+    manager.tick()
+
+    for corner in manager.corners.values():
+        assert corner.drive.state()["target_vel"] == pytest.approx(0.0)
+
+
+def test_mode_change_timeout_cancels_and_releases_the_hold():
+    """인터록 hold 를 밖에서 지울 ops 경로가 없어, 유지하면 차체가 갇힌다."""
+    clock = FakeClock()
+    manager = _armed_manager(_skid_cfg(steer_settle_timeout_s=1.0), clock=clock)
+    for corner in manager.corners.values():
+        if isinstance(corner.steer, FakeSteer):
+            corner.steer._actual = 30.0    # 수렴하지 않는 조향
+
+    manager.request_steering_mode(STEERING_SKID)
+    for corner in manager.corners.values():
+        if isinstance(corner.steer, FakeSteer):
+            corner.steer._actual = 30.0    # tick 이 수렴시키기 전에 다시 벌려 둔다
+    clock.t = 5.0
+    manager.tick()
+
+    assert manager.steering_mode == STEERING_ACKERMANN
+    assert "steer_mode_change" not in manager.safety_snapshot().hold_sources
+
+
+def test_skid_rebuilds_the_wheel_consistency_monitor():
+    """모니터가 생성자에서 한 번만 만들어지므로 기하를 바꾸면 같이 갈아야 한다."""
+    manager = _armed_manager()
+    before = manager._wheel_consistency
+    manager.request_steering_mode(STEERING_SKID)
+    for _ in range(40):
+        manager.tick()
+
+    assert manager._wheel_consistency is not before
+    assert manager._wheel_consistency.geometry is manager.cfg.geometry
+
+
+def test_ackermann_is_refused_without_steering_hardware():
+    corners = {
+        name: CornerModule(NullSteer(), FakeDrive(), CornerConfig())
+        for name in _fake_corners()
+    }
+    manager = ChassisManager(corners, _skid_cfg(steering_mode=STEERING_SKID))
+    manager.connect()
+
+    ok, reason = manager.request_steering_mode(STEERING_ACKERMANN)
+
+    assert ok is False
+    assert reason == "steering_unavailable"
+    assert manager.steering_available is False
+
+
+def test_unknown_steering_mode_is_refused():
+    manager = _armed_manager()
+
+    ok, reason = manager.request_steering_mode("crab")
+
+    assert ok is False
+    assert reason == "unknown_steering_mode"
+
+
+def test_skid_track_gain_reaches_the_active_geometry():
+    manager = _armed_manager(
+        _skid_cfg(steering_mode=STEERING_SKID, skid_track_gain=1.4))
+    wheels = {w.name: w for w in manager.cfg.geometry.wheels}
+
+    assert wheels["front_left"].y == pytest.approx(0.2725 * 1.4)
+
+
+def test_drive_limit_survives_a_mode_switch():
+    """chassis_node 가 생성 전에 올려놓은 상한이 전환에서 날아가면 안 된다."""
+    cfg = ChassisConfig()
+    cfg.geometry.drive_limit_mps = 1.5
+    manager = _armed_manager(cfg)
+    manager.request_steering_mode(STEERING_SKID)
+    for _ in range(40):
+        manager.tick()
+
+    assert manager.cfg.geometry.drive_limit_mps == pytest.approx(1.5)
+
+
+def test_mode_flips_only_after_steering_actually_reaches_zero():
+    """이 태스크에서 안전에 가장 직결된 성질 — 45° 꺾인 채 차동이 걸리면 안 된다.
+
+    계획서의 다른 전환 테스트는 request 직후 상태만 보거나 tick 을 한 번만 불러,
+    수렴 대기를 통째로 없애도 통과한다(2026-08-05 음성 대조로 확인). 이 테스트는
+    '전환이 일어난 tick 의 시작 시점에 조향이 아직 꺾여 있었는가'를 직접 본다.
+    """
+    manager = _armed_manager()
+    assert _steer_hard_left(manager) > manager.cfg.steer_settle_deg
+    manager.request_steering_mode(STEERING_SKID)
+
+    flipped_while_crooked = False
+    for _ in range(40):
+        crooked = max(
+            abs(corner.steer.state()["actual_deg"])
+            for corner in manager.corners.values()
+            if not isinstance(corner.steer, NullSteer)
+        ) > manager.cfg.steer_settle_deg
+        manager.tick()
+        if crooked and manager.steering_mode == STEERING_SKID:
+            flipped_while_crooked = True
+            break
+
+    assert flipped_while_crooked is False, "조향이 꺾인 채로 스키드 전환이 일어났다"
+    assert manager.steering_mode == STEERING_SKID          # 결국은 전환된다

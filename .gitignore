@@ -50,3 +50,4 @@ yolov8n*_*.engine
 
 # Kate editor swap
 .*.kate-swp
+config/bl70200_boards.json

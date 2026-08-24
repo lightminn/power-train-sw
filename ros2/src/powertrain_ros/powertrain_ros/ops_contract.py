@@ -115,6 +115,10 @@ ACTIONS = {
         _CONSOLE, "service_setbool",
         ("/chassis_node/component_enable_robot_arm",),
     ),
+    "steer_mode_skid": ActionSpec(
+        _CONSOLE, "service_setbool",
+        ("/chassis_node/steer_mode_skid",),
+    ),
     "extraction_grant": ActionSpec(
         _CONSOLE, "service", ("/chassis_node/extraction_grant",)
     ),

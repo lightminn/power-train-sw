@@ -181,6 +181,26 @@ def test_power_card_preserves_protection_flag_warning():
     )
 
 
+def test_power_card_treats_charger_status_bits_as_normal():
+    power_card_state = getattr(status_view, "power_card_state", None)
+    assert power_card_state is not None
+
+    assert power_card_state(
+        _power_snapshot(
+            pdist_battery_flags=0x02,
+            pdist_protection_flags=0x20,
+        ),
+        fresh=True,
+    ) == ("정상", "LIVE")
+    assert power_card_state(
+        _power_snapshot(
+            pdist_battery_flags=0,
+            pdist_protection_flags=0x40,
+        ),
+        fresh=True,
+    ) == ("정상", "LIVE")
+
+
 def test_power_card_reports_normal_only_for_fresh_healthy_measurement():
     power_card_state = getattr(status_view, "power_card_state", None)
     assert power_card_state is not None
@@ -201,3 +221,23 @@ def test_status_dashboard_uses_power_health_not_freshness_for_ready_count():
     source = inspect.getsource(RobotStatusDashboard.update)
 
     assert "power_card_state(power, fresh=power_fresh)" in source
+
+
+from operator_console.status_view import drive_mode_badges
+
+
+def test_drive_mode_badges_render_both_axes():
+    badges = drive_mode_badges({"drive_transport": "usb", "steering_mode": "skid"})
+
+    assert badges == ("구동 USB", "조향 스키드")
+
+
+def test_drive_mode_badges_render_can_ackermann():
+    badges = drive_mode_badges({"drive_transport": "can",
+                                "steering_mode": "ackermann"})
+
+    assert badges == ("구동 CAN", "조향 애커만")
+
+
+def test_drive_mode_badges_mark_unknown_state():
+    assert drive_mode_badges(None) == ("구동 —", "조향 —")

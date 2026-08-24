@@ -19,7 +19,9 @@ import math
 import time
 from dataclasses import dataclass, field, replace
 
-from chassis.kinematics import ChassisGeometry, default_geometry, solve
+from chassis.kinematics import (
+    ChassisGeometry, default_geometry, skid_geometry, solve,
+)
 from chassis.safety_interlock import RUN, SafetyInterlock
 from chassis.telemetry import (
     AkNodeHealth,
@@ -42,6 +44,10 @@ from corner_module.null_steer import NullSteer
 logger = logging.getLogger(__name__)
 _COMMAND_RECOVERY_HOLD = "command_recovery"
 COMPONENTS = ("drive", "steer", "us100", "robot_arm")
+STEERING_ACKERMANN = "ackermann"
+STEERING_SKID = "skid"
+STEERING_MODES = (STEERING_ACKERMANN, STEERING_SKID)
+_STEER_MODE_HOLD = "steer_mode_change"
 
 
 # ── 설정 · 매핑 표 ────────────────────────────────────────────────────────
@@ -64,6 +70,10 @@ class ChassisConfig:
     extraction_budget_m: float = 1.0
     extraction_max_grants: int = 3
     extraction_v_limit: float = 0.2
+    steering_mode: str = STEERING_ACKERMANN   # 기동 시 조향모드
+    skid_track_gain: float = 1.0              # 스키드 유효 윤거 배수(>1 이 보정 방향)
+    steer_settle_deg: float = 3.0             # 전환 전 조향 0° 수렴 허용 오차
+    steer_settle_timeout_s: float = 3.0       # 수렴 대기 상한 — 넘으면 전환 취소
 
 
 @dataclass(frozen=True)
@@ -155,6 +165,77 @@ def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
     )
 
 
+def build_usb_skid_corners(registry_path, cfg: CornerConfig = None,
+                           wheel_map=None, gear_ratio: float = 5.0,
+                           current_lim_a: float = 9.0,
+                           stale_ms: float = 500.0, pool=None) -> dict:
+    """🛠️ **USB 스키드 구성** — 조향 없이 ODrive USB 구동만으로 코너를 만든다.
+
+    AK 조향을 전혀 쓰지 않으므로 조향은 전부 `NullSteer` 이고, **can0 을 열지
+    않는다**(`RealCanSession`·`CanWatchdog` 도 필요 없다). 반드시
+    `kinematics.skid_geometry()` 와 **짝으로** 쓴다 — 애커만 기하와 섞으면
+    조향 명령이 갈 곳이 없다.
+
+    바퀴↔노드 권위는 `DEFAULT_WHEEL_MAP` 을 그대로 쓰고, 노드↔(시리얼, 축) 만
+    보드 레지스트리에서 해석한다. 표를 새로 만들지 않아 CAN 경로와 권위가
+    하나로 유지된다.
+
+    ⚠️ 레지스트리에 없는 노드는 **거부**한다. 바퀴를 잘못 배정하면 조용히 틀린
+    방향으로 주행한다.
+
+    Parameters
+    ----------
+    registry_path:
+        `drive.bl70200.board_registry` JSON — ``{serial: [axis0_node, axis1_node]}``.
+    pool:
+        테스트 주입용 `UsbBoardPool` 대체품.
+    """
+    import importlib
+
+    board_registry = importlib.import_module("drive.bl70200.board_registry")
+    usb_mod = importlib.import_module("corner_module.drive_odrive_usb_axis")
+
+    source_map = tuple(wheel_map or DEFAULT_WHEEL_MAP)
+    registry = board_registry.load(registry_path)
+
+    node_to_axis = {}
+    for serial, (node_axis0, node_axis1) in registry.items():
+        node_to_axis[node_axis0] = (serial, 0)
+        node_to_axis[node_axis1] = (serial, 1)
+
+    resolved = []
+    for wm in source_map:
+        if wm.drive_node_id not in node_to_axis:
+            raise ValueError(
+                "보드 레지스트리에 구동 node %d(%s)가 없다: %s"
+                % (wm.drive_node_id, wm.wheel, registry_path))
+        serial, axis_index = node_to_axis[wm.drive_node_id]
+        inverted = wm.wheel in RIGHT_WHEELS
+        if inverted != (axis_index == 1):
+            # 각 보드의 M1(axis1)이 로봇 우측이며 좌측과 미러로 장착돼 있다
+            # (2026-07-28 실물 확인). 레지스트리가 이를 어기면 부호가 뒤집힌다.
+            raise ValueError(
+                "레지스트리가 미러 장착 규약을 어긴다: %s(node %d) → %s/axis%d. "
+                "우측 바퀴(%s)는 반드시 axis1 이어야 한다."
+                % (wm.wheel, wm.drive_node_id, serial, axis_index,
+                   ", ".join(RIGHT_WHEELS)))
+        resolved.append((wm, serial, axis_index, inverted))
+
+    pool = pool if pool is not None else usb_mod.UsbBoardPool()
+    period = len(resolved)
+    cfg = cfg or CornerConfig()
+    corners = {}
+    for slot, (wm, serial, axis_index, inverted) in enumerate(resolved):
+        drive = usb_mod.DriveOdriveUsbAxis(
+            pool, serial, axis_index, node_id=wm.drive_node_id,
+            gear_ratio=gear_ratio, invert=inverted,
+            current_lim_a=current_lim_a, stale_ms=stale_ms,
+            poll_slot=slot, poll_period_ticks=period,
+        )
+        corners[wm.wheel] = CornerModule(NullSteer(), drive, cfg)
+    return corners
+
+
 # ── 차체 매니저 ───────────────────────────────────────────────────────────
 
 
@@ -163,6 +244,16 @@ class ChassisManager:
                  wheel_map=None, can_owner_snapshot=None,
                  qualification_gate=None):
         self.cfg = cfg or ChassisConfig()
+        # 애커만 기하를 원본으로 보관한다. 스키드 기하는 steerable 정보를 잃어
+        # 되돌릴 수 없으므로, 활성 기하는 항상 여기서 파생한다.
+        # (drive_limit_mps 등 호출자가 생성 전에 올려놓은 값도 함께 승계된다.)
+        self._base_geometry = self.cfg.geometry
+        if self.cfg.steering_mode not in STEERING_MODES:
+            raise ValueError("unknown steering_mode: %r" % (self.cfg.steering_mode,))
+        self._steering_mode = self.cfg.steering_mode
+        self._pending_steering_mode = None
+        self._steering_change_started_s = None
+        self.cfg.geometry = self._geometry_for(self._steering_mode)
         self.corners = corners             # {wheel_name: CornerModule}
         self._qualification_gate = qualification_gate
         self.mode = "DISCONNECTED"
@@ -218,6 +309,101 @@ class ChassisManager:
 
     def _now_ms(self) -> float:
         return self._now() * 1000.0
+
+    def _geometry_for(self, mode: str) -> ChassisGeometry:
+        if mode == STEERING_SKID:
+            return skid_geometry(self.cfg.skid_track_gain, base=self._base_geometry)
+        return self._base_geometry
+
+    @property
+    def steering_mode(self) -> str:
+        return self._steering_mode
+
+    @property
+    def pending_steering_mode(self):
+        return self._pending_steering_mode
+
+    @property
+    def steering_available(self) -> bool:
+        """실제 조향 액추에이터가 하나라도 있는가 (없으면 애커만 불가)."""
+        return any(
+            not isinstance(corner.steer, NullSteer)
+            for corner in self.corners.values()
+        )
+
+    def request_steering_mode(self, mode: str) -> tuple:
+        """조향모드 전환을 요청한다. 즉시 바뀌지 않고 tick() 이 수렴 후 적용한다.
+
+        45° 로 꺾인 상태에서 곧바로 차동 구동을 걸면 격렬한 스크럽이 나므로,
+        전환 대기 중에는 MOTION_HOLD 로 구동을 0 으로 묶고 조향 0° 수렴을
+        기다린다.
+
+        Returns
+        -------
+        (accepted, reason)
+        """
+        if mode not in STEERING_MODES:
+            return False, "unknown_steering_mode"
+        if mode == STEERING_ACKERMANN and not self.steering_available:
+            return False, "steering_unavailable"
+        if mode == self._steering_mode and self._pending_steering_mode is None:
+            return True, "already_%s" % mode
+        self._v = 0.0
+        self._omega = 0.0
+        self._pending_steering_mode = mode
+        self._steering_change_started_s = self._now()
+        self._interlock.set_motion_hold(
+            _STEER_MODE_HOLD, True, "steering mode -> %s" % mode)
+        logger.warning("조향모드 전환 대기: %s → %s", self._steering_mode, mode)
+        return True, "pending_%s" % mode
+
+    def _tick_steering_mode(self) -> None:
+        """전환 대기 중이면 조향 0° 수렴을 확인하고 기하를 스왑한다."""
+        mode = self._pending_steering_mode
+        if mode is None:
+            return
+        settled = True
+        for wheel in self._base_geometry.wheels:
+            if not wheel.steerable:
+                continue
+            corner = self.corners.get(wheel.name)
+            if corner is None:
+                continue
+            try:
+                actual_deg = corner.steer.state().get("actual_deg", 0.0)
+            except Exception:
+                actual_deg = 0.0            # 읽을 수 없으면 코너 자체 검사가 잡는다
+            if abs(actual_deg) > self.cfg.steer_settle_deg:
+                settled = False
+        if settled:
+            self._apply_steering_mode(mode)
+            return
+        elapsed = self._now() - self._steering_change_started_s
+        if elapsed <= self.cfg.steer_settle_timeout_s:
+            return                          # 계속 대기 (hold 유지)
+        # 타임아웃: 전환을 취소하고 hold 를 해제해 직전 모드로 남는다.
+        # 인터록 motion hold 를 밖에서 지울 ops 경로가 없어서(authority_clear_hold
+        # 는 authority 전용) hold 를 유지하면 운전자가 풀 방법 없이 갇힌다.
+        # 직전 모드는 방금까지 정상 동작하던 구성이므로 안전하다. 조향이 진짜
+        # 고장이면 CornerModule.tick() 의 fault/stale/과전류 검사가 estop 을 건다.
+        self._pending_steering_mode = None
+        self._steering_change_started_s = None
+        self._interlock.set_motion_hold(_STEER_MODE_HOLD, False)
+        logger.error(
+            "조향 0° 수렴 실패(%.1fs) → 조향모드 전환 취소, %s 유지",
+            elapsed, self._steering_mode)
+
+    def _apply_steering_mode(self, mode: str) -> None:
+        self._steering_mode = mode
+        self.cfg.geometry = self._geometry_for(mode)
+        self._wheel_consistency = WheelConsistencyMonitor(
+            self.cfg.geometry,
+            self.cfg.wheel_consistency,
+        )
+        self._pending_steering_mode = None
+        self._steering_change_started_s = None
+        self._interlock.set_motion_hold(_STEER_MODE_HOLD, False)
+        logger.warning("조향모드 전환 완료: %s", mode)
 
     @property
     def component_mask(self) -> dict[str, bool]:
@@ -574,6 +760,7 @@ class ChassisManager:
             and now_s * 1000.0 - self._last_set_ms > self.cfg.watchdog_ms
         )
         self._interlock.set_motion_hold("cmd_watchdog", timed_out, "set timeout")
+        self._tick_steering_mode()
         safety = self._interlock.snapshot()
 
         if self.mode == "EXTRACTION":

@@ -225,3 +225,44 @@ def four_wheel_geometry() -> ChassisGeometry:
         steer_limit_deg=full.steer_limit_deg,
         drive_limit_mps=full.drive_limit_mps,
     )
+
+
+def skid_geometry(track_gain: float = 1.0,
+                  base: ChassisGeometry = None) -> ChassisGeometry:
+    """🛠️ **스키드(차동) 조향 기하** — 모든 바퀴를 고정륜으로 둔다.
+
+    새 수식이 필요 없다. `solve()` 의 고정 바퀴 분기가 이미 `vx = v − ω·yᵢ` 로
+    스키드 식이며(측면 성분 `vy = ω·xᵢ` 는 스크럽으로 버린다), 조향륜이 0개면
+    `_peak_steer()` 가 항상 0 을 반환해 ω 클램프도 자동으로 비활성화된다.
+    속도 상한 스케일링과 비유한 검사는 그대로 살아 있다.
+
+    바퀴별 `y` 를 그대로 쓰므로 **강체 기준 종방향 슬립이 0** 이다 — 각 바퀴는
+    자기 위치가 요구하는 전진속도만 받는다. 탱크식(편측 동일 속도)을 쓰지 않는
+    이유가 이것이다: as-built 윤거가 앞 545 / 중간 719 / 뒤 425 mm 로 모두 달라
+    같은 속도를 주면 같은 편 바퀴끼리 종방향으로 싸운다.
+
+    Parameters
+    ----------
+    track_gain:
+        **유효 윤거 배수.** 실차 스키드는 타이어 측면 미끄럼 저항 때문에 명령보다
+        덜 돈다. 같은 ω 를 실제로 내려면 좌우 속도차를 더 벌려야 하므로
+        **1.0 보다 큰 값이 보정 방향**이다. 기본 1.0(무보정)이며 실측 전까지
+        그대로 둔다 — 지상 커미셔닝에서 명령 ω 대비 실측 ω 비로 확정한다.
+
+        기하에 곱하는 이유는 명령과 추정이 한 모델을 쓰게 하기 위해서다.
+        오도메트리는 바퀴속도에서 ω 를 역산하므로(ω ≈ Δv / 2y_eff), 유효 윤거가
+        크면 ω 추정도 같이 작아져 "실제로 덜 도는" 물리와 방향이 일치한다.
+    base:
+        바탕 기하(기본 `default_geometry()`). `skid_geometry(base=
+        four_wheel_geometry())` 로 4륜 스키드도 만들 수 있다. 원본은 수정하지
+        않고 새 `Wheel` 을 만들어 복사한다.
+    """
+    if not math.isfinite(track_gain) or track_gain <= 0.0:
+        raise ValueError("track_gain must be finite and positive")
+    src = base if base is not None else default_geometry()
+    return ChassisGeometry(
+        wheels=[Wheel(w.name, w.x, w.y * track_gain, False) for w in src.wheels],
+        wheel_radius_m=src.wheel_radius_m,
+        steer_limit_deg=src.steer_limit_deg,
+        drive_limit_mps=src.drive_limit_mps,
+    )

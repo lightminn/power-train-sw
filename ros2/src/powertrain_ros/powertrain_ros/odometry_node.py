@@ -32,6 +32,10 @@ from powertrain_ros.state_estimation import (  # noqa: E402
     StateEstimatorConfig,
     WheelSample,
     WheelValue,
+    geometry_for_steering_mode,
+)
+from powertrain_ros.steering_contract import (  # noqa: E402
+    steering_mode_from_safety_state,
 )
 
 
@@ -44,6 +48,8 @@ class OdometryNode(Node):
         self.declare_parameter("sample_timeout_s", 0.25)
 
         self.geom = default_geometry()
+        self._steering_mode = "ackermann"
+        self._skid_track_gain = 1.0
         self.estimator = StateEstimator(
             self.geom,
             StateEstimatorConfig(
@@ -86,6 +92,12 @@ class OdometryNode(Node):
             self._on_imu,
             qos_profile_sensor_data,
         )
+        self.create_subscription(
+            String,
+            "/chassis/safety_state",
+            self._on_safety_state,
+            10,
+        )
         self.create_timer(
             1.0 / float(self.get_parameter("publish_hz").value),
             self._publish,
@@ -102,6 +114,20 @@ class OdometryNode(Node):
     @staticmethod
     def _stamp_s(stamp):
         return float(stamp.sec) + float(stamp.nanosec) * 1e-9
+
+    def _on_safety_state(self, message):
+        """조향모드가 바뀌면 추정 기하를 함께 갈아끼운다."""
+        try:
+            payload = json.loads(message.data)
+        except (TypeError, ValueError):
+            return
+        mode = steering_mode_from_safety_state(payload, self._steering_mode)
+        if mode == self._steering_mode:
+            return
+        self._steering_mode = mode
+        self.geom = geometry_for_steering_mode(mode, self._skid_track_gain)
+        self.estimator.set_geometry(self.geom)
+        self.get_logger().warning("추정 기하 전환: %s" % mode)
 
     def _on_imu(self, msg: Imu):
         q = msg.orientation
