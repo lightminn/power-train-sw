@@ -204,6 +204,8 @@ ROS 실행·토픽·서비스 표는 [`ros2/README.md`](ros2/README.md), HIL 전
 | `motor_control/chassis/kinematics.py` 4WS 애커만 키네마틱스 (WP2) | [4WS 애커만 키네마틱스 — 차체 명령(v, ω) → 바퀴 조향·속도](https://app.notion.com/p/3912d27b08d381a0a452fa4afdc61c45) |
 | `motor_control/chassis/` 4WS 차체 통합 제어 (ChassisManager, WP3 — 실기 HIL 완료) | [차체 통합 제어 ChassisManager — 코너 6개를 하나의 4WS 차체로](https://app.notion.com/p/3912d27b08d381e79716e04398e34bd2) |
 | `chassis/teleop_server.py`+`laptop/laptop_client_chassis.py` 무선 원격주행 (DualSense 텔레옵) | [무선 원격주행 — DualSense→노트북→젯슨→10모터 4WS](https://app.notion.com/p/39b2d27b08d38140bf8df53fe7661c6c) |
+| `chassis/` USB 스키드 조향 (애커만↔스키드 런타임 전환, 2026-08) | 레포 문서만 — [브링업 절차](docs/reports/2026-08-05-usb-skid-bringup.md) · [설계](docs/superpowers/specs/2026-08-04-usb-skid-steer-design.md). Notion 페이지 미작성 |
+| `ros2/…/pdist80b.py`+`scripts/pdist80b_view.py` 전원 분배보드 플래그·계측 | 근거 = 레포 동봉 PDF `docs/PDIST_사용자매뉴얼_V1.7.pdf` p.16 (PID 238) · 공백표 [`docs/ui_data_gap.md`](docs/ui_data_gap.md) — 관련: [통신 GUI·스트리밍·전원 텔레메트리](https://app.notion.com/p/39d2d27b08d3815c907ae8aa338c5fa8) |
 | `docs/plans/2026-07-12-defense-robot-autonomy-software-plan.md` 자율주행 전체 계획 (**정본**) | [2026 국방로봇 자율주행 SW 전체 개발계획](https://app.notion.com/p/39c2d27b08d381728c1ade21cc72216b) — 이력: [착수 계획(~07-11)](https://app.notion.com/p/3912d27b08d381af9e8ed16fb08b0840) |
 | `l515_dashboard/` L515 Gateway·TUI | [L515 Gateway·TUI — 카메라 단일 소유·SRT 원격주행](https://app.notion.com/p/39a2d27b08d381eb8307fa7d136ad374) |
 | `ros2/` RViz 시각화 (벤치 자산) | [RViz 로봇 시각화 — 오도메트리·IMU·장애물 감지](https://app.notion.com/p/39b2d27b08d3815da7c6f46e173d7a8a) |
