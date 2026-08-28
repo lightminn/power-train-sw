@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>재난 대응 로봇 관제 시스템 · 디자인 레퍼런스</title>
+<style>
+:root {
+  --bg-0:#03050c; --bg-1:#050813; --bg-2:#04060f;
+  --glass:rgba(255,255,255,.038); --glass-hi:rgba(255,255,255,.14);
+  --line:rgba(255,255,255,.10); --line-hi:rgba(255,255,255,.22);
+  --text:#eaeef9; --sub:#98a2c4; --muted:#646e96;
+  --drive:#4c6fff; --vision:#8b5cf6; --power:#ffb13d;
+  --network:#3ed8e8; --arm:#ff5e7a; --safety:#33d6a6;
+  --danger:#b82f58; --r-card:9px; --r-small:7px; --blur:64px;
+  --shadow:0 28px 70px rgba(0,0,0,.48);
+}
+*{box-sizing:border-box} body{margin:0;background:#010208;color:var(--text);font-family:Pretendard,"Noto Sans KR",sans-serif}
+.screen{width:1600px;height:1000px;overflow:hidden;padding:22px 30px 28px;background:
+  radial-gradient(circle at 88% 0,rgba(112,82,240,.24),transparent 31%),
+  radial-gradient(circle at 0 100%,rgba(46,92,225,.18),transparent 34%),
+  linear-gradient(160deg,var(--bg-1),var(--bg-0) 55%,var(--bg-2))}
+header{height:58px;display:flex;align-items:flex-start} h1{font-size:20.5px;margin:2px 0;font-weight:850;letter-spacing:-.025em}
+.health{margin-left:auto;display:flex;gap:19px;align-items:center;color:var(--sub);font-size:11px;font-weight:700}.health span{display:flex;gap:7px;align-items:center}.dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}.ok .dot{background:var(--safety);box-shadow:0 0 13px rgba(51,214,166,.55)}
+.estop{margin:-4px 0 0 22px;border:0;border-radius:7px;background:#721d40;color:white;padding:9px 20px;font-weight:900;box-shadow:0 0 30px rgba(255,50,104,.25)}
+.tabs{display:flex;gap:4px;width:max-content;padding:3px;border:1px solid var(--line);border-radius:7px;background:rgba(8,12,24,.6);margin-bottom:14px}.tab{border:0;border-radius:5px;padding:9px 27px;background:transparent;color:var(--muted);font-weight:800}.tab.active{background:#26316c;color:white;box-shadow:0 0 20px rgba(76,111,255,.28)}
+.systems{display:grid;grid-template-columns:repeat(6,1fr);gap:18px;margin-bottom:14px}.system{height:88px;border:1px solid rgba(152,162,196,.15);background:rgba(5,9,20,.54);color:var(--muted);font-size:15px;font-weight:800}.system:nth-child(1){border-radius:9px}.system:nth-child(2){border-radius:34px 34px 9px 9px}.system:nth-child(3){border-radius:44px}.system:nth-child(4){border-radius:18px 7px 22px 7px}.system:nth-child(5){border-radius:7px 24px 7px 24px}.system:nth-child(6){border-radius:30px 9px 30px 9px}.system.active{--tone:var(--drive);color:white;border-color:color-mix(in srgb,var(--tone),white 22%);background:linear-gradient(180deg,rgba(12,17,34,.92),color-mix(in srgb,var(--tone) 24%,#080b16));box-shadow:0 14px 36px color-mix(in srgb,var(--tone) 31%,transparent),inset 0 -15px 24px color-mix(in srgb,var(--tone) 36%,transparent)}
+.glass{background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.022));border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow),inset 0 1px var(--line-hi),inset 0 -18px 32px rgba(46,92,225,.06);backdrop-filter:blur(var(--blur)) saturate(180%)}
+.detail{height:746px;position:relative}.metrics{height:105px;display:grid;grid-template-columns:repeat(3,1fr)}.metric{padding:27px 36px;border-right:1px solid var(--line)}.metric:last-child{border:0}.label{font-size:10px;color:var(--muted);line-height:1.35}.value{margin-top:9px;font-size:15px;font-weight:850;font-family:"JetBrains Mono",monospace;letter-spacing:-.04em}.visual{height:620px;display:grid;place-items:center;color:var(--drive)}
+.rover{width:360px;height:280px;border:2px solid currentColor;background:rgba(76,111,255,.08);position:relative}.rover:before,.rover:after{content:"";position:absolute;left:28%;right:28%;height:2px;background:currentColor}.rover:before{top:35%}.rover:after{bottom:35%}.wheel{position:absolute;width:120px;height:8px;border-radius:9px;background:#151b2a}.w1{left:-260px;top:40px}.w2{right:-260px;top:40px}.w3{left:-260px;bottom:40px}.w4{right:-260px;bottom:40px}.wheel i{display:block;width:28%;height:100%;border-radius:inherit;background:currentColor}
+.note{position:absolute;right:20px;bottom:14px;color:var(--muted);font:10px "JetBrains Mono",monospace}
+</style>
+</head>
+<body><main class="screen">
+<header><h1>재난 대응 로봇 관제 시스템</h1><div class="health"><span class="ok"><i class="dot"></i>로봇 연결</span><span class="ok"><i class="dot"></i>전원</span><span class="ok"><i class="dot"></i>카메라</span><span class="ok"><i class="dot"></i>안전 장치</span></div><button class="estop">긴급 정지<br><small>E-STOP</small></button></header>
+<nav class="tabs"><button class="tab">실시간 화면</button><button class="tab active">로봇 상태</button></nav>
+<section class="systems"><button class="system active">주행</button><button class="system">인식</button><button class="system">전원</button><button class="system">통신</button><button class="system">로봇팔</button><button class="system">안전</button></section>
+<section class="detail glass"><div class="metrics"><div class="metric"><div class="label">평균 속도</div><div class="value">0.50 turn/s</div></div><div class="metric"><div class="label">운용 모드</div><div class="value">DRIVING/RUN</div></div><div class="metric"><div class="label">오도메트리</div><div class="value">x 0.80 m · y 0.10 m · -2.9°</div></div></div><div class="visual"><div class="rover"><span class="wheel w1"><i></i></span><span class="wheel w2"><i></i></span><span class="wheel w3"><i></i></span><span class="wheel w4"><i></i></span></div></div><div class="note">1600 × 1000 · TOKEN REFERENCE</div></section>
+</main></body></html>

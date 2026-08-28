@@ -36,6 +36,10 @@ from .arm_telemetry import (
     arm_summary,
     temperature_state,
 )
+from .environment_telemetry import (
+    LatestEnvironmentTelemetryReceiver,
+    environment_source_state,
+)
 from .labels import (
     OFF_LABEL,
     ON_LABEL,
@@ -70,7 +74,11 @@ from .presentation import (
     public_safety,
 )
 from .themes import theme_tokens
-from .status_view import RobotStatusDashboard
+from .status_view import (
+    CompetitionStatusDashboard,
+    END_EFFECTOR_PURPOSES,
+    EnvironmentSensorDashboard,
+)
 from .telemetry import (
     LatestTelemetryReceiver,
     TelemetrySnapshot,
@@ -143,8 +151,8 @@ label { color: #f8fafc; }
 .status-dot.status-bad { background: #C62832; }
 .status-dot.status-muted { background: #647386; }
 .global-estop { background: #D86670; color: #ffffff; border: none; border-radius: 8px; padding: 7px 18px; }
-.estop-title { color: #FFFFFF; font-size: 15px; font-weight: 900; }
-.estop-subtitle { color: rgba(255,255,255,0.76); font-size: 9px; font-weight: 800; letter-spacing: 1px; }
+.estop-title { color: #FFFFFF; font-size: 12px; font-weight: 900; }
+.estop-subtitle { color: rgba(255,255,255,0.76); font-size: 7px; font-weight: 800; letter-spacing: 1px; }
 .global-estop:hover { background: #C94C57; }
 .global-estop:active { background: #B4232C; border: 1px solid rgba(255,255,255,0.55); }
 .global-estop:disabled { background: #C9363E; color: #FFFFFF; opacity: 0.48; }
@@ -213,6 +221,25 @@ label { color: #f8fafc; }
 .progress-marker.active { background: #2F7CF6; color: transparent; border: 2px solid #8EB7FF; min-width: 11px; min-height: 11px; }
 .progress-step.completed { color: #DCE8E3; }
 .progress-marker.completed { background: #2F7CF6; color: transparent; border: 1px solid #2F7CF6; min-width: 9px; min-height: 9px; }
+
+/* Visual language shared by the seven approved competition references. */
+.console-shell { background: #030712; }
+.side-rail { background: #070D1D; border-right: 1px solid #141C31; padding: 16px 0; min-width: 54px; }
+.rail-logo { background: #6957F5; color: #FFFFFF; border-radius: 9px; min-width: 40px; min-height: 40px; font-size: 18px; font-weight: 900; }
+.rail-icon { background: transparent; color: #7180A7; border: none; border-radius: 8px; min-width: 40px; min-height: 40px; font-size: 16px; }
+.rail-icon:hover { background: #111936; color: #DDE4FF; }
+.rail-icon.active { background: #172044; color: #B8C4FF; border: 1px solid #4D5EAD; }
+.rail-icon label { color: #7180A7; font-size: 16px; }
+.rail-icon:hover label, .rail-icon.active label { color: #DDE4FF; }
+.topbar { background: #030712; border-bottom: none; padding: 18px 28px 10px 28px; min-height: 66px; }
+.brand { font-size: 18px; }
+.eyebrow { color: #596580; font-size: 9px; }
+.global-estop { background: #641D42; border-radius: 8px; min-width: 78px; box-shadow: 0 0 24px rgba(195,45,111,0.22); }
+.nav { background: #030712; padding: 0 28px 12px 28px; }
+.nav stackswitcher { background: #080D18; border: 1px solid #20283A; border-radius: 7px; padding: 4px; }
+.nav button { min-height: 34px; padding: 5px 22px; border: none; border-radius: 5px; }
+.nav button:checked { color: #FFFFFF; background: #252B61; border: none; box-shadow: 0 0 18px rgba(76,91,229,0.28); }
+.page { padding: 8px 28px 0 28px; }
 .mission-rail { background: #EDF3F8; border-left: 1px solid #D8E2EC; border-radius: 0; padding: 15px 14px; }
 .rail-heading-ko { color: #26384A; font-size: 17px; font-weight: 900; }
 .rail-heading-en { color: #708195; font-size: 9px; font-weight: 900; letter-spacing: 1.3px; }
@@ -229,6 +256,23 @@ label { color: #f8fafc; }
 .rail-data-label { color: #8090A3; font-size: 9px; font-weight: 800; }
 .rail-data-value { color: #FFFFFF; font-size: 17px; font-weight: 900; }
 .rail-data-target, .rail-data-distance { color: #00D5FF; }
+.rail-tool-selector { min-height: 34px; font-size: 12px; font-weight: 800; }
+.rail-tool-selector button { padding: 5px 9px; }
+menu {
+  background: #FFFFFF;
+  color: #17324A;
+  border: 1px solid #C9D7E3;
+  padding: 4px;
+}
+menuitem {
+  background: #FFFFFF;
+  color: #17324A;
+  min-height: 28px;
+  padding: 5px 10px;
+}
+menuitem label { color: #17324A; font-size: 12px; font-weight: 700; }
+menuitem:hover, menuitem:active { background: #E8F2FF; color: #174EA6; }
+menuitem:hover label, menuitem:active label { color: #174EA6; }
 .rail-safety { background: rgba(255,255,255,0.68); border: 1px solid rgba(180,197,214,0.62); border-radius: 7px; padding: 9px 10px; }
 .rail-safety-value { color: #C4D0DE; font-size: 11px; font-weight: 800; }
 .rail-safety-value.status-live { color: #2FD27A; }
@@ -603,12 +647,14 @@ scrollbar slider {{ background: #A8B6C4; border-radius: 999px; min-width: 7px; m
 .status-summary-card.category-safety {{ border-left-color: #2FA36B; }}
 .status-summary-card.category-camera {{ border-left-color: #26A7D8; }}
 .status-summary-card.category-ai {{ border-left-color: #806CE8; }}
+.status-summary-card.category-environment {{ border-left-color: #4DB89A; }}
 .status-summary-card.category-arm {{ border-left-color: #D96C92; }}
 .status-summary-card.category-drive.selected {{ border-left-color: #2F7CF6; }}
 .status-summary-card.category-power.selected {{ border-left-color: #E3A132; }}
 .status-summary-card.category-safety.selected {{ border-left-color: #2FA36B; }}
 .status-summary-card.category-camera.selected {{ border-left-color: #26A7D8; }}
 .status-summary-card.category-ai.selected {{ border-left-color: #806CE8; }}
+.status-summary-card.category-environment.selected {{ border-left-color: #4DB89A; }}
 .status-summary-card.category-arm.selected {{ border-left-color: #D96C92; }}
 
 /* Bright exhibition mode: keep only the camera stage dark. */
@@ -677,6 +723,494 @@ window {{ background: #F3F7FB; }}
 .mission-rail .display-option check:checked {{ background: #2F7CF6; border-color: #2F7CF6; }}
 .event-expander {{ background: #FFFFFF; border-top-color: #D5E1EB; }}
 .event-expander:hover {{ background: #F7FAFD; }}
+
+/* Final competition reference override. */
+window, .console-shell, .page {{
+  background-color: #03050C;
+  background-image: linear-gradient(160deg, #050813, #03050C 56%, #04060F);
+  color: #EAEEF9;
+}}
+.side-rail {{ background: #071020; border-right: 1px solid #172039; }}
+.topbar {{ background: transparent; border: none; box-shadow: none; padding: 15px 24px 8px 24px; }}
+.topbar .brand {{ color: #EAEEF9; font-size: 20px; font-weight: 900; }}
+.topbar .eyebrow {{ color: #596580; }}
+.topbar .status-chip {{ color: #77829D; }}
+.topbar .status-chip.status-live {{ color: #39D8B0; }}
+.topbar .status-chip.status-camera-live {{ color: #42D6EB; }}
+.global-estop {{ background: #6D1E3E; border: none; border-radius: 7px; box-shadow: 0 0 28px rgba(255,55,104,0.24); padding: 0; }}
+.nav {{ background: transparent; border: none; padding: 0 24px 10px 24px; }}
+.nav stackswitcher {{ background: rgba(10,14,28,0.58); border: 1px solid rgba(255,255,255,0.08); border-radius: 7px; padding: 3px; }}
+.nav button {{ color: #646E96; min-height: 31px; padding: 0 20px; border: none; border-radius: 5px; font-size: 10px; }}
+.nav button label {{ color: #7A86A4; }}
+.nav button:hover {{ background: #111730; color: #E8ECFF; }}
+.nav button:checked {{ color: #FFFFFF; background: #26316C; border: none; box-shadow: 0 0 18px rgba(76,111,255,0.28); }}
+.nav button:checked label {{ color: #FFFFFF; }}
+.status-summary-card {{ background: rgba(5,9,20,0.54); border: 1px solid rgba(152,162,196,0.15); border-left: 1px solid rgba(152,162,196,0.15); border-radius: 9px; padding: 13px 16px; box-shadow: none; }}
+.status-summary-card.category-drive {{ border-radius: 9px; }}
+.status-summary-card.category-ai {{ border-radius: 34px 34px 9px 9px; }}
+.status-summary-card.category-power {{ border-radius: 44px; }}
+.status-summary-card.category-network {{ border-radius: 18px 7px 22px 7px; }}
+.status-summary-card.category-environment {{ border-radius: 12px 26px 12px 26px; }}
+.status-summary-card.category-arm {{ border-radius: 7px 24px 7px 24px; }}
+.status-summary-card.category-safety {{ border-radius: 30px 9px 30px 9px; }}
+.status-summary-card label {{ color: #737F9E; }}
+.status-summary-card .system-name {{ color: #737F9E; font-size: 10px; font-weight: 900; }}
+.status-summary-card:hover {{ background: #0A1020; border-color: #354267; box-shadow: none; }}
+.status-summary-card.selected {{ background: rgba(12,17,34,0.92); border: 1px solid rgba(116,137,255,0.65); box-shadow: 0 14px 34px rgba(76,111,255,0.30), inset 0 -12px 22px rgba(76,111,255,0.36); }}
+.status-summary-card.selected label {{ color: #F3F5FF; }}
+.status-summary-card.selected .system-name {{ color: #F7F8FF; }}
+.status-summary-card.category-ai.selected {{ box-shadow: 0 14px 34px rgba(130,72,255,0.34), inset 0 -9px 17px rgba(128,72,255,0.45); }}
+.status-summary-card.category-power.selected {{ box-shadow: 0 14px 34px rgba(255,174,55,0.32), inset 0 -9px 17px rgba(255,174,55,0.43); }}
+.status-summary-card.category-network.selected {{ box-shadow: 0 14px 34px rgba(47,211,231,0.30), inset 0 -9px 17px rgba(47,211,231,0.42); }}
+.status-summary-card.category-environment.selected {{ box-shadow: 0 14px 34px rgba(77,184,154,0.30), inset 0 -9px 17px rgba(77,184,154,0.42); }}
+.status-summary-card.category-arm.selected {{ box-shadow: 0 14px 34px rgba(231,69,119,0.30), inset 0 -9px 17px rgba(231,69,119,0.42); }}
+.status-summary-card.category-safety.selected {{ box-shadow: 0 14px 34px rgba(41,213,168,0.30), inset 0 -9px 17px rgba(41,213,168,0.42); }}
+.status-summary-card.category-drive:not(.selected),
+.status-summary-card.category-ai:not(.selected),
+.status-summary-card.category-power:not(.selected),
+.status-summary-card.category-network:not(.selected),
+.status-summary-card.category-environment:not(.selected),
+.status-summary-card.category-arm:not(.selected),
+.status-summary-card.category-safety:not(.selected) {{ border-color: #171D2D; }}
+.section-title {{ color: #737F9E; font-size: 11px; }}
+.status-panel {{ background: #060A15; border: 1px solid #192132; border-radius: 9px; padding: 24px 28px; box-shadow: none; }}
+.status-panel-title {{ color: #F2F4FF; font-size: 17px; }}
+.status-panel-values {{ color: #76829F; }}
+.status-panel-updated {{ color: #4D5874; }}
+.status-panel drawingarea {{ background: #050A15; }}
+.status-dot {{ border-radius: 999px; min-width: 8px; min-height: 8px; }}
+.status-dot.status-live {{ background: #32D3A5; }}
+.status-dot.status-warn {{ background: #F2A92F; }}
+.status-dot.status-bad {{ background: #E34B72; }}
+.status-dot.status-muted {{ background: #52607A; }}
+.power-metric, .detail-metric {{ background: transparent; border: none; border-right: 1px solid #182033; border-radius: 0; padding: 8px 16px; }}
+.power-metric-title, .detail-metric-title {{ color: #586582; }}
+.power-metric-value, .detail-metric-value {{ color: #F1F3FC; font-size: 18px; }}
+.mission-page {{ background: transparent; }}
+.mission-page .video-card {{ background: #02040A; border: none; border-radius: 0; box-shadow: none; }}
+.mission-page .pip-frame .video-card {{ background: rgba(7,12,24,0.90); border: 1px solid rgba(255,255,255,0.13); border-radius: 7px; box-shadow: 0 18px 44px rgba(0,0,0,0.42); }}
+.mission-page .main-camera-label {{ background: rgba(5,8,18,0.52); border: 1px solid rgba(255,255,255,0.08); }}
+.mission-rail {{ background: rgba(10,15,29,0.72); border: 1px solid rgba(255,255,255,0.11); border-radius: 9px; margin: 0 0 8px 0; box-shadow: 0 24px 54px rgba(0,0,0,0.42), inset 0 -10px 24px rgba(46,92,225,0.08); }}
+.mission-rail .rail-heading-ko, .mission-rail .rail-section-title, .mission-rail .rail-title {{ color: #EDEFFF; }}
+.mission-rail .rail-section, .mission-rail .rail-preparation, .mission-rail .rail-technology, .mission-rail .rail-data-row, .mission-rail .display-options {{ background: rgba(255,255,255,0.025); border-color: rgba(255,255,255,0.08); box-shadow: none; }}
+.mission-rail .rail-device-name, .mission-rail .rail-description, .technology-name, .mission-rail .display-option {{ color: #7D89A5; }}
+.event-expander {{ background: #070C17; border: 1px solid #20283A; }}
+.event-expander:hover {{ background: #0A1120; }}
+.soc-progress {{ min-height: 24px; margin: 28px 160px 16px 160px; color: #F4F6FF; }}
+.soc-progress trough {{ background: #151B2A; border-radius: 999px; min-height: 18px; }}
+.soc-progress progress {{ background: linear-gradient(to right, #FF9F43, #F252A0, #735BFF, #34CEE3); border-radius: 999px; }}
+.soc-hero {{ color: #F2F4FF; font-size: 62px; font-weight: 900; margin: 70px 150px 0 150px; }}
+.arm-setup {{ background: #090E1B; border: 1px solid #1D2639; border-radius: 8px; padding: 14px; }}
+.competition-status {{ background: transparent; padding: 0 24px 0 24px; }}
+.competition-pills {{ margin: 0 0 14px 0; }}
+.competition-status-page {{
+  background: rgba(255,255,255,0.038);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 9px;
+  box-shadow: 0 30px 72px rgba(0,0,0,0.44), inset 0 -12px 28px rgba(46,92,225,0.06);
+}}
+.competition-metric {{
+  background: transparent;
+  border-right: 1px solid #182033;
+  padding: 26px 36px 22px 36px;
+}}
+.competition-metric-label {{
+  color: #596682;
+  font-size: 8px;
+  font-weight: 700;
+}}
+.competition-metric-value {{
+  color: #F0F2FC;
+  font-size: 15px;
+  font-weight: 900;
+  font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
+}}
+.competition-status-page drawingarea {{ background: #050914; }}
+
+/* Cohesive control-room palette: deep navy surfaces, blue interaction,
+ * semantic colours reserved for live/warning/danger states. */
+window, .console-shell, .page {{
+  background-color: #060B14;
+  background-image: linear-gradient(160deg, #09111E, #060B14 58%, #07101B);
+  color: #E7EEF7;
+}}
+.side-rail {{ background: #08111E; border-right-color: #1B2A3D; }}
+.rail-logo {{ background: #3978E6; box-shadow: 0 6px 18px rgba(57,120,230,0.24); }}
+.rail-icon, .rail-icon label {{ color: #667A91; }}
+.rail-icon:hover {{ background: #101D2D; color: #C4D7EB; }}
+.rail-icon:hover label {{ color: #C4D7EB; }}
+.rail-icon.active {{ background: #132742; color: #9DC8FF; border-color: #315F91; }}
+.rail-icon.active label {{ color: #9DC8FF; }}
+.topbar {{ background: rgba(7,14,25,0.96); border-bottom: 1px solid #16263A; }}
+.topbar .brand {{ color: #EDF3FA; }}
+.topbar .eyebrow, .topbar .status-chip {{ color: #75899F; }}
+.topbar .status-chip.status-live {{ color: #55C995; }}
+.topbar .status-chip.status-camera-live {{ color: #58BFE5; }}
+.nav {{ background: rgba(7,14,25,0.96); border-bottom: 1px solid #16263A; }}
+.nav stackswitcher {{ background: #0C1624; border-color: #203149; }}
+.nav button, .nav button label {{ color: #7F92A8; }}
+.nav button:hover {{ background: #122035; color: #DDE8F3; }}
+.nav button:hover label {{ color: #DDE8F3; }}
+.nav button:checked {{
+  background: #183052;
+  color: #F4F8FC;
+  border: 1px solid #315F91;
+  box-shadow: 0 5px 16px rgba(24,80,145,0.22);
+}}
+.nav button:checked label {{ color: #F4F8FC; }}
+.global-estop {{
+  background-color: #A82F3C;
+  background-image: linear-gradient(145deg, #D85B64, #B63A47 52%, #8F2633);
+  border: 1px solid #EE7A82;
+  border-bottom-color: #6F1823;
+  border-radius: 12px;
+  box-shadow: 0 7px 0 #641722, 0 12px 24px rgba(137,29,42,0.28), inset 0 1px rgba(255,255,255,0.24);
+  padding: 5px 12px;
+}}
+.global-estop:hover {{
+  background-image: linear-gradient(145deg, #E96A73, #C84652 52%, #9E2E3A);
+  border-color: #FF9AA1;
+  box-shadow: 0 7px 0 #641722, 0 14px 28px rgba(164,36,51,0.34), inset 0 1px rgba(255,255,255,0.28);
+}}
+.global-estop:active {{
+  background-image: linear-gradient(145deg, #9A2935, #B33542);
+  border-color: #D75A65;
+  box-shadow: 0 2px 0 #641722, inset 0 3px 8px rgba(76,10,20,0.34);
+}}
+.global-estop:disabled {{
+  background-image: linear-gradient(145deg, #8C4E55, #71373E);
+  border-color: #9A6268;
+  box-shadow: 0 4px 0 #4C292D;
+  opacity: 0.58;
+}}
+.estop-symbol {{
+  background: #7D1E29;
+  color: #FFFFFF;
+  border: 1px solid rgba(255,255,255,0.38);
+  border-radius: 999px;
+  min-width: 24px;
+  min-height: 24px;
+  font-size: 15px;
+  font-weight: 900;
+}}
+.estop-title {{ color: #FFFFFF; font-size: 12px; font-weight: 900; }}
+.estop-subtitle {{ color: rgba(255,255,255,0.72); font-size: 7px; font-weight: 800; letter-spacing: 1.4px; }}
+
+.status-readiness, .status-summary-card, .status-panel,
+.competition-status-page, .mission-rail {{
+  background: #0B1422;
+  border-color: #203047;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+}}
+.status-readiness {{ background: #0E1A2B; }}
+.status-overall, .status-panel-title, .status-summary-card.selected label,
+.status-summary-card.selected .system-name {{ color: #EDF3FA; }}
+.status-summary-card {{
+  border-left: 3px solid #2B405A;
+  border-radius: 10px;
+}}
+.status-summary-card.category-drive,
+.status-summary-card.category-ai,
+.status-summary-card.category-power,
+.status-summary-card.category-network,
+.status-summary-card.category-environment,
+.status-summary-card.category-arm,
+.status-summary-card.category-safety {{ border-radius: 10px; }}
+.status-summary-card.category-drive:not(.selected),
+.status-summary-card.category-ai:not(.selected),
+.status-summary-card.category-power:not(.selected),
+.status-summary-card.category-network:not(.selected),
+.status-summary-card.category-environment:not(.selected),
+.status-summary-card.category-arm:not(.selected),
+.status-summary-card.category-safety:not(.selected) {{ border-color: #203047; border-left-color: #2B405A; }}
+.status-summary-card.category-drive:not(.selected) {{
+  background: #0C1727;
+  border-left-color: #4B8BEA;
+}}
+.status-summary-card.category-ai:not(.selected) {{
+  background: #151429;
+  border-left-color: #8A6FF0;
+}}
+.status-summary-card.category-power:not(.selected) {{
+  background: #201A12;
+  border-left-color: #E1A43B;
+}}
+.status-summary-card.category-network:not(.selected) {{
+  background: #0C1C25;
+  border-left-color: #48BCD0;
+}}
+.status-summary-card.category-environment:not(.selected) {{
+  background: #0D1F1C;
+  border-left-color: #4DB89A;
+}}
+.status-summary-card.category-arm:not(.selected) {{
+  background: #20131D;
+  border-left-color: #D96C92;
+}}
+.status-summary-card.category-safety:not(.selected) {{
+  background: #0D1C18;
+  border-left-color: #4ABC83;
+}}
+.status-summary-card.category-drive:not(.selected) .system-name {{ color: #78A9EF; }}
+.status-summary-card.category-ai:not(.selected) .system-name {{ color: #A08CF0; }}
+.status-summary-card.category-power:not(.selected) .system-name {{ color: #D8AB59; }}
+.status-summary-card.category-network:not(.selected) .system-name {{ color: #66BAC9; }}
+.status-summary-card.category-environment:not(.selected) .system-name {{ color: #72CDB2; }}
+.status-summary-card.category-arm:not(.selected) .system-name {{ color: #D985A4; }}
+.status-summary-card.category-safety:not(.selected) .system-name {{ color: #6BC397; }}
+.status-summary-card label, .status-summary-card .system-name {{ color: #8396AA; }}
+.status-summary-card:hover {{ background: #0F1C2C; border-color: #30465F; }}
+.status-summary-card.selected,
+.status-summary-card.category-drive.selected,
+.status-summary-card.category-ai.selected,
+.status-summary-card.category-power.selected,
+.status-summary-card.category-network.selected,
+.status-summary-card.category-environment.selected,
+.status-summary-card.category-arm.selected,
+.status-summary-card.category-safety.selected {{
+  background: #142642;
+  border: 1px solid #4B86D9;
+  border-left: 3px solid #5B9AF2;
+  box-shadow: 0 8px 22px rgba(34,92,165,0.24);
+}}
+.status-summary-card.category-drive.selected {{
+  background-color: #142642;
+  background-image: linear-gradient(135deg, rgba(61,126,232,0.42), rgba(15,29,48,0.94) 72%);
+  border-color: #5B9AF2;
+  box-shadow: 0 10px 28px rgba(48,111,211,0.28), inset 0 -10px 22px rgba(61,126,232,0.14);
+}}
+.status-summary-card.category-ai.selected {{
+  background-color: #211B42;
+  background-image: linear-gradient(135deg, rgba(125,92,229,0.44), rgba(18,24,45,0.95) 72%);
+  border-color: #957AF0;
+  border-left-color: #A086F5;
+  box-shadow: 0 10px 28px rgba(116,82,216,0.27), inset 0 -10px 22px rgba(125,92,229,0.14);
+}}
+.status-summary-card.category-power.selected {{
+  background-color: #2A251A;
+  background-image: linear-gradient(135deg, rgba(220,159,53,0.36), rgba(20,29,43,0.95) 72%);
+  border-color: #D8A646;
+  border-left-color: #E8B65A;
+  box-shadow: 0 10px 28px rgba(205,145,41,0.22), inset 0 -10px 22px rgba(220,159,53,0.12);
+}}
+.status-summary-card.category-network.selected {{
+  background-color: #102A36;
+  background-image: linear-gradient(135deg, rgba(65,171,198,0.36), rgba(15,29,48,0.94) 72%);
+  border-color: #50AFC8;
+  border-left-color: #62C5D7;
+  box-shadow: 0 10px 28px rgba(47,153,180,0.23), inset 0 -10px 22px rgba(65,171,198,0.12);
+}}
+.status-summary-card.category-environment.selected {{
+  background-color: #123028;
+  background-image: linear-gradient(135deg, rgba(67,172,140,0.40), rgba(15,29,48,0.94) 72%);
+  border-color: #58C5A4;
+  border-left-color: #6BD4B3;
+  box-shadow: 0 10px 28px rgba(49,157,125,0.23), inset 0 -10px 22px rgba(67,172,140,0.13);
+}}
+.status-summary-card.category-arm.selected {{
+  background-color: #321B2B;
+  background-image: linear-gradient(135deg, rgba(207,87,132,0.40), rgba(28,24,42,0.95) 72%);
+  border-color: #DB769A;
+  border-left-color: #E184A6;
+  box-shadow: 0 10px 28px rgba(190,72,116,0.25), inset 0 -10px 22px rgba(207,87,132,0.13);
+}}
+.status-summary-card.category-safety.selected {{
+  background-color: #102A26;
+  background-image: linear-gradient(135deg, rgba(62,177,128,0.36), rgba(15,29,48,0.94) 72%);
+  border-color: #55C995;
+  border-left-color: #68D09C;
+  box-shadow: 0 10px 28px rgba(48,157,109,0.22), inset 0 -10px 22px rgba(62,177,128,0.12);
+}}
+.section-title, .status-panel-values {{ color: #8194AA; }}
+.status-panel-updated, .power-metric-title, .detail-metric-title,
+.competition-metric-label {{ color: #667B92; }}
+.power-metric-value, .detail-metric-value, .competition-metric-value {{ color: #E8EFF7; }}
+.power-metric, .detail-metric {{ border-right-color: #213148; }}
+.power-state-summary, .power-reference {{ background: #101D2E; color: #9CB0C3; border-left-color: #4B88E6; }}
+.sensor-tile {{
+  background: #0B1625;
+  border: 1px solid #24374D;
+  border-top: 4px solid #4F83B8;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.20);
+}}
+.sensor-tile-climate {{ border-top-color: #4F9BEF; }}
+.sensor-tile-air {{ border-top-color: #947AEF; }}
+.sensor-tile-gas {{ border-top-color: #E8A333; }}
+.sensor-tile-flame {{ border-top-color: #4FC490; }}
+.sensor-tile-name {{ color: #B7C8D8; font-size: 12px; font-weight: 800; }}
+.sensor-tile-value {{ color: #F2F7FC; font-size: 22px; font-weight: 900; }}
+.sensor-tile-note {{ color: #71879C; font-size: 9px; }}
+.sensor-status {{ border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 900; }}
+.sensor-status.status-live {{ color: #8BE3B6; background: #123D2D; }}
+.sensor-status.status-warn {{ color: #FFD77A; background: #493514; }}
+.sensor-status.status-bad {{ color: #FF9BA8; background: #4A1823; }}
+.sensor-status.status-muted {{ color: #A8B6C4; background: #263442; }}
+.sensor-overall-block {{ border-radius: 8px; padding: 3px 14px; border: 1px solid #2A4057; }}
+.sensor-overall-block.status-live {{ background: #103526; border-color: #277A59; }}
+.sensor-overall-block.status-warn {{ background: #3A2A12; border-color: #936A21; }}
+.sensor-overall-block.status-bad {{ background: #421823; border-color: #A33D54; }}
+.sensor-overall-block.status-muted {{ background: #202D3A; border-color: #536579; }}
+.sensor-overall-count {{ font-size: 16px; font-weight: 900; }}
+.sensor-overall-caption {{ font-size: 9px; font-weight: 800; }}
+.sensor-overall-count.status-live, .sensor-overall-caption.status-live {{ color: #8BE3B6; }}
+.sensor-overall-count.status-warn, .sensor-overall-caption.status-warn {{ color: #FFD77A; }}
+.sensor-overall-count.status-bad, .sensor-overall-caption.status-bad {{ color: #FF9BA8; }}
+.sensor-overall-count.status-muted, .sensor-overall-caption.status-muted {{ color: #A8B6C4; }}
+.sensor-group-chip {{
+  color: #8FA6BA;
+  background: #152538;
+  border-radius: 10px;
+  padding: 2px 7px;
+  font-size: 8px;
+  font-weight: 800;
+}}
+.sensor-group-climate {{ color: #75B5F6; background: #112A44; }}
+.sensor-group-air {{ color: #B29FF6; background: #251E48; }}
+.sensor-group-gas {{ color: #F0BB64; background: #342513; }}
+.sensor-group-flame {{ color: #75D5AF; background: #12342A; }}
+.sensor-tile.sensor-flame-normal {{
+  background: #0D211D;
+  border-color: #2D765D;
+  border-top-color: #4FC490;
+}}
+.sensor-tile.sensor-flame-detected {{
+  background: #2A1018;
+  border-color: #9E354F;
+  border-top-color: #E44968;
+}}
+.status-view-option {{ background: #0E1928; color: #8296AB; border-color: #26384E; }}
+.status-view-option:hover {{ background: #14243A; color: #D8E5F1; }}
+.status-view-option:checked {{ background: #285DA5; color: #FFFFFF; border-color: #4B88E6; }}
+.status-view-option:focus {{ border-color: #4B88E6; box-shadow: inset 0 0 0 1px #4B88E6; }}
+.status-summary-value {{ color: #879AAF; }}
+.status-summary-value.status-live {{ color: #55C995; }}
+.status-summary-value.status-progress {{ color: #69A7F5; }}
+.status-summary-value.status-warn {{ color: #E7B34F; }}
+.status-summary-value.status-bad {{ color: #E56A74; }}
+
+.mission-page {{ background: transparent; }}
+.mission-rail {{ background: #0D1828; border-color: #22344C; }}
+.mission-rail .rail-section,
+.mission-rail .rail-preparation,
+.mission-rail .rail-technology,
+.mission-rail .rail-data-row,
+.mission-rail .display-options {{ background: #111F31; border-color: #263A52; }}
+.mission-rail .display-options {{
+  background-color: #0E1D2C;
+  background-image: linear-gradient(135deg, rgba(75,139,234,0.12), rgba(85,185,222,0.04));
+  border-color: #2A4963;
+}}
+.mission-rail .rail-section {{ border-top-color: #4B8BEA; }}
+.mission-rail .rail-heading-ko,
+.mission-rail .rail-section-title,
+.mission-rail .rail-title,
+.mission-rail .rail-data-value {{ color: #E8F0F8; }}
+.mission-rail .display-options-title {{ color: #70C7F2; }}
+.mission-rail .rail-device-name,
+.mission-rail .rail-description,
+.technology-name {{ color: #8CA0B5; }}
+.mission-rail .display-option,
+.mission-rail .display-option label {{ color: #CFDCE8; }}
+.mission-rail .rail-section-count {{ background: #173353; color: #76B7F6; }}
+.mission-rail .rail-section-divider {{ background: #263A52; }}
+.mission-rail .rail-data-label {{ color: #71869C; }}
+.mission-rail .rail-data-target,
+.mission-rail .rail-data-distance {{ color: #62BDE8; }}
+.technology-marker {{ background: #4B8BEA; }}
+.technology-vision .technology-marker {{ background: #55B9DE; }}
+.technology-safety .technology-marker {{ background: #55C995; }}
+.technology-arm .technology-marker {{ background: #7397E8; }}
+.display-option check, .event-filter check {{ background: #0C1725; border-color: #526B84; }}
+.display-option check:checked, .event-filter check:checked {{ background: #3978D6; border-color: #5795E8; }}
+.mission-rail .display-option check {{ background: #091725; border-color: #66849E; }}
+.mission-rail .display-option check:checked {{ background: #4B8BEA; border-color: #7AB4F3; color: #FFFFFF; }}
+.rail-tool-selector button {{ background: #13243A; color: #DDE8F3; border-color: #31506D; }}
+menu, menuitem {{ background: #101C2B; color: #DCE7F2; border-color: #2A4059; }}
+menuitem label {{ color: #DCE7F2; }}
+menuitem:hover, menuitem:active {{ background: #193454; color: #FFFFFF; }}
+menuitem:hover label, menuitem:active label {{ color: #FFFFFF; }}
+
+.event-expander, .event-drawer-panel, .event-card,
+.event-card text, .event-operation-list, .event-operation-row {{
+  background: #111F31;
+  color: #D7E2EC;
+  border-color: #30465F;
+}}
+.event-expander {{ background: #14243A; border-color: #36516D; }}
+.event-expander:hover, .event-operation-row:hover {{ background: #192B40; }}
+.event-column-header {{ background: #1A2B3F; border-bottom-color: #3A5068; }}
+.event-column-title, .event-operation-time, .event-operation-technical,
+.event-operation-arrow, .event-operation-separator {{ color: #A1B3C4; }}
+.event-column-title {{ color: #B8C7D5; font-weight: 800; }}
+.event-operation-time {{ color: #9DB2C5; }}
+.event-operation-message {{ color: #F1F5F9; }}
+.event-operation-module {{ color: #8DC4EE; }}
+.event-operation-technical {{ color: #B4C4D3; }}
+.event-operation-level.event-level-error {{ color: #FF7A84; }}
+.event-operation-level.event-level-warning {{ color: #F3C25E; }}
+.event-operation-level.event-level-info {{ color: #72B7FF; }}
+.event-operation-raw, .developer-box {{ background: #18283B; color: #B7C7D5; border-color: #344A61; }}
+.developer-box label {{ color: #AABBCB; }}
+.event-status-title {{ color: #F0F5FA; }}
+.event-status-message {{ color: #B7C6D5; }}
+.event-collapse, .developer-toggle {{ color: #A3B5C6; }}
+.event-filter {{ color: #C4D2DF; }}
+
+.soc-progress trough {{ background: #182538; }}
+.soc-progress progress {{ background: linear-gradient(to right, #356FD0, #4B8BEA, #56B8DA); }}
+.arm-setup {{ background: #0D1827; border-color: #23364D; }}
+.competition-status-page drawingarea, .status-panel drawingarea {{ background: #091321; }}
+.competition-standby {{
+  background-color: #0A1422;
+  background-image: linear-gradient(145deg, rgba(52,108,180,0.12), rgba(7,15,27,0.18) 58%, rgba(75,59,145,0.08));
+  border: 1px solid #22364D;
+  border-radius: 12px;
+  padding: 28px 34px;
+  box-shadow: 0 22px 52px rgba(0,0,0,0.28), inset 0 1px rgba(255,255,255,0.035);
+}}
+.standby-hero {{
+  background: #0D1A2A;
+  border: 1px solid #263D56;
+  border-radius: 11px;
+  padding: 28px 34px;
+  box-shadow: inset 0 -18px 36px rgba(30,76,130,0.10);
+}}
+.competition-standby .standby-kicker {{
+  color: #70C7F2;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.6px;
+}}
+.competition-standby .standby-spinner {{ color: #70C7F2; }}
+.competition-standby .standby-title {{ color: #F1F6FB; font-size: 27px; font-weight: 900; }}
+.competition-standby .standby-description {{ color: #A9BDCF; font-size: 13px; }}
+.competition-standby .standby-note {{ color: #71879B; font-size: 10px; }}
+.standby-source-card {{
+  background: #0D1B2B;
+  border: 1px solid #263B52;
+  border-top: 2px solid #4B8BEA;
+  border-radius: 9px;
+  padding: 14px 16px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.16);
+}}
+.standby-source-card.standby-source-power {{ border-top-color: #D9A64B; }}
+.standby-source-card.standby-source-arm {{ border-top-color: #D8799B; }}
+.standby-source-card.standby-source-ai {{ border-top-color: #8C7BEA; }}
+.competition-standby .standby-source-name {{ color: #E5EDF5; font-size: 12px; font-weight: 900; }}
+.competition-standby .standby-source-endpoint {{
+  color: #7290AA;
+  font-size: 10px;
+  font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
+}}
+.competition-standby .standby-source-state {{ color: #91A5B8; font-size: 10px; }}
+.standby-source-dot {{ background: #52708B; border-radius: 999px; }}
+.progress-hud {{ background: #0E1B2B; border-color: #263B52; box-shadow: 0 8px 20px rgba(0,0,0,0.18); }}
+.progress-connector {{ background: #344A61; }}
+.progress-connector.active, .progress-connector.completed {{ background: #4B8BEA; }}
+.progress-marker.active {{ background: #4B8BEA; border-color: #7AB4F3; }}
+.progress-marker.completed {{ color: #55C995; border-color: #55C995; }}
+scrollbar slider {{ background: #344A61; }}
 """.format(**token)
     return css.encode("utf-8")
 
@@ -2567,6 +3101,7 @@ class OperatorConsole(Gtk.Window):
     def __init__(self, host: str, d435_port: int, l515_port: int, metadata_port: int,
                  latency_ms: int, telemetry_port: int, chassis_telemetry_port: int,
                  arm_telemetry_port: int = 5007,
+                 environment_telemetry_port: int = 5008,
                  ops_host: str | None = None, ops_port: int = 9001,
                  ops_token_file: str = DEFAULT_OPS_TOKEN_FILE,
                  smoke_probe_file: str | None = None,
@@ -2588,6 +3123,9 @@ class OperatorConsole(Gtk.Window):
         self._telemetry_receiver = LatestTelemetryReceiver(telemetry_port)
         self._chassis_receiver = LatestTelemetryReceiver(chassis_telemetry_port)
         self._arm_receiver = LatestArmTelemetryReceiver(arm_telemetry_port)
+        self._environment_receiver = LatestEnvironmentTelemetryReceiver(
+            environment_telemetry_port,
+        )
         self._events = EventLog()
         self._mission_events = EventLog()
         self._d435 = VideoPanel("작업 카메라", host, d435_port, latency_ms,
@@ -2700,21 +3238,29 @@ class OperatorConsole(Gtk.Window):
         title_row = Gtk.Box(spacing=12)
         title_row.set_margin_end(4)
         title_copy = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        title_copy.set_margin_top(9)
         title = Gtk.Label(label="재난 대응 로봇 관제 시스템")
         title.set_xalign(0.0)
         _style(title, "brand")
         eyebrow = Gtk.Label(label="실시간 임무 수행 및 안전 상태 확인")
         eyebrow.set_xalign(0.0)
         _style(eyebrow, "eyebrow")
+        eyebrow.set_no_show_all(True)
+        eyebrow.hide()
         title_copy.pack_start(title, False, False, 0)
         title_copy.pack_start(eyebrow, False, False, 0)
         title_row.pack_start(title_copy, False, False, 0)
         title_row.pack_start(Gtk.Box(), True, True, 0)
         self._global_estop = Gtk.Button()
-        self._global_estop.set_size_request(184, 54)
-        estop_content = Gtk.Box(spacing=0)
+        self._global_estop.set_size_request(124, 42)
+        estop_content = Gtk.Box(spacing=9)
         estop_content.set_halign(Gtk.Align.CENTER)
         estop_content.set_valign(Gtk.Align.CENTER)
+        estop_symbol = Gtk.Label(label="!")
+        estop_symbol.set_size_request(24, 24)
+        estop_symbol.set_halign(Gtk.Align.CENTER)
+        estop_symbol.set_valign(Gtk.Align.CENTER)
+        _style(estop_symbol, "estop-symbol")
         estop_copy = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         estop_title = Gtk.Label(label="긴급 정지")
         _style(estop_title, "estop-title")
@@ -2722,6 +3268,7 @@ class OperatorConsole(Gtk.Window):
         _style(estop_subtitle, "estop-subtitle")
         estop_copy.pack_start(estop_title, False, False, 0)
         estop_copy.pack_start(estop_subtitle, False, False, 0)
+        estop_content.pack_start(estop_symbol, False, False, 0)
         estop_content.pack_start(estop_copy, False, False, 0)
         self._global_estop.add(estop_content)
         self._global_estop.set_tooltip_text(
@@ -2815,7 +3362,8 @@ class OperatorConsole(Gtk.Window):
         rail_heading_ko.set_xalign(0.0)
         _style(rail_heading_ko, "rail-heading-ko")
         rail_heading.pack_start(rail_heading_ko, False, False, 0)
-        rail.pack_start(rail_heading, False, False, 0)
+        # The approved layout starts directly with the device card.
+        # Keep no legacy mission heading above it.
 
         system_check = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         _style(system_check, "rail-section")
@@ -2916,10 +3464,10 @@ class OperatorConsole(Gtk.Window):
         rail.pack_end(display_options, False, False, 0)
 
         rail_data = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=11)
-        rail_data.set_no_show_all(True)
+        rail_data.set_no_show_all(False)
         self._mission_metrics = {}
         self._mission_metric_rows: dict[str, Gtk.Box] = {}
-        for key, heading in (("target", "인식 대상"), ("distance", "대상 거리"), ("tool", "장착 엔드이펙터")):
+        for key, heading in (("target", "인식 대상"), ("distance", "대상 거리")):
             row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             _style(row, "rail-data-row")
             row_heading = Gtk.Label(label=heading)
@@ -2934,7 +3482,26 @@ class OperatorConsole(Gtk.Window):
             rail_data.pack_start(row, False, False, 0)
             self._mission_metrics[key] = row_value
             self._mission_metric_rows[key] = row
+
+        tool_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        _style(tool_row, "rail-data-row", "rail-tool-selector-row")
+        tool_heading = Gtk.Label(label="엔드이펙터 선택")
+        tool_heading.set_xalign(0.0)
+        _style(tool_heading, "rail-data-label")
+        self._mission_tool_selector = Gtk.ComboBoxText()
+        for tool in ("미확인", *END_EFFECTOR_PURPOSES.keys()):
+            self._mission_tool_selector.append_text(tool)
+        self._mission_tool_selector.set_active(0)
+        self._mission_tool_selector.set_tooltip_text(
+            "작업에 사용할 엔드이펙터를 선택합니다. 로봇 적용은 제어 연동 후 활성화됩니다."
+        )
+        _style(self._mission_tool_selector, "rail-tool-selector")
+        tool_row.pack_start(tool_heading, False, False, 0)
+        tool_row.pack_start(self._mission_tool_selector, False, False, 0)
+        rail_data.pack_start(tool_row, False, False, 0)
+        self._mission_metric_rows["tool"] = tool_row
         rail.pack_start(rail_data, False, False, 0)
+        rail_data.show_all()
         self._rail_data = rail_data
 
         self._mission_metrics["safety"] = self._preparation_status["safety"][1]
@@ -2949,7 +3516,7 @@ class OperatorConsole(Gtk.Window):
         self._mission_event_expander = mission_event_expander
         mission_page.pack_end(mission_event_expander, False, True, 0)
 
-        systems_page = RobotStatusDashboard(
+        systems_page = CompetitionStatusDashboard(
             input_source=input_source,
             power_port=telemetry_port,
             chassis_port=chassis_telemetry_port,
@@ -2957,6 +3524,16 @@ class OperatorConsole(Gtk.Window):
             metadata_port=metadata_port,
         )
         self._robot_status = systems_page
+        self._environment_status = EnvironmentSensorDashboard(
+            port=environment_telemetry_port,
+        )
+        self._syncing_end_effector_selectors = False
+        self._mission_tool_selector.connect(
+            "changed", self._on_mission_end_effector_changed,
+        )
+        self._robot_status.connect_end_effector_changed(
+            self._on_status_end_effector_changed,
+        )
         systems_scroll = Gtk.ScrolledWindow()
         systems_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         systems_scroll.add(systems_page)
@@ -2981,16 +3558,23 @@ class OperatorConsole(Gtk.Window):
         stack = Gtk.Stack()
         stack.set_hhomogeneous(False)
         stack.set_vhomogeneous(False)
-        stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
-        stack.set_transition_duration(160)
+        # Navigation must remain immediate while two video sinks and telemetry
+        # drawings are active.  Crossfade composites both full-size pages.
+        stack.set_transition_type(Gtk.StackTransitionType.NONE)
+        stack.set_transition_duration(0)
         stack.add_titled(mission_page, "mission", "실시간 화면")
+        stack.add_titled(
+            self._environment_status, "environment", "환경 센서",
+        )
         stack.add_titled(systems_scroll, "systems", "로봇 상태")
         # The token-gated controls remain implemented for a future maintenance
         # surface, but are not exposed in the judge-facing competition console.
         self._stack = stack
         switcher = Gtk.StackSwitcher()
         switcher.set_stack(stack)
-        switcher.set_halign(Gtk.Align.CENTER)
+        switcher.set_halign(Gtk.Align.START)
+        switcher.set_margin_start(0)
+        switcher.set_size_request(238, 34)
         nav = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         _style(nav, "nav")
         nav.pack_start(switcher, False, False, 0)
@@ -3001,6 +3585,8 @@ class OperatorConsole(Gtk.Window):
         self._event_expander = event_expander
         stack.connect("notify::visible-child-name", self._on_page_changed)
         layout.pack_start(event_expander, False, True, 0)
+        # Preserve the original two-tab information architecture.  Navigation
+        # stays in the header instead of introducing an unrelated side rail.
         self.add(layout)
         GLib.idle_add(
             lambda: (self._on_page_changed(self._stack, None), False)[1]
@@ -3364,10 +3950,57 @@ class OperatorConsole(Gtk.Window):
     def _on_page_changed(self, stack: Gtk.Stack, _param: object) -> None:
         """Use the in-page Mission footer; keep one footer on every tab."""
         mission_visible = stack.get_visible_child_name() == "mission"
-        self._event_expander.set_visible(not mission_visible)
+        if hasattr(self, "_rail_buttons"):
+            for index, button in enumerate(self._rail_buttons):
+                context = button.get_style_context()
+                context.remove_class("active")
+                if index == (0 if mission_visible else 1):
+                    context.add_class("active")
+        # The approved robot-status references use the full height for the
+        # subsystem visualization.  Mission keeps its own compact event bar;
+        # the status surface intentionally has no second global footer.
+        self._event_expander.set_visible(False)
         if not mission_visible:
             self._mission_event_expander.set_expanded(False)
             self._event_expander.set_expanded(False)
+
+    def _on_rail_navigation(
+        self, _button: Gtk.Button, destination: str,
+    ) -> None:
+        if destination == "mission":
+            self._stack.set_visible_child_name("mission")
+            return
+        self._stack.set_visible_child_name("systems")
+        if destination == "systems":
+            self._robot_status._card_buttons["drive"].clicked()
+        elif destination in {"arm", "safety"}:
+            self._robot_status._card_buttons[destination].clicked()
+        elif destination == "events":
+            self._event_expander.set_expanded(True)
+
+    def _on_mission_end_effector_changed(self, *_args: object) -> None:
+        if self._syncing_end_effector_selectors:
+            return
+        selected = self._mission_tool_selector.get_active_text() or "미확인"
+        self._syncing_end_effector_selectors = True
+        try:
+            self._robot_status.select_end_effector(selected)
+        finally:
+            self._syncing_end_effector_selectors = False
+
+    def _on_status_end_effector_changed(self, *_args: object) -> None:
+        if self._syncing_end_effector_selectors:
+            return
+        selected = self._robot_status.selected_end_effector()
+        model = self._mission_tool_selector.get_model()
+        self._syncing_end_effector_selectors = True
+        try:
+            for index, row in enumerate(model):
+                if row[0] == selected:
+                    self._mission_tool_selector.set_active(index)
+                    break
+        finally:
+            self._syncing_end_effector_selectors = False
 
     def _on_video_area_allocated(
         self, _widget: Gtk.Overlay, allocation: Gdk.Rectangle,
@@ -3454,6 +4087,8 @@ class OperatorConsole(Gtk.Window):
         self._refresh_estop_availability()
         snapshot = self._telemetry_receiver.latest()
         chassis_snapshot = self._chassis_receiver.latest()
+        arm_snapshot = self._arm_receiver.latest()
+        environment_snapshot = self._environment_receiver.latest()
         metadata = self._metadata_receiver.latest()
         if metadata is None:
             yolo = "WAITING"
@@ -3466,7 +4101,8 @@ class OperatorConsole(Gtk.Window):
             )
         telemetry = self._telemetry_state(snapshot)
         chassis_state = self._telemetry_state(chassis_snapshot)
-        arm_state = self._telemetry_state(self._arm_receiver.latest())
+        arm_state = self._telemetry_state(arm_snapshot)
+        environment_state = environment_source_state(environment_snapshot)
         odom, drive, can = chassis_component_states(chassis_snapshot)
         telemetry_mask = (
             chassis_snapshot.component_mask
@@ -3652,11 +4288,6 @@ class OperatorConsole(Gtk.Window):
             "작업 대상    대상 탐지 대기"
             if target is None else f"작업 대상    {target.class_name}"
         )
-        # Prefer the robot-arm telemetry identity; a clearly labelled manual
-        # confirmation is used only while those optional fields are absent.
-        self._mission_metrics["tool"].set_text(
-            self._robot_status.end_effector_plan_text()
-        )
         chassis_mode = self._ops_panel.latest_chassis_mode()
         drive_state = "" if chassis_snapshot is None else chassis_snapshot.drive_state
         mission = mission_presentation(chassis_mode, drive_state)
@@ -3696,7 +4327,7 @@ class OperatorConsole(Gtk.Window):
         self._robot_status.update(
             power=snapshot,
             chassis=chassis_snapshot,
-            arm=self._arm_receiver.latest(),
+            arm=arm_snapshot,
             metadata=metadata,
             front_video_state=l515_video,
             work_video_state=d435_video,
@@ -3707,6 +4338,7 @@ class OperatorConsole(Gtk.Window):
             control_link_ready=self._ops_panel.link_ready(),
             chassis_mode=chassis_mode,
         )
+        self._environment_status.update(environment_snapshot)
         self._l515.set_rover_component_states(
             front_live=l515_video == "LIVE",
             work_live=d435_video == "LIVE" and arm_state == "LIVE",
@@ -3751,6 +4383,10 @@ class OperatorConsole(Gtk.Window):
             "chassis": chassis_state,
             "metadata": yolo,
             "arm": arm_state,
+            "environment": environment_state,
+            "environment_climate": self._environment_status.probe_values()[0],
+            "environment_air": self._environment_status.probe_values()[1],
+            "environment_hazard": self._environment_status.probe_values()[2],
             "video_l515": self._l515.health_state(),
             "video_d435": self._d435.health_state(),
             "safety_banner": safety,
@@ -3786,6 +4422,7 @@ class OperatorConsole(Gtk.Window):
         self._telemetry_receiver.close()
         self._chassis_receiver.close()
         self._arm_receiver.close()
+        self._environment_receiver.close()
         self._ops_panel.close()
         Gtk.main_quit()
 
@@ -3838,6 +4475,7 @@ def main() -> None:
     parser.add_argument("--telemetry-port", type=int, default=5004)
     parser.add_argument("--chassis-telemetry-port", type=int, default=5005)
     parser.add_argument("--arm-telemetry-port", type=int, default=5007)
+    parser.add_argument("--environment-telemetry-port", type=int, default=5008)
     parser.add_argument(
         "--ops-host",
         default=None,
@@ -3864,6 +4502,7 @@ def main() -> None:
                               args.metadata_port, args.latency_ms, args.telemetry_port,
                               args.chassis_telemetry_port,
                               args.arm_telemetry_port,
+                              args.environment_telemetry_port,
                               ops_host=args.host if args.ops_host is None else args.ops_host,
                               ops_port=args.ops_port,
                               ops_token_file=args.ops_token_file,

@@ -13,6 +13,10 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
 from .arm_telemetry import ArmTelemetrySnapshot, temperature_state
+from .environment_telemetry import (
+    EnvironmentTelemetrySnapshot,
+    environment_source_state,
+)
 from .metadata import (
     MetadataFrame,
     pick_display_target,
@@ -35,6 +39,7 @@ END_EFFECTOR_PURPOSES = {
     "분사 노즐 모듈": "소화·소독·분무·세척",
     "브러시·표면 정리 모듈": "먼지·오염물·이물질 제거",
     "접촉식 센서 프로브": "가스·수분·온도·생체 신호 측정",
+    "환경 센싱 모듈": "온습도·기압·공기질·가스·불꽃 감시",
     "근접 비전·검사 헤드": "균열·배관·RFID 정밀 검사",
 }
 
@@ -156,7 +161,7 @@ class Sparkline(Gtk.DrawingArea):
         self._series = tuple(series)
         self._unit = unit
         self._stale = False
-        self.set_size_request(260, 118)
+        self.set_size_request(260, 360)
         self.connect("draw", self._draw)
 
     def set_stale(self, stale: bool) -> None:
@@ -169,11 +174,11 @@ class Sparkline(Gtk.DrawingArea):
         left, right, top, bottom = 38.0, 10.0, 12.0, 24.0
         plot_w = max(1.0, width - left - right)
         plot_h = max(1.0, height - top - bottom)
-        cr.set_source_rgb(0.965, 0.976, 0.988)
+        cr.set_source_rgb(0.035, 0.075, 0.129)
         cr.rectangle(0, 0, width, height)
         cr.fill()
         cr.set_line_width(1.0)
-        cr.set_source_rgba(0.376, 0.447, 0.529, 0.15)
+        cr.set_source_rgba(0.27, 0.39, 0.53, 0.24)
         for index in range(5):
             y = top + plot_h * index / 4.0
             cr.move_to(left, y)
@@ -187,7 +192,7 @@ class Sparkline(Gtk.DrawingArea):
         ]
         cr.select_font_face("Noto Sans CJK KR", 0, 0)
         cr.set_font_size(9.0)
-        cr.set_source_rgb(0.376, 0.447, 0.529)
+        cr.set_source_rgb(0.47, 0.56, 0.66)
         if not all_samples:
             cr.move_to(left + 8.0, top + plot_h / 2.0)
             cr.show_text("정보 없음")
@@ -269,7 +274,7 @@ class SteeringCanvas(Gtk.DrawingArea):
     def __init__(self) -> None:
         super().__init__()
         self._angles: dict[str, float | None] = {}
-        self.set_size_request(220, 150)
+        self.set_size_request(220, 390)
         self.connect("draw", self._draw)
 
     def update_wheels(self, wheels: tuple[WheelStatus, ...]) -> None:
@@ -295,33 +300,70 @@ class SteeringCanvas(Gtk.DrawingArea):
     def _draw(self, _widget: Gtk.DrawingArea, cr: object) -> bool:
         allocation = self.get_allocation()
         width, height = allocation.width, allocation.height
-        cr.set_source_rgb(0.965, 0.976, 0.988)
+        cr.set_source_rgb(0.035, 0.075, 0.129)
         cr.rectangle(0, 0, width, height)
         cr.fill()
-        cr.set_source_rgb(0.82, 0.86, 0.90)
-        cr.rectangle(width * 0.35, height * 0.16, width * 0.30, height * 0.68)
+
+        # Reference composition: four wheel indicators around a compact
+        # top-view chassis, leaving the large status stage intentionally calm.
+        box_w = min(300.0, width * 0.25)
+        box_h = min(260.0, height * 0.62)
+        box_x = (width - box_w) / 2.0
+        box_y = (height - box_h) / 2.0
+        cr.set_source_rgba(0.16, 0.34, 0.61, 0.24)
+        cr.rectangle(box_x, box_y, box_w, box_h)
         cr.fill()
-        cr.select_font_face("Noto Sans CJK KR", 0, 1)
-        cr.set_font_size(10.0)
-        for label, px, py in self.POSITIONS:
-            x, y = width * px, height * py
-            angle = self._angles.get(label)
-            cr.save()
-            cr.translate(x, y)
-            if angle is not None:
-                cr.rotate(math.radians(angle))
-                cr.set_source_rgb(0.176, 0.431, 0.859)
-            else:
-                cr.set_source_rgb(0.529, 0.588, 0.659)
-            cr.set_line_width(5.0)
-            cr.move_to(-17.0, 0)
-            cr.line_to(17.0, 0)
+        cr.set_source_rgb(0.29, 0.54, 0.92)
+        cr.set_line_width(2.0)
+        cr.rectangle(box_x, box_y, box_w, box_h)
+        cr.stroke()
+
+        axle_x1, axle_x2 = box_x + box_w * 0.36, box_x + box_w * 0.64
+        axle_y1, axle_y2 = box_y + box_h * 0.34, box_y + box_h * 0.66
+        cr.move_to(axle_x1, axle_y1)
+        cr.line_to(axle_x2, axle_y1)
+        cr.move_to(axle_x1, axle_y2)
+        cr.line_to(axle_x2, axle_y2)
+        cr.move_to((axle_x1 + axle_x2) / 2.0, axle_y1)
+        cr.line_to((axle_x1 + axle_x2) / 2.0, axle_y2)
+        cr.stroke()
+        for cx, cy in (
+            (axle_x1, axle_y1), (axle_x2, axle_y1),
+            (axle_x1, axle_y2), (axle_x2, axle_y2),
+        ):
+            cr.arc(cx, cy, 9.0, 0.0, math.tau)
             cr.stroke()
-            cr.restore()
-            cr.set_source_rgb(0.376, 0.447, 0.529)
-            cr.move_to(x - 10.0, y + 20.0)
+
+        cr.select_font_face("Noto Sans CJK KR", 0, 1)
+        cr.set_font_size(12.0)
+        wheel_layout = {
+            "FL": (width * 0.17, height * 0.27),
+            "FR": (width * 0.72, height * 0.27),
+            "RL": (width * 0.17, height * 0.72),
+            "RR": (width * 0.72, height * 0.72),
+        }
+        track_w = min(250.0, width * 0.20)
+        for label, _px, _py in self.POSITIONS:
+            x, y = wheel_layout[label]
+            angle = self._angles.get(label)
+            cr.set_line_width(8.0)
+            cr.set_line_cap(1)
+            cr.set_source_rgb(0.09, 0.15, 0.23)
+            cr.move_to(x, y)
+            cr.line_to(x + track_w, y)
+            cr.stroke()
+            fraction = 0.0 if angle is None else min(1.0, abs(angle) / 45.0)
+            if angle is not None:
+                cr.set_source_rgb(0.29, 0.54, 0.92)
+                cr.move_to(x, y)
+                cr.line_to(x + max(12.0, track_w * fraction), y)
+                cr.stroke()
+            cr.set_source_rgb(0.47, 0.56, 0.66)
+            text = label if angle is None else f"{label}   {angle:+.1f}°"
+            extents = cr.text_extents(text)
+            cr.move_to(x + (track_w - extents.width) / 2.0, y + 34.0)
             cr.show_text(
-                label if angle is None else f"{label} {angle:+.0f}°"
+                text
             )
         return False
 
@@ -336,7 +378,7 @@ class BarList(Gtk.DrawingArea):
         self._rows: tuple[tuple[str, float], ...] = ()
         self._temperature = temperature
         self._suffix = suffix
-        self.set_size_request(260, 130)
+        self.set_size_request(260, 360)
         self.connect("draw", self._draw)
 
     def set_rows(self, rows: Iterable[tuple[str, float]]) -> None:
@@ -346,28 +388,27 @@ class BarList(Gtk.DrawingArea):
     def _draw(self, _widget: Gtk.DrawingArea, cr: object) -> bool:
         allocation = self.get_allocation()
         width, height = allocation.width, allocation.height
-        cr.set_source_rgb(0.965, 0.976, 0.988)
+        cr.set_source_rgb(0.035, 0.075, 0.129)
         cr.rectangle(0, 0, width, height)
         cr.fill()
         cr.select_font_face("Noto Sans CJK KR", 0, 0)
         cr.set_font_size(10.0)
         if not self._rows:
-            cr.set_source_rgb(0.376, 0.447, 0.529)
+            cr.set_source_rgb(0.47, 0.56, 0.66)
             cr.move_to(12.0, height / 2.0)
             cr.show_text("정보 없음")
             return False
-        row_h = min(25.0, (height - 8.0) / len(self._rows))
         values = [abs(value) for _name, value in self._rows]
         scale = max(values + [1.0])
+        count = len(self._rows)
+        slot_w = width / max(1, count)
+        bar_w = min(72.0, slot_w * .42)
+        top, bottom = 30.0, height - 46.0
+        bar_h = max(20.0, bottom - top)
         for index, (name, value) in enumerate(self._rows):
-            y = 6.0 + index * row_h
-            cr.set_source_rgb(0.376, 0.447, 0.529)
-            cr.move_to(7.0, y + 11.0)
-            suffix = "℃" if self._temperature else self._suffix
-            cr.show_text(f"{name}  {value:+.1f}{suffix}")
-            bar_x, bar_y, bar_w = 116.0, y + 2.0, max(20.0, width - 124.0)
-            cr.set_source_rgb(0.88, 0.91, 0.94)
-            cr.rectangle(bar_x, bar_y, bar_w, 10.0)
+            x = slot_w * (index + .5) - bar_w / 2
+            cr.set_source_rgb(0.09, 0.15, 0.23)
+            cr.rectangle(x, top, bar_w, bar_h)
             cr.fill()
             if self._temperature:
                 state = temperature_state(int(round(value)))
@@ -377,29 +418,621 @@ class BarList(Gtk.DrawingArea):
                     "CRIT": (0.769, 0.231, 0.263),
                 }[state]
             else:
-                color = (0.176, 0.431, 0.859)
+                color = (0.29, 0.54, 0.92)
+            fill_h = bar_h * min(1.0, abs(value) / scale)
             cr.set_source_rgb(*color)
-            cr.rectangle(bar_x, bar_y, bar_w * min(1.0, abs(value) / scale), 10.0)
+            cr.rectangle(x, bottom - fill_h, bar_w, fill_h)
+            cr.fill()
+            cr.set_source_rgb(0.47, 0.56, 0.66)
+            label = name
+            extents = cr.text_extents(label)
+            cr.move_to(x + (bar_w - extents.width) / 2, height - 18)
+            cr.show_text(label)
+        return False
+
+
+class ReferenceStatusCanvas(Gtk.DrawingArea):
+    """Large subsystem visual using the approved competition composition."""
+
+    def __init__(self, kind: str) -> None:
+        super().__init__()
+        self.kind = kind
+        self.set_size_request(300, 390)
+        self.connect("draw", self._draw)
+
+    def _draw(self, _widget: Gtk.DrawingArea, cr: object) -> bool:
+        width = self.get_allocation().width
+        height = self.get_allocation().height
+        cr.set_source_rgb(0.035, 0.075, 0.129)
+        cr.paint()
+        cr.set_line_width(3.0)
+        if self.kind == "ai":
+            cr.set_source_rgba(0.34, 0.73, 0.87, 0.14)
+            cr.rectangle(width * .31, height * .22, width * .38, height * .56)
+            cr.fill()
+            cr.set_source_rgb(0.34, 0.73, 0.87)
+            x1, x2, y1, y2 = width * .31, width * .69, height * .22, height * .78
+            for sx, sy, dx, dy in ((x1,y1,1,1),(x2,y1,-1,1),(x1,y2,1,-1),(x2,y2,-1,-1)):
+                cr.move_to(sx, sy + dy * 54)
+                cr.line_to(sx, sy)
+                cr.line_to(sx + dx * 54, sy)
+                cr.stroke()
+            cx, cy = width / 2, height / 2
+            for radius in (50, 92):
+                cr.arc(cx, cy, radius, 0, math.tau)
+                cr.stroke()
+            cr.arc(cx, cy, 9, 0, math.tau)
+            cr.fill()
+            caption = "WAITING"
+        elif self.kind == "safety":
+            cr.set_source_rgb(0.10, 0.62, 0.48)
+            cx, cy = width / 2, height * .78
+            for radius in (92, 170, 245):
+                cr.arc(cx, cy, radius, math.pi, math.tau)
+                cr.stroke()
+            cr.set_source_rgba(0.10, 0.62, 0.48, .25)
+            cr.rectangle(cx - 42, cy - 20, 84, 50)
+            cr.fill()
+            caption = "거리 정보 대기"
+        else:
+            for index, (name, y) in enumerate(zip(
+                ("FRONT", "ARM", "CTRL"), (height * .28, height * .50, height * .72),
+            )):
+                end = width * (.57 if index < 2 else .84)
+                cr.set_source_rgb(0.34, 0.73, 0.87)
+                cr.move_to(width * .24, y)
+                cr.line_to(end, y)
+                cr.stroke()
+                cr.arc(end, y, 8, 0, math.tau)
+                cr.fill()
+                cr.select_font_face("monospace", 0, 0)
+                cr.set_font_size(14)
+                cr.set_source_rgb(0.47, 0.56, 0.66)
+                cr.move_to(width * .13, y + 5)
+                cr.show_text(name)
+            return False
+        cr.select_font_face("monospace", 0, 0)
+        cr.set_font_size(14)
+        cr.set_source_rgb(0.47, 0.56, 0.66)
+        extents = cr.text_extents(caption)
+        cr.move_to((width - extents.width) / 2, height * .91)
+        cr.show_text(caption)
+        return False
+
+
+class StandbyLinkCanvas(Gtk.DrawingArea):
+    """Layered RX topology used while every robot source is silent."""
+
+    ENDPOINTS = (
+        ("5005", 0.20, (0.29, 0.55, 0.92)),
+        ("5004", 0.40, (0.89, 0.64, 0.23)),
+        ("5007", 0.60, (0.85, 0.42, 0.57)),
+        ("5003", 0.80, (0.49, 0.39, 0.91)),
+    )
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.set_size_request(430, 250)
+        self.connect("draw", self._draw)
+
+    def _draw(self, _widget: Gtk.DrawingArea, cr: object) -> bool:
+        width = float(self.get_allocation().width)
+        height = float(self.get_allocation().height)
+        hub_x, hub_y = width * 0.25, height * 0.50
+        endpoint_x = width * 0.79
+
+        # A faint technical grid gives the empty state depth without implying
+        # that any robot measurement has been received.
+        cr.set_line_width(1.0)
+        cr.set_source_rgba(0.31, 0.49, 0.68, 0.10)
+        for index in range(1, 8):
+            x = width * index / 8.0
+            cr.move_to(x, height * 0.08)
+            cr.line_to(x, height * 0.92)
+        for index in range(1, 5):
+            y = height * index / 5.0
+            cr.move_to(width * 0.05, y)
+            cr.line_to(width * 0.95, y)
+        cr.stroke()
+
+        cr.set_source_rgba(0.30, 0.59, 0.92, 0.11)
+        for radius in (34.0, 54.0, 76.0):
+            cr.arc(hub_x, hub_y, radius, 0.0, math.tau)
+            cr.stroke()
+        cr.set_source_rgba(0.36, 0.68, 0.98, 0.18)
+        cr.arc(hub_x, hub_y, 27.0, 0.0, math.tau)
+        cr.fill()
+        cr.set_source_rgb(0.43, 0.75, 0.98)
+        cr.arc(hub_x, hub_y, 7.0, 0.0, math.tau)
+        cr.fill()
+
+        cr.select_font_face("JetBrains Mono", 0, 1)
+        cr.set_font_size(11.0)
+        cr.set_source_rgb(0.72, 0.84, 0.94)
+        cr.move_to(hub_x - 20.0, hub_y + 4.0)
+        cr.show_text("RX")
+
+        for port, fraction_y, color in self.ENDPOINTS:
+            y = height * fraction_y
+            cr.set_source_rgba(*color, 0.42)
+            cr.move_to(hub_x + 36.0, hub_y)
+            cr.curve_to(width * 0.47, hub_y, width * 0.55, y, endpoint_x, y)
+            cr.stroke()
+            cr.set_source_rgba(*color, 0.16)
+            cr.arc(endpoint_x, y, 14.0, 0.0, math.tau)
+            cr.fill()
+            cr.set_source_rgb(*color)
+            cr.arc(endpoint_x, y, 4.5, 0.0, math.tau)
+            cr.fill()
+            cr.set_source_rgb(0.56, 0.68, 0.79)
+            cr.move_to(endpoint_x + 22.0, y + 4.0)
+            cr.show_text(port)
+        return False
+
+
+class SensorTrend(Gtk.DrawingArea):
+    """Threshold-free 60-second trend: direction, not safety classification."""
+
+    def __init__(self, color: tuple[float, float, float]) -> None:
+        super().__init__()
+        self._series = TimedSeries()
+        self._color = color
+        self._stale = False
+        self.set_size_request(-1, 68)
+        self.set_hexpand(True)
+        self.connect("draw", self._draw)
+
+    def append(self, timestamp_s: float, value: float | None) -> None:
+        self._series.append(timestamp_s, value)
+        self.queue_draw()
+
+    def mark_stale(self, timestamp_s: float) -> None:
+        self._stale = True
+        self._series.mark_gap(timestamp_s)
+        self.queue_draw()
+
+    def set_live(self) -> None:
+        self._stale = False
+        self.queue_draw()
+
+    def _draw(self, _widget: Gtk.DrawingArea, cr: object) -> bool:
+        width = float(self.get_allocation().width)
+        height = float(self.get_allocation().height)
+        left, right, top, bottom = 5.0, 5.0, 15.0, 6.0
+        plot_w = max(1.0, width - left - right)
+        plot_h = max(1.0, height - top - bottom)
+        cr.set_source_rgba(0.12, 0.19, 0.27, 0.72)
+        cr.rectangle(0.0, 8.0, width, height - 8.0)
+        cr.fill()
+        cr.set_source_rgba(0.34, 0.47, 0.59, 0.22)
+        cr.set_line_width(1.0)
+        cr.move_to(left, top + plot_h / 2.0)
+        cr.line_to(left + plot_w, top + plot_h / 2.0)
+        cr.stroke()
+
+        samples = tuple(
+            sample for sample in self._series.samples()
+            if sample.value is not None
+        )
+        cr.select_font_face("Noto Sans CJK KR", 0, 0)
+        cr.set_font_size(8.0)
+        cr.set_source_rgb(0.43, 0.53, 0.63)
+        cr.move_to(left, 8.0)
+        cr.show_text("최근 60초 · 자동 스케일")
+        if len(samples) < 2:
+            cr.set_source_rgb(0.39, 0.48, 0.58)
+            cr.move_to(left + 4.0, top + plot_h * 0.67)
+            cr.show_text("추세 수집 중")
+            return False
+
+        now_s = samples[-1].timestamp_s
+        values = [float(sample.value) for sample in samples]
+        low, high = min(values), max(values)
+        if math.isclose(low, high):
+            pad = max(abs(low) * 0.002, 0.1)
+        else:
+            pad = (high - low) * 0.16
+        low -= pad
+        high += pad
+        cr.set_source_rgba(*self._color, 0.43 if self._stale else 0.96)
+        cr.set_line_width(2.0)
+        drawing = False
+        last_x = last_y = 0.0
+        for sample in self._series.samples():
+            if sample.value is None:
+                drawing = False
+                continue
+            age = min(GRAPH_WINDOW_S, max(0.0, now_s - sample.timestamp_s))
+            x = left + plot_w * (1.0 - age / GRAPH_WINDOW_S)
+            y = top + plot_h * (high - sample.value) / (high - low)
+            if drawing:
+                cr.line_to(x, y)
+            else:
+                cr.move_to(x, y)
+                drawing = True
+            last_x, last_y = x, y
+        cr.stroke()
+        if drawing:
+            cr.arc(last_x, last_y, 3.0, 0.0, math.tau)
             cr.fill()
         return False
+
+
+class EnvironmentSensorDashboard(Gtk.Box):
+    """Dedicated visual dashboard for Raspberry Pi environmental readings."""
+
+    def __init__(self, *, port: int = 5008) -> None:
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        self.set_border_width(14)
+        self._port = int(port)
+        self._probe_climate = "수신 대기"
+        self._probe_air = "수신 대기"
+        self._probe_hazard = "수신 대기"
+        self._last_sequence: int | None = None
+
+        heading = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        title = Gtk.Label(label="환경 센싱 엔드 이펙터")
+        title.set_xalign(0.0)
+        _style(title, "section-title")
+        subtitle = Gtk.Label(
+            label="온습도·기압·공기질·가스·불꽃 · 관측 전용"
+        )
+        subtitle.set_xalign(0.0)
+        _style(subtitle, "muted")
+        self._link = Gtk.Label(label=f"UDP :{self._port} · 수신 대기")
+        self._link.set_xalign(1.0)
+        _style(self._link, "status-priority")
+        title_box.pack_start(title, False, False, 0)
+        title_box.pack_start(subtitle, False, False, 0)
+        heading.pack_start(title_box, True, True, 0)
+        heading.pack_end(self._link, False, False, 0)
+        self.pack_start(heading, False, False, 0)
+
+        self._summary = Gtk.Label(
+            label="센서 패킷을 기다리고 있습니다"
+        )
+        self._summary.set_xalign(0.0)
+        self._summary.set_line_wrap(True)
+        _style(self._summary, "status-priority")
+        self.pack_start(self._summary, False, False, 0)
+
+        self._overall_status: dict[str, Gtk.Label] = {}
+        status_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        for key, text, css in (
+            ("live", "정상", "status-live"),
+            ("warn", "주의", "status-warn"),
+            ("muted", "오류", "status-muted"),
+        ):
+            block = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+            block.set_size_request(120, 36)
+            _style(block, "sensor-overall-block", css)
+            count = Gtk.Label(label="0")
+            count.set_xalign(0.5)
+            _style(count, "sensor-overall-count", css)
+            caption = Gtk.Label(label=text)
+            caption.set_xalign(0.5)
+            _style(caption, "sensor-overall-caption", css)
+            block.pack_start(count, False, False, 0)
+            block.pack_start(caption, False, False, 0)
+            status_row.pack_start(block, True, True, 0)
+            self._overall_status[key] = count
+        self.pack_start(status_row, False, False, 0)
+
+        self._values: dict[str, Gtk.Label] = {}
+        self._statuses: dict[str, Gtk.Label] = {}
+        self._notes: dict[str, Gtk.Label] = {}
+        self._trends: dict[str, SensorTrend] = {}
+
+        self._tiles: dict[str, Gtk.Box] = {}
+
+        def make_tile(
+            key: str,
+            label_text: str,
+            group_text: str,
+            group_key: str,
+            note_text: str,
+            color: tuple[float, float, float],
+        ) -> Gtk.Box:
+            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
+            card.set_border_width(14)
+            card.set_hexpand(True)
+            card.set_vexpand(True)
+            _style(card, "sensor-tile", f"sensor-tile-{group_key}")
+            header = Gtk.Box(spacing=8)
+            name = Gtk.Label(label=label_text)
+            name.set_xalign(0.0)
+            _style(name, "sensor-tile-name")
+            group = Gtk.Label(label=group_text)
+            group.set_xalign(1.0)
+            _style(group, "sensor-group-chip", f"sensor-group-{group_key}")
+            status = Gtk.Label(label="수신 대기")
+            status.set_xalign(1.0)
+            _style(status, "sensor-status", "status-muted")
+            value = Gtk.Label(label="—")
+            value.set_xalign(0.0)
+            value.set_selectable(True)
+            value.set_ellipsize(Pango.EllipsizeMode.END)
+            _style(value, "sensor-tile-value")
+            trend = SensorTrend(color)
+            note = Gtk.Label(label=note_text)
+            note.set_xalign(0.0)
+            note.set_ellipsize(Pango.EllipsizeMode.END)
+            _style(note, "sensor-tile-note")
+            header.pack_start(name, True, True, 0)
+            header.pack_end(status, False, False, 0)
+            header.pack_end(group, False, False, 0)
+            card.pack_start(header, False, False, 0)
+            card.pack_start(value, False, False, 0)
+            card.pack_start(trend, True, True, 0)
+            card.pack_end(note, False, False, 0)
+            self._values[key] = value
+            self._statuses[key] = status
+            self._notes[key] = note
+            self._trends[key] = trend
+            self._tiles[key] = card
+            return card
+
+        tile_specs = (
+            ("temperature", "온도", "기초 환경", "climate",
+             "BME280 · 현재 온도", (0.31, 0.61, 0.94)),
+            ("humidity", "습도", "기초 환경", "climate",
+             "BME280 · 상대습도", (0.31, 0.61, 0.94)),
+            ("pressure", "기압", "기초 환경", "climate",
+             "BME280 · 대기압", (0.31, 0.61, 0.94)),
+            ("eco2", "eCO₂", "공기질", "air",
+             "SGP30 · 계산 추정값", (0.58, 0.48, 0.94)),
+            ("tvoc", "TVOC", "공기질", "air",
+             "SGP30 · 휘발성 유기화합물", (0.58, 0.48, 0.94)),
+            ("co", "CO", "교정 전", "gas",
+             "MQ-7 · 미검증 추정", (0.91, 0.64, 0.20)),
+            ("lpg", "LPG", "교정 전", "gas",
+             "MQ-2 · 미검증 추정", (0.91, 0.64, 0.20)),
+            ("flame", "불꽃", "이산 판정", "flame",
+             "센서 전압 추이 · 낮을수록 감지", (0.20, 0.77, 0.55)),
+        )
+        grid = Gtk.Grid(column_spacing=12, row_spacing=12)
+        grid.set_column_homogeneous(True)
+        grid.set_row_homogeneous(True)
+        grid.set_hexpand(True)
+        grid.set_vexpand(True)
+        for index, spec in enumerate(tile_specs):
+            grid.attach(make_tile(*spec), index % 4, index // 4, 1, 1)
+        self.pack_start(grid, True, True, 0)
+
+        note = Gtk.Label(
+            label=("초기 검증 화면 · 임의의 정상/위험 범위를 적용하지 않았습니다. "
+                   "MQ-7·MQ-2 ppm은 기준가스 교정 전 미검증 추정값입니다.")
+        )
+        note.set_xalign(0.0)
+        note.set_line_wrap(True)
+        _style(note, "status-priority")
+        self.pack_end(note, False, False, 0)
+
+    def _set_sensor_status(self, key: str, text: str, css_class: str) -> None:
+        label = self._statuses[key]
+        for name in ("status-live", "status-warn", "status-bad", "status-muted"):
+            label.get_style_context().remove_class(name)
+        label.get_style_context().add_class(css_class)
+        label.set_text(f"● {text}")
+        tile = self._tiles[key]
+        for name in (
+            "sensor-state-live", "sensor-state-warn",
+            "sensor-state-bad", "sensor-state-muted",
+        ):
+            tile.get_style_context().remove_class(name)
+        tile.get_style_context().add_class(
+            {
+                "status-live": "sensor-state-live",
+                "status-warn": "sensor-state-warn",
+                "status-bad": "sensor-state-bad",
+                "status-muted": "sensor-state-muted",
+            }[css_class]
+        )
+
+    def _update_overall_status(self, counts: dict[str, int]) -> None:
+        for key, count in counts.items():
+            if key in self._overall_status:
+                self._overall_status[key].set_text(str(count))
+
+    @staticmethod
+    def _format(value: float | None, unit: str, digits: int) -> str:
+        return "—" if value is None else f"{value:.{digits}f} {unit}"
+
+    def update(
+        self,
+        snapshot: EnvironmentTelemetrySnapshot | None,
+        *,
+        now_s: float | None = None,
+    ) -> None:
+        current = time.monotonic() if now_s is None else float(now_s)
+        state = environment_source_state(snapshot, now_s=current)
+        if snapshot is None:
+            self._link.set_text(f"UDP :{self._port} · 수신 대기")
+            self._summary.set_text("센서 패킷을 기다리고 있습니다")
+            for value in self._values.values():
+                value.set_text("—")
+            for key in self._statuses:
+                self._set_sensor_status(key, "오류", "status-muted")
+            self._update_overall_status({"live": 0, "warn": 0, "muted": len(self._statuses)})
+            flame_context = self._values["flame"].get_style_context()
+            for css_class in ("status-live", "status-bad"):
+                flame_context.remove_class(css_class)
+            flame_context.add_class("status-muted")
+            flame_tile_context = self._tiles["flame"].get_style_context()
+            for css_class in (
+                "sensor-flame-normal", "sensor-flame-detected",
+            ):
+                flame_tile_context.remove_class(css_class)
+            for trend in self._trends.values():
+                trend.mark_stale(current)
+            self._probe_climate = self._probe_air = self._probe_hazard = "수신 대기"
+            return
+
+        age = max(0.0, current - snapshot.received_monotonic_s)
+        self._link.set_text(
+            f"UDP :{self._port} · {state} · {age:.1f}초 전 · seq {snapshot.sequence}"
+        )
+        if self._last_sequence != snapshot.sequence:
+            self._last_sequence = snapshot.sequence
+            sample_time = snapshot.received_monotonic_s
+            for key, value in (
+                ("temperature", snapshot.temperature_c),
+                ("humidity", snapshot.humidity_pct),
+                ("pressure", snapshot.pressure_hpa),
+                ("eco2", snapshot.eco2_ppm),
+                ("tvoc", snapshot.tvoc_ppb),
+                ("co", snapshot.co_estimated_ppm),
+                ("lpg", snapshot.lpg_estimated_ppm),
+                ("flame", snapshot.flame_voltage_v),
+            ):
+                self._trends[key].append(sample_time, value)
+        for trend in self._trends.values():
+            if state == "LIVE":
+                trend.set_live()
+            else:
+                trend.mark_stale(current)
+        self._values["temperature"].set_text(
+            self._format(snapshot.temperature_c, "°C", 2)
+        )
+        self._values["humidity"].set_text(
+            self._format(snapshot.humidity_pct, "%", 2)
+        )
+        self._values["pressure"].set_text(
+            self._format(snapshot.pressure_hpa, "hPa", 2)
+        )
+        self._values["eco2"].set_text(
+            self._format(snapshot.eco2_ppm, "ppm", 0)
+        )
+        self._values["tvoc"].set_text(
+            self._format(snapshot.tvoc_ppb, "ppb", 0)
+        )
+        self._values["co"].set_text(
+            "≈" + self._format(snapshot.co_estimated_ppm, "ppm", 1)
+            if snapshot.co_estimated_ppm is not None else "—"
+        )
+        self._values["lpg"].set_text(
+            "≈" + self._format(snapshot.lpg_estimated_ppm, "ppm", 1)
+            if snapshot.lpg_estimated_ppm is not None else "—"
+        )
+        flame_text = (
+            "정보 없음" if snapshot.flame_detected is None
+            else "감지" if snapshot.flame_detected else "감지 없음"
+        )
+        voltage = self._format(snapshot.flame_voltage_v, "V", 3)
+        self._values["flame"].set_text(f"{flame_text} · {voltage}")
+        flame_context = self._values["flame"].get_style_context()
+        for css_class in ("status-live", "status-bad", "status-muted"):
+            flame_context.remove_class(css_class)
+        flame_context.add_class(
+            "status-muted" if snapshot.flame_detected is None
+            else "status-bad" if snapshot.flame_detected
+            else "status-live"
+        )
+        flame_tile_context = self._tiles["flame"].get_style_context()
+        for css_class in (
+            "sensor-flame-normal", "sensor-flame-detected",
+        ):
+            flame_tile_context.remove_class(css_class)
+        if snapshot.flame_detected is not None:
+            flame_tile_context.add_class(
+                "sensor-flame-detected"
+                if snapshot.flame_detected else "sensor-flame-normal"
+            )
+        threshold = self._format(snapshot.flame_threshold_v, "V", 3)
+        self._notes["flame"].set_text(
+            f"{threshold} 미만이면 불꽃 감지"
+        )
+
+        # Status badges are deliberately conservative: gas ppm values are
+        # marked attention until the MQ sensors are calibrated against a
+        # reference gas, while flame is a binary hazard decision.
+        for key, value in (
+            ("temperature", snapshot.temperature_c),
+            ("humidity", snapshot.humidity_pct),
+            ("pressure", snapshot.pressure_hpa),
+            ("eco2", snapshot.eco2_ppm),
+            ("tvoc", snapshot.tvoc_ppb),
+        ):
+            self._set_sensor_status(
+                key,
+                "정상" if state == "LIVE" and value is not None else "오류",
+                "status-live" if state == "LIVE" and value is not None else "status-muted",
+            )
+        self._set_sensor_status(
+            "co", "주의" if state == "LIVE" and snapshot.co_estimated_ppm is not None else "오류",
+            "status-warn" if state == "LIVE" and snapshot.co_estimated_ppm is not None else "status-muted",
+        )
+        self._set_sensor_status(
+            "lpg", "주의" if state == "LIVE" and snapshot.lpg_estimated_ppm is not None else "오류",
+            "status-warn" if state == "LIVE" and snapshot.lpg_estimated_ppm is not None else "status-muted",
+        )
+        self._set_sensor_status(
+            "flame",
+            "주의" if snapshot.flame_detected else "정상"
+            if state == "LIVE" and snapshot.flame_detected is not None else "오류",
+            "status-warn" if snapshot.flame_detected else "status-live"
+            if state == "LIVE" and snapshot.flame_detected is not None else "status-muted",
+        )
+        status_counts = {"live": 0, "warn": 0, "muted": 0}
+        for label in self._statuses.values():
+            text = label.get_text()
+            if "정상" in text:
+                status_counts["live"] += 1
+            elif "주의" in text:
+                status_counts["warn"] += 1
+            else:
+                status_counts["muted"] += 1
+        self._update_overall_status(status_counts)
+        self._notes["eco2"].set_text(
+            "SGP30 예열 중" if snapshot.sgp30_warming_up
+            else "SGP30 계산 추정값"
+        )
+        error_text = "" if not snapshot.errors else " · 오류: " + " | ".join(snapshot.errors)
+        self._summary.set_text(
+            ("최신값 수신 중" if state == "LIVE" else "마지막 값 표시 · 갱신 지연")
+            + f" · 불꽃 {flame_text} · CO/LPG 교정 전{error_text}\n"
+            + f"source={snapshot.source} · seq={snapshot.sequence}"
+            + (f" · Pi 시각={snapshot.source_timestamp}"
+               if snapshot.source_timestamp else "")
+        )
+        self._probe_climate = (
+            f"{snapshot.temperature_c} °C · {snapshot.humidity_pct} % · "
+            f"{snapshot.pressure_hpa} hPa"
+        )
+        self._probe_air = f"eCO₂ {snapshot.eco2_ppm} ppm · TVOC {snapshot.tvoc_ppb} ppb"
+        flame = "감지" if snapshot.flame_detected else "정상"
+        self._probe_hazard = (
+            f"CO≈{snapshot.co_estimated_ppm} ppm · "
+            f"LPG≈{snapshot.lpg_estimated_ppm} ppm · 불꽃 {flame}"
+        )
+
+    def probe_values(self) -> tuple[str, str, str]:
+        return self._probe_climate, self._probe_air, self._probe_hazard
 
 
 class StatusPanel(Gtk.Box):
     def __init__(self, title: str) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        self.set_size_request(-1, 360)
+        self.set_size_request(-1, 625)
         _style(self, "status-panel")
         heading = Gtk.Label(label=title)
         heading.set_xalign(0.0)
         _style(heading, "status-panel-title")
+        heading.set_no_show_all(True)
+        heading.hide()
         self.values = Gtk.Label(label="정보 없음")
         self.values.set_xalign(0.0)
         self.values.set_line_wrap(True)
         _style(self.values, "status-panel-values")
+        self.values.set_no_show_all(True)
+        self.values.hide()
         self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
         self.updated = Gtk.Label(label="마지막 업데이트 · 정보 없음")
         self.updated.set_xalign(0.0)
         _style(self.updated, "status-panel-updated")
+        self.updated.set_no_show_all(True)
+        self.updated.hide()
         self.pack_start(heading, False, False, 0)
         self.pack_start(self.values, False, False, 0)
         self.pack_start(self.body, True, True, 0)
@@ -454,19 +1087,19 @@ class RobotStatusDashboard(Gtk.Box):
 
         self._cards: dict[str, tuple[Gtk.Label, Gtk.Label, Gtk.Label]] = {}
         self._card_buttons: dict[str, Gtk.Button] = {}
-        card_grid = Gtk.Grid(column_spacing=10, row_spacing=10)
+        card_grid = Gtk.Grid(column_spacing=12, row_spacing=0)
         card_grid.set_column_homogeneous(True)
         # Operator-first order: mission-critical values precede subsystem health.
         # Safety is expressed as a stop cause, not as another device card.
         specs = (
-            ("drive", "주행"), ("ai", "YOLO 인식"),
+            ("drive", "주행"), ("ai", "인식"),
             ("power", "전원"), ("camera", "통신"),
-            ("arm", "로봇팔"), ("safety", "정지 원인"),
+            ("arm", "로봇팔"), ("safety", "안전"),
         )
         for index, (key, title) in enumerate(specs):
             card = Gtk.Button()
             card.set_relief(Gtk.ReliefStyle.NONE)
-            card.set_size_request(-1, 96)
+            card.set_size_request(-1, 104)
             card.set_tooltip_text(f"{title} 상세 정보 보기")
             _style(
                 card, "status-summary-card", "summary-offline",
@@ -477,25 +1110,32 @@ class RobotStatusDashboard(Gtk.Box):
             dot = Gtk.Label(label="")
             dot.set_size_request(8, 8)
             _style(dot, "status-dot", "status-muted")
+            dot.set_no_show_all(True)
+            dot.hide()
             name = Gtk.Label(label=title)
-            name.set_xalign(0.0)
+            name.set_xalign(0.5)
+            name.set_halign(Gtk.Align.CENTER)
             _style(name, "system-name")
             title_row.pack_start(dot, False, False, 0)
             title_row.pack_start(name, True, True, 0)
             state = Gtk.Label(label="정보 없음")
             state.set_xalign(0.0)
             _style(state, "status-summary-value")
+            state.set_no_show_all(True)
+            state.hide()
             reason = Gtk.Label(label="정보 없음")
             reason.set_xalign(0.0)
             reason.set_ellipsize(Pango.EllipsizeMode.END)
             _style(reason, "muted")
+            reason.set_no_show_all(True)
+            reason.hide()
             content.pack_start(title_row, False, False, 0)
             content.pack_start(state, False, False, 0)
             content.pack_start(reason, False, False, 0)
             card.add(content)
             panel_key = self.CARD_TO_PANEL.get(key, key)
             card.connect("clicked", self._on_card_clicked, panel_key)
-            card_grid.attach(card, index % 3, index // 3, 1, 1)
+            card_grid.attach(card, index, 0, 1, 1)
             self._cards[key] = (state, reason, dot)
             self._card_buttons[panel_key] = card
         self.pack_start(card_grid, False, False, 0)
@@ -504,6 +1144,8 @@ class RobotStatusDashboard(Gtk.Box):
         self._detail_title = Gtk.Label(label="주행 시스템 상세 정보")
         self._detail_title.set_xalign(0.0)
         _style(self._detail_title, "section-title")
+        self._detail_title.set_no_show_all(True)
+        self._detail_title.hide()
         self.pack_start(self._detail_title, False, False, 0)
 
         self.drive_speed = TimedSeries()
@@ -558,46 +1200,56 @@ class RobotStatusDashboard(Gtk.Box):
                 metric.pack_start(heading, False, False, 0)
                 metric.pack_start(value, False, False, 0)
                 grid.attach(metric, index % 3, index // 3, 1, 1)
+                if index >= 3:
+                    metric.set_no_show_all(True)
+                    metric.hide()
                 metrics[key] = value
             self._panels[panel_key].body.pack_start(grid, False, False, 0)
             self._detail_metrics[panel_key] = metrics
 
         add_metric_grid("drive", (
-            ("speed", "평균 속도"), ("state", "운용 모드·주행 가능 여부"),
-            ("pose", "상대 위치·차체 방향 (오도메트리)"),
+            ("speed", "평균 속도"), ("state", "운용 모드"),
+            ("pose", "오도메트리"),
             ("wheels", "4륜 구동·조향 상태"),
         ))
         add_metric_grid("safety", (
-            ("estop", "현재 정지 판정"), ("sensor", "작동한 안전 로직"),
             ("distance", "감지 거리"), ("enabled", "자동 정지"),
+            ("arm_temperature", "최고 온도"), ("estop", "현재 정지 판정"),
+            ("sensor", "작동한 안전 로직"),
             ("dynamixel", "다이나믹셀 안전 상태"),
-            ("arm_temperature", "로봇팔 최고 온도"),
         ))
         add_metric_grid("arm", (
-            ("type", "장착 엔드이펙터 종류"),
-            ("mounted", "체결 상태"), ("id", "툴 ID"),
+            ("type", "엔드이펙터"), ("operation", "조종 모드"),
+            ("joints", "관절 부하"), ("mounted", "체결 상태"), ("id", "툴 ID"),
             ("interface", "툴 인터페이스"),
-            ("joints", "관절 위치·속도"),
-            ("operation", "로봇팔 조종 모드"),
         ))
         add_metric_grid("network", (
-            ("front", "전방 영상 통신"), ("work", "작업 영상 통신"),
-            ("ov5640", "OV5640 영상 통신"),
+            ("front", "전방 영상"), ("work", "작업 영상"),
+            ("control", "제어 지연"), ("ov5640", "OV5640 영상 통신"),
             ("rgb_depth", "RGB·Depth 처리"),
-            ("metadata", "AI 데이터 통신"), ("control", "제어 통신"),
+            ("metadata", "AI 데이터 통신"),
         ))
         add_metric_grid("ai", (
-            ("live", "실시간 인식 상태"), ("target", "현재 작업 대상"),
-            ("confidence", "인식 신뢰도"), ("distance", "대상 거리"),
+            ("live", "인식 상태"), ("target", "작업 대상"),
+            ("confidence", "신뢰도"), ("distance", "대상 거리"),
             ("direction", "대상 방향"), ("detections", "인식된 물체"),
         ))
         self._panels["drive"].body.pack_start(self._steering, False, False, 0)
+        self._panels["ai"].body.pack_start(
+            ReferenceStatusCanvas("ai"), False, False, 0,
+        )
+        self._panels["network"].body.pack_start(
+            ReferenceStatusCanvas("network"), False, False, 0,
+        )
+        self._panels["safety"].body.pack_start(
+            ReferenceStatusCanvas("safety"), False, False, 0,
+        )
         self._power_metrics: dict[str, Gtk.Label] = {}
         power_grid = Gtk.Grid(column_spacing=8, row_spacing=8)
         power_grid.set_column_homogeneous(True)
         for index, (key, title) in enumerate((
-            ("voltage", "대표 입력전압"), ("discharge", "방전전류"),
-            ("charge", "충전전류"), ("power", "순간 전력"),
+            ("voltage", "입력전압"), ("discharge", "방전전류"),
+            ("power", "순간 전력"), ("charge", "충전전류"),
             ("soc", "배터리 SoC"), ("operating", "충전·제어 상태"),
             ("rs485", "PDIST80B 통신"),
         )):
@@ -613,12 +1265,17 @@ class RobotStatusDashboard(Gtk.Box):
             metric.pack_start(heading, False, False, 0)
             metric.pack_start(value, False, False, 0)
             power_grid.attach(metric, index % 3, index // 3, 1, 1)
+            if index >= 3:
+                metric.set_no_show_all(True)
+                metric.hide()
             self._power_metrics[key] = value
         self._panels["power"].body.pack_start(power_grid, False, False, 0)
         self._power_state = Gtk.Label(label="보호 상태 · 정보 없음")
         self._power_state.set_xalign(0.0)
         self._power_state.set_line_wrap(True)
         _style(self._power_state, "power-state-summary")
+        self._power_state.set_no_show_all(True)
+        self._power_state.hide()
         self._panels["power"].body.pack_start(
             self._power_state, False, False, 0,
         )
@@ -626,10 +1283,18 @@ class RobotStatusDashboard(Gtk.Box):
         self._soc_bar.set_show_text(True)
         self._soc_bar.set_no_show_all(True)
         _style(self._soc_bar, "soc-progress")
+        self._soc_hero = Gtk.Label(label="—")
+        self._soc_hero.set_xalign(0.12)
+        _style(self._soc_hero, "soc-hero")
+        self._panels["power"].body.pack_start(
+            self._soc_hero, False, False, 0,
+        )
         self._panels["power"].body.pack_start(self._soc_bar, False, False, 0)
         self._panels["arm"].body.pack_start(self._joints, False, False, 0)
         arm_setup = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         _style(arm_setup, "arm-setup")
+        arm_setup.set_no_show_all(True)
+        arm_setup.hide()
         setup_title = Gtk.Label(label="로봇팔·엔드이펙터 운용 설정")
         setup_title.set_xalign(0.0)
         _style(setup_title, "section-title")
@@ -758,6 +1423,23 @@ class RobotStatusDashboard(Gtk.Box):
             return f"{observed.end_effector_type} · {attached}"
         tool = self._end_effector_selector.get_active_text() or "미확인"
         return f"{tool} · 수동 확인"
+
+    def selected_end_effector(self) -> str:
+        """Return the operator's explicit end-effector selection."""
+        return self._end_effector_selector.get_active_text() or "미확인"
+
+    def select_end_effector(self, tool: str) -> bool:
+        """Synchronize an external selector with the arm setup selector."""
+        model = self._end_effector_selector.get_model()
+        for index, row in enumerate(model):
+            if row[0] == tool:
+                self._end_effector_selector.set_active(index)
+                return True
+        return False
+
+    def connect_end_effector_changed(self, callback: object) -> int:
+        """Notify another view when the operator changes the selection."""
+        return self._end_effector_selector.connect("changed", callback)
 
     @property
     def developer_visible(self) -> bool:
@@ -1147,13 +1829,16 @@ class RobotStatusDashboard(Gtk.Box):
                 "",
             )
             if power.pdist_soc_percent is None:
+                self._soc_hero.set_text("—")
                 self._soc_bar.hide()
             else:
                 soc_value = max(0.0, min(100.0, power.pdist_soc_percent))
+                self._soc_hero.set_text(f"{soc_value:.0f}%")
                 self._soc_bar.set_fraction(soc_value / 100.0)
                 self._soc_bar.set_text(f"SoC {soc_value:.0f}%")
                 self._soc_bar.show()
         else:
+            self._soc_hero.set_text("—")
             self._soc_bar.hide()
             for value in self._power_metrics.values():
                 value.set_text("정보 없음")
@@ -1416,3 +2101,242 @@ class RobotStatusDashboard(Gtk.Box):
                 *self._source_ports,
             )
         )
+
+
+class CompetitionStatusDashboard(RobotStatusDashboard):
+    """Photo-matched presentation rebuilt on top of the RX-only data model."""
+
+    SPECS = (
+        ("drive", "주행", ("speed", "state", "pose")),
+        ("ai", "인식", ("live", "target", "confidence")),
+        ("power", "전원", ("voltage", "discharge", "power")),
+        ("network", "통신", ("front", "work", "control")),
+        ("arm", "로봇팔", ("type", "operation", "joints")),
+        ("safety", "안전", ("distance", "enabled", "arm_temperature")),
+    )
+
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(**kwargs)
+        for child in tuple(self.get_children()):
+            self.remove(child)
+        self.set_border_width(0)
+        self.set_spacing(0)
+        self.set_hexpand(True)
+        self.set_vexpand(True)
+        _style(self, "competition-status")
+
+        pills = Gtk.Grid(column_spacing=18)
+        pills.set_column_homogeneous(True)
+        pills.set_hexpand(True)
+        _style(pills, "competition-pills")
+        self._photo_buttons: dict[str, Gtk.Button] = {}
+        self._card_buttons = {}
+        for index, (key, title, _metric_keys) in enumerate(self.SPECS):
+            button = Gtk.Button(label=title)
+            button.set_relief(Gtk.ReliefStyle.NONE)
+            # The compact subsystem strip is a fixed visual landmark in the
+            # approved 1600 x 1000 composition.
+            button.set_size_request(-1, 88)
+            _style(button, "status-summary-card", f"category-{key}")
+            button.connect("clicked", self._on_photo_panel_clicked, key)
+            pills.attach(button, index, 0, 1, 1)
+            self._photo_buttons[key] = button
+            self._card_buttons[key] = button
+        self.pack_start(pills, False, False, 0)
+
+        self._photo_stack = Gtk.Stack()
+        self._photo_stack.set_hexpand(True)
+        self._photo_stack.set_vexpand(True)
+        # Status canvases are large and update from several telemetry sources.
+        # A crossfade keeps both pages composited during every switch and is
+        # noticeably expensive on the operator laptop's integrated GPU.
+        self._photo_stack.set_transition_type(Gtk.StackTransitionType.NONE)
+        self._photo_stack.set_transition_duration(0)
+        self._photo_values: dict[str, dict[str, Gtk.Label]] = {}
+        titles = {
+            "drive": ("평균 속도", "운용 모드", "오도메트리"),
+            "ai": ("인식 상태", "작업 대상", "신뢰도"),
+            "power": ("입력전압", "방전전류", "순간 전력"),
+            "network": ("전방 영상", "작업 영상", "제어 지연"),
+            "arm": ("엔드이펙터", "조종 모드", "관절 부하"),
+            "safety": ("감지 거리", "자동 정지", "최고 온도"),
+        }
+        visuals = {
+            "drive": self._steering,
+            "ai": ReferenceStatusCanvas("ai"),
+            "power": Gtk.Box(orientation=Gtk.Orientation.VERTICAL),
+            "network": ReferenceStatusCanvas("network"),
+            "arm": self._joints,
+            "safety": ReferenceStatusCanvas("safety"),
+        }
+        power_visual = visuals["power"]
+        for widget in (self._soc_hero, self._soc_bar):
+            parent = widget.get_parent()
+            if isinstance(parent, Gtk.Container):
+                parent.remove(widget)
+        power_visual.pack_start(self._soc_hero, True, True, 0)
+        power_visual.pack_start(self._soc_bar, False, False, 22)
+        for key, _title, metric_keys in self.SPECS:
+            page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            page.set_hexpand(True)
+            page.set_vexpand(True)
+            _style(page, "competition-status-page", f"competition-{key}")
+            metrics = Gtk.Grid(column_spacing=0)
+            metrics.set_column_homogeneous(True)
+            values: dict[str, Gtk.Label] = {}
+            for index, (metric_key, heading) in enumerate(
+                zip(metric_keys, titles[key])
+            ):
+                cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
+                _style(cell, "competition-metric")
+                label = Gtk.Label(label=heading)
+                label.set_xalign(0)
+                _style(label, "competition-metric-label")
+                value = Gtk.Label(label="정보 없음")
+                value.set_xalign(0)
+                value.set_ellipsize(Pango.EllipsizeMode.END)
+                _style(value, "competition-metric-value")
+                cell.pack_start(label, False, False, 0)
+                cell.pack_start(value, False, False, 0)
+                metrics.attach(cell, index, 0, 1, 1)
+                values[metric_key] = value
+            page.pack_start(metrics, False, False, 0)
+            visual = visuals[key]
+            parent = visual.get_parent()
+            if isinstance(parent, Gtk.Container):
+                parent.remove(visual)
+            page.pack_start(visual, True, True, 0)
+            self._photo_values[key] = values
+            self._photo_stack.add_named(page, key)
+
+        standby = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=26)
+        standby.set_hexpand(True)
+        standby.set_vexpand(True)
+        _style(standby, "competition-standby")
+        hero = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=42)
+        hero.set_hexpand(True)
+        hero.set_vexpand(True)
+        _style(hero, "standby-hero")
+        hero_copy = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        hero_copy.set_hexpand(True)
+        hero_copy.set_valign(Gtk.Align.CENTER)
+        kicker_row = Gtk.Box(spacing=8)
+        waiting_dot = Gtk.Spinner()
+        waiting_dot.start()
+        _style(waiting_dot, "standby-spinner")
+        kicker = Gtk.Label(label="RX-ONLY · LISTENING")
+        kicker.set_xalign(0.0)
+        _style(kicker, "standby-kicker")
+        kicker_row.pack_start(waiting_dot, False, False, 0)
+        kicker_row.pack_start(kicker, False, False, 0)
+        title = Gtk.Label(label="로봇 상태 수신 대기")
+        title.set_xalign(0.0)
+        _style(title, "standby-title")
+        description = Gtk.Label(
+            label=("상태 패킷이 도착하면 선택한 시스템의 실시간 진단 화면으로 "
+                   "자동 전환됩니다.")
+        )
+        description.set_xalign(0.0)
+        description.set_line_wrap(True)
+        _style(description, "standby-description")
+        note = Gtk.Label(label="현재 콘솔은 관측 전용이며 로봇에 명령을 보내지 않습니다")
+        note.set_xalign(0.0)
+        _style(note, "standby-note")
+        hero_copy.pack_start(kicker_row, False, False, 0)
+        hero_copy.pack_start(title, False, False, 0)
+        hero_copy.pack_start(description, False, False, 0)
+        hero_copy.pack_start(note, False, False, 8)
+        hero.pack_start(hero_copy, True, True, 0)
+        hero.pack_end(StandbyLinkCanvas(), False, False, 0)
+        standby.pack_start(hero, True, True, 0)
+
+        sources = Gtk.Grid(column_spacing=12)
+        sources.set_column_homogeneous(True)
+        sources.set_hexpand(True)
+        _style(sources, "standby-sources")
+        power_port, chassis_port, arm_port, metadata_port = self._source_ports
+        source_specs = (
+            ("drive", "차체 · 안전", f"UDP :{chassis_port}"),
+            ("power", "전원", f"UDP :{power_port}"),
+            ("arm", "로봇팔", f"UDP :{arm_port}"),
+            ("ai", "AI 인식", f"UDP :{metadata_port}"),
+        )
+        for index, (key, name, endpoint) in enumerate(source_specs):
+            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
+            _style(card, "standby-source-card", f"standby-source-{key}")
+            name_label = Gtk.Label(label=name)
+            name_label.set_xalign(0.0)
+            _style(name_label, "standby-source-name")
+            endpoint_label = Gtk.Label(label=endpoint)
+            endpoint_label.set_xalign(0.0)
+            _style(endpoint_label, "standby-source-endpoint")
+            state_row = Gtk.Box(spacing=7)
+            dot = Gtk.Label(label="")
+            dot.set_size_request(7, 7)
+            _style(dot, "standby-source-dot")
+            state = Gtk.Label(label="수신 대기")
+            state.set_xalign(0.0)
+            _style(state, "standby-source-state")
+            state_row.pack_start(dot, False, False, 0)
+            state_row.pack_start(state, False, False, 0)
+            card.pack_start(name_label, False, False, 0)
+            card.pack_start(endpoint_label, False, False, 0)
+            card.pack_start(state_row, False, False, 3)
+            sources.attach(card, index, 0, 1, 1)
+        standby.pack_end(sources, False, False, 0)
+
+        self._status_content = Gtk.Stack()
+        self._status_content.set_hexpand(True)
+        self._status_content.set_vexpand(True)
+        self._status_content.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self._status_content.set_transition_duration(180)
+        self._status_content.add_named(standby, "standby")
+        self._status_content.add_named(self._photo_stack, "details")
+        self._status_content.set_visible_child_name("standby")
+        self._details_requested = False
+        self.pack_start(self._status_content, True, True, 0)
+        self._selected_panel = "drive"
+        self._select_photo_panel("drive")
+
+    def _on_photo_panel_clicked(self, _button: Gtk.Button, key: str) -> None:
+        self._details_requested = True
+        self._selected_panel = key
+        self._select_photo_panel(key)
+        self._status_content.set_visible_child_name("details")
+
+    def _select_photo_panel(self, key: str) -> None:
+        self._photo_stack.set_visible_child_name(key)
+        for candidate, button in self._photo_buttons.items():
+            context = button.get_style_context()
+            context.remove_class("selected")
+            if candidate == key:
+                context.add_class("selected")
+
+    def update(self, **kwargs: object) -> None:
+        super().update(**kwargs)
+        now_s = float(kwargs.get("now_s") or time.monotonic())
+        source_active = any(
+            self._fresh(kwargs.get(key), now_s)
+            for key in ("power", "chassis", "arm", "metadata")
+        )
+        video_active = any(
+            kwargs.get(key) == "LIVE"
+            for key in ("front_video_state", "work_video_state")
+        )
+        self._status_content.set_visible_child_name(
+            "details"
+            if source_active or video_active or self._details_requested
+            else "standby"
+        )
+        source_groups = {
+            "drive": self._detail_metrics["drive"],
+            "ai": self._detail_metrics["ai"],
+            "power": self._power_metrics,
+            "network": self._detail_metrics["network"],
+            "arm": self._detail_metrics["arm"],
+            "safety": self._detail_metrics["safety"],
+        }
+        for panel, values in self._photo_values.items():
+            sources = source_groups[panel]
+            for key, label in values.items():
+                label.set_text(sources[key].get_text())

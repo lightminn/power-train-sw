@@ -43,6 +43,10 @@ def main() -> int:
         choices=("drive", "power", "safety", "network", "ai", "arm"),
         default="drive",
     )
+    parser.add_argument(
+        "--state", choices=("connected", "empty"), default="connected",
+        help="Render fixture telemetry or the intentional information-empty state.",
+    )
     parser.add_argument("--scroll-y", type=float, default=0.0)
     args = parser.parse_args()
     Gst.init(None)
@@ -85,8 +89,20 @@ def main() -> int:
         gdk_window = window.get_window()
         source_width = gdk_window.get_width()
         source_height = gdk_window.get_height()
+        if args.page == "mission":
+            # gtksink renders through native child windows, so a top-level
+            # backing-store grab sees only black.  The root window includes
+            # those children and produces the actual composed mission view.
+            origin_ok, origin_x, origin_y = gdk_window.get_origin()
+            source_window = (
+                Gdk.get_default_root_window() if origin_ok else gdk_window
+            )
+            source_x = origin_x if origin_ok else 0
+            source_y = origin_y if origin_ok else 0
+        else:
+            source_window, source_x, source_y = gdk_window, 0, 0
         pixbuf = Gdk.pixbuf_get_from_window(
-            gdk_window, 0, 0, source_width, source_height,
+            source_window, source_x, source_y, source_width, source_height,
         )
         if pixbuf is None:
             raise RuntimeError("GTK window capture returned no pixels")
@@ -100,8 +116,9 @@ def main() -> int:
         window.destroy()
         return False
 
-    publish()
-    GLib.timeout_add(200, publish)
+    if args.state == "connected":
+        publish()
+        GLib.timeout_add(200, publish)
     if args.page == "systems" and args.scroll_y > 0:
         GLib.timeout_add(
             1500,
