@@ -1126,6 +1126,95 @@ window, .console-shell, .page {{
 .mission-rail .display-option check {{ background: #091725; border-color: #66849E; }}
 .mission-rail .display-option check:checked {{ background: #4B8BEA; border-color: #7AB4F3; color: #FFFFFF; }}
 .rail-tool-selector button {{ background: #13243A; color: #DDE8F3; border-color: #31506D; }}
+.end-effector-summary {{
+  background-color: #0E1D2C;
+  background-image: linear-gradient(135deg, rgba(75,139,234,0.14), rgba(77,184,154,0.07));
+  border: 1px solid #2A4963;
+  border-left: 3px solid #4DB89A;
+  border-radius: 9px;
+  padding: 10px;
+}}
+.end-effector-summary-title {{ color: #E8F0F8; font-size: 15px; font-weight: 900; }}
+.end-effector-summary-state {{
+  color: #A8B6C4;
+  background: #263442;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-weight: 900;
+}}
+.end-effector-summary-state.status-live {{ color: #8BE3B6; background: #123D2D; }}
+.end-effector-summary-state.status-warn {{ color: #FFD77A; background: #493514; }}
+.end-effector-summary-state.status-muted {{ color: #A8B6C4; background: #263442; }}
+.end-effector-summary-purpose {{ color: #AFC0D0; font-size: 11px; }}
+.end-effector-summary-reading {{ color: #72CDB2; font-size: 13px; font-weight: 900; }}
+.end-effector-arm-label {{ color: #71869C; font-size: 9px; font-weight: 800; }}
+.end-effector-arm-value {{ color: #E8F0F8; font-size: 11px; font-weight: 900; }}
+.rail-data-speed {{ color: #8BE3B6; }}
+.rail-tool-selector button {{ min-height: 34px; font-size: 12px; font-weight: 800; }}
+.end-effector-detail-button {{
+  background: #173353;
+  color: #CDE5FF;
+  border: 1px solid #315F91;
+  border-radius: 7px;
+  min-height: 28px;
+  font-size: 10px;
+  font-weight: 900;
+}}
+.end-effector-detail-button label {{ color: #CDE5FF; }}
+.end-effector-detail-button:hover {{ background: #214A75; color: #FFFFFF; }}
+.end-effector-detail-button:hover label {{ color: #FFFFFF; }}
+window.end-effector-popup {{ background: #07101B; }}
+.end-effector-popup-shell {{ background: #07101B; padding: 18px; }}
+.end-effector-popup-heading {{ color: #F1F6FB; font-size: 22px; font-weight: 900; }}
+.end-effector-popup-purpose {{ color: #9EB2C5; font-size: 13px; }}
+.end-effector-popup-card {{
+  background: #0D1B2B;
+  border: 1px solid #263B52;
+  border-left: 3px solid #4DB89A;
+  border-radius: 10px;
+  padding: 18px;
+}}
+.end-effector-popup-label {{ color: #71879C; font-size: 10px; font-weight: 800; }}
+.end-effector-popup-value {{ color: #E8F0F8; font-size: 16px; font-weight: 900; }}
+.environment-title {{ color: #F1F6FB; font-size: 24px; font-weight: 900; }}
+.environment-subtitle {{ color: #9EB2C5; font-size: 12px; }}
+.environment-connection {{ border-radius: 999px; padding: 6px 11px; font-size: 11px; font-weight: 900; }}
+.environment-connection.status-live {{ color: #8BE3B6; background: #123D2D; }}
+.environment-connection.status-warn {{ color: #FFD77A; background: #493514; }}
+.environment-connection.status-muted {{ color: #A8B6C4; background: #263442; }}
+.environment-summary {{ color: #DFE9F2; background: #0D1B2B; border: 1px solid #263B52; border-radius: 8px; padding: 10px 13px; font-size: 12px; font-weight: 800; }}
+.sensor-group {{ background: #0A1725; border: 1px solid #243A51; border-radius: 10px; padding: 13px; }}
+.sensor-group-panel-climate {{ border-top: 3px solid #4F9BEF; }}
+.sensor-group-panel-air {{ border-top: 3px solid #947AEF; }}
+.sensor-group-panel-hazard {{ border-top: 3px solid #E8A333; }}
+.sensor-group-title {{ color: #F0F5FA; font-size: 16px; font-weight: 900; }}
+.sensor-group-description {{ color: #8499AD; font-size: 10px; }}
+.sensor-compact-tile {{ padding: 9px 10px; border-top-width: 1px; }}
+.sensor-compact-tile .sensor-tile-value {{ font-size: 20px; }}
+.sensor-diagnostic-note {{ color: #9EB1C2; font-size: 10px; }}
+.system-status-dashboard {{ background: #07101B; }}
+.system-status-title {{ color: #F2F7FC; font-size: 25px; font-weight: 900; }}
+.system-status-subtitle {{ color: #94A9BC; font-size: 12px; }}
+.system-overall-chip {{ border-radius: 999px; padding: 7px 12px; font-size: 11px; font-weight: 900; }}
+.system-overall-chip.status-live {{ color: #8BE3B6; background: #123D2D; }}
+.system-overall-chip.status-warn {{ color: #FFD77A; background: #493514; }}
+.system-overall-chip.status-muted {{ color: #A8B6C4; background: #263442; }}
+.system-section {{ background: #0C1928; border: 1px solid #263B52; border-top: 3px solid #4B8BEA; border-radius: 11px; padding: 16px; }}
+.system-section-power {{ border-top-color: #D9A64B; }}
+.system-section-communication {{ border-top-color: #55B9DE; }}
+.system-section-safety {{ border-top-color: #55C995; }}
+.system-section-title {{ color: #F0F5FA; font-size: 18px; font-weight: 900; }}
+.system-section-description {{ color: #859BAF; font-size: 10px; }}
+.system-section-badge {{ border-radius: 999px; padding: 4px 9px; font-size: 10px; font-weight: 900; }}
+.system-section-badge.status-live {{ color: #8BE3B6; background: #123D2D; }}
+.system-section-badge.status-warn {{ color: #FFD77A; background: #493514; }}
+.system-section-badge.status-bad {{ color: #FF9BA8; background: #4A1823; }}
+.system-section-badge.status-muted {{ color: #A8B6C4; background: #263442; }}
+.system-metric {{ background: #111F31; border: 1px solid #263A52; border-radius: 7px; padding: 9px 10px; }}
+.system-metric-label {{ color: #71879C; font-size: 9px; font-weight: 800; }}
+.system-metric-value {{ color: #E8F0F8; font-size: 13px; font-weight: 900; }}
+.system-diagnostic-note {{ color: #D8B668; font-size: 10px; }}
 menu, menuitem {{ background: #101C2B; color: #DCE7F2; border-color: #2A4059; }}
 menuitem label {{ color: #DCE7F2; }}
 menuitem:hover, menuitem:active {{ background: #193454; color: #FFFFFF; }}
@@ -1583,13 +1672,6 @@ class EventOperationRow(Gtk.ListBoxRow):
         stamp_label.set_xalign(0.0)
         stamp_label.set_size_request(100, -1)
         _style(stamp_label, "event-operation-time")
-        level_label = Gtk.Label(label=severity)
-        level_label.set_xalign(0.0)
-        level_label.set_size_request(100, -1)
-        _style(
-            level_label, "event-operation-level",
-            f"event-level-{severity.lower()}",
-        )
         public_label = Gtk.Label(label=public)
         public_label.set_xalign(0.0)
         public_label.set_hexpand(True)
@@ -1618,10 +1700,9 @@ class EventOperationRow(Gtk.ListBoxRow):
         self._arrow.set_no_show_all(not developer_visible)
         self._arrow.set_visible(developer_visible)
         header.attach(stamp_label, 0, 0, 1, 1)
-        header.attach(level_label, 1, 0, 1, 1)
-        header.attach(public_label, 2, 0, 1, 1)
-        header.attach(technical_box, 3, 0, 1, 1)
-        header.attach(self._arrow, 4, 0, 1, 1)
+        header.attach(public_label, 1, 0, 1, 1)
+        header.attach(technical_box, 2, 0, 1, 1)
+        header.attach(self._arrow, 3, 0, 1, 1)
         self._raw = Gtk.Label(
             label=f"원본: [{stamp}] {severity} {source}: {message}",
         )
@@ -1659,8 +1740,11 @@ class EventLog(Gtk.Box):
         self._developer_visible = False
         self.filter_box = Gtk.Box(spacing=16)
         self.filter_box.set_valign(Gtk.Align.CENTER)
+        filter_labels = {
+            "ERROR": "위험", "WARNING": "확인 필요", "INFO": "정보",
+        }
         for severity in ("ERROR", "WARNING", "INFO"):
-            toggle = Gtk.CheckButton(label=severity)
+            toggle = Gtk.CheckButton(label=filter_labels[severity])
             toggle.set_valign(Gtk.Align.CENTER)
             _style(toggle, "event-filter", f"event-filter-{severity.lower()}")
             toggle.connect("toggled", self._on_filter_toggled, severity)
@@ -1670,23 +1754,22 @@ class EventLog(Gtk.Box):
         _style(column_header, "event-column-header")
         for column, title, width in (
             (0, "시간", 100),
-            (1, "수준", 100),
-            (2, "운용 기록", -1),
-            (3, "기술 정보", 360),
-            (4, "", 18),
+            (1, "운용 기록", -1),
+            (2, "기술 정보", 360),
+            (3, "", 18),
         ):
             label = Gtk.Label(label=title)
             label.set_xalign(0.0)
             if width > 0:
                 label.set_size_request(width, -1)
-            if column == 2:
+            if column == 1:
                 label.set_hexpand(True)
             _style(label, "event-column-title")
             column_header.attach(label, column, 0, 1, 1)
-            if column in (3, 4):
+            if column in (2, 3):
                 label.set_no_show_all(True)
                 label.hide()
-                if column == 3:
+                if column == 2:
                     self._technical_header = label
                 else:
                     self._arrow_header = label
@@ -1704,7 +1787,7 @@ class EventLog(Gtk.Box):
         self._user_scroll.set_max_content_height(210)
         self._user_scroll.add(self._operation_list)
         self.pack_start(self._user_scroll, True, True, 0)
-        self._empty = Gtk.Label(label="선택한 수준의 기록이 없습니다")
+        self._empty = Gtk.Label(label="선택한 분류의 기록이 없습니다")
         self._empty.set_halign(Gtk.Align.CENTER)
         self._empty.set_valign(Gtk.Align.CENTER)
         self._empty.set_margin_top(24)
@@ -1834,8 +1917,8 @@ class EventLog(Gtk.Box):
             if self.event_filter_state[severity]:
                 return severity, self._public_message(source, message)
         if not any(self.event_filter_state.values()):
-            return "INFO", "표시할 이벤트 수준을 선택해 주세요"
-        return "INFO", "선택한 수준의 기록이 없습니다"
+            return "INFO", "표시할 이벤트 분류를 선택해 주세요"
+        return "INFO", "선택한 분류의 기록이 없습니다"
 
 
 class EventDrawer(Gtk.Box):
@@ -3339,7 +3422,7 @@ class OperatorConsole(Gtk.Window):
         self._main_camera_dot = Gtk.Label(label="")
         self._main_camera_dot.set_size_request(7, 7)
         _style(self._main_camera_dot, "status-dot", "status-muted")
-        self._main_camera_label = Gtk.Label(label="전방 카메라 · L515")
+        self._main_camera_label = Gtk.Label(label="전방 화면")
         _style(self._main_camera_label, "camera-name")
         self._main_camera_state_label = Gtk.Label(label="연결 대기")
         _style(self._main_camera_state_label, "camera-connection-label")
@@ -3358,7 +3441,7 @@ class OperatorConsole(Gtk.Window):
         _style(rail, "mission-rail")
         self._mission_rail = rail
         rail_heading = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        rail_heading_ko = Gtk.Label(label="임무·AI 상태")
+        rail_heading_ko = Gtk.Label(label="실시간 운용")
         rail_heading_ko.set_xalign(0.0)
         _style(rail_heading_ko, "rail-heading-ko")
         rail_heading.pack_start(rail_heading_ko, False, False, 0)
@@ -3379,8 +3462,8 @@ class OperatorConsole(Gtk.Window):
         system_check.pack_start(system_check_heading, False, False, 2)
         self._preparation_status: dict[str, tuple[Gtk.Label, Gtk.Label]] = {}
         device_specs = (
-            ("front", "전방 카메라 · L515", "연결 중"),
-            ("work", "작업 카메라 · D435i", "연결 중"),
+            ("front", "전방 화면", "연결 중"),
+            ("work", "작업 화면", "연결 중"),
             ("drive", "주행 시스템", "정보 없음"),
             ("safety", "안전 장치", "정보 없음"),
         )
@@ -3406,7 +3489,11 @@ class OperatorConsole(Gtk.Window):
             row.pack_end(value, False, False, 0)
             system_check.pack_start(row, False, False, 0)
             self._preparation_status[key] = (dot, value)
-        rail.pack_start(system_check, False, False, 0)
+        # The same four states are already always visible in the top health
+        # strip.  Keep these widgets as the readiness data model, but do not
+        # spend scarce mission-rail height on a duplicate device list.
+        system_check.set_no_show_all(True)
+        system_check.hide()
 
         preparation = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
         _style(preparation, "rail-preparation")
@@ -3467,7 +3554,11 @@ class OperatorConsole(Gtk.Window):
         rail_data.set_no_show_all(False)
         self._mission_metrics = {}
         self._mission_metric_rows: dict[str, Gtk.Box] = {}
-        for key, heading in (("target", "인식 대상"), ("distance", "대상 거리")):
+        for key, heading in (
+            ("speed", "평균 속도"),
+            ("target", "최신 인식"),
+            ("distance", "대상 거리"),
+        ):
             row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             _style(row, "rail-data-row")
             row_heading = Gtk.Label(label=heading)
@@ -3483,11 +3574,20 @@ class OperatorConsole(Gtk.Window):
             self._mission_metrics[key] = row_value
             self._mission_metric_rows[key] = row
 
-        tool_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        _style(tool_row, "rail-data-row", "rail-tool-selector-row")
-        tool_heading = Gtk.Label(label="엔드이펙터 선택")
+        tool_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
+        _style(tool_row, "end-effector-summary")
+        tool_header = Gtk.Box(spacing=8)
+        tool_heading = Gtk.Label(label="로봇팔 · 도구")
         tool_heading.set_xalign(0.0)
-        _style(tool_heading, "rail-data-label")
+        _style(tool_heading, "end-effector-summary-title")
+        self._mission_tool_state = Gtk.Label(label="선택 대기")
+        self._mission_tool_state.set_xalign(1.0)
+        _style(
+            self._mission_tool_state,
+            "end-effector-summary-state", "status-muted",
+        )
+        tool_header.pack_start(tool_heading, True, True, 0)
+        tool_header.pack_end(self._mission_tool_state, False, False, 0)
         self._mission_tool_selector = Gtk.ComboBoxText()
         for tool in ("미확인", *END_EFFECTOR_PURPOSES.keys()):
             self._mission_tool_selector.append_text(tool)
@@ -3496,8 +3596,47 @@ class OperatorConsole(Gtk.Window):
             "작업에 사용할 엔드이펙터를 선택합니다. 로봇 적용은 제어 연동 후 활성화됩니다."
         )
         _style(self._mission_tool_selector, "rail-tool-selector")
-        tool_row.pack_start(tool_heading, False, False, 0)
+        self._mission_tool_purpose = Gtk.Label(label="사용할 이펙터를 선택하세요")
+        self._mission_tool_purpose.set_xalign(0.0)
+        self._mission_tool_purpose.set_line_wrap(True)
+        self._mission_tool_purpose.set_max_width_chars(34)
+        _style(self._mission_tool_purpose, "end-effector-summary-purpose")
+        self._mission_tool_reading = Gtk.Label(label="상세 데이터 없음")
+        self._mission_tool_reading.set_xalign(0.0)
+        self._mission_tool_reading.set_ellipsize(Pango.EllipsizeMode.END)
+        _style(self._mission_tool_reading, "end-effector-summary-reading")
+        arm_summary_grid = Gtk.Grid(column_spacing=7, row_spacing=5)
+        arm_summary_grid.set_column_homogeneous(True)
+        self._mission_arm_mode = Gtk.Label(label="연동 예정")
+        self._mission_arm_mode.set_xalign(0.0)
+        self._mission_arm_load = Gtk.Label(label="정보 없음")
+        self._mission_arm_load.set_xalign(0.0)
+        for column, heading_text, value in (
+            (0, "조종 모드", self._mission_arm_mode),
+            (1, "관절 부하", self._mission_arm_load),
+        ):
+            summary = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            summary_heading = Gtk.Label(label=heading_text)
+            summary_heading.set_xalign(0.0)
+            _style(summary_heading, "end-effector-arm-label")
+            _style(value, "end-effector-arm-value")
+            summary.pack_start(summary_heading, False, False, 0)
+            summary.pack_start(value, False, False, 0)
+            arm_summary_grid.attach(summary, column, 0, 1, 1)
+        self._mission_tool_detail = Gtk.Button(label="선택한 이펙터 상세 보기  ↗")
+        self._mission_tool_detail.set_tooltip_text(
+            "선택한 엔드이펙터의 상세 정보를 별도 창으로 엽니다"
+        )
+        _style(self._mission_tool_detail, "end-effector-detail-button")
+        self._mission_tool_detail.connect(
+            "clicked", lambda _button: self._show_end_effector_popup(),
+        )
+        tool_row.pack_start(tool_header, False, False, 0)
         tool_row.pack_start(self._mission_tool_selector, False, False, 0)
+        tool_row.pack_start(self._mission_tool_purpose, False, False, 0)
+        tool_row.pack_start(self._mission_tool_reading, False, False, 0)
+        tool_row.pack_start(arm_summary_grid, False, False, 0)
+        tool_row.pack_start(self._mission_tool_detail, False, False, 0)
         rail_data.pack_start(tool_row, False, False, 0)
         self._mission_metric_rows["tool"] = tool_row
         rail.pack_start(rail_data, False, False, 0)
@@ -3527,6 +3666,7 @@ class OperatorConsole(Gtk.Window):
         self._environment_status = EnvironmentSensorDashboard(
             port=environment_telemetry_port,
         )
+        self._build_end_effector_popup()
         self._syncing_end_effector_selectors = False
         self._mission_tool_selector.connect(
             "changed", self._on_mission_end_effector_changed,
@@ -3563,10 +3703,7 @@ class OperatorConsole(Gtk.Window):
         stack.set_transition_type(Gtk.StackTransitionType.NONE)
         stack.set_transition_duration(0)
         stack.add_titled(mission_page, "mission", "실시간 화면")
-        stack.add_titled(
-            self._environment_status, "environment", "환경 센서",
-        )
-        stack.add_titled(systems_scroll, "systems", "로봇 상태")
+        stack.add_titled(systems_scroll, "systems", "시스템 상태")
         # The token-gated controls remain implemented for a future maintenance
         # surface, but are not exposed in the judge-facing competition console.
         self._stack = stack
@@ -3925,8 +4062,8 @@ class OperatorConsole(Gtk.Window):
         secondary.set_role("SUB")
         self._main_video = selected
         self._main_camera_label.set_text({
-            "전방 카메라": "전방 카메라 · L515",
-            "작업 카메라": "작업 카메라 · D435i",
+            "전방 카메라": "전방 화면",
+            "작업 카메라": "작업 화면",
         }.get(selected._name, selected._name))
         self._videos.show_all()
         self._add_event("VIDEO", f"main view changed: {selected._name}")
@@ -3978,6 +4115,216 @@ class OperatorConsole(Gtk.Window):
         elif destination == "events":
             self._event_expander.set_expanded(True)
 
+    def _build_end_effector_popup(self) -> None:
+        """Keep end-effector detail off the main navigation surface."""
+        popup = Gtk.Window(title="엔드이펙터 상세")
+        popup.set_default_size(760, 460)
+        popup.set_position(Gtk.WindowPosition.CENTER_ON_PARENT)
+        popup.set_transient_for(self)
+        popup.set_destroy_with_parent(True)
+        popup.set_type_hint(Gdk.WindowTypeHint.DIALOG)
+        popup.connect("delete-event", self._hide_end_effector_popup)
+        _style(popup, "end-effector-popup")
+
+        shell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        _style(shell, "end-effector-popup-shell")
+        popup_bar = Gtk.Box(spacing=10)
+        self._end_effector_popup_context = Gtk.Label(
+            label="선택한 엔드이펙터 상세"
+        )
+        self._end_effector_popup_context.set_xalign(0.0)
+        _style(self._end_effector_popup_context, "end-effector-popup-heading")
+        close = Gtk.Button(label="닫기")
+        _style(close, "end-effector-detail-button")
+        close.connect("clicked", lambda _button: popup.hide())
+        popup_bar.pack_start(
+            self._end_effector_popup_context, True, True, 0,
+        )
+        popup_bar.pack_end(close, False, False, 0)
+        shell.pack_start(popup_bar, False, False, 0)
+
+        detail_stack = Gtk.Stack()
+        detail_stack.set_transition_type(Gtk.StackTransitionType.NONE)
+        detail_stack.set_hexpand(True)
+        detail_stack.set_vexpand(True)
+
+        generic = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        generic.set_border_width(18)
+        purpose = Gtk.Label(label="사용할 엔드이펙터를 선택하세요")
+        purpose.set_xalign(0.0)
+        purpose.set_line_wrap(True)
+        _style(purpose, "end-effector-popup-purpose")
+        generic.pack_start(purpose, False, False, 0)
+        self._end_effector_popup_purpose = purpose
+
+        info_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        _style(info_card, "end-effector-popup-card")
+        self._end_effector_popup_values: dict[str, Gtk.Label] = {}
+        for key, label_text in (
+            ("selection", "선택 상태"),
+            ("attachment", "장착 확인"),
+            ("operation", "로봇팔 조종 모드"),
+            ("load", "관절 부하"),
+            ("telemetry", "도구 데이터"),
+        ):
+            row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            label = Gtk.Label(label=label_text)
+            label.set_xalign(0.0)
+            _style(label, "end-effector-popup-label")
+            value = Gtk.Label(label="정보 없음")
+            value.set_xalign(0.0)
+            value.set_line_wrap(True)
+            _style(value, "end-effector-popup-value")
+            row.pack_start(label, False, False, 0)
+            row.pack_start(value, False, False, 0)
+            info_card.pack_start(row, False, False, 0)
+            self._end_effector_popup_values[key] = value
+        generic.pack_start(info_card, True, True, 0)
+
+        detail_stack.add_named(generic, "generic")
+        environment_scroll = Gtk.ScrolledWindow()
+        environment_scroll.set_policy(
+            Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC,
+        )
+        environment_scroll.add(self._environment_status)
+        detail_stack.add_named(environment_scroll, "environment")
+        shell.pack_start(detail_stack, True, True, 0)
+        popup.add(shell)
+        self._end_effector_popup = popup
+        self._end_effector_detail_stack = detail_stack
+
+    def _hide_end_effector_popup(
+        self, popup: Gtk.Window, _event: object,
+    ) -> bool:
+        popup.hide()
+        return True
+
+    def _show_end_effector_popup(self) -> None:
+        selected = self._mission_tool_selector.get_active_text() or "미확인"
+        self._refresh_end_effector_summary()
+        self._end_effector_popup_context.set_text(f"{selected} 상세")
+        # Gtk.Stack may restore its first child during the popup's initial
+        # show_all(), so select the requested detail after realizing widgets.
+        self._end_effector_popup.show_all()
+        if selected == "환경 센서 모듈":
+            self._end_effector_detail_stack.set_visible_child_name("environment")
+            self._end_effector_popup.resize(1260, 820)
+        else:
+            self._end_effector_detail_stack.set_visible_child_name("generic")
+            self._end_effector_popup.resize(760, 460)
+        self._end_effector_popup.present()
+
+    def _set_end_effector_summary_state(
+        self, text: str, css_class: str,
+    ) -> None:
+        context = self._mission_tool_state.get_style_context()
+        for candidate in ("status-live", "status-warn", "status-muted"):
+            context.remove_class(candidate)
+        context.add_class(css_class)
+        self._mission_tool_state.set_text(text)
+
+    def _refresh_end_effector_summary(
+        self,
+        *,
+        arm_snapshot: ArmTelemetrySnapshot | None = None,
+        arm_state: str | None = None,
+        environment_state: str | None = None,
+    ) -> None:
+        selected = self._mission_tool_selector.get_active_text() or "미확인"
+        purpose = END_EFFECTOR_PURPOSES.get(
+            selected, "사용할 엔드이펙터를 선택하세요",
+        )
+        self._mission_tool_purpose.set_text(purpose)
+        self._end_effector_popup_purpose.set_text(purpose)
+
+        if arm_snapshot is None:
+            arm_snapshot = self._arm_receiver.latest()
+        if arm_state is None:
+            arm_state = self._telemetry_state(arm_snapshot)
+        if environment_state is None:
+            environment_state = environment_source_state(
+                self._environment_receiver.latest()
+            )
+
+        observed_type = None if arm_snapshot is None else arm_snapshot.end_effector_type
+        observed_display = {
+            "gripper_a": "그리퍼 1",
+            "gripper_b": "그리퍼 2",
+            "환경 센싱 모듈": "환경 센서 모듈",
+            "environment_sensor": "환경 센서 모듈",
+            "cleaning_module": "청소 모듈",
+        }.get(observed_type or "", observed_type)
+        observed_match = (
+            arm_state == "LIVE"
+            and arm_snapshot is not None
+            and observed_display == selected
+        )
+        if selected == "미확인":
+            state_text, state_css = "선택 대기", "status-muted"
+            reading = "상세 데이터 없음"
+        elif selected == "환경 센서 모듈":
+            if environment_state == "LIVE":
+                state_text, state_css = "수신 중", "status-live"
+            elif environment_state == "STALE":
+                state_text, state_css = "갱신 지연", "status-warn"
+            else:
+                state_text, state_css = "연결 대기", "status-muted"
+            reading = self._environment_status.probe_values()[0]
+        elif observed_match and arm_snapshot is not None:
+            if arm_snapshot.end_effector_attached is True:
+                state_text, state_css = "장착 확인", "status-live"
+            elif arm_snapshot.end_effector_attached is False:
+                state_text, state_css = "미체결", "status-warn"
+            else:
+                state_text, state_css = "확인 필요", "status-warn"
+            reading = " · ".join(filter(None, (
+                arm_snapshot.end_effector_id,
+                arm_snapshot.end_effector_interface,
+            ))) or "로봇팔 수신 중"
+        else:
+            state_text, state_css = "선택됨", "status-warn"
+            reading = "로봇팔 장착 정보 대기"
+
+        self._set_end_effector_summary_state(state_text, state_css)
+        self._mission_tool_reading.set_text(reading)
+        attachment = "정보 없음"
+        telemetry = "수신 대기"
+        operation = "연동 예정 · 조종 모드 상태 필드 없음"
+        load = "정보 없음"
+        if arm_state == "LIVE" and arm_snapshot is not None:
+            if arm_snapshot.end_effector_attached is True:
+                attachment = "체결"
+            elif arm_snapshot.end_effector_attached is False:
+                attachment = "미체결"
+            if arm_snapshot.end_effector_id:
+                attachment += f" · ID {arm_snapshot.end_effector_id}"
+            if arm_snapshot.dynamixel is not None:
+                if arm_snapshot.dynamixel:
+                    peak_current = max(
+                        abs(motor.current) for motor in arm_snapshot.dynamixel
+                    )
+                    load = (
+                        f"최고 {peak_current} raw · "
+                        f"{len(arm_snapshot.dynamixel)}개 관절"
+                    )
+                else:
+                    load = "관절 모터 0개"
+            interface = arm_snapshot.end_effector_interface or "인터페이스 정보 없음"
+            telemetry = (
+                f"{interface} · 선택 항목과 관측값 일치"
+                if observed_match else
+                f"{interface} · 선택 항목과 관측값 불일치 또는 미수신"
+            )
+        self._mission_arm_mode.set_text("연동 예정")
+        self._mission_arm_load.set_text(load)
+        self._end_effector_popup_values["selection"].set_text(
+            f"{selected} · {state_text}"
+        )
+        self._end_effector_popup_values["attachment"].set_text(attachment)
+        self._end_effector_popup_values["operation"].set_text(operation)
+        self._end_effector_popup_values["load"].set_text(load)
+        self._end_effector_popup_values["telemetry"].set_text(telemetry)
+
     def _on_mission_end_effector_changed(self, *_args: object) -> None:
         if self._syncing_end_effector_selectors:
             return
@@ -3987,6 +4334,8 @@ class OperatorConsole(Gtk.Window):
             self._robot_status.select_end_effector(selected)
         finally:
             self._syncing_end_effector_selectors = False
+        self._refresh_end_effector_summary()
+        self._show_end_effector_popup()
 
     def _on_status_end_effector_changed(self, *_args: object) -> None:
         if self._syncing_end_effector_selectors:
@@ -4001,6 +4350,7 @@ class OperatorConsole(Gtk.Window):
                     break
         finally:
             self._syncing_end_effector_selectors = False
+        self._refresh_end_effector_summary()
 
     def _on_video_area_allocated(
         self, _widget: Gtk.Overlay, allocation: Gdk.Rectangle,
@@ -4282,6 +4632,18 @@ class OperatorConsole(Gtk.Window):
             "success": "status-live", "warning": "status-warn",
             "danger": "status-bad", "offline": "status-muted",
         }[safety_public_tone])
+        wheel_speeds = (
+            () if chassis_state != "LIVE" or chassis_snapshot is None else
+            tuple(
+                abs(wheel.drive_turns_per_s)
+                for wheel in chassis_snapshot.wheel_statuses
+                if wheel.drive_turns_per_s is not None and not wheel.stale
+            )
+        )
+        self._mission_metrics["speed"].set_text(
+            "정보 없음" if not wheel_speeds
+            else f"{sum(wheel_speeds) / len(wheel_speeds):.2f} turn/s"
+        )
         self._sync_overlay_rail(metadata)
         target = self._display_target_tracker.view().detection
         self._rail_preparation_target.set_text(
@@ -4339,6 +4701,11 @@ class OperatorConsole(Gtk.Window):
             chassis_mode=chassis_mode,
         )
         self._environment_status.update(environment_snapshot)
+        self._refresh_end_effector_summary(
+            arm_snapshot=arm_snapshot,
+            arm_state=arm_state,
+            environment_state=environment_state,
+        )
         self._l515.set_rover_component_states(
             front_live=l515_video == "LIVE",
             work_live=d435_video == "LIVE" and arm_state == "LIVE",

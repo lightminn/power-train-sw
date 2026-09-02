@@ -1055,12 +1055,8 @@ def test_health_banner_includes_arm_freshness_and_reuses_probe_state():
         Path(__file__).resolve().parents[1] / "app.py"
     ).read_text(encoding="utf-8")
 
-    arm_state_call = (
-        "self._telemetry_state(self._arm_receiver.latest())"
-    )
-    assert source.count(arm_state_call) == 1
-    assert "arm_state = " + arm_state_call in source
-    assert '"arm": arm_state' in source
+    assert "arm_snapshot = self._arm_receiver.latest()" in source
+    assert "arm_state = self._telemetry_state(arm_snapshot)" in source
     assert '"arm": arm_state' in source
 
 
@@ -1232,12 +1228,12 @@ def test_console_layout_separates_mission_systems_and_ops_pages():
     ).read_text(encoding="utf-8")
 
     assert 'stack.add_titled(mission_page, "mission", "실시간 화면")' in source
-    assert 'stack.add_titled(systems_scroll, "systems", "로봇 상태")' in source
-    assert 'stack.add_titled(ops_page, "ops", "관리자 조작")' in source
+    assert 'stack.add_titled(systems_scroll, "systems", "시스템 상태")' in source
+    assert 'stack.add_titled(ops_page, "ops", "관리자 조작")' not in source
     assert "Gtk.StackSwitcher()" in source
-    assert "self.set_default_size(1180, 760)" in source
+    assert "self.set_default_size(1100, 680)" in source
     assert "videos = Gtk.Overlay()" in source
-    assert "int(allocation.width * 0.30)" in source
+    assert "int(allocation.width * 0.27)" in source
     assert "pip_width * 480 / 848" in source
     assert "event_expander = EventDrawer(self._events)" in source
     assert "heading.pack_end(events.filter_box" in source
@@ -1267,11 +1263,11 @@ def test_mission_preparation_keeps_dual_camera_layout_without_progress_hud():
     ).read_text(encoding="utf-8")
 
     for copy in (
-        "임무·AI 상태",
-            "현재 단계",
+        "실시간 운용",
+        "현재 단계",
         "운용 준비",
-        "전방 카메라",
-        "작업 카메라",
+        "전방 화면",
+        "작업 화면",
         "주행 시스템",
         "안전 장치",
     ):
@@ -1307,7 +1303,7 @@ def test_judge_facing_mission_summary_uses_plain_language_and_live_data():
 
     for copy in (
         "재난 대응 로봇 관제 시스템", "현재 단계",
-        "임무 정보", "안전 장치",
+        "평균 속도", "최신 인식", "로봇팔 · 도구", "안전 장치",
     ):
         assert copy in source
     assert 'self._mission_metrics["target"].set_text' in source
@@ -1382,15 +1378,16 @@ def test_camera_status_is_overlaid_and_has_a_waiting_placeholder():
     assert "video_stage.add_overlay(header_click)" in source
 
 
-def test_event_filters_are_independent_uppercase_checkbuttons():
+def test_event_filters_use_operator_facing_korean_categories():
     source = (
         Path(__file__).resolve().parents[1] / "app.py"
     ).read_text(encoding="utf-8")
 
     assert 'for severity in ("ERROR", "WARNING", "INFO")' in source
+    assert '"ERROR": "위험", "WARNING": "확인 필요", "INFO": "정보"' in source
 
 
-def test_event_rows_render_uppercase_severity_and_tabs_auto_collapse():
+def test_event_rows_hide_technical_severity_and_tabs_auto_collapse():
     source = (
         Path(__file__).resolve().parents[1] / "app.py"
     ).read_text(encoding="utf-8")
@@ -1398,8 +1395,8 @@ def test_event_rows_render_uppercase_severity_and_tabs_auto_collapse():
         source.index("class EventOperationRow"):
         source.index("class EventLog")
     ]
-    assert "Gtk.Label(label=severity)" in row_source
-    assert '"ERROR": "오류"' not in row_source
+    assert "Gtk.Label(label=severity)" not in row_source
+    assert 'header.attach(public_label, 1, 0, 1, 1)' in row_source
     assert 'stack.connect("notify::visible-child-name", self._on_page_changed)' in source
     assert 'self._event_expander.set_expanded(False)' in source
 
@@ -1464,7 +1461,7 @@ def test_metadata_overlay_remains_owned_by_work_camera_during_swap():
     ]
     assert "self._sync_overlay_rail" in handler
     assert "sendto(" not in handler
-    assert "Gtk.CheckButton(label=severity)" in source
+    assert "Gtk.CheckButton(label=filter_labels[severity])" in source
     assert "for toggle in self._filters.values():" in source
     assert "toggle.set_active(True)" in source
     assert "self._events.set_developer_visible(switch.get_active())" in source
@@ -1525,7 +1522,7 @@ def test_event_log_uses_one_integrated_feed_with_inline_raw_rows():
     assert "class EventOperationRow(Gtk.ListBoxRow)" in source
     assert "row.toggle_detail()" in source
     assert 'label=f"원본: [{stamp}] {severity} {source}: {message}"' in source
-    assert '(3, "기술 정보", 360)' in source
+    assert '(2, "기술 정보", 360)' in source
     assert 'technical_box.set_size_request(360, -1)' in source
     assert "self._technical_summary(message)" in source
     assert "self.set_size_request(-1, 180)" not in source

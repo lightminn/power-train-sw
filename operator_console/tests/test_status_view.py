@@ -4,8 +4,10 @@ from pathlib import Path
 
 import operator_console.status_view as status_view
 from operator_console.status_view import (
+    END_EFFECTOR_PURPOSES,
     GRAPH_WINDOW_S,
     MAX_GRAPH_SAMPLES,
+    CompetitionStatusDashboard,
     RobotStatusDashboard,
     TimedSeries,
     pdist_alarm_names,
@@ -43,6 +45,22 @@ def test_status_view_defaults_match_operator_view_options():
     assert RobotStatusDashboard.PANEL_ORDER == (
         "drive", "power", "safety", "network", "ai", "arm",
     )
+
+
+def test_operator_end_effector_inventory_is_limited_to_four_confirmed_categories():
+    assert tuple(END_EFFECTOR_PURPOSES) == (
+        "그리퍼 1", "그리퍼 2", "청소 모듈", "환경 센서 모듈",
+    )
+
+
+def test_competition_status_is_unified_around_power_communication_and_safety():
+    source = inspect.getsource(CompetitionStatusDashboard)
+    assert '"power", "전원 · PDIST80B"' in source
+    assert '"communication", "통신"' in source
+    assert '"safety", "안전"' in source
+    assert '"drive", "주행"' not in source
+    assert '"arm", "로봇팔"' not in source
+    assert "값은 추정하지 않습니다" in source
 
 
 def test_status_dashboard_has_no_control_or_transport_send_surface():

@@ -204,12 +204,12 @@ def test_event_latest_summary_respects_selected_levels():
 
     log._filters["ERROR"].set_active(False)
     assert log.latest_public() == (
-        "INFO", "선택한 수준의 기록이 없습니다",
+        "INFO", "선택한 분류의 기록이 없습니다",
     )
 
     log._filters["WARNING"].set_active(False)
     assert log.latest_public() == (
-        "INFO", "표시할 이벤트 수준을 선택해 주세요",
+        "INFO", "표시할 이벤트 분류를 선택해 주세요",
     )
 
 
