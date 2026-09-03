@@ -338,7 +338,8 @@ def run_smoke(
                 environment_values_seen |= all((
                     "29.08" in climate, "56.87" in climate,
                     "1003.14" in climate, "401" in air, "1" in air,
-                    "1.0" in hazard, "27.9" in hazard, "불꽃 정상" in hazard,
+                    "1.0" in hazard, "27.9" in hazard,
+                    "불꽃 감지 없음" in hazard,
                 ))
         # phase 2 — 주입 중단: 전 패널 LIVE→STALE 전이 + 오버레이 숨김 경로.
         stale_deadline = time.monotonic() + 3.5

@@ -7,12 +7,16 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 
 from operator_console.app import EventLog
+from operator_console.environment_telemetry import parse_environment_telemetry
 from operator_console.metadata import (
     Detection,
     DisplayTargetTracker,
     MetadataFrame,
 )
-from operator_console.status_view import RobotStatusDashboard
+from operator_console.status_view import (
+    EnvironmentSensorDashboard,
+    RobotStatusDashboard,
+)
 from operator_console.telemetry import parse_telemetry
 
 
@@ -27,6 +31,81 @@ def _visible_rows(log: EventLog) -> list:
         row for row in log._operation_list.get_children()
         if row.get_visible()
     ]
+
+
+def _environment_snapshot(**overrides):
+    payload = {
+        "schema_version": 1,
+        "sequence": 1,
+        "source": "test-environment",
+        "sensor_ok": True,
+        "errors": [],
+        "temperature_c": 24.0,
+        "humidity_pct": 50.0,
+        "pressure_hpa": 1005.0,
+        "eco2_ppm": 420.0,
+        "tvoc_ppb": 2.0,
+        "sgp30_warming_up": False,
+        "co_estimated_ppm": 1.0,
+        "lpg_estimated_ppm": 20.0,
+        "flame_detected": False,
+        "flame_voltage_v": 2.7,
+        "flame_threshold_v": 1.5,
+    }
+    payload.update(overrides)
+    return parse_environment_telemetry(
+        json.dumps(payload).encode("utf-8"),
+        received_monotonic_s=10.0,
+    )
+
+
+@requires_gtk
+def test_environment_dashboard_distinguishes_hazard_and_missing_data():
+    dashboard = EnvironmentSensorDashboard(port=15008)
+
+    dashboard.update(None, now_s=10.0)
+    assert all(
+        label.get_text() == "● 데이터 없음"
+        for label in dashboard._statuses.values()
+    )
+    assert dashboard._overall_status["bad"].get_text() == "0"
+    assert dashboard._overall_status["muted"].get_text() == "8"
+
+    dashboard.update(
+        _environment_snapshot(flame_detected=True, temperature_c=None),
+        now_s=10.0,
+    )
+    assert dashboard._statuses["flame"].get_text() == "● 위험"
+    assert dashboard._statuses["flame"].get_style_context().has_class(
+        "status-bad"
+    )
+    assert dashboard._statuses["temperature"].get_text() == "● 데이터 없음"
+    assert dashboard._overall_status["bad"].get_text() == "1"
+    assert dashboard._overall_status["muted"].get_text() == "1"
+    assert "위험 신호 감지" in dashboard._summary.get_text()
+
+
+@requires_gtk
+def test_environment_dashboard_never_turns_unknown_flame_into_normal():
+    dashboard = EnvironmentSensorDashboard(port=15008)
+    dashboard.update(
+        _environment_snapshot(flame_detected=None), now_s=10.0,
+    )
+
+    assert dashboard._statuses["flame"].get_text() == "● 데이터 없음"
+    assert "불꽃 정보 없음" in dashboard.probe_values()[2]
+
+
+@requires_gtk
+def test_environment_dashboard_marks_last_values_as_stale_not_normal():
+    dashboard = EnvironmentSensorDashboard(port=15008)
+    dashboard.update(_environment_snapshot(), now_s=20.0)
+
+    assert all(
+        label.get_text() == "● 갱신 지연"
+        for label in dashboard._statuses.values()
+    )
+    assert dashboard._overall_status["warn"].get_text() == "8"
 
 
 def test_draw_does_not_advance_the_distance_filter():

@@ -699,7 +699,8 @@ class EnvironmentSensorDashboard(Gtk.Box):
         for key, text, css in (
             ("live", "정상", "status-live"),
             ("warn", "주의", "status-warn"),
-            ("muted", "오류", "status-muted"),
+            ("bad", "위험", "status-bad"),
+            ("muted", "데이터 없음", "status-muted"),
         ):
             block = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
             block.set_size_request(120, 34)
@@ -897,8 +898,11 @@ class EnvironmentSensorDashboard(Gtk.Box):
             for value in self._values.values():
                 value.set_text("—")
             for key in self._statuses:
-                self._set_sensor_status(key, "오류", "status-muted")
-            self._update_overall_status({"live": 0, "warn": 0, "muted": len(self._statuses)})
+                self._set_sensor_status(key, "데이터 없음", "status-muted")
+            self._update_overall_status({
+                "live": 0, "warn": 0, "bad": 0,
+                "muted": len(self._statuses),
+            })
             flame_context = self._values["flame"].get_style_context()
             for css_class in ("status-live", "status-bad"):
                 flame_context.remove_class(css_class)
@@ -997,9 +1001,22 @@ class EnvironmentSensorDashboard(Gtk.Box):
             f"{threshold} 미만이면 불꽃 감지"
         )
 
-        # Status badges are deliberately conservative: gas ppm values are
-        # marked attention until the MQ sensors are calibrated against a
-        # reference gas, while flame is a binary hazard decision.
+        # A present value alone must not be presented as healthy: the packet
+        # must be fresh and the sensor owner must report sensor_ok.  Gas ppm
+        # remains attention-only until reference-gas calibration, while a
+        # fresh positive flame decision is an explicit hazard.
+        status_counts = {"live": 0, "warn": 0, "bad": 0, "muted": 0}
+
+        def set_status(key: str, text: str, css_class: str) -> None:
+            self._set_sensor_status(key, text, css_class)
+            count_key = {
+                "status-live": "live",
+                "status-warn": "warn",
+                "status-bad": "bad",
+                "status-muted": "muted",
+            }[css_class]
+            status_counts[count_key] += 1
+
         for key, value in (
             ("temperature", snapshot.temperature_c),
             ("humidity", snapshot.humidity_pct),
@@ -1007,44 +1024,54 @@ class EnvironmentSensorDashboard(Gtk.Box):
             ("eco2", snapshot.eco2_ppm),
             ("tvoc", snapshot.tvoc_ppb),
         ):
-            self._set_sensor_status(
-                key,
-                "정상" if state == "LIVE" and value is not None else "오류",
-                "status-live" if state == "LIVE" and value is not None else "status-muted",
-            )
-        self._set_sensor_status(
-            "co", "주의" if state == "LIVE" and snapshot.co_estimated_ppm is not None else "오류",
-            "status-warn" if state == "LIVE" and snapshot.co_estimated_ppm is not None else "status-muted",
-        )
-        self._set_sensor_status(
-            "lpg", "주의" if state == "LIVE" and snapshot.lpg_estimated_ppm is not None else "오류",
-            "status-warn" if state == "LIVE" and snapshot.lpg_estimated_ppm is not None else "status-muted",
-        )
-        self._set_sensor_status(
-            "flame",
-            "주의" if snapshot.flame_detected else "정상"
-            if state == "LIVE" and snapshot.flame_detected is not None else "오류",
-            "status-warn" if snapshot.flame_detected else "status-live"
-            if state == "LIVE" and snapshot.flame_detected is not None else "status-muted",
-        )
-        status_counts = {"live": 0, "warn": 0, "muted": 0}
-        for label in self._statuses.values():
-            text = label.get_text()
-            if "정상" in text:
-                status_counts["live"] += 1
-            elif "주의" in text:
-                status_counts["warn"] += 1
+            if value is None:
+                set_status(key, "데이터 없음", "status-muted")
+            elif state != "LIVE":
+                set_status(key, "갱신 지연", "status-warn")
+            elif not snapshot.sensor_ok:
+                set_status(key, "확인 필요", "status-warn")
             else:
-                status_counts["muted"] += 1
+                set_status(key, "정상", "status-live")
+
+        for key, value in (
+            ("co", snapshot.co_estimated_ppm),
+            ("lpg", snapshot.lpg_estimated_ppm),
+        ):
+            if value is None:
+                set_status(key, "데이터 없음", "status-muted")
+            elif state != "LIVE":
+                set_status(key, "갱신 지연", "status-warn")
+            else:
+                set_status(key, "주의 · 교정 전", "status-warn")
+
+        if snapshot.flame_detected is None:
+            set_status("flame", "데이터 없음", "status-muted")
+        elif state != "LIVE":
+            set_status("flame", "갱신 지연", "status-warn")
+        elif snapshot.flame_detected:
+            set_status("flame", "위험", "status-bad")
+        elif not snapshot.sensor_ok:
+            set_status("flame", "확인 필요", "status-warn")
+        else:
+            set_status("flame", "정상", "status-live")
+
         self._update_overall_status(status_counts)
         self._notes["eco2"].set_text(
             "SGP30 예열 중" if snapshot.sgp30_warming_up
             else "SGP30 계산 추정값"
         )
         error_text = "" if not snapshot.errors else " · 오류: " + " | ".join(snapshot.errors)
+        overall_text = (
+            "종합 상태 · 위험 신호 감지"
+            if state == "LIVE" and snapshot.flame_detected is True
+            else "종합 상태 · 센서 확인 필요"
+            if state == "LIVE" and (not snapshot.sensor_ok or snapshot.errors)
+            else "종합 상태 · 최신값 수신 중"
+            if state == "LIVE"
+            else "종합 상태 · 마지막 값 표시 · 갱신 지연"
+        )
         self._summary.set_text(
-            ("종합 상태 · 최신값 수신 중" if state == "LIVE"
-             else "종합 상태 · 마지막 값 표시 · 갱신 지연")
+            overall_text
             + f"  |  불꽃 {flame_text}  |  CO/LPG 교정 전{error_text}"
         )
         self._source_detail.set_text(
@@ -1059,7 +1086,10 @@ class EnvironmentSensorDashboard(Gtk.Box):
             f"{snapshot.pressure_hpa} hPa"
         )
         self._probe_air = f"eCO₂ {snapshot.eco2_ppm} ppm · TVOC {snapshot.tvoc_ppb} ppb"
-        flame = "감지" if snapshot.flame_detected else "정상"
+        flame = (
+            "정보 없음" if snapshot.flame_detected is None
+            else "감지" if snapshot.flame_detected else "감지 없음"
+        )
         self._probe_hazard = (
             f"CO≈{snapshot.co_estimated_ppm} ppm · "
             f"LPG≈{snapshot.lpg_estimated_ppm} ppm · 불꽃 {flame}"
