@@ -85,12 +85,102 @@ def power_card_state(
         and getattr(power, "pdist_soc_percent", None) is None
     ):
         return "확인 필요", "전원 계측값 없음"
+    if (
+        getattr(power, "pdist_battery_flags", None) is None
+        or getattr(power, "pdist_protection_flags", None) is None
+    ):
+        return "확인 필요", "보호 상태 정보 없음"
     if pdist_alarm_names(
         getattr(power, "pdist_battery_flags", None),
         getattr(power, "pdist_protection_flags", None),
     ):
         return "확인 필요", "보호 상태 확인 필요"
     return "정상", str(getattr(power, "rs485_state", "") or "정상")
+
+
+def public_link_state(value: object, *, control: bool = False) -> str:
+    """Translate transport codes without leaking diagnostics into the main UI."""
+    normalized = str(value or "").strip().upper()
+    if control:
+        return {
+            "LIVE": "연결됨",
+            "UNAVAILABLE": "사용 불가",
+        }.get(normalized, "정보 없음")
+    return {
+        "LIVE": "실시간 수신",
+        "OK": "정상",
+        "VALID": "정상",
+        "NORMAL": "정상",
+        "STALE": "갱신 지연",
+        "CONNECTING": "연결 중",
+        "CHECKING": "확인 중",
+        "NO_RESPONSE": "응답 없음",
+        "INVALID_READING": "측정값 없음",
+        "UNAVAILABLE": "정보 없음",
+    }.get(normalized, "정보 없음")
+
+
+def communication_badge_state(
+    *,
+    chassis_fresh: bool,
+    power_fresh: bool,
+    metadata_fresh: bool,
+    front_video_state: object,
+    work_video_state: object,
+    control_link_ready: object,
+    any_telemetry_seen: bool,
+) -> tuple[str, str]:
+    """Require every communication item shown in the summary before NORMAL."""
+    ready = (
+        chassis_fresh
+        and power_fresh
+        and metadata_fresh
+        and front_video_state == "LIVE"
+        and work_video_state == "LIVE"
+        and control_link_ready is True
+    )
+    if ready:
+        return "정상", "status-live"
+    if any_telemetry_seen or control_link_ready is not None:
+        return "확인 필요", "status-warn"
+    return "정보 없음", "status-muted"
+
+
+def safety_badge_state(
+    *,
+    chassis: object | None,
+    chassis_fresh: bool,
+    arm: object | None,
+    arm_fresh: bool,
+) -> tuple[str, str]:
+    """Never infer safe from an absent safety-enable or temperature source."""
+    if chassis is None:
+        return "정보 없음", "status-muted"
+    estop = getattr(chassis, "safety_estop_required", None)
+    if chassis_fresh and estop is True:
+        return "비상정지", "status-bad"
+    if not chassis_fresh:
+        return "확인 필요", "status-warn"
+
+    component_mask = getattr(chassis, "component_mask", None)
+    us100_enabled = (
+        None if component_mask is None else component_mask.get("us100")
+    )
+    if us100_enabled is not True or estop is not False:
+        return "확인 필요", "status-warn"
+
+    robot_arm_required = (
+        component_mask is None or component_mask.get("robot_arm") is not False
+    )
+    dynamixel = None if arm is None else getattr(arm, "dynamixel", None)
+    if robot_arm_required and (not arm_fresh or dynamixel is None):
+        return "확인 필요", "status-warn"
+    if arm_fresh and dynamixel and any(
+        temperature_state(motor.temperature_c) != "NORMAL"
+        for motor in dynamixel
+    ):
+        return "확인 필요", "status-warn"
+    return "정상", "status-live"
 
 
 def _style(widget: Gtk.Widget, *classes: str) -> Gtk.Widget:
@@ -135,6 +225,9 @@ class TimedSeries:
     def mark_gap(self, timestamp_s: float) -> None:
         if not self._samples or self._samples[-1].value is not None:
             self.append(timestamp_s, None)
+
+    def clear(self) -> None:
+        self._samples.clear()
 
     def samples(self) -> tuple[TimedSample, ...]:
         return tuple(self._samples)
@@ -575,7 +668,7 @@ class SensorTrend(Gtk.DrawingArea):
         self._series = TimedSeries()
         self._color = color
         self._stale = False
-        self.set_size_request(-1, 68)
+        self.set_size_request(-1, 54)
         self.set_hexpand(True)
         self.connect("draw", self._draw)
 
@@ -590,6 +683,11 @@ class SensorTrend(Gtk.DrawingArea):
 
     def set_live(self) -> None:
         self._stale = False
+        self.queue_draw()
+
+    def clear(self) -> None:
+        self._series.clear()
+        self._stale = True
         self.queue_draw()
 
     def _draw(self, _widget: Gtk.DrawingArea, cr: object) -> bool:
@@ -613,9 +711,6 @@ class SensorTrend(Gtk.DrawingArea):
         )
         cr.select_font_face("Noto Sans CJK KR", 0, 0)
         cr.set_font_size(8.0)
-        cr.set_source_rgb(0.43, 0.53, 0.63)
-        cr.move_to(left, 8.0)
-        cr.show_text("최근 60초 · 자동 스케일")
         if len(samples) < 2:
             cr.set_source_rgb(0.39, 0.48, 0.58)
             cr.move_to(left + 4.0, top + plot_h * 0.67)
@@ -659,35 +754,27 @@ class EnvironmentSensorDashboard(Gtk.Box):
     """Dedicated visual dashboard for Raspberry Pi environmental readings."""
 
     def __init__(self, *, port: int = 5008) -> None:
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        self.set_border_width(14)
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=9)
+        self.set_border_width(10)
         self._port = int(port)
-        self._probe_climate = "수신 대기"
-        self._probe_air = "수신 대기"
-        self._probe_hazard = "수신 대기"
+        self._probe_climate = "미연결"
+        self._probe_air = "미연결"
+        self._probe_hazard = "미연결"
         self._last_sequence: int | None = None
 
         heading = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         title = Gtk.Label(label="환경 측정 현황")
         title.set_xalign(0.0)
         _style(title, "environment-title")
-        subtitle = Gtk.Label(
-            label="현재 환경과 위험 신호를 한 화면에서 확인합니다 · 관측 전용"
-        )
-        subtitle.set_xalign(0.0)
-        _style(subtitle, "environment-subtitle")
-        self._connection = Gtk.Label(label="●  연결 대기")
+        self._connection = Gtk.Label(label="●  미연결")
         self._connection.set_xalign(1.0)
         _style(self._connection, "environment-connection", "status-muted")
-        title_box.pack_start(title, False, False, 0)
-        title_box.pack_start(subtitle, False, False, 0)
-        heading.pack_start(title_box, True, True, 0)
+        heading.pack_start(title, True, True, 0)
         heading.pack_end(self._connection, False, False, 0)
         self.pack_start(heading, False, False, 0)
 
         self._summary = Gtk.Label(
-            label="센서 패킷을 기다리고 있습니다"
+            label="환경 센서 미연결"
         )
         self._summary.set_xalign(0.0)
         self._summary.set_line_wrap(True)
@@ -703,7 +790,7 @@ class EnvironmentSensorDashboard(Gtk.Box):
             ("muted", "데이터 없음", "status-muted"),
         ):
             block = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            block.set_size_request(120, 34)
+            block.set_size_request(120, 30)
             _style(block, "sensor-overall-block", css)
             count = Gtk.Label(label="0")
             count.set_xalign(0.5)
@@ -719,7 +806,6 @@ class EnvironmentSensorDashboard(Gtk.Box):
 
         self._values: dict[str, Gtk.Label] = {}
         self._statuses: dict[str, Gtk.Label] = {}
-        self._notes: dict[str, Gtk.Label] = {}
         self._trends: dict[str, SensorTrend] = {}
 
         self._tiles: dict[str, Gtk.Box] = {}
@@ -728,13 +814,12 @@ class EnvironmentSensorDashboard(Gtk.Box):
             key: str,
             label_text: str,
             group_key: str,
-            note_text: str,
             color: tuple[float, float, float],
             *,
             show_trend: bool = False,
         ) -> Gtk.Box:
-            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-            card.set_border_width(11)
+            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            card.set_border_width(8)
             card.set_hexpand(True)
             _style(
                 card, "sensor-tile", "sensor-compact-tile",
@@ -753,47 +838,36 @@ class EnvironmentSensorDashboard(Gtk.Box):
             value.set_ellipsize(Pango.EllipsizeMode.END)
             _style(value, "sensor-tile-value")
             trend = SensorTrend(color)
-            note = Gtk.Label(label=note_text)
-            note.set_xalign(0.0)
-            note.set_ellipsize(Pango.EllipsizeMode.END)
-            _style(note, "sensor-tile-note")
             header.pack_start(name, True, True, 0)
             header.pack_end(status, False, False, 0)
             card.pack_start(header, False, False, 0)
             card.pack_start(value, False, False, 0)
             if show_trend:
                 card.pack_start(trend, True, True, 0)
-            card.pack_end(note, False, False, 0)
             self._values[key] = value
             self._statuses[key] = status
-            self._notes[key] = note
             self._trends[key] = trend
             self._tiles[key] = card
             return card
 
         def make_group(
-            title_text: str, description: str, group_key: str,
+            title_text: str, group_key: str,
             tile_specs: tuple[tuple[object, ...], ...],
         ) -> Gtk.Box:
-            group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
             group.set_hexpand(True)
             group.set_vexpand(True)
             _style(group, "sensor-group", f"sensor-group-panel-{group_key}")
             group_title = Gtk.Label(label=title_text)
             group_title.set_xalign(0.0)
             _style(group_title, "sensor-group-title")
-            group_description = Gtk.Label(label=description)
-            group_description.set_xalign(0.0)
-            group_description.set_line_wrap(True)
-            _style(group_description, "sensor-group-description")
             group.pack_start(group_title, False, False, 0)
-            group.pack_start(group_description, False, False, 0)
             for spec in tile_specs:
-                key, label_text, note_text, color, show_trend = spec
+                key, label_text, color, show_trend = spec
                 group.pack_start(
                     make_tile(
-                        str(key), str(label_text), group_key, str(note_text),
-                        color, show_trend=bool(show_trend),
+                        str(key), str(label_text), group_key, color,
+                        show_trend=bool(show_trend),
                     ),
                     bool(show_trend), bool(show_trend), 0,
                 )
@@ -804,26 +878,23 @@ class EnvironmentSensorDashboard(Gtk.Box):
         groups.set_hexpand(True)
         groups.set_vexpand(True)
         groups.attach(make_group(
-            "핵심 환경", "현재 공간의 기본 환경",
-            "climate", (
-                ("temperature", "온도", "최근 60초 추세", (0.31, 0.61, 0.94), True),
-                ("humidity", "습도", "상대습도", (0.31, 0.61, 0.94), False),
-                ("pressure", "기압", "대기압", (0.31, 0.61, 0.94), False),
+            "핵심 환경", "climate", (
+                ("temperature", "온도", (0.31, 0.61, 0.94), True),
+                ("humidity", "습도", (0.31, 0.61, 0.94), False),
+                ("pressure", "기압", (0.31, 0.61, 0.94), False),
             ),
         ), 0, 0, 1, 1)
         groups.attach(make_group(
-            "공기질", "SGP30 기반 변화 관측",
-            "air", (
-                ("eco2", "eCO₂", "실제 CO₂가 아닌 계산 추정값", (0.58, 0.48, 0.94), True),
-                ("tvoc", "TVOC", "휘발성 유기화합물", (0.58, 0.48, 0.94), False),
+            "공기질", "air", (
+                ("eco2", "eCO₂", (0.58, 0.48, 0.94), True),
+                ("tvoc", "TVOC", (0.58, 0.48, 0.94), False),
             ),
         ), 1, 0, 1, 1)
         groups.attach(make_group(
-            "위험 감지", "불꽃은 판정값, 가스는 교정 전 참고값",
-            "hazard", (
-                ("co", "CO", "MQ-7 · 기준가스 교정 전", (0.91, 0.64, 0.20), False),
-                ("lpg", "LPG", "MQ-2 · 기준가스 교정 전", (0.91, 0.64, 0.20), False),
-                ("flame", "불꽃", "최근 60초 센서 전압", (0.20, 0.77, 0.55), True),
+            "위험 감지", "hazard", (
+                ("co", "CO", (0.91, 0.64, 0.20), False),
+                ("lpg", "LPG", (0.91, 0.64, 0.20), False),
+                ("flame", "불꽃", (0.20, 0.77, 0.55), False),
             ),
         ), 2, 0, 1, 1)
         self.pack_start(groups, True, True, 0)
@@ -837,10 +908,7 @@ class EnvironmentSensorDashboard(Gtk.Box):
         self._link = Gtk.Label(label=f"UDP :{self._port} · 수신 대기")
         self._link.set_xalign(0.0)
         _style(self._link, "developer-box")
-        self._source_detail = Gtk.Label(
-            label=("CO/LPG는 기준가스 교정 전 추정값이며 절대 안전 판정에 "
-                   "사용하지 않습니다. eCO₂는 SGP30 계산 추정값입니다.")
-        )
+        self._source_detail = Gtk.Label(label="수신 정보 없음")
         self._source_detail.set_xalign(0.0)
         self._source_detail.set_line_wrap(True)
         _style(self._source_detail, "sensor-diagnostic-note")
@@ -887,18 +955,27 @@ class EnvironmentSensorDashboard(Gtk.Box):
     ) -> None:
         current = time.monotonic() if now_s is None else float(now_s)
         state = environment_source_state(snapshot, now_s=current)
-        if snapshot is None:
-            self._link.set_text(f"UDP :{self._port} · 수신 대기")
-            self._connection.set_text("●  연결 대기")
+        if snapshot is None or state != "LIVE":
+            if snapshot is None:
+                self._link.set_text(f"UDP :{self._port} · 미연결")
+                self._source_detail.set_text("수신 정보 없음")
+            else:
+                age = max(0.0, current - snapshot.received_monotonic_s)
+                self._link.set_text(
+                    f"UDP :{self._port} · 미연결 · 마지막 수신 {age:.1f}초 전"
+                )
+                error_text = " | ".join(snapshot.errors)
+                self._source_detail.set_text(error_text or "센서 응답 없음")
+            self._connection.set_text("●  미연결")
             connection_context = self._connection.get_style_context()
             connection_context.remove_class("status-live")
             connection_context.remove_class("status-warn")
             connection_context.add_class("status-muted")
-            self._summary.set_text("센서 패킷을 기다리고 있습니다")
+            self._summary.set_text("환경 센서 미연결")
             for value in self._values.values():
-                value.set_text("—")
+                value.set_text("미연결")
             for key in self._statuses:
-                self._set_sensor_status(key, "데이터 없음", "status-muted")
+                self._set_sensor_status(key, "미연결", "status-muted")
             self._update_overall_status({
                 "live": 0, "warn": 0, "bad": 0,
                 "muted": len(self._statuses),
@@ -913,8 +990,9 @@ class EnvironmentSensorDashboard(Gtk.Box):
             ):
                 flame_tile_context.remove_class(css_class)
             for trend in self._trends.values():
-                trend.mark_stale(current)
-            self._probe_climate = self._probe_air = self._probe_hazard = "수신 대기"
+                trend.clear()
+            self._last_sequence = None
+            self._probe_climate = self._probe_air = self._probe_hazard = "미연결"
             return
 
         age = max(0.0, current - snapshot.received_monotonic_s)
@@ -924,12 +1002,8 @@ class EnvironmentSensorDashboard(Gtk.Box):
         connection_context = self._connection.get_style_context()
         for css_class in ("status-live", "status-warn", "status-muted"):
             connection_context.remove_class(css_class)
-        if state == "LIVE":
-            self._connection.set_text("●  실시간 수신")
-            connection_context.add_class("status-live")
-        else:
-            self._connection.set_text("●  갱신 지연")
-            connection_context.add_class("status-warn")
+        self._connection.set_text("●  실시간 수신")
+        connection_context.add_class("status-live")
         if self._last_sequence != snapshot.sequence:
             self._last_sequence = snapshot.sequence
             sample_time = snapshot.received_monotonic_s
@@ -965,19 +1039,16 @@ class EnvironmentSensorDashboard(Gtk.Box):
             self._format(snapshot.tvoc_ppb, "ppb", 0)
         )
         self._values["co"].set_text(
-            "≈" + self._format(snapshot.co_estimated_ppm, "ppm", 1)
-            if snapshot.co_estimated_ppm is not None else "—"
+            self._format(snapshot.co_estimated_ppm, "ppm", 1)
         )
         self._values["lpg"].set_text(
-            "≈" + self._format(snapshot.lpg_estimated_ppm, "ppm", 1)
-            if snapshot.lpg_estimated_ppm is not None else "—"
+            self._format(snapshot.lpg_estimated_ppm, "ppm", 1)
         )
         flame_text = (
-            "정보 없음" if snapshot.flame_detected is None
-            else "감지" if snapshot.flame_detected else "감지 없음"
+            "—" if snapshot.flame_detected is None
+            else "O" if snapshot.flame_detected else "X"
         )
-        voltage = self._format(snapshot.flame_voltage_v, "V", 3)
-        self._values["flame"].set_text(f"{flame_text} · {voltage}")
+        self._values["flame"].set_text(flame_text)
         flame_context = self._values["flame"].get_style_context()
         for css_class in ("status-live", "status-bad", "status-muted"):
             flame_context.remove_class(css_class)
@@ -996,15 +1067,6 @@ class EnvironmentSensorDashboard(Gtk.Box):
                 "sensor-flame-detected"
                 if snapshot.flame_detected else "sensor-flame-normal"
             )
-        threshold = self._format(snapshot.flame_threshold_v, "V", 3)
-        self._notes["flame"].set_text(
-            f"{threshold} 미만이면 불꽃 감지"
-        )
-
-        # A present value alone must not be presented as healthy: the packet
-        # must be fresh and the sensor owner must report sensor_ok.  Gas ppm
-        # remains attention-only until reference-gas calibration, while a
-        # fresh positive flame decision is an explicit hazard.
         status_counts = {"live": 0, "warn": 0, "bad": 0, "muted": 0}
 
         def set_status(key: str, text: str, css_class: str) -> None:
@@ -1056,10 +1118,6 @@ class EnvironmentSensorDashboard(Gtk.Box):
             set_status("flame", "정상", "status-live")
 
         self._update_overall_status(status_counts)
-        self._notes["eco2"].set_text(
-            "SGP30 예열 중" if snapshot.sgp30_warming_up
-            else "SGP30 계산 추정값"
-        )
         error_text = "" if not snapshot.errors else " · 오류: " + " | ".join(snapshot.errors)
         overall_text = (
             "종합 상태 · 위험 신호 감지"
@@ -1068,31 +1126,36 @@ class EnvironmentSensorDashboard(Gtk.Box):
             if state == "LIVE" and (not snapshot.sensor_ok or snapshot.errors)
             else "종합 상태 · 최신값 수신 중"
             if state == "LIVE"
-            else "종합 상태 · 마지막 값 표시 · 갱신 지연"
+            else "종합 상태 · 미연결"
         )
         self._summary.set_text(
             overall_text
-            + f"  |  불꽃 {flame_text}  |  CO/LPG 교정 전{error_text}"
+            + f"  |  불꽃 {flame_text}{error_text}"
         )
         self._source_detail.set_text(
-            "CO/LPG는 기준가스 교정 전 추정값이며 절대 안전 판정에 "
-            "사용하지 않습니다. eCO₂는 SGP30 계산 추정값입니다.\n"
             f"source={snapshot.source} · seq={snapshot.sequence}"
             + (f" · Pi 시각={snapshot.source_timestamp}"
                if snapshot.source_timestamp else "")
         )
-        self._probe_climate = (
-            f"{snapshot.temperature_c} °C · {snapshot.humidity_pct} % · "
-            f"{snapshot.pressure_hpa} hPa"
-        )
-        self._probe_air = f"eCO₂ {snapshot.eco2_ppm} ppm · TVOC {snapshot.tvoc_ppb} ppb"
+        self._probe_climate = " · ".join((
+            f"온도 {self._format(snapshot.temperature_c, '°C', 2)}",
+            f"습도 {self._format(snapshot.humidity_pct, '%', 2)}",
+            f"기압 {self._format(snapshot.pressure_hpa, 'hPa', 2)}",
+        ))
+        self._probe_air = " · ".join((
+            f"eCO₂ {self._format(snapshot.eco2_ppm, 'ppm', 0)}",
+            f"TVOC {self._format(snapshot.tvoc_ppb, 'ppb', 0)}",
+        ))
         flame = (
-            "정보 없음" if snapshot.flame_detected is None
-            else "감지" if snapshot.flame_detected else "감지 없음"
+            "—" if snapshot.flame_detected is None
+            else "O" if snapshot.flame_detected else "X"
         )
+        co = self._format(snapshot.co_estimated_ppm, "ppm", 1)
+        lpg = self._format(snapshot.lpg_estimated_ppm, "ppm", 1)
         self._probe_hazard = (
-            f"CO≈{snapshot.co_estimated_ppm} ppm · "
-            f"LPG≈{snapshot.lpg_estimated_ppm} ppm · 불꽃 {flame}"
+            f"CO {'정보 없음' if snapshot.co_estimated_ppm is None else co} · "
+            f"LPG {'정보 없음' if snapshot.lpg_estimated_ppm is None else lpg} · "
+            f"불꽃 {flame}"
         )
 
     def probe_values(self) -> tuple[str, str, str]:
@@ -1896,15 +1959,16 @@ class RobotStatusDashboard(Gtk.Box):
                 "정보 없음" if power.pdist_charge_current_a is None
                 else f"{power.pdist_charge_current_a:.1f} A"
             )
-            measured_power = power.power_w
-            if measured_power is None and power.voltage_v is not None and power.current_a is not None:
-                measured_power = power.voltage_v * power.current_a
             self._power_metrics["power"].set_text(
-                "정보 없음" if measured_power is None else f"{measured_power:.0f} W"
+                "정보 없음" if power.power_w is None else f"{power.power_w:.0f} W"
             )
             self._power_metrics["soc"].set_text(soc)
             self._power_metrics["operating"].set_text(
-                "대기" if not operating_states else " · ".join(operating_states)
+                "정보 없음"
+                if power.pdist_battery_flags is None
+                or power.pdist_protection_flags is None
+                else "대기" if not operating_states
+                else " · ".join(operating_states)
             )
             rs485_detail = power.rs485_detail.strip()
             self._power_metrics["rs485"].set_text(
@@ -2404,7 +2468,8 @@ class _LegacyCompetitionStatusDashboard(RobotStatusDashboard):
 
     def update(self, **kwargs: object) -> None:
         super().update(**kwargs)
-        now_s = float(kwargs.get("now_s") or time.monotonic())
+        requested_now = kwargs.get("now_s")
+        now_s = time.monotonic() if requested_now is None else float(requested_now)
         source_active = any(
             self._fresh(kwargs.get(key), now_s)
             for key in ("power", "chassis", "arm", "metadata")
@@ -2642,13 +2707,19 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
             "갱신 지연" if power is not None else "수신 대기"
         )
         network = self._detail_metrics["network"]
-        self._system_values["comm_front"].set_text(network["front"].get_text())
-        self._system_values["comm_work"].set_text(network["work"].get_text())
+        self._system_values["comm_front"].set_text(
+            public_link_state(network["front"].get_text())
+        )
+        self._system_values["comm_work"].set_text(
+            public_link_state(network["work"].get_text())
+        )
         self._system_values["comm_ai"].set_text(
             "실시간 수신" if metadata_fresh else
             "갱신 지연" if metadata is not None else "수신 대기"
         )
-        self._system_values["comm_control"].set_text(network["control"].get_text())
+        self._system_values["comm_control"].set_text(
+            public_link_state(network["control"].get_text(), control=True)
+        )
 
         safety = self._detail_metrics["safety"]
         for target, source in (
@@ -2662,6 +2733,13 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
             self._system_values[target].set_text(
                 self._value_or_information(safety[source].get_text())
             )
+        self._system_values["safety_sensor"].set_text(
+            public_link_state(safety["sensor"].get_text())
+        )
+        self._system_values["power_rs485"].set_text(
+            public_link_state(getattr(power, "rs485_state", None))
+            if power_fresh else "갱신 지연" if power is not None else "정보 없음"
+        )
 
         power_state, _power_reason = power_card_state(power, fresh=power_fresh)
         self._set_badge(
@@ -2669,39 +2747,31 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
             "status-live" if power_state == "정상" else
             "status-warn" if power is not None else "status-muted",
         )
-        comm_ready = chassis_fresh and power_fresh and (
-            kwargs.get("front_video_state") == "LIVE"
-            or kwargs.get("work_video_state") == "LIVE"
+        communication_state, communication_tone = communication_badge_state(
+            chassis_fresh=chassis_fresh,
+            power_fresh=power_fresh,
+            metadata_fresh=metadata_fresh,
+            front_video_state=kwargs.get("front_video_state"),
+            work_video_state=kwargs.get("work_video_state"),
+            control_link_ready=kwargs.get("control_link_ready"),
+            any_telemetry_seen=any(
+                source is not None for source in (power, chassis, metadata)
+            ),
         )
-        self._set_badge(
-            "communication", "정상" if comm_ready else
-            "확인 필요" if chassis is not None or power is not None else "정보 없음",
-            "status-live" if comm_ready else
-            "status-warn" if chassis is not None or power is not None else "status-muted",
+        self._set_badge("communication", communication_state, communication_tone)
+        safety_state, safety_tone = safety_badge_state(
+            chassis=chassis,
+            chassis_fresh=chassis_fresh,
+            arm=arm,
+            arm_fresh=arm_fresh,
         )
-        estop = getattr(chassis, "safety_estop_required", None)
-        arm_temperature_attention = bool(
-            arm_fresh
-            and getattr(arm, "dynamixel", None)
-            and any(
-                temperature_state(motor.temperature_c) != "NORMAL"
-                for motor in arm.dynamixel
-            )
-        )
-        safety_ready = (
-            chassis_fresh and estop is False and not arm_temperature_attention
-        )
-        self._set_badge(
-            "safety", "정상" if safety_ready else
-            "비상정지" if estop is True else
-            "확인 필요" if arm_temperature_attention else
-            "확인 필요" if chassis is not None else "정보 없음",
-            "status-live" if safety_ready else
-            "status-bad" if estop is True else
-            "status-warn" if chassis is not None else "status-muted",
-        )
+        self._set_badge("safety", safety_state, safety_tone)
 
-        overall_ok = power_state == "정상" and comm_ready and safety_ready
+        overall_ok = (
+            power_state == "정상"
+            and communication_state == "정상"
+            and safety_state == "정상"
+        )
         overall_attention = any(source is not None for source in (power, chassis, arm, metadata))
         overall_context = self._system_overall.get_style_context()
         for candidate in ("status-live", "status-warn", "status-muted"):

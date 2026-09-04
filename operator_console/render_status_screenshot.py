@@ -9,16 +9,19 @@ import tempfile
 
 import gi
 
+gi.require_foreign("cairo")
 gi.require_version("Gdk", "3.0")
 gi.require_version("GdkPixbuf", "2.0")
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gst", "1.0")
 from gi.repository import Gdk, GdkPixbuf, GLib, Gst, Gtk  # noqa: E402
+import cairo  # noqa: E402
 
 from .app import OperatorConsole
 from .runtime_smoke import (
     _arm_payload,
     _chassis_payload,
+    _environment_payload,
     _metadata_payload,
     _telemetry_payload,
 )
@@ -37,7 +40,11 @@ def main() -> int:
     parser.add_argument("--width", type=int, required=True)
     parser.add_argument("--height", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--page", choices=("mission", "systems"), default="systems")
+    parser.add_argument(
+        "--page",
+        choices=("mission", "systems", "environment"),
+        default="systems",
+    )
     parser.add_argument(
         "--status-panel",
         choices=("drive", "power", "safety", "network", "ai", "arm"),
@@ -50,13 +57,17 @@ def main() -> int:
     parser.add_argument("--scroll-y", type=float, default=0.0)
     args = parser.parse_args()
     Gst.init(None)
-    ports = {name: _free_port() for name in ("power", "chassis", "metadata", "arm")}
+    ports = {
+        name: _free_port()
+        for name in ("power", "chassis", "metadata", "arm", "environment")
+    }
     with tempfile.NamedTemporaryFile(mode="w", delete=False) as token:
         token.write("screenshot-only-token")
         token_path = token.name
     window = OperatorConsole(
         "127.0.0.1", _free_port(), _free_port(), ports["metadata"], 60,
         ports["power"], ports["chassis"], ports["arm"],
+        environment_telemetry_port=ports["environment"],
         ops_host="127.0.0.1", ops_port=_free_port(),
         ops_token_file=token_path,
     )
@@ -64,9 +75,26 @@ def main() -> int:
     window.resize(args.width, args.height)
     window.move(0, 0)
     window.show_all()
-    window._stack.set_visible_child_name(args.page)
+    window._stack.set_visible_child_name(
+        "mission" if args.page == "environment" else args.page
+    )
     if args.page == "systems":
-        window._robot_status._card_buttons[args.status_panel].clicked()
+        # The current system page is a single integrated surface.  Keep the
+        # legacy CLI option accepted for old review commands, but do not
+        # activate the hidden pre-restructure subsystem cards.
+        pass
+    elif args.page == "environment":
+        window._end_effector_popup.set_decorated(False)
+        window._end_effector_popup.resize(args.width, args.height)
+        model = window._mission_tool_selector.get_model()
+        selected = False
+        for index, row in enumerate(model):
+            if row[0] == "환경 센서 모듈":
+                window._mission_tool_selector.set_active(index)
+                selected = True
+                break
+        if not selected:
+            raise RuntimeError("environment end-effector option is missing")
     sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sequence = 0
 
@@ -78,6 +106,7 @@ def main() -> int:
             ("chassis", _chassis_payload),
             ("metadata", _metadata_payload),
             ("arm", _arm_payload),
+            ("environment", _environment_payload),
         ):
             sender.sendto(
                 json.dumps(builder(sequence)).encode("utf-8"),
@@ -86,7 +115,12 @@ def main() -> int:
         return True
 
     def capture() -> bool:
-        gdk_window = window.get_window()
+        target = (
+            window._end_effector_popup
+            if args.page == "environment" else window
+        )
+        target.check_resize()
+        gdk_window = target.get_window()
         source_width = gdk_window.get_width()
         source_height = gdk_window.get_height()
         if args.page == "mission":
@@ -104,8 +138,34 @@ def main() -> int:
         pixbuf = Gdk.pixbuf_get_from_window(
             source_window, source_x, source_y, source_width, source_height,
         )
-        if pixbuf is None:
-            raise RuntimeError("GTK window capture returned no pixels")
+        if (
+            (pixbuf is None or not any(pixbuf.get_pixels()))
+            and source_window is not gdk_window
+        ):
+            # Headless X servers may not composite child windows into the
+            # root capture.  The top-level backing store still preserves the
+            # complete layout, with only native video children left black.
+            pixbuf = Gdk.pixbuf_get_from_window(
+                gdk_window, 0, 0, source_width, source_height,
+            )
+        # Xvfb without a compositor can return a fully transparent backing
+        # store for Gtk.Overlay and transient windows.  Draw the realized GTK
+        # widget tree through Cairo in that case so CI review artifacts remain
+        # useful; video child windows intentionally stay black in this path.
+        if pixbuf is None or not any(pixbuf.get_pixels()):
+            surface = cairo.ImageSurface(
+                cairo.FORMAT_ARGB32, args.width, args.height,
+            )
+            context = cairo.Context(surface)
+            context.scale(
+                args.width / max(1, source_width),
+                args.height / max(1, source_height),
+            )
+            target.draw(context)
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            surface.write_to_png(str(args.output))
+            window.destroy()
+            return False
         if pixbuf.get_width() != args.width or pixbuf.get_height() != args.height:
             pixbuf = pixbuf.scale_simple(
                 args.width, args.height,

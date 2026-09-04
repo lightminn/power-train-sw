@@ -76,6 +76,14 @@ def test_environment_freshness_allows_one_hz_sender_jitter():
     ) == "STALE"
 
 
+def test_environment_source_is_unavailable_when_sensor_reports_power_loss():
+    snapshot = parse_environment_telemetry(
+        _payload(sensor_ok=False), received_monotonic_s=10.0,
+    )
+
+    assert environment_source_state(snapshot, now_s=10.0) == "UNAVAILABLE"
+
+
 @pytest.mark.parametrize("value", (math.inf, -math.inf, math.nan))
 def test_non_finite_environment_values_are_rejected(value):
     with pytest.raises(ValueError):

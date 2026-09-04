@@ -1177,20 +1177,20 @@ window.end-effector-popup {{ background: #07101B; }}
 }}
 .end-effector-popup-label {{ color: #71879C; font-size: 10px; font-weight: 800; }}
 .end-effector-popup-value {{ color: #E8F0F8; font-size: 16px; font-weight: 900; }}
-.environment-title {{ color: #F1F6FB; font-size: 24px; font-weight: 900; }}
+.environment-title {{ color: #F1F6FB; font-size: 22px; font-weight: 900; }}
 .environment-subtitle {{ color: #9EB2C5; font-size: 12px; }}
 .environment-connection {{ border-radius: 999px; padding: 6px 11px; font-size: 11px; font-weight: 900; }}
 .environment-connection.status-live {{ color: #8BE3B6; background: #123D2D; }}
 .environment-connection.status-warn {{ color: #FFD77A; background: #493514; }}
 .environment-connection.status-muted {{ color: #A8B6C4; background: #263442; }}
-.environment-summary {{ color: #DFE9F2; background: #0D1B2B; border: 1px solid #263B52; border-radius: 8px; padding: 10px 13px; font-size: 12px; font-weight: 800; }}
-.sensor-group {{ background: #0A1725; border: 1px solid #243A51; border-radius: 10px; padding: 13px; }}
+.environment-summary {{ color: #DFE9F2; background: #0D1B2B; border: 1px solid #263B52; border-radius: 8px; padding: 8px 11px; font-size: 12px; font-weight: 800; }}
+.sensor-group {{ background: #0A1725; border: 1px solid #243A51; border-radius: 10px; padding: 10px; }}
 .sensor-group-panel-climate {{ border-top: 3px solid #4F9BEF; }}
 .sensor-group-panel-air {{ border-top: 3px solid #947AEF; }}
 .sensor-group-panel-hazard {{ border-top: 3px solid #E8A333; }}
 .sensor-group-title {{ color: #F0F5FA; font-size: 16px; font-weight: 900; }}
 .sensor-group-description {{ color: #8499AD; font-size: 10px; }}
-.sensor-compact-tile {{ padding: 9px 10px; border-top-width: 1px; }}
+.sensor-compact-tile {{ padding: 7px 9px; border-top-width: 1px; }}
 .sensor-compact-tile .sensor-tile-value {{ font-size: 20px; }}
 .sensor-diagnostic-note {{ color: #9EB1C2; font-size: 10px; }}
 .system-status-dashboard {{ background: #07101B; }}
@@ -1820,6 +1820,17 @@ class EventLog(Gtk.Box):
     @staticmethod
     def _public_message(source: str, message: str) -> str:
         normalized = f"{source} {message}".lower()
+        public_source = {
+            "L515": "전방 화면",
+            "D435": "작업 화면",
+            "D435I": "작업 화면",
+            "YOLO": "인식",
+            "METADATA": "인식",
+            "ARM": "로봇팔",
+            "OPS": "조작 채널",
+            "TELEMETRY": "로봇 상태",
+            "CHASSIS": "주행 시스템",
+        }.get(source.upper(), source)
         if "main view changed" in normalized:
             camera = message.split(":", 1)[-1].strip()
             return f"{camera}가 주 화면으로 전환되었습니다"
@@ -1836,18 +1847,18 @@ class EventLog(Gtk.Box):
         if "reconnect scheduled" in normalized:
             return "화면 연결을 다시 시도하고 있습니다"
         if "frame flow live" in normalized:
-            return f"{source} 영상이 연결되었습니다"
+            return f"{public_source} 영상이 연결되었습니다"
         if "stale" in normalized:
-            return f"{source} 업데이트가 지연되고 있습니다"
+            return f"{public_source} 업데이트가 지연되고 있습니다"
         if "waiting" in normalized or "connecting" in normalized:
-            return f"{source} 연결을 기다리고 있습니다"
+            return f"{public_source} 연결을 기다리고 있습니다"
         if any(token in normalized for token in (
             "srt", "udp", "tcp", "seq", "metadata", "frame", "traceback",
             "exception", "can ", "hz", "ms", "node",
         )):
-            return f"{source} 상태를 확인하고 있습니다"
+            return f"{public_source} 상태를 확인하고 있습니다"
         return message if any("\uac00" <= char <= "\ud7a3" for char in message) \
-            else f"{source} 상태가 업데이트되었습니다"
+            else f"{public_source} 상태가 업데이트되었습니다"
 
     @staticmethod
     def _technical_summary(message: str) -> str:
@@ -4265,10 +4276,8 @@ class OperatorConsole(Gtk.Window):
         elif selected == "환경 센서 모듈":
             if environment_state == "LIVE":
                 state_text, state_css = "수신 중", "status-live"
-            elif environment_state == "STALE":
-                state_text, state_css = "갱신 지연", "status-warn"
             else:
-                state_text, state_css = "연결 대기", "status-muted"
+                state_text, state_css = "미연결", "status-muted"
             reading = self._environment_status.probe_values()[0]
         elif observed_match and arm_snapshot is not None:
             if arm_snapshot.end_effector_attached is True:

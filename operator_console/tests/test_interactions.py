@@ -65,7 +65,7 @@ def test_environment_dashboard_distinguishes_hazard_and_missing_data():
 
     dashboard.update(None, now_s=10.0)
     assert all(
-        label.get_text() == "● 데이터 없음"
+        label.get_text() == "● 미연결"
         for label in dashboard._statuses.values()
     )
     assert dashboard._overall_status["bad"].get_text() == "0"
@@ -83,6 +83,7 @@ def test_environment_dashboard_distinguishes_hazard_and_missing_data():
     assert dashboard._overall_status["bad"].get_text() == "1"
     assert dashboard._overall_status["muted"].get_text() == "1"
     assert "위험 신호 감지" in dashboard._summary.get_text()
+    assert dashboard._values["flame"].get_text() == "O"
 
 
 @requires_gtk
@@ -93,19 +94,68 @@ def test_environment_dashboard_never_turns_unknown_flame_into_normal():
     )
 
     assert dashboard._statuses["flame"].get_text() == "● 데이터 없음"
-    assert "불꽃 정보 없음" in dashboard.probe_values()[2]
+    assert "불꽃 —" in dashboard.probe_values()[2]
 
 
 @requires_gtk
-def test_environment_dashboard_marks_last_values_as_stale_not_normal():
+def test_environment_summary_never_leaks_none_for_missing_values():
     dashboard = EnvironmentSensorDashboard(port=15008)
-    dashboard.update(_environment_snapshot(), now_s=20.0)
+    dashboard.update(
+        _environment_snapshot(
+            temperature_c=None,
+            eco2_ppm=None,
+            co_estimated_ppm=None,
+            flame_threshold_v=None,
+        ),
+        now_s=10.0,
+    )
+
+    assert all("None" not in value for value in dashboard.probe_values())
+    assert "온도 —" in dashboard.probe_values()[0]
+    assert "eCO₂ —" in dashboard.probe_values()[1]
+    assert "CO 정보 없음" in dashboard.probe_values()[2]
+
+
+@requires_gtk
+def test_environment_dashboard_clears_last_values_when_connection_is_lost():
+    dashboard = EnvironmentSensorDashboard(port=15008)
+    snapshot = _environment_snapshot()
+    dashboard.update(snapshot, now_s=10.0)
+
+    assert dashboard._values["temperature"].get_text() == "24.00 °C"
+    assert dashboard._values["co"].get_text() == "1.0 ppm"
+    assert dashboard._values["lpg"].get_text() == "20.0 ppm"
+    assert dashboard._values["flame"].get_text() == "X"
+
+    dashboard.update(snapshot, now_s=20.0)
 
     assert all(
-        label.get_text() == "● 갱신 지연"
+        label.get_text() == "● 미연결"
         for label in dashboard._statuses.values()
     )
-    assert dashboard._overall_status["warn"].get_text() == "8"
+    assert all(
+        label.get_text() == "미연결"
+        for label in dashboard._values.values()
+    )
+    assert dashboard._connection.get_text() == "●  미연결"
+    assert dashboard.probe_values() == ("미연결", "미연결", "미연결")
+    assert dashboard._overall_status["muted"].get_text() == "8"
+    assert all(len(trend._series) == 0 for trend in dashboard._trends.values())
+
+
+@requires_gtk
+def test_environment_dashboard_treats_sensor_power_loss_as_disconnected():
+    dashboard = EnvironmentSensorDashboard(port=15008)
+    dashboard.update(
+        _environment_snapshot(sensor_ok=False, errors=["sensor power lost"]),
+        now_s=10.0,
+    )
+
+    assert dashboard._summary.get_text() == "환경 센서 미연결"
+    assert all(
+        value.get_text() == "미연결"
+        for value in dashboard._values.values()
+    )
 
 
 def test_draw_does_not_advance_the_distance_filter():
@@ -292,6 +342,15 @@ def test_event_latest_summary_respects_selected_levels():
     )
 
 
+def test_public_event_copy_hides_camera_model_names():
+    assert EventLog._public_message(
+        "L515", "L515 SRT transport normal",
+    ) == "전방 화면 상태를 확인하고 있습니다"
+    assert EventLog._public_message(
+        "D435i", "frame flow live",
+    ) == "작업 화면 영상이 연결되었습니다"
+
+
 @requires_gtk
 def test_status_summary_cards_select_one_detail_panel():
     dashboard = RobotStatusDashboard()
@@ -337,3 +396,28 @@ def test_real_power_packet_updates_voltage_ring_buffer():
     samples = dashboard.power_voltage.samples()
     assert samples[-1].value == 47.6
     assert dashboard._soc_bar.get_fraction() == pytest.approx(0.8)
+
+
+@requires_gtk
+def test_power_panel_does_not_derive_unreported_power_or_operating_state():
+    dashboard = RobotStatusDashboard()
+    packet = json.dumps({
+        "schema_version": 1,
+        "sequence": 5,
+        "voltage_v": 48.0,
+        "current_a": 2.0,
+        "power_w": None,
+        "pdist_soc_percent": 80,
+        "pdist_protection_flags": None,
+        "pdist_battery_flags": None,
+        "rs485_state": "OK",
+    }).encode()
+    snapshot = parse_telemetry(packet, received_monotonic_s=10.0)
+    dashboard.update(
+        power=snapshot, chassis=None, arm=None, metadata=None,
+        front_video_state="WAITING", work_video_state="WAITING",
+        front_fps=None, work_fps=None, now_s=10.0,
+    )
+
+    assert dashboard._power_metrics["power"].get_text() == "정보 없음"
+    assert dashboard._power_metrics["operating"].get_text() == "정보 없음"

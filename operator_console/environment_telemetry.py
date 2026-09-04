@@ -162,6 +162,8 @@ def environment_source_state(
 ) -> str:
     if snapshot is None:
         return "UNAVAILABLE"
+    if not snapshot.sensor_ok:
+        return "UNAVAILABLE"
     current = time.monotonic() if now_s is None else float(now_s)
     return (
         "LIVE"

@@ -58,10 +58,10 @@ four confirmed equipment categories (그리퍼 1, 그리퍼 2, 청소 모듈, �
 모듈), plus attachment state, joint-load summary, and the explicit fact that
 arm control-mode telemetry is not yet wired. Selecting a tool or pressing its
 detail button opens a common non-modal detail window. The environment window
-groups climate, air quality, and hazard readings; CO/LPG remain visibly
-uncalibrated estimates, a positive flame decision is shown as a hazard, and
-missing or stale readings stay distinct from healthy data. Source/sequence
-details stay collapsed.
+groups climate, air quality, and hazard readings. CO/LPG use plain numeric
+values, flame detection is shown as O/X, and lost sensor power or stale input
+clears the previous readings and displays 미연결. Source/sequence details stay
+collapsed.
 
 The **시스템 상태** tab is a single RX-only live view for PDIST80B power,
 communications, and safety. Drive speed and AI summaries are on the mission
