@@ -171,10 +171,10 @@ x86 노트북 dev 컨테이너(`powertrain-sw:dev`, `docker/docker-compose.yml`)
 cd <repo>
 export PYTHONPATH="$PWD/motor_control:$PWD/ros2/src/powertrain_ros"
 
-# 대부분: conda base (python-can·pyserial 이 여기 있다)
-/home/light/anaconda3/bin/python -m pytest motor_control -q
+# 대부분: python-can·pyserial 이 설치된 인터프리터
+python -m pytest motor_control -q
 
-# operator_console 만: 시스템 python (PyGObject `gi` 가 conda 엔 없다)
+# operator_console 만: PyGObject(`gi`) 가 있는 인터프리터 — conda 환경엔 보통 없어 시스템 python 을 쓴다
 /usr/bin/python3 -m pytest operator_console -q
 ```
 
