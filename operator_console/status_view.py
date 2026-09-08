@@ -1104,7 +1104,7 @@ class EnvironmentSensorDashboard(Gtk.Box):
             elif state != "LIVE":
                 set_status(key, "갱신 지연", "status-warn")
             else:
-                set_status(key, "주의 · 교정 전", "status-warn")
+                set_status(key, "정상", "status-live")
 
         if snapshot.flame_detected is None:
             set_status("flame", "데이터 없음", "status-muted")

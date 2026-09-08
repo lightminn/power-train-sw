@@ -126,6 +126,9 @@ def test_environment_dashboard_clears_last_values_when_connection_is_lost():
     assert dashboard._values["co"].get_text() == "1.0 ppm"
     assert dashboard._values["lpg"].get_text() == "20.0 ppm"
     assert dashboard._values["flame"].get_text() == "X"
+    assert dashboard._statuses["co"].get_text() == "● 정상"
+    assert dashboard._statuses["lpg"].get_text() == "● 정상"
+    assert "교정 전" not in dashboard._summary.get_text()
 
     dashboard.update(snapshot, now_s=20.0)
 
