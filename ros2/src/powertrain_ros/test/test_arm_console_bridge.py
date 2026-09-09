@@ -426,6 +426,26 @@ def _bridge(telemetry_port, metadata_port):
 
 
 @requires_ros
+def test_node_defaults_console_host_to_reserved_operator_laptop():
+    bridge = ArmConsoleBridge()
+    try:
+        assert bridge.get_parameter("console_host").value == "192.168.8.163"
+        assert bridge._telemetry_endpoint == ("192.168.8.163", 5007)
+    finally:
+        bridge.destroy_node()
+
+
+@requires_ros
+def test_node_still_rejects_explicit_empty_console_host():
+    with pytest.raises(ValueError, match="parameters are invalid"):
+        ArmConsoleBridge(
+            parameter_overrides=[
+                Parameter("console_host", value=""),
+            ]
+        )
+
+
+@requires_ros
 def test_node_mirrors_dynamixel_and_joint_states_to_ephemeral_udp_port():
     telemetry = _udp_receiver()
     metadata = _udp_receiver()

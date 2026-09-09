@@ -51,6 +51,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #    캐시가 무효화돼 Jetson 에서 전체 리빌드가 강제된다(2026-07-14 실측).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ros-humble-control-msgs \
+        iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
 # 워크스페이스 소스는 compose 로 마운트(../ → /workspace). 빌드는 컨테이너 진입 후:

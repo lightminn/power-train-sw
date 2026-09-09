@@ -1,0 +1,1 @@
+PASS: normal send succeeds; heartbeat preemption consumes the last mailbox; unchanged HAL AddTxMessage sets PARAM; USB-facing can.error remains 0; subsequent writes are blocked even with all mailboxes free. HAL error=2097152

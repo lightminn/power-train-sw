@@ -1,4 +1,6 @@
+import ast
 import inspect
+import textwrap
 from types import MethodType, SimpleNamespace
 
 import pytest
@@ -95,7 +97,7 @@ def test_estop_reset_and_arm_use_distinct_gestures_with_spacer_between():
     assert PANEL_ACTIONS[reset_index + 1].gesture == GESTURE_SPACER
 
 
-def test_panel_keeps_eight_basic_actions_and_preserves_existing_action_keys():
+def test_panel_keeps_nine_basic_actions_and_preserves_existing_action_keys():
     actions = tuple(action for action in PANEL_ACTIONS if action.action is not None)
     basic = {action.action for action in actions if not action.advanced}
     advanced = {action.action for action in actions if action.advanced}
@@ -109,6 +111,7 @@ def test_panel_keeps_eight_basic_actions_and_preserves_existing_action_keys():
         "steer_enable",
         "us100_enable",
         "robot_arm_enable",
+        "steer_mode_skid",
     }
     assert {
         "authority_manual",
@@ -132,6 +135,7 @@ def test_panel_keeps_eight_basic_actions_and_preserves_existing_action_keys():
         "steer_enable",
         "us100_enable",
         "robot_arm_enable",
+        "steer_mode_skid",
         "arm_lock_override",
         "mission_arrive_pickup",
         "mission_arrive_drop",
@@ -543,18 +547,76 @@ def test_estop_availability_copy_distinguishes_token_and_link_failures():
     assert availability(token_available=False, link_ready=False) == (
         False,
         "조작 토큰이 없어 비상정지 명령을 전송할 수 없습니다",
-        None,
+        "조작 토큰 없음 — 콘솔 비상정지를 사용할 수 없습니다",
     )
     assert availability(token_available=True, link_ready=False) == (
         False,
         "조작 채널이 연결되지 않아 비상정지를 전송할 수 없습니다",
-        None,
+        "조작 채널 연결 대기 — 콘솔 비상정지를 전송할 수 없습니다",
     )
     assert availability(token_available=True, link_ready=True) == (
         True,
         "확인 없이 즉시 토큰 인증 비상정지 명령을 전송합니다",
         None,
     )
+
+
+def test_refresh_estop_availability_keeps_operator_visible_warning_branch():
+    """2026-07-28 실기에서 ``ops_broker`` 가 1시간 죽어도 보이는 신호가 없었다.
+
+    경고 반환값을 ``_warning`` 으로 버리거나 ``hide()`` 를 무조건 호출하는
+    회귀가 생기면 운용자는 다시 툴팁을 열어야만 E-STOP 불가 사유를 안다.
+    """
+    method = ast.parse(textwrap.dedent(inspect.getsource(
+        app.OperatorConsole._refresh_estop_availability
+    )))
+
+    assignments = [
+        node for node in ast.walk(method)
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+        and node.value.func.id == "estop_availability"
+    ]
+    assert len(assignments) == 1
+    target = assignments[0].targets[0]
+    assert isinstance(target, ast.Tuple)
+    assert [element.id for element in target.elts] == [
+        "sensitive", "tooltip", "warning",
+    ]
+
+    warning_branches = [
+        node for node in ast.walk(method)
+        if isinstance(node, ast.If)
+        and isinstance(node.test, ast.Name)
+        and node.test.id == "warning"
+    ]
+    assert len(warning_branches) == 1
+    warning_branch = warning_branches[0]
+
+    def warning_label_calls(nodes, method_name):
+        return [
+            node for root in nodes for node in ast.walk(root)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == method_name
+            and isinstance(node.func.value, ast.Attribute)
+            and node.func.value.attr == "_estop_availability_warning"
+            and isinstance(node.func.value.value, ast.Name)
+            and node.func.value.value.id == "self"
+        ]
+
+    set_text_calls = warning_label_calls(warning_branch.body, "set_text")
+    show_calls = warning_label_calls(warning_branch.body, "show")
+    else_hide_calls = warning_label_calls(warning_branch.orelse, "hide")
+    all_hide_calls = warning_label_calls((method,), "hide")
+    assert len(set_text_calls) == 1
+    assert len(set_text_calls[0].args) == 1
+    assert isinstance(set_text_calls[0].args[0], ast.Name)
+    assert set_text_calls[0].args[0].id == "warning"
+    assert len(show_calls) == 1
+    assert len(else_hide_calls) == 1
+    assert all_hide_calls == else_hide_calls
 
 
 def test_refresh_health_rechecks_estop_availability():
@@ -643,3 +705,112 @@ def test_top_alert_shows_latest_failure_for_eight_seconds(monkeypatch):
     assert label.visible is True
     assert timers[1][1]() is False
     assert label.visible is False
+
+
+from operator_console.ops_panel import (
+    PANEL_ACTIONS, action_is_available, drive_transport_from_state,
+    steering_available_from_state, steering_mode_from_state,
+)
+
+
+def _state(**kw):
+    base = {
+        "steering_mode": "ackermann",
+        "steering_available": True,
+        "drive_transport": "can",
+        "component_mask": {"drive": True, "steer": True,
+                           "us100": True, "robot_arm": True},
+    }
+    base.update(kw)
+    return base
+
+
+def test_steering_fields_are_read_from_state():
+    state = _state(steering_mode="skid", drive_transport="usb",
+                   steering_available=False)
+
+    assert steering_mode_from_state(state) == "skid"
+    assert steering_available_from_state(state) is False
+    assert drive_transport_from_state(state) == "usb"
+
+
+def test_steering_fields_tolerate_a_missing_state():
+    assert steering_mode_from_state(None) is None
+    assert steering_available_from_state(None) is False
+    assert drive_transport_from_state({}) is None
+
+
+@pytest.mark.parametrize(
+    "state",
+    (
+        {},
+        {"steering_mode": ""},
+        {"steering_mode": "crab"},
+        {"steering_mode": True},
+    ),
+)
+def test_invalid_steering_mode_is_treated_as_unavailable(state):
+    """누락·오염된 상태가 임의 전환 payload나 표시 예외로 이어지면 안 된다."""
+    row = next(a for a in PANEL_ACTIONS if a.action == "steer_mode_skid")
+
+    assert steering_mode_from_state(state) is None
+    assert row.state_text_from_state(state) == "상태 미확인"
+    assert action_is_available("steer_mode_skid", state) == (
+        False,
+        "차대 상태 수신 전",
+    )
+    with pytest.raises(RuntimeError, match="steering mode unavailable"):
+        row.bool_value_from_state(state)
+
+
+def test_steer_mode_row_exists_and_is_a_bool_toggle():
+    row = next(a for a in PANEL_ACTIONS if a.action == "steer_mode_skid")
+
+    assert row.needs_bool is True
+    assert row.bool_value_from_state is not None
+    assert row.confirm_text
+    assert row.label == "조향 방식"
+    assert row.state_text_from_state is not None
+
+
+def test_steer_mode_toggle_requests_the_opposite_mode():
+    row = next(a for a in PANEL_ACTIONS if a.action == "steer_mode_skid")
+
+    assert row.bool_value_from_state(_state(steering_mode="ackermann")) is True
+    assert row.bool_value_from_state(_state(steering_mode="skid")) is False
+
+
+def test_steer_mode_state_text_reports_the_current_mode():
+    row = next(a for a in PANEL_ACTIONS if a.action == "steer_mode_skid")
+
+    assert row.state_text_from_state(_state(steering_mode="ackermann")) == "애커만"
+    assert row.state_text_from_state(_state(steering_mode="skid")) == "스키드"
+
+
+def test_steer_mode_is_greyed_out_without_steering_hardware():
+    """USB 스택에는 조향 액추에이터가 없어 애커만으로 되돌릴 수 없다."""
+    state = _state(steering_mode="skid", steering_available=False,
+                   drive_transport="usb")
+
+    available, reason = action_is_available("steer_mode_skid", state)
+
+    assert available is False
+    assert "조향" in reason
+
+
+def test_steer_mode_is_available_on_a_can_stack():
+    available, reason = action_is_available("steer_mode_skid", _state())
+
+    assert available is True
+    assert reason == ""
+
+
+def test_other_actions_are_unaffected_by_the_availability_gate():
+    for action in ("estop", "arm", "drive_enable"):
+        assert action_is_available(action, _state()) == (True, "")
+
+
+def test_availability_gate_is_conservative_without_state():
+    available, _reason = action_is_available("steer_mode_skid", None)
+
+    assert available is False

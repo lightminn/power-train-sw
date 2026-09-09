@@ -7,6 +7,7 @@ import math
 import pytest
 from chassis.kinematics import (
     Wheel, ChassisGeometry, WheelCommand, SolveResult, solve, default_geometry,
+    four_wheel_geometry, skid_geometry,
 )
 
 TURN = dict(v_mps=0.4, omega_rad_s=0.4)   # 좌회전 공통 케이스 (한계 미도달)
@@ -14,6 +15,32 @@ TURN = dict(v_mps=0.4, omega_rad_s=0.4)   # 좌회전 공통 케이스 (한계 �
 
 def g():
     return default_geometry()
+
+
+@pytest.mark.parametrize(
+    ("left_name", "right_name", "half_separation_m"),
+    [
+        ("front_left", "front_right", 0.2725),
+        ("mid_left", "mid_right", 0.3595),
+        ("rear_left", "rear_right", 0.2125),
+    ],
+)
+def test_default_geometry_uses_as_built_v2_lateral_half_separations(
+        left_name, right_name, half_separation_m):
+    wheels = {wheel.name: wheel for wheel in g().wheels}
+
+    assert (wheels[left_name].y, wheels[right_name].y) == pytest.approx(
+        (half_separation_m, -half_separation_m))
+
+
+def test_default_geometry_uses_the_as_built_v2_tyre_radius():
+    """바퀴 반경은 as-built v2 타이어 STL 외경 207.13 mm 의 절반이다.
+
+    공칭 스펙 100 mm 가 아니다. 이 값은 모든 속도 지령과 오도메트리에 원주로
+    곱해지므로, 3.4 % 어긋나면 전 주행거리·속도가 같은 비율로 틀어진다.
+    여기서만 고정한다 — 나머지 테스트는 `geom.wheel_radius_m` 에서 유도한다.
+    """
+    assert g().wheel_radius_m == pytest.approx(0.10356, abs=5e-5)
 
 
 # ── 직진 / 정지 ──────────────────────────────────────────────────────────
@@ -66,8 +93,8 @@ def test_inner_wheel_steers_more():
 def test_front_rear_opposite_phase():
     """4WS 협조: 뒤축은 앞축과 **반대 부호**로 꺾인다.
 
-    ⚠️ 크기까지 같지는 않다. CAD 실측 기하는 **앞 윤거 705 mm ≠ 뒤 윤거 585 mm** 이므로
-    같은 선회에서 요구되는 조향각이 앞뒤가 다르다(예: 앞 +34.1° / 뒤 −31.7°).
+    ⚠️ 크기까지 같지는 않다. CAD 실측 기하는 **앞 윤거 545 mm ≠ 뒤 윤거 425 mm** 이므로
+    같은 선회에서 요구되는 조향각이 앞뒤가 다르다(예: 앞 +31.0° / 뒤 −29.1°).
     구 기하(앞뒤 윤거 동일)에서는 정확한 거울상이었다.
     """
     r = solve(g(), **TURN)
@@ -190,3 +217,99 @@ def test_four_wheel_map_matches_geometry():
     assert {m.wheel for m in FOUR_WHEEL_MAP} == {
         w.name for w in four_wheel_geometry().wheels}
     assert {m.drive_node_id for m in FOUR_WHEEL_MAP} == {11, 12, 15, 16}   # 13/14 제외
+
+
+# ── 스키드 조향 기하 ──────────────────────────────────────────────────────
+
+
+def sg(track_gain=1.0):
+    return skid_geometry(track_gain)
+
+
+def test_skid_geometry_has_no_steerable_wheel():
+    """스키드는 조향륜이 0개다 — 이게 solve() 를 스키드 식으로 바꾸는 유일한 스위치."""
+    assert [w.name for w in sg().wheels if w.steerable] == []
+    assert len(sg().wheels) == 6
+
+
+def test_skid_geometry_keeps_base_scalars():
+    base = default_geometry()
+    skid = sg()
+
+    assert skid.wheel_radius_m == base.wheel_radius_m
+    assert skid.drive_limit_mps == base.drive_limit_mps
+    assert skid.steer_limit_deg == base.steer_limit_deg
+
+
+def test_skid_straight_drives_all_wheels_equally():
+    result = solve(sg(), v_mps=0.4, omega_rad_s=0.0)
+
+    speeds = [wc.drive_mps for wc in result.wheels.values()]
+    assert speeds == pytest.approx([0.4] * 6)
+    assert all(wc.steer_deg == 0.0 for wc in result.wheels.values())
+
+
+def test_skid_pivot_counter_rotates_left_against_right():
+    """v=0, ω>0(좌회전) → 왼쪽은 뒤로, 오른쪽은 앞으로."""
+    result = solve(sg(), v_mps=0.0, omega_rad_s=1.0)
+
+    for name, wc in result.wheels.items():
+        if name.endswith("_left"):
+            assert wc.drive_mps < 0.0
+        else:
+            assert wc.drive_mps > 0.0
+
+
+def test_skid_pivot_speed_follows_each_wheel_lateral_offset():
+    """as-built 윤거가 축마다 달라 같은 편이라도 속도가 다르다 — 그게 강체 정답이다."""
+    result = solve(sg(), v_mps=0.0, omega_rad_s=1.0)
+
+    assert result.wheels["mid_right"].drive_mps == pytest.approx(0.3595)
+    assert result.wheels["front_right"].drive_mps == pytest.approx(0.2725)
+    assert result.wheels["rear_right"].drive_mps == pytest.approx(0.2125)
+
+
+def test_skid_never_reports_steer_clamping():
+    """조향륜이 없으므로 _peak_steer 가 항상 0 → ω 를 깎지 않는다."""
+    result = solve(sg(), v_mps=0.0, omega_rad_s=3.0)
+
+    assert result.steer_clamped is False
+    assert result.omega_applied == pytest.approx(3.0)
+
+
+def test_skid_track_gain_scales_the_left_right_difference():
+    """track_gain 은 유효 윤거 — 좌우 속도차가 그 배수로 커진다."""
+    base = solve(sg(1.0), v_mps=0.0, omega_rad_s=1.0)
+    wide = solve(sg(2.0), v_mps=0.0, omega_rad_s=1.0)
+
+    for name in base.wheels:
+        assert wide.wheels[name].drive_mps == pytest.approx(
+            2.0 * base.wheels[name].drive_mps)
+
+
+def test_skid_track_gain_does_not_touch_straight_line_speed():
+    result = solve(sg(1.5), v_mps=0.4, omega_rad_s=0.0)
+
+    assert [wc.drive_mps for wc in result.wheels.values()] == pytest.approx([0.4] * 6)
+
+
+@pytest.mark.parametrize("bad", [0.0, -1.0, float("nan"), float("inf")])
+def test_skid_geometry_rejects_invalid_track_gain(bad):
+    with pytest.raises(ValueError):
+        skid_geometry(bad)
+
+
+def test_skid_geometry_accepts_a_base_geometry():
+    skid = skid_geometry(1.0, base=four_wheel_geometry())
+
+    assert sorted(w.name for w in skid.wheels) == [
+        "front_left", "front_right", "rear_left", "rear_right"]
+    assert all(not w.steerable for w in skid.wheels)
+
+
+def test_default_geometry_is_untouched_by_skid_geometry():
+    """스키드 기하를 만들어도 원본이 오염되면 안 된다 (같은 Wheel 객체 공유 금지)."""
+    skid_geometry(2.0)
+
+    assert [w.steerable for w in default_geometry().wheels] == [
+        True, True, False, False, True, True]

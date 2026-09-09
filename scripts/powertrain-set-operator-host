@@ -1,0 +1,82 @@
+#!/bin/sh
+# sudoers에서 허용할 동작을 OPERATOR_HOST 갱신과 관련 유닛 재시작으로 제한한다.
+set -eu
+
+usage_error() {
+  printf '사용법: powertrain-set-operator-host <IPv4>\n' >&2
+  exit 64
+}
+
+is_ipv4() {
+  remaining=$1
+  octet_count=0
+
+  while :; do
+    case "$remaining" in
+      *.*)
+        octet=${remaining%%.*}
+        remaining=${remaining#*.}
+        has_more=1
+        ;;
+      *)
+        octet=$remaining
+        has_more=0
+        ;;
+    esac
+
+    case "$octet" in
+      '' | *[!0-9]*) return 1 ;;
+    esac
+    [ "$octet" -le 255 ] 2>/dev/null || return 1
+    octet_count=$((octet_count + 1))
+
+    [ "$has_more" -eq 1 ] || break
+  done
+
+  [ "$octet_count" -eq 4 ]
+}
+
+[ "$#" -eq 1 ] || usage_error
+operator_host=$1
+is_ipv4 "$operator_host" || usage_error
+
+if [ "$(id -u)" -ne 0 ]; then
+  printf '오류: root 권한으로 실행해야 합니다.\n' >&2
+  exit 77
+fi
+
+environment_dir=${POWERTRAIN_ENV_DIR:-/etc/default}
+environment_names='powertrain-chassis-telemetry powertrain-pdist80b-telemetry'
+
+for environment_name in $environment_names; do
+  environment_file=$environment_dir/$environment_name
+  if [ ! -f "$environment_file" ]; then
+    printf '환경 파일이 없어 건너뜁니다: %s\n' "$environment_file" >&2
+    continue
+  fi
+
+  if grep -q '^OPERATOR_HOST=' "$environment_file"; then
+    sed -i "s/^OPERATOR_HOST=.*/OPERATOR_HOST=$operator_host/" "$environment_file"
+  else
+    if [ -s "$environment_file" ] && [ -n "$(tail -c 1 "$environment_file")" ]; then
+      printf '\n' >> "$environment_file"
+    fi
+    printf 'OPERATOR_HOST=%s\n' "$operator_host" >> "$environment_file"
+  fi
+done
+
+if command -v systemctl >/dev/null 2>&1; then
+  for unit in \
+    powertrain-chassis-telemetry.service \
+    powertrain-pdist80b-telemetry.service; do
+    if systemctl cat "$unit" >/dev/null 2>&1; then
+      systemctl restart "$unit"
+    else
+      printf 'systemd 유닛이 없어 재시작을 건너뜁니다: %s\n' "$unit" >&2
+    fi
+  done
+else
+  printf 'systemctl이 없어 유닛 재시작을 건너뜁니다.\n' >&2
+fi
+
+printf 'operator host: %s\n' "$operator_host"

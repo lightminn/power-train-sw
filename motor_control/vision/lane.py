@@ -41,7 +41,7 @@ class LaneConfig:
     """레인 인식·추종 파라미터. 대회 트랙에 맞춰 조정한다."""
 
     # ── 카메라 (base_link 기준 마운트) ──
-    # ⚠️ 미실측 플레이스홀더 — `base_link→l515_link` 실측이 오면 교체
+    # ⚠️ v2 CAD 에도 센서 형상이 없어 실측 게이트로 남음(2026-08-01 확인)
     cam_height_m: float = 0.35          # 지면 위 카메라 높이
     cam_pitch_deg: float = 0.0          # 아래로 숙인 각도(+ = 아래)
     cam_x_m: float = 0.30               # base_link 기준 전방 오프셋

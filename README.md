@@ -1,32 +1,32 @@
 # Power Train SW
 
-ZETIN 6륜 로커-보기(rocker-bogie) 방위 로봇의 파워트레인 SW 저장소. 두 트랙은 서로 독립적으로 동작한다.
+ZETIN 6륜 로커-보기(rocker-bogie) 방위 로봇의 파워트레인 SW 저장소.
 
-| 트랙 | 폴더 | 역할 |
+| 트랙 | 폴더 | 상태 |
 | --- | --- | --- |
-| 파라미터 최적화 | `parameter_calc/` | 형상 파라미터 최적화 (v4: 15차원·7지형, MATLAB / NumPy / JAX-CUDA) |
-| 모터 제어 | `motor_control/` | ODrive 구동 · AK 조향 · 코너 모듈 · YOLO/RealSense 비전 · US-100 · 노트북-Pi 텔레옵 |
-
-> `parameter_calc/`는 개발 서버 검증본을 그대로 옮긴 것 — 결과물(`*.pkl`)을 신뢰할 수 있는 기준 코드.
+| **런타임 제어 SW** | `motor_control/` · `ros2/` · `powertrain_autonomy/` 외 | **활성** — 이 저장소 작업의 거의 전부 |
+| 기하 파라미터 최적화 | `parameter_calc/` | ⛔ **트랙 종료 (2026-07-19)** — 최종 CAD 확정. 버그를 찾아도 보고만 하고 재계산하지 않는다 |
 
 이 README는 **저장소 소개와 개발 환경 셋업**만 다룬다. 각 기능을 실제로 써보는
 방법은 팀 Notion 문서에 정리돼 있다 (아래 [기능별 문서](#기능별-문서--notion)).
-스크립트 단위의 개발자용 상세는 [`.claude/CLAUDE.md`](.claude/CLAUDE.md) 참고.
-2026-07-10 기준 완료 상태·Jetson 실측·다음 작업은
-[`docs/reports/2026-07-10-project-and-jetson-state.md`](docs/reports/2026-07-10-project-and-jetson-state.md)를 정본으로 본다.
 
-> **WP5.1 상태 (2026-07-11): HIL 완료.** 기존 `/cmd_vel → 10모터` 실증과 새 US-100·
-> fail-safe·실제 50 Hz 결과를 합쳐 완료 판정했다. 실행 HEAD `ec452f6474b6fc57437d576298f2bc954649be42`에서
-> `motor_control` 198, `motor_gui` 91, Jetson `powertrain_ros` 32/32가 통과했다.
-> ODrive 13·14는 이번 실행에만 일시 부재했고 기존 정상 이력이 있다. 지상 제동과 최종
-> `stop_mm` 선정은 차체 조립 후 실차 커미셔닝이다. 상세는
-> [`WP5.1 HIL 보고서`](docs/reports/2026-07-10-wp5-control-safety-hil.md)를 따른다.
+> **현재 상태·WP 진행·테스트 기준선은 [`.claude/CLAUDE.md`](.claude/CLAUDE.md) §2 가 정본이다**
+> (Codex·범용 에이전트용 미러: [`AGENTS.md`](AGENTS.md)).
+> 이 README 안의 날짜별 상태 문구나 `docs/reports/` 의 예전 핸드오프 보고서는 **역사적 기록**이지
+> 현재 권위가 아니다. 스크립트 단위 개발자 상세도 같은 파일을 본다.
 
-> **WP5.2 (2026-07-14): Task 1~6 + 감사 갭 4건 완료** — 계약 v2·ArmInterlock·RealCanSession·
-> CommandAuthority·원격 gateway·MissionSupervisor·DetectionAdapter.
-> **WP5.3 (2026-07-16): Task 1~5 완료·젯슨 배포** — mission journal·observability 데몬·CAN
-> health matrix·depth/TF qualification·팔 결과 adapter + read-only operator console(PR #2).
-> 상세: [`WP5.3 구현 보고`](docs/reports/2026-07-16-wp53-observability-implementation.md).
+9/8 코드·문서 대조 결과와 확인 범위는 [정합성 정리 기록](docs/reports/2026-09-08-workspace-consistency.md)을
+참고한다. NumPy 백엔드 선택은 완료됐지만 autonomy 전용 Compose 배포와 Jetson receiver
+feedback 적용은 미연결이다. 환경 센싱 콘솔 탭은 팀원 Draft PR #4에 있으며 main 기능이 아니다.
+
+**통합 운용 경로(2026-09-08):** 최초 준비 후 젯슨 `scripts/robot-start`와 노트북
+`python -m operator_console`로 세션·패드·기존 관측 기능을 연결하는 선택 경로를 추가했다.
+운전 시작은 별도 길게 누르기로 확인한다. 설치 절차와 실차 미검증 범위는
+[통합 운용 안내](docs/integrated-operation.md)를 따른다. 9/9 Jetson 배포·콘솔 수신·가상 모터 ROS 루프는
+[Jetson 검증 기록](docs/reports/2026-09-09-integrated-jetson-validation.md)에 있으며,
+현재 인수 대상은 원격주행이다. 선 재연결 후 CAN 10축 통신은 확인했고 실제 모터
+구동·제동은 별도 인수다. US-100·L515는
+의도적 분리 상태이고 미완성 자율주행은 이번 테스트 판정 범위에서 제외한다.
 
 ---
 
@@ -34,24 +34,32 @@ ZETIN 6륜 로커-보기(rocker-bogie) 방위 로봇의 파워트레인 SW 저�
 
 ```
 .
-├── parameter_calc/      형상 파라미터 최적화 (v4 권위본 python_gpu_triangle/, CLAUDE.md 필독)
-├── motor_control/       실차 런타임 제어
-│   ├── drive/           구동 모터 (bl70200 실전 · x2212_test 테스트, ODrive USB/CAN)
+├── motor_control/       ★ 하드웨어 소유권 + 순수 Python 제어·안전 정책
+│   ├── drive/           구동 모터 (bl70200 실전 · x2212_test ⛔deprecated, ODrive USB/CAN)
 │   ├── steering/        조향 (AK45-36 실전, CAN socketcan can0)
 │   ├── vision/          검출·스트리밍 (기존 D435i 실험 코드 + L515 자율주행 입력, 모터 명령 없음)
 │   ├── sensors/         US-100 초음파 거리 (UART /dev/ttyTHS1)
 │   ├── safety_us100/    US-100 거리·UART 생존 판정 (CHECKING/VALID/INVALID_READING/NO_RESPONSE)
 │   ├── corner_module/   코너 1개(조향+구동) 협조 제어 + DualSense 텔레옵
-│   ├── chassis/         순수 Python 4WS 제어·SafetyInterlock·10모터 단일 권한
+│   ├── chassis/         순수 Python 4WS 제어·SafetyInterlock·10모터 단일 권한 (애커만↔스키드 전환)
 │   ├── laptop/          노트북 측 텔레옵 클라이언트 (velocity·video·chassis 무선)
 │   └── pi/              라즈베리파이 측 서버 (laptop/ 과 1:1 짝)
-├── motor_gui/           웹 진단·튜닝 GUI (FastAPI + 트랜스포트 추상화, AK/ODrive CAN·USB)
+├── ros2/                ★ 얇은 ROS2 어댑터 층 — src/powertrain_ros 노드 22종,
+│                          powertrain_msgs, robot_arm_msgs(벤더링 사본)
+├── powertrain_autonomy/ WP6 자율주행 순수 코어 (지형 추정·컨트롤러). ROS·하드웨어·시뮬 분기 없음
+├── powertrain_observability/  진단 이벤트·헬스 순수 코어
+├── powertrain_runtime/  통합 연결 세션·인증 프록시·운전 시작 절차 (하드웨어 직접 소유 없음)
+├── remote_video/        원격 영상 수신측 계약
+├── operator_console/    운용 PC GTK 콘솔 (관측 수신 전용 — 조작은 ops 채널 :9001 경유만)
 ├── l515_dashboard/      L515 Gateway·TUI (단일 SDK 소유 — SRT 송신 + ROS 발행 + Textual 대시보드)
-├── operator_console/    운용 PC용 read-only GTK 콘솔 (L515·D435i SRT 뷰 + UDP 텔레메트리 수신)
-├── ros2/                얇은 ROS2 층 (US-100 별도 노드, chassis 노드, powertrain_msgs)
+├── motor_gui/           웹 진단·튜닝 GUI (FastAPI + 트랜스포트 추상화, AK/ODrive CAN·USB)
+├── powertrain_sim/      ⛔ MuJoCo 시뮬 — 폐기·읽기전용 (2026-07-24, 시뮬은 Isaac 레포만)
+├── parameter_calc/      ⛔ 기하 최적화 — 트랙 종료 (2026-07-19)
 ├── docker/              컨테이너 정의 (x86 dev + Jetson Orin Nano 배포)
-├── scripts/             호스트 헬퍼 (recv_* · can_setup.sh · install_*.sh, systemd/ = 유닛·udev·tmpfiles)
-└── docs/                설계(specs) · 계획(plans) · 보고(reports) + 대회 규정 / FSM
+├── scripts/             호스트 헬퍼 (recv_* · can_setup.sh · deploy_*.sh · install_*.sh, systemd/)
+├── tools/ config/       보조 도구 / 보드 레지스트리
+├── tests/               최상위 통합·계약 테스트 (패키지 경계를 넘는 것만)
+└── docs/                설계(specs) · 계획(plans) · 보고(reports) · superpowers/ · patent/
 ```
 
 > 구동 ODrive 는 **듀얼축 보드 3장**(M0=`axis0`+M1=`axis1` 양축 사용) — CAN node 11/12·13/14·15/16.
@@ -78,17 +86,43 @@ docker compose -f docker/docker-compose.yml exec powertrain bash
 CPU 전용 이미지(~3.3GB, Ubuntu 22.04 + ODrive · pygame · OpenCV · ultralytics · OpenVINO).
 코드 작성 · 단위테스트(`pytest`) · OpenVINO/CPU YOLO 용. YOLO GPU 추론은 Jetson 에서만 한다.
 
-### Jetson Orin Nano (배포)
+### ⚠️ 호스트에서 pytest 돌릴 때 — `PYTHONPATH` 가 필수다
+
+여러 패키지가 `chassis`·`powertrain_ros` 를 import 한다. **PYTHONPATH 없이 돌리면 수집
+에러가 나는데, 이걸 "테스트 실패" 로 오진하기 쉽다.**
 
 ```bash
-git clone https://github.com/lightminn/power-train-sw.git && cd power-train-sw
-sudo docker compose -f docker/docker-compose.jetson.yml up -d --build
-sudo docker compose -f docker/docker-compose.jetson.yml exec powertrain bash
+export PYTHONPATH="$PWD/motor_control:$PWD/ros2/src/powertrain_ros"
+
+python -m pytest motor_control -q          # 대부분: python-can·pyserial 있는 환경
+/usr/bin/python3 -m pytest operator_console -q   # 콘솔만: PyGObject(gi) 필요 → 시스템 python
+```
+
+2026-08-24 실측 기준선 (호스트 합계 **1,945 passed**): `motor_control` 824 ·
+`l515_dashboard` 311 · `operator_console` 274 · `powertrain_autonomy` 199 ·
+`motor_gui` 135 · `scripts/tests` 106 · `powertrain_observability` 66 · `remote_video` 30.
+`ros2/powertrain_ros` 는 `rclpy` 가 필요해 **Jetson/컨테이너에서만** 돈다.
+알려진 기존 실패 2건은 `tests/` 의 `procedural-dev-0/analytic` 매니페스트 체크섬 드리프트,
+`powertrain_sim` 17건은 ⛔폐기된 MuJoCo 트랙 안이다.
+
+### Jetson Orin Nano (이미지 준비)
+
+```bash
+# Jetson 호스트, SSH 접속 직후 ~/ 기준. 이미 clone했다면 해당 checkout으로 이동한다.
+git clone https://github.com/lightminn/power-train-sw.git
+cd power-train-sw
+sudo bash scripts/install_powertrain_runtime_dir.sh
+sudo docker compose -f docker/docker-compose.jetson.yml build
 ```
 
 베이스 `dustynv/l4t-pytorch:r36.4.0` (CUDA + cuDNN + TensorRT + ARM PyTorch) + RealSense SDK
-(librealsense / pyrealsense2) 소스 빌드 포함. JetPack 의 `nvidia-container-runtime` 으로 추가
-설정 없이 동작. **Orin Nano 는 NVENC 하드웨어 인코더가 없어**(Orin NX/AGX 만 탑재) 영상은
+(librealsense / pyrealsense2) 소스 빌드 포함. JetPack 의 `nvidia-container-runtime` 으로
+GPU를 컨테이너에 노출한다. 위 명령은 이미지 준비까지이며, 운용 기동은
+[현재 매뉴얼](https://www.notion.so/3b02d27b08d381d99641e3565fe40ca2)의 절차를 따른다.
+특히 `/etc/powertrain`의 역할 토큰·`powertrain.env`·검증된 `STOP_MM`, preflight와
+런타임 디렉터리 준비 없이 기본 모든 서비스를 `up`하지 않는다.
+`powertrain_control`은 teleop/ops, `powertrain_chassis`는 chassis/US-100을 각각 소유한다.
+**Orin Nano 는 NVENC 하드웨어 인코더가 없어**(Orin NX/AGX 만 탑재) 영상은
 SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 Gateway 상태에는 SDK native callback Hz, ROS 6토픽별 Hz, SRT submit/sent/drop Hz,
 aligned-depth age, 프로세스 CPU/RSS가 포함된다.
@@ -128,7 +162,7 @@ SDK가 반환하는 `f0271544`는 대소문자·선행 0 정규화 후 같은 �
 stamp 비증가 0, USB error delta 0이었다. 다음 소비 계층은 WP6 오도메트리이며 최종 장착 후
 `base_link→l515_link` static TF를 실측한다.
 
-## WP5.1 제어·안전 계약
+## 제어·안전 계약 (WP5.1 — 현행 정본)
 
 제어·안전 정책과 10모터 소유권은 ROS 없는 순수 Python `ChassisManager`와
 `SafetyInterlock`에 둔다. ROS2는 블로킹 UART를 격리한 `us100_safety_node`, 최신 판정
@@ -190,11 +224,15 @@ ROS 실행·토픽·서비스 표는 [`ros2/README.md`](ros2/README.md), HIL 전
 | `motor_control/corner_module/` 코너 모듈 (조향+구동 통합) | [코너 모듈 컨트롤러 — 조향+구동 통합 제어 API](https://app.notion.com/p/36b2d27b08d381818b04c1d194bcade1) |
 | `motor_control/chassis/kinematics.py` 4WS 애커만 키네마틱스 (WP2) | [4WS 애커만 키네마틱스 — 차체 명령(v, ω) → 바퀴 조향·속도](https://app.notion.com/p/3912d27b08d381a0a452fa4afdc61c45) |
 | `motor_control/chassis/` 4WS 차체 통합 제어 (ChassisManager, WP3 — 실기 HIL 완료) | [차체 통합 제어 ChassisManager — 코너 6개를 하나의 4WS 차체로](https://app.notion.com/p/3912d27b08d381e79716e04398e34bd2) |
-| `chassis/teleop_server.py`+`laptop/laptop_client_chassis.py` 무선 원격주행 (DualSense 텔레옵) | [무선 원격주행 — DualSense→노트북→젯슨→10모터 4WS](https://app.notion.com/p/39b2d27b08d38140bf8df53fe7661c6c) |
+| 현재 ROS·ops 경로의 DualSense 원격 운용 | [DualSense 운용 매뉴얼](https://www.notion.so/3b02d27b08d381d99641e3565fe40ca2) |
+| `chassis/teleop_server.py`+`laptop/laptop_client_chassis.py` 직접 CAN 텔레옵 (벤치·진단 경로) | [무선 원격주행 — DualSense→노트북→젯슨→10모터 4WS](https://app.notion.com/p/39b2d27b08d38140bf8df53fe7661c6c) |
+| `chassis/` USB 스키드 조향 (애커만↔스키드 런타임 전환, 2026-08) | 레포 문서만 — [브링업 절차](docs/reports/2026-08-05-usb-skid-bringup.md) · [설계](docs/superpowers/specs/2026-08-04-usb-skid-steer-design.md). Notion 페이지 미작성 |
+| `ros2/…/pdist80b.py`+`scripts/pdist80b_view.py` 전원 분배보드 플래그·계측 | 근거 = 레포 동봉 PDF `docs/PDIST_사용자매뉴얼_V1.7.pdf` p.16 (PID 238) · 공백표 [`docs/ui_data_gap.md`](docs/ui_data_gap.md) — 관련: [통신 GUI·스트리밍·전원 텔레메트리](https://app.notion.com/p/39d2d27b08d3815c907ae8aa338c5fa8) |
 | `docs/plans/2026-07-12-defense-robot-autonomy-software-plan.md` 자율주행 전체 계획 (**정본**) | [2026 국방로봇 자율주행 SW 전체 개발계획](https://app.notion.com/p/39c2d27b08d381728c1ade21cc72216b) — 이력: [착수 계획(~07-11)](https://app.notion.com/p/3912d27b08d381af9e8ed16fb08b0840) |
 | `l515_dashboard/` L515 Gateway·TUI | [L515 Gateway·TUI — 카메라 단일 소유·SRT 원격주행](https://app.notion.com/p/39a2d27b08d381eb8307fa7d136ad374) |
 | `ros2/` RViz 시각화 (벤치 자산) | [RViz 로봇 시각화 — 오도메트리·IMU·장애물 감지](https://app.notion.com/p/39b2d27b08d3815da7c6f46e173d7a8a) |
 | `scripts/recv_*` + 운용 콘솔 | [통신 GUI·스트리밍·전원 텔레메트리 — 통합 현황](https://app.notion.com/p/39d2d27b08d3815c907ae8aa338c5fa8) |
+| 환경 센싱 콘솔 탭 (**main 미포함**, [Draft PR #4](https://github.com/lightminn/power-train-sw/pull/4)) | [환경 센싱 모듈 기록](https://www.notion.so/3c32d27b08d3811aba24e3dbf70a63ef) |
 | `motor_control/vision/` 기존 D435i 실험·로봇팔 인식 참고 | [RGB-D 카메라 D435i 켜는 법 — 로봇팔 인식용 참고](https://app.notion.com/p/3752d27b08d381619d73d6bc19fc02d2) |
 | `motor_control/vision/` YOLO + Depth 3D 좌표 | [YOLO+Depth 융합 — 검출 물체 3D 좌표 추출](https://app.notion.com/p/37b2d27b08d38147b9aceb16268615a8) |
 | `motor_control/sensors`+`safety_us100/` US-100 거리 + 충돌방지 | [US-100 초음파 센서 — UART 거리 측정](https://app.notion.com/p/35d2d27b08d380f591b9d6553c6a320d) |
@@ -210,8 +248,8 @@ ROS 실행·토픽·서비스 표는 [`ros2/README.md`](ros2/README.md), HIL 전
 
 ## 기여 가이드
 
-- `parameter_calc/` 수정 전 [`parameter_calc/CLAUDE.md`](parameter_calc/CLAUDE.md) 의 GPU 버그 히스토리 섹션 필독.
-- **BL70200 트랙(HALL 모드) / X2212 트랙(엔코더 모드) 을 한 ODrive 에서 번갈아 쓰지 말 것** — NVM 에 남은 캘리 설정이 의도치 않게 적용된다(폭주/과전류). BL70200 복구·대조·적용은 최신 정본 `drive/bl70200/bl70200_setup.py --read/--apply/--calibrate`를 사용한다. 구형 `odrive_calibration.py`·`odrive_diff_drive_test.py`는 pp=5/cpr=30(캘리 스크립트는 UV 도 8V)을 NVM 에 써서 보드를 손상시키므로 `drive/bl70200/archive/` 로 이동하고 import 시 하드스톱으로 막았다(2026-07-19).
+- `parameter_calc/`는 종료된 읽기 전용 트랙이다. [`parameter_calc/CLAUDE.md`](parameter_calc/CLAUDE.md)의 GPU 버그 이력을 참고하되, 새 불일치는 보고만 하고 수정·재계산하지 않는다.
+- **BL70200 트랙(HALL 모드) / X2212 트랙(엔코더 모드) 을 한 ODrive 에서 번갈아 쓰지 말 것** — NVM 에 남은 캘리 설정이 의도치 않게 적용된다(폭주/과전류). BL70200 복구·대조·적용은 최신 정본 `motor_control/drive/bl70200/bl70200_setup.py --read --serial <SERIAL>` 및 `--apply/--calibrate --serial <SERIAL> --axis both --node 11`를 사용한다. 구형 `odrive_calibration.py`·`odrive_diff_drive_test.py`는 pp=5/cpr=30(캘리 스크립트는 UV 도 8V)을 NVM 에 써서 보드를 손상시키므로 `drive/bl70200/archive/` 로 이동하고 import 시 하드스톱으로 막았다(2026-07-19).
 - 구동 ODrive 는 듀얼축(M0=`axis0`+M1=`axis1`) 3보드 — 축·node 매핑은 `chassis/chassis_manager.py` 의 `DEFAULT_WHEEL_MAP` 이 기준. 단축 레거시 스크립트는 `axis1`.
 - 결과 파일(`*.pkl`, `*.mat`, `*.mp4`, `fig*.png`)은 서버 검증본 — 의도 없이 덮어쓰지 말 것.
 - `motor_control/` 스크립트는 독립 실행형 원칙 유지 — 공용 모듈 분리는 사전 합의. `motor_gui` 는 `motor_control` 을 import 하되 역의존 금지.

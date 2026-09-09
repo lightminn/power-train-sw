@@ -21,7 +21,7 @@ C_SET_LIMITS = 0x00F
 C_SET_TRAJ_VEL_LIMIT = 0x011
 C_SET_TRAJ_ACCEL_LIMITS = 0x012
 C_GET_IQ = 0x014
-C_GET_TEMP = 0x015
+C_GET_SENSORLESS_EST = 0x015  # fw-v0.5.6: position/velocity, not temperature
 C_GET_BUS_VI = 0x017
 C_CLEAR_ERR = 0x018
 C_SET_LINEAR_COUNT = 0x019
@@ -52,7 +52,7 @@ _POLL_PERIOD = 1.0 / _POLL_HZ
 _SIGNALS = [
     "odrive.pos", "odrive.pos_setpoint", "odrive.vel", "odrive.vel_setpoint",
     "odrive.iq_meas", "odrive.iq_set", "odrive.torque_est",
-    "odrive.temp_fet", "odrive.vbus", "odrive.ibus",
+    "odrive.vbus", "odrive.ibus",
     "odrive.state", "odrive.axis_err",
 ]
 
@@ -76,6 +76,7 @@ class OdriveCanDevice(CanDevice):
         # CAN 영점은 소프트 오프셋(raw - offset). 절대엔코더에서 Set_Linear_Count(CAN)
         # 가 인코더를 못 zero 해(HIL 확인) 모놀리식 can_bus.py 방식으로 회귀.
         self._pos_offset = 0.0
+        self._tx_errors = 0
         self._last_poll = 0.0        # RTR 폴링 throttle 타임스탬프
         # pair-frame 명령(두 값을 한 프레임에) 부분 업데이트 병합용 캐시.
         self._vel_gains = {}
@@ -99,7 +100,7 @@ class OdriveCanDevice(CanDevice):
             self._bus.send(can.Message(arbitration_id=self._arb(cmd),
                                        is_remote_frame=True, is_extended_id=False))
         except (can.CanError, OSError):
-            pass
+            self._tx_errors += 1
 
     def _send_input_pos(self, user_pos: float) -> None:
         """user 좌표(영점 기준) 목표를 raw(=user+offset)로 변환해 Set_Input_Pos 송신.
@@ -138,6 +139,7 @@ class OdriveCanDevice(CanDevice):
         self._pos_setpoint = 0.0
         self._vel_setpoint = 0.0
         self._pos_offset = 0.0
+        self._tx_errors = 0
         self._last_poll = 0.0        # 재연결 직후 첫 sample 에서 바로 폴링
 
     def can_id_spec(self) -> dict | None:
@@ -169,6 +171,7 @@ class OdriveCanDevice(CanDevice):
                                     "pos": 100000.0}},
             "signal_meta": meta,
             "drive_gear_ratio": self._gear_ratio,
+            "notes": ["fw-v0.5.6 CAN 온도 미지원 (USB로 확인)"],
         }
 
     def request(self, bus) -> None:
@@ -179,7 +182,7 @@ class OdriveCanDevice(CanDevice):
         if now - self._last_poll < _POLL_PERIOD:
             return
         self._last_poll = now
-        for c in (C_GET_ENC_EST, C_GET_IQ, C_GET_TEMP, C_GET_BUS_VI):
+        for c in (C_GET_ENC_EST, C_GET_IQ, C_GET_BUS_VI):
             self._request(c)
 
     def on_rx(self, msg) -> None:
@@ -200,9 +203,6 @@ class OdriveCanDevice(CanDevice):
             iq_set, iq_meas = struct.unpack("<ff", d[:8])
             self._state["odrive.iq_set"] = iq_set
             self._state["odrive.iq_meas"] = iq_meas
-        elif cmd == C_GET_TEMP and len(d) >= 8:
-            fet, _motor = struct.unpack("<ff", d[:8])
-            self._state["odrive.temp_fet"] = fet
         elif cmd == C_GET_BUS_VI and len(d) >= 8:
             vbus, ibus = struct.unpack("<ff", d[:8])
             self._state["odrive.vbus"] = vbus
@@ -210,6 +210,7 @@ class OdriveCanDevice(CanDevice):
 
     def sample(self) -> dict:
         s = dict(self._state)
+        s["can.tx_errors"] = self._tx_errors
         s["odrive.pos"] = float(self._state.get("odrive.pos", 0.0)) - self._pos_offset
         s["odrive.vel"] = float(self._state.get("odrive.vel", 0.0)) / self._gear_ratio
         s["odrive.pos_setpoint"] = self._pos_setpoint

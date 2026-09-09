@@ -22,8 +22,8 @@ raw depth + CameraInfo
     → L515 extrinsic + WP6 roll/pitch gravity alignment
     → 5 cm candidate-resolution 2.5D elevation grid
     → height, normal/slope, roughness, observation confidence
-    → bank/uphill/drop-edge/obstacle classification
-    → footprint-safe centre path
+    → bank/uphill/drop/obstacle classification
+    → width-qualified centre-line fit + footprint-support gate
 ```
 
 `TerrainFrame` uses the L515 optical-Z contract: a two-dimensional depth ROI,
@@ -50,35 +50,29 @@ right, optical y is down, and optical z is forward. Camera points are converted
 with full rotation matrices for the optical frame, configured mount rotation,
 and injected body roll/pitch; there is no small-angle approximation. Wide,
 continuous lateral slope is reported as bank rather than an obstacle. A local
-high protrusion is excluded from support as an obstacle candidate. Surface
-termination plus disconnected lower-floor evidence defines the two drop
-boundaries used by erosion.
+high protrusion is excluded from support as an obstacle candidate. Drop and
+obstacle cells shape the connected support runs; they are not separate path
+rejection gates.
 
-## Drop-boundary corridor semantics
+## Centre-line semantics
 
-Occlusion geometry displaces lower-floor observations systematically forward
-of the edge row that causes them, and on a banked or offset track the floor can
-land outside the fixed grid's lateral range entirely. Side drop evidence is
-therefore collected twice: from in-grid lower-floor cells, and pre-grid from
-every in-range raw depth point that falls at least `drop_height_m` below the
-interpolated per-row support reference, outside that row's support edges, with
-a minimum point count so an isolated spike cannot fabricate evidence.
+For each planning-window row, the estimator keeps the connected support run
+nearest body-frame y=0 after the existing height-consistent gap merge. A row
+contributes to the path only when its selected run is at least as wide as the
+rover footprint. Narrower runs can be the visible side of an occlusion hole and
+therefore cannot locate the track centre.
 
-Whether one row's support edge is a real track edge is decided against the
-analytic per-row field-of-view limit (the camera frustum intersected with that
-row's support height, using the full extrinsic and injected tilt). An edge
-sitting at the FOV limit is observation truncation, not a boundary; an edge
-strictly inside the FOV with side evidence is a real-edge candidate, and it
-must also stay within two cells of the per-side corridor median (track
-boundaries are spatially continuous; isolated deviations are data gaps).
-FOV-clipped and data-gap rows inherit the corridor and only contribute
-support-coverage checks, so truncation can only shrink the usable path —
-fail-closed. A lower-floor detection strictly inside the corridor (a local
-choke narrower than the eroded footprint) rejects the whole frame instead of
-routing around it with wider rows. Row centres for offset/heading come from
-real edges where available, reconstructing with the corridor-width prior when
-only one side is real, so the 5 cm grid quantization does not dominate the
-heading fit.
+The estimator fits `centre(x) = a + b*x` to contributing row centres, removes
+residuals larger than two grid cells, and refits once when at least two rows
+remain. Published offset is the median fitted centre at the contributing row x
+positions; heading is `atan(b)`. The existing temporal low-pass applies only to
+those two path values. Clearances remain current-frame telemetry derived from
+the same contributing support edges and do not gate or scale the controller.
+
+The sole support geometry gate requires at least one planning-window row whose
+selected run covers the rover's body-frame footprint. Missing connected support,
+an unresolved centre line, or no footprint-covering row fails closed. Vehicle
+attitude limits remain independent controller gates.
 
 Runtime on the x86 dev host is ~31 ms mean per 60x80 frame (74x60 grid). The
 fixed-shape JAX kernels and NumPy/JAX grid equivalence are implemented for
@@ -92,23 +86,19 @@ Only the latest 1.5 seconds (configurable up to the intended 1–2 second local
 window) are retained. The injected previous-to-current `(dx, dy, dyaw)` moves
 old cell centres through exact planar SE(2), then re-bins them to integer cells.
 A fractional residual is deliberately not interpolated: carried confidence is
-reduced, and the largest residual is added to footprint erosion uncertainty.
-Current observations replace carried observations; history fills only current
-blind or invalid cells. There is no long-term map, loop closure, or SLAM.
+reduced. Current observations replace carried observations; history fills only
+current blind or invalid cells. There is no long-term map, loop closure, lateral
+reference carry, or SLAM.
 
 The chassis half-footprint is derived as the maximum absolute production wheel
-y coordinate (currently 0.4395 m), plus configured wheel half-width, configured
-uncertainty, and any odometry re-bin residual. The support interval between the
-left and right drop edges is eroded by that amount. The estimator reports path
-offset and heading only when enough contiguous fixed-grid rows remain.
-Left/right wheel clearance excludes the extra uncertainty term so it remains a
-measurable physical clearance from the current outer wheel edge to each drop
-boundary.
+y coordinate plus configured wheel half-width. Left/right wheel clearance is
+the median distance from the current outer wheel edge to each contributing
+support edge.
 
 `TerrainEstimate` is immutable. A stale/future/regressing frame, a temporal
-jump, missing connected support, unobserved drop evidence, or empty erosion
-returns `path_available=False` with explicit reject reasons and zero confidence.
-The estimator does not reuse a prior path as a motion basis.
+jump, missing connected support, unresolved centre line, or unsupported
+footprint returns `path_available=False` with explicit reject reasons and zero
+confidence. The estimator does not reuse a prior path as a motion basis.
 
 ## WP6-C controller core
 
@@ -122,7 +112,7 @@ does not subscribe or publish.
 `BLOCKED` is reserved for the arm collaboration gate: a missing, stale, future,
 or profile-mismatched arm status forces immediate zero and resets the slew
 origin. `CONTROLLED_HOLD` covers missing or stale terrain/motion, unavailable or
-low-confidence path, clearance/tilt limits, and a fresh stuck diagnostic. It
+low-confidence path, vehicle attitude limits, and a fresh stuck diagnostic. It
 ramps the last output to zero at the active profile's deceleration and yaw-slew
 limits, then automatically resumes from zero when inputs recover. Stale or
 missing diagnostics only remove their optional slip and speed-cap constraints.
@@ -149,7 +139,14 @@ NumPy is the only production authority for terrain estimation. The optional
 JAX module provides `warmup(config)`,
 rejects shape/dtype drift before JIT dispatch, and validates device results at
 the CPU boundary, but it is not selected by the estimator or any launch
-profile. Jetson qualification and backend selection remain deferred, including
-the full-load latency/resource gate, accelerator version pinning, and launch
-memory policy such as `XLA_PYTHON_CLIENT_PREALLOCATE=false`. The WP6-C
-controller is backend-neutral and consumes the immutable estimator result.
+profile. The 2026-07-19 Jetson full-load qualification selected NumPy for
+production: the measured kernel p95 was at most 7 ms under the live stack, while
+an aarch64 CUDA `jaxlib` was unavailable through the deployment path. JAX
+therefore remains an x86 development equivalence backend and stays absent from
+the Jetson image; there is no pending Jetson JAX deployment gate. See
+[`2026-07-19-terrain-backend-jetson-qualification.md`](../docs/reports/2026-07-19-terrain-backend-jetson-qualification.md).
+That selection measured three kernel cases with 100 samples each under the live
+load. It is not evidence for a 30-minute sensor-to-controller-to-SRT E2E run.
+The WP6-C controller is backend-neutral and consumes the immutable estimator
+result. Physical mount-angle/extrinsic and controller-profile HIL remain
+separate acceptance gates.

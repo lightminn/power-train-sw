@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# Daily Jetson entrypoint for the prepared integrated CAN 4WS stack.
+set -euo pipefail
+
+fail() {
+  printf 'robot-start FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+[ "$#" -eq 0 ] || fail 'usage: scripts/robot-start'
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "$script_dir/.." && pwd)"
+cd "$repo_root"
+
+target_root="${POWERTRAIN_ROOT:-}"
+etc_dir="${target_root}/etc/powertrain"
+run_dir="${target_root}/run/powertrain"
+var_dir="${target_root}/var/lib/powertrain"
+manifest="$etc_dir/integrated-prepared.env"
+robot_config="$etc_dir/robot.json"
+
+[ -f "$manifest" ] \
+  || fail "준비 매니페스트가 없습니다. 먼저 scripts/robot_prepare.sh를 실행하십시오: $manifest"
+[ -f "$robot_config" ] || fail "로봇 설정이 없습니다: $robot_config"
+[ -d "$run_dir" ] || fail "런타임 디렉터리가 없습니다: $run_dir"
+[ -d "$var_dir" ] || fail "영속 디렉터리가 없습니다: $var_dir"
+
+# The manifest is written root-owned by robot_prepare.sh and contains only
+# shell-quoted assignments after strict option validation.
+# shellcheck disable=SC1090
+source "$manifest"
+[ "${POWERTRAIN_INTEGRATED_VERSION:-}" = 1 ] \
+  || fail '지원하지 않는 준비 매니페스트 버전입니다.'
+[ "${POWERTRAIN_PROFILE:-}" = can-4ws ] \
+  || fail '준비된 프로필은 can-4ws여야 합니다. USB skid는 별도 벤치 경로입니다.'
+
+python3 - "$robot_config" "$target_root" <<'PY' \
+  || fail 'robot.json 계약 또는 토큰 파일 검증에 실패했습니다.'
+import json
+import math
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+with path.open(encoding="utf-8") as stream:
+    config = json.load(stream)
+required = {
+    "robot_id": str,
+    "token_file": str,
+    "host": str,
+    "session_port": int,
+    "input_port": int,
+    "ops_port": int,
+    "input_target_port": int,
+    "ops_target_port": int,
+    "destination_file": str,
+    "lease_timeout_s": (int, float),
+}
+for key, kind in required.items():
+    if key not in config or not isinstance(config[key], kind):
+        raise SystemExit(f"invalid {key}")
+expected = {
+    "host": "0.0.0.0",
+    "session_port": 9002,
+    "input_port": 9000,
+    "ops_port": 9001,
+    "input_target_port": 19000,
+    "ops_target_port": 19001,
+    "destination_file": "/run/powertrain/operator-session.json",
+}
+for key, value in expected.items():
+    if config[key] != value:
+        raise SystemExit(f"unexpected {key}")
+lease = float(config["lease_timeout_s"])
+if not math.isfinite(lease) or not 0.2 <= lease <= 30.0:
+    raise SystemExit("invalid lease_timeout_s")
+for key in ("token_file", "ops_token_file"):
+    value = config.get(key)
+    if value is None:
+        continue
+    if not isinstance(value, str) or not value.startswith("/"):
+        raise SystemExit(f"invalid {key}")
+PY
+
+python3 "$repo_root/motor_control/chassis/can_interface.py" \
+  || fail 'CAN readiness 검증 실패. 준비/워치독/배선 상태를 확인하십시오.'
+
+compose=(docker compose
+  -f docker/docker-compose.jetson.yml
+  -f docker/docker-compose.integrated.yml)
+services=(
+  canwatchdog
+  powertrain_ros
+  powertrain_control
+  powertrain_chassis
+  powertrain_observability
+  powertrain_chassis_telemetry
+  powertrain_pdist80b_telemetry
+  powertrain_session
+)
+
+if [ -n "${INTEGRATED_PROFILES:-}" ]; then
+  for profile in $INTEGRATED_PROFILES; do
+    compose+=(--profile "$profile")
+  done
+fi
+if [ -n "${INTEGRATED_SERVICES:-}" ]; then
+  for service in $INTEGRATED_SERVICES; do
+    services+=("$service")
+  done
+fi
+
+"${compose[@]}" up -d --no-build "${services[@]}"
+
+if [ -n "${OPTIONAL_COMPOSE_FILE:-}" ]; then
+  optional=(docker compose -f "$OPTIONAL_COMPOSE_FILE")
+  for profile in ${OPTIONAL_PROFILES:-}; do
+    optional+=(--profile "$profile")
+  done
+  optional_services=()
+  for service in ${OPTIONAL_SERVICES:-}; do
+    optional_services+=("$service")
+  done
+  [ "${#optional_services[@]}" -gt 0 ] \
+    || fail '선택 스택에는 명시적인 서비스 목록이 필요합니다.'
+  "${optional[@]}" up -d --no-build "${optional_services[@]}"
+fi
+
+printf 'robot-start PASS: profile=can-4ws, session=:9002, input=:9000, ops=:9001\n'

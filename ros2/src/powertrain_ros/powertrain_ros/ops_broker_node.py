@@ -5,6 +5,7 @@
 callback group이라 서비스 지연이 push를 막지 않는다.
 """
 from dataclasses import dataclass, field
+import errno
 import json
 import math
 import os
@@ -19,7 +20,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from std_srvs.srv import SetBool, Trigger
 
-from powertrain_msgs.msg import WheelStates
+from powertrain_ros.stop_proof import decode_hardware_stop_proof
 from powertrain_observability.client import EventClient
 from powertrain_ros import ops_contract as oc
 from powertrain_ros.ops_broker_core import (
@@ -85,12 +86,18 @@ class _PendingService:
 
 class OpsBrokerNode(Node):
     def __init__(self, parameter_overrides=None, port_override=None,
-                 token_dir_override=None):
+                 token_dir_override=None, host_override=None):
         super().__init__(
             "ops_broker", parameter_overrides=parameter_overrides or []
         )
+        self.declare_parameter("host", "0.0.0.0")
         self.declare_parameter("port", oc.DEFAULT_PORT)
         self.declare_parameter("token_dir", "/etc/powertrain")
+        self._host = str(
+            host_override
+            if host_override is not None
+            else self.get_parameter("host").value
+        )
         self._port = int(
             port_override
             if port_override is not None
@@ -151,9 +158,6 @@ class OpsBrokerNode(Node):
         self.create_subscription(
             String, "/teleop/gateway_state", self._on_gateway, 10
         )
-        self.create_subscription(
-            WheelStates, "/wheel_states", self._on_wheels, 10
-        )
         self._service_poll_timer = self.create_timer(
             0.05, self._poll_pending, callback_group=self._service_group
         )
@@ -162,11 +166,12 @@ class OpsBrokerNode(Node):
         )
 
         self._stop_event = threading.Event()
+        self._tcp_error = None
         self._closed = False
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server.bind(("0.0.0.0", self._port))
+            server.bind((self._host, self._port))
             server.listen(4)
             server.settimeout(0.2)
         except BaseException:
@@ -178,7 +183,9 @@ class OpsBrokerNode(Node):
             target=self._serve, name="ops-broker-tcp", daemon=True
         )
         self._server_thread.start()
-        self.get_logger().info("ops broker TCP :%d" % self._port)
+        self.get_logger().info(
+            "ops broker TCP %s:%d" % (self._host, self._port)
+        )
 
     # -- ops-state inputs -------------------------------------------------
     def _on_authority(self, message):
@@ -219,6 +226,12 @@ class OpsBrokerNode(Node):
                         "component_mask values must be bool"
                     )
                 component_mask[component] = enabled
+            stopped, feedback_age_s = decode_hardware_stop_proof(
+                decoded.get("hardware_stop_proof"), chassis_mode=chassis_mode,
+                drive_enabled=component_mask["drive"],
+            )
+            if not 0 <= time.monotonic() - stamp_s <= .5:
+                stopped, feedback_age_s = False, None
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
             self.get_logger().warning(
                 "invalid /chassis/safety_state ignored: %s" % exc
@@ -232,6 +245,10 @@ class OpsBrokerNode(Node):
             self._fields["active_estop_sources"] = active_sources
             self._fields["component_mask"] = component_mask
             self._stamps["safety"] = stamp_s
+            self._fields["wheels_stopped"] = stopped
+            self._stamps["wheels"] = (
+                None if feedback_age_s is None else stamp_s - feedback_age_s
+            )
 
     def _on_gateway(self, message):
         try:
@@ -254,18 +271,6 @@ class OpsBrokerNode(Node):
             self._fields["gateway_input_fresh"] = input_fresh
             self._fields["gateway_neutral"] = neutral
             self._stamps["gateway"] = stamp_s
-
-    def _on_wheels(self, message):
-        try:
-            stopped = all(
-                abs(float(wheel.drive_turns_per_s)) < WHEEL_STOP_TURNS
-                for wheel in message.wheels
-            )
-        except (AttributeError, TypeError, ValueError):
-            return
-        with self._state_lock:
-            self._fields["wheels_stopped"] = bool(stopped)
-            self._stamps["wheels"] = time.monotonic()
 
     def _ops_state(self):
         now_s = time.monotonic()
@@ -297,8 +302,9 @@ class OpsBrokerNode(Node):
             ages = {
                 name: (
                     9.9
-                    if stamp_s is None
-                    else max(0.0, now_s - float(stamp_s))
+                    if stamp_s is None or not math.isfinite(float(stamp_s))
+                    or float(stamp_s) > now_s
+                    else now_s - float(stamp_s)
                 )
                 for name, stamp_s in self._stamps.items()
             }
@@ -317,10 +323,13 @@ class OpsBrokerNode(Node):
                     sock, _address = server.accept()
                 except socket.timeout:
                     continue
-                except OSError:
+                except OSError as exc:
                     if self._stop_event.is_set():
                         break
-                    raise
+                    if exc.errno in (errno.EBADF, errno.ENOTSOCK, errno.EINVAL):
+                        raise
+                    self._stop_event.wait(.05)
+                    continue
                 thread = threading.Thread(
                     target=self._serve_client,
                     args=(sock,),
@@ -332,6 +341,7 @@ class OpsBrokerNode(Node):
                 thread.start()
         except BaseException as exc:
             if not self._stop_event.is_set():
+                self._tcp_error = exc
                 self.get_logger().error("ops broker TCP failed: %r" % exc)
         finally:
             try:
@@ -739,6 +749,10 @@ class OpsBrokerNode(Node):
     def _push_ops_state(self):
         if self._closed:
             return
+        if getattr(self, "_tcp_error", None) is not None:
+            # Surface a dead listener on the ROS executor so Compose can restart
+            # the node; a live process with no command port is not healthy.
+            raise RuntimeError("ops broker listener failed; restart required") from self._tcp_error
         state = self._ops_state()
         payload = (
             json.dumps(

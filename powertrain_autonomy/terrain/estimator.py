@@ -9,6 +9,9 @@ import numpy as np
 
 from chassis.kinematics import default_geometry
 
+from ..validation import (
+    require_all_finite, require_int_at_least, require_ordered, require_positive,
+)
 from .depth_quality import (
     CameraIntrinsics,
     DepthQualityConfig,
@@ -41,6 +44,15 @@ class OdometryDelta:
 
 
 @dataclass(frozen=True)
+class _LateralReference:
+    offset_m: float
+    heading_rad: float
+    stamp_s: float
+    certified: bool
+    travelled_m: float
+
+
+@dataclass(frozen=True)
 class BaseToCameraExtrinsic:
     x_m: float = 0.0
     y_m: float = 0.0
@@ -55,11 +67,8 @@ class BaseToCameraExtrinsic:
 
 @dataclass(frozen=True)
 class TerrainEstimatorConfig:
-    # 60x80 은 5 cm 격자를 전방 ~1.4 m 너머로 채우지 못한다. 빈 행이 생기면
-    # 연결성 기반 support 성장이 거기서 끊기고, FOV 한계 검사가 닿는 가장 먼
-    # 행이 트랙 에지를 margin(1.5 x 격자 = 75 mm) 만큼 넘어서지 못해
-    # `drop_boundaries_unobserved` 로 영구 fail-closed 된다(실측: 여유 57 mm).
-    # 120x160 이면 support 가 멀리까지 자라 완주율 0.00 -> 0.83, fail_open 0 유지.
+    # 60x80 은 5 cm 격자를 전방 ~1.4 m 너머로 채우지 못한다. 120x160 이면
+    # 중심선 적합에 기여할 수 있는 전방 support 행을 충분히 유지한다.
     # 격자가 고정 shape 라 추정기 런타임은 사실상 불변(0.83 ms, 예산 5 ms).
     depth_shape_px: tuple[int, int] = (120, 160)
     roi_rows: tuple[int, int] = (0, 120)
@@ -71,8 +80,16 @@ class TerrainEstimatorConfig:
     grid_y_range_m: tuple[float, float] = (-1.5, 1.5)
     max_frame_age_s: float = 0.25
     history_horizon_s: float = 1.5
+    # 타이어 트레드 반폭 — 접지 밴드 전용.
     wheel_half_width_m: float = 0.035
-    footprint_uncertainty_m: float = 0.05
+    # as-built v2 인휠 허브가 타이어보다 편측 13 mm 돌출한다. 외곽 반폭은
+    # 48.0 mm이며 차폭 = 2 × (0.35950 + 0.048) = 0.8150 m이다.
+    # 원시 STL 실측: 허브 −48.0~+87.0 mm, 타이어 ±35.0 mm.
+    footprint_outboard_half_width_m: float = 0.048
+    # 같은 구간의 추정치 이동은 약 0.14 m인데 실제 횡오차 이동은 약 0.02 m였다.
+    # 차량 운동을 평활화하는 게 아니라 프레임별 재구성 잡음을 거르는 필터다.
+    # 0.03~0.24 m/s에서 0.5 s 지연 비용은 주행거리 0.015~0.12 m다.
+    path_estimate_tau_s: float = 0.5
     min_depth_m: float = 0.2
     max_depth_m: float = 6.0
     max_support_step_m: float = 0.12
@@ -85,19 +102,18 @@ class TerrainEstimatorConfig:
     min_path_rows: int = 4
 
     def __post_init__(self) -> None:
-        if (
-            len(self.depth_shape_px) != 2
-            or any(isinstance(value, bool) or not isinstance(value, int) or value < 3 for value in self.depth_shape_px)
-        ):
-            raise ValueError("depth_shape_px must contain two integers >= 3")
+        depth_shape_message = "depth_shape_px must contain two integers >= 3"
+        if len(self.depth_shape_px) != 2:
+            raise ValueError(depth_shape_message)
+        for value in self.depth_shape_px:
+            require_int_at_least(value, 3, depth_shape_message)
         for bounds, size, name in (
             (self.roi_rows, self.depth_shape_px[0], "roi_rows"),
             (self.roi_cols, self.depth_shape_px[1], "roi_cols"),
         ):
             if len(bounds) != 2 or not (0 <= bounds[0] < bounds[1] <= size):
                 raise ValueError(f"{name} must be ordered within depth_shape_px")
-        if isinstance(self.stride, bool) or not isinstance(self.stride, int) or self.stride < 1:
-            raise ValueError("stride must be a positive integer")
+        require_int_at_least(self.stride, 1, "stride must be a positive integer")
         sampled_shape = (
             len(range(self.roi_rows[0], self.roi_rows[1], self.stride)),
             len(range(self.roi_cols[0], self.roi_cols[1], self.stride)),
@@ -107,49 +123,43 @@ class TerrainEstimatorConfig:
             for sampled, tile in zip(sampled_shape, self.quality_tile_shape_px)
         ):
             raise ValueError("quality tiles must divide the fixed sampled ROI and be >= 3")
+        require_positive(self.path_estimate_tau_s, "path_estimate_tau_s must be positive")
         finite = (
-            self.grid_resolution_m,
-            *self.grid_x_range_m,
-            *self.grid_y_range_m,
-            self.max_frame_age_s,
-            self.history_horizon_s,
-            self.wheel_half_width_m,
-            self.footprint_uncertainty_m,
-            self.min_depth_m,
-            self.max_depth_m,
-            self.max_support_step_m,
-            self.drop_height_m,
-            self.obstacle_height_m,
-            self.drop_reference_radius_m,
-            self.seed_max_x_m,
-            self.seed_half_width_m,
+            self.grid_resolution_m, *self.grid_x_range_m, *self.grid_y_range_m,
+            self.max_frame_age_s, self.history_horizon_s,
+            self.wheel_half_width_m, self.footprint_outboard_half_width_m,
+            self.min_depth_m, self.max_depth_m, self.max_support_step_m,
+            self.drop_height_m, self.obstacle_height_m, self.drop_reference_radius_m,
+            self.seed_max_x_m, self.seed_half_width_m,
             *self.path_x_range_m,
         )
-        if not all(math.isfinite(value) for value in finite):
-            raise ValueError("terrain estimator thresholds must be finite")
-        if self.grid_resolution_m <= 0.0 or not (
-            self.grid_x_range_m[0] < self.grid_x_range_m[1]
-            and self.grid_y_range_m[0] < self.grid_y_range_m[1]
-            and self.path_x_range_m[0] < self.path_x_range_m[1]
-        ):
-            raise ValueError("grid and path ranges must be positive and ordered")
-        if not 0.0 < self.min_depth_m < self.max_depth_m:
-            raise ValueError("depth range must be positive and ordered")
-        if min(
-            self.max_frame_age_s,
-            self.history_horizon_s,
-            self.max_support_step_m,
-            self.drop_height_m,
-            self.obstacle_height_m,
-            self.drop_reference_radius_m,
-            self.seed_max_x_m,
-            self.seed_half_width_m,
-        ) <= 0.0:
+        require_all_finite(finite, "terrain estimator thresholds must be finite")
+        range_message = "grid and path ranges must be positive and ordered"
+        if self.grid_resolution_m <= 0.0:
+            raise ValueError(range_message)
+        require_ordered(*self.grid_x_range_m, range_message)
+        require_ordered(*self.grid_y_range_m, range_message)
+        require_ordered(*self.path_x_range_m, range_message)
+        depth_range_message = "depth range must be positive and ordered"
+        require_ordered(0.0, self.min_depth_m, depth_range_message)
+        require_ordered(self.min_depth_m, self.max_depth_m, depth_range_message)
+        positive = (
+            self.max_frame_age_s, self.history_horizon_s, self.max_support_step_m,
+            self.drop_height_m, self.obstacle_height_m, self.drop_reference_radius_m,
+            self.seed_max_x_m, self.seed_half_width_m,
+        )
+        if min(positive) <= 0.0:
             raise ValueError("terrain time, support, and classification thresholds must be positive")
-        if min(self.wheel_half_width_m, self.footprint_uncertainty_m) < 0.0:
-            raise ValueError("footprint widths must be nonnegative")
-        if isinstance(self.min_path_rows, bool) or not isinstance(self.min_path_rows, int) or self.min_path_rows < 2:
-            raise ValueError("min_path_rows must be an integer >= 2")
+        if self.wheel_half_width_m < 0.0:
+            raise ValueError("wheel_half_width_m must be nonnegative")
+        if self.footprint_outboard_half_width_m < 0.0:
+            raise ValueError("footprint_outboard_half_width_m must be nonnegative")
+        if self.footprint_outboard_half_width_m < self.wheel_half_width_m:
+            raise ValueError(
+                "footprint_outboard_half_width_m must be >= wheel_half_width_m "
+                "because the hub cannot be narrower than the tire"
+            )
+        require_int_at_least(self.min_path_rows, 2, "min_path_rows must be an integer >= 2")
 
 
 @dataclass(frozen=True)
@@ -157,6 +167,7 @@ class TerrainEstimate:
     stamp_s: float
     path_offset_m: float
     heading_error_rad: float
+    confirmed_support_m: float
     left_wheel_clearance_m: float
     right_wheel_clearance_m: float
     bank_angle_rad: float
@@ -189,9 +200,15 @@ class TerrainEstimator:
             max_depth_m=self.config.max_depth_m,
         )
         self._grid: ElevationGrid = empty_grid(self.grid_shape)
+        self._lateral_reference: _LateralReference | None = None
+        self._filtered_path_estimate: tuple[float, float] | None = None
+        self._path_estimate_stamp_s: float | None = None
 
     def _reset(self, *, clear_quality: bool) -> None:
         self._grid = empty_grid(self.grid_shape)
+        self._lateral_reference = None
+        self._filtered_path_estimate = None
+        self._path_estimate_stamp_s = None
         if clear_quality:
             self._frame_quality = None
             self._tile_quality.clear()
@@ -234,10 +251,13 @@ class TerrainEstimator:
             raise ValueError(f"{label} must be finite")
 
     def _reject(self, stamp_s: float, *reasons: str, degradation=()) -> TerrainEstimate:
+        self._filtered_path_estimate = None
+        self._path_estimate_stamp_s = None
         return TerrainEstimate(
             stamp_s=float(stamp_s),
             path_offset_m=0.0,
             heading_error_rad=0.0,
+            confirmed_support_m=0.0,
             left_wheel_clearance_m=0.0,
             right_wheel_clearance_m=0.0,
             bank_angle_rad=0.0,
@@ -247,6 +267,46 @@ class TerrainEstimator:
             degradation_reasons=tuple(dict.fromkeys(degradation)),
             reject_reasons=tuple(dict.fromkeys(reasons)),
             path_available=False,
+        )
+
+    def _transport_lateral_reference(
+        self,
+        reference: _LateralReference,
+        *,
+        odometry_delta: OdometryDelta,
+    ) -> _LateralReference | None:
+        # 새 상태 의존성이 아니라 grid history를 운반하는 기존 OdometryDelta
+        # 의존성을 연장한다. 이전 body frame의 선을
+        # nₚ·pₚ=ρₚ, nₚ=(-sin(hₚ), cos(hₚ)), ρₚ=oₚ cos(hₚ)라 두면,
+        # grid와 같은 pₚ=R(dyaw)p꜀+[dx,dy]에서
+        # n꜀=R(-dyaw)nₚ, ρ꜀=ρₚ-nₚ·[dx,dy]다. 따라서
+        # h꜀=hₚ-dyaw, o꜀=ρ꜀/cos(h꜀)가 rigid-body 운반식이다.
+        previous_heading = reference.heading_rad
+        previous_normal_x = -math.sin(previous_heading)
+        previous_normal_y = math.cos(previous_heading)
+        previous_rho = reference.offset_m * previous_normal_y
+        current_heading = math.atan2(
+            math.sin(previous_heading - odometry_delta.dyaw_rad),
+            math.cos(previous_heading - odometry_delta.dyaw_rad),
+        )
+        current_cosine = math.cos(current_heading)
+        if abs(current_cosine) < 1e-9:
+            return None
+        current_rho = previous_rho - (
+            previous_normal_x * odometry_delta.dx_m
+            + previous_normal_y * odometry_delta.dy_m
+        )
+        return _LateralReference(
+            offset_m=current_rho / current_cosine,
+            heading_rad=current_heading,
+            stamp_s=reference.stamp_s,
+            certified=reference.certified,
+            travelled_m=(
+                reference.travelled_m
+                + math.hypot(odometry_delta.dx_m, odometry_delta.dy_m)
+                if reference.certified
+                else 0.0
+            ),
         )
 
     def _quality_and_mask(
@@ -266,7 +326,9 @@ class TerrainEstimator:
             config=self._quality_config,
         )
         temporal_rejects = {"no_valid_depth", "temporal_jump", "regressing_frame_stamp"}
-        if not temporal_rejects.intersection(frame_quality.reject_reasons):
+        if not {"no_valid_depth", "regressing_frame_stamp"}.intersection(
+            frame_quality.reject_reasons
+        ):
             self._frame_quality = frame_quality.snapshot()
         point_confidence = np.zeros(depth.shape, dtype=float)
         support_mask = np.zeros(depth.shape, dtype=bool)
@@ -367,114 +429,6 @@ class TerrainEstimator:
         )
         return rotation, translation
 
-    def _point_side_evidence(
-        self,
-        points: np.ndarray,
-        classification_mask: np.ndarray,
-        grid: ElevationGrid,
-    ) -> tuple[bool, bool]:
-        cfg = self.config
-        support = grid.support_mask
-        row_has_support = support.any(axis=1)
-        if not np.any(row_has_support):
-            return False, False
-        y_centres = cfg.grid_y_range_m[0] + (np.arange(self.grid_shape[1]) + 0.5) * cfg.grid_resolution_m
-        first_col = np.argmax(support, axis=1)
-        last_col = self.grid_shape[1] - 1 - np.argmax(support[:, ::-1], axis=1)
-        masked_height = np.where(support, grid.height_m, np.nan)
-        reference = np.full(self.grid_shape[0], np.nan)
-        reference[row_has_support] = np.nanmedian(
-            masked_height[row_has_support], axis=1
-        )
-        # 원거리 바닥은 support 가 없는 행(타일 품질로 제외된 원거리)에서만
-        # 보이기도 한다 — 기준높이·측면 경계를 support 있는 행에서 보간·외삽한다.
-        supported_indices = np.flatnonzero(row_has_support)
-        all_indices = np.arange(self.grid_shape[0], dtype=float)
-        reference_full = np.interp(
-            all_indices,
-            supported_indices.astype(float),
-            reference[supported_indices],
-        )
-        left_bound = np.where(
-            row_has_support,
-            y_centres[last_col],
-            float(np.max(y_centres[last_col[supported_indices]])),
-        )
-        right_bound = np.where(
-            row_has_support,
-            y_centres[first_col],
-            float(np.min(y_centres[first_col[supported_indices]])),
-        )
-        flat_points = points.reshape((-1, 3))
-        flat_mask = classification_mask.reshape(-1)
-        finite = np.all(np.isfinite(flat_points), axis=1) & flat_mask
-        rows = np.floor(
-            (flat_points[:, 0] - cfg.grid_x_range_m[0]) / cfg.grid_resolution_m
-        ).astype(int)
-        usable = finite & (rows >= 0) & (rows < self.grid_shape[0])
-        if not np.any(usable):
-            return False, False
-        rows = rows[usable]
-        y = flat_points[usable, 1]
-        z = flat_points[usable, 2]
-        dropped = z < reference_full[rows] - cfg.drop_height_m
-        left = dropped & (y > left_bound[rows] + cfg.grid_resolution_m)
-        right = dropped & (y < right_bound[rows] - cfg.grid_resolution_m)
-        # 스파이크 한두 픽셀이 경계 증거를 조작하지 못하게 최소 점수를 요구한다.
-        minimum_points = 8
-        return (
-            bool(np.count_nonzero(left) >= minimum_points),
-            bool(np.count_nonzero(right) >= minimum_points),
-        )
-
-    def _fov_limits(
-        self,
-        grid: ElevationGrid,
-        *,
-        frame_intrinsics: CameraIntrinsics,
-        extrinsic: BaseToCameraExtrinsic,
-        tilt: BodyTilt,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """행별 관측 한계(해석적): FOV 원뿔이 그 행의 support 높이 평면과 만나는
-        측면 y 범위. 점 데이터가 아니라 카메라 기하에서 직접 계산하므로 노이즈·
-        가림·틸트에 무관하게 "이 행에서 어디까지 볼 수 있었는가"를 준다."""
-        cfg = self.config
-        rotation = (
-            self._rotation_y(tilt.pitch_rad) @ self._rotation_x(tilt.roll_rad)
-        ) @ self._camera_to_base_rotation(extrinsic)
-        origin = (
-            self._rotation_y(tilt.pitch_rad) @ self._rotation_x(tilt.roll_rad)
-        ) @ np.array((extrinsic.x_m, extrinsic.y_m, extrinsic.z_m))
-        height, width = cfg.depth_shape_px
-        c_min = (0.0 - frame_intrinsics.cx) / frame_intrinsics.fx
-        c_max = (width - 1.0 - frame_intrinsics.cx) / frame_intrinsics.fx
-        x_centres = cfg.grid_x_range_m[0] + (np.arange(self.grid_shape[0]) + 0.5) * cfg.grid_resolution_m
-        masked_height = np.where(grid.support_mask, grid.height_m, np.nan)
-        left_limit = np.full(self.grid_shape[0], np.nan)
-        right_limit = np.full(self.grid_shape[0], np.nan)
-        basis_y = rotation.T @ np.array((0.0, 1.0, 0.0))
-        for x_index in range(self.grid_shape[0]):
-            row_heights = masked_height[x_index]
-            if not np.any(np.isfinite(row_heights)):
-                continue
-            row_height = float(np.nanmedian(row_heights))
-            anchor = rotation.T @ (
-                np.array((x_centres[x_index], 0.0, row_height)) - origin
-            )
-            candidates = []
-            for c in (c_min, c_max):
-                denominator = basis_y[0] - c * basis_y[2]
-                if abs(denominator) < 1e-9:
-                    continue
-                y = (c * anchor[2] - anchor[0]) / denominator
-                forward = anchor[2] + y * basis_y[2]
-                if forward > 0.0:
-                    candidates.append(float(y))
-            if len(candidates) == 2:
-                right_limit[x_index] = min(candidates)
-                left_limit[x_index] = max(candidates)
-        return left_limit, right_limit
-
     def _summarize(
         self,
         grid: ElevationGrid,
@@ -482,175 +436,283 @@ class TerrainEstimator:
         stamp_s: float,
         frame_confidence: float,
         reasons,
-        carried_count: int,
-        odometry_residual_m: float,
-        left_limit_y: np.ndarray,
-        right_limit_y: np.ndarray,
-        left_floor_seen: bool,
-        right_floor_seen: bool,
+        odometry_delta: OdometryDelta | None = None,
     ):
         cfg = self.config
+        if odometry_delta is None:
+            odometry_delta = OdometryDelta(dx_m=0.0, dy_m=0.0, dyaw_rad=0.0)
+        transported_reference = None
+        if self._lateral_reference is not None:
+            reference = self._lateral_reference
+            reference_age_s = stamp_s - reference.stamp_s
+            if reference.certified or reference_age_s <= cfg.history_horizon_s:
+                transported_reference = self._transport_lateral_reference(
+                    reference,
+                    odometry_delta=odometry_delta,
+                )
+                if (
+                    reference.certified
+                    and transported_reference is not None
+                    and transported_reference.travelled_m
+                    > cfg.path_x_range_m[1] - cfg.path_x_range_m[0]
+                ):
+                    transported_reference = None
+            # 인증된 기준선은 시간이 아니라 planning window를 주행한
+            # 거리까지, 미인증 기준선은 기존 history horizon까지 운반한다.
+            self._lateral_reference = transported_reference
         x_centres = cfg.grid_x_range_m[0] + (np.arange(self.grid_shape[0]) + 0.5) * cfg.grid_resolution_m
         y_centres = cfg.grid_y_range_m[0] + (np.arange(self.grid_shape[1]) + 0.5) * cfg.grid_resolution_m
         lookahead = (x_centres >= cfg.path_x_range_m[0]) & (x_centres <= cfg.path_x_range_m[1])
-        footprint_half = max(abs(float(wheel.y)) for wheel in self.geometry.wheels) + cfg.wheel_half_width_m
-        erosion_half = footprint_half + cfg.footprint_uncertainty_m + odometry_residual_m
-        if np.any(grid.obstacle_mask[lookahead]):
-            return self._reject(
-                stamp_s,
-                "obstacle_blocks_path",
-                degradation=(*reasons, "local_obstacle"),
+        footprint_half = (
+            max(abs(float(wheel.y)) for wheel in self.geometry.wheels)
+            + cfg.footprint_outboard_half_width_m
+        )
+        # 바퀴를 받치는 것은 타이어 접지면이다. 격자 한 칸(0.05 m)을 더하면
+        # 타이어 바깥 5 cm 지면까지 관측해야 하므로, 이 게이트는 여섯 바퀴가
+        # 설 수 있는지만 확인한다. as-built 차체 폭은 아래 중심선 기여 행과
+        # clearance 계산에서 footprint_half로 계속 요구한다.
+        wheel_band_half_width = cfg.wheel_half_width_m
+        wheel_bands = tuple(
+            sorted(
+                {
+                    (
+                        signed_y - wheel_band_half_width,
+                        signed_y + wheel_band_half_width,
+                    )
+                    for abs_y in {
+                        abs(float(wheel.y)) for wheel in self.geometry.wheels
+                    }
+                    for signed_y in {-abs_y, abs_y}
+                }
             )
-        # 아래 바닥 증거는 가림 기하 때문에 가장자리 행보다 계통적으로 전방에
-        # 맺힌다(에지 위를 넘어간 ray 가 더 큰 x 에서 바닥에 닿음). 그래서 측면별
-        # 증거는 프레임 전역으로 판정하고, 행별 support 가장자리가 "실제 트랙
-        # 에지"인지는 그 행의 FOV 관측 한계(이미지 경계 열의 역투영) 안쪽인지로
-        # 구분한다. FOV 로 잘린 행은 에지 판단 불가 — 실제-에지 행들에서 얻은
-        # corridor 를 연속성 가정으로 상속받아 침식·커버리지 검사만 한다.
-        floor_columns = np.any(grid.lower_floor_mask, axis=0)
-        margin = 1.5 * cfg.grid_resolution_m
+        )
         candidate_rows = []
-        for x_index in range(self.grid_shape[0]):
+        drop_bounded_row_indices = set()
+        wheel_supported_row_indices = set()
+        previous_support_run = None
+
+        def is_drop_bounded(x_index, run) -> bool:
+            return bool(
+                np.any(grid.lower_floor_mask[x_index, : int(run[0])])
+                and np.any(
+                    grid.lower_floor_mask[x_index, int(run[-1]) + 1 :]
+                )
+            )
+
+        for x_index in np.flatnonzero(lookahead):
             support_indices = np.flatnonzero(grid.support_mask[x_index])
-            if support_indices.size < 2:
+            if support_indices.size == 0:
+                if previous_support_run is not None:
+                    break
                 continue
-            right_index = int(support_indices[0])
-            left_index = int(support_indices[-1])
+            split_points = np.flatnonzero(np.diff(support_indices) > 1) + 1
+            support_runs = np.split(support_indices, split_points)
+            merged_support_runs = [support_runs[0]]
+            for next_run in support_runs[1:]:
+                previous_run = merged_support_runs[-1]
+                previous_height = grid.height_m[x_index, previous_run[-1]]
+                next_height = grid.height_m[x_index, next_run[0]]
+                gap_cells = int(next_run[0]) - int(previous_run[-1]) - 1
+                # 미관측 gap 양 끝의 높이 차가 support flood fill의 이웃 간
+                # 1-step 허용치 이내이고 gap이 grid 3칸 이하일 때만 같은
+                # 지면이다. 더 넓은 미관측 구간이나 높이 점프는 경계를
+                # 확장하지 않는다.
+                if (
+                    gap_cells <= 3
+                    and np.isfinite(previous_height)
+                    and np.isfinite(next_height)
+                    and abs(float(next_height - previous_height))
+                    <= cfg.max_support_step_m
+                ):
+                    merged_support_runs[-1] = np.arange(
+                        int(previous_run[0]),
+                        int(next_run[-1]) + 1,
+                    )
+                else:
+                    merged_support_runs.append(next_run)
+            merged_support_edges = [
+                (
+                    y_centres[int(run[0])] - 0.5 * cfg.grid_resolution_m,
+                    y_centres[int(run[-1])] + 0.5 * cfg.grid_resolution_m,
+                )
+                for run in merged_support_runs
+            ]
+            if all(
+                any(
+                    run_right <= band_right and run_left >= band_left
+                    for run_right, run_left in merged_support_edges
+                )
+                for band_right, band_left in wheel_bands
+            ):
+                wheel_supported_row_indices.add(int(x_index))
+            if previous_support_run is None:
+                drop_bounded_runs = [
+                    run
+                    for run in merged_support_runs
+                    if is_drop_bounded(x_index, run)
+                ]
+                selection_pool = drop_bounded_runs or merged_support_runs
+                if transported_reference is None:
+                    support_run = min(
+                        selection_pool,
+                        key=lambda run: abs(float(np.mean(y_centres[run]))),
+                    )
+                else:
+                    seed_y = transported_reference.offset_m
+
+                    def distance_from_seed(run) -> float:
+                        right_edge = y_centres[int(run[0])] - 0.5 * cfg.grid_resolution_m
+                        left_edge = y_centres[int(run[-1])] + 0.5 * cfg.grid_resolution_m
+                        return max(right_edge - seed_y, seed_y - left_edge, 0.0)
+
+                    support_run = min(selection_pool, key=distance_from_seed)
+            else:
+                overlapping_runs = []
+                previous_first = int(previous_support_run[0])
+                previous_last = int(previous_support_run[-1])
+                for run in merged_support_runs:
+                    overlap = min(previous_last, int(run[-1])) - max(
+                        previous_first,
+                        int(run[0]),
+                    ) + 1
+                    if overlap > 0:
+                        overlapping_runs.append((overlap, run))
+                if not overlapping_runs:
+                    break
+                drop_bounded_runs = [
+                    item
+                    for item in overlapping_runs
+                    if is_drop_bounded(x_index, item[1])
+                ]
+                # overlap은 연속성 제약과 동률 해소에만 쓰고, 양쪽 바깥의
+                # lower-floor가 실제 관측된 후보가 있으면 그 지면을 우선한다.
+                selection_pool = drop_bounded_runs or overlapping_runs
+                support_run = max(selection_pool, key=lambda item: item[0])[1]
+            previous_support_run = support_run
+            if support_run.size < 2:
+                continue
+            right_index = int(support_run[0])
+            left_index = int(support_run[-1])
             right_edge = y_centres[right_index] - 0.5 * cfg.grid_resolution_m
             left_edge = y_centres[left_index] + 0.5 * cfg.grid_resolution_m
-            right_limit = right_limit_y[x_index]
-            left_limit = left_limit_y[x_index]
-            # 행별 realness: 측면 낙하 증거(pre-grid 점 또는 in-grid 바닥 열)가
-            # 있고, 이 행의 관측 범위가 support 가장자리보다 확실히 바깥까지
-            # 이어질 때(그 너머가 관측됐는데 support 가 아님)만 실제 에지로
-            # 인정한다. 가장자리가 관측 범위 끝과 붙어 있으면 FOV/관측 한계
-            # (에지 판단 불가), 관측이 없는 행(NaN)도 판단 불가.
-            right_evidence = right_floor_seen or bool(np.any(floor_columns[:right_index]))
-            left_evidence = left_floor_seen or bool(np.any(floor_columns[left_index + 1 :]))
-            right_real = (
-                right_evidence
-                and math.isfinite(right_limit)
-                and right_limit < right_edge - margin
-            )
-            left_real = (
-                left_evidence
-                and math.isfinite(left_limit)
-                and left_limit > left_edge + margin
-            )
-            candidate_rows.append(
-                (x_index, right_edge, left_edge, right_real, left_real)
-            )
-        right_observed = any(bool(row[3]) for row in candidate_rows)
-        left_observed = any(bool(row[4]) for row in candidate_rows)
-        boundary_degradation = list(reasons)
-        if right_observed:
-            boundary_degradation.append("right_drop_boundary")
-        if left_observed:
-            boundary_degradation.append("left_drop_boundary")
-        if not (left_observed and right_observed):
-            if not np.any(grid.support_mask[lookahead]):
-                reason = "no_connected_support"
-            else:
-                reason = "drop_boundaries_unobserved"
-            return self._reject(stamp_s, reason, degradation=boundary_degradation)
-        right_corridor = float(
-            np.median([row[1] for row in candidate_rows if row[3]])
-        )
-        left_corridor = float(
-            np.median([row[2] for row in candidate_rows if row[4]])
-        )
-        safe_right_corridor = right_corridor + erosion_half
-        safe_left_corridor = left_corridor - erosion_half
-        if safe_right_corridor > safe_left_corridor:
+            candidate_rows.append((x_index, right_edge, left_edge))
+            if is_drop_bounded(x_index, support_run):
+                drop_bounded_row_indices.add(int(x_index))
+        if not np.any(grid.support_mask[lookahead]):
             return self._reject(
                 stamp_s,
-                "erosion_empty",
-                degradation=(*boundary_degradation, "drop_boundary"),
+                "no_connected_support",
+                degradation=reasons,
             )
-        # 국소 choke: corridor 안쪽에서 아래 바닥이 검출되면(가림 변위 때문에
-        # choke 의 바닥은 corridor 내부 열에 맺힌다) 트랙이 국소적으로 좁아진
-        # 것이다 — 넓은 행으로 우회하지 않고 프레임 전체를 기각한다. 데이터
-        # 결손으로 support 가 파편화된 행은 바닥이 없으므로 여기 걸리지 않는다.
-        inner_columns = (y_centres > right_corridor) & (y_centres < left_corridor)
-        if np.any(grid.lower_floor_mask[:, inner_columns]):
-            return self._reject(
-                stamp_s,
-                "erosion_empty",
-                degradation=(*boundary_degradation, "drop_boundary"),
-            )
-        # corridor 일관성 필터: "실제 에지"가 corridor 에서 2셀 넘게 벗어나면
-        # 데이터 결손 파편(관측 갭)일 가능성이 높다 — 에지 판단을 철회하고
-        # corridor 를 상속시킨다(트랙 경계는 공간적으로 연속이라는 가정).
-        consistency_band = 2.0 * cfg.grid_resolution_m
-        candidate_rows = [
-            (
-                x_index,
-                right_edge,
-                left_edge,
-                right_real and abs(right_edge - right_corridor) <= consistency_band,
-                left_real and abs(left_edge - left_corridor) <= consistency_band,
-            )
-            for x_index, right_edge, left_edge, right_real, left_real in candidate_rows
-        ]
-        rows = []
-        coverage_slack = cfg.grid_resolution_m
-        for x_index, right_edge, left_edge, right_real, left_real in candidate_rows:
-            if not lookahead[x_index]:
-                continue
-            effective_right = right_edge if right_real else right_corridor
-            effective_left = left_edge if left_real else left_corridor
-            safe_right = effective_right + erosion_half
-            safe_left = effective_left - erosion_half
-            covers = (
-                right_edge <= safe_right + coverage_slack
-                and left_edge >= safe_left - coverage_slack
-            )
-            if safe_right <= safe_left and covers:
-                # 행 중심 추정: 양쪽 실제 에지면 그 중점, 한쪽만 실제면 corridor
-                # 폭 prior 로 복원(5 cm 격자에서 heading 기울기의 x-스팬을 확보),
-                # 둘 다 상속이면 corridor 중심(기울기 기여 없음 표시 direct=0).
-                corridor_width = left_corridor - right_corridor
-                if right_real and left_real:
-                    centre, direct = 0.5 * (right_edge + left_edge), 1.0
-                elif right_real:
-                    centre, direct = right_edge + 0.5 * corridor_width, 1.0
-                elif left_real:
-                    centre, direct = left_edge - 0.5 * corridor_width, 1.0
-                else:
-                    centre, direct = 0.5 * (right_corridor + left_corridor), 0.0
-                rows.append(
-                    (x_index, effective_right, effective_left, safe_right, safe_left, centre, direct)
-                )
-        if rows:
-            runs: list[list[tuple[float, ...]]] = [[rows[0]]]
-            for row in rows[1:]:
-                if int(row[0]) == int(runs[-1][-1][0]) + 1:
-                    runs[-1].append(row)
-                else:
-                    runs.append([row])
-            rows = max(runs, key=lambda run: (len(run), -int(run[0][0])))
-        if len(rows) < cfg.min_path_rows:
-            if not np.any(grid.support_mask[lookahead]):
-                reason = "no_connected_support"
-            else:
-                reason = "erosion_empty"
-            return self._reject(stamp_s, reason, degradation=boundary_degradation)
 
-        row_values = np.asarray(rows, dtype=float)
-        row_indices = row_values[:, 0].astype(int)
-        # offset·heading 은 corridor 상속 행(상수 중심, direct=0)이 기울기를
-        # 오염시키지 않도록 실측 기반 행(direct=1)만으로 계산하고, 부족하면
-        # 전체 행으로 후퇴한다.
-        direct_rows = row_values[row_values[:, 6] > 0.5]
-        basis = direct_rows if direct_rows.shape[0] >= 2 else row_values
-        basis_centres = basis[:, 5]
-        path_offset = float(np.median(basis_centres))
-        basis_x = x_centres[basis[:, 0].astype(int)]
-        if np.unique(basis_x).size >= 2:
-            slope = float(np.polyfit(basis_x, basis_centres, 1)[0])
+        lookahead_rows = [
+            row for row in candidate_rows if lookahead[int(row[0])]
+        ]
+        if wheel_supported_row_indices:
+            confirmed_support_m = float(
+                x_centres[max(wheel_supported_row_indices)]
+            )
         else:
-            slope = 0.0
+            confirmed_support_m = 0.0
+            reasons = tuple(
+                dict.fromkeys((*reasons, "unsupported_footprint"))
+            )
+        contributing_rows = [
+            (*row, 0.5 * (row[1] + row[2]))
+            for row in lookahead_rows
+            if row[2] - row[1] >= 2.0 * footprint_half
+        ]
+        if len(contributing_rows) < 2:
+            return self._reject(
+                stamp_s,
+                "centreline_unresolved",
+                degradation=reasons,
+            )
+
+        row_values = np.asarray(contributing_rows, dtype=float)
+        row_indices = row_values[:, 0].astype(int)
+        basis_x = x_centres[row_indices]
+        basis_centres = row_values[:, 3]
+
+        def fit_centreline(x_values, centre_values):
+            design = np.column_stack((np.ones(x_values.shape[0]), x_values))
+            intercept, slope = np.linalg.lstsq(
+                design,
+                centre_values,
+                rcond=None,
+            )[0]
+            return float(intercept), float(slope)
+
+        def fit_centreline_with_trim(x_values, centre_values):
+            intercept, slope = fit_centreline(x_values, centre_values)
+            fitted = intercept + slope * x_values
+            keep = (
+                np.abs(centre_values - fitted)
+                <= 2.0 * cfg.grid_resolution_m
+            )
+            if 2 <= int(np.count_nonzero(keep)) < centre_values.shape[0]:
+                intercept, slope = fit_centreline(
+                    x_values[keep],
+                    centre_values[keep],
+                )
+            return intercept, slope
+
+        drop_bounded_mask = np.asarray(
+            [
+                row_index in drop_bounded_row_indices
+                for row_index in row_indices
+            ],
+            dtype=bool,
+        )
+        drop_bounded_count = int(np.count_nonzero(drop_bounded_mask))
+        if drop_bounded_count >= 2:
+            intercept, slope = fit_centreline_with_trim(
+                basis_x[drop_bounded_mask],
+                basis_centres[drop_bounded_mask],
+            )
+        elif drop_bounded_count == 1:
+            _, slope = fit_centreline_with_trim(basis_x, basis_centres)
+            anchor_index = int(np.flatnonzero(drop_bounded_mask)[0])
+            intercept = float(
+                basis_centres[anchor_index]
+                - slope * basis_x[anchor_index]
+            )
+        elif transported_reference is not None and transported_reference.certified:
+            intercept = transported_reference.offset_m
+            slope = math.tan(transported_reference.heading_rad)
+        else:
+            intercept, slope = fit_centreline_with_trim(
+                basis_x,
+                basis_centres,
+            )
+
+        path_offset = float(np.median(intercept + slope * basis_x))
         heading = math.atan(slope)
+        certified_row_indices = np.asarray(
+            [
+                row_index
+                for row_index in row_indices
+                if row_index in drop_bounded_row_indices
+            ],
+            dtype=int,
+        )
+        if certified_row_indices.size:
+            certification_x = float(np.median(x_centres[certified_row_indices]))
+            self._lateral_reference = _LateralReference(
+                offset_m=intercept + slope * certification_x,
+                heading_rad=heading,
+                stamp_s=stamp_s,
+                certified=True,
+                travelled_m=0.0,
+            )
+        elif transported_reference is None or not transported_reference.certified:
+            self._lateral_reference = _LateralReference(
+                offset_m=path_offset,
+                heading_rad=heading,
+                stamp_s=stamp_s,
+                certified=False,
+                travelled_m=0.0,
+            )
         left_clearance = float(np.median(row_values[:, 2] - footprint_half))
         right_clearance = float(np.median(-footprint_half - row_values[:, 1]))
 
@@ -664,19 +726,32 @@ class TerrainEstimator:
         longitudinal = math.atan(float(np.median(longitudinal_values))) if longitudinal_values.size else 0.0
         roughness = float(np.median(roughness_values)) if roughness_values.size else 0.0
         local_confidence = float(np.median(grid_confidence)) if grid_confidence.size else 0.0
-        row_score = min(1.0, len(rows) / max(cfg.min_path_rows * 2.0, 1.0))
+        row_score = min(
+            1.0,
+            len(contributing_rows) / max(cfg.min_path_rows * 2.0, 1.0),
+        )
         confidence = float(np.clip(0.55 * local_confidence + 0.20 * frame_confidence + 0.25 * row_score, 0.0, 1.0))
-        degradation = list(boundary_degradation)
-        if carried_count:
-            degradation.append("odometry_carried")
-        if left_observed and right_observed:
-            degradation.append("drop_boundary")
+        degradation = list(reasons)
         if np.any(grid.obstacle_mask):
             degradation.append("local_obstacle")
+        if (
+            self._filtered_path_estimate is not None
+            and self._path_estimate_stamp_s is not None
+        ):
+            dt = stamp_s - self._path_estimate_stamp_s
+            alpha = dt / (cfg.path_estimate_tau_s + dt)
+            previous_offset, previous_heading = self._filtered_path_estimate
+            path_offset = previous_offset + alpha * (
+                path_offset - previous_offset
+            )
+            heading = previous_heading + alpha * (heading - previous_heading)
+        self._filtered_path_estimate = (path_offset, heading)
+        self._path_estimate_stamp_s = stamp_s
         return TerrainEstimate(
             stamp_s=stamp_s,
             path_offset_m=path_offset,
             heading_error_rad=heading,
+            confirmed_support_m=confirmed_support_m,
             left_wheel_clearance_m=left_clearance,
             right_wheel_clearance_m=right_clearance,
             bank_angle_rad=bank,
@@ -738,10 +813,14 @@ class TerrainEstimator:
             frame_quality.reject_reasons
         )
         if fatal:
+            certified_reference = self._lateral_reference
+            if certified_reference is not None and not certified_reference.certified:
+                certified_reference = None
+            # 이 프레임의 grid history는 버리되 거리로 만료되는 인증 기준선은 유지한다.
             self._reset(clear_quality=False)
+            self._lateral_reference = certified_reference
             return self._reject(frame.stamp_s, *sorted(fatal), degradation=reasons)
 
-        depth_m = depth.astype(float, copy=False) * frame.depth_scale_m
         rotation, translation = self._projection_transform(extrinsic, tilt)
         kernel_result = build_terrain_grid_numpy(
             depth,
@@ -758,11 +837,6 @@ class TerrainEstimator:
             config=TerrainKernelConfig.from_estimator_config(self.config),
         )
         points = kernel_result.points_m
-        depth_observable = (
-            np.isfinite(depth_m)
-            & (depth_m >= self.config.min_depth_m)
-            & (depth_m <= self.config.max_depth_m)
-        )
 
         previous_grid = self._grid
         current_grid = build_elevation_grid(
@@ -783,16 +857,7 @@ class TerrainEstimator:
             seed_max_x_m=self.config.seed_max_x_m,
             seed_half_width_m=self.config.seed_half_width_m,
         )
-        # 측면 낙하 증거(pre-grid): 뱅크/오프셋 트랙에서는 가림 기하 때문에 바닥
-        # 점이 grid y-범위 밖(예: y≈1.6)에 맺힐 수 있고, 원거리 바닥 타일은 품질
-        # 게이트(out_of_range 비율 등)로 통째 제외되기도 한다. 그래서 증거 판정은
-        # 범위 내 원시 유효 depth 점 전체에서 하되, 스파이크 오증거를 막기 위해
-        # 측면당 최소 점수를 요구한다.
-        left_floor_seen, right_floor_seen = self._point_side_evidence(
-            points, depth_observable, current_grid
-        )
-
-        self._grid, carried_count, odometry_residual_m = warp_and_fuse_grid(
+        self._grid, _, _ = warp_and_fuse_grid(
             previous_grid,
             current_grid,
             dx_m=odometry_delta.dx_m,
@@ -810,23 +875,12 @@ class TerrainEstimator:
             seed_max_x_m=self.config.seed_max_x_m,
             seed_half_width_m=self.config.seed_half_width_m,
         )
-        left_limit_y, right_limit_y = self._fov_limits(
-            self._grid,
-            frame_intrinsics=frame.intrinsics,
-            extrinsic=extrinsic,
-            tilt=tilt,
-        )
         return self._summarize(
             self._grid,
             stamp_s=frame.stamp_s,
             frame_confidence=frame_quality.confidence,
             reasons=reasons,
-            carried_count=carried_count,
-            odometry_residual_m=odometry_residual_m,
-            left_limit_y=left_limit_y,
-            right_limit_y=right_limit_y,
-            left_floor_seen=left_floor_seen,
-            right_floor_seen=right_floor_seen,
+            odometry_delta=odometry_delta,
         )
 
 

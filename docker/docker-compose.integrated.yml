@@ -1,0 +1,179 @@
+# Opt-in integrated-operation overlay. Use together with docker-compose.jetson.yml.
+# Images and the ROS install space must already be prepared by robot_prepare.sh.
+services:
+  powertrain_ros:
+    environment:
+      - POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json
+    entrypoint:
+      - /bin/bash
+      - -lc
+    command:
+      - |
+        set -e
+        test -f /workspace/ros2/install/setup.bash
+        source /opt/ros/humble/setup.bash
+        source /workspace/ros2/install/setup.bash
+        set -u
+        cd /workspace
+        exec python3 -m l515_dashboard.gateway_main
+
+  powertrain_control:
+    environment:
+      - PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros:/workspace/motor_control
+      - POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json
+    command:
+      - |
+        set -e
+        PYTHONPATH=/workspace/ros2/src/powertrain_ros python3 -m powertrain_ros.preflight
+        test -f /workspace/ros2/install/setup.bash
+        source /opt/ros/humble/setup.bash
+        source /workspace/ros2/install/setup.bash
+        set -u
+        exec ros2 launch powertrain_ros control.launch.py input_host:=127.0.0.1 input_port:=19000 ops_host:=127.0.0.1 ops_port:=19001
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python3 -c "rows=[r.split() for r in open('/proc/net/tcp').read().splitlines()[1:]]; listening={r[1] for r in rows if r[3]=='0A'}; assert {'0100007F:4A38','0100007F:4A39'} <= listening"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+  powertrain_chassis:
+    environment:
+      - POWERTRAIN_PROFILE=can-4ws
+    command:
+      - |
+        set -e
+        PYTHONPATH=/workspace/ros2/src/powertrain_ros python3 -m powertrain_ros.preflight
+        set -a; . /etc/powertrain/powertrain.env; set +a
+        test -n "$$STOP_MM"
+        test -f /workspace/ros2/install/setup.bash
+        source /opt/ros/humble/setup.bash
+        source /workspace/ros2/install/setup.bash
+        set -u
+        exec ros2 launch powertrain_ros wp5_control.launch.py stop_mm:=$$STOP_MM authority_enabled:=true
+
+  powertrain_observability:
+    environment:
+      - POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json
+
+  powertrain_chassis_telemetry:
+    # This observer must not inherit the ROS image's camera-owner healthcheck.
+    # Its own data freshness is reported by the console's UDP receiver.
+    healthcheck:
+      disable: true
+    image: powertrain-sw:ros
+    container_name: powertrain_chassis_telemetry
+    network_mode: host
+    ipc: host
+    environment:
+      - PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros:/workspace/motor_control
+      - POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json
+    volumes:
+      - ../:/workspace:ro
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
+    working_dir: /workspace
+    entrypoint: [/bin/bash, -lc]
+    command:
+      - |
+        set -e
+        test -f /workspace/ros2/install/setup.bash
+        source /opt/ros/humble/setup.bash
+        source /workspace/ros2/install/setup.bash
+        set -u
+        exec ros2 run powertrain_ros chassis_telemetry --ros-args -p operator_host:=127.0.0.1 -p operator_port:=5005
+    restart: unless-stopped
+
+  powertrain_pdist80b_telemetry:
+    healthcheck:
+      disable: true
+    image: powertrain-sw:ros
+    container_name: powertrain_pdist80b_telemetry
+    network_mode: host
+    privileged: true
+    environment:
+      - PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros
+      - POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json
+    volumes:
+      - ../:/workspace:ro
+      - /dev:/dev
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
+    working_dir: /workspace
+    entrypoint: [python3, -u, scripts/pdist80b_telemetry_sender.py]
+    command: [--operator-host, 127.0.0.1, --operator-port, "5004", --port, /dev/powertrain-pdist80b, --device-id, "1", --hz, "2.0", --include-unit-status]
+    restart: on-failure
+
+  # Read-only D435 detection metadata (:5003) and arm state (:5007). The
+  # profile is opt-in because the separately owned arm/D435 stack must first
+  # be prepared and its legacy metadata_sender must be disabled.
+  powertrain_arm_console_bridge:
+    healthcheck:
+      disable: true
+    profiles: [arm-d435]
+    image: powertrain-sw:ros
+    container_name: powertrain_arm_console_bridge
+    network_mode: host
+    ipc: host
+    environment:
+      - PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros
+      - POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json
+    volumes:
+      - ../:/workspace:ro
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
+    working_dir: /workspace
+    entrypoint: [/bin/bash, -lc]
+    command:
+      - |
+        set -e
+        test -f /workspace/ros2/install/setup.bash
+        source /opt/ros/humble/setup.bash
+        source /workspace/ros2/install/setup.bash
+        set -u
+        exec ros2 run powertrain_ros arm_console_bridge --ros-args -p console_host:=127.0.0.1
+    restart: unless-stopped
+
+  powertrain_session:
+    image: powertrain-sw:ros
+    container_name: powertrain_session
+    network_mode: host
+    environment:
+      - PYTHONPATH=/workspace
+    volumes:
+      - ../:/workspace:ro
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /etc/powertrain
+        target: /etc/powertrain
+        read_only: true
+        bind:
+          create_host_path: false
+    working_dir: /workspace
+    entrypoint: [/bin/bash, -lc]
+    command:
+      - exec python3 -m powertrain_runtime.robot_service --config /etc/powertrain/robot.json
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python3 -c "rows=[r.split() for r in open('/proc/net/tcp').read().splitlines()[1:]]; ports={r[1].rsplit(':',1)[1] for r in rows if r[3]=='0A'}; assert {'2328','2329','232A'} <= ports"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s

@@ -21,6 +21,9 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument("input_host", default_value="0.0.0.0"),
+        DeclareLaunchArgument("input_port", default_value="9000"),
+        DeclareLaunchArgument("ops_host", default_value="0.0.0.0"),
         DeclareLaunchArgument("ops_port", default_value="9001"),
         DeclareLaunchArgument(
             "ops_token_dir",
@@ -31,6 +34,13 @@ def generate_launch_description():
             executable="teleop_command",
             name="teleop_command",
             output="screen",
+            parameters=[{
+                "host": LaunchConfiguration("input_host"),
+                "port": ParameterValue(
+                    LaunchConfiguration("input_port"),
+                    value_type=int,
+                ),
+            }],
             on_exit=Shutdown(),
         ),
         Node(
@@ -39,6 +49,7 @@ def generate_launch_description():
             name="ops_broker",
             output="screen",
             parameters=[{
+                "host": LaunchConfiguration("ops_host"),
                 "port": ParameterValue(
                     LaunchConfiguration("ops_port"),
                     value_type=int,

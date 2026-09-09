@@ -50,6 +50,7 @@ class DriveOdriveUsb(DriveActuator):
 
     def connect(self) -> None:
         """USB 로 ODrive 를 탐색하고 axis1 핸들을 캐시한다."""
+        raise RuntimeError("DEPRECATED: unnamed USB axis driver; use DriveOdriveUsbAxis with a serial/node registry and shared motor ownership")
         self._odrv = odrive.find_any(timeout=self._find_timeout)
         if self._odrv is None:
             raise RuntimeError("ODrive USB 미발견. 케이블/전원 확인.")

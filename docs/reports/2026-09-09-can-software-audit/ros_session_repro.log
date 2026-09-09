@@ -1,0 +1,3 @@
+Non-owner FAKE wheel snapshot accepted as wheels_stopped: True
+Twist delivered after executor stall gets current timestamp: ('manual', 0.4, 0.0, 10.5)
+Session listener transient OSError returned permanently; accept calls: 1

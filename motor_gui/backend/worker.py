@@ -18,6 +18,41 @@ _SUBMIT_TIMEOUT = 2.0      # submit() ack 대기 (초)
 _RECONNECT_TIMEOUT = 20.0  # USB find_any 가 최대 ~15s 걸릴 수 있어 넉넉히
 
 
+class _QueuedCommand:
+    """One command with an atomic pending/running/completed boundary."""
+
+    def __init__(self, command: dict, target_generation: int) -> None:
+        self.command = command
+        self.target_generation = target_generation
+        self._done = threading.Event()
+        self._lock = threading.Lock()
+        self._state = "PENDING"
+        self._ack: dict | None = None
+
+    def begin(self) -> bool:
+        """Claim a pending command, or reject one cancelled by its caller."""
+        with self._lock:
+            if self._state != "PENDING":
+                return False
+            self._state = "RUNNING"
+            return True
+
+    def complete(self, ack: dict) -> None:
+        with self._lock:
+            self._ack = ack
+            self._state = "COMPLETED"
+            self._done.set()
+
+    def wait(self, timeout: float) -> tuple[str, dict | None]:
+        if self._done.wait(timeout=timeout):
+            with self._lock:
+                return self._state, self._ack
+        with self._lock:
+            if self._state == "PENDING":
+                self._state = "CANCELLED"
+            return self._state, self._ack
+
+
 class HardwareWorker:
     """Transport 를 단독 소유하는 100 Hz 샘플링/명령 스레드.
 
@@ -42,6 +77,8 @@ class HardwareWorker:
         self._subscribers: list[Callable[[dict], None]] = []
         self._sub_lock = threading.Lock()
         self._safety_lock = threading.Lock()
+        self._target_generation = 0
+        self._target_transition = False
         self._caps: dict = {}
         self._transport_commands: dict[str, tuple[str, ...]] = {}
         self._armed: dict[str, bool] = {}
@@ -53,11 +90,15 @@ class HardwareWorker:
         if self._running.is_set():
             raise RuntimeError("HardwareWorker is already running")
         self._t.connect()
-        self._refresh_capabilities(force_disarmed=True)
-        errors = self._disarm_all()
-        if errors:
-            raise RuntimeError(f"startup disarm failed: {errors}")
-        self._read_tunables()
+        try:
+            self._refresh_capabilities(force_disarmed=True)
+            errors = self._disarm_all()
+            if errors:
+                raise RuntimeError(f"startup disarm failed: {errors}")
+            self._read_tunables()
+        except BaseException:
+            self._t.close()
+            raise
         # 이전 사이클의 미처리 요청 제거 (타임아웃으로 큐에 남은 항목 방지)
         for q in (self._reconnect_q, self._cmd_q):
             while not q.empty():
@@ -120,32 +161,60 @@ class HardwareWorker:
         if profile not in TUNABLE_PROFILES:
             return {"ok": False, "profile": profile,
                     "detail": f"unknown profile: {profile!r}"}
-        done = threading.Event()
-        box: dict = {}
-        self._cmd_q.put(({"target": "odrive", "op": "apply_profile",
-                          "args": {"profile": profile}}, done, box))
-        if not done.wait(timeout=_SUBMIT_TIMEOUT):
+        with self._safety_lock:
+            if self._target_transition:
+                return {"ok": False, "profile": profile,
+                        "status": "FINAL_REJECTED",
+                        "detail": "rejected: reconnect in progress"}
+            request = _QueuedCommand({
+                "target": "odrive", "op": "apply_profile",
+                "args": {"profile": profile},
+            }, self._target_generation)
+            self._cmd_q.put(request)
+        state, ack = request.wait(_SUBMIT_TIMEOUT)
+        if state == "CANCELLED":
             return {"ok": False, "profile": profile,
-                    "detail": "profile apply timeout"}
-        return box["ack"]
+                    "status": "FINAL_REJECTED",
+                    "detail": ("profile apply timeout; cancelled before "
+                               "execution")}
+        if state == "RUNNING":
+            return {"ok": False, "profile": profile,
+                    "status": "OUTCOME_UNKNOWN",
+                    "detail": ("profile apply timeout after execution "
+                               "started; "
+                               "outcome unknown")}
+        assert ack is not None
+        return ack
 
     def submit(self, cmd: dict) -> dict:
         """동기 명령. 워커 미기동/정규화 실패는 즉시 에러 ack. 그 외는 적용 후 ack."""
         if not self._running.is_set():
             return {"ok": False, "target": cmd.get("target"),
                     "op": cmd.get("op"), "detail": "worker not running"}
-        try:
-            norm = normalize(cmd, self._caps)
-        except CommandError as e:
-            return {"ok": False, "target": cmd.get("target"),
-                    "op": cmd.get("op"), "detail": str(e)}
-        done = threading.Event()
-        box: dict = {}
-        self._cmd_q.put((norm, done, box))
-        if not done.wait(timeout=_SUBMIT_TIMEOUT):
+        with self._safety_lock:
+            if self._target_transition:
+                return {"ok": False, "target": cmd.get("target"),
+                        "op": cmd.get("op"), "status": "FINAL_REJECTED",
+                        "detail": "rejected: reconnect in progress"}
+            try:
+                norm = normalize(cmd, self._caps)
+            except CommandError as e:
+                return {"ok": False, "target": cmd.get("target"),
+                        "op": cmd.get("op"), "detail": str(e)}
+            request = _QueuedCommand(norm, self._target_generation)
+            self._cmd_q.put(request)
+        state, ack = request.wait(_SUBMIT_TIMEOUT)
+        if state == "CANCELLED":
             return {"ok": False, "target": norm["target"], "op": norm["op"],
-                    "detail": "command timeout"}
-        return box["ack"]
+                    "status": "FINAL_REJECTED",
+                    "detail": "command timeout; cancelled before execution"}
+        if state == "RUNNING":
+            return {"ok": False, "target": norm["target"], "op": norm["op"],
+                    "status": "OUTCOME_UNKNOWN",
+                    "detail": ("command timeout after execution started; "
+                               "outcome unknown")}
+        assert ack is not None
+        return ack
 
     def estop(self) -> None:
         """최우선 정지 요청과 영속 래치를 원자적으로 세운다."""
@@ -311,15 +380,21 @@ class HardwareWorker:
             done, box, ids = self._reconnect_q.get_nowait()
         except queue.Empty:
             return
+        # A queued command belongs to the connection it was submitted against.
+        # Invalidate it before any stop/close/retarget work, and reject new
+        # submissions until the connection and its capabilities are settled.
+        with self._safety_lock:
+            self._target_transition = True
+            self._target_generation += 1
         try:
             if self._estop_latched.is_set():
                 raise RuntimeError("estop active; reset required")
+            errors = self._disarm_all()
+            if errors:
+                raise RuntimeError(f"old target stop failed; ID unchanged: {errors}")
+            self._t.close()
             if ids:
                 self._t.set_device_ids(ids)
-            try:
-                self._t.close()
-            except Exception:
-                pass
             self._t.connect()
             self._refresh_capabilities(force_disarmed=True)
             errors = self._disarm_all()
@@ -331,7 +406,10 @@ class HardwareWorker:
             self._ring.append({"t_mono": time.monotonic(), "info": "reconnected"})
         except Exception as e:
             box["result"] = {"ok": False, "detail": f"reconnect failed: {e}"}
-        done.set()
+        finally:
+            with self._safety_lock:
+                self._target_transition = False
+            done.set()
 
     def _read_tunables(self) -> None:
         """연결된 장치의 현재값만 읽는다. 읽기 실패 시 추정값을 표시하지 않는다."""
@@ -406,48 +484,58 @@ class HardwareWorker:
     def _drain_commands(self) -> None:
         while True:
             try:
-                norm, done, box = self._cmd_q.get_nowait()
+                request = self._cmd_q.get_nowait()
             except queue.Empty:
                 return
+            if not request.begin():
+                continue
+            norm = request.command
             op = norm.get("op")
             target = norm["target"]
+            with self._safety_lock:
+                target_changed = request.target_generation != self._target_generation
             if op == "estop":
                 self.estop()
-                box["ack"] = {"ok": True, "target": target, "op": op,
-                              "detail": "estop latched"}
-                done.set()
-                continue
-            if op == "reset":
-                box["ack"] = self._reset_estop(target)
-                done.set()
-                continue
-            if self._estop_latched.is_set():
-                box["ack"] = {"ok": False, "target": norm["target"],
-                              "op": norm["op"], "detail": "rejected: estop active"}
-                done.set()
-                continue
-            try:
-                if op == "arm":
-                    box["ack"] = self._arm_target(target)
-                elif op == "disarm":
-                    ack = self._disarm_target(target)
-                    box["ack"] = {"ok": bool(ack.get("ok")),
-                                  "target": target, "op": "disarm",
-                                  "detail": ack.get("detail", "disarmed")}
-                elif not self._is_armed(target):
-                    box["ack"] = {"ok": False, "target": target, "op": op,
-                                  "detail": "rejected: device disarmed; arm required"}
-                elif op == "apply_profile":
-                    box["ack"] = self._apply_tunable_profile(
-                        norm["args"]["profile"]
-                    )
-                else:
-                    box["ack"] = self._t.apply(norm)
-                    if (op == "set_state"
-                            and norm.get("args", {}).get("state") != "closed_loop"
-                            and box["ack"].get("ok")):
-                        self._set_armed(target, False)
-            except Exception as e:
-                box["ack"] = {"ok": False, "target": norm["target"],
-                              "op": norm["op"], "detail": str(e)}
-            done.set()
+                ack = {"ok": True, "target": target, "op": op,
+                       "detail": "estop latched"}
+            elif target_changed:
+                ack = {"ok": False, "target": target, "op": op,
+                       "status": "FINAL_REJECTED",
+                       "detail": "rejected: target changed since submission"}
+            elif op == "reset":
+                ack = self._reset_estop(target)
+            elif self._estop_latched.is_set():
+                ack = {"ok": False, "target": target, "op": op,
+                       "detail": "rejected: estop active"}
+            else:
+                try:
+                    if op == "arm":
+                        ack = self._arm_target(target)
+                    elif op == "disarm":
+                        disarm_ack = self._disarm_target(target)
+                        ack = {"ok": bool(disarm_ack.get("ok")),
+                               "target": target, "op": "disarm",
+                               "detail": disarm_ack.get("detail", "disarmed")}
+                    elif op == "save_nvm":
+                        if any(self._armed.values()):
+                            ack = {"ok": False, "target": target, "op": op,
+                                   "detail": "NVM save requires all devices disarmed"}
+                        else:
+                            ack = self._t.apply(norm)
+                    elif not self._is_armed(target):
+                        ack = {"ok": False, "target": target, "op": op,
+                               "detail": "rejected: device disarmed; arm required"}
+                    elif op == "apply_profile":
+                        ack = self._apply_tunable_profile(
+                            norm["args"]["profile"]
+                        )
+                    else:
+                        ack = self._t.apply(norm)
+                        if (op == "set_state"
+                                and norm.get("args", {}).get("state") != "closed_loop"
+                                and ack.get("ok")):
+                            self._set_armed(target, False)
+                except Exception as e:
+                    ack = {"ok": False, "target": target, "op": op,
+                           "detail": str(e)}
+            request.complete(ack)

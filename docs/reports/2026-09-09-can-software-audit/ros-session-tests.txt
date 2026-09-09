@@ -1,0 +1,28 @@
+Host-only test evidence from the original audit run. This file is an execution
+record, not an unedited pytest console transcript. The exact selected command
+and terminal result are preserved below. No test rerun was needed to write it.
+
+Working directory: /home/light/ZETIN/robotics/power-train-sw
+Command:
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=motor_control:ros2/src/powertrain_ros /home/light/anaconda3/bin/python -m pytest -q -p no:cacheprovider powertrain_runtime/tests/test_drive_service.py operator_console/tests/test_operation_runtime.py ros2/src/powertrain_ros/test/test_ops_state_sources.py ros2/src/powertrain_ros/test/test_remote_input.py ros2/src/powertrain_ros/test/test_remote_input_gateway.py ros2/src/powertrain_ros/test/test_teleop_command_resilience.py ros2/src/powertrain_ros/test/test_control_launch_contract.py ros2/src/powertrain_ros/test/test_chassis_telemetry_can_status.py
+
+Actual terminal result:
+111 passed in 7.51s
+Exit code: 0
+Execution session id: 94048
+Completion output chunk id: 5d9c3a
+
+Separate blocked collection:
+An earlier invocation also selected
+ros2/src/powertrain_ros/test/test_clear_hold_adapters.py.
+Collection stopped before tests ran with:
+ModuleNotFoundError: No module named 'rclpy'
+1 error in 0.45s
+Exit code: 2
+Execution session id: 63902
+Completion output chunk id: ee0e3a
+
+The blocked ROS-dependent module is not included in the 111 passing tests.
+No ROS executor, installed Jetson entrypoint, GUI smoke, physical CAN traffic,
+hardware movement, or physical heartbeat restoration is established by these
+host-only results.

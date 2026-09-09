@@ -1,5 +1,11 @@
 # Operator Console
 
+Integrated entrypoint: `python -m operator_console` uses the prepared paired-robot
+config, reconnects automatically, supervises a separate gamepad process and offers
+a held manual-start action. See [the integrated operation runbook](../docs/integrated-operation.md)
+for setup, legacy-service migration and the pending real-hardware acceptance.
+`python -m operator_console.app --host ...` remains the explicit legacy entrypoint.
+
 Native GTK/GStreamer operator console. Observation is RX-only; operator
 actions travel only through the token-gated ops channel. It embeds L515 driving
 RGB SRT (`:5000`) and D435i raw RGB SRT (`:5002`) with per-channel receiver health.
@@ -52,6 +58,15 @@ administrator controls remain implemented but are not exposed in this
 navigation. Press `F11` for the competition display. Camera panels can be
 clicked to exchange the large and preview views; technical stream errors
 remain in the collapsed event log and robot diagnostics.
+
+`/usr/bin/python3 -m operator_console.runtime_smoke` launches the real GTK
+application under Xvfb, injects maximal synthetic datagrams into isolated UDP
+ports, and verifies LIVE→STALE, environment rendering, sparse-payload,
+clean-shutdown, traceback, role-layout, and no-automatic-camera-swap paths. A
+loopback ops TCP fixture also sends an unknown steering mode through the real
+client and checks that the GTK control stays unavailable. It does not inject or
+observe a decoded real SRT frame, prove GStreamer frame rendering, or exercise
+a real network or hardware sender. Those need separate runtime or E2E evidence.
 
 The lower-right mission rail is the robot-arm/tool hub. It exposes only the
 four confirmed equipment categories (그리퍼 1, 그리퍼 2, 청소 모듈, 환경 센서

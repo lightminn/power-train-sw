@@ -122,6 +122,7 @@ class _AcceptHarness:
     _serve = _METHODS["_serve"]
 
     def __init__(self):
+        self._host = "127.0.0.1"
         self._port = 0
         self._server_socket = None
         self._stop_event = _StopEvent()
@@ -159,6 +160,7 @@ class _ClientSetupHarness:
     _serve_client = _METHODS["_serve_client"]
 
     def __init__(self):
+        self._host = "127.0.0.1"
         self._port = 0
         self._server_socket = None
         self._stop_event = _StopEvent()

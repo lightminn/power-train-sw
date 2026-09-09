@@ -2,13 +2,9 @@ import importlib.util
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 import pytest
-from launch.action import Action
-from launch.actions import DeclareLaunchArgument
-from launch import LaunchContext
-import launch_ros.actions
-from launch_ros.parameter_descriptions import ParameterValue
 
 
 REPO_MARKERS = (
@@ -140,6 +136,9 @@ def test_repo_root_discovery_falls_back_to_source_ancestors(
 
 
 def test_hardware_launch_requires_stop_mm_without_default():
+    from launch.actions import DeclareLaunchArgument
+    from launch import LaunchContext
+
     description = _load_launch_module("wp5_control_required_stop_mm") \
         .generate_launch_description()
     arguments = [
@@ -172,6 +171,11 @@ def test_hardware_launch_passes_stop_mm_to_us100_node(
     launch_value,
     expected,
 ):
+    from launch.action import Action
+    from launch import LaunchContext
+    import launch_ros.actions
+    from launch_ros.parameter_descriptions import ParameterValue
+
     recorded_nodes = []
 
     class RecordingNode(Action):
@@ -208,50 +212,75 @@ def test_hardware_launch_passes_stop_mm_to_us100_node(
     assert "parameters" not in chassis.kwargs
 
 
+def _can_setup_environment(tmp_path, *, fail_modes=False):
+    """Execute the real shell + common CLI; fake only external OS commands."""
+    binary = tmp_path / "bin"
+    binary.mkdir()
+    state = tmp_path / "link-state"
+    state.mkdir()
+    runtime = tmp_path / "root/run/powertrain"
+    runtime.mkdir(parents=True, mode=0o750)
+    log_path = tmp_path / "commands.log"
+    commands = {
+        "sudo": '''#!/bin/sh
+printf 'sudo %s\\n' "$*" >> "$CAN_SETUP_LOG"
+exec "$@"
+''',
+        "modprobe": '''#!/bin/sh
+printf 'modprobe %s\\n' "$*" >> "$CAN_SETUP_LOG"
+''',
+        "busybox": '''#!/bin/sh
+[ "$1" = devmem ] || exit 97
+shift
+exec devmem "$@"
+''',
+        "devmem": '''#!/bin/sh
+printf 'devmem %s\\n' "$*" >> "$CAN_SETUP_LOG"
+''',
+        "ip": '''#!/bin/sh
+set -eu
+printf 'ip %s\\n' "$*" >> "$CAN_SETUP_LOG"
+case "$*" in
+ '-details link show can0')
+   [ -f "$CAN_SETUP_STATE/up" ] || exit 1
+   printf '%s\\n' \\
+     '5: can0: <NOARP,UP,LOWER_UP> state UNKNOWN qlen 1000' \\
+     '    can state ERROR-ACTIVE restart-ms 100' \\
+     '    bitrate 500000';;
+ 'link set can0 down') : > "$CAN_SETUP_STATE/down";;
+ 'link set can0 type can bitrate 500000 loopback off listen-only off restart-ms 100')
+   [ -f "$CAN_SETUP_STATE/down" ] || exit 98
+   [ "$CAN_SETUP_FAIL_MODES" != 1 ] || exit 42
+   : > "$CAN_SETUP_STATE/modes";;
+ 'link set can0 txqueuelen 1000') : > "$CAN_SETUP_STATE/queue";;
+ 'link set can0 up')
+   [ -f "$CAN_SETUP_STATE/modes" ] && [ -f "$CAN_SETUP_STATE/queue" ] || exit 99
+   : > "$CAN_SETUP_STATE/up";;
+ *) exit 97;;
+esac
+''',
+    }
+    for name, source in commands.items():
+        path = binary / name
+        path.write_text(source, encoding="utf-8")
+        path.chmod(0o755)
+    # can_setup.sh calls python3; keep this subprocess on the test interpreter.
+    (binary / "python3").symlink_to(sys.executable)
+    env = os.environ.copy()
+    env.pop("BASH_ENV", None)
+    env.pop("ENV", None)
+    env.update({
+        "PATH": f"{binary}:/usr/bin:/bin",
+        "POWERTRAIN_ROOT": str(tmp_path / "root"),
+        "CAN_SETUP_LOG": str(log_path),
+        "CAN_SETUP_STATE": str(state),
+        "CAN_SETUP_FAIL_MODES": "1" if fail_modes else "0",
+    })
+    return env, log_path, state
+
+
 def test_can_setup_disables_loopback_and_retains_bus_parameters(tmp_path):
-    log_path = tmp_path / "sudo.log"
-    sudo_stub = tmp_path / "sudo"
-    sudo_stub.write_text(
-        "#!/bin/sh\n"
-        "printf '%s\\n' \"$*\" >> \"$CAN_SETUP_LOG\"\n",
-        encoding="utf-8",
-    )
-    sudo_stub.chmod(0o755)
-    env = os.environ.copy()
-    env["PATH"] = f"{tmp_path}:{env['PATH']}"
-    env["CAN_SETUP_LOG"] = str(log_path)
-
-    subprocess.run(
-        ["bash", str(CAN_SETUP)],
-        check=True,
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    commands = log_path.read_text(encoding="utf-8").splitlines()
-
-    assert commands.index("ip link set can0 down") < commands.index(
-        "ip link set can0 up type can bitrate 500000 "
-        "loopback off restart-ms 100"
-    )
-    assert "ip link set can0 txqueuelen 1000" in commands
-
-
-def test_can_setup_fails_closed_when_loopback_configuration_fails(tmp_path):
-    log_path = tmp_path / "sudo.log"
-    sudo_stub = tmp_path / "sudo"
-    sudo_stub.write_text(
-        "#!/bin/sh\n"
-        "printf '%s\\n' \"$*\" >> \"$CAN_SETUP_LOG\"\n"
-        "case \"$*\" in\n"
-        "  *'loopback off'*) exit 42 ;;\n"
-        "esac\n",
-        encoding="utf-8",
-    )
-    sudo_stub.chmod(0o755)
-    env = os.environ.copy()
-    env["PATH"] = f"{tmp_path}:{env['PATH']}"
-    env["CAN_SETUP_LOG"] = str(log_path)
+    env, log_path, state = _can_setup_environment(tmp_path)
 
     result = subprocess.run(
         ["bash", str(CAN_SETUP)],
@@ -259,10 +288,47 @@ def test_can_setup_fails_closed_when_loopback_configuration_fails(tmp_path):
         env=env,
         capture_output=True,
         text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    commands = log_path.read_text(encoding="utf-8").splitlines()
+
+    ordered = [
+        "ip link set can0 down",
+        "ip link set can0 type can bitrate 500000 "
+        "loopback off listen-only off restart-ms 100",
+        "ip link set can0 txqueuelen 1000",
+        "ip link set can0 up",
+    ]
+    indices = [commands.index(command) for command in ordered]
+    assert indices == sorted(indices)
+    assert commands[-1] == "ip -details link show can0"
+    assert commands.count("ip -details link show can0") == 3
+    assert (state / "up").is_file()
+    assert "500000 bps" in result.stdout
+    assert "LOOPBACK, LISTEN-ONLY off" in result.stdout
+
+
+def test_can_setup_fails_closed_when_loopback_configuration_fails(tmp_path):
+    env, log_path, state = _can_setup_environment(tmp_path, fail_modes=True)
+
+    result = subprocess.run(
+        ["bash", str(CAN_SETUP)],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
     )
 
     assert result.returncode != 0
-    assert "세팅 완료" not in result.stdout
-    assert "ip link set can0 txqueuelen 1000" not in log_path.read_text(
-        encoding="utf-8"
-    ).splitlines()
+    assert "CAN FAIL" in result.stderr
+    assert "42" in result.stderr
+    assert "500000 bps" not in result.stdout
+    commands = log_path.read_text(encoding="utf-8").splitlines()
+    assert "ip link set can0 down" in commands
+    assert "ip link set can0 type can bitrate 500000 " \
+           "loopback off listen-only off restart-ms 100" in commands
+    assert "ip link set can0 txqueuelen 1000" not in commands
+    assert "ip link set can0 up" not in commands
+    assert not (state / "up").exists()

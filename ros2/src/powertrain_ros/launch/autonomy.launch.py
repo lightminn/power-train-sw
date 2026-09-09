@@ -27,7 +27,8 @@
    · 바퀴 6개를 완전히 띄웠거나, 주행 가능한 안전한 공간인가
    · 48 V 물리 E-stop 에 손이 닿는가
    · `teleop_server` 가 안 떠 있는가 (can0 락이 막지만, 확인이 먼저다)
-   · ODrive 재캘리를 했는가 (전원 사이클마다 필요 — 안 하면 arm 은 되는데 안 돈다)
+   · ODrive 준비 플래그와 오류 0을 확인했는가
+     (영속화 미자격·미준비 축만 출력축을 자유롭게 한 뒤 재캘리한다)
 
 🛑 **유도 소스는 동시에 켜지 않는다** — 모두 `/autonomy/cmd_vel` 를 쓴다.
    `guidance:=lane|wall|follow|terrain` 중 하나만 선택한다.
@@ -46,6 +47,7 @@ from launch.substitutions import Command, LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
+from powertrain_ros import transport_mode
 from powertrain_ros.terrain_qualification import (
     require_command_guidance_qualified,
 )
@@ -93,6 +95,9 @@ def generate_launch_description():
     follow_on = PythonExpression(["'", guidance, "' == 'follow'"])
     terrain_on = PythonExpression(["'", guidance, "' == 'terrain'"])
 
+    # 모드 파일은 기동 시 한 번만 읽는다 — 런타임 전환이 불가능하기 때문이다.
+    _default_transport = transport_mode.read()
+
     args = [
         DeclareLaunchArgument("stride", default_value="2",
                               description="점군 픽셀 간격 (2=45k점, 4=9k점)"),
@@ -102,7 +107,7 @@ def generate_launch_description():
                         "🛑 동시에 켜지 않는다 (전부 /autonomy/cmd_vel 를 쓴다)"),
         DeclareLaunchArgument(
             "chassis", default_value="false",
-            description="🛑 실차 모터 제어. 바퀴 상태·E-stop·재캘리를 확인하고 켤 것"),
+            description="🛑 실차 모터 제어. 바퀴 상태·E-stop·캘리 준비/오류를 확인하고 켤 것"),
         DeclareLaunchArgument("fake_chassis", default_value="false",
                               description="가짜 모터로 chassis_node 를 띄운다 (벤치)"),
         DeclareLaunchArgument("min_rev", default_value="0.0",
@@ -110,6 +115,30 @@ def generate_launch_description():
                                           "정본: docs/superpowers/specs/2026-07-17-abc-program-design.md §2.2"),
         DeclareLaunchArgument("propose", default_value="false",
                               description="선택한 유도 노드가 /autonomy/cmd_vel 로 제안한다"),
+        # 트랜스포트는 런타임 전환이 불가능하다(드라이버 재생성 + USB 는 전원
+        # 사이클마다 축당 ~55 s 풀캘리). 콘솔은 다음 기동에 쓸 값을 모드 파일에
+        # 남기고 여기서 읽는다. 인식 못 하는 값은 can 으로 떨어진다.
+        DeclareLaunchArgument(
+            "drive_transport", default_value=_default_transport,
+            description="구동 트랜스포트 can|usb. 기본값은 "
+                        "%s 에서 읽는다" % transport_mode.DEFAULT_PATH),
+        DeclareLaunchArgument(
+            "steering_mode",
+            default_value=transport_mode.default_steering_mode(_default_transport),
+            description="조향 방식 ackermann|skid. ⚠️ usb 는 조향 액추에이터가 "
+                        "없어 skid 만 가능하다 (chassis_node 가 기동 시 거부)"),
+        DeclareLaunchArgument(
+            "board_registry", default_value="config/bl70200_boards.json",
+            description="USB 보드 시리얼↔CAN node 레지스트리 "
+                        "(drive_transport=usb 전용, 작성법은 "
+                        "config/README-bl70200-boards.md)"),
+        DeclareLaunchArgument(
+            "skid_track_gain", default_value="1.0",
+            description="스키드 유효 윤거 배수 (>1.0 이 보정 방향, 1.0=무보정). "
+                        "지상 커미셔닝에서 확정"),
+        DeclareLaunchArgument(
+            "usb_current_lim", default_value="9.0",
+            description="USB 축당 전류 제한 A (전원이 약해 UV 트립 나면 2.0)"),
     ]
 
     # ── 상태 (항상) ──
@@ -172,7 +201,12 @@ def generate_launch_description():
              condition=IfCondition(chassis),
              parameters=[{"fake": LaunchConfiguration("fake_chassis"),
                           "min_rev": LaunchConfiguration("min_rev"),
-                          "authority_enabled": True}]),
+                          "authority_enabled": True,
+                          "drive_transport": LaunchConfiguration("drive_transport"),
+                          "steering_mode": LaunchConfiguration("steering_mode"),
+                          "board_registry": LaunchConfiguration("board_registry"),
+                          "skid_track_gain": LaunchConfiguration("skid_track_gain"),
+                          "usb_current_lim": LaunchConfiguration("usb_current_lim")}]),
     ]
 
     qualification_gate = OpaqueFunction(

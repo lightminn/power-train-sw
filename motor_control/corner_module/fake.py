@@ -71,6 +71,10 @@ class FakeDrive(DriveActuator):
 
     def disarm(self) -> None:
         self._armed = False
+        # IDLE corners poll state() without ticking the actuator. This simple
+        # model has no coasting, so publish its stopped feedback immediately.
+        self._target = 0.0
+        self._actual = 0.0
 
     def set_velocity(self, turns_per_s: float) -> None:
         self._target = turns_per_s

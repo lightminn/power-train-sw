@@ -47,7 +47,26 @@ class CornerModule:
         if self._drive_enabled:
             self.drive.set_velocity(0.0)
         self._last_set_ms = self._now_ms()
+        self.mode = "ARMING"
+        self.confirm_arm()
+
+    def confirm_arm(self) -> bool:
+        """Nonblocking confirmation; the manager supplies one common deadline."""
+        if self.mode not in ("ARMING", "ARMED"):
+            return False
+        if self._drive_enabled:
+            confirm = getattr(self.drive, "arm_confirmed", None)
+            if callable(confirm) and not confirm():
+                return False
+        if self._steer_enabled:
+            state = self.steer.state()
+            if state.get("stale") or state.get("fault", 0):
+                return False
+            if self.mode == "ARMING":
+                self._steer_target = state["actual_deg"]
+                self.steer.set_angle(self._steer_target)
         self.mode = "ARMED"
+        return True
 
     def set_drive_enabled(self, enabled: bool) -> None:
         self._drive_enabled = bool(enabled)
@@ -82,13 +101,19 @@ class CornerModule:
         }
 
     def disarm(self) -> None:
-        if self._drive_enabled:
-            self.drive.set_velocity(0.0)
-        if self._steer_enabled:
-            self.steer.disarm()
-        if self._drive_enabled:
-            self.drive.disarm()
-        self.mode = "IDLE"
+        self._drive_target = 0.0
+        first_error = None
+        for actuator, enabled in ((self.drive, self._drive_enabled),
+                                  (self.steer, self._steer_enabled)):
+            if not enabled:
+                continue
+            try:
+                actuator.disarm()
+            except BaseException as exc:
+                first_error = first_error or exc
+        self.mode = "FAULT" if first_error is not None else "IDLE"
+        if first_error is not None:
+            raise first_error
 
     def estop(self) -> None:
         first_error = None
@@ -127,11 +152,18 @@ class CornerModule:
     def _service_receive(self) -> None:
         for name, actuator in (("steer", self.steer), ("drive", self.drive)):
             try:
+                poll = getattr(actuator, "poll_feedback", None)
+                if self.mode in ("IDLE", "FAULT", "ARMING") and callable(poll):
+                    poll()
                 actuator.state()
             except Exception:
                 logger.debug("%s 유휴 수신 서비스 실패", name, exc_info=True)
 
     def tick(self) -> None:
+        if self.mode == "ARMING":
+            self._service_receive()
+            self.confirm_arm()
+            return
         if self.mode != "ARMED":
             # IDLE/FAULT에서도 수신 버퍼를 drain해 health 캐시가 실시간을 반영한다.
             # 반응(estop/fault 판정)은 ARMED 전용 — 여기서는 캐시 갱신만.
@@ -160,8 +192,14 @@ class CornerModule:
 
         if self._drive_enabled:
             drive_state = self.drive.state()
-            if drive_state.get("stale", False):
+            if (drive_state.get("stale", False)
+                    or drive_state.get("heartbeat_stale", False)
+                    or drive_state.get("encoder_stale", False)):
                 logger.error("구동 status stale → estop")
+                self.estop()
+                return
+            if "axis_state" in drive_state and drive_state["axis_state"] != 8:
+                logger.error("구동 axis_state=%s → estop", drive_state["axis_state"])
                 self.estop()
                 return
             if drive_state.get("axis_error", 0) != 0:
@@ -185,10 +223,17 @@ class CornerModule:
             self.steer.set_angle(self._steer_target)
         if self._drive_enabled:
             self.drive.set_velocity(drive_cmd)
-        if self._steer_enabled:
-            self.steer.tick()
-        if self._drive_enabled:
-            self.drive.tick()
+        try:
+            if self._steer_enabled:
+                self.steer.tick()
+            if self._drive_enabled:
+                self.drive.tick()
+        except BaseException:
+            try:
+                self.estop()
+            except BaseException:
+                logger.exception("제어 송신 실패 뒤 정지 송신도 실패")
+            raise
 
     def run(self, hz: float = None) -> None:
         """편의 제어 루프. 외부 루프가 tick() 을 직접 호출해도 된다."""

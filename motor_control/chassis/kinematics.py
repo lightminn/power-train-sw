@@ -38,7 +38,8 @@ class Wheel:
 class ChassisGeometry:
     """차체 기하 + 한계. CAD 확정 시 이 값만 교체하면 kinematics 전체가 따라감."""
     wheels: list                       # list[Wheel]
-    wheel_radius_m: float = 0.10       # BL70200 인휠 R_w=100mm
+    wheel_radius_m: float = 0.10356    # as-built v2 CAD 타이어 STL 외경 207.13 mm 실측
+    # 무하중 기하값이며 하중 눌림 실효 반경은 직진 실측으로 별도 커미셔닝한다.
     steer_limit_deg: float = 45.0      # AK 조향 출력축 ±한계 (corner config 와 동일)
     drive_limit_mps: float = 0.80      # 바퀴 선속도 상한 (v4 최적화 v_max=0.80 m/s)
 
@@ -155,19 +156,24 @@ def solve(geom: ChassisGeometry, v_mps: float, omega_rad_s: float) -> SolveResul
     return SolveResult(wheels, omega, steer_clamped, speed_clamped)
 
 
-# ── 기본 기하 (⚠️ 잠정 플레이스홀더) ─────────────────────────────────────
+# ── 기본 기하 (as-built v2 CAD 실측) ──────────────────────────────────────
 
 
 def default_geometry() -> ChassisGeometry:
     """6륜 로커보기 바퀴 배치 — **설계팀 CAD URDF 실제 제작 치수**.
 
-    출처: `scripts/extract_geometry_from_cad_urdf.py` 가 설계팀 CAD 익스포트
-    (`rover/urdf_2.urdf`, 2026-07-11)에서 도출한다. 숫자를 손으로 고치지 말고 그
-    스크립트를 다시 돌려라. base_link = 축거중점 · 차체중심선 · 지면.
+    출처: as-built v2 CAD URDF (`urdf/urdf_and_usd_v2.zip`, 이 안의 URDF와
+    `rover_arm_integrated/urdf/2026_07_24_URDF.urdf` 가 동일). CAD 좌표계는
+    forward=+y / lateral=+x 이며, 전체 base_link→wheel joint chain 의 rpy 를 합성한
+    바퀴 중심을 REP-103 으로 변환하고 좌우 대칭화했다. 키네마틱스 원점은 축거중점 ·
+    좌우 대칭 중심선 · 지면이다.
 
-      축거(앞−뒤) 875.5 mm   |   윤거: 앞 705.0 / 중간 879.0 / 뒤 585.0 mm
+      축거(앞−뒤) 875.5 mm   |   윤거: 앞 545.0 / 중간 719.0 / 뒤 425.0 mm
+      타이어 반경 103.56 mm  |   트레드 폭 70 mm
+      허브 외측 돌출 반폭 48.0 mm → 차폭 815.0 mm   |   최저 지상고 71.2 mm
+      서스펜션 한계: 로커 ±20° / 보기 ±45°
 
-    ⚠️ **윤거가 세 축 모두 다르다.** 앞 705 / 중간 879 / 뒤 585 mm — 중간이 가장 넓고
+    ⚠️ **윤거가 세 축 모두 다르다.** 앞 545 / 중간 719 / 뒤 425 mm — 중간이 가장 넓고
        뒤가 가장 좁다. CAD 상 실측이며 오독이 아니다(조향 4륜의 타이어 링크 원점이
        킹핀 축과 Δ0.0 mm 로 일치 = 스크럽 반경 0 설계 → 타이어 좌표 = 바퀴 중심면).
        **설계 의도인지 CAD 오류인지 설계팀 확인 필요.** 키네마틱스는 바퀴별 (x, y)를
@@ -178,7 +184,7 @@ def default_geometry() -> ChassisGeometry:
        −60.3 mm 라 **스크럽이 남는다**. v4 최적화 설계값은 −11.4 mm 로 거의 중앙이었다.
 
     ⚠️ **제자리 피벗은 현 조향한계로 불가능**: 필요 |δ| = 90° − atan(|y| ÷ |x|) →
-       **앞 51.2° · 뒤 56.2°** 로 AK 한계 ±45° 를 넘는다. `solve()` 가 45° 로 클램프하고
+       **앞 58.1° · 뒤 64.1°** 로 AK 한계 ±45° 를 넘는다. `solve()` 가 45° 로 클램프하고
        스크럽을 감수한다(설계된 동작). 피벗 명령 시 바퀴들이 서로 모순된 값을 보고하므로
        오도메트리 잔차가 뜨고 ω 가 과소추정된다.
 
@@ -187,13 +193,13 @@ def default_geometry() -> ChassisGeometry:
        CAD 도출은 `parameter_calc/python_gpu_triangle/export_chassis_geometry.py`.
     """
     return ChassisGeometry(wheels=[
-        # CAD URDF 실측 (scripts/extract_geometry_from_cad_urdf.py, 좌우 대칭화 적용)
-        Wheel("front_left",  +0.4377, +0.3525, True),
-        Wheel("front_right", +0.4377, -0.3525, True),
-        Wheel("mid_left",    -0.0603, +0.4395, False),
-        Wheel("mid_right",   -0.0603, -0.4395, False),
-        Wheel("rear_left",   -0.4377, +0.2925, True),
-        Wheel("rear_right",  -0.4377, -0.2925, True),
+        # as-built v2 CAD URDF joint-chain 합성 (forward=+y/lateral=+x, 좌우 대칭화)
+        Wheel("front_left",  +0.4377, +0.2725, True),
+        Wheel("front_right", +0.4377, -0.2725, True),
+        Wheel("mid_left",    -0.0603, +0.3595, False),
+        Wheel("mid_right",   -0.0603, -0.3595, False),
+        Wheel("rear_left",   -0.4377, +0.2125, True),
+        Wheel("rear_right",  -0.4377, -0.2125, True),
     ])
 
 
@@ -218,4 +224,45 @@ def four_wheel_geometry() -> ChassisGeometry:
         wheel_radius_m=full.wheel_radius_m,
         steer_limit_deg=full.steer_limit_deg,
         drive_limit_mps=full.drive_limit_mps,
+    )
+
+
+def skid_geometry(track_gain: float = 1.0,
+                  base: ChassisGeometry = None) -> ChassisGeometry:
+    """🛠️ **스키드(차동) 조향 기하** — 모든 바퀴를 고정륜으로 둔다.
+
+    새 수식이 필요 없다. `solve()` 의 고정 바퀴 분기가 이미 `vx = v − ω·yᵢ` 로
+    스키드 식이며(측면 성분 `vy = ω·xᵢ` 는 스크럽으로 버린다), 조향륜이 0개면
+    `_peak_steer()` 가 항상 0 을 반환해 ω 클램프도 자동으로 비활성화된다.
+    속도 상한 스케일링과 비유한 검사는 그대로 살아 있다.
+
+    바퀴별 `y` 를 그대로 쓰므로 **강체 기준 종방향 슬립이 0** 이다 — 각 바퀴는
+    자기 위치가 요구하는 전진속도만 받는다. 탱크식(편측 동일 속도)을 쓰지 않는
+    이유가 이것이다: as-built 윤거가 앞 545 / 중간 719 / 뒤 425 mm 로 모두 달라
+    같은 속도를 주면 같은 편 바퀴끼리 종방향으로 싸운다.
+
+    Parameters
+    ----------
+    track_gain:
+        **유효 윤거 배수.** 실차 스키드는 타이어 측면 미끄럼 저항 때문에 명령보다
+        덜 돈다. 같은 ω 를 실제로 내려면 좌우 속도차를 더 벌려야 하므로
+        **1.0 보다 큰 값이 보정 방향**이다. 기본 1.0(무보정)이며 실측 전까지
+        그대로 둔다 — 지상 커미셔닝에서 명령 ω 대비 실측 ω 비로 확정한다.
+
+        기하에 곱하는 이유는 명령과 추정이 한 모델을 쓰게 하기 위해서다.
+        오도메트리는 바퀴속도에서 ω 를 역산하므로(ω ≈ Δv / 2y_eff), 유효 윤거가
+        크면 ω 추정도 같이 작아져 "실제로 덜 도는" 물리와 방향이 일치한다.
+    base:
+        바탕 기하(기본 `default_geometry()`). `skid_geometry(base=
+        four_wheel_geometry())` 로 4륜 스키드도 만들 수 있다. 원본은 수정하지
+        않고 새 `Wheel` 을 만들어 복사한다.
+    """
+    if not math.isfinite(track_gain) or track_gain <= 0.0:
+        raise ValueError("track_gain must be finite and positive")
+    src = base if base is not None else default_geometry()
+    return ChassisGeometry(
+        wheels=[Wheel(w.name, w.x, w.y * track_gain, False) for w in src.wheels],
+        wheel_radius_m=src.wheel_radius_m,
+        steer_limit_deg=src.steer_limit_deg,
+        drive_limit_mps=src.drive_limit_mps,
     )

@@ -1,0 +1,42 @@
+[
+  {
+    "package": "iproute2",
+    "version": "5.15.0-1ubuntu2.2",
+    "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/i/iproute2/iproute2_5.15.0-1ubuntu2.2_arm64.deb",
+    "sha256": "41e9e6853de7ab859e1fb7a7662e717a0a328bd2f78988ab38a737fb2017ae74",
+    "filename": "iproute2_5.15.0-1ubuntu2.2_arm64.deb",
+    "depends": "debconf (>= 0.5) | debconf-2.0, libbpf0 (>= 1:0.2), libbsd0 (>= 0.0), libc6 (>= 2.34), libcap2 (>= 1:2.10), libdb5.3, libelf1 (>= 0.131), libmnl0 (>= 1.0.3-4~), libselinux1 (>= 3.1~), libxtables12 (>= 1.6.0+snapshot20161117), libcap2-bin"
+  },
+  {
+    "package": "libbpf0",
+    "version": "1:0.5.0-1ubuntu22.04.1",
+    "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libb/libbpf/libbpf0_0.5.0-1ubuntu22.04.1_arm64.deb",
+    "sha256": "f5af5e4e32d29c2dce882374bffe2d10e6b3b1d2332085d1a4dc8676b0cf40e7",
+    "filename": "libbpf0_0.5.0-1ubuntu22.04.1_arm64.deb",
+    "depends": "libc6 (>= 2.22), libelf1 (>= 0.142), zlib1g (>= 1:1.2.3.3)"
+  },
+  {
+    "package": "libmnl0",
+    "version": "1.0.4-3build2",
+    "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libm/libmnl/libmnl0_1.0.4-3build2_arm64.deb",
+    "sha256": "225e80ab05283fca43a3d6c717d33f92703893c4fb725a3c4c6c6ced536c31e2",
+    "filename": "libmnl0_1.0.4-3build2_arm64.deb",
+    "depends": "libc6 (>= 2.17)"
+  },
+  {
+    "package": "libxtables12",
+    "version": "1.8.7-1ubuntu5.2",
+    "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/i/iptables/libxtables12_1.8.7-1ubuntu5.2_arm64.deb",
+    "sha256": "1e224fa12afd5bf4c8b5afe1803c6af04fd296ecd081fdd6a2df0e8dbe2027e1",
+    "filename": "libxtables12_1.8.7-1ubuntu5.2_arm64.deb",
+    "depends": "libc6 (>= 2.34)"
+  },
+  {
+    "package": "libcap2-bin",
+    "version": "1:2.44-1ubuntu0.22.04.3",
+    "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libc/libcap2/libcap2-bin_2.44-1ubuntu0.22.04.3_arm64.deb",
+    "sha256": "71eee97adfee4eb34d6ace5c9e52a690318ef3d8b1152a3fd055c223f951ae37",
+    "filename": "libcap2-bin_2.44-1ubuntu0.22.04.3_arm64.deb",
+    "depends": "libc6 (>= 2.34), libcap2 (>= 1:2.33)"
+  }
+]

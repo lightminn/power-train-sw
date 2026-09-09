@@ -14,14 +14,23 @@ from .procedural import (
 DEV_SEED = 0
 
 # CAD URDF wheel centres in chassis.kinematics.default_geometry() have their
-# widest |y| at 0.4395 m; model_builder gives each wheel 0.035 m half-width.
-# The simulated physical footprint is therefore 2 * (0.4395 + 0.035) = 0.949 m.
-ROBOT_FOOTPRINT_WIDTH_M = 0.949
+# widest |y| at 0.3595 m (as-built v2, commit 3df0114); model_builder gives each
+# wheel 0.035 m half-width. The physical footprint is 2 * (0.3595 + 0.035) = 0.789 m.
+# 이 값은 트랙 폭의 기준이라 기하가 바뀌면 반드시 같이 바뀌어야 한다 —
+# test_campaign 이 default_geometry() 에서 직접 유도해 대조한다.
+ROBOT_FOOTPRINT_WIDTH_M = 0.789
+
+# 좁은 곡선 family 폭 — 로버가 "전속도로 지나도 되는 가장 좁은 복도"다:
+# 차폭 + 2 * 컨트롤러의 clearance_full_m(0.15) = 0.789 + 0.30 = 1.089 m.
+# 중앙 정렬이면 편측 여유 0.15 m 로 전속도가 나오고, 곡률이 만든 횡오차가
+# 0.10 m 를 넘는 순간 정지 임계(clearance_hold_m 0.05)에 걸린다 —
+# 복도는 들어가는데 치우쳐서 걸리는 상태를 만드는 것이 이 family 의 목적이다.
+NARROW_CURVE_TRACK_WIDTH_M = ROBOT_FOOTPRINT_WIDTH_M + 0.30
 
 # 훈련 트랙 — 스펙 2026-07-20 §4.2.
 # 길이: 2.5 m 에서는 종단 fail-closed 정지거리 0.7 m 가 전체의 28% 라
 #       구조적 최대 완주율이 ~0.71 이었다. 15 m 에서는 5% 로 내려간다.
-# 폭:   차폭 949 mm 대비 편측 여유 325 mm. 차폭을 진단 변수에서 제거한다.
+# 폭:   차폭 789 mm 대비 편측 여유 405.5 mm. 차폭을 진단 변수에서 제거한다.
 TRAINING_TRACK_LENGTH_M = 15.0
 TRAINING_TRACK_WIDTH_M = 1.6
 # 대회 코스 course.stl 실측: 0.085 <-> 0.388 m (peak-to-peak 0.303 m), 주기 4.4 m.
@@ -131,7 +140,9 @@ def pinch_document(
         seed=seed,
         seed_class=seed_class,
     )
-    document["clock"]["duration_s"] = 12.0
+    # 좁힘은 약 7 m 에 있지만 12 s 동안 Isaac 로버는 약 4 m 만 주행해,
+    # 이 family 가 시험하려는 형상에 한 번도 도달하지 못했다.
+    document["clock"]["duration_s"] = TRAINING_DURATION_S
     document["faults"] = {name: [] for name in document["faults"]}
     return document
 
@@ -236,6 +247,44 @@ def clothoid_document(
     return document
 
 
+def narrow_curve_document(
+    *,
+    seed: int = DEV_SEED,
+    seed_class: str = "dev",
+) -> dict:
+    document = generate_scenario(
+        GenerationParameters(
+            track_length_range_m=(
+                TRAINING_TRACK_LENGTH_M,
+                TRAINING_TRACK_LENGTH_M,
+            ),
+            track_width_range_m=(
+                NARROW_CURVE_TRACK_WIDTH_M,
+                NARROW_CURVE_TRACK_WIDTH_M,
+            ),
+            track_height_range_m=(0.5, 0.5),
+            curvature_range_per_m=(-0.08, 0.08),
+            station_spacing_range_m=(0.35, 0.35),
+            linear_speed_range_m_s=(0.45, 0.45),
+            terrain_families=("flat",),
+            motion_profiles=("constant_speed",),
+            undulation_amplitude_m=UNDULATION_AMPLITUDE_M,
+            undulation_wavelength_m=UNDULATION_WAVELENGTH_M,
+            curvature_mode="clothoid",
+            expected_completion=False,
+        ),
+        seed=seed,
+        seed_class=seed_class,
+    )
+    document["clock"]["duration_s"] = TRAINING_DURATION_S
+    _repin_transient_hold_bounds(document, "narrow_curve", seed_class)
+    # clothoid 의 min_clearance_m 재핀(0.15)은 1.6 m 트랙 실측에 근거한 값이라
+    # 이 family 에 옮겨 쓰지 않는다. 여기서는 로버가 가장자리에 접근하는 것이
+    # 목적이므로 생성기 기하 기본값을 그대로 두고, 0 침범은 edge_overrun 이 잡는다.
+    document["faults"] = {name: [] for name in document["faults"]}
+    return document
+
+
 def undulating_document(
     *,
     seed: int = DEV_SEED,
@@ -311,6 +360,7 @@ def follow_document(
 
 __all__ = (
     "DEV_SEED",
+    "NARROW_CURVE_TRACK_WIDTH_M",
     "ROBOT_FOOTPRINT_WIDTH_M",
     "TRAINING_DURATION_S",
     "TRAINING_TRACK_LENGTH_M",
@@ -323,6 +373,7 @@ __all__ = (
     "flat_document",
     "follow_document",
     "friction_document",
+    "narrow_curve_document",
     "pinch_document",
     "undulating_document",
 )

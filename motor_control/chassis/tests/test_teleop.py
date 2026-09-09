@@ -289,3 +289,105 @@ def test_direct_can_teleop_noninteractive_confirmation_bypasses_prompt(module):
     )
 
     assert args.confirm_arm_stowed is True
+
+
+from chassis import teleop_server
+
+
+def test_skid_usb_and_four_wheel_are_mutually_exclusive():
+    with pytest.raises(SystemExit):
+        teleop_server._parse_args([
+            "--diagnostic-direct-can", "--confirm-arm-stowed",
+            "--skid-usb", "--four-wheel",
+        ])
+
+
+def test_skid_usb_defaults_are_declared():
+    args = teleop_server._parse_args([
+        "--diagnostic-direct-can", "--confirm-arm-stowed", "--skid-usb",
+    ])
+
+    assert args.skid_usb is True
+    assert args.track_gain == pytest.approx(1.0)
+    assert args.board_registry.endswith("bl70200_boards.json")
+
+
+def test_skid_usb_builds_usb_corners_and_never_touches_can(monkeypatch):
+    """can0 을 안 여는 것이 이 모드의 존재 이유다 — 워치독도 lock 도 없어야 한다."""
+    calls = {"watchdog": 0, "can_session": 0, "usb_corners": 0}
+
+    class _Watchdog:
+        def __init__(self, *_a, **_k):
+            calls["watchdog"] += 1
+
+        def start(self):
+            pass
+
+    class _Session:
+        def __init__(self, *_a, **_k):
+            calls["can_session"] += 1
+
+    import corner_module.can_watchdog as watchdog_mod
+    import chassis.runtime_lock as lock_mod
+    import chassis.chassis_manager as manager_mod
+
+    monkeypatch.setattr(watchdog_mod, "CanWatchdog", _Watchdog)
+    monkeypatch.setattr(lock_mod, "RealCanSession", _Session)
+
+    def _fake_usb_corners(*_a, **_k):
+        calls["usb_corners"] += 1
+        raise RuntimeError("stop here — 초기화 경로만 검증한다")
+
+    monkeypatch.setattr(manager_mod, "build_usb_skid_corners", _fake_usb_corners)
+
+    with pytest.raises(RuntimeError, match="stop here"):
+        teleop_server.main([
+            "--diagnostic-direct-can", "--confirm-arm-stowed",
+            "--skid-usb", "--no-us100",
+        ])
+
+    assert calls["usb_corners"] == 1
+    assert calls["watchdog"] == 0
+    assert calls["can_session"] == 0
+
+
+def test_skid_usb_reports_skid_steering_mode_and_geometry(monkeypatch):
+    """--skid-usb 로 만든 매니저는 스키드라고 보고해야 한다.
+
+    cfg.geometry 를 직접 덮으면 ChassisManager 가 그걸 애커만 원본으로 오인해
+    steering_mode 를 ackermann 으로 보고하고, 오도메트리 노드가 애커만 기하로
+    스왑해 요레이트 추정이 0 으로 눌린다(설계문서 §6.2 결함 B).
+    """
+    import chassis.chassis_manager as manager_mod
+
+    real_manager = manager_mod.ChassisManager
+    captured = {}
+
+    def _fake_usb_corners(*_a, **_k):
+        return {
+            wheel.name: object()
+            for wheel in manager_mod.ChassisConfig().geometry.wheels
+        }
+
+    def _capture_manager(corners, cfg):
+        captured["manager"] = real_manager(corners, cfg)
+        raise RuntimeError("stop after manager construction")
+
+    monkeypatch.setattr(manager_mod, "build_usb_skid_corners", _fake_usb_corners)
+    monkeypatch.setattr(manager_mod, "ChassisManager", _capture_manager)
+
+    track_gain = 1.4
+    v_max = 1.7
+    with pytest.raises(RuntimeError, match="stop after manager construction"):
+        teleop_server.main([
+            "--diagnostic-direct-can", "--confirm-arm-stowed",
+            "--skid-usb", "--no-us100",
+            "--track-gain", str(track_gain), "--v-max", str(v_max),
+        ])
+
+    manager = captured["manager"]
+    wheels = {wheel.name: wheel for wheel in manager.cfg.geometry.wheels}
+    assert manager.steering_mode == "skid"
+    assert all(not wheel.steerable for wheel in wheels.values())
+    assert wheels["front_left"].y == pytest.approx(0.2725 * track_gain)
+    assert manager.cfg.geometry.drive_limit_mps == pytest.approx(v_max)

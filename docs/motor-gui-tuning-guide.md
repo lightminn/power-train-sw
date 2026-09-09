@@ -71,7 +71,7 @@ input_pos ─►[POS_FILTER: input_filter_bandwidth]─► pos_setpoint
 ## 4. 두 가지 튜닝 경로
 
 ### (A) GUI 라이브 튜닝 — 사람이 직접
-1. Jetson 컨테이너에서 서버 기동: `python3 -m motor_gui.backend.server --track usb`
+1. Jetson 컨테이너에서 서버 기동: `python3 -m motor_gui.backend.server --track usb --usb-serial <SERIAL> --usb-axis 1 --usb-node 12`
    (CAN: 먼저 `bash scripts/can_setup.sh`, 그 후 `--track can`)
 2. 노트북 브라우저 `http://jetson-orin.local:8000`.
 3. **폐루프 진입** → (원하는 물리 위치로 둔 뒤) **영점 설정** → 제어 모드 `position`.
@@ -84,7 +84,7 @@ input_pos ─►[POS_FILTER: input_filter_bandwidth]─► pos_setpoint
 정량 비교가 필요할 때. 위 안전원칙대로 서버 종료 + 모터 자유회전 후:
 ```bash
 docker compose -f docker/docker-compose.jetson.yml exec -T powertrain \
-  bash -lc "cd /workspace && python3 motor_gui/tools/gain_sweep.py --track usb --step 2.0 --bw 50"
+  bash -lc "cd /workspace && python3 motor_gui/tools/gain_sweep.py --track usb --usb-serial <SERIAL> --usb-axis 1 --usb-node 12 --step 2.0 --bw 50"
 ```
 - 파일 상단 `COMBOS` 리스트를 그 모터에 맞게 편집.
 - 출력 표에서 `OK`(오차·진동 모두 작음) 또는 `잔차`가 가장 작은 조합 선택.
@@ -125,8 +125,8 @@ docker compose -f docker/docker-compose.jetson.yml exec -T powertrain \
 > 정상 복구. (코깅 보상이 꼭 필요하면 fw 업그레이드 + 신중한 별도 검증 후 재시도.)
 
 ### BL70200 + 내장 HALL ×3 (실전 구동 모터)
-- 아직 motor_gui 로 튜닝 안 함. HALL(pp=5,cpr=30)이라 X2212 와 게인 스케일이 완전히 다름.
-  교체 시 아래 7장 절차로 재튜닝 필수. (별도 캘리: `motor_control/drive/bl70200/`)
+- HALL 정본은 pp=10, cpr=60이다. X2212와 같은 보드에 트랙 설정을 섞지 않는다.
+  현재 BL70200 설정과 정비 명령은 `motor_control/drive/bl70200/bl70200_setup.py --read`로 대조한다.
 
 ### AK45-36 (조향, CAN servo)
 - ODrive 아님(CubeMars). 별도 프로토콜(`motor_control/steering/ak_control.py`), 본 가이드 범위 밖.
@@ -137,7 +137,7 @@ docker compose -f docker/docker-compose.jetson.yml exec -T powertrain \
 
 1. **HW 파라미터 셋업**: 그 모터의 캘리 스크립트로 pole_pairs/cpr/encoder mode/motor_type 설정
    + 캘리(`is_calibrated`/`is_ready` True) + NVM 저장. (X2212: `drive/x2212_test/init_odrive.py`
-   또는 `odrive_can_setup.py`. BL70200: `drive/bl70200/bl70200_setup.py --apply --calibrate`.
+   또는 `odrive_can_setup.py`는 폐기되어 실행이 차단된다. BL70200: `motor_control/drive/bl70200/bl70200_setup.py --apply --calibrate --serial <SERIAL> --axis both --node 11`.
    ⚠️ 구 `odrive_calibration.py` 는 pp=5/cpr=30/UV=8V 를 NVM 에 써서 보드를 손상시키므로
    `drive/bl70200/archive/` 로 이동·실행 차단됐다.)
 2. **read-only 확인**: GUI/스크립트로 sample + config 덤프 + dump_errors. vbus/state/encoder 정상?

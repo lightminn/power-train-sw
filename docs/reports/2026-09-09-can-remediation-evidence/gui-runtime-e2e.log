@@ -1,0 +1,2 @@
+GUI E2E: real FastAPI/uvicorn HTTP + WebSocket + worker/FakeTransport; 11 assertions passed
+GUI shutdown: graceful completion, no traceback, returncode=-15

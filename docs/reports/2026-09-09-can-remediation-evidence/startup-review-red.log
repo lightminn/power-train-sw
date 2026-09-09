@@ -1,0 +1,43 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_legacy_first_install_prepares_lock_directory_before_can _________
+
+tmp_path = PosixPath('/tmp/pytest-of-light/pytest-47/test_legacy_first_install_prep0')
+
+    def test_legacy_first_install_prepares_lock_directory_before_can(tmp_path):
+        from test_jetson_gui_up import _fake_environment
+        env, docker_log = _fake_environment(tmp_path)
+        state = tmp_path / 'runtime-installed'
+        env['FAKE_RUNTIME_STATE'] = str(state)
+        bash_env = Path(env['BASH_ENV'])
+        bash_env.write_text(bash_env.read_text().replace(
+            'function [ {\n',
+            'function [ {\n  if [[ $1 = -d && ( $2 = /run/powertrain || $2 = /var/lib/powertrain ) ]]; then builtin [ -f "$FAKE_RUNTIME_STATE" ]; return; fi\n'))
+        ip = tmp_path / 'bin/ip'
+        ip.write_text(ip.read_text().replace('bitrate 500000', 'bitrate 250000'))
+        sudo = tmp_path / 'bin/sudo'
+        sudo.write_text(sudo.read_text().replace('set -u\n', '''set -u
+    case "$*" in
+     *install_powertrain_runtime_dir.sh*) touch "$FAKE_RUNTIME_STATE"; exit 0;;
+     *can_setup.sh*)
+       if [ -f "$FAKE_RUNTIME_STATE" ]; then echo prepared-before-can >&2; else echo missing-lock-directory >&2; fi
+       exit 1;;
+    esac
+    '''))
+        result = _run(ROOT / 'scripts/jetson_gui_up.sh', '--no-arm', '--timeout', '1', env=env)
+        assert result.returncode != 0
+>       assert 'prepared-before-can' in result.stderr, result.stdout + result.stderr
+E       AssertionError: 
+E         ========== 1/7 호스트 준비 ==========
+E         can0가 준비되지 않아 sudo -n으로 설정을 시도합니다.
+E         수동: sudo bash scripts/can_setup.sh
+E         missing-lock-directory
+E         CAN 준비 실패: 기존 owner/배선을 확인한 뒤 다시 기동하십시오.
+E         
+E       assert 'prepared-before-can' in 'missing-lock-directory\nCAN 준비 실패: 기존 owner/배선을 확인한 뒤 다시 기동하십시오.\n'
+E        +  where 'missing-lock-directory\nCAN 준비 실패: 기존 owner/배선을 확인한 뒤 다시 기동하십시오.\n' = CompletedProcess(args=['bash', '/home/light/ZETIN/robotics/power-train-sw/.worktrees/can-runtime-audit/scripts/jetson_...다.\n수동: sudo bash scripts/can_setup.sh\n', stderr='missing-lock-directory\nCAN 준비 실패: 기존 owner/배선을 확인한 뒤 다시 기동하십시오.\n').stderr
+
+scripts/tests/test_can_startup_safety.py:225: AssertionError
+=========================== short test summary info ============================
+FAILED scripts/tests/test_can_startup_safety.py::test_legacy_first_install_prepares_lock_directory_before_can
+1 failed in 0.13s

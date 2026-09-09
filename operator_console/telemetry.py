@@ -10,7 +10,12 @@ import time
 from typing import Any
 
 from .labels import mode_korean
+from .pdist80b_flags import fault_reasons
 from .udp_source import SourceSequenceGate
+
+
+_CHARGE_CURRENT_DEADBAND_A = 0.1
+_MAX_POWER_FAULT_REASONS = 2
 
 
 @dataclass(frozen=True)
@@ -264,23 +269,41 @@ def _format_hex(value: int | None) -> str:
     return "N/A" if value is None else f"0x{value:02X}"
 
 
+def power_fault_reasons(
+    battery_flags: int | None,
+    protection_flags: int | None,
+) -> tuple[str, ...] | None:
+    """Return None when either flag byte is missing, else set fault reasons."""
+    if battery_flags is None or protection_flags is None:
+        return None
+    return fault_reasons(battery_flags, protection_flags)
+
+
 def power_summary(snapshot: TelemetrySnapshot | None) -> str:
     """Return the compact power line shown above the detailed telemetry."""
     if snapshot is None:
         return "미수신(UNAVAILABLE)"
     voltage = "N/A" if snapshot.voltage_v is None else f"{snapshot.voltage_v:.1f} V"
     soc = "N/A" if snapshot.pdist_soc_percent is None else f"{snapshot.pdist_soc_percent}%"
-    if snapshot.pdist_protection_flags not in (None, 0):
-        health = "⚠ 보호 경고"
-    elif snapshot.pdist_battery_flags not in (None, 0):
-        health = "⚠ 배터리 경고"
-    elif (
-        snapshot.pdist_battery_flags == 0
-        and snapshot.pdist_protection_flags == 0
-    ):
-        health = "정상"
-    else:
+    reasons = power_fault_reasons(
+        snapshot.pdist_battery_flags,
+        snapshot.pdist_protection_flags,
+    )
+    if reasons is None:
         health = "상태 미수신"
+    elif reasons:
+        visible = ", ".join(reasons[:_MAX_POWER_FAULT_REASONS])
+        remaining = len(reasons) - _MAX_POWER_FAULT_REASONS
+        health = f"⚠ {visible}"
+        if remaining > 0:
+            health += f" 외 {remaining}건"
+    else:
+        health = "정상"
+        if (
+            snapshot.pdist_charge_current_a is not None
+            and snapshot.pdist_charge_current_a > _CHARGE_CURRENT_DEADBAND_A
+        ):
+            health += " · 충전 중"
     return f"{voltage} · {soc} · {health}"
 
 

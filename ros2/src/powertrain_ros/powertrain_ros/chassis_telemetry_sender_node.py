@@ -9,6 +9,7 @@ unavailable fields.
 from __future__ import annotations
 
 import math
+import os
 import socket
 import time
 
@@ -21,6 +22,7 @@ from l515_dashboard.client import GatewayClient
 from powertrain_msgs.msg import SafetyVerdict, WheelStates
 from powertrain_observability.client import ObservabilityClient
 from powertrain_ros import console_can_status
+from powertrain_runtime.telemetry import send_datagram
 from powertrain_ros.chassis_telemetry import (
     LatestPollWorker,
     component_mask_payload_value,
@@ -46,7 +48,7 @@ class ChassisTelemetrySender(Node):
         host = str(self.get_parameter("operator_host").value)
         port = int(self.get_parameter("operator_port").value)
         hz = float(self.get_parameter("publish_hz").value)
-        if not host or not 1 <= port <= 65535 or not 0.2 <= hz <= 10.0:
+        if (not host and not os.environ.get("POWERTRAIN_OPERATOR_SESSION_FILE")) or not 1 <= port <= 65535 or not 0.2 <= hz <= 10.0:
             raise ValueError("operator_host, operator_port, and publish_hz are invalid")
         self._endpoint = (host, port)
         self._udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -253,7 +255,7 @@ class ChassisTelemetrySender(Node):
             "wheel_statuses": wheel_statuses,
         }
         try:
-            self._udp.sendto(encode_telemetry_payload(payload), self._endpoint)
+            send_datagram(self._udp, encode_telemetry_payload(payload), self._endpoint)
             self._sequence += 1
         except OSError as exc:
             self.get_logger().warning(

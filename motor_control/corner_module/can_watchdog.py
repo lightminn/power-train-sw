@@ -1,37 +1,19 @@
-"""mttcan TX 웻지 자가복구 워치독 — 인프로세스(데몬 스레드) 판.
+"""CAN TX-stall recovery with exclusive maintenance and owner coordination.
 
-배경: 구동모터 PWM 노이즈로 CAN TX 에러 폭풍→bus-off 가 반복되면 Jetson mttcan
-드라이버가 TX 큐를 영구 정지(웻지)한다 — berr 0·ERROR-ACTIVE 로 멀쩡해 보이는데
-qdisc 백로그에 프레임이 갇히고 모든 send 가 ENOBUFS ("잘 되다가 아예 안 됨").
-down/up 만이 복구한다 (2026-07-07 재현·검증, scripts/can_watchdog.sh 의 파이썬판).
-
-사용 두 가지 (정본 = ① 컨테이너 상주 서비스):
-
-① 컨테이너 상주 (docker-compose.jetson.yml 의 `canwatchdog` 서비스 — 컨테이너 켜지면
-   자동 가동, restart: unless-stopped):
-
-    python3 -u -m corner_module.can_watchdog          # 포그라운드
-
-② 인프로세스 (텔레옵 진입점에 이미 내장 — ①과 중복 가동해도 무해; 리셋 조건이
-   "2연속 정지"라 상대가 먼저 살리면 그냥 조용함):
-
-    from corner_module.can_watchdog import CanWatchdog
-    CanWatchdog("can0").start()          # 데몬 스레드 — 프로그램 종료 시 함께 종료
-
-감지(오탐 없음): 1초 주기로 프로브 프레임(빈 노드 21 RTR — 전 노드가 ACK만 함)을
-자체 raw 소켓으로 송신. **송신 실패 + tx_packets 카운터 정지**가 2연속이면 웻지 판정
-(일시 폭주는 tx_packets 가 계속 증가해 구분됨).
-
-복구: 순수 파이썬 ioctl 로 can0 down→up + txqueuelen 복원 (~0.2s). privileged
-컨테이너에서 동작(`ip` 바이너리 불필요). 기존 SocketCAN 소켓들은 down/up 후에도
-그대로 살아 있음(ifindex 유지) — 제어 루프는 프레임 몇 개 유실 후 재개된다.
-리셋 순간 조향 status 공백으로 코너 stale→FAULT 가 뜰 수 있음(□ 재무장).
+Standalone mode resets only while no motor owner exists. Active owners call
+step() in their control executor with owner_session and before_reset=cm.estop.
+The stop latch remains set after recovery; automatic re-arm is never performed.
+A persistent reset generation and under-lock probes reject old observations.
 """
 import fcntl
 import socket
 import struct
 import threading
 import time
+
+from chassis.runtime_lock import (
+    CanMaintenanceSession, CanOwnershipError, reset_generation,
+)
 
 # ioctl 상수 (linux/sockios.h)
 _SIOCGIFFLAGS = 0x8913
@@ -44,10 +26,11 @@ _PROBE_ARB = (21 << 5) | 0x09          # 미사용 노드 21 RTR — 아무도 �
 
 
 class CanWatchdog:
-    """can0 TX 웻지 감시·자동복구. start() 후엔 손댈 것 없음."""
+    """CAN stall observer; active owners call step() in their control executor."""
 
     def __init__(self, channel: str = "can0", period_s: float = 1.0,
-                 txqueuelen: int = 1000):
+                 txqueuelen: int = 1000, *, owner_session=None,
+                 before_reset=None, lock_path=None):
         self._channel = channel
         self._period = period_s
         self._txqueuelen = txqueuelen
@@ -56,6 +39,12 @@ class CanWatchdog:
         self._fails = 0
         self._last_tx = None
         self._last_reset_error = None
+        self._owner_session = owner_session
+        self._before_reset = before_reset
+        self._lock_path = lock_path or (owner_session.path if owner_session else
+                                       f"/run/powertrain/{channel}.lock")
+        self._last_generation = None
+        self._reset_pending = False
 
     # ------------------------------------------------------------------
     def start(self) -> threading.Thread:
@@ -128,8 +117,31 @@ class CanWatchdog:
         if old is not None:
             old.close()
 
+    def step(self):
+        """Run one observation in the owner's executor; lazily open the probe."""
+        if self._reset_pending:
+            return self._retry_interrupted_reset()
+        if self._sock is None:
+            if not self._interface_is_up():
+                self._fails = 0
+                self._last_tx = None
+                return "down"
+            try:
+                self._sock = self._open_probe_socket()
+            except OSError as exc:
+                self._last_reset_error = exc
+                return "probe_unavailable"
+        return self._step()
+
+    def close(self):
+        """Close the private probe socket; never change the link or owner lock."""
+        old, self._sock = self._sock, None
+        if old is not None:
+            old.close()
+
     def _step(self):
-        """감시 1회. 테스트에서 sleep 없이 상태 전이를 검증할 수 있다."""
+        if self._reset_pending:
+            return self._retry_interrupted_reset()
         try:
             is_up = self._interface_is_up()
         except OSError:
@@ -139,67 +151,110 @@ class CanWatchdog:
             self._last_tx = None
             return "down"
 
+        try:
+            generation = reset_generation(self._lock_path)
+        except (OSError, ValueError) as exc:
+            self._last_reset_error = exc
+            self._fails = 0
+            return "reset_failed"
+        if self._last_generation is not None and generation != self._last_generation:
+            self._fails = 0
+            self._last_tx = None
+        self._last_generation = generation
         tx = self._tx_packets()
         if self._probe_ok():
             self._fails = 0
             self._last_tx = tx
             return "ok"
+        if tx is None:
+            self._fails = 0
+            self._last_tx = None
+            return "unknown"
 
-        stalled = self._last_tx is None or tx is None or tx == self._last_tx
+        stalled = self._last_tx is None or tx == self._last_tx
         self._fails = self._fails + 1 if stalled else 0
         self._last_tx = tx
         if self._fails < 2:
             return "failed"
-
         self._fails = 0
+
         try:
-            self._reset_interface()
-        except OSError as e:
-            self._last_reset_error = e
+            with CanMaintenanceSession(self._channel, path=self._lock_path,
+                                       owner_session=self._owner_session) as maintenance:
+                # The competing watchdog may have reset while we were observing.
+                if maintenance.generation != generation:
+                    self._last_generation = maintenance.generation
+                    self._last_tx = None
+                    return "superseded"
+                # Actual old observations are invalidated under the lock, even
+                # if a different process recovered without changing generation.
+                if (not self._interface_is_up() or self._tx_packets() != tx
+                        or self._probe_ok()):
+                    self._last_tx = None
+                    return "recovered"
+                return self._perform_reset(maintenance)
+        except CanOwnershipError as exc:
+            self._last_reset_error = exc
+            return "owner_busy"
+        except Exception as exc:
+            self._last_reset_error = exc
             return "reset_failed"
 
+    def _perform_reset(self, maintenance):
+        if self._owner_session is not None:
+            if self._before_reset is None:
+                raise CanOwnershipError("owner recovery requires a stop latch callback")
+            if self._before_reset() is False:
+                raise RuntimeError("CAN recovery stop latch was refused")
+        self._last_generation = maintenance.mark_reset()
+        self._reset_pending = True
+        self._reset_interface()
+        self._reset_pending = False
         self.resets += 1
         self._last_reset_error = None
+        self._last_tx = None
         try:
             self._reopen_probe_socket()
         except OSError:
-            # 기존 소켓은 down/up 뒤에도 보통 유효하다. ifindex가 바뀐 드문
-            # 경우의 재오픈 실패가 데몬 자체를 죽이지 않도록 다음 복구를 기다린다.
             pass
         return "reset"
 
-    # ------------------------------------------------------------------
+    def _retry_interrupted_reset(self):
+        # Only our own incomplete down/up can be retried while DOWN. An initially
+        # down link is never raised, and any newer maintenance cancels this intent.
+        try:
+            with CanMaintenanceSession(self._channel, path=self._lock_path,
+                                       owner_session=self._owner_session) as maintenance:
+                if maintenance.generation != self._last_generation:
+                    self._reset_pending = False
+                    self._last_tx = None
+                    return "superseded"
+                return self._perform_reset(maintenance)
+        except CanOwnershipError as exc:
+            self._last_reset_error = exc
+            return "owner_busy"
+        except Exception as exc:
+            self._last_reset_error = exc
+            return "reset_failed"
+
     def _run(self):
-        # can0 이 아직 없거나(부팅 직후, can_setup 전) 사라져도 포기하지 않고 재시도
-        # — 상주 서비스로 쓰일 때의 생존성.
-        while self._sock is None:
-            try:
-                self._sock = self._open_probe_socket()
-            except OSError as e:
-                print("[can_watchdog] %s 프로브 소켓 실패(%s) — 5s 후 재시도"
-                      % (self._channel, e), flush=True)
-                time.sleep(5.0)
-        print("[can_watchdog] %s 감시 시작 (주기 %.0fs)"
-              % (self._channel, self._period), flush=True)
-        was_up = None
-        while True:
-            time.sleep(self._period)
-            event = self._step()
-            up = event != "down"
-            if up != was_up:
-                if up:
-                    print("[can_watchdog] %s UP — 감시 재개" % self._channel,
-                          flush=True)
-                else:
-                    print("[can_watchdog] %s DOWN/미설정 — 설정 대기"
-                          % self._channel, flush=True)
-                was_up = up
-            if event == "reset":
-                print("[can_watchdog] TX 웻지 복구 → %s 리셋 (%d회째)"
-                      % (self._channel, self.resets), flush=True)
-            elif event == "reset_failed":
-                print("[can_watchdog] 리셋 실패: %s (권한? privileged 필요)"
-                      % self._last_reset_error, flush=True)
+        print("[can_watchdog] %s monitoring; external reset requires no owner"
+              % self._channel, flush=True)
+        previous_event = None
+        try:
+            while True:
+                event = self.step()
+                if event == "reset":
+                    print("[can_watchdog] %s reset (%d)" %
+                          (self._channel, self.resets), flush=True)
+                elif event in ("reset_failed", "owner_busy", "probe_unavailable"):
+                    if event != previous_event:
+                        print("[can_watchdog] %s: %s" %
+                              (event, self._last_reset_error), flush=True)
+                previous_event = event
+                time.sleep(self._period)
+        finally:
+            self.close()
 
 
 def main(argv=None):

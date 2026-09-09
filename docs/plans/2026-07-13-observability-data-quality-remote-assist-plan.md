@@ -1,5 +1,17 @@
 # Observability, Data Quality, and Remote Assist Implementation Plan
 
+> **2026-09-08 정합화:** 현재 구현 상태는 루트 `AGENTS.md` §2와
+> [정합성 정리 기록](../reports/2026-09-08-workspace-consistency.md)을 따른다.
+> 아래 단계·체크리스트는 구현 당시 계획이며, 체크 표시만으로 현재 배포·실기 승인 여부를 판단하지 않는다.
+> 공통 개발계획·WP5.2·관측성 계획과 팀 Notion 전체 개발계획의 범위·의존 순서·완료 기준을 함께 유지한다.
+
+Task 6은 일부 코어·노트북 송신이 구현돼 있으나 **Jetson receiver feedback 수신과
+프로파일 적용은 미연결**이다. GTK/UDP 콘솔 smoke는 실제 SRT 프레임·프로파일 전환 E2E가 아니다.
+환경 센싱 탭은 9/8 기준 Draft PR #4이며 main 기능으로 계산하지 않는다.
+NumPy 생산 백엔드 선택은 7/19 종결됐고, 별도 autonomy Compose는 계속 idle이다.
+Task 7/8의 MuJoCo 필수·Isaac stretch는 폐기 전 이력이다. 현재 시뮬레이션 acceptance는
+[전체 개발계획](2026-07-12-defense-robot-autonomy-software-plan.md)의 WP6-S·§8.3을 따른다.
+
 > **상태 (2026-07-16)**: **Task 1~5 구현·검증·젯슨 배포 완료** — Task 1 `a16a5fe`,
 > Task 2 `4c0885a`, Task 3 `12fe45d`, Task 4 `8dd2b54`(+`9aec6eb`), Task 5 `ce6368d`.
 > 검증 3환경(호스트 실소켓 / dev / ros colcon install-space) + Task 4는 젯슨
@@ -27,7 +39,7 @@ observability daemon을 독립적으로 조회한다. D435i raw 영상과 YOLO m
 gateway와 로봇팔 `ArmCommandAuthority`를 재사용하며 관측 프로세스가 command owner가 되지 않는다.
 
 **Tech Stack:** Python 3.10, pytest, rclpy/ROS2 Humble adapter, Textual, NumPy 기준 backend,
-JAX qualification backend, Linux abstract Unix socket, `flock`, JSONL, existing x264/SRT pipeline.
+JAX experimental x86 kernel, Linux abstract Unix socket, `flock`, JSONL, existing x264/SRT pipeline.
 
 ---
 
@@ -56,8 +68,8 @@ JAX qualification backend, Linux abstract Unix socket, `flock`, JSONL, existing 
   진단 주기는 양보할 수 있지만 두 raw RGB stream의 해상도·FPS는 몰래 낮추지 않는다.
 - CAN health는 실제 `flock` owner가 측정한 값만 권위 있게 표시한다.
 - production threshold와 장착·TF 값은 qualification 뒤 YAML로 동결한다. run 중 자동 튜닝하지 않는다.
-- 네트워크 profile, NumPy/JAX backend와 FP precision은 arm 전에 선택한다. 운용 중 backend 자동
-  전환은 금지한다.
+- 네트워크 profile과 FP precision은 arm 전에 선택한다. 현재 생산 terrain은 NumPy이며 JAX는
+  x86 실험 커널이다. 운용 중 backend 자동 전환은 금지한다.
 - 반자동 원격 보조는 운영자의 속도 의도와 공통 chassis safety gate를 우회하지 않는다.
 - DualSense DRIVE/ARM gateway, remote-input schema와 arm command authority는 WP5.2 Task 4·7이
   소유한다. 이 계획은 해당 제어 계약을 바꾸지 않고 dual-video operator console, channel feedback와
@@ -274,10 +286,9 @@ docker run --rm --entrypoint bash -v "$PWD:/workspace:ro" -w /workspace \
    mode는 측정만 하며 운용 중 YAML을 수정하지 않는다.
 6. 20°/25°/30°를 반복 재현하는 브래킷·기준면 fixture는 기구팀 인계 입력으로 명시한다. SW는 각도별
    raw metric을 비교할 뿐 임시 고정 상태를 production angle로 추정하지 않는다.
-7. L4T R36.5 aarch64에 맞춘 `powertrain_autonomy` image/service를 추가한다. terrain와 controller는
-   같은 process에서 immutable dataclass를 주고받고 외부에는 `/autonomy/cmd_vel`만 발행한다. NumPy가
-   첫 production backend이며 JAX/CUDA는 별도 전체부하 qualification 뒤에만 같은 image의 pin된
-   profile로 활성화한다.
+7. `powertrain_autonomy` image/service는 존재하지만 현재는 idle이다. 실제 발행 entrypoint 연결과
+   전체 파이프라인 자격 검증을 별도 완료해야 한다. NumPy가 7/19 선택된 생산 backend이며
+   JAX/CUDA profile의 설치·활성화는 현재 배포 절차에 포함하지 않는다.
 
 **Verify:**
 

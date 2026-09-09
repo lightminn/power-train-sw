@@ -15,8 +15,8 @@
 모터가 꺼져 있어도 `joint_state_bridge` 가 0 자세를 계속 발행하므로 **로봇은 화면에 뜬다.**
 모터를 돌리면(ChassisManager → `/wheel_states`) 바퀴와 조향이 화면에서 실제로 움직인다.
 
-⚠️ URDF 치수 중 **윤거·차체·센서 마운트는 미실측 플레이스홀더**다. 설계팀 정본이 오면
-   `urdf/jetin_rover.urdf.xacro` 의 property 만 갈아끼운다. 파이프라인은 그대로 산다.
+윤거·차체는 **as-built v2 CAD 실측으로 확정**했다. 센서 마운트만 v2 CAD 에도 형상이
+없어 미실측 플레이스홀더이며, 실측 후 `urdf/jetin_rover.urdf.xacro` property 를 갱신한다.
 """
 import os
 
@@ -39,8 +39,8 @@ def generate_launch_description():
     #
     # ⚠️ CAD zip 에 **STL 메시가 없어서**(103종 전부 누락) 형상은 관성텐서에서 역산한
     #    상자·원통이다 — `scripts/urdf_boxes_from_inertia.py`. 링크 배치·조인트 축·치수는
-    #    전부 진짜 CAD 값이고(축거 875 / 윤거 705·879·585 mm), **껍데기만 근사**다.
-    #    메시가 오면 이 파일을 갈아끼운다.
+    #    해당 시각화 자산은 당시 CAD(윤거 705·879·585 mm) 버전이며 껍데기도 근사다.
+    #    현재 runtime 제작 v2(545·719·425 mm)의 치수 검증 자료로 사용하지 않는다.
     urdf = PythonExpression(
         ["'", cad_path, "' if '", LaunchConfiguration("cad"), "'=='true' else '",
          xacro_path, "'"])
@@ -59,7 +59,7 @@ def generate_launch_description():
                               description="가짜 주행 코스 (straight/circle/square/figure8/pivot)"),
         DeclareLaunchArgument(
             "cad", default_value="false",
-            description="설계팀 CAD 형상으로 띄운다 (기본은 우리 단순 모델)"),
+            description="과거 CAD의 상자·원통 근사로 표시 (현재 제작 v2 검증용 아님; 기본은 단순 모델)"),
         DeclareLaunchArgument(
             "lane", default_value="false",
             description="레인 추종 노드를 띄운다 (인식만 — 주행은 chassis_node authority가 결정)"),

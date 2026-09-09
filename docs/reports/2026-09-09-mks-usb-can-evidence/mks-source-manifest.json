@@ -1,0 +1,15 @@
+{
+  "url": "https://raw.githubusercontent.com/makerbase-motor/MKS-ODrive/e15782976ae93d42b1f0648ceec96503141a343b/Firmware/ODrive_V3.6/ODrive-fw-v0.5.1.zip",
+  "sha256": "1c9ff347f997bbbf8cb693cdb44d93fe6f6ef992aefde60b6a65b0e1fa25a777",
+  "files": {
+    "ODrive-fw-v0.5.1/Firmware/Board/v3/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_can.h": "0494c1089d68d26f1a8e2a38ae0ed0f696926ff666bead89d3a3a1e99a5117d8",
+    "ODrive-fw-v0.5.1/Firmware/Board/v3/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_can.c": "406577cc2df29bf3aa8f1e49564f2d48124d2a7b0e5cb1c84f7a847a9317650e",
+    "ODrive-fw-v0.5.1/Firmware/Board/v3/Src/can.c": "2a7a7789a4413e8ad54e2e97064b25e1a5d0547d476a7c6d0dcb5836ecf0aa23",
+    "ODrive-fw-v0.5.1/Firmware/MotorControl/axis.cpp": "a2e79ceccbc5312f47353fc795853e656e20f38c8f95c8cf439c12390866852a",
+    "ODrive-fw-v0.5.1/Firmware/communication/can_simple.cpp": "b2d0a8f78605fe3bc0e411bd3649bbf562d0db4eec39fd1dccc98998436741bd",
+    "ODrive-fw-v0.5.1/Firmware/communication/can_simple.hpp": "dc93364f0d19f6e0eeae408ab6153972f13fc1becca395231c260ef05084cb30",
+    "ODrive-fw-v0.5.1/Firmware/communication/interface_can.cpp": "e0588094e6ca6dc93785215492f4e10bc0e74a5119566b9ea127cdd21d468d7c",
+    "ODrive-fw-v0.5.1/Firmware/communication/interface_can.hpp": "f347ecf12748101a37c43238535397df131628032d84eca3e66c44411dbb24b9",
+    "ODrive-fw-v0.5.1/Firmware/odrive-interface.yaml": "4c65f10ec946c5cd55c3277a51fa3466f9824e029716ca4cddf2f0e364675eae"
+  }
+}

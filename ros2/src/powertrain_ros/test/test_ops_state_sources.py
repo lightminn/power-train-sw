@@ -4,6 +4,7 @@ import json
 import re
 import threading
 import time
+import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,6 +13,8 @@ from powertrain_ros.ops_broker_core import (
     OpsState,
 )
 from powertrain_ros.remote_input_gateway import frame_is_neutral
+from powertrain_ros.steering_contract import steering_state_fields
+from powertrain_ros.stop_proof import decode_hardware_stop_proof
 from test_remote_input_gateway import _frame
 
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -65,6 +68,11 @@ def _extract_broker_method(name):
         "json": json,
         "math": __import__("math"),
         "time": time,
+        "socket": __import__("socket"),
+        "threading": threading,
+        "errno": __import__("errno"),
+        "WHEEL_STOP_TURNS": 0.1,
+        "decode_hardware_stop_proof": decode_hardware_stop_proof,
     }
     exec(compile(module, str(PACKAGE / "powertrain_ros/ops_broker_node.py"), "exec"), namespace)
     return namespace[name]
@@ -73,8 +81,6 @@ def _extract_broker_method(name):
 _ON_SAFETY = _extract_broker_method("_on_safety")
 _OPS_STATE = _extract_broker_method("_ops_state")
 _PUSH_OPS_STATE = _extract_broker_method("_push_ops_state")
-
-
 class _String:
     def __init__(self):
         self.data = ""
@@ -98,6 +104,7 @@ def _extract_chassis_method(name):
         "SAFETY_STATE_PUBLISH_PERIOD_S": 0.2,
         "String": _String,
         "json": json,
+        "steering_state_fields": steering_state_fields,
         "time": time,
     }
     exec(

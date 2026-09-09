@@ -22,7 +22,7 @@ from .metadata import (
     pick_display_target,
     target_distance_m,
 )
-from .telemetry import TelemetrySnapshot, WheelStatus
+from .telemetry import TelemetrySnapshot, WheelStatus, power_fault_reasons
 
 
 STALE_AFTER_S = 1.0
@@ -69,6 +69,25 @@ def pdist_alarm_names(
     )
 
 
+def drive_mode_badges(state):
+    """(구동 트랜스포트, 조향 방식) 배지 문자열 2개.
+
+    운전자가 지금 어떤 구성으로 달리고 있는지는 한눈에 보여야 한다 —
+    트랜스포트는 재기동해야만 바뀌므로 화면이 유일한 근거다.
+    """
+    from operator_console.ops_panel import (
+        _STEERING_KOREAN, _TRANSPORT_KOREAN,
+        drive_transport_from_state, steering_mode_from_state,
+    )
+
+    transport = drive_transport_from_state(state)
+    steering = steering_mode_from_state(state)
+    return (
+        "구동 %s" % _TRANSPORT_KOREAN.get(transport, "—"),
+        "조향 %s" % _STEERING_KOREAN.get(steering, "—"),
+    )
+
+
 def power_card_state(
     power: object | None, *, fresh: bool,
 ) -> tuple[str, str]:
@@ -85,15 +104,13 @@ def power_card_state(
         and getattr(power, "pdist_soc_percent", None) is None
     ):
         return "확인 필요", "전원 계측값 없음"
-    if (
-        getattr(power, "pdist_battery_flags", None) is None
-        or getattr(power, "pdist_protection_flags", None) is None
-    ):
-        return "확인 필요", "보호 상태 정보 없음"
-    if pdist_alarm_names(
+    reasons = power_fault_reasons(
         getattr(power, "pdist_battery_flags", None),
         getattr(power, "pdist_protection_flags", None),
-    ):
+    )
+    if reasons is None:
+        return "확인 필요", "보호 상태 정보 없음"
+    if reasons:
         return "확인 필요", "보호 상태 확인 필요"
     return "정상", str(getattr(power, "rs485_state", "") or "정상")
 
@@ -1229,9 +1246,17 @@ class RobotStatusDashboard(Gtk.Box):
         self._priority.set_xalign(0.0)
         self._priority.set_ellipsize(Pango.EllipsizeMode.END)
         _style(self._priority, "status-priority")
+        drive_mode_row = Gtk.Box(spacing=6)
+        self._drive_mode_badges = []
+        for badge_text in drive_mode_badges(None):
+            badge = Gtk.Label(label=badge_text)
+            _style(badge, "role-sub")
+            drive_mode_row.pack_start(badge, False, False, 0)
+            self._drive_mode_badges.append(badge)
         readiness.pack_start(overall_title, False, False, 0)
         readiness.pack_start(self._overall, False, False, 0)
         readiness.pack_start(self._required_count, False, False, 0)
+        readiness.pack_start(drive_mode_row, False, False, 0)
         readiness.pack_start(self._priority, False, False, 0)
         # Keep the aggregate readiness calculation for internal safety logic,
         # but omit its large duplicate banner from the judge-facing status tab.
@@ -1691,9 +1716,14 @@ class RobotStatusDashboard(Gtk.Box):
         work_frame_age_s: float | None = None,
         control_link_ready: bool | None = None,
         chassis_mode: str | None = None,
+        ops_state=None,
         now_s: float | None = None,
     ) -> None:
         now_s = time.monotonic() if now_s is None else float(now_s)
+        for badge, text in zip(
+            self._drive_mode_badges, drive_mode_badges(ops_state), strict=True,
+        ):
+            badge.set_text(text)
         power_fresh = self._fresh(power, now_s)
         chassis_fresh = self._fresh(chassis, now_s)
         arm_fresh = self._fresh(arm, now_s)
@@ -1933,12 +1963,14 @@ class RobotStatusDashboard(Gtk.Box):
                 "정보 없음" if power.pdist_soc_percent is None
                 else f"{power.pdist_soc_percent}%"
             )
-            alarms = pdist_alarm_names(
-                power.pdist_battery_flags, power.pdist_protection_flags,
+            protection_reasons = power_fault_reasons(
+                power.pdist_battery_flags,
+                power.pdist_protection_flags,
             )
-            protection = " · ".join(alarms) if alarms else (
-                "정상" if power.pdist_battery_flags is not None
-                and power.pdist_protection_flags is not None else "정보 없음"
+            protection = (
+                "정보 없음" if protection_reasons is None
+                else " · ".join(protection_reasons)
+                if protection_reasons else "정상"
             )
             charger_states = _flag_names(
                 power.pdist_battery_flags, PDIST_BATTERY_STATES,

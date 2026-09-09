@@ -1,15 +1,28 @@
 """Pure-Python protocol tests for the read-only PDIST80B codec."""
 
+from pathlib import Path
+import sys
+
 import pytest
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from powertrain_ros.pdist80b import (
+    BATTERY_FAULT_MASK,
+    BATTERY_FLAG_LABELS,
     OPERATOR_MID,
     PDIST_MID,
     PID_BMS_MONITOR,
     PID_REQUEST_DATA,
+    PROTECTION_FAULT_MASK,
+    PROTECTION_FLAG_LABELS,
+    battery_flag_labels,
     bms_monitor_request,
     checksum,
+    fault_reasons,
     parse_bms_monitor_response,
+    protection_flag_labels,
 )
 
 
@@ -78,6 +91,55 @@ def test_parse_preserves_bms_missing_measurements(missing_current):
     assert status.discharge_current_a is None
     assert status.soc_percent is None
     assert status.charge_current_a is None
+
+
+def test_manual_v17_flag_tables_and_fault_masks():
+    assert BATTERY_FLAG_LABELS == (
+        "수동 충전기 결합",
+        "자동 충전기 결합",
+        "과전압 보호",
+        "저전압 보호",
+        "충전 과온 보호",
+        "충전 저온 보호",
+        "방전 과온 보호",
+        "방전 저온 보호",
+    )
+    assert PROTECTION_FLAG_LABELS == (
+        "충전 과전류 보호",
+        "방전 과전류 보호",
+        "단락 보호",
+        "단락 보호",
+        "예약",
+        "외부 제어",
+        "충전 플래그",
+    )
+    assert BATTERY_FAULT_MASK == 0xFC
+    assert PROTECTION_FAULT_MASK == 0x0F
+
+
+def test_fault_reasons_ignore_status_bits_and_keep_stable_bit_order():
+    assert fault_reasons(0x03, 0x60) == ()
+    assert fault_reasons(0x8C, 0x0B) == (
+        "과전압 보호",
+        "저전압 보호",
+        "방전 저온 보호",
+        "충전 과전류 보호",
+        "방전 과전류 보호",
+        "단락 보호",
+    )
+    assert fault_reasons(0, 0x0C) == ("단락 보호",)
+
+
+def test_all_set_flag_labels_include_status_bits_for_developer_display():
+    assert battery_flag_labels(0x03) == (
+        "수동 충전기 결합",
+        "자동 충전기 결합",
+    )
+    assert protection_flag_labels(0x60) == (
+        "외부 제어",
+        "충전 플래그",
+    )
+    assert protection_flag_labels(0x80) == ()
 
 
 def test_parse_rejects_wrong_response_length():

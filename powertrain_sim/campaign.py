@@ -18,6 +18,7 @@ from .family_scenarios import (
     flat_document,
     follow_document,
     friction_document,
+    narrow_curve_document,
     pinch_document,
     undulating_document,
 )
@@ -33,6 +34,7 @@ FAMILIES = (
     "bank",
     "pinch",
     "clothoid",
+    "narrow_curve",
     "undulating",
     "friction",
     "smog",
@@ -66,6 +68,10 @@ def build_family_document(
             seed_class=seed_class,
         ),
         "clothoid": lambda: clothoid_document(
+            seed=seed,
+            seed_class=seed_class,
+        ),
+        "narrow_curve": lambda: narrow_curve_document(
             seed=seed,
             seed_class=seed_class,
         ),

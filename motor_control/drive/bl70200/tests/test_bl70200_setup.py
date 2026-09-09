@@ -1,4 +1,5 @@
 import importlib
+from pathlib import Path
 from types import SimpleNamespace
 
 
@@ -8,11 +9,10 @@ def _setup_module():
 
 class FallbackAxisConfig:
     def __init__(self) -> None:
-        self.can_node_id = 0
-        self.can = SimpleNamespace(node_id=0, heartbeat_rate_ms=100)
+        self.can = SimpleNamespace(node_id=12, heartbeat_rate_ms=100, is_extended=False)
 
     def __setattr__(self, name, value) -> None:
-        if name == "can_heartbeat_rate_ms":
+        if name in ("can_heartbeat_rate_ms", "can_node_id"):
             raise AttributeError(name)
         object.__setattr__(self, name, value)
 
@@ -21,7 +21,7 @@ def _axis(*, fallback=False):
     config = (
         FallbackAxisConfig()
         if fallback
-        else SimpleNamespace(can_node_id=0, can_heartbeat_rate_ms=100)
+        else SimpleNamespace(can_node_id=12, can_heartbeat_rate_ms=100, can_extended_id=False)
     )
     return SimpleNamespace(
         config=config,
@@ -57,7 +57,8 @@ def _axis(*, fallback=False):
 
 
 def _board(*, fallback_axis1=False):
-    return SimpleNamespace(
+    board = SimpleNamespace(
+        serial_number=0x3352,
         fw_version_major=0,
         fw_version_minor=5,
         fw_version_revision=1,
@@ -67,11 +68,14 @@ def _board(*, fallback_axis1=False):
             dc_bus_overvoltage_trip_level=56.0,
             brake_resistance=2.0,
         ),
-        can=SimpleNamespace(set_baud_rate=lambda baud: None),
+        can=SimpleNamespace(set_baud_rate=lambda baud: None,
+                            config=SimpleNamespace(baud_rate=500000, protocol=0)),
         axis0=_axis(),
         axis1=_axis(fallback=fallback_axis1),
         save_configuration=lambda: None,
     )
+    board.axis0.config.can_node_id = 11
+    return board
 
 
 class FakeOdrive:
@@ -93,25 +97,29 @@ def _patch_apply_runtime(monkeypatch, module) -> None:
     monkeypatch.setitem(module.run.__kwdefaults__, "sleep_fn", lambda seconds: None)
 
 
-def test_apply_sets_50hz_heartbeat_on_both_axes(monkeypatch) -> None:
+def test_apply_sets_50hz_heartbeat_on_both_axes(monkeypatch, tmp_path) -> None:
     module = _setup_module()
     board = _board()
     _patch_apply_runtime(monkeypatch, module)
+    from chassis.runtime_lock import RealCanSession
+    monkeypatch.setattr(module, "motor_session", lambda owner: RealCanSession(owner=owner, path=str(tmp_path / "can0.lock")))
 
     assert module.main(
-        ["--apply", "--axis", "both"], odrive_module=FakeOdrive(board)
+        ["--apply", "--axis", "both", "--serial", "3352", "--node", "11"], odrive_module=FakeOdrive(board)
     ) == 0
 
     assert board.axis0.config.can_heartbeat_rate_ms == 20
     assert board.axis1.config.can_heartbeat_rate_ms == 20
 
 
-def test_apply_falls_back_to_nested_heartbeat_rate(monkeypatch) -> None:
+def test_apply_falls_back_to_nested_heartbeat_rate(monkeypatch, tmp_path) -> None:
     module = _setup_module()
     board = _board(fallback_axis1=True)
     _patch_apply_runtime(monkeypatch, module)
+    from chassis.runtime_lock import RealCanSession
+    monkeypatch.setattr(module, "motor_session", lambda owner: RealCanSession(owner=owner, path=str(tmp_path / "can0.lock")))
 
-    assert module.main(["--apply"], odrive_module=FakeOdrive(board)) == 0
+    assert module.main(["--apply", "--axis", "1", "--serial", "3352", "--node", "12"], odrive_module=FakeOdrive(board)) == 0
 
     assert board.axis1.config.can.heartbeat_rate_ms == 20
 

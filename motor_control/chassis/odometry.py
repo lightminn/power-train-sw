@@ -36,8 +36,9 @@
      실측과 크게 어긋나는 바퀴는 '미끄러졌다'고 보고 빼고 다시 푼다(`slip_tol_mps`).
 
 ⚠️ **정확도 한계 (정직하게)**: 이 모듈이 보증하는 것은 *구조적 정합성*이지 *절대
-정확도*가 아니다. `wheel_radius_m`(공칭 0.10 — 50 kg 하중에서 눌리면 실효 반경은
-더 작다)과 CAD-derived 바퀴 좌표는 아직 commissioning 후보다. 절대 정확도는 **차체 조립 후 지상
+정확도*가 아니다. `wheel_radius_m`(as-built v2 CAD 무하중 기하 반경 0.10356 m — 50 kg
+하중에서 눌리면 실효 반경은 더 작다)과 CAD-derived 바퀴 좌표는 아직 commissioning 후보다.
+절대 정확도는 **차체 조립 후 지상
 캘리브레이션**(직진 실측 → 실효 반경 / 피벗·원주행 → 윤거·축거 / UMBmark 양방향
 사각형 → 계통오차·랜덤오차 분리)으로만 확정된다. 그때 `ChassisGeometry` 숫자만
 교체하면 이 코드는 그대로 유효하다.
@@ -81,6 +82,10 @@ class OdometryConfig:
     mad_k: float = 3.0               # 배제의 **상대 기준** — 중앙값 + k·MAD 를 넘어야 이상치
     min_wheels: int = 3              # 이보다 적게 남으면 배제 중단 (해가 불안정)
     max_reject: int = 2              # 한 틱에 배제할 수 있는 최대 바퀴 수
+    vy_prior_weight: float = 1e-3    # 스키드(조향륜 0개) 전용 비홀로노믹 사전분포.
+                                     # 측면식이 하나도 없으면 정규방정식이 특이해져
+                                     # solve_twist 가 항상 (0,0,0) 을 낸다. "측면 속도는
+                                     # 명령하지 않는다"를 약하게 한 줄 넣어 vy 를 고정.
 
 
 @dataclass(frozen=True)
@@ -120,9 +125,11 @@ def _rows(geom, obs_map, cfg):
     """각 바퀴의 관측을 선형식 행(row)들로 전개.
 
     반환: list[(wheel_name, [a0,a1,a2], b, weight)] — a·(vx,vy,ω) = b
+          wheel_name 이 None 인 행은 바퀴가 아니라 사전분포다(아래 참조).
     """
     circ = 2.0 * math.pi * geom.wheel_radius_m
     rows = []
+    lateral_rows = 0
     for w in geom.wheels:
         o = obs_map.get(w.name)
         if o is None or not o.valid:
@@ -137,9 +144,18 @@ def _rows(geom, obs_map, cfg):
             # 접지점 속도벡터 = s·(cos δ, sin δ)
             rows.append((w.name, [1.0, 0.0, -w.y], o.drive_mps * math.cos(d), weight))
             rows.append((w.name, [0.0, 1.0,  w.x], o.drive_mps * math.sin(d), weight))
+            lateral_rows += 1
         else:
             # 고정륜은 전진성분만 관측 — 측면성분은 스크럽이라 방정식에 넣지 않는다
             rows.append((w.name, [1.0, 0.0, -w.y], o.drive_mps, weight))
+
+    if rows and lateral_rows == 0:
+        # 스키드 구성(조향륜 0개): 측면 성분을 관측하는 식이 하나도 없어 정규방정식의
+        # vy 열·행이 전부 0 → _solve3 이 특이로 판정 → solve_twist 가 항상 (0,0,0).
+        # "스키드는 측면 속도를 명령하지 않는다"는 비홀로노믹 사전분포를 약하게 한 줄
+        # 넣어 vy 를 고정한다. 스크럽으로 실제 측면 이동이 생겨도 바퀴로는 관측할 수
+        # 없으므로 0 이 최선의 사전분포다. 이름 None = 바퀴가 아님(잔차·배제에서 제외).
+        rows.append((None, [0.0, 1.0, 0.0], 0.0, cfg.vy_prior_weight))
     return rows
 
 
@@ -197,7 +213,7 @@ def solve_twist(geom: ChassisGeometry, observations, cfg: OdometryConfig = None)
 
     for _ in range(cfg.max_reject + 1):
         rows = _rows(geom, obs_map, cfg)
-        names = {n for n, *_ in rows}
+        names = {n for n, *_ in rows if n is not None}
         if len(names) < cfg.min_wheels:
             break
         x = _weighted_lsq(rows)
@@ -207,6 +223,8 @@ def solve_twist(geom: ChassisGeometry, observations, cfg: OdometryConfig = None)
         # 바퀴별 잔차 = "이 답이 맞다면 이 바퀴는 이렇게 굴렀어야 한다" 와 실측의 차이
         res = {}
         for n, a, b, _w in rows:
+            if n is None:
+                continue                              # 사전분포는 바퀴가 아니다
             e = sum(a[i] * x[i] for i in range(3)) - b
             res[n] = math.hypot(res.get(n, 0.0), e)
 

@@ -1,0 +1,29 @@
+{
+  "source_root": "/tmp/can-remediation-20260909/pre-integrated-source",
+  "method": "instrumented send boundary; no CAN sockets",
+  "seconds": 10,
+  "chassis_mode": "ESTOP",
+  "frames": 16,
+  "rtr_total": 0,
+  "rtr_per_second": 0.0,
+  "queries": {},
+  "unexpected_control": [],
+  "counts": {
+    "ext:0x301:rtr=False": 1,
+    "std:0x16d:rtr=False": 1,
+    "std:0x167:rtr=False": 1,
+    "ext:0x302:rtr=False": 1,
+    "std:0x18d:rtr=False": 1,
+    "std:0x187:rtr=False": 1,
+    "std:0x1ad:rtr=False": 1,
+    "std:0x1a7:rtr=False": 1,
+    "std:0x1cd:rtr=False": 1,
+    "std:0x1c7:rtr=False": 1,
+    "ext:0x303:rtr=False": 1,
+    "std:0x1ed:rtr=False": 1,
+    "std:0x1e7:rtr=False": 1,
+    "ext:0x304:rtr=False": 1,
+    "std:0x20d:rtr=False": 1,
+    "std:0x207:rtr=False": 1
+  }
+}

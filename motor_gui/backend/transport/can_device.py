@@ -63,6 +63,7 @@ class CanTransport(Transport):
         self._bus = bus              # 주입 시 테스트용 (socketcan open 생략)
         self._owns_bus = bus is None
         self._can_session = None
+        self._tx_errors = 0
 
     def connect(self) -> None:
         if self._bus is None:
@@ -105,8 +106,12 @@ class CanTransport(Transport):
             raise
 
     def sample(self) -> dict:
+        import can
         for d in self._devices:
-            d.request(self._bus)
+            try:
+                d.request(self._bus)
+            except (can.CanError, OSError):
+                self._tx_errors += 1
         deadline = time.monotonic() + 0.008
         while time.monotonic() < deadline:
             msg = self._bus.recv(timeout=0.002)
@@ -118,7 +123,10 @@ class CanTransport(Transport):
             d.tick(self._bus)
         s = {"t_mono": time.monotonic()}
         for d in self._devices:
-            s.update(d.sample())
+            fragment = d.sample()
+            self_errors = fragment.pop("can.tx_errors", 0)
+            s["can.tx_errors"] = s.get("can.tx_errors", self._tx_errors) + self_errors
+            s.update(fragment)
         return s
 
     def apply(self, cmd: dict) -> dict:
@@ -136,6 +144,7 @@ class CanTransport(Transport):
                 "notes": ["CAN 트랙 — NVM 저장 불가 (USB 전용)"]}
         for d in self._devices:
             f = d.capabilities_fragment()
+            caps["notes"].extend(f.get("notes", []))
             caps["devices"] += f.get("devices", [])
             caps["signals"] += f.get("signals", [])
             for key in ("commands", "control_modes", "inputs", "tunables", "limits"):

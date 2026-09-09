@@ -27,6 +27,7 @@ import sys
 import time
 
 import rclpy
+from powertrain_ros.command_receipt import ReceiptTimeCallback, ReceiptTimeExecutor
 from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Twist
 from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
@@ -52,6 +53,10 @@ from powertrain_ros.chassis_safety import (
     validate_runtime_clock_mode,
 )
 from powertrain_ros.message_adapter import fill_wheel_states_message
+from powertrain_ros.steering_contract import (
+    steering_state_fields,
+    validate_transport_mode,
+)
 from robot_arm_msgs.msg import ArmStatus, ArrivalStatus, ChassisMode
 
 
@@ -61,6 +66,7 @@ sys.path.insert(
 )
 
 from chassis import remote_assist  # noqa: E402
+from chassis.authority import MOTION_HOLD as AUTHORITY_MOTION_HOLD  # noqa: E402
 from chassis.section_enforcement import SectionEnforcer  # noqa: E402
 from chassis.section_profiles import SectionConfig  # noqa: E402
 
@@ -130,6 +136,7 @@ class ChassisNode(Node):
         self._steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
         self.cm = None
         self._can_session = None
+        self._can_watchdog = None
         self._can_bus_sampler = None
         self._observability_event_client = None
         try:
@@ -163,6 +170,23 @@ class ChassisNode(Node):
         )
         self.declare_parameter(
             "gear_ratio", 5.0, descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "drive_transport", "can", descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "steering_mode", "ackermann", descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "board_registry",
+            "config/bl70200_boards.json",
+            descriptor=read_only_safety_parameter,
+        )
+        self.declare_parameter(
+            "skid_track_gain", 1.0, descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "usb_current_lim", 9.0, descriptor=read_only_safety_parameter
         )
         self.declare_parameter(
             "v_max", 1.5, descriptor=read_only_safety_parameter
@@ -322,6 +346,7 @@ class ChassisNode(Node):
                 "mission_contract_owner=chassis_supervisor"
             )
 
+        import chassis.chassis_manager as manager_mod
         from chassis.chassis_manager import (
             ChassisConfig,
             ChassisManager,
@@ -330,10 +355,16 @@ class ChassisNode(Node):
         )
 
         four_wheel = bool(self.get_parameter("four_wheel").value)
+        drive_transport = str(self.get_parameter("drive_transport").value)
+        steering_mode = str(self.get_parameter("steering_mode").value)
+        validate_transport_mode(drive_transport, steering_mode)
+        self._drive_transport = drive_transport
         cfg = ChassisConfig(
             watchdog_ms=self._cmd_timeout * 1000.0,
             min_drive_turns_per_s=min_rev,
             extraction_enabled=extraction_enabled,
+            steering_mode=steering_mode,
+            skid_track_gain=float(self.get_parameter("skid_track_gain").value),
         )
         self._section_floor_v_m_s = (
             cfg.min_drive_turns_per_s * 2.0 * math.pi * 0.10
@@ -364,6 +395,18 @@ class ChassisNode(Node):
             self.get_logger().warning(
                 "FAKE mode: no real motors are controlled"
             )
+        elif drive_transport == "usb":
+            # USB pool이 CAN과 공유하는 모터 owner lock을 소유한다.
+            # 이 노드는 CAN 소켓이나 중복 owner lock을 추가로 열지 않는다.
+            corners = manager_mod.build_usb_skid_corners(
+                str(self.get_parameter("board_registry").value),
+                wheel_map=wheel_map,
+                gear_ratio=gear_ratio,
+                current_lim_a=float(self.get_parameter("usb_current_lim").value),
+            )
+            self.get_logger().warning(
+                "🛠️ USB 스키드 — AK 조향 미사용, can0 미개방. "
+                "조향축이 무통전이니 각이 밀리는지 확인할 것.")
         else:
             from chassis.runtime_lock import RealCanSession
 
@@ -415,9 +458,13 @@ class ChassisNode(Node):
         )
         if self._can_session is not None:
             from chassis.telemetry import CanBusStatsSampler
+            from corner_module.can_watchdog import CanWatchdog
 
             self._can_bus_sampler = CanBusStatsSampler(channel)
             self._can_bus_sampler.start()
+            self._can_watchdog = CanWatchdog(
+                channel=channel, owner_session=self._can_session,
+                before_reset=lambda: self.cm.estop("can_reset", "owner watchdog recovery"))
         from powertrain_observability.client import EventClient
 
         self._observability_event_client = EventClient()
@@ -502,14 +549,14 @@ class ChassisNode(Node):
             self.create_subscription(
                 Twist,
                 "/teleop/cmd_vel",
-                lambda msg: self._on_authority_cmd(MANUAL_SOURCE, msg),
-                10,
+                ReceiptTimeCallback(lambda msg, info: self._on_authority_cmd(MANUAL_SOURCE, msg, info)),
+                1,
             )
             self.create_subscription(
                 Twist,
                 "/autonomy/cmd_vel",
-                lambda msg: self._on_authority_cmd(AUTO_SOURCE, msg),
-                10,
+                ReceiptTimeCallback(lambda msg, info: self._on_authority_cmd(AUTO_SOURCE, msg, info)),
+                1,
             )
             self.create_subscription(
                 String,
@@ -521,12 +568,6 @@ class ChassisNode(Node):
                 Bool,
                 "/teleop/assist_bypass",
                 self._on_assist_bypass,
-                10,
-            )
-            self.create_subscription(
-                WheelStates,
-                "/wheel_states",
-                self._on_wheel_states_for_stop,
                 10,
             )
             if self._section_enforcement_enabled:
@@ -575,8 +616,8 @@ class ChassisNode(Node):
             self.create_subscription(
                 Twist,
                 "/cmd_vel",
-                self._on_cmd_vel,
-                10,
+                ReceiptTimeCallback(self._on_cmd_vel),
+                1,
             )
 
         self._mission_supervisor = None
@@ -691,6 +732,11 @@ class ChassisNode(Node):
             SetBool,
             "~/arm_lock_override",
             self._srv_arm_lock_override,
+        )
+        self.create_service(
+            SetBool,
+            "~/steer_mode_skid",
+            self._srv_steer_mode_skid,
         )
         for component in ("drive", "steer", "us100", "robot_arm"):
             self.create_service(
@@ -1285,6 +1331,19 @@ class ChassisNode(Node):
         )
         return response
 
+    def _srv_steer_mode_skid(self, request, response):
+        """SetBool: true=스키드, false=애커만. 즉시 바뀌지 않고 수렴 후 적용된다."""
+        mode = "skid" if bool(request.data) else "ackermann"
+        manager = getattr(self, "cm", None)
+        if manager is None:
+            response.success = False
+            response.message = "chassis manager unavailable"
+            return response
+        accepted, reason = manager.request_steering_mode(mode)
+        response.success = bool(accepted)
+        response.message = reason or mode
+        return response
+
     def _srv_component_enable(self, component, request, response):
         enabled = bool(request.data)
         manager = getattr(self, "cm", None)
@@ -1351,15 +1410,36 @@ class ChassisNode(Node):
                 "startup",
             )
 
-    def _on_cmd_vel(self, msg: Twist):
-        self.cm.set(msg.linear.x, msg.angular.z)
+    def _command_received_s(self, message_info):
+        """Use this host's DDS receipt timestamp, never callback execution time.
 
-    def _on_authority_cmd(self, source, msg: Twist):
+        Twist has no source stamp. KEEP_LAST(1) limits queued commands; DDS
+        receipt age additionally rejects executor backlog. This does not claim
+        to measure pre-receipt network delay or synchronize remote clocks.
+        """
+        received_ns = (message_info.get("received_timestamp", 0) if isinstance(message_info, dict)
+                       else getattr(message_info, "received_timestamp", 0))
+        if not isinstance(received_ns, int) or received_ns <= 0:
+            return None
+        age_s = (time.time_ns() - received_ns) / 1_000_000_000.0
+        if not math.isfinite(age_s) or age_s < 0 or age_s > .3:
+            return None
+        return self._now_s() - age_s
+
+    def _on_cmd_vel(self, msg: Twist, message_info):
+        received_s = self._command_received_s(message_info)
+        if received_s is not None:
+            self.cm.set(msg.linear.x, msg.angular.z, received_s=received_s)
+
+    def _on_authority_cmd(self, source, msg: Twist, message_info):
+        received_s = self._command_received_s(message_info)
+        if received_s is None:
+            return
         self._authority.submit(
             source,
             msg.linear.x,
             msg.angular.z,
-            self._now_ms() / 1000.0,
+            received_s,
         )
 
     def _on_assist_correction(self, msg: String):
@@ -1411,18 +1491,39 @@ class ChassisNode(Node):
         self._assist_bypass_stamp_s = self._now_s()
 
     def _on_wheel_states_for_stop(self, msg: WheelStates):
+        """Compatibility no-op: external wheel publishers are never stop proof."""
+
+    def _update_local_wheel_stop(self, snapshot):
+        if self._wheel_stop is None:
+            return
         from powertrain_ros.wheel_stop import (
             WheelStopSample,
             WheelStopWheel,
         )
 
-        stamp_s = (
-            float(msg.header.stamp.sec)
-            + float(msg.header.stamp.nanosec) * 1e-9
+        now_s = self._now_s()
+        proof = self.cm.hardware_stop_proof(self._drive_transport)
+        valid = proof["valid"] and not self._fake_chassis
+        age_ms = proof["max_feedback_age_ms"]
+        stamp_s = now_s - (age_ms / 1000.0 if age_ms is not None else 1.0)
+        # Cached CAN samples may be published at 50 Hz but are not new
+        # measurements. Preserve dwell only while the original sample is fresh.
+        previous = getattr(self, "_last_local_wheel_stamp_s", None)
+        fingerprint = (
+            bool(snapshot.healthy), self._authority_final_v, self._authority_final_omega,
+            tuple((wheel.name, wheel.drive_turns_per_s, wheel.drive_stale,
+                   wheel.steer_stale, wheel.drive_axis_error, wheel.steer_fault)
+                  for wheel in snapshot.wheels),
         )
+        if (valid and fingerprint == getattr(self, "_last_local_wheel_sample", None)
+                and previous is not None and stamp_s <= previous + 1e-6
+                and now_s - stamp_s <= self._wheel_stop.sample_timeout_s):
+            return
+        self._last_local_wheel_stamp_s = stamp_s
+        self._last_local_wheel_sample = fingerprint
         sample = WheelStopSample(
             stamp_s=stamp_s,
-            healthy=bool(msg.healthy),
+            healthy=bool(snapshot.healthy and valid),
             wheels=tuple(
                 WheelStopWheel(
                     name=str(wheel.name),
@@ -1432,12 +1533,12 @@ class ChassisNode(Node):
                     drive_axis_error=int(wheel.drive_axis_error),
                     steer_fault=int(wheel.steer_fault),
                 )
-                for wheel in msg.wheels
+                for wheel in snapshot.wheels
             ),
             authority_v=self._authority_final_v,
             authority_omega=self._authority_final_omega,
         )
-        self._wheel_stop.update(sample, now_s=self._now_s())
+        self._wheel_stop.update(sample, now_s=now_s)
 
     def _set_authority_mode(self, mode, response):
         result = self._authority.request_mode(mode, t=self._now_s())
@@ -1451,6 +1552,12 @@ class ChassisNode(Node):
         return response
 
     def _clear_authority_hold(self, _request, response):
+        if self._authority.mode != AUTHORITY_MOTION_HOLD:
+            response.success = True
+            response.message = (
+                "already clear; authority state=%s" % self._authority.mode
+            )
+            return response
         response.success = self._authority.clear_hold()
         response.message = self._authority.last_transition_reason
         return response
@@ -1653,6 +1760,9 @@ class ChassisNode(Node):
             if was_failed:
                 self.get_logger().info("wheel telemetry recovered")
         if snapshot is not None:
+            update_stop = getattr(self, "_update_local_wheel_stop", None)
+            if update_stop is not None:
+                update_stop(snapshot)
             emit_can_health = getattr(self, "_emit_can_health_event", None)
             if emit_can_health is not None:
                 emit_can_health(snapshot)
@@ -1684,6 +1794,14 @@ class ChassisNode(Node):
                 ),
                 "component_mask": dict(
                     getattr(safety, "component_mask", {})
+                ),
+                **steering_state_fields(
+                    self.cm, getattr(self, "_drive_transport", "can")),
+                "hardware_stop_proof": (
+                    self.cm.hardware_stop_proof(self._drive_transport)
+                    if not getattr(self, "_fake_chassis", True)
+                    else {"source": "fake", "valid": False, "stopped": False,
+                          "node_ids": [], "max_feedback_age_ms": None}
                 ),
                 "stamp_s": time.monotonic(),
             },
@@ -1983,6 +2101,10 @@ class ChassisNode(Node):
 
     def _publish_state(self):
         """Publish ``<mode> v=<m/s> w=<rad/s>`` as String diagnostics."""
+        watchdog = getattr(self, "_can_watchdog", None)
+        if watchdog is not None:
+            # Same executor as control and services: reset cannot race a tick.
+            watchdog.step()
         try:
             state = self.cm.state()
             msg = String(
@@ -2078,16 +2200,7 @@ class ChassisNode(Node):
                 pass
 
     def _refresh_safety_baseline(self):
-        """executor를 블로킹하는 cm 서비스(arm/disarm/estop/reset) 직후 호출.
-
-        블로킹 동안 verdict 콜백이 큐에 밀려 freshness가 거짓 stale로
-        래치된다(2026-07-16 실기: arm 후 age 783ms, disarm 후 age 1264ms).
-        기준선을 서비스 종료 시점으로 당긴다 — 링크가 실제로 죽었다면
-        다음 tick부터 0.75s 뒤 정상 래치된다. 최초 verdict 미수신(None)
-        상태는 startup timeout 의미를 지키기 위해 그대로 둔다.
-        """
-        if getattr(self, "_last_safety_ms", None) is not None:
-            self._last_safety_ms = self._now_ms()
+        """Compatibility hook: only an actual verdict may refresh its age."""
 
     def _srv_arm(self, _request, response):
         response.success = self.cm.arm()
@@ -2110,7 +2223,7 @@ class ChassisNode(Node):
     def _srv_disarm(self, _request, response):
         self.cm.disarm()
         self._refresh_safety_baseline()
-        response.success = True
+        response.success = self.cm.mode == "IDLE"
         response.message = "mode=%s" % self.cm.mode
         return response
 
@@ -2268,6 +2381,10 @@ class ChassisNode(Node):
         return response
 
     def close(self):
+        watchdog = getattr(self, "_can_watchdog", None)
+        self._can_watchdog = None
+        if watchdog is not None:
+            watchdog.close()
         can_bus_sampler = getattr(self, "_can_bus_sampler", None)
         self._can_bus_sampler = None
         if can_bus_sampler is not None:
@@ -2299,12 +2416,15 @@ class ChassisNode(Node):
 def main(argv=None):
     rclpy.init(args=argv)
     node = None
+    executor = ReceiptTimeExecutor()
     try:
         node = ChassisNode()
-        rclpy.spin(node)
+        executor.add_node(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
+        executor.shutdown()
         try:
             if node is not None:
                 try:

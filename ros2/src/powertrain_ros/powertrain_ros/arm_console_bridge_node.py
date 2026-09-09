@@ -7,6 +7,8 @@ no service, and never accesses a motor device.  :5003은 단일 송신 원칙 �
 from __future__ import annotations
 
 import socket
+import os
+from powertrain_runtime.telemetry import send_datagram
 import time
 
 import rclpy
@@ -30,7 +32,7 @@ class ArmConsoleBridge(Node):
             "arm_console_bridge",
             parameter_overrides=parameter_overrides,
         )
-        self.declare_parameter("console_host", "")
+        self.declare_parameter("console_host", "192.168.8.163")
         self.declare_parameter("telemetry_port", 5007)
         self.declare_parameter("metadata_port", 5003)
         self.declare_parameter("publish_hz", 5.0)
@@ -56,7 +58,7 @@ class ArmConsoleBridge(Node):
             self.get_parameter("pick_target_iou").value
         )
         if (
-            not host
+            (not host and not os.environ.get("POWERTRAIN_OPERATOR_SESSION_FILE"))
             or not 1 <= telemetry_port <= 65535
             or not 1 <= metadata_port <= 65535
             or not 0.2 <= publish_hz <= 10.0
@@ -166,7 +168,7 @@ class ArmConsoleBridge(Node):
                 joints=joints,
                 source_age_s=source_age_s,
             )
-            self._udp.sendto(payload, self._telemetry_endpoint)
+            send_datagram(self._udp, payload, self._telemetry_endpoint)
             self._sequence += 1
         except (ValueError, OSError) as exc:
             self.get_logger().warning(
@@ -237,7 +239,7 @@ class ArmConsoleBridge(Node):
                 pick_target=self._pick_comparison(),
                 pick_iou_threshold=self._pick_target_iou,
             )
-            self._udp.sendto(payload, self._metadata_endpoint)
+            send_datagram(self._udp, payload, self._metadata_endpoint)
             self._metadata_sequence += 1
         except (ValueError, OSError) as exc:
             self.get_logger().warning(

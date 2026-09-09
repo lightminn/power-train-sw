@@ -76,6 +76,7 @@ def cleanup_odrive_resources(disarm, background, sensor, pygame_module):
 
 
 def main():
+    raise SystemExit("DEPRECATED: unnamed USB motor control is quarantined; use motor_control/drive/bl70200/bl70200_setup.py with explicit --serial --axis --node, and chassis.teleop_server for operation.")
     import pygame
     import odrive
     # enums 전부 숫자로 대체

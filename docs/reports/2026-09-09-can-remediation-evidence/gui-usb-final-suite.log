@@ -1,0 +1,43 @@
+........................................................................ [ 21%]
+........................................................................ [ 43%]
+........................................................................ [ 65%]
+........................................................................ [ 87%]
+.........................................                                [100%]
+=============================== warnings summary ===============================
+.superpowers/can-remediation/gui-deps/fastapi/testclient.py:1
+  /home/light/ZETIN/robotics/power-train-sw/.worktrees/can-runtime-audit/.superpowers/can-remediation/gui-deps/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.superpowers/can-remediation/gui-deps/starlette/testclient.py:53
+  /home/light/ZETIN/robotics/power-train-sw/.worktrees/can-runtime-audit/.superpowers/can-remediation/gui-deps/starlette/testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+motor_gui/tests/test_server.py: 13 warnings
+  /home/light/ZETIN/robotics/power-train-sw/.worktrees/can-runtime-audit/motor_gui/backend/server.py:52: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+motor_gui/tests/test_server.py: 26 warnings
+  /home/light/ZETIN/robotics/power-train-sw/.worktrees/can-runtime-audit/.superpowers/can-remediation/gui-deps/fastapi/applications.py:4681: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+motor_gui/tests/test_server.py: 13 warnings
+  /home/light/ZETIN/robotics/power-train-sw/.worktrees/can-runtime-audit/motor_gui/backend/server.py:56: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+329 passed, 54 warnings in 6.86s

@@ -1,0 +1,7 @@
+{"case": "gui_id_switch_11_to_13", "idle_targets": [13, 13], "old_node_11_stopped": false}
+{"case": "combined_can_drops_ak_frame", "injected_ak_deg": 12.3, "displayed_ak_deg": 0.0}
+{"case": "combined_can_drops_odrive_frame", "injected_odrive_pos": 7.5, "displayed_odrive_pos": 0.0}
+{"case": "setup_default_apply", "original_node_pair": [13, 14], "saved_node_pairs": [[13, 11]], "usb_find_calls": [{"timeout": 20}, {"timeout": 20}]}
+{"case": "ak_gui_success_ack_on_tx_failure", "send_attempts": 1, "ack": {"ok": true, "target": "ak", "op": "set_input", "detail": "sent"}}
+{"case": "combined_can_poll_budget", "sample_calls": 100, "rtr_requests": 300, "explicit_poll_throttle": false}
+{"case": "sensorless_estimate_mislabeled_temperature", "sensorless_position": 123.5, "displayed_fet_temperature": 123.5}

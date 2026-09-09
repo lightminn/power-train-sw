@@ -1,0 +1,69 @@
+{
+  "telemetry": "LIVE",
+  "chassis": "LIVE",
+  "metadata": "WAITING",
+  "arm": "UNAVAILABLE",
+  "video_l515": "LIVE",
+  "video_d435": "CONNECTING",
+  "safety_banner": "비상정지(ESTOP) · liveness_timeout",
+  "global_estop_visible": true,
+  "main_video": "전방 카메라",
+  "rover_l515_width": 290,
+  "rover_d435_width": 90,
+  "operation": {
+    "status": "IDLE",
+    "action": "none",
+    "detail": "연결 대기",
+    "ops_state": {
+      "active_estop_sources": [
+        "us100"
+      ],
+      "authority_mode": "IDLE",
+      "chassis_mode": "ESTOP",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "estop_detail": "liveness_timeout",
+      "estop_latched": true,
+      "estop_source": "us100",
+      "field_age_s": {
+        "authority": 0.055374208000102954,
+        "gateway": 0.05553065599997353,
+        "safety": 0.15258355200012375,
+        "wheels": 0.2150972778263167
+      },
+      "gateway_input_fresh": false,
+      "gateway_neutral": false,
+      "gateway_state": "DISCONNECTED",
+      "push": "ops_state",
+      "revision": 1827291637,
+      "stamp_s": 4030.115344512,
+      "wheels_stopped": true
+    },
+    "start_blocker": "비상정지 원인을 확인하고 별도로 초기화하세요",
+    "connected": true,
+    "robot_id": "zetin-rover",
+    "boot_id": "377ed2e27e2db90c4e61458a5d8ec973",
+    "input_port": 9000,
+    "ops_port": 9001,
+    "host": "192.168.8.106",
+    "holding": false,
+    "session_generation": 1,
+    "pad": {
+      "pad_connected": true,
+      "neutral": true,
+      "input_connected": false,
+      "detail": "channel rejected",
+      "age_s": 0.3447869470001024
+    },
+    "ready": false,
+    "reason": "패드 입력 채널 연결 대기"
+  },
+  "console_pid": 113887,
+  "ops_steering_label": "조향 방식",
+  "ops_steering_sensitive": false
+}
+PRODUCTION CONSOLE PASS: paired GTK + live chassis, no Start, clean close

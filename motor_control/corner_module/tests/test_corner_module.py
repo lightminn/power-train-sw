@@ -96,6 +96,23 @@ def test_lifecycle_modes():
     assert cm.mode == "DISCONNECTED"
 
 
+def test_fake_drive_feedback_stops_after_corner_disarm():
+    cm = _make_cm()
+    cm.connect()
+    cm.arm()
+    cm.set(0.0, 1.0)
+    for _ in range(5):
+        cm.tick()
+    assert cm.state()["drive"]["actual_vel"] > 0.5
+
+    cm.disarm()
+    # IDLE corners only service receive; they do not call actuator tick().
+    cm.tick()
+    assert cm.mode == "IDLE"
+    assert cm.state()["drive"]["target_vel"] == 0.0
+    assert cm.state()["drive"]["actual_vel"] == 0.0
+
+
 def test_arm_jump_prevention():
     cm = _make_cm(steer=FakeSteer(start_deg=15.0), drive=FakeDrive(start_vel=2.0))
     cm.connect()
@@ -801,13 +818,14 @@ def test_steer_ak40_state_stale_when_no_frames():
     assert s.state()["stale"] is True
 
 
-def test_steer_ak40_estop_sends_one_immediate_zero_without_blocking_stop():
+@pytest.mark.parametrize("action", ["estop", "disarm"])
+def test_steer_ak40_stop_sends_one_immediate_zero_without_blocking_stop(action):
     from corner_module.steer_ak40 import SteerAk40
 
     s = SteerAk40(motor_id=1)
     s._ak = _StubAk(poll_result=False)
 
-    s.estop()
+    getattr(s, action)()
 
     assert s._ak.zero_rpm_calls == 1
     assert s._ak.stop_calls == 0

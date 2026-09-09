@@ -236,7 +236,7 @@ def test_chassis_node_loads_and_injects_wheel_stop_only_for_authority_path():
     assert "load_wheel_stop_config" in source
     assert "WheelStopPredicate" in source
     assert '"/wheel_states"' in source
-    assert "self._on_wheel_states_for_stop" in source
+    assert "def _update_local_wheel_stop" in source
     assert "wheel_stopped=lambda: self._wheel_stop.confirmed" in source
     assert "wheel_stop_qualified=lambda: self._wheel_stop.qualified" in source
 
@@ -260,7 +260,7 @@ def test_chassis_node_loads_and_injects_wheel_stop_only_for_authority_path():
     enabled = ast.unparse(ast.Module(body=authority_guard.body, type_ignores=[]))
     disabled = ast.unparse(ast.Module(body=authority_guard.orelse, type_ignores=[]))
     assert "WheelStopPredicate" in enabled
-    assert "_on_wheel_states_for_stop" in enabled
+    assert "_on_wheel_states_for_stop" not in enabled
     assert "WheelStopPredicate" not in disabled
     assert "_on_wheel_states_for_stop" not in disabled
 

@@ -1,6 +1,8 @@
+import ast
 import inspect
 import json
 from pathlib import Path
+import textwrap
 from types import SimpleNamespace
 
 import operator_console.status_view as status_view
@@ -66,6 +68,45 @@ def test_competition_status_is_unified_around_power_communication_and_safety():
     assert '"drive", "주행"' not in source
     assert '"arm", "로봇팔"' not in source
     assert "값은 추정하지 않습니다" in source
+
+
+def test_status_view_defaults_to_drive_detail_only():
+    constructor = ast.parse(textwrap.dedent(
+        inspect.getsource(RobotStatusDashboard.__init__)
+    ))
+    selected_panel_values = []
+    for node in ast.walk(constructor):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = (node.target,)
+        else:
+            continue
+        if any(
+            isinstance(target, ast.Attribute)
+            and isinstance(target.value, ast.Name)
+            and target.value.id == "self"
+            and target.attr == "_selected_panel"
+            for target in targets
+        ):
+            selected_panel_values.append(node.value)
+
+    assert len(selected_panel_values) == 1
+    default_panel = ast.literal_eval(selected_panel_values[0])
+    assert default_panel == "drive"
+
+    dashboard = SimpleNamespace(_selected_panel=default_panel)
+    assert {
+        key: RobotStatusDashboard.view_enabled(dashboard, key)
+        for key in RobotStatusDashboard.PANEL_ORDER
+    } == {
+        "drive": True,
+        "power": False,
+        "arm": False,
+        "safety": False,
+        "ai": False,
+        "network": False,
+    }
 
 
 def test_status_dashboard_has_no_control_or_transport_send_surface():
@@ -176,6 +217,26 @@ def test_power_card_preserves_protection_flag_warning():
     )
 
 
+def test_power_card_treats_charger_status_bits_as_normal():
+    power_card_state = getattr(status_view, "power_card_state", None)
+    assert power_card_state is not None
+
+    assert power_card_state(
+        _power_snapshot(
+            pdist_battery_flags=0x02,
+            pdist_protection_flags=0x20,
+        ),
+        fresh=True,
+    ) == ("정상", "LIVE")
+    assert power_card_state(
+        _power_snapshot(
+            pdist_battery_flags=0,
+            pdist_protection_flags=0x40,
+        ),
+        fresh=True,
+    ) == ("정상", "LIVE")
+
+
 def test_power_card_reports_normal_only_for_fresh_healthy_measurement():
     power_card_state = getattr(status_view, "power_card_state", None)
     assert power_card_state is not None
@@ -274,3 +335,23 @@ def test_status_dashboard_uses_power_health_not_freshness_for_ready_count():
     source = inspect.getsource(RobotStatusDashboard.update)
 
     assert "power_card_state(power, fresh=power_fresh)" in source
+
+
+from operator_console.status_view import drive_mode_badges
+
+
+def test_drive_mode_badges_render_both_axes():
+    badges = drive_mode_badges({"drive_transport": "usb", "steering_mode": "skid"})
+
+    assert badges == ("구동 USB", "조향 스키드")
+
+
+def test_drive_mode_badges_render_can_ackermann():
+    badges = drive_mode_badges({"drive_transport": "can",
+                                "steering_mode": "ackermann"})
+
+    assert badges == ("구동 CAN", "조향 애커만")
+
+
+def test_drive_mode_badges_mark_unknown_state():
+    assert drive_mode_badges(None) == ("구동 —", "조향 —")

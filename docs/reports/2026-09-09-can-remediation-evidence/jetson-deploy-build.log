@@ -1,0 +1,8 @@
+Starting >>> powertrain_msgs
+Starting >>> robot_arm_msgs
+Finished <<< robot_arm_msgs [0.95s]
+Finished <<< powertrain_msgs [1.03s]
+Starting >>> powertrain_ros
+Finished <<< powertrain_ros [1.82s]
+
+Summary: 3 packages finished [3.31s]

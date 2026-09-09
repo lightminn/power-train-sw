@@ -94,15 +94,22 @@ def test_reverse_negative_vx():
 def test_pivot_pure_rotation():
     """피벗 = 병진 0, 회전만. 단 **정확 복원이 아니라 최적합**이다.
 
-    CAD 실측 기하에서 제자리 회전에 필요한 조향각은 **앞 |δ|=51.2° · 뒤 56.2°** 인데 AK
+    CAD 실측 기하에서 제자리 회전에 필요한 조향각은 **앞 |δ|=58.1° · 뒤 64.1°** 인데 AK
     한계는 ±45° → `solve()` 가 45°로 클램프하고 스크럽을 감수한다(설계된 동작). 그 결과
     6바퀴 실측이 **물리적으로 서로 모순**되고, 어떤 (vx,vy,ω)도 전부를 만족시킬 수 없다.
     최소자승은 '가장 덜 어기는 답'을 내놓는다 — 이것이 정상이며, 0 이 아닌 잔차가
     바로 "이 명령은 스크럽 중"이라는 신호다.
 
-    ⚠️ **vy 가 정확히 0 이 아니다.** CAD 기하는 앞뒤가 비대칭(윤거 705 vs 585 mm, 중간
+    ⚠️ **vy 가 정확히 0 이 아니다.** CAD 기하는 앞뒤가 비대칭(윤거 545 vs 425 mm, 중간
     바퀴가 60.3 mm 뒤로 치우침)이라 클램프된 피벗이 **미세한 횡방향 드리프트**를 만든다.
     좌우는 여전히 대칭이므로 vx 는 정확히 0 이다.
+
+    ⚠️ **as-built v2 의 피벗 충실도는 실제로 더 나빠졌다.** 이전 넓은 기하는 필요
+    조향각이 앞 51.2° / 뒤 56.2°라 추정 ω=0.494514 rad/s(명령 대비 −1.10%)였지만,
+    더 좁은 v2는 필요각이 58.1° / 64.1°로 ±45° 클램프에서 더 멀어져
+    **ω=0.480453 rad/s(−3.91%)**만 복원한다. 이는 테스트 오차가 아니라 증가한
+    타이어 스크럽의 모델 결과다. 따라서 명령 대비 허용 한계는 측정 손실 다음의
+    정수 공학 여유인 5%로 두되, 측정값 자체도 별도로 회귀 고정한다.
 
     ★ 회귀 방지: 예전 절대기준 배제 로직은 **좌측 두 바퀴만 골라 버려** 좌우 대칭을 깨고
     존재하지 않는 전진속도 +0.09 m/s 를 만들어냈다. 계통 오차는 배제 대상이 아니다.
@@ -112,7 +119,8 @@ def test_pivot_pure_rotation():
     assert est.rejected == ()                  # ★ 계통 오차 — 아무도 배제하면 안 된다
     assert est.vx == pytest.approx(0.0, abs=1e-9)   # ★ 유령 전진속도가 없어야 한다 (좌우 대칭)
     assert abs(est.vy) < 0.02                  # 앞뒤 비대칭 → 미세 횡드리프트 (0 은 아님)
-    assert est.omega == pytest.approx(0.5, rel=0.03)  # 스크럽만큼 과소추정(~1%)
+    assert est.omega == pytest.approx(0.480453, abs=1e-5)  # v2 결정론적 모델값
+    assert est.omega == pytest.approx(0.5, rel=0.05)  # 실제 3.91% 손실 + 공학 여유
     assert est.residual_mps > 0.0              # 모순의 크기 = 스크럽 지표
 
 
@@ -201,12 +209,18 @@ def test_integrator_straight_line():
 
 
 def test_integrator_pivot_turns_in_place():
-    """피벗 → 제자리 회전 (스크럽 손실만큼 살짝 못 미침).
+    """피벗 → 제자리 회전 (as-built v2 스크럽 손실만큼 못 미침).
 
     ⚠️ ω 를 키우면 바퀴 선속도가 `drive_limit_mps` 를 넘어 `solve()` 가 전체를 스케일
     다운한다. 그런데 `SolveResult.omega_applied` 는 그 스케일을 반영하지 않으므로
     (조향한계만 반영) 실제 회전은 보고값보다 느리다. 여기서는 상한에 걸리지 않는
     ω 를 써서 그 교란을 배제한다.
+
+    이전 넓은 기하보다 좁은 v2는 피벗 필요 조향각이 앞 51.2°→58.1°,
+    뒤 56.2°→64.1°로 커졌지만 AK 한계는 그대로 ±45°다. 따라서 클램프 후
+    스크럽이 증가해 2 s × 0.5 rad/s 명령의 적분 결과가 **0.960907 rad
+    (−3.91%)**로 실제 저하됐다. 명령 대비 5% 물리 계약과 이 측정값을 함께
+    고정해, 더 느슨한 한계를 단순 테스트 우회로 오해하지 않게 한다.
     """
     geom = g()
     r = solve(geom, 0.0, 0.5)
@@ -218,7 +232,8 @@ def test_integrator_pivot_turns_in_place():
     x, y, th = odo.pose()
     # 좌우 대칭이라 전진 병진은 0. 앞뒤 비대칭 때문에 횡방향으로 아주 조금 밀린다.
     assert math.hypot(x, y) < 0.03               # 2 초 피벗에 3 cm 이내
-    assert th == pytest.approx(1.0, rel=0.03)    # 스크럽만큼 덜 돎
+    assert th == pytest.approx(0.960907, abs=1e-5)  # v2 결정론적 2초 적분값
+    assert th == pytest.approx(1.0, rel=0.05)    # 실제 3.91% 손실 + 공학 여유
 
 
 def test_integrator_circle_returns_to_start():
@@ -281,3 +296,73 @@ def test_four_wheel_pivot_degrades_slightly():
     est = solve_twist(geom, observe(geom, r))
     assert est.omega == pytest.approx(0.5, rel=0.05)
     assert est.residual_mps > 0.0            # 조향 클램프 → 스크럽 (6륜과 동일)
+
+
+from chassis.kinematics import skid_geometry, solve
+
+
+def _observations_from_command(geom, v_mps, omega_rad_s):
+    """명령을 그대로 실측이라고 가정한 관측 — 슬립 0 인 이상적 케이스."""
+    result = solve(geom, v_mps, omega_rad_s)
+    return [
+        WheelObservation(name=name, drive_mps=wc.drive_mps, steer_deg=wc.steer_deg)
+        for name, wc in result.wheels.items()
+    ]
+
+
+def test_skid_twist_is_recovered_from_wheel_speeds():
+    """수정 전에는 정규방정식이 특이해 (0,0,0) fail-safe 가 나왔다 — 음성 대조."""
+    geom = skid_geometry()
+    observations = _observations_from_command(geom, 0.3, 0.5)
+
+    twist = solve_twist(geom, observations)
+
+    assert twist.vx == pytest.approx(0.3, abs=1e-6)
+    assert twist.omega == pytest.approx(0.5, abs=1e-6)
+    assert twist.vy == pytest.approx(0.0, abs=1e-6)
+    assert twist.used == 6
+
+
+def test_skid_pivot_twist_is_recovered():
+    geom = skid_geometry()
+    observations = _observations_from_command(geom, 0.0, -0.8)
+
+    twist = solve_twist(geom, observations)
+
+    assert twist.vx == pytest.approx(0.0, abs=1e-6)
+    assert twist.omega == pytest.approx(-0.8, abs=1e-6)
+
+
+def test_vy_prior_is_not_counted_as_a_wheel():
+    """사전분포 행이 used·rejected·잔차 집계에 새면 신뢰도 지표가 오염된다."""
+    geom = skid_geometry()
+    observations = _observations_from_command(geom, 0.3, 0.5)
+
+    twist = solve_twist(geom, observations)
+
+    assert twist.used == 6
+    assert twist.rejected == ()
+    assert twist.residual_mps == pytest.approx(0.0, abs=1e-6)
+
+
+def test_ackermann_rows_are_unchanged_by_the_prior():
+    """조향륜이 하나라도 있으면 사전분포 행을 넣지 않는다 (4WS 회귀 0)."""
+    from chassis.odometry import OdometryConfig, _rows
+
+    geom = default_geometry()
+    observations = _observations_from_command(geom, 0.3, 0.3)
+    obs_map = {o.name: o for o in observations}
+
+    rows = _rows(geom, obs_map, OdometryConfig())
+
+    assert all(name is not None for name, *_ in rows)
+    # 조향 4륜 × 2행 + 고정 2륜 × 1행
+    assert len(rows) == 10
+
+
+def test_no_observations_produces_no_lone_prior_row():
+    from chassis.odometry import OdometryConfig, _rows
+
+    geom = skid_geometry()
+
+    assert _rows(geom, {}, OdometryConfig()) == []

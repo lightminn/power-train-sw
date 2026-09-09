@@ -63,6 +63,7 @@ from .ops_panel import (
     PANEL_ACTIONS,
     ConfirmFlow,
     PanelAction,
+    action_is_available,
     component_mask_from_state,
     format_ops_status_line,
     mode_allows_action,
@@ -89,6 +90,7 @@ from .telemetry import (
     chassis_summary,
     chassis_component_states,
     mask_banner_text,
+    power_fault_reasons,
     power_summary,
     safety_banner_state,
 )
@@ -106,18 +108,18 @@ SEND_SURFACE_CONTRACT = "OBSERVE: RX-ONLY  |  OPS: TOKEN-GATED  |  "
 def estop_availability(
     *, token_available: bool, link_ready: bool,
 ) -> tuple[bool, str, str | None]:
-    """Return E-STOP sensitivity and tooltip without a persistent warning."""
+    """Return E-STOP sensitivity, tooltip, and persistent top warning."""
     if not token_available:
         return (
             False,
             "조작 토큰이 없어 비상정지 명령을 전송할 수 없습니다",
-            None,
+            "조작 토큰 없음 — 콘솔 비상정지를 사용할 수 없습니다",
         )
     if not link_ready:
         return (
             False,
             "조작 채널이 연결되지 않아 비상정지를 전송할 수 없습니다",
-            None,
+            "조작 채널 연결 대기 — 콘솔 비상정지를 전송할 수 없습니다",
         )
     return (
         True,
@@ -2031,7 +2033,10 @@ class VideoPanel(Gtk.Box):
         _style(self, "video-card")
         self._name = name
         self._event_sink = event_sink
-        self._pipeline = Gst.parse_launch(pipeline_description(host, port, latency_ms))
+        self._endpoint = (host, port, latency_ms)
+        self._pipeline = Gst.parse_launch(
+            pipeline_description(host, port, latency_ms).replace(
+                "srtsrc uri=", "srtsrc name=operator_source uri=", 1))
         self._sink = self._pipeline.get_by_name("video_sink")
         self._video_widget = self._sink.get_property("widget")
         self._video_widget.set_hexpand(True)
@@ -2139,6 +2144,18 @@ class VideoPanel(Gtk.Box):
             parent.remove(action)
         self._header.pack_end(action, False, False, 0)
         action.show_all()
+
+    def set_endpoint(self, host: str) -> None:
+        """Discard all frames from the previous authenticated session."""
+        _, port, latency_ms = self._endpoint
+        if self._retry_source_id is not None:
+            GLib.source_remove(self._retry_source_id)
+            self._retry_source_id = None
+        self._pipeline.set_state(Gst.State.NULL)
+        self._pipeline.get_by_name("operator_source").set_property(
+            "uri", srt_uri(host, port, latency_ms))
+        self._endpoint = (host, port, latency_ms)
+        self._restart_pipeline()
 
     def set_rover_component_states(
         self, *, front_live: bool, work_live: bool,
@@ -2404,13 +2421,12 @@ class TelemetryPanel(Gtk.Frame):
 
     @staticmethod
     def _power_health_text(battery_flags: int | None, protection_flags: int | None) -> str:
-        if protection_flags not in (None, 0):
-            return f"보호 경고 {protection_flags:#04x}"
-        if battery_flags not in (None, 0):
-            return f"배터리 경고 {battery_flags:#04x}"
-        if battery_flags == 0 and protection_flags == 0:
-            return "정상"
-        return "미수신(UNAVAILABLE)"
+        reasons = power_fault_reasons(battery_flags, protection_flags)
+        if reasons is None:
+            return "미수신(UNAVAILABLE)"
+        if reasons:
+            return f"⚠ {', '.join(reasons)}"
+        return "정상"
 
     def _report_power_health(self, battery_flags: int | None, protection_flags: int | None) -> None:
         key = (battery_flags, protection_flags)
@@ -2743,6 +2759,8 @@ class OpsPanel(Gtk.Frame):
         event_sink: Callable[[str, str], None],
         alert_sink: Callable[[str], None] | None = None,
         clock: Callable[[], float] = time.monotonic,
+        client_factory: Callable | None = None,
+        integrated: bool = False,
     ) -> None:
         super().__init__(label="조작 (토큰 인증)")
         self._event_sink = event_sink
@@ -2787,6 +2805,10 @@ class OpsPanel(Gtk.Frame):
         advanced_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
 
         for action in PANEL_ACTIONS:
+            if integrated and action.action in {
+                "arm", "disarm", "authority_manual", "authority_idle", "clear_transient_hold",
+            }:
+                continue
             target = advanced_box if action.advanced else basic_box
             if action.gesture == GESTURE_SPACER:
                 spacer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
@@ -2856,13 +2878,11 @@ class OpsPanel(Gtk.Frame):
         self._confirm_strip.pack_start(controls, False, False, 0)
         body.pack_start(self._confirm_strip, False, False, 4)
 
-        self._client = ConsoleOpsClient(
-            host,
-            port,
-            token,
-            submit_sink=self._on_submit_response,
-            state_sink=self._on_state,
-        )
+        callbacks = dict(submit_sink=self._on_submit_response, state_sink=self._on_state)
+        if client_factory is None:
+            self._client = ConsoleOpsClient(host, port, token, **callbacks)
+        else:
+            self._client = client_factory(host, port, token, **callbacks)
         self._flow = ConfirmFlow(
             clock=self._clock,
             state_provider=self._client.latest_state,
@@ -2910,7 +2930,7 @@ class OpsPanel(Gtk.Frame):
     def _emit(self, message: str) -> None:
         self._event_sink("OPS", message)
 
-    def _begin(self, action: PanelAction) -> bool:
+    def _begin(self, action: "PanelAction") -> bool:
         if self._flow is None:
             self._emit(f"{action.action}: rejected — panel disabled")
             return False
@@ -2926,7 +2946,14 @@ class OpsPanel(Gtk.Frame):
         confirm_text = action.confirm_text
         if action.bool_value_from_state is not None:
             enabled = pending.params.get("data") is True
-            if action.action != "us100_enable" or enabled:
+            if action.action == "steer_mode_skid":
+                target_mode = "스키드" if enabled else "애커만"
+                particle = "로" if enabled else "으로"
+                confirm_text = (
+                    f"조향 방식을 {target_mode}{particle} 전환합니까?"
+                    " 차대가 멈추고 조향이 0° 로 돌아온 뒤에 적용됩니다."
+                )
+            elif action.action != "us100_enable" or enabled:
                 direction = "켭니다" if enabled else "끕니다"
                 confirm_text = f"{action.label}을 {direction}. 계속합니까?"
         self._confirm_copy.set_markup(
@@ -3070,15 +3097,24 @@ class OpsPanel(Gtk.Frame):
             if action.action is None or action.bool_value_from_state is None:
                 continue
             button = self._action_buttons[action.action]
-            allowed = mode_allows_action(action.action, chassis_mode)
-            gate_hint = " · 대기에서만" if not allowed else ""
+            mode_allowed = mode_allows_action(action.action, chassis_mode)
+            available, unavailable_reason = action_is_available(
+                action.action, state,
+            )
+            allowed = mode_allowed and available
+            gate_hint = " · 대기에서만" if not mode_allowed else ""
+            button.set_tooltip_text(unavailable_reason or None)
+            state_text_from_state = action.state_text_from_state
             try:
-                next_enabled = action.bool_value_from_state(state)
+                if state_text_from_state is not None:
+                    current_state = state_text_from_state(state)
+                else:
+                    next_enabled = action.bool_value_from_state(state)
+                    current_state = OFF_LABEL if next_enabled else ON_LABEL
             except RuntimeError:
                 button.set_label(action.label + gate_hint)
                 button.set_sensitive(False)
             else:
-                current_state = OFF_LABEL if next_enabled else ON_LABEL
                 button.set_label(
                     f"{action.label} [{current_state}]{gate_hint}"
                 )
@@ -3092,6 +3128,11 @@ class OpsPanel(Gtk.Frame):
 
     def latest_chassis_mode(self) -> str:
         return self._latest_chassis_mode
+
+    def latest_state(self) -> dict | None:
+        if self._client is None:
+            return None
+        return self._client.latest_state()
 
     def ops_available(self) -> bool:
         return self._client is not None and self._flow is not None
@@ -3191,6 +3232,103 @@ class DiagnosticCard(Gtk.Box):
             self.developer_box.hide()
 
 
+class IntegratedOperationPanel(Gtk.Box):
+    """Nonblocking presentation of the session-owned drive transaction."""
+
+    def __init__(self, runtime) -> None:
+        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        self._runtime = runtime
+        self._gesture_active = False
+        self.set_border_width(8)
+        self.connection_label = Gtk.Label(xalign=0)
+        self.pad_label = Gtk.Label(xalign=0)
+        self.video_label = Gtk.Label(xalign=0)
+        self.reason_label = Gtk.Label(xalign=0)
+        self.outcome_label = Gtk.Label(label="최근 조작: 없음", xalign=0)
+        self._latest_outcome = None
+        status = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        readiness = Gtk.Box(spacing=16)
+        for label in (self.connection_label, self.pad_label, self.video_label):
+            label.set_ellipsize(Pango.EllipsizeMode.END)
+            readiness.pack_start(label, False, False, 0)
+        status.pack_start(readiness, False, False, 0)
+        for label in (self.reason_label, self.outcome_label):
+            label.set_ellipsize(Pango.EllipsizeMode.END)
+            label.set_max_width_chars(64)
+            status.pack_start(label, False, False, 0)
+        self.pack_start(status, True, True, 0)
+        controls = Gtk.Box(spacing=8)
+        controls.set_valign(Gtk.Align.CENTER)
+        self.start_button = Gtk.Button(label="운전 시작 (1.5초)")
+        self.start_button.set_sensitive(False)
+        self.start_button.connect("pressed", self._press)
+        self.start_button.connect("released", self.cancel)
+        self.start_button.connect("focus-out-event", self.cancel)
+        self.start_button.connect("grab-broken-event", self.cancel)
+        self.start_button.connect("key-press-event", self._key_press)
+        self.start_button.connect("key-release-event", self._key_release)
+        self.stop_button = Gtk.Button(label="주행 해제")
+        self.stop_button.connect("clicked", self._stop)
+        self.start_button.set_size_request(190, 42)
+        controls.pack_start(self.start_button, True, True, 0)
+        controls.pack_start(self.stop_button, False, False, 0)
+        self.pack_start(controls, False, False, 0)
+
+    def _press(self, *_args) -> None:
+        if not self._gesture_active:
+            self._gesture_active = self._runtime.begin_start()
+
+    def cancel(self, *_args) -> bool:
+        if self._gesture_active:
+            if self._runtime.snapshot().get("holding"):
+                self._runtime.cancel_start()
+            self._gesture_active = False
+        return False
+
+    def _key_press(self, _button, event) -> bool:
+        if event.keyval in (Gdk.KEY_space, Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+            self._press()
+            return True
+        return False
+
+    def _key_release(self, _button, event) -> bool:
+        if event.keyval in (Gdk.KEY_space, Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+            self.cancel()
+            return True
+        return False
+
+    def _stop(self, *_args) -> None:
+        self._gesture_active = False
+        self._runtime.stop()
+
+    def refresh(self, state: dict, front_live: bool) -> None:
+        connected = state.get("connected", False)
+        self.connection_label.set_text(
+            f"로봇: {state.get('host')} · 연결됨" if connected else "로봇: 연결 대기")
+        pad = state.get("pad", {})
+        pad_text = ("연결 대기" if not pad.get("pad_connected") else
+                    "입력 채널 대기" if not pad.get("input_connected") else
+                    "중립 확인" if pad.get("neutral") else "스틱·버튼을 모두 놓으세요")
+        self.pad_label.set_text("패드: " + pad_text)
+        self.video_label.set_text("전방 영상: " + ("수신 중" if front_live else "수신 대기"))
+        self.reason_label.set_text("시작 조건: " + state.get("reason", "상태 확인 중"))
+        if state.get("action") in ("start", "stop"):
+            self._latest_outcome = (state.get("action"), state.get("status"),
+                                    state.get("detail", ""))
+        if self._latest_outcome is not None:
+            action, status, detail = self._latest_outcome
+            if not connected and status == "PENDING":
+                status, detail = "OUTCOME_UNKNOWN", "연결 끊김 · 결과 미확인"
+                self._latest_outcome = (action, status, detail)
+            action_text = "운전 시작" if action == "start" else "주행 해제"
+            self.outcome_label.set_text(f"최근 {action_text}: {status} · {detail}")
+        # Preserve release/focus events even if readiness changes mid-gesture.
+        self.start_button.set_sensitive(self._gesture_active or state.get("ready", False))
+        self.start_button.set_label(
+            "누른 채 유지하세요…" if state.get("holding") else "운전 시작 (1.5초)")
+        self.stop_button.set_sensitive(connected)
+
+
 class OperatorConsole(Gtk.Window):
     def __init__(self, host: str, d435_port: int, l515_port: int, metadata_port: int,
                  latency_ms: int, telemetry_port: int, chassis_telemetry_port: int,
@@ -3199,9 +3337,12 @@ class OperatorConsole(Gtk.Window):
                  ops_host: str | None = None, ops_port: int = 9001,
                  ops_token_file: str = DEFAULT_OPS_TOKEN_FILE,
                  smoke_probe_file: str | None = None,
-                 input_source: str = "LIVE") -> None:
+                 input_source: str = "LIVE", operation_runtime=None) -> None:
         super().__init__(title="파워트레인 운영 콘솔")
         _install_console_css()
+        self._operation_runtime = operation_runtime
+        self._operation_source_id = None
+        self._operation_session = None
         self._smoke_probe_path = (
             Path(smoke_probe_file) if smoke_probe_file else None
         )
@@ -3411,7 +3552,14 @@ class OperatorConsole(Gtk.Window):
             ops_token_file,
             event_sink=self._add_event,
             alert_sink=self._show_alert,
+            **({"client_factory": operation_runtime.make_ops_client, "integrated": True}
+               if operation_runtime is not None else {}),
         )
+        if operation_runtime is not None:
+            self._operation_panel = IntegratedOperationPanel(operation_runtime)
+            layout.pack_start(self._operation_panel, False, False, 0)
+            self.connect("focus-out-event", self._operation_panel.cancel)
+            self._operation_source_id = GLib.timeout_add(100, self._refresh_operation)
         self._refresh_estop_availability()
         _style(self._ops_panel, "danger-card")
 
@@ -3754,6 +3902,23 @@ class OperatorConsole(Gtk.Window):
         self._events.add_event(source, message)
         self._mission_events.add_event(source, message)
 
+    def _refresh_operation(self) -> bool:
+        runtime = self._operation_runtime
+        state = runtime.snapshot()
+        session = (state.get("connected", False), state.get("host"),
+                   state.get("session_generation"))
+        if session != self._operation_session:
+            self._operation_panel.cancel()
+            runtime.set_front_live(False)
+            host = state.get("host") if state.get("connected") else "127.0.0.1"
+            self._d435.set_endpoint(host or "127.0.0.1")
+            self._l515.set_endpoint(host or "127.0.0.1")
+            self._operation_session = session
+        live = bool(state.get("connected")) and self._l515.health_state() == "LIVE"
+        runtime.set_front_live(live)
+        self._operation_panel.refresh(runtime.snapshot(), live)
+        return True
+
     def _build_diagnostic_cards(self) -> tuple[DiagnosticCard, ...]:
         drive = DiagnosticCard(
             "주행 시스템",
@@ -3915,9 +4080,12 @@ class OperatorConsole(Gtk.Window):
             else f"{power_snapshot.current_a:.1f} A")
         flags = None if power_snapshot is None else (
             power_snapshot.pdist_battery_flags, power_snapshot.pdist_protection_flags)
+        protection_reasons = (
+            None if flags is None else power_fault_reasons(*flags)
+        )
         power.values["protection"].set_text(
-            "수신 대기" if flags is None or flags == (None, None)
-            else "정상" if flags == (0, 0) else "확인 필요")
+            "수신 대기" if protection_reasons is None
+            else "확인 필요" if protection_reasons else "정상")
         power.values["device"].set_text(
             "수신 대기" if power_snapshot is None else
             public_freshness(power_snapshot.rs485_state, waiting="수신 대기"))
@@ -4420,13 +4588,17 @@ class OperatorConsole(Gtk.Window):
             )
 
     def _refresh_estop_availability(self) -> None:
-        sensitive, tooltip, _warning = estop_availability(
+        sensitive, tooltip, warning = estop_availability(
             token_available=self._ops_panel.ops_available(),
             link_ready=self._ops_panel.link_ready(),
         )
         self._global_estop.set_sensitive(sensitive)
         self._global_estop.set_tooltip_text(tooltip)
-        self._estop_availability_warning.hide()
+        if warning:
+            self._estop_availability_warning.set_text(warning)
+            self._estop_availability_warning.show()
+        else:
+            self._estop_availability_warning.hide()
 
     def _show_alert(self, message: str) -> None:
         """Show a command failure above the main content for eight seconds."""
@@ -4505,11 +4677,13 @@ class OperatorConsole(Gtk.Window):
             "network", "로봇 연결", network_public,
             self._chip_tone(chassis_state),
         )
-        power_ok = (
-            telemetry == "LIVE" and snapshot is not None
-            and snapshot.pdist_battery_flags in (None, 0)
-            and snapshot.pdist_protection_flags in (None, 0)
+        power_reasons = (
+            None if snapshot is None else power_fault_reasons(
+                snapshot.pdist_battery_flags,
+                snapshot.pdist_protection_flags,
+            )
         )
+        power_ok = telemetry == "LIVE" and power_reasons == ()
         power_public = (
             "정상" if power_ok
             else "확인 필요" if telemetry == "LIVE"
@@ -4708,6 +4882,7 @@ class OperatorConsole(Gtk.Window):
             work_frame_age_s=self._d435.last_frame_age_s,
             control_link_ready=self._ops_panel.link_ready(),
             chassis_mode=chassis_mode,
+            ops_state=self._ops_panel.latest_state(),
         )
         self._environment_status.update(environment_snapshot)
         self._refresh_end_effector_summary(
@@ -4784,6 +4959,19 @@ class OperatorConsole(Gtk.Window):
         """
         if self._smoke_probe_path is None:
             return
+        if self._operation_runtime is not None:
+            states = dict(states, operation=self._operation_runtime.snapshot(), console_pid=os.getpid())
+        steer_button = self._ops_panel._action_buttons.get("steer_mode_skid")
+        if steer_button is not None:
+            states = dict(states)
+            states["ops_steering_label"] = steer_button.get_label()
+            states["ops_steering_sensitive"] = steer_button.get_sensitive()
+            ops_state = self._ops_panel.latest_state()
+            if ops_state is not None:
+                states["ops_state_revision"] = ops_state.get("revision")
+                states["ops_state_steering_mode"] = ops_state.get(
+                    "steering_mode"
+                )
         try:
             self._smoke_probe_path.write_text(
                 json.dumps(states), encoding="utf-8",
@@ -4792,6 +4980,13 @@ class OperatorConsole(Gtk.Window):
             pass
 
     def _on_destroy(self, *_args: object) -> None:
+        if self._operation_runtime is not None:
+            self._operation_panel.cancel()
+            self._operation_runtime.stop()
+            self._operation_runtime.set_front_live(False)
+            if self._operation_source_id is not None:
+                GLib.source_remove(self._operation_source_id)
+                self._operation_source_id = None
         self._d435.stop()
         self._l515.stop()
         self._metadata_receiver.close()
@@ -4800,7 +4995,8 @@ class OperatorConsole(Gtk.Window):
         self._arm_receiver.close()
         self._environment_receiver.close()
         self._ops_panel.close()
-        Gtk.main_quit()
+        if Gtk.main_level():
+            Gtk.main_quit()
 
     def _on_key_press(self, _widget: Gtk.Window, event: Gdk.EventKey) -> bool:
         if event.keyval in (Gdk.KEY_v, Gdk.KEY_V):

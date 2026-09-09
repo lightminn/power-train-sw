@@ -21,7 +21,7 @@ from powertrain_autonomy.tests.test_terrain_estimator import (  # noqa: E402
 
 
 def _backend_modules():
-    from powertrain_autonomy.terrain import jax_backend
+    from powertrain_autonomy.experimental import jax_backend
     from powertrain_autonomy.terrain.kernel import (
         TerrainKernelConfig,
         build_terrain_grid_numpy,
@@ -125,7 +125,9 @@ def _assert_grid_equal(numpy_grid, jax_grid) -> None:
 
 def test_jax_backend_is_isolated_in_its_own_optional_module():
     assert (
-        importlib.util.find_spec("powertrain_autonomy.terrain.jax_backend")
+        importlib.util.find_spec(
+            "powertrain_autonomy.experimental.jax_backend"
+        )
         is not None
     )
     assert (

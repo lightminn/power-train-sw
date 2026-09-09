@@ -513,10 +513,8 @@ def test_hardware_launch_and_readme_expose_fail_closed_arm_gate_defaults():
     assert "STOW_REQUEST" in readme
 
 
-def test_srv_arm_refreshes_safety_freshness_baseline():
-    """cm.arm()이 executor를 ~0.8s 블로킹해 verdict 콜백이 밀리는 동안
-    freshness가 거짓 stale로 래치되던 실기 결함(2026-07-16: age 783ms 래치,
-    직후 rx gap 800ms) — arm 종료 시점으로 기준선을 당겨야 한다."""
+def test_srv_arm_preserves_actual_safety_freshness_baseline():
+    """Bounded collective arm never fabricates a new safety verdict."""
     ArmNode = _node_class("_refresh_safety_baseline", "_srv_arm")
     node = ArmNode()
     node.cm = SimpleNamespace(
@@ -530,7 +528,7 @@ def test_srv_arm_refreshes_safety_freshness_baseline():
     response = SimpleNamespace(success=None, message=None)
     node._srv_arm(None, response)
     assert response.success is True
-    assert node._last_safety_ms == 100_000.0  # 기준선 재설정
+    assert node._last_safety_ms == 99_000.0
 
     # 아직 verdict를 한 번도 못 받은 상태(None)에서는 재설정하지 않는다 —
     # startup timeout 경로의 의미를 바꾸면 안 된다.
@@ -539,9 +537,8 @@ def test_srv_arm_refreshes_safety_freshness_baseline():
     assert node._last_safety_ms is None
 
 
-def test_srv_disarm_refreshes_safety_freshness_baseline():
-    """disarm도 arm과 같은 클래스 — 15분 소크 종료 disarm 직후 age 1264ms
-    거짓 래치 실측(2026-07-16). 4개 블로킹 서비스 공통 헬퍼를 고정한다."""
+def test_srv_disarm_preserves_actual_safety_freshness_baseline():
+    """A completed disarm cannot rejuvenate a missing safety stream."""
     DisarmNode = _node_class("_refresh_safety_baseline", "_srv_disarm")
     node = DisarmNode()
     node.cm = SimpleNamespace(disarm=lambda: None, mode="IDLE")
@@ -550,4 +547,4 @@ def test_srv_disarm_refreshes_safety_freshness_baseline():
     response = SimpleNamespace(success=None, message=None)
     node._srv_disarm(None, response)
     assert response.success is True
-    assert node._last_safety_ms == 200_000.0
+    assert node._last_safety_ms == 198_500.0

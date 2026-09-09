@@ -1,7 +1,7 @@
 <!-- BEGIN CLAUDE_TO_CODEX_CLAUDE_MD -->
 # Migrated Claude Code Instructions
 
-Source: `/home/light/ZETIN/robotics/power-train-sw/parameter_calc/CLAUDE.md`
+Source: `parameter_calc/CLAUDE.md` (repo 기준 경로)
 Imported: `2026-07-10T02:30:45+09:00`
 Reconciled with `parameter_calc/CLAUDE.md`: `2026-07-10T19:34+09:00`
 

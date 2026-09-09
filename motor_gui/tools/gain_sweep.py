@@ -11,7 +11,7 @@ motor_gui 의 HardwareWorker + Transport 를 그대로 써서, 여러 게인 조
     점유 가능):  pkill -f motor_gui.backend.server
   - Jetson 컨테이너 안에서 실행:
       docker compose -f docker/docker-compose.jetson.yml exec -T powertrain \
-        bash -lc "cd /workspace && python3 motor_gui/tools/gain_sweep.py --track usb"
+        bash -lc "cd /workspace && python3 motor_gui/tools/gain_sweep.py --track usb --usb-serial <SERIAL> --usb-axis 1 --usb-node 12"
 
 새 모터로 바꾸면 아래 COMBOS 와 STEP_TURNS / BW 를 그 모터에 맞게 편집.
 """
@@ -36,10 +36,10 @@ COMBOS = [
 ]
 
 
-def _make_transport(track: str):
+def _make_transport(track: str, *, serial=None, axis=None, node=None):
     if track == "usb":
         from motor_gui.backend.transport.usb_odrive import UsbOdriveBackend
-        return UsbOdriveBackend(timeout=15)
+        return UsbOdriveBackend(timeout=15, serial=serial, axis_num=axis, node_id=node)
     if track == "can":
         from motor_gui.backend.transport.can_bus import CanBackend
         return CanBackend()
@@ -49,25 +49,31 @@ def _make_transport(track: str):
     raise SystemExit(f"unknown track: {track}")
 
 
-def run(track: str, step: float, bw: float, settle: float) -> None:
-    w = HardwareWorker(_make_transport(track), rate_hz=100)
+def run(track: str, step: float, bw: float, settle: float, *, serial=None, axis=None, node=None) -> None:
+    w = HardwareWorker(_make_transport(track, serial=serial, axis=axis, node=node), rate_hz=100)
     w.start()
-    time.sleep(0.3)
-    w.submit({"target": "odrive", "op": "set_mode",
-              "args": {"control_mode": "position"}})
-    w.submit({"target": "odrive", "op": "set_gain",
-              "args": {"input_filter_bandwidth": bw}})
-
-    print(f"# track={track} step={step}turn bw={bw} settle={settle}s")
-    print("pos_g  vel_g  vel_i | settle_err  p2p(last3s)  trip   verdict")
+    def send(command):
+        ack = w.submit(command)
+        if not ack.get("ok"):
+            raise RuntimeError(f"sweep command failed: {ack}")
+        return ack
     try:
+        send({"target": "odrive", "op": "arm", "args": {}})
+        time.sleep(0.3)
+        send({"target": "odrive", "op": "set_mode",
+                  "args": {"control_mode": "position"}})
+        send({"target": "odrive", "op": "set_gain",
+                  "args": {"input_filter_bandwidth": bw}})
+
+        print(f"# track={track} step={step}turn bw={bw} settle={settle}s")
+        print("pos_g  vel_g  vel_i | settle_err  p2p(last3s)  trip   verdict")
         for pg, vg, vig in COMBOS:
             # ⚠️ 콤보마다 반드시 clear_errors + 폐루프 재진입 — 안 그러면 한 콤보가
             #    트립한 뒤 축이 디스암된 채로 남아 이후 콤보가 전부 '안 움직임'으로 나온다.
-            w.submit({"target": "odrive", "op": "clear_errors", "args": {}})
-            w.submit({"target": "odrive", "op": "set_gain", "args": {
+            send({"target": "odrive", "op": "clear_errors", "args": {}})
+            send({"target": "odrive", "op": "set_gain", "args": {
                 "pos_gain": pg, "vel_gain": vg, "vel_integrator_gain": vig}})
-            w.submit({"target": "odrive", "op": "set_state",
+            send({"target": "odrive", "op": "set_state",
                       "args": {"state": "closed_loop"}})
             time.sleep(0.4)
             st = w.latest()
@@ -76,9 +82,9 @@ def run(track: str, step: float, bw: float, settle: float) -> None:
                       f"(state={st.get('odrive.state')} err=0x{st.get('odrive.axis_err', 0):x})")
                 continue
 
-            w.submit({"target": "odrive", "op": "set_origin", "args": {}})
+            send({"target": "odrive", "op": "set_origin", "args": {}})
             time.sleep(0.3)
-            w.submit({"target": "odrive", "op": "set_input", "args": {"pos": step}})
+            send({"target": "odrive", "op": "set_input", "args": {"pos": step}})
 
             samples, errs = [], []
             t_end = time.time() + settle
@@ -97,7 +103,7 @@ def run(track: str, step: float, bw: float, settle: float) -> None:
                        "진동" if p2p >= 0.02 else f"잔차{abs(err) * 360:.0f}deg")
             print(f"{pg:5.1f} {vg:6.3f} {vig:5.2f} | {err:+.4f}    "
                   f"{p2p:.4f}      0x{max(errs):x}    {verdict}")
-            w.submit({"target": "odrive", "op": "set_input", "args": {"pos": 0.0}})
+            send({"target": "odrive", "op": "set_input", "args": {"pos": 0.0}})
             time.sleep(1.0)
     finally:
         w.estop()
@@ -108,11 +114,21 @@ def run(track: str, step: float, bw: float, settle: float) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--track", choices=["usb", "can", "fake"], default="usb")
+    p.add_argument("--usb-serial", help="USB board serial")
+    p.add_argument("--usb-axis", type=int, choices=(0, 1), help="USB axis")
+    p.add_argument("--usb-node", type=int, help="Expected USB axis CAN node")
     p.add_argument("--step", type=float, default=2.0, help="스텝 목표 (turns)")
     p.add_argument("--bw", type=float, default=50.0, help="input_filter_bandwidth (Hz)")
     p.add_argument("--settle", type=float, default=7.0, help="콤보당 관찰 시간 (s)")
     args = p.parse_args()
-    run(args.track, args.step, args.bw, args.settle)
+    if args.track == "usb":
+        from motor_gui.backend.transport.usb_odrive import validate_target
+        try:
+            validate_target(args.usb_serial, args.usb_axis, args.usb_node)
+        except ValueError as exc:
+            p.error(str(exc))
+    run(args.track, args.step, args.bw, args.settle,
+        serial=args.usb_serial, axis=args.usb_axis, node=args.usb_node)
 
 
 if __name__ == "__main__":

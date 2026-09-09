@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
 """BL70200 + ODrive v3.6 (fw 0.5.1) 셋업 — 읽기 / 최적값 적용 / 캘리.
 
-axis1, HALL, 48V, CAN node 11. 검증된 최적 NVM 설정을 한 곳에 모았다.
+명시한 serial/axis/node, HALL, 48V. 검증된 최적 NVM 설정을 한 곳에 모았다.
 (motor_gui --track usb 로 X2212 게인이 박혀 오염될 수 있어, --read 로 대조 후 --apply 권장.)
 
 실행 (Jetson 컨테이너 /workspace, ODrive USB 연결):
   python3 motor_control/drive/bl70200/bl70200_setup.py --read       # 현재 NVM 출력
-  python3 motor_control/drive/bl70200/bl70200_setup.py --apply      # 최적값 적용 + NVM 저장(리부팅)
-  python3 motor_control/drive/bl70200/bl70200_setup.py --calibrate  # 풀캘리 (출력축 자유, ~55s 회전)
+  python3 motor_control/drive/bl70200/bl70200_setup.py --apply --serial <SERIAL> --axis both --node 11  # 최적값 적용 + NVM 저장(리부팅)
+  python3 motor_control/drive/bl70200/bl70200_setup.py --calibrate --serial <SERIAL> --axis both --node 11  # 풀캘리 (출력축 자유, ~55s 회전)
 
-여러 개 동시 가능: --apply --calibrate. 새 보드는 --node 13 처럼 node_id 지정(충돌 방지).
+쓰기에는 --serial/--axis/--node가 모두 필수다. --axis both이면 두 번째 node는 첫 node+1.
+fw 0.5.1과 0.5.6의 통신 속성 경로를 구분하며 NVM 저장 전후 동일 보드를 대조한다.
 문서: Notion "ODrive(BL70200) 셋업".
 """
 import argparse
+import copy
+import contextlib
+import sys
+from pathlib import Path
 import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from chassis.usb_session import (motor_session, validate_target, communication_snapshot,
+                                 save_and_reconnect)
 
 # 검증된 최적 NVM 설정 (2026-06-25 초기값 / 2026-07-04 vel_gain 재튜닝)
 # vel_gain 0.06→0.12: 자유회전(무부하 연속) 상태 다중 시나리오 스윕으로 재측정.
@@ -74,9 +83,12 @@ def find_odrive(odrive_module, *, serial=None, timeout=20):
     return odrive_module.find_any(**kwargs)
 
 
-def apply(ax, odrv, *, node=None, enums=None, save=True):
+def apply(ax, odrv, *, node=None, enums=None, save=False):
+    if save:
+        raise ValueError("NVM writes require run() with explicit serial, axis and node")
+    if node is None or not 0 <= node <= 62:
+        raise ValueError("explicit CAN node is required")
     enums = enums or _load_enums()
-    node = CFG["node"] if node is None else node
     m, e, c = ax.motor.config, ax.encoder.config, ax.controller.config
     m.motor_type = enums.MOTOR_TYPE_HIGH_CURRENT
     m.pole_pairs = CFG["pole_pairs"]
@@ -101,21 +113,19 @@ def apply(ax, odrv, *, node=None, enums=None, save=True):
     odrv.config.dc_bus_undervoltage_trip_level = CFG["uv"]
     odrv.config.dc_bus_overvoltage_trip_level = CFG["ov"]
     odrv.config.brake_resistance = CFG["brake"]
-    odrv.can.set_baud_rate(CFG["baud"])              # config.baud_rate 직접쓰기 불가
-    try:
-        ax.config.can_node_id = node
-    except AttributeError:
-        ax.config.can.node_id = node                 # 이 빌드 폴백
-    try:
-        ax.config.can_heartbeat_rate_ms = CFG["can_heartbeat_rate_ms"]
-    except AttributeError:
+    if hasattr(odrv.can, "set_baud_rate"):
+        odrv.can.set_baud_rate(CFG["baud"])
+    else:
+        odrv.can.config.baud_rate = CFG["baud"]
+    if hasattr(ax.config, "can"):
+        ax.config.can.node_id = node
         ax.config.can.heartbeat_rate_ms = CFG["can_heartbeat_rate_ms"]
+    else:
+        ax.config.can_node_id = node
+        ax.config.can_heartbeat_rate_ms = CFG["can_heartbeat_rate_ms"]
     ax.config.startup_motor_calibration = False      # 부팅 자동진입 금지
     ax.config.startup_encoder_offset_calibration = False
     ax.config.startup_closed_loop_control = False
-    if save:
-        odrv.save_configuration()                    # 리부팅 → 캘리 소실
-        print("적용 + NVM 저장 완료 (리부팅됨 → --calibrate 로 재캘리)")
 
 
 def calibrate(ax, *, enums=None):
@@ -153,7 +163,7 @@ def _axis_calibration_ok(ax):
     )
 
 
-def persist_calibration(odrv):
+def persist_calibration(odrv, *, save=False):
     """Persist both calibrated axes as one fw 0.5.1 board transaction.
 
     This function never initiates calibration.  It only checks the completed
@@ -161,6 +171,8 @@ def persist_calibration(odrv):
     polarity state from newer firmware is intentionally not used as evidence.
     """
 
+    if save:
+        raise ValueError("NVM writes require run() with verified communication configuration")
     axes = ((0, odrv.axis0), (1, odrv.axis1))
     failed = [axis for axis, ax in axes if not _axis_calibration_ok(ax)]
     if failed:
@@ -169,7 +181,6 @@ def persist_calibration(odrv):
     for _, ax in axes:
         ax.motor.config.pre_calibrated = True
         ax.encoder.config.pre_calibrated = True
-    odrv.save_configuration()
 
 
 def verify_persisted_calibration(odrv):
@@ -192,11 +203,11 @@ def build_parser():
     ap.add_argument("--read", action="store_true", help="현재 NVM 설정 출력")
     ap.add_argument("--apply", action="store_true", help="최적값 적용 + 저장 (리부팅)")
     ap.add_argument("--calibrate", action="store_true", help="풀캘리 (출력축 자유)")
-    ap.add_argument("--node", type=int, default=CFG["node"],
-                    help="CAN node_id (기본 11; both이면 axis1은 다음 번호)")
+    ap.add_argument("--node", type=int,
+                    help="쓰기 대상 CAN node_id (both이면 axis1은 다음 번호)")
     ap.add_argument("--serial", help="ODrive 보드 시리얼 (정확히 이 보드만 연결)")
-    ap.add_argument("--axis", choices=("0", "1", "both"), default="1",
-                    help="대상 축 (기본 1; 양축은 both)")
+    ap.add_argument("--axis", choices=("0", "1", "both"),
+                    help="쓰기 대상 축 (읽기는 기본 양축)")
     ap.add_argument(
         "--persist-calibration",
         action="store_true",
@@ -208,43 +219,72 @@ def build_parser():
 def parse_args(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.persist_calibration and not args.serial:
-        parser.error("--persist-calibration requires --serial")
+    if args.apply or args.calibrate or args.persist_calibration:
+        try:
+            validate_target(args.serial, args.axis, args.node)
+            if args.persist_calibration and args.axis != "both":
+                raise ValueError("--persist-calibration requires --axis both")
+        except ValueError as exc:
+            parser.error(str(exc))
     return args
 
 
 def run(args, *, odrive_module=None, sleep_fn=time.sleep):
-    odrive_module = odrive_module or _load_odrive()
-    odrv = find_odrive(odrive_module, serial=args.serial)
-
-    if args.apply:
-        enums = _load_enums()
-        selected = _selected_axes(odrv, args.axis)
-        for offset, (_, ax) in enumerate(selected):
-            apply(ax, odrv, node=args.node + offset, enums=enums, save=False)
-        odrv.save_configuration()
-        print("적용 + NVM 저장 완료 (리부팅됨 → --calibrate 로 재캘리)")
-        sleep_fn(8)
+    writing = args.apply or args.calibrate or args.persist_calibration
+    if writing:
+        validate_target(args.serial, args.axis, args.node)
+    session = motor_session("bl70200_setup") if writing else contextlib.nullcontext()
+    with session:
+        odrive_module = odrive_module or _load_odrive()
         odrv = find_odrive(odrive_module, serial=args.serial)
-
-    if args.calibrate:
-        enums = _load_enums()
-        for _, ax in _selected_axes(odrv, args.axis):
-            calibrate(ax, enums=enums)
-
-    if args.persist_calibration:
-        persist_calibration(odrv)
-        sleep_fn(8)
-        odrv = find_odrive(odrive_module, serial=args.serial)
-        verify_persisted_calibration(odrv)
-        axes_to_read = _selected_axes(odrv, "both")
-    else:
-        axes_to_read = _selected_axes(odrv, args.axis)
-
-    for axis, ax in axes_to_read:
-        print(f"=== axis{axis} ===")
-        read(ax, odrv)
+        before = communication_snapshot(odrv, serial=args.serial, strict=writing)
+        print_communication(before)
+        selected = _selected_axes(odrv, args.axis or "both")
+        expected = copy.deepcopy(before)
+        if writing:
+            simple_protocol = {(0, 5, 1): 0, (0, 5, 6): 1}.get(tuple(before["firmware"]))
+            if simple_protocol is None:
+                raise ValueError("unsupported firmware for configuration writes; read-only inspection required")
+            if before["protocol"] != simple_protocol or any(before[k]["extended"] for k in ("axis0", "axis1")):
+                raise ValueError("communication configuration must use standard-ID CANSimple")
+            for offset, (axis, ax) in enumerate(selected):
+                if args.apply:
+                    expected[f"axis{axis}"]["node"] = args.node + offset
+                    expected[f"axis{axis}"]["heartbeat_ms"] = CFG["can_heartbeat_rate_ms"]
+                elif before[f"axis{axis}"]["node"] != args.node + offset:
+                    raise ValueError("selected node does not match communication configuration")
+            if expected["axis0"]["node"] == expected["axis1"]["node"]:
+                raise ValueError("duplicate node collision with sibling axis")
+        if args.apply:
+            expected["baud"] = CFG["baud"]
+            enums = _load_enums()
+            for offset, (_, ax) in enumerate(selected):
+                apply(ax, odrv, node=args.node + offset, enums=enums, save=False)
+            odrv = save_and_reconnect(odrv, odrive_module, expected,
+                                     serial=args.serial, sleep_fn=sleep_fn)
+            print("NVM 저장 후 동일 serial 및 양축 CAN 설정 검증 완료")
+        if args.calibrate:
+            enums = _load_enums()
+            for _, ax in _selected_axes(odrv, args.axis):
+                calibrate(ax, enums=enums)
+        if args.persist_calibration:
+            expected = communication_snapshot(odrv, serial=args.serial, strict=True)
+            persist_calibration(odrv)
+            odrv = save_and_reconnect(odrv, odrive_module, expected,
+                                     serial=args.serial, sleep_fn=sleep_fn)
+            verify_persisted_calibration(odrv)
+        for axis, ax in _selected_axes(odrv, args.axis or "both"):
+            print(f"=== axis{axis} ===")
+            read(ax, odrv)
     return 0
+
+
+def print_communication(snapshot):
+    def value(item):
+        return "unavailable" if item is None else str(item)
+    print("serial=%s baud=%s protocol=%s" % tuple(value(snapshot[k]) for k in ("serial", "baud", "protocol")))
+    for axis in ("axis0", "axis1"):
+        print(axis + " " + " ".join(f"{k}={value(v)}" for k, v in snapshot[axis].items()))
 
 
 def main(argv=None, *, odrive_module=None):

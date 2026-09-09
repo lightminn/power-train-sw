@@ -11,9 +11,10 @@
 - `corner_module.py` — `CornerModule` 상태머신·안전·협조 제어
 - `steer_ak40.py` — AK45-36 CAN 조향 드라이버(클래스명은 레거시 AK40)
 - `drive_odrive_can.py` — 현재 10모터 차체용 ODrive CAN 구동 드라이버
-- `drive_odrive_usb.py` — 레거시 단일 코너 벤치/텔레옵용 USB 드라이버
+- `drive_odrive_usb.py` — 무명 보드 선택 때문에 실행이 차단된 레거시 USB 드라이버
+- `drive_odrive_usb_axis.py` — registry serial/axis/node로 연결하는 USB 스키드 드라이버; CAN과 모터 소유권 공유
 - `fake.py` — 무하드웨어 테스트 더블
-- `teleop_dualsense.py` — DualSense 단일 코너 텔레옵 데모
+- `teleop_dualsense.py` — 레거시 실행은 하드스톱; 순수 입력·안전 헬퍼만 유지
 
 ## 단위와 현재 CAN
 
@@ -31,19 +32,14 @@ cd /workspace/motor_control
 python3 -m pytest corner_module/tests -v
 ```
 
-## 텔레옵 실행(Jetson 컨테이너)
+## 텔레옵 실행
 
-```bash
-cd /workspace
-bash scripts/can_setup.sh             # can0 500 kbps
-cd /workspace/motor_control
-python3 -m corner_module.teleop_dualsense
-# 다른 조향 ID: --ak-id N 또는 AK_MOTOR_ID=N
-```
-
-DualSense 실측 매핑은 좌스틱 X=axis0, RT=axis5, LT=axis2, □=btn3,
-○=btn1입니다. 헤드리스 컨테이너에서는 `main()`이 SDL 더미 드라이버를
-설정합니다.
+기존 단일 코너 텔레옵은 이름 없는 첫 USB 보드를 제어하므로 기동 전에 차단한다.
+현재 운용은 [통합 운용 정본](../../docs/integrated-operation.md)의
+`scripts/robot-start`와 운용 콘솔을 따른다. USB 스키드는 기존 board registry를
+사용하며, 풀의 마지막 축이 종료될 때까지 CAN과 동일한 모터 락을 유지한다.
+캘리·NVM 정비는 `motor_control/drive/bl70200/bl70200_setup.py`의
+`--serial <SERIAL> --axis both --node 11`처럼 대상을 모두 명시한다.
 
 ## US-100 안전 상태와 latch
 

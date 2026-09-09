@@ -1,0 +1,65 @@
+manual recovery result: reset generation: 1
+{
+  "recognized_all_ten": false,
+  "all_motor_errors_zero": true,
+  "missing": [
+    "ODrive13",
+    "ODrive14"
+  ],
+  "counts": {
+    "AK3": 300,
+    "AK4": 300,
+    "ODrive11": 300,
+    "ODrive12": 300,
+    "AK2": 300,
+    "AK1": 300,
+    "ODrive15": 300,
+    "ODrive16": 300
+  },
+  "states": {
+    "AK3": {
+      "position_deg": 3.8,
+      "speed_raw": 0,
+      "current_raw": 0,
+      "temperature_c": 53,
+      "fault": 0
+    },
+    "AK4": {
+      "position_deg": 0.0,
+      "speed_raw": 0,
+      "current_raw": 0,
+      "temperature_c": 52,
+      "fault": 0
+    },
+    "ODrive11": {
+      "axis_error": 0,
+      "axis_state": 1
+    },
+    "ODrive12": {
+      "axis_error": 0,
+      "axis_state": 1
+    },
+    "AK2": {
+      "position_deg": 0.0,
+      "speed_raw": 0,
+      "current_raw": 0,
+      "temperature_c": 52,
+      "fault": 0
+    },
+    "AK1": {
+      "position_deg": -0.7,
+      "speed_raw": 0,
+      "current_raw": 0,
+      "temperature_c": 51,
+      "fault": 0
+    },
+    "ODrive15": {
+      "axis_error": 0,
+      "axis_state": 1
+    },
+    "ODrive16": {
+      "axis_error": 0,
+      "axis_state": 1
+    }
+  }
+}
