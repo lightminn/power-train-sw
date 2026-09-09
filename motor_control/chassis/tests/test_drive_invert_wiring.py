@@ -1,4 +1,4 @@
-"""실기 코너 빌더가 wheel_map 기준으로 우측 구동축만 반전하는지 검증."""
+"""실차에서 확인한 전진 방향을 wheel_map 기준으로 드라이버에 반영한다."""
 import pytest
 
 import chassis.chassis_manager as chassis_manager
@@ -14,7 +14,7 @@ class RecordingDrive:
 
 
 class RecordingSteer:
-    def __init__(self, motor_id, channel="can0"):
+    def __init__(self, motor_id, channel="can0", **kwargs):
         self.motor_id = motor_id
 
 
@@ -40,26 +40,26 @@ def _capture_drive_inversion(monkeypatch, wheel_map):
         (
             chassis_manager.DEFAULT_WHEEL_MAP,
             {
-                11: False,
-                12: True,
-                13: False,
-                14: True,
-                15: False,
-                16: True,
+                11: True,
+                12: False,
+                13: True,
+                14: False,
+                15: True,
+                16: False,
             },
         ),
         (
             chassis_manager.FOUR_WHEEL_MAP,
             {
-                11: False,
-                12: True,
-                15: False,
-                16: True,
+                11: True,
+                12: False,
+                15: True,
+                16: False,
             },
         ),
     ],
 )
-def test_build_real_corners_inverts_only_right_wheels(
+def test_build_real_corners_inverts_only_left_wheels(
     monkeypatch, wheel_map, expected
 ):
     assert _capture_drive_inversion(monkeypatch, wheel_map) == expected
@@ -72,6 +72,6 @@ def test_build_real_corners_derives_inversion_from_remapped_node_ids(monkeypatch
     ]
 
     assert _capture_drive_inversion(monkeypatch, remapped) == {
-        101: False,
-        102: True,
+        101: True,
+        102: False,
     }

@@ -287,7 +287,8 @@ class RemoteInputGateway:
         linear = (
             frame.axes.right_trigger - frame.axes.left_trigger
         ) * self.cfg.max_linear
-        angular = frame.axes.left_x * self.cfg.max_angular
+        # SDL stick-right is positive, but REP-103 yaw-right is negative.
+        angular = -frame.axes.left_x * self.cfg.max_angular
         self._last_reason = "DRIVE input"
         return GatewayOutput(
             state=self.state,

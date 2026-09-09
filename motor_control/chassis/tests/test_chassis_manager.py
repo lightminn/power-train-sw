@@ -1350,11 +1350,11 @@ def test_usb_skid_corners_use_null_steer_everywhere(tmp_path):
     assert all(isinstance(c.steer, NullSteer) for c in corners.values())
 
 
-def test_usb_skid_inverts_exactly_the_right_wheels(tmp_path):
+def test_usb_skid_inverts_exactly_the_left_wheels(tmp_path):
     corners = build_usb_skid_corners(_good_registry(tmp_path), pool=_FakePool())
 
     inverted = {name for name, c in corners.items() if c.drive.invert}
-    assert inverted == {"front_right", "mid_right", "rear_right"}
+    assert inverted == {"front_left", "mid_left", "rear_left"}
 
 
 def test_usb_skid_assigns_a_distinct_poll_slot_per_wheel(tmp_path):

@@ -2,7 +2,7 @@
 """구동 6축(node 11~16) CAN 동시 주행 브링업 테스트.
 
 can0 로 6축 전부 속도제어(VELOCITY/VEL_RAMP) arm →
-  ① 전진: 좌(11/13/15)=+1.0 / 우(12/14/16)=−1.0
+  ① 전진: 좌(11/13/15)=−1.0 / 우(12/14/16)=+1.0
   ② 제자리선회: 6축 전부 +1.0 rev/s
   ③ 정지 →0
 각 축 RTR(Get_Encoder_Estimates cmd 0x09)로 실제 vel 읽어 추종 확인 + heartbeat err 감시.
@@ -29,7 +29,7 @@ S_IDLE, S_CLOSED_LOOP = 1, 8
 CTRL_VELOCITY, INPUT_VEL_RAMP = 2, 2
 NODES = [11, 12, 13, 14, 15, 16]
 LEFT, RIGHT = [11, 13, 15], [12, 14, 16]
-# 우측 M1 축은 좌측과 미러 장착되어 물리적 전진에 모터 프레임 음수가 필요하다.
+# 2026-09-09 실주행 관찰로 교정: 전진은 모터 프레임 좌-/우+.
 
 
 def arb(n, c):
@@ -139,11 +139,11 @@ def main():
             n_arm = sum(armed.values())
             print("  → %d/%d arm" % (n_arm, len(NODES)))
 
-            print("\n① 전진: 좌(11/13/15)=+%.1f / 우(12/14/16)=−%.1f rev/s (2s)" % (sp, sp))
+            print("\n① 전진: 좌(11/13/15)=−%.1f / 우(12/14/16)=+%.1f rev/s (2s)" % (sp, sp))
             for n in LEFT:
-                set_vel(bus, n, sp)
-            for n in RIGHT:
                 set_vel(bus, n, -sp)
+            for n in RIGHT:
+                set_vel(bus, n, sp)
             time.sleep(2.0)
             readall(bus, "전진")
 

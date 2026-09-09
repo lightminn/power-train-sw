@@ -1,7 +1,7 @@
 """AK45-36 백엔드 SteerActuator (AK 시리즈 공용). motor_control/steering/ak_control.py 재사용.
 
-조향 출력축 각(도)을 그대로 받아 AK 의 위치 명령으로 전달하고, 매 tick
-status 를 폴링한다. 모터 내장 전류/fault 정보를 state 로 노출한다.
+차체 기준 조향각(+는 좌회전)을 AK 출력축 각으로 변환하고, 매 tick status 를
+폴링한다. invert=True이면 지령과 피드백을 함께 반전한다.
 (드라이버 클래스명은 레거시로 AK40 유지 — 프로파일로 AK45-36 동작.)
 
 라이브러리 import/connect 경로는 owner lock을 만들지 않는다. 실물 CLI/노드 진입점이
@@ -23,10 +23,11 @@ from ak_control import AK40, PKT_STATUS_1  # noqa: E402
 
 class SteerAk40(SteerActuator):
     def __init__(self, motor_id: int = 1, channel: str = "can0",
-                 stale_ms: float = 300.0, clock=None):
+                 stale_ms: float = 300.0, clock=None, invert: bool = False):
         self._motor_id = motor_id
         self._channel = channel
         self._stale_ms = stale_ms
+        self._sign = -1.0 if invert else 1.0
         self._bus = None
         self._ak = None
         self._target_deg = 0.0
@@ -104,7 +105,7 @@ class SteerAk40(SteerActuator):
         # Use available feedback without blocking the chassis/input watchdog.
         # No reply must remain stale, never receive a synthetic fresh stamp.
         self._receive_feedback()
-        self._target_deg = self._ak.pos_out_deg
+        self._target_deg = self._ak.pos_out_deg * self._sign
 
     def disarm(self) -> None:
         self.estop()
@@ -113,7 +114,7 @@ class SteerAk40(SteerActuator):
         self._target_deg = deg
 
     def tick(self) -> None:
-        self._require_sent(self._ak.send_pos_out(self._target_deg))
+        self._require_sent(self._ak.send_pos_out(self._target_deg * self._sign))
         self._receive_feedback()
 
     def state(self) -> dict:
@@ -140,7 +141,7 @@ class SteerAk40(SteerActuator):
         return {
             "can_id": self._motor_id,
             "target_deg": self._target_deg,
-            "actual_deg": self._ak.pos_out_deg if self._ak else 0.0,
+            "actual_deg": self._ak.pos_out_deg * self._sign if self._ak else 0.0,
             "cur_a": self._ak.cur_a if self._ak else 0.0,
             "fault": self._ak.fault if self._ak else 0,
             "stale": stale,

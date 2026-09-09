@@ -85,6 +85,37 @@ def _connect_drive(gateway, session_id=None):
     return session_id
 
 
+@pytest.mark.parametrize(
+    "left_x,right_trigger,left_trigger,linear,angular,front_sign",
+    [
+        (0.25, 0.5, 0.0, 0.75, -0.3, -1),
+        (-0.25, 0.5, 0.0, 0.75, 0.3, 1),
+        (0.25, 0.0, 0.5, -0.75, -0.3, 1),
+        (-0.25, 0.0, 0.5, -0.75, 0.3, -1),
+    ],
+)
+def test_drive_stick_direction_uses_rep103_before_four_wheel_steering(
+    left_x, right_trigger, left_trigger, linear, angular, front_sign,
+):
+    from chassis.kinematics import default_geometry, solve
+
+    gateway = RemoteInputGateway(GatewayConfig(max_linear=1.5, max_angular=1.2))
+    session_id = _connect_drive(gateway)
+    gateway.submit(_frame(
+        sequence=1, received_s=0.01, session_id=session_id, deadman=True,
+        left_x=left_x, right_trigger=right_trigger, left_trigger=left_trigger,
+    ))
+    output = gateway.tick(0.01)
+    assert output.drive.linear == pytest.approx(linear)
+    # SDL stick-right is positive; REP-103 yaw-right is negative.
+    assert output.drive.angular == pytest.approx(angular)
+    wheels = solve(default_geometry(), output.drive.linear, output.drive.angular).wheels
+    for name in ("front_left", "front_right"):
+        assert wheels[name].steer_deg * front_sign > 0
+    for name in ("rear_left", "rear_right"):
+        assert wheels[name].steer_deg * front_sign < 0
+
+
 def test_30hz_drive_stops_on_stale_and_hold_clear_never_restores_command():
     gateway = RemoteInputGateway()
     session_id = _connect_drive(gateway)
@@ -103,7 +134,7 @@ def test_30hz_drive_stops_on_stale_and_hold_clear_never_restores_command():
         )
         output = gateway.tick(now_s)
         assert output.drive.linear == pytest.approx(0.7)
-        assert output.drive.angular == pytest.approx(-0.2)
+        assert output.drive.angular == pytest.approx(0.2)
         _assert_exclusive(output)
 
     output = gateway.tick(now_s + 0.200001)

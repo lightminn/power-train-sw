@@ -878,7 +878,9 @@ def main(args=None):
     finally:
         node.close()
         node.destroy_node()
-        rclpy.shutdown()
+        # ROS's SIGINT handler may already have shut down the context.
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

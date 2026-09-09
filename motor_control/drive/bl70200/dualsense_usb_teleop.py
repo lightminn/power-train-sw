@@ -80,13 +80,16 @@ def connect(serials):
 
 
 def collect_axes(boards, which, invert_axis1):
-    """(라벨, axis, 부호). axis1 = 로봇 우측 = 전진 시 좌측과 반대 부호."""
+    """(라벨, axis, 부호). 현차 전진은 axis0(좌)- / axis1(우)+.
+
+    invert_axis1 이름은 기존 호출 호환용이다. False는 장착 보정 없는 raw 모드.
+    """
     out = []
     for sn, odrv in boards:
         for idx in (0, 1):
             if which != "both" and int(which) != idx:
                 continue
-            sign = -1.0 if (idx == 1 and invert_axis1) else 1.0
+            sign = -1.0 if (idx == 0 and invert_axis1) else 1.0
             out.append(("%s/ax%d" % (sn[-6:], idx), getattr(odrv, "axis%d" % idx), sign))
     return out
 
@@ -269,8 +272,8 @@ def main():
         "--calibrate", action="store_true",
         help="구동 전 풀캘리 (출력축 자유 필수, 현재 상태만 갱신하며 NVM 저장 안 함)",
     )
-    ap.add_argument("--no-invert-axis1", action="store_true",
-                    help="axis1 부호 반전 끄기 (모터 프레임 그대로)")
+    ap.add_argument("--raw-direction", "--no-invert-axis1", dest="no_invert_axis1",
+                    action="store_true", help="장착 방향 보정 끄기 (양축 모터 프레임 그대로)")
     ap.add_argument("--no-auto-arm", action="store_true", help="시작 시 disarm 상태로 (□ 로 arm)")
     args = ap.parse_args()
 

@@ -293,12 +293,15 @@ python -m pytest motor_control -q
   CAN 다축: `can_calibrate_all.py`(node 11~16 일괄 풀캘리 — **이 명령은 RAM만 갱신하며
   NVM 저장은 하지 않는다**), `can_drive_test.py`(6축 동시 주행). 벤치 전용 USB 직결 텔레옵:
   `dualsense_usb_teleop.py`(⚠️ 안전 게이팅 전무 — 바퀴 들고 쓸 것).
-  - ⚠️ **우측 구동축 미러 장착(2026-07-28 실물 확인)**: 각 보드 M1축 = node 12/14/16 =
-    로봇 오른쪽 바퀴이며 좌측과 반대로 돌아야 정방향. `DriveOdriveCan(invert=True)`가
-    **CAN 프레임 경계에서만** 부호를 뒤집고, 드라이버 바깥(chassis·odometry·텔레메트리)은
-    전부 바퀴 프레임 "+=전진"이다. **raw 스크립트와 `motor_gui`의 회전 방향 부호는 모터 기준**이다.
-    GUI의 ODrive 속도는 backend에서 감속비를 반영한 휠 rev/s이며, 우측 장착 방향 자동 반전과는
-    별개다. `can_drive_test.py` 전진 = 좌(11/13/15)+ / 우(12/14/16)−, 제자리선회 = 6축 전부 +.
+  - ⚠️ **구동 장착 방향(2026-09-09 실주행 관찰로 교정)**: 각 보드 M1축 = node 12/14/16 =
+    로봇 오른쪽 바퀴라는 배선 규약은 유지한다. 운전자 관찰에서 기존 좌+/우− 지령이 후진했다.
+    현재 전진은 **좌(11/13/15)− / 우(12/14/16)+**이며 CAN/USB 실기 빌더가 좌측만 반전한다.
+    모터↔바퀴 지령·피드백 변환은 **드라이버 경계에서만** 수행하고, 바깥
+    (chassis·odometry·텔레메트리)은 전부 바퀴 프레임 "+=전진"이다. 구동축별 위치 재식별은
+    이번에 수행하지 않았다. `motor_gui`와 raw 명령의 부호는 모터 기준이다.
+    `can_drive_test.py`의 전진 시퀀스와 USB 벤치 텔레옵 기본 방향도 위 부호를 따른다.
+    USB 벤치 `--raw-direction`(기존 `--no-invert-axis1` 별칭)은 양축 모두 raw +를 사용한다.
+    `can_drive_test.py`의 제자리선회는 6축 전부 +다.
   - **NVM 영속화**: `bl70200_setup.py --persist-calibration --serial <SERIAL> --axis both --node 11`로
     보드별 양축 캘리 상태 확인 후 저장한다(node는 해당 보드의 11/13/15). 저장 여부를 가정하지 말고 시작 전 오류·준비
     상태를 확인하며, 미준비 축은 바퀴를 든 벤치에서 재캘리한다. 축별 검증 범위는 §2와
@@ -307,6 +310,11 @@ python -m pytest motor_control -q
   `DEFAULT_SPD_ERPM=4500` ≈ 출력축 47°/s·45° 0.85 s, `DEFAULT_ACC_ERPM_S2=20000`),
   `calibrate_ak.py`(기어비 1회성), `status_ak.py`(CAN RX 디버깅).
   사전 준비 `bash scripts/can_setup.sh`.
+  - **조향 장착 방향(2026-09-09 단일축 +30° 시험)**: CAN1/2/3/4 = 앞왼쪽/앞오른쪽/
+    뒤왼쪽/뒤오른쪽. 네 축 모두 raw +가 위에서 본 시계방향(바퀴 앞끝은 차체 오른쪽)이다.
+    실기 `SteerAk40(invert=True)`가 지령·피드백을 반전해 차체 기준 +를 좌회전으로 맞춘다.
+    뒤를 향한 모터 외형을 근거로 뒤축만 뒤집지 않는다. 영점·실주행 X자 현상 전체 해결은
+    별도 확인 대상이다. 근거: `docs/reports/2026-09-09-teleop-direction.md`.
 - **corner_module/** — `CornerModule`(상태머신·워치독·estop·과전류 트립·폐루프 점프방지),
   `Actuator`/`SteerActuator`/`DriveActuator` ABC, 드라이버
   `steer_ak40`·`null_steer`·`drive_odrive_usb`·`drive_odrive_can`(CAN 정본)·
