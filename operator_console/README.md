@@ -51,24 +51,42 @@ ros2 run powertrain_ros arm_console_bridge --ros-args -p console_host:=<laptop-i
 /usr/bin/python3 -m operator_console.app --host 192.168.8.106
 ```
 
-`/usr/bin/python3 -m operator_console.runtime_smoke` launches the real GTK application under
-Xvfb, injects maximal synthetic datagrams into isolated UDP ports, and verifies LIVE→STALE,
-sparse-payload, clean-shutdown, traceback, role-layout, and no-automatic-camera-swap paths.
-A loopback ops TCP fixture also sends an unknown steering mode through the real client and
-checks that the GTK control stays unavailable. It
-does not inject or observe a decoded real SRT frame, prove GStreamer frame rendering, exercise a
-real network or hardware sender, or cover the environment-sensing path in draft PR #4. Those need
-separate runtime, E2E, or PR evidence.
+The judge-facing interface uses **실시간 화면** (mission/video) and **시스템 상태**
+(integrated power, communication, and safety summaries with collapsed raw
+diagnostics). Open **복구 · 설정** beside the two-tab navigation to reach the
+existing token-gated controls for E-STOP reset, component settings, steering
+mode, and advanced recovery actions. This non-modal window hides on close and
+cancels any unfinished confirmation; reopening it keeps the same authenticated
+ops session. Press `F11` for the competition display. Camera panels can be
+clicked to exchange the large and preview views; technical stream errors
+remain in the collapsed event log and robot diagnostics.
 
-The interface is organized into three roles: **시연 화면** (mission/video), **로봇 상태** (device summaries with expandable raw diagnostics), and **관리자 조작** (unchanged token-gated safety controls). Press `F11` for the competition display. Camera panels can be clicked to exchange the large and preview views; technical stream errors remain in the collapsed event log and robot diagnostics.
+`/usr/bin/python3 -m operator_console.runtime_smoke` launches the real GTK
+application under Xvfb, injects maximal synthetic datagrams into isolated UDP
+ports, and verifies LIVE→STALE, environment rendering, sparse-payload,
+clean-shutdown, traceback, role-layout, and no-automatic-camera-swap paths. A
+loopback ops TCP fixture also sends an unknown steering mode through the real
+client and checks that the GTK control stays unavailable. It does not inject or
+observe a decoded real SRT frame, prove GStreamer frame rendering, or exercise
+a real network or hardware sender. Those need separate runtime or E2E evidence.
 
-The **로봇 상태** tab is an RX-only live view. Its 주행/전원/로봇팔/안전/AI
-인식/영상·통신 checkboxes only show or hide visualization widgets; receiver
-threads and bounded 60-second buffers continue running, and no ops request,
-component-mask update, CAN command, or ROS parameter write is connected to
-them. 주행과 전원만 기본 표시한다. Missing contract fields are
-shown as `정보 없음` or `연동 예정`, never as synthetic zeroes; see
-`docs/ui_data_gap.md`.
+The lower-right mission rail is the robot-arm/tool hub. It exposes only the
+four confirmed equipment categories (그리퍼 1, 그리퍼 2, 청소 모듈, 환경 센서
+모듈), plus attachment state, joint-load summary, and the explicit fact that
+arm control-mode telemetry is not yet wired. Selecting a tool or pressing its
+detail button opens a common non-modal detail window. The environment window
+groups climate, air quality, and hazard readings. CO/LPG use plain numeric
+values, flame detection is shown as O/X, and SGP30 eCO₂/TVOC values display
+`예열 중` until warmup ends. Lost sensor power or stale input clears the previous
+readings and displays 미연결. Source/sequence details stay collapsed.
+
+The **시스템 상태** tab is a single RX-only live view for PDIST80B power,
+communications, and safety. Drive speed and AI summaries are on the mission
+page; drive pose/mode and standalone arm diagnostics are absent from the
+operator surface. PDIST80B shows only fields already carried by telemetry:
+voltage, charge/discharge current, power, SOC, operating/protection flags,
+RS485 state, and freshness. Missing protocol fields remain `정보 없음` and are
+never read directly by the GUI or synthesized; see `docs/ui_data_gap.md`.
 
 The **시연 화면 → 화면 표시** checkboxes independently control YOLO
 box/class/confidence and target-distance text. They do not stop metadata
@@ -113,6 +131,11 @@ from `~/.config/powertrain/ops_console.token`. Override these independently
 with `--ops-host`, `--ops-port`, and `--ops-token-file`. If the token file is
 absent or empty, the command panel is disabled while every observation channel
 continues normally.
+
+For the integrated `python -m operator_console` entrypoint, the validated
+`~/.config/powertrain/operator.json` keys include
+`environment_telemetry_port` (default `5008`). Overrides must be integer ports
+from 1 through 65535 and must match the robot-side sender configuration.
 
 Observation remains caller/receiver-only: it never opens D435i/L515 or writes
 CAN. Commands are possible only through the authenticated ops client and every

@@ -84,12 +84,12 @@ def bms_monitor_request(device_id: int = 1) -> bytes:
 
 @dataclass(frozen=True)
 class Pdist80bStatus:
-    voltage_v: float
-    discharge_current_a: float
-    soc_percent: int
+    voltage_v: float | None
+    discharge_current_a: float | None
+    soc_percent: int | None
     battery_flags: int
     protection_flags: int
-    charge_current_a: float
+    charge_current_a: float | None
 
 
 def _u16_le(data: bytes, offset: int) -> int:
@@ -99,6 +99,14 @@ def _u16_le(data: bytes, offset: int) -> int:
 def _i16_le(data: bytes, offset: int) -> int:
     value = _u16_le(data, offset)
     return value - 0x10000 if value & 0x8000 else value
+
+
+def _measurement_i16(data: bytes, offset: int) -> int | None:
+    """Decode a signed measurement while preserving PDIST missing sentinels."""
+    raw = _u16_le(data, offset)
+    if raw in (0xFFFF, 0xFFFD):
+        return None
+    return raw - 0x10000 if raw & 0x8000 else raw
 
 
 def parse_bms_monitor_response(packet: bytes, device_id: int = 1) -> Pdist80bStatus:
@@ -113,11 +121,16 @@ def parse_bms_monitor_response(packet: bytes, device_id: int = 1) -> Pdist80bSta
     ):
         raise ValueError("unexpected PDIST80B response header")
     data = packet[5:-1]
+    voltage_raw = _u16_le(data, 0)
+    discharge_raw = _measurement_i16(data, 2)
+    charge_raw = _measurement_i16(data, 8)
     return Pdist80bStatus(
-        voltage_v=_u16_le(data, 0) / 10.0,
-        discharge_current_a=_i16_le(data, 2) / 10.0,
-        soc_percent=data[4],
+        voltage_v=None if voltage_raw == 0xFFFF else voltage_raw / 10.0,
+        discharge_current_a=(
+            None if discharge_raw is None else discharge_raw / 10.0
+        ),
+        soc_percent=None if data[4] == 0xFF else data[4],
         battery_flags=data[5],
         protection_flags=data[6],
-        charge_current_a=_i16_le(data, 8) / 10.0,
+        charge_current_a=None if charge_raw is None else charge_raw / 10.0,
     )

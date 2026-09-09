@@ -139,12 +139,18 @@ def payload_for(status, *, sequence: int, rs485_state: str,
     else:
         voltage_v = status.voltage_v
         current_a = status.discharge_current_a
-        power_w = status.voltage_v * current_a
+        power_w = (
+            None if status.voltage_v is None or current_a is None
+            else status.voltage_v * current_a
+        )
         soc_percent = status.soc_percent
         battery_flags = status.battery_flags
         protection_flags = status.protection_flags
         charge_current_a = status.charge_current_a
-        drive_state = f"PDIST SOC {status.soc_percent}%"
+        drive_state = (
+            "PDIST SOC unavailable" if status.soc_percent is None
+            else f"PDIST SOC {status.soc_percent}%"
+        )
     payload = {
         "schema_version": 1,
         "sequence": sequence,

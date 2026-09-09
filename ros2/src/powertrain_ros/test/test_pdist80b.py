@@ -76,6 +76,23 @@ def test_parse_valid_bms_monitor_response():
     assert status.charge_current_a == pytest.approx(4.5)
 
 
+@pytest.mark.parametrize("missing_current", (b"\xff\xff", b"\xfd\xff"))
+def test_parse_preserves_bms_missing_measurements(missing_current):
+    packet = bytearray(_response_packet())
+    packet[5:7] = b"\xff\xff"  # voltage unavailable
+    packet[7:9] = missing_current
+    packet[9] = 0xFF  # SoC unavailable
+    packet[13:15] = missing_current
+    packet[-1] = checksum(bytes(packet[:-1]))
+
+    status = parse_bms_monitor_response(bytes(packet))
+
+    assert status.voltage_v is None
+    assert status.discharge_current_a is None
+    assert status.soc_percent is None
+    assert status.charge_current_a is None
+
+
 def test_manual_v17_flag_tables_and_fault_masks():
     assert BATTERY_FLAG_LABELS == (
         "수동 충전기 결합",

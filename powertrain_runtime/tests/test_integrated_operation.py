@@ -74,7 +74,10 @@ class BrokerHandler(socketserver.BaseRequestHandler):
                                                "arm": dict(chassis_mode="ARMED"),
                                                "disarm": dict(chassis_mode="IDLE"),
                                                "authority_idle": dict(authority_mode="IDLE")}
-                                    server.state = replace(server.state, revision=server.state.revision+1, **changes.get(order.action, {}))
+                                    if hasattr(server, "execute"):
+                                        server.execute(order.action)
+                                    else:
+                                        server.state = replace(server.state, revision=server.state.revision+1, **changes.get(order.action, {}))
                                     reply = server.core.complete(order.pending_key, True, "fixture executed")
                             if reply:
                                 self.request.sendall(reply)

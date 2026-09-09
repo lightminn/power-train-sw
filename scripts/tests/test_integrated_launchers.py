@@ -413,3 +413,27 @@ def test_integrated_control_bindings_are_loopback_and_public_ports_belong_to_ses
     assert "/proc/net/tcp" in compose
     control_health = compose.split("powertrain_control:", 1)[1].split("powertrain_observability:", 1)[0]
     assert "create_connection" not in control_health
+
+
+def test_effective_integrated_stack_recovers_after_docker_restart():
+    """Read the merged Compose model only; never access or restart the daemon."""
+    import shutil
+    import pytest
+
+    if not shutil.which("docker"):
+        pytest.skip("Docker Compose CLI is required for effective config validation")
+    version = subprocess.run(["docker", "compose", "version"], capture_output=True, text=True)
+    if version.returncode:
+        pytest.skip("Docker Compose plugin is unavailable")
+    result = subprocess.run(
+        ["docker", "compose", "-f", "docker/docker-compose.jetson.yml", "-f",
+         "docker/docker-compose.integrated.yml", "config", "--format", "json"],
+        cwd=ROOT, capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    services = json.loads(result.stdout)["services"]
+    required = ("canwatchdog", "powertrain_ros", "powertrain_control", "powertrain_chassis",
+                "powertrain_observability", "powertrain_chassis_telemetry",
+                "powertrain_pdist80b_telemetry", "powertrain_session")
+    actual = {name: services[name].get("restart") for name in required}
+    assert actual == dict.fromkeys(required, "unless-stopped"), actual

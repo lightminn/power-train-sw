@@ -37,7 +37,9 @@ STARTUP_TIMEOUT_S = 40.0
 
 # 이 패널들은 주입 중 LIVE 에 도달하고, 주입을 끊으면 STALE 로 전이해야 한다.
 # 하나라도 못 하면 그 채널은 실제로는 죽어 있는 것이다.
-REQUIRED_PANELS = frozenset({"telemetry", "chassis", "metadata", "arm"})
+REQUIRED_PANELS = frozenset({
+    "telemetry", "chassis", "metadata", "arm", "environment",
+})
 
 
 def smoke_child_env(
@@ -92,6 +94,16 @@ def _probe_rover_widths(probe_file: Path) -> tuple[int, int] | None:
     try:
         states = json.loads(probe_file.read_text(encoding="utf-8"))
         return int(states["rover_l515_width"]), int(states["rover_d435_width"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _probe_environment_values(probe_file: Path) -> tuple[str, str, str] | None:
+    try:
+        states = json.loads(probe_file.read_text(encoding="utf-8"))
+        return tuple(str(states[key]) for key in (
+            "environment_climate", "environment_air", "environment_hazard",
+        ))
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
@@ -299,7 +311,38 @@ def _arm_payload(sequence: int) -> dict:
     }
 
 
-def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
+def _environment_payload(sequence: int) -> dict:
+    return {
+        "schema_version": 1,
+        "sequence": sequence,
+        "source": "runtime-smoke-rpi",
+        "sensor_ok": True,
+        "errors": [],
+        "temperature_c": 29.08,
+        "humidity_pct": 56.87,
+        "pressure_hpa": 1003.14,
+        "eco2_ppm": 401.0,
+        "tvoc_ppb": 1.0,
+        "sgp30_warming_up": False,
+        "co_estimated_ppm": 1.0,
+        "co_rs_ro": 1.019,
+        "co_range": "below_detection_range",
+        "co_quality": "uncalibrated_estimate",
+        "lpg_estimated_ppm": 27.9,
+        "lpg_rs_ro": 1.012,
+        "lpg_range": "below_detection_range",
+        "lpg_quality": "uncalibrated_estimate",
+        "flame_detected": False,
+        "flame_voltage_v": 2.754,
+        "flame_threshold_v": 1.5,
+    }
+
+
+def run_smoke(
+    run_s: float = RUN_S,
+    *,
+    omit_channel_for_test: str | None = None,
+) -> tuple[bool, str]:
     """Return (passed, report). Never raises for a product failure."""
     if not Path(SYSTEM_PYTHON).exists():
         return False, f"system python missing: {SYSTEM_PYTHON}"
@@ -314,6 +357,7 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
     ports = {
         "metadata": _free_udp_port(), "telemetry": _free_udp_port(),
         "chassis": _free_udp_port(), "arm": _free_udp_port(),
+        "environment": _free_udp_port(),
     }
     ops_fixture = _OpsStateFixture()
     ops_fixture.start()
@@ -337,6 +381,7 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
                 "--telemetry-port", str(ports["telemetry"]),
                 "--chassis-telemetry-port", str(ports["chassis"]),
                 "--arm-telemetry-port", str(ports["arm"]),
+                "--environment-telemetry-port", str(ports["environment"]),
                 "--ops-token-file", token_file,
                 "--ops-port", str(ops_fixture.port),
                 "--smoke-probe-file", str(probe_file),
@@ -355,11 +400,13 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
     builders = {
         "telemetry": _telemetry_payload, "chassis": _chassis_payload,
         "metadata": _metadata_payload, "arm": _arm_payload,
+        "environment": _environment_payload,
     }
     live_seen: set[str] = set()
     stale_seen: set[str] = set()
     unexpected_auto_swap_seen = False
     role_sized_rovers_seen = False
+    environment_values_seen = False
     invalid_steering_held_seen = False
     try:
         # 콘솔이 Gtk 루프에 진입하기 전에 주입 창을 소진하면 LIVE 를 한 번도
@@ -386,6 +433,8 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
                 break
             sequence += 1
             for channel, build in builders.items():
+                if channel == omit_channel_for_test:
+                    continue
                 sender.sendto(
                     json.dumps(build(sequence)).encode("utf-8"),
                     ("127.0.0.1", ports[channel]),
@@ -396,6 +445,15 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
                 _probe_main_video(probe_file) == "작업 카메라"
             )
             role_sized_rovers_seen |= _probe_rover_widths(probe_file) == (290, 90)
+            environment_values = _probe_environment_values(probe_file)
+            if environment_values is not None:
+                climate, air, hazard = environment_values
+                environment_values_seen |= all((
+                    "29.08" in climate, "56.87" in climate,
+                    "1003.14" in climate, "401" in air, "1" in air,
+                    "1.0" in hazard, "27.9" in hazard,
+                    "불꽃 X" in hazard,
+                ))
             invalid_steering_held_seen |= _probe_ops_steering(probe_file) == (
                 "조향 방식 [상태 미확인]",
                 False,
@@ -403,7 +461,7 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
                 "invalid-smoke-mode",
             )
         # phase 2 — 주입 중단: 전 패널 LIVE→STALE 전이 + 오버레이 숨김 경로.
-        stale_deadline = time.monotonic() + 2.5
+        stale_deadline = time.monotonic() + 3.5
         while time.monotonic() < stale_deadline and console.poll() is None:
             time.sleep(0.2)
             stale_seen |= _probe_states(probe_file, "STALE")
@@ -418,8 +476,14 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
                          "detections": []},
             "arm": {"schema_version": 1, "sequence": sequence,
                     "dynamixel": None, "joints": None},
+            "environment": {
+                "schema_version": 1, "sequence": sequence,
+                "sensor_ok": False, "errors": ["fixture sparse packet"],
+            },
         }
         for channel, payload in sparse.items():
+            if channel == omit_channel_for_test:
+                continue
             sender.sendto(
                 json.dumps(payload).encode("utf-8"),
                 ("127.0.0.1", ports[channel]),
@@ -495,10 +559,12 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
         return False, (
             "default front-MAIN/work-PiP placeholder sizes changed\n" + text
         )
+    if not environment_values_seen:
+        return False, "environment values never rendered in the GUI\n" + text
     if not invalid_steering_held_seen:
         return False, "invalid steering ops state was not held disabled\n" + text
     return True, (
-        f"PASS · {sequence} ticks on 4 channels · "
+        f"PASS · {sequence} ticks on 5 channels · "
         f"LIVE+STALE observed on {', '.join(sorted(REQUIRED_PANELS))} · "
         "invalid steering mode held disabled · "
         "no automatic camera swap observed · no tracebacks"

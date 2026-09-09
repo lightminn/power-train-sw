@@ -7,10 +7,17 @@ from types import SimpleNamespace
 
 import operator_console.status_view as status_view
 from operator_console.status_view import (
+    END_EFFECTOR_PURPOSES,
     GRAPH_WINDOW_S,
     MAX_GRAPH_SAMPLES,
+    CompetitionStatusDashboard,
     RobotStatusDashboard,
     TimedSeries,
+    communication_badge_state,
+    pdist_alarm_names,
+    power_card_state,
+    public_link_state,
+    safety_badge_state,
 )
 from operator_console.telemetry import parse_telemetry
 
@@ -32,6 +39,35 @@ def test_timed_series_keeps_explicit_stale_gap():
     series.mark_gap(3.0)
 
     assert [sample.value for sample in series.samples()] == [2.0, None]
+
+
+def test_pdist_operating_bits_are_not_misclassified_as_alarms():
+    assert pdist_alarm_names(0b00000011, 0b11100000) == ()
+    assert pdist_alarm_names(1 << 3, 1 << 1) == (
+        "저전압 보호", "방전 과전류",
+    )
+
+
+def test_status_view_defaults_match_operator_view_options():
+    assert RobotStatusDashboard.PANEL_ORDER == (
+        "drive", "power", "safety", "network", "ai", "arm",
+    )
+
+
+def test_operator_end_effector_inventory_is_limited_to_four_confirmed_categories():
+    assert tuple(END_EFFECTOR_PURPOSES) == (
+        "그리퍼 1", "그리퍼 2", "청소 모듈", "환경 센서 모듈",
+    )
+
+
+def test_competition_status_is_unified_around_power_communication_and_safety():
+    source = inspect.getsource(CompetitionStatusDashboard)
+    assert '"power", "전원 · PDIST80B"' in source
+    assert '"communication", "통신"' in source
+    assert '"safety", "안전"' in source
+    assert '"drive", "주행"' not in source
+    assert '"arm", "로봇팔"' not in source
+    assert "값은 추정하지 않습니다" in source
 
 
 def test_status_view_defaults_to_drive_detail_only():
@@ -213,8 +249,86 @@ def test_power_card_reports_normal_only_for_fresh_healthy_measurement():
     )
     assert power_card_state(None, fresh=True) == (
         "정보 없음",
-        "전원 장치 정보 수신 대기",
+        "전원 장치 정보 없음",
     )
+
+
+def test_power_card_does_not_infer_normal_without_protection_flags():
+    snapshot = _power_snapshot(
+        pdist_battery_flags=None,
+        pdist_protection_flags=None,
+    )
+
+    assert power_card_state(snapshot, fresh=True) == (
+        "확인 필요",
+        "보호 상태 정보 없음",
+    )
+
+
+def test_system_link_codes_are_translated_for_operator_view():
+    assert public_link_state("LIVE") == "실시간 수신"
+    assert public_link_state("VALID") == "정상"
+    assert public_link_state("NO_RESPONSE") == "응답 없음"
+    assert public_link_state("UNAVAILABLE") == "정보 없음"
+    assert public_link_state("LIVE", control=True) == "연결됨"
+    assert public_link_state("UNAVAILABLE", control=True) == "사용 불가"
+
+
+def test_communication_badge_requires_every_displayed_link():
+    complete = dict(
+        chassis_fresh=True,
+        power_fresh=True,
+        metadata_fresh=True,
+        front_video_state="LIVE",
+        work_video_state="LIVE",
+        control_link_ready=True,
+        any_telemetry_seen=True,
+    )
+    assert communication_badge_state(**complete) == ("정상", "status-live")
+
+    one_camera_missing = {**complete, "work_video_state": "CONNECTING"}
+    assert communication_badge_state(**one_camera_missing) == (
+        "확인 필요",
+        "status-warn",
+    )
+
+    no_ai = {**complete, "metadata_fresh": False}
+    assert communication_badge_state(**no_ai) == (
+        "확인 필요",
+        "status-warn",
+    )
+
+
+def test_safety_badge_requires_safety_enable_and_required_arm_data():
+    chassis = SimpleNamespace(
+        safety_estop_required=False,
+        component_mask={"us100": True, "robot_arm": True},
+    )
+    arm = SimpleNamespace(dynamixel=())
+    assert safety_badge_state(
+        chassis=chassis, chassis_fresh=True, arm=arm, arm_fresh=True,
+    ) == ("정상", "status-live")
+    assert safety_badge_state(
+        chassis=chassis, chassis_fresh=True, arm=None, arm_fresh=False,
+    ) == ("확인 필요", "status-warn")
+
+    unknown_enable = SimpleNamespace(
+        safety_estop_required=False,
+        component_mask=None,
+    )
+    assert safety_badge_state(
+        chassis=unknown_enable, chassis_fresh=True, arm=arm, arm_fresh=True,
+    ) == ("확인 필요", "status-warn")
+
+
+def test_safety_badge_preserves_estop_priority():
+    chassis = SimpleNamespace(
+        safety_estop_required=True,
+        component_mask={"us100": True, "robot_arm": True},
+    )
+    assert safety_badge_state(
+        chassis=chassis, chassis_fresh=True, arm=None, arm_fresh=False,
+    ) == ("비상정지", "status-bad")
 
 
 def test_status_dashboard_uses_power_health_not_freshness_for_ready_count():

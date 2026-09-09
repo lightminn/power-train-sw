@@ -2,6 +2,7 @@
 # Images and the ROS install space must already be prepared by robot_prepare.sh.
 services:
   powertrain_ros:
+    restart: unless-stopped
     environment:
       - POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json
     entrypoint:
@@ -110,7 +111,7 @@ services:
     working_dir: /workspace
     entrypoint: [python3, -u, scripts/pdist80b_telemetry_sender.py]
     command: [--operator-host, 127.0.0.1, --operator-port, "5004", --port, /dev/powertrain-pdist80b, --device-id, "1", --hz, "2.0", --include-unit-status]
-    restart: on-failure
+    restart: unless-stopped
 
   # Read-only D435 detection metadata (:5003) and arm state (:5007). The
   # profile is opt-in because the separately owned arm/D435 stack must first
