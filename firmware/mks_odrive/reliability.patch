@@ -1,0 +1,647 @@
+--- a/Firmware/communication/interface_can.cpp
++++ b/Firmware/communication/interface_can.cpp
+@@ -1,51 +1,71 @@
+ #include "interface_can.hpp"
+ 
+-#include "fibre/crc.hpp"
+ #include "freertos_vars.h"
+ #include "utils.hpp"
+-
+ #include <can.h>
+-#include <cmsis_os.h>
+-#include <stm32f4xx_hal.h>
+-
+-// Specific CAN Protocols
+ #include "can_simple.hpp"
+ 
+-// Safer context handling via maps instead of arrays
+-// #include <unordered_map>
+-// std::unordered_map<CAN_HandleTypeDef *, ODriveCAN *> ctxMap;
++namespace {
++constexpr uint32_t notifications = CAN_IT_RX_FIFO0_MSG_PENDING | CAN_IT_ERROR |
++    CAN_IT_BUSOFF | CAN_IT_LAST_ERROR_CODE | CAN_IT_ERROR_WARNING |
++    CAN_IT_ERROR_PASSIVE | CAN_IT_RX_FIFO0_OVERRUN | CAN_IT_RX_FIFO1_OVERRUN;
++constexpr uint32_t all_mailboxes = CAN_TX_MAILBOX0 | CAN_TX_MAILBOX1 | CAN_TX_MAILBOX2;
++}
+ 
+-// Constructor is called by communication.cpp and the handle is assigned appropriately
+ ODriveCAN::ODriveCAN(ODriveCAN::Config_t &config, CAN_HandleTypeDef *handle)
+-    : config_{config},
+-      handle_{handle} {
+-    // ctxMap[handle_] = this;
++    : config_{config}, handle_{handle}, pending_baud_rate_{config.baud_rate} {}
++
++void ODriveCAN::record_hal_error(uint32_t error, bool request_reinit) {
++    if (!error) return;
++    uint32_t mask = cpu_enter_critical();
++    last_hal_error_ = error;
++    hal_error_history_ |= error;
++    if (request_reinit) reinit_requested_ = true;
++    cpu_exit_critical(mask);
++}
++
++uint32_t ODriveCAN::get_hal_error() {
++    return HAL_CAN_GetError(handle_);
+ }
+ 
+ void ODriveCAN::can_server_thread() {
+     for (;;) {
+-        uint32_t status = HAL_CAN_GetError(handle_);
+-        if (status == HAL_CAN_ERROR_NONE) {
+-            can_Message_t rxmsg;
+-
+-            osSemaphoreWait(sem_can, 10);  // Poll every 10ms regardless of sempahore status
+-            while (available()) {
+-                read(rxmsg);
+-                switch (config_.protocol) {
+-                    case PROTOCOL_SIMPLE:
+-                        CANSimple::handle_can_message(rxmsg);
+-                        break;
+-                }
++        record_hal_error(HAL_CAN_GetError(handle_));
++        if (reinit_requested_ || reinitializing_) {
++            uint32_t mask = cpu_enter_critical();
++            reinitializing_ = true; // All TX/RX entry points reject until complete.
++            reinit_requested_ = false;
++            const uint32_t baud = pending_baud_rate_;
++            cpu_exit_critical(mask);
++            // No blocking HAL call is made under PRIMASK. Stop both motors first.
++            for (auto axis : axes) axis->latch_can_fault();
++            ++recovery_count_;
++            bool ok = apply_can_config(baud, true);
++            mask = cpu_enter_critical();
++            if (ok && !reinit_requested_) {
++                reinitializing_ = false;
++                for (auto axis : axes) axis->can_recovery_in_progress_ = false;
+             }
+-            HAL_CAN_ActivateNotification(handle_, CAN_IT_RX_FIFO0_MSG_PENDING);
+-        } else {
+-            if (status == HAL_CAN_ERROR_TIMEOUT) {
+-                HAL_CAN_ResetError(handle_);
+-                status = HAL_CAN_Start(handle_);
+-                if (status == HAL_OK)
+-                    status = HAL_CAN_ActivateNotification(handle_, CAN_IT_RX_FIFO0_MSG_PENDING);
++            if (!ok) ++recovery_failure_count_;
++            cpu_exit_critical(mask);
++            // Also yield on success: persistent faults must never starve idle/USB.
++            osDelay(10);
++            continue;
++        }
++
++        osSemaphoreWait(sem_can, 10);
++        // A saturated bus cannot create an unbounded RX loop.
++        for (unsigned int n = 0; n < 16; ++n) {
++            can_Message_t rxmsg;
++            if (!read(rxmsg)) break;
++            switch (config_.protocol) {
++                case PROTOCOL_SIMPLE: CANSimple::handle_can_message(rxmsg); break;
+             }
+         }
++        if (!reinit_requested_ && !reinitializing_) {
++            if (HAL_CAN_ActivateNotification(handle_, notifications) != HAL_OK)
++                record_hal_error(HAL_CAN_GetError(handle_));
++        }
+     }
+ }
+ 
+@@ -55,137 +75,157 @@
+ }
+ 
+ bool ODriveCAN::start_can_server() {
+-    HAL_StatusTypeDef status;
+-
+-    set_baud_rate(config_.baud_rate);
+-
+-    status = HAL_CAN_Init(handle_);
+-
+-    CAN_FilterTypeDef filter;
+-    filter.FilterActivation = ENABLE;
+-    filter.FilterBank = 0;
+-    filter.FilterFIFOAssignment = CAN_RX_FIFO0;
+-    filter.FilterIdHigh = 0x0000;
+-    filter.FilterIdLow = 0x0000;
+-    filter.FilterMaskIdHigh = 0x0000;
+-    filter.FilterMaskIdLow = 0x0000;
+-    filter.FilterMode = CAN_FILTERMODE_IDMASK;
+-    filter.FilterScale = CAN_FILTERSCALE_32BIT;
+-
+-    status = HAL_CAN_ConfigFilter(handle_, &filter);
+-
+-    status = HAL_CAN_Start(handle_);
+-    if (status == HAL_OK)
+-        status = HAL_CAN_ActivateNotification(handle_, CAN_IT_RX_FIFO0_MSG_PENDING);
+-
++    // Initial bring-up must not be mistaken for a runtime CAN fault.
++    reinitializing_ = true;
++    bool ok = apply_can_config(config_.baud_rate, false);
++    reinitializing_ = !ok;
+     osThreadDef(can_server_thread_def, can_server_thread_wrapper, osPriorityNormal, 0, stack_size_ / sizeof(StackType_t));
+     thread_id_ = osThreadCreate(osThread(can_server_thread_def), this);
+-    thread_id_valid_ = true;
+-
+-    return status;
++    thread_id_valid_ = thread_id_ != nullptr;
++    return ok && thread_id_valid_;
+ }
+ 
+-// Send a CAN message on the bus
+ uint32_t ODriveCAN::write(can_Message_t &txmsg) {
+-    if (HAL_CAN_GetError(handle_) == HAL_CAN_ERROR_NONE) {
+-        CAN_TxHeaderTypeDef header;
+-        header.StdId = txmsg.id;
+-        header.ExtId = txmsg.id;
+-        header.IDE = txmsg.isExt ? CAN_ID_EXT : CAN_ID_STD;
+-        header.RTR = CAN_RTR_DATA;
+-        header.DLC = txmsg.len;
+-        header.TransmitGlobalTime = FunctionalState::DISABLE;
+-
+-        uint32_t retTxMailbox = 0;
+-        if (HAL_CAN_GetTxMailboxesFreeLevel(handle_) > 0)
+-            HAL_CAN_AddTxMessage(handle_, &header, txmsg.buf, &retTxMailbox);
+-
+-        return retTxMailbox;
+-    } else {
+-        return -1;
++    CAN_TxHeaderTypeDef header = {};
++    header.StdId = txmsg.id;
++    header.ExtId = txmsg.id;
++    header.IDE = txmsg.isExt ? CAN_ID_EXT : CAN_ID_STD;
++    header.RTR = CAN_RTR_DATA;
++    header.DLC = txmsg.len;
++    header.TransmitGlobalTime = DISABLE;
++    uint32_t mailbox = 0;
++    // Only finite, nonblocking register operations are protected. This excludes
++    // axis heartbeat preemption between the slot check and HAL registration.
++    uint32_t mask = cpu_enter_critical();
++    if (reinitializing_ || reinit_requested_ || txmsg.len > 8) {
++        ++tx_drop_count_;
++    } else if (HAL_CAN_GetError(handle_) != HAL_CAN_ERROR_NONE) {
++        record_hal_error(HAL_CAN_GetError(handle_));
++        ++tx_error_count_;
++    } else if (!HAL_CAN_GetTxMailboxesFreeLevel(handle_)) {
++        ++tx_drop_count_;
++    } else if (HAL_CAN_AddTxMessage(handle_, &header, txmsg.buf, &mailbox) != HAL_OK) {
++        mailbox = 0;
++        ++tx_error_count_;
++        record_hal_error(HAL_CAN_GetError(handle_));
++        reinit_requested_ = true; // Even a HAL failure without an error flag.
+     }
++    cpu_exit_critical(mask);
++    return mailbox;
+ }
+ 
+ uint32_t ODriveCAN::available() {
+-    return (HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO0) + HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO1));
++    uint32_t mask = cpu_enter_critical();
++    uint32_t count = (reinitializing_ || reinit_requested_) ? 0 :
++        HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO0) + HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO1);
++    cpu_exit_critical(mask);
++    return count;
+ }
+ 
+ bool ODriveCAN::read(can_Message_t &rxmsg) {
+-    CAN_RxHeaderTypeDef header;
+-    bool validRead = false;
+-    if (HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO0) > 0) {
+-        HAL_CAN_GetRxMessage(handle_, CAN_RX_FIFO0, &header, rxmsg.buf);
+-        validRead = true;
+-    } else if (HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO1) > 0) {
+-        HAL_CAN_GetRxMessage(handle_, CAN_RX_FIFO1, &header, rxmsg.buf);
+-        validRead = true;
++    CAN_RxHeaderTypeDef header = {};
++    uint32_t mask = cpu_enter_critical();
++    bool valid = false;
++    if (!reinitializing_ && !reinit_requested_) {
++        if (HAL_CAN_GetError(handle_) != HAL_CAN_ERROR_NONE) {
++            record_hal_error(HAL_CAN_GetError(handle_));
++        } else {
++            uint32_t fifo = HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO0) ? CAN_RX_FIFO0 : CAN_RX_FIFO1;
++            if (HAL_CAN_GetRxFifoFillLevel(handle_, fifo)) {
++                valid = HAL_CAN_GetRxMessage(handle_, fifo, &header, rxmsg.buf) == HAL_OK;
++                if (!valid) {
++                    record_hal_error(HAL_CAN_GetError(handle_));
++                    reinit_requested_ = true;
++                }
++            }
++        }
+     }
+-
+-    rxmsg.isExt = header.IDE;
+-    rxmsg.id = rxmsg.isExt ? header.ExtId : header.StdId;  // If it's an extended message, pass the extended ID
++    cpu_exit_critical(mask);
++    if (!valid) return false;
++    rxmsg.isExt = header.IDE == CAN_ID_EXT;
++    rxmsg.id = rxmsg.isExt ? header.ExtId : header.StdId;
+     rxmsg.len = header.DLC;
+-    rxmsg.rtr = header.RTR;
+-
+-    return validRead;
++    rxmsg.rtr = header.RTR != CAN_RTR_DATA;
++    return true;
+ }
+ 
+-// Set one of only a few common baud rates.  CAN doesn't do arbitrary baud rates well due to the time-quanta issue.
+-// 21 TQ allows for easy sampling at exactly 80% (recommended by Vector Informatik GmbH for high reliability systems)
+-// Conveniently, the CAN peripheral's 42MHz clock lets us easily create 21TQs for all common baud rates
+ void ODriveCAN::set_baud_rate(uint32_t baudRate) {
+-    switch (baudRate) {
+-        case CAN_BAUD_125K:
+-            handle_->Init.Prescaler = 16;  // 21 TQ's
+-            config_.baud_rate = baudRate;
+-            reinit_can();
+-            break;
+-
+-        case CAN_BAUD_250K:
+-            handle_->Init.Prescaler = 8;  // 21 TQ's
+-            config_.baud_rate = baudRate;
+-            reinit_can();
+-            break;
+-
+-        case CAN_BAUD_500K:
+-            handle_->Init.Prescaler = 4;  // 21 TQ's
+-            config_.baud_rate = baudRate;
+-            reinit_can();
+-            break;
+-
+-        case CAN_BAUD_1000K:
+-            handle_->Init.Prescaler = 2;  // 21 TQ's
+-            config_.baud_rate = baudRate;
+-            reinit_can();
+-            break;
+-
+-        default:
+-            // baudRate is invalid, so don't accept it.
+-            break;
+-    }
++    if (baudRate != CAN_BAUD_125K && baudRate != CAN_BAUD_250K &&
++        baudRate != CAN_BAUD_500K && baudRate != CAN_BAUD_1000K) return;
++    // Fibre/USB callers only enqueue. The server owns every runtime HAL reset.
++    // Multiple requests coalesce to the most recently requested valid baud.
++    uint32_t mask = cpu_enter_critical();
++    pending_baud_rate_ = baudRate;
++    reinit_requested_ = true;
++    cpu_exit_critical(mask);
+ }
+ 
+ void ODriveCAN::reinit_can() {
+-    HAL_CAN_Stop(handle_);
+-    HAL_CAN_Init(handle_);
+-    auto status = HAL_CAN_Start(handle_);
+-    if (status == HAL_OK)
+-        status = HAL_CAN_ActivateNotification(handle_, CAN_IT_RX_FIFO0_MSG_PENDING);
++    uint32_t mask = cpu_enter_critical();
++    reinit_requested_ = true;
++    cpu_exit_critical(mask);
++}
++
++bool ODriveCAN::apply_can_config(uint32_t baud, bool recovery) {
++    if (recovery) {
++        HAL_CAN_DeactivateNotification(handle_, notifications);
++        // bxCAN has three pending frames per RX FIFO. Count the stale frames;
++        // peripheral reset below discards them, including arrivals during Stop.
++        rx_discard_count_ += HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO0) +
++            HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO1);
++        if (HAL_CAN_AbortTxRequest(handle_, all_mailboxes) != HAL_OK)
++            record_hal_error(HAL_CAN_GetError(handle_), false);
++        // This v3.6 board owns CAN1. Do not use HAL_CAN_DeInit: its MSP hook
++        // gates CAN1's clock before HAL writes MCR_RESET and it hides Stop errors.
++        // Only CAN IRQs are disabled here; motor control and the HAL tick keep running.
++        if (handle_->Instance != CAN1) return false;
++        HAL_NVIC_DisableIRQ(CAN1_TX_IRQn);
++        HAL_NVIC_DisableIRQ(CAN1_RX0_IRQn);
++        HAL_NVIC_DisableIRQ(CAN1_RX1_IRQn);
++        HAL_NVIC_DisableIRQ(CAN1_SCE_IRQn);
++        if (handle_->State == HAL_CAN_STATE_LISTENING && HAL_CAN_Stop(handle_) != HAL_OK)
++            record_hal_error(HAL_CAN_GetError(handle_), false);
++        // Snapshot again before reset/Init can erase a newly observed error.
++        record_hal_error(HAL_CAN_GetError(handle_), false);
++        __HAL_RCC_CAN1_FORCE_RESET();
++        __DSB();
++        __HAL_RCC_CAN1_RELEASE_RESET();
++        __DSB();
++        HAL_NVIC_ClearPendingIRQ(CAN1_TX_IRQn);
++        HAL_NVIC_ClearPendingIRQ(CAN1_RX0_IRQn);
++        HAL_NVIC_ClearPendingIRQ(CAN1_RX1_IRQn);
++        HAL_NVIC_ClearPendingIRQ(CAN1_SCE_IRQn);
++        handle_->State = HAL_CAN_STATE_RESET; // Init runs the normal MSP/IRQ setup.
++    }
++    handle_->Init.Prescaler = CAN_CLK_HZ / (21 * baud);
++    if (HAL_CAN_Init(handle_) != HAL_OK) {
++        record_hal_error(HAL_CAN_GetError(handle_));
++        return false;
++    }
++    CAN_FilterTypeDef filter = {};
++    filter.FilterActivation = ENABLE;
++    filter.FilterFIFOAssignment = CAN_RX_FIFO0;
++    filter.FilterMode = CAN_FILTERMODE_IDMASK;
++    filter.FilterScale = CAN_FILTERSCALE_32BIT;
++    filter.SlaveStartFilterBank = 14;
++    if (HAL_CAN_ConfigFilter(handle_, &filter) != HAL_OK ||
++        HAL_CAN_Start(handle_) != HAL_OK ||
++        HAL_CAN_ActivateNotification(handle_, notifications) != HAL_OK) {
++        record_hal_error(HAL_CAN_GetError(handle_));
++        return false;
++    }
++    config_.baud_rate = baud; // Applied value, not merely the queued request.
++    return true;
+ }
+ 
+-void ODriveCAN::set_error(Error error) {
+-    error_ |= error;
+-}
+-// This function is called by each axis.
+-// It provides an abstraction from the specific CAN protocol in use
++void ODriveCAN::set_error(Error error) { error_ |= error; }
++
+ void ODriveCAN::send_heartbeat(Axis *axis) {
+-    // Handle heartbeat message
+     if (axis->config_.can_heartbeat_rate_ms > 0) {
+         uint32_t now = osKernelSysTick();
+         if ((now - axis->last_heartbeat_) >= axis->config_.can_heartbeat_rate_ms) {
+             switch (config_.protocol) {
+-                case PROTOCOL_SIMPLE:
+-                    CANSimple::send_heartbeat(axis);
+-                    break;
++                case PROTOCOL_SIMPLE: CANSimple::send_heartbeat(axis); break;
+             }
+             axis->last_heartbeat_ = now;
+         }
+@@ -202,13 +242,15 @@
+     HAL_CAN_DeactivateNotification(hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+     osSemaphoreRelease(sem_can);
+ }
+-void HAL_CAN_RxFifo0FullCallback(CAN_HandleTypeDef *hcan) {
+-    // osSemaphoreRelease(sem_can);
+-}
++void HAL_CAN_RxFifo0FullCallback(CAN_HandleTypeDef *hcan) {}
+ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan) {}
+ void HAL_CAN_RxFifo1FullCallback(CAN_HandleTypeDef *hcan) {}
+ void HAL_CAN_SleepCallback(CAN_HandleTypeDef *hcan) {}
+ void HAL_CAN_WakeUpFromRxMsgCallback(CAN_HandleTypeDef *hcan) {}
+ void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan) {
+-    HAL_CAN_ResetError(hcan);
++    // Preserve IRQ-only errors before the server clears anything. No HAL reset in
++    // interrupt context; API-only errors are also detected by write/read/server.
++    if (odCAN) odCAN->record_hal_error(HAL_CAN_GetError(hcan));
++    HAL_CAN_DeactivateNotification(hcan, notifications & ~CAN_IT_RX_FIFO0_MSG_PENDING);
++    osSemaphoreRelease(sem_can);
+ }
+--- a/Firmware/communication/interface_can.hpp
++++ b/Firmware/communication/interface_can.hpp
+@@ -33,6 +33,20 @@
+     const uint32_t stack_size_ = 1024; // Bytes
+     Error error_ = ERROR_NONE;
+ 
++    // RAM-only diagnostics: Config_t (and therefore NVM layout) is unchanged.
++    const uint32_t reliability_patch_ = 1;
++    uint32_t last_hal_error_ = 0;
++    uint32_t hal_error_history_ = 0;
++    uint32_t tx_drop_count_ = 0;
++    uint32_t tx_error_count_ = 0;
++    uint32_t recovery_count_ = 0;
++    uint32_t recovery_failure_count_ = 0;
++    uint32_t rx_discard_count_ = 0;
++    bool reinitializing_ = false;
++    bool reinit_requested_ = false;
++    uint32_t get_hal_error();
++    void record_hal_error(uint32_t error, bool request_reinit = true);
++
+     volatile bool thread_id_valid_ = false;
+     bool start_can_server();
+     void can_server_thread();
+@@ -52,6 +66,8 @@
+     CAN_HandleTypeDef *handle_ = nullptr;
+ 
+     void set_baud_rate(uint32_t baudRate);
++    bool apply_can_config(uint32_t baud, bool recovery);
++    uint32_t pending_baud_rate_;
+ };
+ 
+ #endif  // __INTERFACE_CAN_HPP
+--- a/Firmware/communication/can_simple.cpp
++++ b/Firmware/communication/can_simple.cpp
+@@ -3,6 +3,7 @@
+ #include <odrive_main.h>
+ 
+ #include <cstring>
++#include <cmath>
+ 
+ static constexpr uint8_t NUM_NODE_ID_BITS = 6;
+ static constexpr uint8_t NUM_CMD_ID_BITS = 11 - NUM_NODE_ID_BITS;
+@@ -40,7 +41,63 @@
+     }
+ 
+     if (validAxis) {
+-        axis->watchdog_feed();
++        // Never parse payload bytes until frame type and DLC are validated.
++        // Scalar commands permit vendor-compatible 4-byte or padded 8-byte data.
++        if (msg.len > 8) return;
++        bool control_input = false;
++        switch (cmd) {
++            case MSG_SET_INPUT_POS:
++            case MSG_SET_INPUT_VEL:
++            case MSG_SET_CONTROLLER_MODES:
++            case MSG_SET_TRAJ_ACCEL_LIMITS:
++                if (msg.rtr || msg.len != 8) return;
++                break;
++            case MSG_SET_INPUT_TORQUE:
++            case MSG_SET_AXIS_NODE_ID:
++            case MSG_SET_AXIS_REQUESTED_STATE:
++            case MSG_SET_VEL_LIMIT:
++            case MSG_SET_TRAJ_VEL_LIMIT:
++            case MSG_SET_TRAJ_INERTIA:
++                if (msg.rtr || (msg.len != 4 && msg.len != 8)) return;
++                break;
++            case MSG_ODRIVE_ESTOP:
++            case MSG_START_ANTICOGGING:
++            case MSG_RESET_ODRIVE:
++            case MSG_CLEAR_ERRORS:
++                if (msg.rtr || (msg.len != 0 && msg.len != 8)) return;
++                break;
++            default: break;
++        }
++        switch (cmd) {
++            case MSG_SET_INPUT_POS:
++            case MSG_SET_INPUT_VEL:
++            case MSG_SET_INPUT_TORQUE:
++                control_input = true;
++                if (axis->can_recovery_latched_) return;
++                // Validate the whole command before changing any setpoint.
++                if (!std::isfinite(can_getSignal<float>(msg, 0, 32, true))) return;
++                if (cmd == MSG_SET_INPUT_VEL &&
++                    !std::isfinite(can_getSignal<float>(msg, 32, 32, true))) return;
++                break;
++            case MSG_SET_VEL_LIMIT:
++            case MSG_SET_TRAJ_VEL_LIMIT:
++            case MSG_SET_TRAJ_ACCEL_LIMITS:
++            case MSG_SET_TRAJ_INERTIA:
++                if (!std::isfinite(can_getSignal<float>(msg, 0, 32, true))) return;
++                if (cmd == MSG_SET_TRAJ_ACCEL_LIMITS &&
++                    !std::isfinite(can_getSignal<float>(msg, 32, 32, true))) return;
++                break;
++            case MSG_SET_AXIS_REQUESTED_STATE: {
++                int32_t state = can_getSignal<int32_t>(msg, 0, 32, true);
++                if (state < 1 || state > 11 ||
++                    (axis->can_recovery_latched_ && state != Axis::AXIS_STATE_IDLE)) return;
++                break;
++            }
++            case MSG_START_ANTICOGGING:
++                if (axis->can_recovery_latched_) return;
++                break;
++            default: break;
++        }
+         switch (cmd) {
+             case MSG_CO_NMT_CTRL:
+                 break;
+@@ -121,6 +178,7 @@
+             default:
+                 break;
+         }
++        if (control_input) axis->watchdog_feed();
+     }
+ }
+ 
+@@ -188,7 +246,7 @@
+ }
+ 
+ void CANSimple::set_axis_requested_state_callback(Axis* axis, can_Message_t& msg) {
+-    axis->requested_state_ = static_cast<Axis::AxisState>(can_getSignal<int32_t>(msg, 0, 16, true));
++    axis->requested_state_ = static_cast<Axis::AxisState>(can_getSignal<int32_t>(msg, 0, 32, true));
+ }
+ void CANSimple::set_axis_startup_config_callback(Axis* axis, can_Message_t& msg) {
+     // Not Implemented
+--- a/Firmware/MotorControl/axis.hpp
++++ b/Firmware/MotorControl/axis.hpp
+@@ -105,7 +105,39 @@
+     void watchdog_feed();
+     bool watchdog_check();
+ 
++    // Runtime CAN recovery is a latched stop, never a request to resume motion.
++    // These are RAM fields, deliberately outside Config_t/NVM.
++    bool can_recovery_latched_ = false;
++    bool can_recovery_in_progress_ = false;
++
++    void latch_can_fault() {
++        uint32_t mask = cpu_enter_critical();
++        can_recovery_latched_ = true;
++        can_recovery_in_progress_ = true;
++        error_ |= ERROR_ESTOP_REQUESTED;
++        controller_.input_vel_ = 0.0f;
++        controller_.input_torque_ = 0.0f;
++        controller_.input_pos_ = encoder_.pos_estimate_;
++        requested_state_ = AXIS_STATE_IDLE;
++        safety_critical_disarm_motor_pwm(motor_);
++        cpu_exit_critical(mask);
++    }
++
+     void clear_errors() {
++        uint32_t mask = cpu_enter_critical();
++        if (can_recovery_latched_) {
++            // USB and CAN share this gate. An early clear cannot race IDLE entry
++            // or a HAL restart, and a queued arm cannot escape the stop latch.
++            if (can_recovery_in_progress_ || current_state_ != AXIS_STATE_IDLE ||
++                (requested_state_ != AXIS_STATE_UNDEFINED && requested_state_ != AXIS_STATE_IDLE)) {
++                cpu_exit_critical(mask);
++                return;
++            }
++            controller_.input_vel_ = 0.0f;
++            controller_.input_torque_ = 0.0f;
++            controller_.input_pos_ = encoder_.pos_estimate_;
++            can_recovery_latched_ = false;
++        }
+         motor_.error_ = Motor::ERROR_NONE;
+         controller_.error_ = Controller::ERROR_NONE;
+         sensorless_estimator_.error_ = SensorlessEstimator::ERROR_NONE;
+@@ -113,10 +145,13 @@
+         encoder_.spi_error_rate_ = 0.0f;
+ 
+         error_ = ERROR_NONE;
++        cpu_exit_critical(mask);
+     }
+ 
+     // True if there are no errors
+     bool inline check_for_errors() {
++        // Direct USB writes to axis.error cannot bypass the recovery latch.
++        if (can_recovery_latched_) error_ |= ERROR_ESTOP_REQUESTED;
+         return error_ == ERROR_NONE;
+     }
+ 
+--- a/Firmware/MotorControl/axis.cpp
++++ b/Firmware/MotorControl/axis.cpp
+@@ -216,7 +216,9 @@
+ 
+ // @brief Check the watchdog timer for expiration. Also sets the watchdog error bit if expired.
+ bool Axis::watchdog_check() {
+-    if (!config_.enable_watchdog) return true;
++    // IDLE has no live motion command to supervise. Do not create a new timeout
++    // while waiting for explicit clear/neutral/arm; retain any previous error.
++    if (!config_.enable_watchdog || current_state_ == AXIS_STATE_IDLE) return true;
+ 
+     // explicit check here to ensure that we don't underflow back to UINT32_MAX
+     if (watchdog_current_value_ > 0) {
+--- a/Firmware/MotorControl/low_level.cpp
++++ b/Firmware/MotorControl/low_level.cpp
+@@ -99,7 +99,7 @@
+ // from user input.
+ void safety_critical_arm_motor_pwm(Motor& motor) {
+     uint32_t mask = cpu_enter_critical();
+-    if (brake_resistor_armed) {
++    if (brake_resistor_armed && !motor.axis_->can_recovery_latched_) {
+         motor.armed_state_ = Motor::ARMED_STATE_WAITING_FOR_TIMINGS;
+     }
+     cpu_exit_critical(mask);
+--- a/Firmware/odrive-interface.yaml
++++ b/Firmware/odrive-interface.yaml
+@@ -200,6 +200,17 @@
+   ODrive.Can:
+     c_is_class: True
+     attributes:
++      reliability_patch: readonly uint32
++      hal_error: {type: readonly uint32, c_getter: get_hal_error()}
++      last_hal_error: readonly uint32
++      hal_error_history: readonly uint32
++      tx_drop_count: readonly uint32
++      tx_error_count: readonly uint32
++      recovery_count: readonly uint32
++      recovery_failure_count: readonly uint32
++      rx_discard_count: readonly uint32
++      reinitializing: readonly bool
++      reinit_requested: readonly bool
+       error:
+         nullflag: None
+         flags: {DuplicateCanIds: }
+@@ -221,6 +232,8 @@
+   ODrive.Axis:
+     c_is_class: True
+     attributes:
++      can_recovery_latched: readonly bool
++      can_recovery_in_progress: readonly bool
+       error:
+         nullflag: 'None'
+         flags:
+--- a/Firmware/Tupfile.lua
++++ b/Firmware/Tupfile.lua
+@@ -28,7 +28,7 @@
+ --tup.frule{command=python_command..' interface_generator_stub.py --definitions odrive-interface.yaml --template enums_template.j2 --output ../tools/odrive/enums.py'}
+ 
+ tup.frule{
+-    command=python_command..' ../tools/odrive/version.py --output %o',
++    command=python_command..' ../tools/odrive/mks_reliability_version.py --output %o',
+     outputs={'autogen/version.c'}
+ }
+ 
+--- a/tools/odrive/mks_reliability_version.py
++++ b/tools/odrive/mks_reliability_version.py
+@@ -0,0 +1,12 @@
++"""Pinned MKS 0.5.1 source with ZETIN CAN reliability patch 1, never a release."""
++import argparse
++from pathlib import Path
++
++parser = argparse.ArgumentParser()
++parser.add_argument('--output', required=True, type=Path)
++args = parser.parse_args()
++args.output.write_text('const unsigned char fw_version_major_ = 0;\n'
++                       'const unsigned char fw_version_minor_ = 5;\n'
++                       'const unsigned char fw_version_revision_ = 1;\n'
++                       'const unsigned char fw_version_unreleased_ = 1;\n')
++print('Firmware version 0.5.1-dev (MKS pinned source, ZETIN can.reliability_patch=1)')

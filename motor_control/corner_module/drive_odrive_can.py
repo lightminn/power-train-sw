@@ -15,8 +15,8 @@ actual_vel, cur_a}``. CornerModule 은 USB/CAN/Fake 를 교체해도 동일하�
     0x09 Get_Encoder_Estimates (RTR) → <ff (pos, vel)
     0x14 Get_Iq                (RTR) → <ff (iq_sp, iq_measured)
 
-이 fw 는 pos/vel/Iq 를 자동 방송하지 않으므로(heartbeat 만 주기) tick 마다
-RTR 로 폴링한다. steer_ak40 와 동일하게 각 드라이버가 자체 socketcan 소켓을
+이 fw 는 pos/vel/Iq 를 자동 방송하지 않으므로(heartbeat 만 주기) 공통 20 ms
+슬롯 스케줄에 따라 RTR 로 폴링한다. steer_ak40 와 동일하게 각 드라이버가 자체 socketcan 소켓을
 연다 — SocketCAN 브로드캐스트라 소켓마다 전 프레임을 받고, node 필터로
 자기 노드만 수신한다(단일 can0 다중 모터 공존).
 
@@ -45,6 +45,51 @@ _AXIS_IDLE = 1
 _AXIS_CLOSED_LOOP = 8
 _CTRL_VELOCITY = 2
 _INPUT_PASSTHROUGH = 1
+
+_FEEDBACK_SLOT_MS = 20.0
+_ENCODER_PERIOD_SLOTS = 3
+_IQ_PERIOD_SLOTS = 60
+
+
+class CanFeedbackScheduler:
+    """Coordinate one bounded six-axis query set per chassis control cycle.
+
+    Multi-axis callers must share one instance and call :meth:`begin_cycle`
+    exactly once before servicing all drives in a 50 Hz control cycle.
+    """
+
+    def __init__(self):
+        self._cycle = -1
+        self._served = set()
+
+    @property
+    def active(self) -> bool:
+        return self._cycle >= 0
+
+    def begin_cycle(self) -> None:
+        """Advance one logical 20 ms slot without replaying skipped time."""
+        self._cycle += 1
+        self._served.clear()
+
+    def due_commands(self, node_id: int):
+        """Return this node's due RTR commands once in the current cycle."""
+        if not self.active:
+            return None
+        commands = []
+        node_id = int(node_id)
+        encoder_phase = (node_id - 11) % _ENCODER_PERIOD_SLOTS
+        if self._cycle % _ENCODER_PERIOD_SLOTS == encoder_phase:
+            key = (node_id, _GET_ENCODER_ESTIMATES)
+            if key not in self._served:
+                self._served.add(key)
+                commands.append(_GET_ENCODER_ESTIMATES)
+        iq_phase = ((node_id - 11) * 10 + 1) % _IQ_PERIOD_SLOTS
+        if self._cycle % _IQ_PERIOD_SLOTS == iq_phase:
+            key = (node_id, _GET_IQ)
+            if key not in self._served:
+                self._served.add(key)
+                commands.append(_GET_IQ)
+        return tuple(commands)
 
 
 class DriveOdriveCan(DriveActuator):
@@ -77,7 +122,8 @@ class DriveOdriveCan(DriveActuator):
     def __init__(self, node_id: int = 11, channel: str = "can0",
                  stale_ms: float = 200.0, bus=None, clock=None,
                  friction_ff: float = 0.0, v_knee: float = 0.5,
-                 gear_ratio: float = 5.0, invert: bool = False):
+                 gear_ratio: float = 5.0, invert: bool = False,
+                 feedback_scheduler=None):
         self._node_id = node_id
         self._channel = channel
         self._stale_ms = stale_ms
@@ -107,8 +153,12 @@ class DriveOdriveCan(DriveActuator):
         self._control_tx_failures = 0
         self._feedback_tx_failures = 0
         self._last_tx_error = ""
-        self._last_feedback_poll_ms = None
-        self._last_iq_poll_ms = None
+        self._feedback_scheduler = (
+            CanFeedbackScheduler()
+            if feedback_scheduler is None else feedback_scheduler
+        )
+        self._next_encoder_poll_ms = None
+        self._next_iq_poll_ms = None
         self._arm_requested_ms = None
         self._arm_heartbeat_sequence = None
         self._heartbeat_sequence = 0
@@ -116,6 +166,11 @@ class DriveOdriveCan(DriveActuator):
     @property
     def invert(self) -> bool:
         return self._invert
+
+    @property
+    def feedback_scheduler(self):
+        """Coordinator shared by all ODrive axes on one chassis loop."""
+        return self._feedback_scheduler
 
     # ------------------------------------------------------------------
     # 내부 헬퍼
@@ -208,6 +263,55 @@ class DriveOdriveCan(DriveActuator):
                 break
             self._handle_rx(m)
 
+    @staticmethod
+    def _next_future_deadline(deadline_ms, period_ms, now_ms):
+        missed = math.floor(max(0.0, now_ms - deadline_ms) / period_ms)
+        return deadline_ms + (missed + 1) * period_ms
+
+    def _initialize_poll_deadlines(self, now_ms) -> None:
+        slot_base_ms = math.floor(now_ms / _FEEDBACK_SLOT_MS) * _FEEDBACK_SLOT_MS
+        if self._next_encoder_poll_ms is None:
+            encoder_phase = (self._node_id - 11) % _ENCODER_PERIOD_SLOTS
+            self._next_encoder_poll_ms = (
+                slot_base_ms + encoder_phase * _FEEDBACK_SLOT_MS
+            )
+        if self._next_iq_poll_ms is None:
+            period_ms = _IQ_PERIOD_SLOTS * _FEEDBACK_SLOT_MS
+            period_base_ms = math.floor(now_ms / period_ms) * period_ms
+            iq_phase = ((self._node_id - 11) * 10 + 1) % _IQ_PERIOD_SLOTS
+            self._next_iq_poll_ms = (
+                period_base_ms + iq_phase * _FEEDBACK_SLOT_MS
+            )
+
+    def _poll_deadline_feedback(self, now_ms) -> None:
+        """Fair single-axis fallback when no explicit cycle has been started."""
+        self._initialize_poll_deadlines(now_ms)
+        encoder_period_ms = _ENCODER_PERIOD_SLOTS * _FEEDBACK_SLOT_MS
+        if now_ms + 1e-6 >= self._next_encoder_poll_ms:
+            deadline_ms = self._next_encoder_poll_ms
+            self._next_encoder_poll_ms = self._next_future_deadline(
+                deadline_ms, encoder_period_ms, now_ms,
+            )
+            self._send(_GET_ENCODER_ESTIMATES, rtr=True)
+        iq_period_ms = _IQ_PERIOD_SLOTS * _FEEDBACK_SLOT_MS
+        if now_ms + 1e-6 >= self._next_iq_poll_ms:
+            deadline_ms = self._next_iq_poll_ms
+            self._next_iq_poll_ms = self._next_future_deadline(
+                deadline_ms, iq_period_ms, now_ms,
+            )
+            self._send(_GET_IQ, rtr=True)
+
+    def _poll_scheduled_feedback(self) -> None:
+        """Send this node's bounded cycle requests or deadline fallback."""
+        if self._bus is None:
+            return
+        commands = self._feedback_scheduler.due_commands(self._node_id)
+        if commands is None:
+            self._poll_deadline_feedback(self._now_ms())
+            return
+        for command in commands:
+            self._send(command, rtr=True)
+
     # ------------------------------------------------------------------
     # Actuator 인터페이스
     # ------------------------------------------------------------------
@@ -273,8 +377,7 @@ class DriveOdriveCan(DriveActuator):
         motor_tps = self._target_vel * self._gear_ratio * self._sign
         self._send(_SET_INPUT_VEL,
                    struct.pack("<ff", motor_tps, self._friction_torque_ff(motor_tps)))
-        self._send(_GET_ENCODER_ESTIMATES, rtr=True)
-        self._send(_GET_IQ, rtr=True)
+        self._poll_scheduled_feedback()
 
     def state(self) -> dict:
         """정규화 텔레메트리. CornerModule 계약 키 + CAN 건강(stale/axis_error)."""
@@ -289,17 +392,7 @@ class DriveOdriveCan(DriveActuator):
     def poll_feedback(self) -> None:
         # Encoder/Iq are queried on this firmware; heartbeats alone cannot
         # refresh a stopped wheel's last measured velocity after disarm.
-        if self._bus is not None:
-            now_ms = self._now_ms()
-            if (self._last_feedback_poll_ms is not None
-                    and now_ms - self._last_feedback_poll_ms < 50.0 - 1e-6):
-                return
-            self._last_feedback_poll_ms = now_ms
-            self._send(_GET_ENCODER_ESTIMATES, rtr=True)
-            if (self._last_iq_poll_ms is None
-                    or now_ms - self._last_iq_poll_ms >= 200.0 - 1e-6):
-                self._last_iq_poll_ms = now_ms
-                self._send(_GET_IQ, rtr=True)
+        self._poll_scheduled_feedback()
 
     def health_state(self) -> dict:
         """Return cached health only; never receive or send CAN frames."""
@@ -337,8 +430,6 @@ class DriveOdriveCan(DriveActuator):
         """즉시 정지 — input_vel=0 후 IDLE."""
         self._target_vel = 0.0
         self._arm_requested_ms = None
-        self._last_feedback_poll_ms = None
-        self._last_iq_poll_ms = None
         first_error = None
         if self._bus is not None:
             for command, data in (

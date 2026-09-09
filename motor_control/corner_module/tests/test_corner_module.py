@@ -570,16 +570,16 @@ def test_can_drive_set_velocity_deferred_until_tick():
     assert d.state()["target_vel"] == 3.0
 
 
-def test_can_drive_tick_sends_target_and_rtr_polls():
+def test_can_drive_tick_sends_target_and_scheduled_encoder_poll():
     bus = _FakeCanBus()
-    d = DriveOdriveCan(node_id=11, bus=bus)
+    d = DriveOdriveCan(node_id=11, bus=bus, clock=lambda: 0.0)
     d.connect()
     d.set_velocity(2.5)
     d.tick()
     vel = _sent(bus, 11, 0x0D)
     assert struct.unpack("<ff", bytes(vel[-1].data))[0] == pytest.approx(12.5)
     assert any(m.is_remote_frame and m.arbitration_id == (11 << 5) | 0x09 for m in bus.sent)
-    assert any(m.is_remote_frame and m.arbitration_id == (11 << 5) | 0x14 for m in bus.sent)
+    assert not any(m.is_remote_frame and m.arbitration_id == (11 << 5) | 0x14 for m in bus.sent)
 
 
 def test_can_drive_gear_ratio_five_converts_wheel_command_to_motor_tps():

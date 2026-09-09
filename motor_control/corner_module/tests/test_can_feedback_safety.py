@@ -59,7 +59,10 @@ def test_control_send_failure_is_not_hidden_and_is_counted():
 
 
 def test_query_failure_is_counted_without_raising_control_failure():
-    drive = DriveOdriveCan(bus=Bus(fail={9, 20}))
+    now = [0.0]
+    drive = DriveOdriveCan(bus=Bus(fail={9, 20}), clock=lambda: now[0])
+    drive.poll_feedback()
+    now[0] = 0.020
     drive.poll_feedback()
     health = drive.health_state()
     assert health['feedback_tx_failures'] == 2
@@ -145,16 +148,16 @@ def test_running_corner_trips_when_required_drive_feedback_is_lost(defect):
     assert corner.mode == 'FAULT'
 
 
-def test_idle_poll_budget_preserves_encoder_at_twenty_hz_and_iq_at_five_hz():
-    now = [10.0]
+def test_idle_poll_uses_same_sixty_ms_encoder_and_one_point_two_second_iq_schedule():
+    now = [0.0]
     bus = Bus()
     drive = DriveOdriveCan(bus=bus, clock=lambda: now[0])
     for index in range(100):
-        now[0] = 10 + index * .01
+        now[0] = index * .01
         drive.poll_feedback()
     queries = [m.arbitration_id & 31 for m in bus.sent]
-    assert queries.count(9) == 20
-    assert queries.count(20) == 5
+    assert queries.count(9) == 17
+    assert queries.count(20) == 1
 
 
 def test_corner_disarm_failure_does_not_skip_other_actuator():

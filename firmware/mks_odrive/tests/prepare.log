@@ -1,0 +1,44 @@
+test_existing_destination_is_preserved (__main__.PreparationTests.test_existing_destination_is_preserved) ... ok
+test_mismatched_archive_rejected_before_creating_destination (__main__.PreparationTests.test_mismatched_archive_rejected_before_creating_destination) ... ok
+test_offline_patch_replays_and_preserves_config_layout (__main__.PreparationTests.test_offline_patch_replays_and_preserves_config_layout) ... patching file Firmware/communication/interface_can.cpp
+patching file Firmware/communication/interface_can.hpp
+patching file Firmware/communication/can_simple.cpp
+patching file Firmware/MotorControl/axis.hpp
+patching file Firmware/MotorControl/axis.cpp
+patching file Firmware/MotorControl/low_level.cpp
+patching file Firmware/odrive-interface.yaml
+patching file Firmware/Tupfile.lua
+patching file tools/odrive/mks_reliability_version.py
+PASS: tx_race ok
+PASS: mailbox_full ok
+PASS: hal_add_failure ok
+PASS: server_error ok
+PASS: server_retry_failure ok
+PASS: reinit_exclusion ok
+PASS: startup ok
+PASS: recovery_latch ok
+PASS: clear_before_idle ok
+PASS: telemetry_watchdog ok
+PASS: unknown_watchdog ok
+PASS: rtr_motion ok
+PASS: short_motion ok
+PASS: nonfinite_motion ok
+PASS: valid_control ok
+PASS: rtr_state_clear ok
+PASS: short_state ok
+PASS: watchdog_expiry ok
+PASS: idle_watchdog ok
+PASS: idle_retains_expiry ok
+PASS: automatic_rearm ok
+PASS: clear_during_recovery ok
+PASS: irq_error_retained ok
+PASS: baud_request_coalescing ok
+PASS: persistent_recovery_failure ok
+PASS: stop_error_recorded ok
+26 passed, 0 failed; PATCHED=True; source execution only
+ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.677s
+
+OK

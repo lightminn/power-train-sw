@@ -40,6 +40,11 @@ def test_build_real_corners_passes_drive_kwargs(monkeypatch):
     )
 
     assert len(_RecordingDrive.instances) == 6
+    schedulers = {
+        id(drive.kwargs["feedback_scheduler"])
+        for drive in _RecordingDrive.instances
+    }
+    assert len(schedulers) == 1
     for drive in _RecordingDrive.instances:
         assert drive.kwargs["friction_ff"] == 0.25
         assert drive.kwargs["v_knee"] == 0.4

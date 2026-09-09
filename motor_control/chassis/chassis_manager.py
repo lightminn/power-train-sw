@@ -151,6 +151,7 @@ def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
     import corner_module.steer_ak40 as steer_mod
     import corner_module.drive_odrive_can as drive_mod   # WP1 완료 필요
     source_map = wheel_map or DEFAULT_WHEEL_MAP
+    feedback_scheduler = drive_mod.CanFeedbackScheduler()
     inverted_nodes = frozenset(
         wm.drive_node_id for wm in source_map if wm.wheel in RIGHT_WHEELS
     )
@@ -160,6 +161,7 @@ def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
             node_id=nid, channel=channel,
             friction_ff=friction_ff, v_knee=v_knee_turns_s,
             gear_ratio=gear_ratio, invert=(nid in inverted_nodes),
+            feedback_scheduler=feedback_scheduler,
         ),
         cfg=cfg, wheel_map=source_map,
     )
@@ -309,6 +311,19 @@ class ChassisManager:
 
     def _now_ms(self) -> float:
         return self._now() * 1000.0
+
+    def _begin_drive_feedback_cycle(self) -> None:
+        """Advance each distinct drive query coordinator exactly once."""
+        seen = set()
+        for corner in self.corners.values():
+            scheduler = getattr(corner.drive, "feedback_scheduler", None)
+            identity = id(scheduler)
+            if scheduler is None or identity in seen:
+                continue
+            begin_cycle = getattr(scheduler, "begin_cycle", None)
+            if callable(begin_cycle):
+                begin_cycle()
+                seen.add(identity)
 
     def _geometry_for(self, mode: str) -> ChassisGeometry:
         if mode == STEERING_SKID:
@@ -492,6 +507,7 @@ class ChassisManager:
         # One wall-time budget for all six requests and confirmations. Never
         # wait once per axis in the single ROS executor (input TTL is 300 ms).
         deadline = time.monotonic() + .150
+        self._begin_drive_feedback_cycle()
         for name, c in self.corners.items():
             try:
                 c.arm()
@@ -510,6 +526,7 @@ class ChassisManager:
 
     def _confirm_all_armed(self, deadline, source) -> bool:
         pending = list(self.corners)
+        next_feedback_cycle = time.monotonic() + .020
         while pending:
             try:
                 pending = [name for name in self.corners
@@ -519,9 +536,18 @@ class ChassisManager:
                 return False
             if not pending:
                 break
-            if time.monotonic() >= deadline:
+            now = time.monotonic()
+            if now >= deadline:
                 self.estop(source + "_confirmation_timeout", ",".join(pending))
                 return False
+            if now >= next_feedback_cycle:
+                # Advance at most one logical slot after an overrun.  Replaying
+                # every missed slot would create the catch-up burst this
+                # scheduler is intended to prevent.
+                self._begin_drive_feedback_cycle()
+                for name in pending:
+                    self.corners[name].drive.poll_feedback()
+                next_feedback_cycle = now + .020
             time.sleep(min(.002, max(0.0, deadline - time.monotonic())))
         return True
 
@@ -598,6 +624,7 @@ class ChassisManager:
             return False
 
         deadline = time.monotonic() + .150
+        self._begin_drive_feedback_cycle()
         for name, corner in self.corners.items():
             try:
                 corner.arm()
@@ -796,6 +823,7 @@ class ChassisManager:
 
     # ── 50Hz 루프 ─────────────────────────────────────────────────────
     def tick(self) -> None:
+        self._begin_drive_feedback_cycle()
         now_s = self._now()
         timed_out = (
             self._last_set_ms is not None
