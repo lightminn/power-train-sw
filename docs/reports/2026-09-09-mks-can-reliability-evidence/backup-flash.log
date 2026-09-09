@@ -1,0 +1,52 @@
+Command '['git', 'describe', '--always', '--tags', '--match=*fw*', '--dirty=*']' returned non-zero exit status 128.
+fatal: not a git repository (or any of the parent directories): .git
+[93;1m08:25:04.531186352 [LEGACY_OBJ] protocol failed with 3 - propagating error to application[0m
+{
+  "serial": "336A33523235",
+  "started_at": "2026-08-18T08:24:51.101993+00:00",
+  "enter_disconnect": "ObjectLostError",
+  "dfu_serial": "336A33523235",
+  "alternates": [
+    {
+      "alt": 0,
+      "description": "@Internal Flash  /0x08000000/04*016Kg,01*064Kg,07*128Kg"
+    },
+    {
+      "alt": 1,
+      "description": "@Option Bytes  /0x1FFFC000/01*016 e"
+    },
+    {
+      "alt": 2,
+      "description": "@OTP Memory /0x1FFF7800/01*512 e,01*016 e"
+    },
+    {
+      "alt": 3,
+      "description": "@Device Feature/0xFFFF0000/01*004 e"
+    }
+  ],
+  "bytes": 1048576,
+  "sha256": "794ed7b812282cffae5297adb683a29dff5fc4f9f5af3207ea6c5c18404ab9c7",
+  "reads_equal": true,
+  "initial_sp": 537001984,
+  "reset_vector": 134267409,
+  "nvm_sha256": "94f30a820aa27c3f00b838bc9649fc5599ea3ef4ac7e3792979b9a2f1223edb0",
+  "application_jump_sent": true,
+  "config_unchanged": true,
+  "after_axes": [
+    {
+      "state": 1,
+      "velocity": 0.0,
+      "error": 0,
+      "motor_calibrated": true,
+      "encoder_ready": true
+    },
+    {
+      "state": 1,
+      "velocity": 0.0,
+      "error": 0,
+      "motor_calibrated": true,
+      "encoder_ready": true
+    }
+  ],
+  "returned_to_original_application": true
+}

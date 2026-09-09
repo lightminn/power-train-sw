@@ -1,0 +1,3 @@
+HELD START PASS: installed ops -> manual authority -> arm
+MOTION LOOP PASS: encoded input -> Jetson ROS -> virtual CAN wheel feedback -> laptop UDP
+INPUT LOSS / RECONNECT PASS: fresh IDLE, zero wheel feedback, no re-arm

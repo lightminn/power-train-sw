@@ -1,0 +1,50 @@
+{
+  "started_at": "1970-01-01T00:08:15.170570+00:00",
+  "boot_id": "172cb798-60c3-43a1-bd6e-7426435ac3b3",
+  "patch": 1,
+  "configuration_unchanged": true,
+  "can_diagnostics": {
+    "hal_error": 0,
+    "last_hal_error": 8,
+    "hal_error_history": 8,
+    "tx_drop_count": 2,
+    "tx_error_count": 0,
+    "recovery_count": 2,
+    "recovery_failure_count": 0,
+    "reinit_requested": false,
+    "reinitializing": false
+  },
+  "axes": [
+    {
+      "node": 13,
+      "state": 1,
+      "error": 16384,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "calibrated": true,
+      "ready": true,
+      "motor_pre_calibrated": true,
+      "encoder_pre_calibrated": true,
+      "input_vel": 0.0,
+      "velocity": 0.0,
+      "watchdog_enabled": false,
+      "watchdog_timeout": 0.0
+    },
+    {
+      "node": 14,
+      "state": 1,
+      "error": 16384,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "calibrated": true,
+      "ready": true,
+      "motor_pre_calibrated": true,
+      "encoder_pre_calibrated": true,
+      "input_vel": 0.0,
+      "velocity": 0.0,
+      "watchdog_enabled": false,
+      "watchdog_timeout": 0.0
+    }
+  ],
+  "vbus_voltage": 46.09123611450195
+}

@@ -1,0 +1,205 @@
+fatal: not a git repository (or any of the parent directories): .git
+Command '['git', 'describe', '--always', '--tags', '--match=*fw*', '--dirty=*']' returned non-zero exit status 128.
+{
+  "serial": "336A33523235",
+  "started_at": "2026-08-18T09:30:06.383799+00:00",
+  "samples": [
+    {
+      "phase": "zero_valid_controls",
+      "t": 13186.159985984,
+      "axes": [
+        {
+          "state": 8,
+          "error": 0,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "position": 0.03320838510990143,
+          "velocity": 0.0,
+          "iq": 0.03489350527524948,
+          "latched": false
+        },
+        {
+          "state": 8,
+          "error": 0,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "position": 0.06654171645641327,
+          "velocity": 0.0,
+          "iq": -0.050797238945961,
+          "latched": false
+        }
+      ]
+    },
+    {
+      "phase": "watchdog_expired",
+      "t": 13186.973083328,
+      "axes": [
+        {
+          "state": 1,
+          "error": 2048,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "position": 0.03320838510990143,
+          "velocity": 0.0,
+          "iq": 0.029125675559043884,
+          "latched": false
+        },
+        {
+          "state": 1,
+          "error": 2048,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "position": 0.06654171645641327,
+          "velocity": 0.0,
+          "iq": 0.025947928428649902,
+          "latched": false
+        }
+      ]
+    },
+    {
+      "phase": "zero_before_can_reset",
+      "t": 13188.221952192,
+      "axes": [
+        {
+          "state": 8,
+          "error": 0,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "position": 0.03320838510990143,
+          "velocity": 0.0,
+          "iq": -0.02796241268515587,
+          "latched": false
+        },
+        {
+          "state": 8,
+          "error": 0,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "position": 0.06654171645641327,
+          "velocity": 0.0,
+          "iq": -0.03528081253170967,
+          "latched": false
+        }
+      ]
+    },
+    {
+      "phase": "can_recovery_latched",
+      "t": 13188.783970592,
+      "axes": [
+        {
+          "state": 1,
+          "error": 16384,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "position": 0.03320838510990143,
+          "velocity": 0.0,
+          "iq": 0.019765442237257957,
+          "latched": true
+        },
+        {
+          "state": 1,
+          "error": 16384,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "position": 0.06654171645641327,
+          "velocity": 0.0,
+          "iq": -0.011773917824029922,
+          "latched": true
+        }
+      ]
+    },
+    {
+      "phase": "manual_zero_rearm",
+      "t": 13190.333037152,
+      "axes": [
+        {
+          "state": 8,
+          "error": 0,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "position": 0.03320838510990143,
+          "velocity": 0.0,
+          "iq": 0.02466830611228943,
+          "latched": false
+        },
+        {
+          "state": 8,
+          "error": 0,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "position": 0.06654171645641327,
+          "velocity": 0.0,
+          "iq": -0.0017563533037900925,
+          "latched": false
+        }
+      ]
+    },
+    {
+      "phase": "final_idle",
+      "t": 13191.357806112,
+      "axes": [
+        {
+          "state": 1,
+          "error": 0,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "position": 0.03320838510990143,
+          "velocity": 0.0,
+          "iq": -0.06757757067680359,
+          "latched": false
+        },
+        {
+          "state": 1,
+          "error": 0,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "position": 0.06654171645641327,
+          "velocity": 0.0,
+          "iq": -0.026177413761615753,
+          "latched": false
+        }
+      ]
+    }
+  ],
+  "checks": {
+    "idle_does_not_timeout": true,
+    "queries_do_not_feed_watchdog": true,
+    "can_reset_latches_idle_despite_zero_controls": true,
+    "manual_clear_does_not_arm": true,
+    "explicit_zero_rearm_works": true
+  },
+  "watchdog_last_control_t": 13186.145876192,
+  "watchdog_idle_heartbeat_t": {
+    "13": 13186.448374304,
+    "14": 13186.448576832
+  },
+  "configuration_restored": true,
+  "final_axes": [
+    {
+      "state": 1,
+      "error": 0,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "position": 0.03320838510990143,
+      "velocity": 0.0,
+      "iq": -0.06757757067680359,
+      "latched": false
+    },
+    {
+      "state": 1,
+      "error": 0,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "position": 0.06654171645641327,
+      "velocity": 0.0,
+      "iq": -0.026177413761615753,
+      "latched": false
+    }
+  ],
+  "faults": [],
+  "max_motor_displacement_turns": {
+    "13": 0.0,
+    "14": 0.0
+  },
+  "finished_at": "2026-08-18T09:30:28.291017+00:00"
+}

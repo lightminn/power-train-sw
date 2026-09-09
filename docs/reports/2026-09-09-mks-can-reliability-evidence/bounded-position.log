@@ -1,0 +1,49 @@
+Command '['git', 'describe', '--always', '--tags', '--match=*fw*', '--dirty=*']' returned non-zero exit status 128.
+fatal: not a git repository (or any of the parent directories): .git
+{
+  "serial": "336A33523235",
+  "started_at": "1970-01-01T00:12:25.896864+00:00",
+  "requested_motor_turns": {
+    "13": 0.25,
+    "14": -0.25
+  },
+  "errors": [
+    "bounded target not reached within four seconds"
+  ],
+  "initial_motor_positions": {
+    "13": 0.03320838510990143,
+    "14": 0.06885797530412674
+  },
+  "target_motor_positions": {
+    "13": 0.28320838510990143,
+    "14": -0.18114202469587326
+  },
+  "configuration_restored": true,
+  "final_axes": [
+    {
+      "state": 1,
+      "error": 0,
+      "position": 0.0667915865778923,
+      "velocity": 0.0
+    },
+    {
+      "state": 1,
+      "error": 0,
+      "position": -1.6806539861136116e-05,
+      "velocity": 0.0
+    }
+  ],
+  "max_displacement_motor_turns": {
+    "13": 0.06733288615942001,
+    "14": 0.10217434540390968
+  },
+  "cumulative_motor_travel_turns": {
+    "13": 0.1982230618596077,
+    "14": 0.1724591182205586
+  },
+  "finished_at": "1970-01-01T00:12:45.362098+00:00"
+}
+Traceback (most recent call last):
+  File "/evidence/mks-reliability/bounded_position_trial.py", line 248, in <module>
+    assert record.get('target_reached') and record.get('configuration_restored') and not record['errors'] and not record.get('cleanup_error')
+AssertionError

@@ -1,3 +1,3 @@
 # Unified diff context uses a literal space for an unchanged empty source line.
-# Preserve the pinned patch bytes; source whitespace is checked before packaging.
+# Preserve the pinned patch bytes; ordinary source files keep default checks.
 firmware/mks_odrive/reliability.patch whitespace=-blank-at-eol

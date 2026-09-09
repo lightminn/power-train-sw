@@ -15,8 +15,17 @@ FAKE 정지 증거와 비중립 패드는 운전 시작을 거부했다. 실제 
 8/10이었으나, 후속 USB 진단에서 MKS 보드의 node 13/14 설정을 확인하고 **보드 CAN부만
 재초기화해 10/10을 복구**했다. 실제 firmware는 이 보드에서 0.5.1 unreleased로 확인했다.
 13/14 제한 조회 60초에서는 지속 소실이 미재현이지만 일부 응답 누락은 있었다.
-**실물 CAN 장시간 안정성·주행 인수는 여전히 미통과**이며 MKS 송신 경합은 원인 후보다.
-최신 실측은 [MKS USB 진단 기록](reports/2026-09-09-mks-usb-can-diagnosis.md)을 따른다.
+이전 지속 무응답의 원인은 확정하지 않았으며 MKS 송신 경합은 소스에서 확인한 원인 후보다.
+후속으로 호스트 조회 분산과 MKS firmware patch1을 만들고 **13·14 보드 한 장**에 적용했다.
+원본307설정과 캘리를 보존했고, 0속도에서 제어 단절 약302.5ms watchdog IDLE와 CAN 복구 후
+정지 유지·명시 재무장을 검증했다. 300ms는 RAM 시험 후보이며 종료 후 원래 disabled로
+복원했다. 전원 재인가1회에서 설정·캘리가 유지됐고, CAN Stuff error 복구로 남은 정지 래치는
+안정 확인 후 명시 해제했다. 최종6축 조회600초는10모터 연속수신·stale0·host 오류/드롭0으로
+통과했다. 보드 내부 TX drop 누계2→4와 달리 복구횟수2는 불변이었다. **지상 ±0.25 motor rev
+목표 시험은 미달로 FAIL**이며 최종6축은IDLE/error0이다. 나머지 보드 firmware 적용과 실주행
+인수는 남아 있다. 현재 인수 범위와 재현 경로는
+[MKS 신뢰성 수정 기록](reports/2026-09-09-mks-can-reliability.md), 이전 진단은
+[MKS USB 기록](reports/2026-09-09-mks-usb-can-diagnosis.md)을 따른다.
 US-100·L515의 의도적 분리는 원격 CAN 검증의 센서 결함으로 판정하지 않는다.
 상세 근거는 [CAN 수정·배포 검증 기록](reports/2026-09-09-can-remediation.md),
 이전 실기 이력은 [통합 운용 검증 기록](reports/2026-09-09-integrated-jetson-validation.md)이다.
