@@ -1,0 +1,14 @@
+{
+  "usb-can-peripheral-frames.jsonl": {
+    "sha256": "f9da4f9c06f0d7ba9b852f985167fc56b111796fd9018e051f45b9186de8cd94",
+    "bytes": 1008552,
+    "lines": 5222,
+    "gzip_sha256": "fa4fa7fe343aaab5c26b451e425235fcd7f88f71bd8c7d1be2c1cc3194b824a8"
+  },
+  "usb-can-query-frames.jsonl": {
+    "sha256": "6b3df8b84d823a7edff203456e9cc760ff85aba88fb5f1a7d12b3df81a0bf648",
+    "bytes": 7705815,
+    "lines": 39832,
+    "gzip_sha256": "2bb8f1c01d51164ac7bab2750aa7956405361cd8c6315e48cf9d759012b3d2d9"
+  }
+}

@@ -1,0 +1,135 @@
+Command '['git', 'describe', '--always', '--tags', '--match=*fw*', '--dirty=*']' returned non-zero exit status 128.
+fatal: not a git repository (or any of the parent directories): .git
+PHASE baseline
+PHASE encoder
+PHASE iq
+PHASE combined
+PHASE after
+{
+  "started_at": "2026-08-18T07:48:05.577846+00:00",
+  "serial": "336A33523235",
+  "phases": [
+    {
+      "phase": "baseline",
+      "elapsed_s": 6.001113184000133,
+      "lost_nodes": []
+    },
+    {
+      "phase": "encoder",
+      "elapsed_s": 15.000395967999793,
+      "lost_nodes": []
+    },
+    {
+      "phase": "iq",
+      "elapsed_s": 15.001606111999536,
+      "lost_nodes": []
+    },
+    {
+      "phase": "combined",
+      "elapsed_s": 30.001203104000524,
+      "lost_nodes": []
+    },
+    {
+      "phase": "after",
+      "elapsed_s": 6.000313536000249,
+      "lost_nodes": []
+    }
+  ],
+  "lost_nodes": [],
+  "configuration_before": {
+    "serial": "336A33523235",
+    "firmware": [
+      0,
+      5,
+      1
+    ],
+    "baud": 500000,
+    "protocol": 0,
+    "axis0": {
+      "node": 13,
+      "extended": false,
+      "heartbeat_ms": 20
+    },
+    "axis1": {
+      "node": 14,
+      "extended": false,
+      "heartbeat_ms": 20
+    }
+  },
+  "uptime_before_ms": 7086931,
+  "configuration_after": {
+    "serial": "336A33523235",
+    "firmware": [
+      0,
+      5,
+      1
+    ],
+    "baud": 500000,
+    "protocol": 0,
+    "axis0": {
+      "node": 13,
+      "extended": false,
+      "heartbeat_ms": 20
+    },
+    "axis1": {
+      "node": 14,
+      "extended": false,
+      "heartbeat_ms": 20
+    }
+  },
+  "uptime_after_ms": 7158968,
+  "can_error_after": 0,
+  "axis_errors_after": {
+    "axis0": 0,
+    "axis1": 0
+  },
+  "heartbeat_counts": {
+    "baseline": {
+      "13": 300,
+      "14": 300,
+      "11": 300,
+      "12": 300,
+      "15": 300,
+      "16": 300
+    },
+    "encoder": {
+      "13": 750,
+      "14": 744,
+      "11": 750,
+      "12": 750,
+      "15": 750,
+      "16": 750
+    },
+    "iq": {
+      "13": 751,
+      "11": 751,
+      "12": 751,
+      "15": 750,
+      "16": 750,
+      "14": 750
+    },
+    "combined": {
+      "15": 1500,
+      "16": 1500,
+      "13": 1500,
+      "14": 1496,
+      "11": 1500,
+      "12": 1500
+    },
+    "after": {
+      "15": 302,
+      "16": 302,
+      "13": 301,
+      "14": 301,
+      "11": 301,
+      "12": 301
+    }
+  },
+  "queries": {
+    "13:0x09": 764,
+    "14:0x09": 764,
+    "13:0x14": 193,
+    "14:0x14": 193
+  },
+  "finished_at": "2026-08-18T07:49:30.531670+00:00"
+}
