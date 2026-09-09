@@ -58,9 +58,11 @@ def test_inactive_chassis_refreshes_actual_speed_using_only_queries(estop):
     for bus in buses:
         bus.answer = True
         bus.velocity = 0.0
-    now[0] += .06  # Polling is time-budgeted, not one query pair per tick.
-    cm.tick()
-    cm.tick()
+    # Three consecutive 20 ms slots cover all encoder phases.  A single jump
+    # must not replay the skipped slots as a catch-up burst.
+    for _ in range(3):
+        now[0] += .02
+        cm.tick()
     snapshot = cm.snapshot()
     assert all(w.drive_turns_per_s == 0 for w in snapshot.wheels), 'stop needs new encoder feedback after disarm'
     assert cm.mode == ('ESTOP' if estop else 'IDLE')

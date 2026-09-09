@@ -1,0 +1,10 @@
+build-essential=12.9ubuntu3
+gcc-arm-none-eabi=15:10.3-2021.07-4
+git=1:2.34.1-1ubuntu1.17
+libstdc++-arm-none-eabi-newlib=15:10.3-2021.07-4+17
+patch=2.7.6-7build2
+python3=3.10.6-1~22.04.1
+python3-jinja2=3.0.3-1ubuntu0.4
+python3-jsonschema=3.2.0-0ubuntu2
+python3-yaml=5.4.1-1ubuntu1
+tup=0.7.8-3

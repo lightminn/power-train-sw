@@ -1,0 +1,50 @@
+{
+  "serial": "336A33523235",
+  "started_at": "2026-08-18T09:28:21.424066+00:00",
+  "original_sha256": "794ed7b812282cffae5297adb683a29dff5fc4f9f5af3207ea6c5c18404ab9c7",
+  "candidate_sha256": "7567809465b9646d39b1f9595f8a8e037ed758344f90269ba49038f8c6bfc710",
+  "before_axes": [
+    {
+      "state": 1,
+      "position": 0.03321307525038719,
+      "velocity": 0.0,
+      "error": 0,
+      "calibrated": true,
+      "encoder_ready": true
+    },
+    {
+      "state": 1,
+      "position": 0.06654186546802521,
+      "velocity": 0.0,
+      "error": 0,
+      "calibrated": true,
+      "encoder_ready": true
+    }
+  ],
+  "enter_disconnects": [
+    "ObjectLostError"
+  ],
+  "program_verified": true,
+  "after_axes": [
+    {
+      "state": 1,
+      "position": 0.03320838510990143,
+      "velocity": 0.0,
+      "error": 0,
+      "calibrated": true,
+      "encoder_ready": true
+    },
+    {
+      "state": 1,
+      "position": 0.0,
+      "velocity": 0.0,
+      "error": 0,
+      "calibrated": true,
+      "encoder_ready": true
+    }
+  ],
+  "patch": 1,
+  "config_unchanged": true,
+  "finished_at": "2026-08-18T09:29:35.122551+00:00",
+  "evidence_origin": "captured stdout; full on-device result and CAN trace pending retrieval"
+}

@@ -1,0 +1,27 @@
+FAIL: tx_race last mailbox preemption poisoned HAL PARAM
+PASS: mailbox_full ok
+FAIL: hal_add_failure HAL failure left sticky error
+FAIL: server_error busy spin: more than 100 HAL error polls without a bounded wait
+FAIL: server_retry_failure busy spin: more than 100 HAL error polls without a bounded wait
+FAIL: reinit_exclusion TX HAL reached during reinit
+PASS: startup ok
+FAIL: recovery_latch busy spin: more than 100 HAL error polls without a bounded wait
+FAIL: clear_before_idle clear erased latch before observed IDLE
+FAIL: telemetry_watchdog non-control traffic fed watchdog
+FAIL: unknown_watchdog non-control traffic fed watchdog
+FAIL: rtr_motion invalid motion mutated state or fed watchdog
+FAIL: short_motion invalid motion mutated state or fed watchdog
+FAIL: nonfinite_motion invalid motion mutated state or fed watchdog
+PASS: valid_control ok
+FAIL: rtr_state_clear invalid state command armed axis
+FAIL: short_state invalid state command armed axis
+FAIL: watchdog_expiry telemetry prevents watchdog expiry
+FAIL: idle_watchdog IDLE watchdog retrips and blocks neutral start
+PASS: idle_retains_expiry ok
+FAIL: automatic_rearm routine motor arm bypasses recovery latch
+FAIL: clear_during_recovery clear during restart erases safety latch
+FAIL: irq_error_retained IRQ callback cleared actual error before server recorded it
+FAIL: baud_request_coalescing setter touched HAL
+FAIL: persistent_recovery_failure busy spin: more than 100 HAL error polls without a bounded wait
+FAIL: stop_error_recorded no retained Stop error diagnostic
+4 passed, 22 failed; PATCHED=False; source execution only

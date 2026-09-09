@@ -1,0 +1,8 @@
+{
+  "vendor_url": "https://raw.githubusercontent.com/makerbase-motor/MKS-ODrive/e15782976ae93d42b1f0648ceec96503141a343b/Firmware/ODrive_V3.6/ODriveFirmware_v3.6-56V.bin",
+  "vendor_length": 234228,
+  "vendor_sha256": "892f1fa77204743d191021acba5f71a7c924359401f34bdd69c3f75dc4360a90",
+  "installed_prefix_matches_vendor": false,
+  "different_bytes_in_vendor_span": 225566,
+  "original_sha256": "794ed7b812282cffae5297adb683a29dff5fc4f9f5af3207ea6c5c18404ab9c7"
+}

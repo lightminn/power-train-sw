@@ -1,0 +1,11 @@
+ARG UBUNTU_IMAGE=ubuntu:22.04@sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc
+FROM ${UBUNTU_IMAGE}
+
+ARG DEBIAN_FRONTEND=noninteractive
+COPY build-packages.lock /tmp/build-packages.lock
+RUN apt-get update \
+    && xargs -r apt-get install -y --no-install-recommends < /tmp/build-packages.lock \
+    && rm -rf /var/lib/apt/lists/* /tmp/build-packages.lock
+
+WORKDIR /work
+CMD ["bash"]

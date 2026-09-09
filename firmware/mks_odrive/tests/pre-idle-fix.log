@@ -1,0 +1,25 @@
+PASS: tx_race ok
+PASS: mailbox_full ok
+PASS: hal_add_failure ok
+PASS: server_error ok
+PASS: server_retry_failure ok
+PASS: reinit_exclusion ok
+PASS: startup ok
+PASS: recovery_latch ok
+PASS: clear_before_idle ok
+PASS: telemetry_watchdog ok
+PASS: unknown_watchdog ok
+PASS: rtr_motion ok
+PASS: short_motion ok
+PASS: nonfinite_motion ok
+PASS: valid_control ok
+PASS: rtr_state_clear ok
+PASS: short_state ok
+PASS: watchdog_expiry ok
+FAIL: idle_watchdog IDLE watchdog retrips and blocks neutral start
+PASS: idle_retains_expiry ok
+PASS: automatic_rearm ok
+PASS: clear_during_recovery ok
+PASS: irq_error_retained ok
+PASS: baud_request_coalescing ok
+23 passed, 1 failed; PATCHED=True; source execution only
