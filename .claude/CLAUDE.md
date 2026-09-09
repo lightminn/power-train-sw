@@ -21,19 +21,39 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
 
 ---
 
-## 2. 현재 상태 (2026-08-24)
+## 2. 현재 상태 (2026-09-09 Jetson 검증 반영)
 
 이 섹션이 **유일한 현재 상태 선언**이다. 예전 문서·보고서에 남아 있는 날짜별
 "CURRENT STATE OVERRIDE" 문구는 전부 **역사적 기록**이지 현재 권위가 아니다.
 
-### 완료 (차량 없이 검증 가능한 SW)
+### 구현·검증 기록 (실기 재검증일과 구분)
 
 - **WP1–WP5.3** — 코너 모듈 → 4WS 차체 → DDS → chassis_node → 안전 인터록 → 관측성.
   실기 10모터 협조 4WS HIL 통과, 무선 엔드투엔드 검증 완료.
-- **WP6-A/B/C** — 지형 추정 코어(NumPy 정본 + JAX 커널)와 자율주행 컨트롤러.
+- **WP6-A/B/C** — 지형 추정 코어와 자율주행 컨트롤러. 7/19 Jetson 백엔드 선택은
+  **NumPy**로 종결됐다. JAX는 x86 동등성 검증용 실험 커널이다. 선택 근거는 라이브 부하 중
+  커널 3케이스 × 100샘플이며, 30분 전체 파이프라인 검증을 뜻하지 않는다.
+  근거: `docs/reports/2026-07-19-terrain-backend-jetson-qualification.md`.
 - **WP6-S** — 시뮬레이터 중립 시나리오 계약·리플레이.
 - **WP7** — 추종(follow) 컨트롤러. **WP8** — 구간 감독자 골격.
 - **원격 운용** — ops 채널(:9001) 게이트, 운용 콘솔, L515 Gateway, SRT 2화면.
+- **통합 운용 경로(2026-09-08)** — 최초 준비 후 `scripts/robot-start` +
+  `python -m operator_console`, 인증 세션·패드 자식 프로세스·동적 UDP 목적지·명시적
+  길게 누르기 운전 시작을 추가했다. 9/9 Jetson 별도 배포·ROS 재빌드·실제 콘솔 수신과
+  가상 모터 ROS 전체 루프를 검증했다. 현재 인수 범위는 **원격주행**이며 미완성 자율주행은
+  테스트 판정 범위에서 제외한다(9/9 사용자 지시). 선 재연결 후 CAN 구동 6축 조회와
+  조향 4축 상태 수신은 통과했고 버스/모터 오류는 0이다. 실물 구동·제동은 별도 인수다.
+  US-100·L515는 사용자 의도적 분리로 이번 CAN 시험의 센서 결함 판정에서 제외한다.
+  `docs/integrated-operation.md`와
+  `docs/reports/2026-09-09-integrated-jetson-validation.md`를 따른다.
+- **CAN 간섭 결함 수정(2026-09-09)** — CAN/USB 단일 소유권, 소유자 정지 래치 후
+  직렬 리셋, 6축 실제 state8 확인, 수신 시각 기반 피드백, GUI 대상 전환·실패 ACK,
+  USB/NVM 명시 대상과 저장 전후 대조를 적용했다. Humble에서 DDS 수신 시각을 보존하는
+  차체 전용 executor와 CAN 상태 진단용 ROS 이미지 iproute2 의존성도 포함한다.
+  설치 ROS+가상 CAN 전체 루프는 통과했다. 실제 can0는 최초 10모터 수신·오류 0이었으나
+  배포 후 **13·14가 재소실**, 제어/워치독 정지 후에도 **8/10**이다. 실물 CAN 안정성
+  인수는 미통과이며 과거 간헐 무응답의 단일 원인·실물 주행·NVM도 미인증이다.
+  근거: `docs/reports/2026-09-09-can-remediation.md`.
 - **USB 스키드 조향 레이어**(2026-08-05 작성, **실기 주행 확인 후 2026-08-24 main 병합**) —
   `DriveOdriveUsbAxis` USB 다보드 구동 → `skid_geometry()` → 애커만↔스키드 런타임 전환
   → ops 액션 `steer_mode_skid` → 콘솔 배지 → 젯슨 원클릭 배포 스크립트.
@@ -48,27 +68,32 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
 | 트랙 | 결정 | 의미 |
 |---|---|---|
 | `parameter_calc/` | 2026-07-19 **종료** | 최종 CAD 확정. 버그를 찾아도 **보고만** 하고 f_opt 0.2004 재계산은 하지 않는다. 계산 질량 **50 kg 확정**(86 kg 재최적화 없음). |
-| `powertrain_sim/` (MuJoCo) | 2026-07-24 **폐기** | 읽기전용 레거시. 시뮬은 별도 레포 **Isaac(`power-train-sim`)만** 쓴다. 여기 수치는 역사적 앵커로만. 현재 17건 실패는 이 폐기 트랙 안이다. |
+| `powertrain_sim/` (MuJoCo) | 2026-07-24 **폐기** | 읽기전용 레거시. 시뮬은 별도 레포 **Isaac(`power-train-sim`)만** 쓴다. 여기 수치는 역사적 앵커로만. 8/24 기준선의 17건 실패는 이 폐기 트랙 안이다. |
 | `motor_control/drive/x2212_test/` | deprecated | BL70200 도착 전 임시 테스트 모터. ODrive CAN 일반 실험 데이터만 유효. |
 | `drive/bl70200/archive/` | 2026-07-19 **import 하드스톱** | `odrive_calibration.py`·`odrive_diff_drive_test.py`가 pp=5/cpr=30/UV 8V를 NVM에 써서 격리했다. |
 
 ### 남은 일
 
-전부 **하드웨어·벤치 게이트**이거나 **팀 계약**이다. 순수 SW로 닫을 수 있는 항목은 없다.
+**런타임 연결 작업과 하드웨어·팀 계약 게이트가 함께 남아 있다.**
 
-- 벤치/HIL: 마운트 각도, 프로파일 프리셋, JAX 젯슨 풀로드 자격, 원격 E2E 스모크,
-  캘리 NVM 영속화 검증(전원사이클 3회 × 6축 직진입), 지상 제동·최종 `stop_mm` 커미셔닝.
+- SW 연결: autonomy 전용 Compose는 의도적으로 idle이며 배포 발행 경로가 아니다.
+  receiver feedback은 노트북 송신·정책 코어까지 있고 Jetson 수신·프로파일 적용은 미연결이다.
+  부팅 자격 게이트는 기본 OFF이며 실드라이버의 자격 증거 연결·검증이 필요하다.
+- 벤치/HIL: 마운트 각도, 프로파일 프리셋, NumPy를 포함한 전체 파이프라인 장시간 부하,
+  원격 영상 E2E, 지상 제동·최종 `stop_mm`, USB 스키드의 지연·안전·오도메트리 커미셔닝.
+- 캘리 NVM: 운용 정본에는 node 11/12의 전원사이클 3회 직진입과 나머지 4축의 전원
+  재인가 후 재캘리 없는 운용이 기록돼 있다. **13~16의 동일한 3회 반복시험·USB 플래그
+  직접 대조는 별도 미완료**다. 이번 문서 대조로 하드웨어 상태를 새로 인증하지 않는다.
 - 팀 계약: 로봇팔 실 인식 이벤트 토픽, `MISSION_STOP` 잠금 해제 순서,
   `ARRIVED_* → arm work → DONE → resume` 전체 핸드셰이크 1회.
-- 차체 미조립: 지상 측정(오도메트리 5 m/90°, `stop_mm`)은 조립 후.
+- 지상 측정(오도메트리 5 m/90°, `stop_mm`)은 조립·운용 조건 확인 후 수행한다.
 
-### 브랜치·동기화 상태 (2026-08-24)
+### 브랜치·동기화
 
-```
-main                                   ← origin/main 과 동기
-feat/l515-aligned-depth-slam           ← 팀원(zetin), 손대지 말 것
-origin/agent/operator-console-live-telemetry  ← 팀원(linyyyy3015), PR #4 DRAFT 열림
-```
+- `main`의 동기 여부는 작업마다 확인한다. 특정 날짜의 동기 상태를 상시 사실로 쓰지 않는다.
+- `feat/l515-aligned-depth-slam`은 팀원 작업이므로 손대지 않는다.
+- `agent/operator-console-live-telemetry`의 **PR #4는 9/8 확인 시 OPEN/DRAFT**다.
+  환경 센싱 SSH JSONL → UDP :5008 → 콘솔 탭은 이 PR의 기능이며 현재 main에 없다.
 
 ⚠️ **작업 착수 전 GitHub와 젯슨 로컬 체크아웃을 둘 다 확인한다.** 팀원이 젯슨에서 직접
 작업하고 안 올렸을 수 있다. "머지했다"는 구두 정보는 실제로 검증한다.
@@ -211,7 +236,11 @@ python -m pytest motor_control -q
 
 ## 6. 하드웨어 정본
 
-- 6륜 로커-보기, **바퀴 반지름 100 mm**, 파라미터 최적화 기준 질량 **50 kg**(v4 확정).
+- 6륜 로커-보기. **v4 최적화 기준 반지름 100 mm·질량 50 kg**과 제작 v2 기하를 구분한다.
+  런타임 `default_geometry()`의 v2 반지름은 **103.56 mm**, 앞/중/뒤 윤거는
+  **545/719/425 mm**다. 축간거리는 CAD 기준 **875.5 mm**, 반올림한 런타임 좌표
+  `x = ±0.4377 m` 기준 **875.4 mm**다. 정본은 `chassis/kinematics.py`다.
+  설계 기본 속도 0.80 m/s와 원격 수동운용 설정 1.5 m/s·1.2 rad/s도 별도 값이다.
 - **구동**: BL70200 + 내장 HALL ×3 — **pp=10, cpr=60**(2026-06 실측. 구문서의 pp=5/cpr=30은
   오기) ×6. ODrive v3.6 **듀얼축 보드 3장** = CAN node 11/12 · 13/14 · 15/16. 감속 1:5
   (모터 5회전 = 바퀴 1회전) — `DriveOdriveCan`이 바퀴 단위로 변환.
@@ -236,18 +265,21 @@ python -m pytest motor_control -q
 **같은 ODrive에 트랙을 절대 섞지 말 것**(캘리·게인·전류한계가 갈린다).
 
 - **drive/bl70200/** — 정본 셋업 `bl70200_setup.py`
-  (`--read`/`--apply`/`--calibrate`/`--node N`, 최적 NVM CFG 한곳).
-  CAN 다축: `can_calibrate_all.py`(node 11~16 일괄 풀캘리 — **캘리는 RAM-only라 전원 켤
-  때마다 필요**), `can_drive_test.py`(6축 동시 주행). 벤치 전용 USB 직결 텔레옵:
+  (`--read --serial <SERIAL>`, 쓰기는 `--apply`/`--calibrate`와
+  `--serial <SERIAL> --axis both --node 11` 필수, 보드별 좌측 node는 11/13/15).
+  CAN 다축: `can_calibrate_all.py`(node 11~16 일괄 풀캘리 — **이 명령은 RAM만 갱신하며
+  NVM 저장은 하지 않는다**), `can_drive_test.py`(6축 동시 주행). 벤치 전용 USB 직결 텔레옵:
   `dualsense_usb_teleop.py`(⚠️ 안전 게이팅 전무 — 바퀴 들고 쓸 것).
   - ⚠️ **우측 구동축 미러 장착(2026-07-28 실물 확인)**: 각 보드 M1축 = node 12/14/16 =
     로봇 오른쪽 바퀴이며 좌측과 반대로 돌아야 정방향. `DriveOdriveCan(invert=True)`가
     **CAN 프레임 경계에서만** 부호를 뒤집고, 드라이버 바깥(chassis·odometry·텔레메트리)은
-    전부 바퀴 프레임 "+=전진"이다. **raw 스크립트와 `motor_gui`는 모터 프레임** —
-    `can_drive_test.py` 전진 = 좌(11/13/15)+ / 우(12/14/16)−, 제자리선회 = 6축 전부 +.
-  - **(개정 경로 2026-07-18)** `bl70200_setup.py --persist-calibration`으로 NVM 영속화
-    지원. 실행·검증(전원사이클 3회 × 6축 직진입)은 **조립 전 벤치 게이트**이며,
-    통과 전까지 RAM-only 운용을 유지한다.
+    전부 바퀴 프레임 "+=전진"이다. **raw 스크립트와 `motor_gui`의 회전 방향 부호는 모터 기준**이다.
+    GUI의 ODrive 속도는 backend에서 감속비를 반영한 휠 rev/s이며, 우측 장착 방향 자동 반전과는
+    별개다. `can_drive_test.py` 전진 = 좌(11/13/15)+ / 우(12/14/16)−, 제자리선회 = 6축 전부 +.
+  - **NVM 영속화**: `bl70200_setup.py --persist-calibration --serial <SERIAL> --axis both --node 11`로
+    보드별 양축 캘리 상태 확인 후 저장한다(node는 해당 보드의 11/13/15). 저장 여부를 가정하지 말고 시작 전 오류·준비
+    상태를 확인하며, 미준비 축은 바퀴를 든 벤치에서 재캘리한다. 축별 검증 범위는 §2와
+    [운용 정본](https://www.notion.so/3b02d27b08d381d99641e3565fe40ca2)을 따른다.
 - **steering/** — `ak_control.py`(python-can socketcan 직접 제어. 위치제어 슬루
   `DEFAULT_SPD_ERPM=4500` ≈ 출력축 47°/s·45° 0.85 s, `DEFAULT_ACC_ERPM_S2=20000`),
   `calibrate_ak.py`(기어비 1회성), `status_ak.py`(CAN RX 디버깅).

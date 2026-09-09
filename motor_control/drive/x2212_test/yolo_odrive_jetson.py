@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+raise SystemExit("DEPRECATED: first-board auto calibration/configuration/control is quarantined; use motor_control/drive/bl70200/bl70200_setup.py with explicit --serial --axis --node, or the gated chassis teleop runtime.")
+
 """USB 카메라 → YOLOv8 (CUDA / TensorRT) → axis1 추종 + (옵션) UDP RTP H.264 송신.
 
 5/8 의 yolo_cuda_stream.py 검출 흐름 + 기존 odrive_yolo_object_tracking.py 의

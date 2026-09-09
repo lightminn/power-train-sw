@@ -7,6 +7,7 @@ container, CI without Xvfb) — those environments rely on this gate having
 run on the operator PC.
 """
 import inspect
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -32,6 +33,31 @@ def _toolchain_ready() -> bool:
 def test_console_survives_live_data_on_every_channel():
     passed, report = run_smoke()
     assert passed, report
+    assert "invalid steering mode held disabled" in report
+
+
+def test_ops_probe_requires_the_received_state_identity(tmp_path):
+    probe_file = tmp_path / "panels.json"
+    probe_file.write_text(json.dumps({
+        "ops_steering_label": "조향 방식 [상태 미확인]",
+        "ops_steering_sensitive": False,
+    }), encoding="utf-8")
+
+    assert runtime_smoke._probe_ops_steering(probe_file) is None
+
+    probe_file.write_text(json.dumps({
+        "ops_steering_label": "조향 방식 [상태 미확인]",
+        "ops_steering_sensitive": False,
+        "ops_state_revision": 7,
+        "ops_state_steering_mode": "invalid-smoke-mode",
+    }), encoding="utf-8")
+
+    assert runtime_smoke._probe_ops_steering(probe_file) == (
+        "조향 방식 [상태 미확인]",
+        False,
+        7,
+        "invalid-smoke-mode",
+    )
 
 
 def test_runtime_smoke_constructs_the_token_gated_ops_controls():

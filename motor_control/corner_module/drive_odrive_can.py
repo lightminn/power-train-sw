@@ -30,7 +30,7 @@ import time
 
 import can
 
-from corner_module.actuator import DriveActuator
+from corner_module.actuator import DriveActuator, FeedbackClock
 
 # CANSimple command ids (fw 0.5.x)
 _HEARTBEAT = 0x01
@@ -101,8 +101,17 @@ class DriveOdriveCan(DriveActuator):
         self._last_heartbeat_ms = None
         self._last_encoder_ms = None
         self._now = time.monotonic if clock is None else clock
+        self._feedback_clock = FeedbackClock(self._now)
         self._rx_packets = 0
         self._recovery_count = 0
+        self._control_tx_failures = 0
+        self._feedback_tx_failures = 0
+        self._last_tx_error = ""
+        self._last_feedback_poll_ms = None
+        self._last_iq_poll_ms = None
+        self._arm_requested_ms = None
+        self._arm_heartbeat_sequence = None
+        self._heartbeat_sequence = 0
 
     @property
     def invert(self) -> bool:
@@ -118,43 +127,58 @@ class DriveOdriveCan(DriveActuator):
         return self._now() * 1000.0
 
     def _send(self, cmd: int, data: bytes = b"", rtr: bool = False) -> None:
-        # 노드가 버스에 없어 ACK 못 받으면 TX 큐가 차 ENOBUFS(CanOperationError) →
-        # 프레임 드롭하고 계속(제어루프가 죽지 않게). 미수신은 state()의 stale 로 드러남.
         try:
             self._bus.send(can.Message(arbitration_id=self._arb(cmd), data=data,
                                        is_extended_id=False, is_remote_frame=rtr))
-        except can.CanError:
-            pass
+        except can.CanError as exc:
+            self._last_tx_error = str(exc)
+            if rtr:
+                self._feedback_tx_failures += 1
+            else:
+                self._control_tx_failures += 1
+                raise
 
     def _set_axis_state(self, state: int) -> None:
         # 검증된 프레임과 동일하게 8바이트로 패딩(can_drive_test.py)
         self._send(_SET_AXIS_STATE, struct.pack("<I", state) + bytes(4))
 
     def _handle_rx(self, m) -> bool:
-        if m.is_extended_id or m.is_remote_frame:
+        if m.is_extended_id or m.is_remote_frame or m.is_error_frame:
             return False
         if (m.arbitration_id >> 5) != self._node_id:
             return False
         cmd = m.arbitration_id & 0x1F
+        received_ms = self._feedback_clock.received_ms(
+            m.timestamp, allow_unstamped=not isinstance(self._bus, can.BusABC))
+        if received_ms is None:
+            return False
         if cmd == _HEARTBEAT and len(m.data) >= 5:
+            if self._last_heartbeat_ms is not None and received_ms < self._last_heartbeat_ms:
+                return False
             self._axis_error = struct.unpack("<I", m.data[0:4])[0]
             self._axis_state = m.data[4]
+            self._heartbeat_sequence += 1
             kind = "heartbeat"
         elif cmd == _GET_ENCODER_ESTIMATES and len(m.data) >= 8:
-            self._actual_vel = struct.unpack("<ff", m.data[0:8])[1]
+            if self._last_encoder_ms is not None and received_ms < self._last_encoder_ms:
+                return False
+            velocity = struct.unpack("<ff", m.data[0:8])[1]
+            if not math.isfinite(velocity):
+                return False
+            self._actual_vel = velocity
             kind = "encoder"
         elif cmd == _GET_IQ and len(m.data) >= 8:
             self._cur_a = struct.unpack("<ff", m.data[0:8])[1]
             kind = "iq"
         else:
             return False
-        now_ms = self._now_ms()
+        now_ms = received_ms
         if (
             self._last_rx_ms is not None
             and now_ms - self._last_rx_ms > self._stale_ms
         ):
             self._recovery_count += 1
-        self._last_rx_ms = now_ms
+        self._last_rx_ms = max(now_ms, self._last_rx_ms or now_ms)
         if kind == "heartbeat":
             self._last_heartbeat_ms = now_ms
         elif kind == "encoder":
@@ -201,17 +225,36 @@ class DriveOdriveCan(DriveActuator):
 
     def arm(self) -> None:
         """velocity-control + passthrough 로 폐루프 진입(input_vel=0 점프 방지)."""
+        # Drain pre-request replies so timestamp-less injected doubles cannot
+        # reuse cached state8 as evidence of this request either.
+        self._drain_available()
+        self._arm_heartbeat_sequence = self._heartbeat_sequence
         self._send(_CLEAR_ERRORS, bytes(8))
         self._send(_SET_CONTROLLER_MODE, struct.pack("<ii", _CTRL_VELOCITY, _INPUT_PASSTHROUGH))
         self._send(_SET_INPUT_VEL, struct.pack("<ff", 0.0, 0.0))
         self._target_vel = 0.0
+        self._arm_requested_ms = self._now_ms()
         self._set_axis_state(_AXIS_CLOSED_LOOP)
-        self._poll(0.1)                              # arm 직후 stale 오판 방지: last_rx 시드
+        # Six sequential arms share the ROS executor with the 300 ms input
+        # watchdog. Drain queued feedback without waiting 100 ms per axis;
+        # missing feedback stays stale and is handled by the safety tick.
+        self._drain_available()
+        self.poll_feedback()
+
+    def arm_confirmed(self) -> bool:
+        health = self.state()
+        return bool(
+            self._arm_requested_ms is not None
+            and self._heartbeat_sequence > self._arm_heartbeat_sequence
+            and self._last_heartbeat_ms >= self._arm_requested_ms
+            and not health["heartbeat_stale"]
+            and not health["encoder_stale"]
+            and health["axis_state"] == _AXIS_CLOSED_LOOP
+            and health["axis_error"] == 0
+        )
 
     def disarm(self) -> None:
-        self._send(_SET_INPUT_VEL, struct.pack("<ff", 0.0, 0.0))
-        self._set_axis_state(_AXIS_IDLE)
-        self._target_vel = 0.0
+        self.estop()
 
     def set_velocity(self, turns_per_s: float) -> None:
         """다음 tick() 에 전송할 바퀴 목표 속도(turns/s)."""
@@ -243,6 +286,21 @@ class DriveOdriveCan(DriveActuator):
             self._drain_available()
         return self.health_state()
 
+    def poll_feedback(self) -> None:
+        # Encoder/Iq are queried on this firmware; heartbeats alone cannot
+        # refresh a stopped wheel's last measured velocity after disarm.
+        if self._bus is not None:
+            now_ms = self._now_ms()
+            if (self._last_feedback_poll_ms is not None
+                    and now_ms - self._last_feedback_poll_ms < 50.0 - 1e-6):
+                return
+            self._last_feedback_poll_ms = now_ms
+            self._send(_GET_ENCODER_ESTIMATES, rtr=True)
+            if (self._last_iq_poll_ms is None
+                    or now_ms - self._last_iq_poll_ms >= 200.0 - 1e-6):
+                self._last_iq_poll_ms = now_ms
+                self._send(_GET_IQ, rtr=True)
+
     def health_state(self) -> dict:
         """Return cached health only; never receive or send CAN frames."""
         now_ms = self._now_ms()
@@ -254,6 +312,8 @@ class DriveOdriveCan(DriveActuator):
 
         last_rx_age_ms = age(self._last_rx_ms)
         stale = last_rx_age_ms is None or last_rx_age_ms > self._stale_ms
+        encoder_age_ms = age(self._last_encoder_ms)
+        heartbeat_age_ms = age(self._last_heartbeat_ms)
         return {
             "node_id": self._node_id,
             "target_vel": self._target_vel,
@@ -262,18 +322,35 @@ class DriveOdriveCan(DriveActuator):
             "axis_error": self._axis_error,
             "axis_state": self._axis_state,
             "stale": stale,
+            "encoder_stale": encoder_age_ms is None or encoder_age_ms > self._stale_ms,
+            "heartbeat_stale": heartbeat_age_ms is None or heartbeat_age_ms > self._stale_ms,
             "last_heartbeat_age_ms": age(self._last_heartbeat_ms),
             "last_encoder_age_ms": age(self._last_encoder_ms),
             "rx_packets": self._rx_packets,
             "recovery_count": self._recovery_count,
+            "control_tx_failures": self._control_tx_failures,
+            "feedback_tx_failures": self._feedback_tx_failures,
+            "last_tx_error": self._last_tx_error,
         }
 
     def estop(self) -> None:
         """즉시 정지 — input_vel=0 후 IDLE."""
-        if self._bus is not None:
-            self._send(_SET_INPUT_VEL, struct.pack("<ff", 0.0, 0.0))
-            self._set_axis_state(_AXIS_IDLE)
         self._target_vel = 0.0
+        self._arm_requested_ms = None
+        self._last_feedback_poll_ms = None
+        self._last_iq_poll_ms = None
+        first_error = None
+        if self._bus is not None:
+            for command, data in (
+                (_SET_INPUT_VEL, struct.pack("<ff", 0.0, 0.0)),
+                (_SET_AXIS_STATE, struct.pack("<I", _AXIS_IDLE) + bytes(4)),
+            ):
+                try:
+                    self._send(command, data)
+                except Exception as exc:
+                    first_error = first_error or exc
+        if first_error is not None:
+            raise first_error
 
     def close(self) -> None:
         """IDLE 로 내리고, 소유한 버스면 정리."""

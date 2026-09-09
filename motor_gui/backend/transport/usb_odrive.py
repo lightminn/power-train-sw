@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 import time
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "motor_control"))
+from chassis.usb_session import (motor_session, validate_target, communication_snapshot,
+                                 save_and_reconnect)
 
 from .base import (Transport, TransportError, SIGNAL_META, ODRIVE_CONTROL_MODES,
                    ODRIVE_INPUTS, ODRIVE_TUNABLES_USB, DEFAULT_TUNABLES,
@@ -26,8 +32,13 @@ class UsbOdriveBackend(Transport):
 
     name = "usb"
 
-    def __init__(self, axis_num: int = 1, timeout: float = 15.0,
-                 gear_ratio: float = 5.0) -> None:
+    def __init__(self, axis_num: int | None = None, timeout: float = 15.0,
+                 gear_ratio: float = 5.0, *, serial: str | None = None,
+                 node_id: int | None = None) -> None:
+        self._serial = serial
+        self._node_id = node_id
+        self._session = None
+        self._comm_snapshot = None
         self._timeout = timeout
         self._axis_num = axis_num
         self._gear_ratio = validate_gear_ratio(gear_ratio)
@@ -40,11 +51,32 @@ class UsbOdriveBackend(Transport):
         self._motor_info: dict = {}  # 정적 모터 파라미터 (capabilities 노출)
 
     def connect(self) -> None:
-        import odrive
-        from odrive.enums import (AxisState, ControlMode, InputMode)
-        drv = odrive.find_any(timeout=self._timeout)
-        if drv is None:
-            raise TransportError("ODrive USB not found")
+        try:
+            validate_target(self._serial, self._axis_num, self._node_id)
+        except ValueError as exc:
+            raise ValueError(f"{exc}; use --track usb --usb-serial <SERIAL> --usb-axis 0|1 --usb-node <NODE>") from exc
+        if self._session is not None:
+            raise TransportError("USB backend is already connected")
+        session = motor_session("motor_gui_usb")
+        session.__enter__()
+        try:
+            import odrive
+            drv = odrive.find_any(serial_number=self._serial, timeout=self._timeout)
+            if drv is None:
+                raise TransportError("ODrive USB not found")
+            snapshot = communication_snapshot(drv, serial=self._serial, strict=True)
+            if snapshot[f"axis{self._axis_num}"]["node"] != self._node_id:
+                raise ValueError("USB axis CAN node does not match explicit --usb-node")
+            self._bind_driver(drv)
+            self._comm_snapshot = snapshot
+        except BaseException:
+            self._drv = self._ax = None
+            session.close()
+            raise
+        self._session = session
+
+    def _bind_driver(self, drv) -> None:
+        from odrive.enums import AxisState, ControlMode, InputMode
         self._drv = drv
         self._ax = drv.axis1 if self._axis_num == 1 else drv.axis0
         # FET 서미스터 위치가 fw 별로 다름 (0.5.1=axis.fet_thermistor,
@@ -199,7 +231,16 @@ class UsbOdriveBackend(Transport):
                 if was_closed:
                     ax.requested_state = self._enums["CLOSED_LOOP"]
             elif op == "save_nvm":
-                self._drv.save_configuration()
+                import odrive
+                validate_target(self._serial, self._axis_num, self._node_id)
+                if self._session is None or self._comm_snapshot is None:
+                    raise ValueError("USB ownership and communication verification required")
+                if any(int(axis.current_state) != self._enums["IDLE"]
+                       for axis in (self._drv.axis0, self._drv.axis1)):
+                    raise ValueError("NVM save requires both board axes IDLE")
+                drv = save_and_reconnect(self._drv, odrive, self._comm_snapshot,
+                                         serial=self._serial, timeout=self._timeout)
+                self._bind_driver(drv)
             return {"ok": True, "target": "odrive", "op": op, "detail": "ok"}
         except Exception as e:
             return {"ok": False, "target": "odrive", "op": op, "detail": str(e)}
@@ -249,8 +290,14 @@ class UsbOdriveBackend(Transport):
         return out
 
     def close(self) -> None:
-        if self._ax is not None:
-            try:
-                self._ax.requested_state = self._enums["IDLE"]
-            except Exception:
-                pass
+        try:
+            if self._ax is not None:
+                try:
+                    self._ax.requested_state = self._enums["IDLE"]
+                except Exception:
+                    pass
+        finally:
+            self._ax = self._drv = None
+            if self._session is not None:
+                self._session.close()
+                self._session = None

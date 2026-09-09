@@ -1,3 +1,5 @@
+raise SystemExit("DEPRECATED: first-board auto calibration/configuration/control is quarantined; use motor_control/drive/bl70200/bl70200_setup.py with explicit --serial --axis --node, or the gated chassis teleop runtime.")
+
 """
 ⛔ DEPRECATED: 정본은 teleop_command/:9000 경로다.
 이 스크립트는 구 Raspberry Pi 데모용이며 실모터 사용을 권장하지 않는다.

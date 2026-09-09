@@ -1,5 +1,7 @@
-import pytest
+import threading
 import time
+
+import pytest
 
 from motor_gui.backend.transport.fake import FakeTransport
 from motor_gui.backend.worker import HardwareWorker
@@ -382,4 +384,205 @@ def test_selected_profile_is_applied_only_on_explicit_request():
         }
         assert transport.commands[1]["args"] == {"current_lim": 9.0}
     finally:
+        worker.stop()
+
+
+class _BlockingSampleFake(FakeTransport):
+    """Hold the worker before it can dequeue a command."""
+
+    def __init__(self):
+        super().__init__()
+        self.commands = []
+        self.block_sample = False
+        self.sample_entered = threading.Event()
+        self.release_sample = threading.Event()
+
+    def sample(self):
+        if self.block_sample:
+            self.sample_entered.set()
+            self.release_sample.wait(timeout=1.0)
+            self.block_sample = False
+        return super().sample()
+
+    def apply(self, cmd):
+        self.commands.append(cmd)
+        return super().apply(cmd)
+
+
+class _BlockingApplyFake(FakeTransport):
+    """Hold one selected transport operation after execution has started."""
+
+    def __init__(self, blocked_op):
+        super().__init__()
+        self.blocked_op = blocked_op
+        self.block_enabled = False
+        self.apply_entered = threading.Event()
+        self.release_apply = threading.Event()
+        self.commands = []
+
+    def apply(self, cmd):
+        if self.block_enabled and cmd["op"] == self.blocked_op:
+            self.apply_entered.set()
+            self.release_apply.wait(timeout=1.0)
+            self.block_enabled = False
+        self.commands.append(cmd)
+        return super().apply(cmd)
+
+
+def _block_worker_before_dequeue(worker, transport):
+    transport.sample_entered.clear()
+    transport.release_sample.clear()
+    transport.block_sample = True
+    assert transport.sample_entered.wait(timeout=1.0)
+
+
+@pytest.mark.parametrize(
+    ("timed_command", "start_armed", "followup", "followup_ok"),
+    [
+        (
+            {"target": "odrive", "op": "set_input", "args": {"vel": 8.0}},
+            True,
+            {
+                "target": "odrive", "op": "set_mode",
+                "args": {"control_mode": "velocity"},
+            },
+            True,
+        ),
+        (
+            {"target": "odrive", "op": "arm", "args": {}},
+            False,
+            {"target": "odrive", "op": "set_input", "args": {"vel": 1.0}},
+            False,
+        ),
+    ],
+)
+def test_submit_timeout_cancels_command_before_start(
+        monkeypatch, timed_command, start_armed, followup, followup_ok):
+    import motor_gui.backend.worker as worker_module
+
+    monkeypatch.setattr(worker_module, "_SUBMIT_TIMEOUT", 0.03)
+    transport = _BlockingSampleFake()
+    worker = HardwareWorker(transport, rate_hz=200)
+    worker.start()
+    try:
+        if start_armed:
+            assert _arm(worker)["ok"] is True
+        _block_worker_before_dequeue(worker, transport)
+        transport.commands.clear()
+
+        ack = worker.submit(timed_command)
+
+        assert ack == {
+            "ok": False,
+            "target": "odrive",
+            "op": timed_command["op"],
+            "status": "FINAL_REJECTED",
+            "detail": "command timeout; cancelled before execution",
+        }
+        transport.release_sample.set()
+        followup_ack = worker.submit(followup)
+        assert followup_ack["ok"] is followup_ok
+        assert not any(
+            cmd["op"] == timed_command["op"]
+            for cmd in transport.commands
+        )
+        if timed_command["op"] == "arm":
+            assert "disarmed" in followup_ack["detail"]
+            assert transport.commands == []
+    finally:
+        transport.release_sample.set()
+        worker.stop()
+
+
+def test_profile_timeout_cancels_a_profile_that_has_not_started(monkeypatch):
+    import motor_gui.backend.worker as worker_module
+
+    monkeypatch.setattr(worker_module, "_SUBMIT_TIMEOUT", 0.03)
+    transport = _BlockingSampleFake()
+    worker = HardwareWorker(transport, rate_hz=200)
+    worker.start()
+    try:
+        assert _arm(worker)["ok"] is True
+        _block_worker_before_dequeue(worker, transport)
+        transport.commands.clear()
+
+        ack = worker.apply_profile("bl70200")
+
+        assert ack == {
+            "ok": False,
+            "profile": "bl70200",
+            "status": "FINAL_REJECTED",
+            "detail": "profile apply timeout; cancelled before execution",
+        }
+        transport.release_sample.set()
+        assert worker.submit({
+            "target": "odrive", "op": "set_mode",
+            "args": {"control_mode": "velocity"},
+        })["ok"] is True
+        assert not any(
+            cmd["op"] in {"set_gain", "set_limit"}
+            for cmd in transport.commands
+        )
+    finally:
+        transport.release_sample.set()
+        worker.stop()
+
+
+def test_submit_timeout_is_unknown_after_execution_starts(monkeypatch):
+    import motor_gui.backend.worker as worker_module
+
+    monkeypatch.setattr(worker_module, "_SUBMIT_TIMEOUT", 0.03)
+    transport = _BlockingApplyFake("set_input")
+    worker = HardwareWorker(transport, rate_hz=200)
+    worker.start()
+    try:
+        assert _arm(worker)["ok"] is True
+        transport.block_enabled = True
+
+        ack = worker.submit({
+            "target": "odrive", "op": "set_input", "args": {"vel": 8.0},
+        })
+
+        assert transport.apply_entered.is_set()
+        assert ack == {
+            "ok": False,
+            "target": "odrive",
+            "op": "set_input",
+            "status": "OUTCOME_UNKNOWN",
+            "detail": (
+                "command timeout after execution started; outcome unknown"
+            ),
+        }
+        transport.release_apply.set()
+    finally:
+        transport.release_apply.set()
+        worker.stop()
+
+
+def test_profile_timeout_is_unknown_after_execution_starts(monkeypatch):
+    import motor_gui.backend.worker as worker_module
+
+    monkeypatch.setattr(worker_module, "_SUBMIT_TIMEOUT", 0.03)
+    transport = _BlockingApplyFake("set_gain")
+    worker = HardwareWorker(transport, rate_hz=200)
+    worker.start()
+    try:
+        assert _arm(worker)["ok"] is True
+        transport.block_enabled = True
+
+        ack = worker.apply_profile("bl70200")
+
+        assert transport.apply_entered.is_set()
+        assert ack == {
+            "ok": False,
+            "profile": "bl70200",
+            "status": "OUTCOME_UNKNOWN",
+            "detail": (
+                "profile apply timeout after execution started; "
+                "outcome unknown"
+            ),
+        }
+        transport.release_apply.set()
+    finally:
+        transport.release_apply.set()
         worker.stop()

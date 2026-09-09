@@ -1275,10 +1275,10 @@ def test_speed_scale_does_not_reset_command_watchdog():
 def test_speed_scale_floored_by_cogging_floor():
     """⚠️ **`min_drive_turns_per_s`(코깅존 플로어)가 SLOW 를 무력화할 수 있다.**
 
-    실기 기본값은 `min_rev=1.0` rev/s (저속 HALL 코깅존 회피). 그런데 플로어는 0이 아닌
+    과거 실기 값 `min_rev=1.0` rev/s를 명시 주입하는 회귀 사례다(현재 기본은 0). 플로어는 0이 아닌
     모든 명령을 그 값까지 **끌어올린다**. 따라서 감속 힌트가 v 를 줄여도 바퀴 지령이
     플로어 아래로 내려가면 다시 1.0 rev/s 로 튄다 →  **달성 가능한 최저 속도는
-    min_rev(≈0.63 m/s)이며 SLOW 는 그 아래로 못 내려간다.**
+    min_rev(현재 제작 v2 반경에서 ≈0.65 m/s)이며 SLOW 는 그 아래로 못 내려간다.**
 
     STOP(scale=0)은 정상 동작한다 — 플로어는 `0 < |drive|` 일 때만 적용되므로 0은 0이다.
     """

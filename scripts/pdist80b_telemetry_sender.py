@@ -13,8 +13,10 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ros2/src/powertrain_ros"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from powertrain_ros.pdist80b import bms_monitor_request, parse_bms_monitor_response  # noqa: E402
+from powertrain_runtime.telemetry import send_datagram  # noqa: E402
 
 
 BRINGUP_STATUS_INTERVAL_S = 5.0
@@ -254,7 +256,7 @@ def main() -> None:
                                 consecutive_failures=consecutive_failures, detail=last_error,
                                 bringup_status=bringup_status)
         try:
-            udp.sendto(encode_payload(frame), (args.operator_host, args.operator_port))
+            send_datagram(udp, encode_payload(frame), (args.operator_host, args.operator_port))
             sequence += 1
         except (OSError, ValueError) as exc:
             print(f"PDIST80B telemetry send failed: {exc}", file=sys.stderr, flush=True)

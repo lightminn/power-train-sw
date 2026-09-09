@@ -80,6 +80,18 @@ function logMsg(text, cls) {
   log.scrollTop = log.scrollHeight;
 }
 
+function logAckFailure(ack, rejectedLabel, unknownLabel) {
+  const detail = ack.detail ? ` — ${ack.detail}` : "";
+  if (ack.status === "OUTCOME_UNKNOWN") {
+    logMsg(
+      `${unknownLabel}${detail} — 실제 상태를 확인하기 전에는 같은 요청을 재전송하지 마세요.`,
+      "warn",
+    );
+    return;
+  }
+  logMsg(`${rejectedLabel}${detail}`, "err");
+}
+
 async function postCommand(envelope) {
   try {
     const r = await fetch("/api/command", {
@@ -87,7 +99,13 @@ async function postCommand(envelope) {
       body: JSON.stringify(envelope),
     });
     const ack = await r.json();
-    if (!ack.ok) logMsg(`명령 거부: ${envelope.target}.${envelope.op} — ${ack.detail}`, "err");
+    if (!ack.ok) {
+      logAckFailure(
+        ack,
+        `명령 거부: ${envelope.target}.${envelope.op}`,
+        `명령 결과 미확정: ${envelope.target}.${envelope.op}`,
+      );
+    }
     return ack;
   } catch (e) {
     logMsg(`명령 전송 실패: ${e}`, "err");
@@ -257,17 +275,23 @@ async function tunableProfilePanel() {
   select.addEventListener("change", () => { apply.disabled = !select.value; });
   apply.addEventListener("click", async () => {
     if (!select.value) return;
+    const requestedProfile = select.value;
+    const requestedLabel = profiles[requestedProfile].label;
     apply.disabled = true;
     const ack = await (await fetch("/api/tunable_profiles/apply", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profile: select.value }),
+      body: JSON.stringify({ profile: requestedProfile }),
     })).json();
     if (ack.ok) {
-      logMsg(`프로파일 적용: ${profiles[select.value].label}`);
+      logMsg(`프로파일 적용: ${requestedLabel}`);
       location.reload();
     } else {
-      logMsg("프로파일 적용 실패: " + (ack.detail || ""), "err");
-      apply.disabled = false;
+      logAckFailure(
+        ack,
+        "프로파일 적용 실패",
+        `프로파일 적용 결과 미확정: ${requestedLabel}`,
+      );
+      apply.disabled = !select.value;
     }
   });
   row.appendChild(select); row.appendChild(apply); wrap.appendChild(row);
@@ -418,6 +442,12 @@ function renderLoop() {
   requestAnimationFrame(renderLoop);
 }
 
+function capabilityNotePanel(c) {
+  const panel = document.createElement("p");
+  panel.textContent = (c.notes || []).join(" · ");
+  return panel;
+}
+
 async function main() {
   caps = await (await fetch("/api/capabilities")).json();
   const ratioText = caps.drive_gear_ratio == null
@@ -438,6 +468,7 @@ async function main() {
     logMsg("튜닝 현재값 조회 실패", "err");
   }
   const controls = document.getElementById("controls");
+  controls.appendChild(capabilityNotePanel(caps));
   controls.appendChild(recordingPanel());
   const profilePanel = await tunableProfilePanel();
   if (profilePanel) controls.appendChild(profilePanel);

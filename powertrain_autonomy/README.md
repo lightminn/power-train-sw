@@ -139,7 +139,14 @@ NumPy is the only production authority for terrain estimation. The optional
 JAX module provides `warmup(config)`,
 rejects shape/dtype drift before JIT dispatch, and validates device results at
 the CPU boundary, but it is not selected by the estimator or any launch
-profile. Jetson qualification and backend selection remain deferred, including
-the full-load latency/resource gate, accelerator version pinning, and launch
-memory policy such as `XLA_PYTHON_CLIENT_PREALLOCATE=false`. The WP6-C
-controller is backend-neutral and consumes the immutable estimator result.
+profile. The 2026-07-19 Jetson full-load qualification selected NumPy for
+production: the measured kernel p95 was at most 7 ms under the live stack, while
+an aarch64 CUDA `jaxlib` was unavailable through the deployment path. JAX
+therefore remains an x86 development equivalence backend and stays absent from
+the Jetson image; there is no pending Jetson JAX deployment gate. See
+[`2026-07-19-terrain-backend-jetson-qualification.md`](../docs/reports/2026-07-19-terrain-backend-jetson-qualification.md).
+That selection measured three kernel cases with 100 samples each under the live
+load. It is not evidence for a 30-minute sensor-to-controller-to-SRT E2E run.
+The WP6-C controller is backend-neutral and consumes the immutable estimator
+result. Physical mount-angle/extrinsic and controller-profile HIL remain
+separate acceptance gates.

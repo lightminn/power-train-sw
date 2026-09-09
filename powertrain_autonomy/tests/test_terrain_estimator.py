@@ -2020,7 +2020,6 @@ def test_autonomy_readme_records_dependency_shape_and_deferred_scope_contracts()
         "autonomy_controller_node",
         "fixed-shape JAX kernels and NumPy/JAX grid equivalence are implemented",
         "NumPy is the only production authority",
-        "Jetson qualification and backend selection remain deferred",
     ):
         assert phrase in text
     assert "JAX kernels, NumPy/JAX equivalence" not in text

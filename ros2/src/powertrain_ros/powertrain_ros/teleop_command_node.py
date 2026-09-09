@@ -29,6 +29,7 @@ from std_srvs.srv import Trigger
 from powertrain_ros.remote_input import RemoteInputDecoder
 from powertrain_ros.remote_input_gateway import (
     GatewayConfig,
+    MOTION_HOLD,
     RemoteInputGateway,
     frame_is_neutral,
     gated_arm_output,
@@ -61,12 +62,14 @@ def make_status_line(output):
 class TeleopCommandNode(Node):
     def __init__(self):
         super().__init__("teleop_command")
+        self.declare_parameter("host", "0.0.0.0")
         self.declare_parameter("port", DEFAULT_PORT)
         self.declare_parameter("input_timeout_s", 0.20)
         self.declare_parameter("stopping_timeout_s", 2.0)
         self.declare_parameter("max_linear", 1.5)
         self.declare_parameter("max_angular", 1.2)
 
+        self._host = str(self.get_parameter("host").value)
         self._port = int(self.get_parameter("port").value)
         input_timeout_s = float(
             self.get_parameter("input_timeout_s").value
@@ -157,8 +160,8 @@ class TeleopCommandNode(Node):
         )
         self._server_thread.start()
         self.get_logger().info(
-            "remote input TCP :%d; ARM output enabled=%s"
-            % (self._port, ARM_OUTPUT_ENABLED)
+            "remote input TCP %s:%d; ARM output enabled=%s"
+            % (self._host, self._port, ARM_OUTPUT_ENABLED)
         )
 
     def _queue_motion_frame(self, frame):
@@ -343,7 +346,7 @@ class TeleopCommandNode(Node):
         self._server_socket = server
         try:
             server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server.bind(("0.0.0.0", self._port))
+            server.bind((self._host, self._port))
             server.listen(1)
             server.settimeout(0.20)
             while not self._stop_event.is_set():
@@ -524,6 +527,12 @@ class TeleopCommandNode(Node):
         self.pub_assist_bypass.publish(message)
 
     def _clear_hold(self, _request, response):
+        if self._gateway.state != MOTION_HOLD:
+            response.success = True
+            response.message = (
+                "already clear; gateway state=%s" % self._gateway.state
+            )
+            return response
         response.success = self._gateway.clear_hold()
         response.message = (
             "MOTION_HOLD cleared; fresh neutral input required"

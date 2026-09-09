@@ -740,12 +740,37 @@ def test_steering_fields_tolerate_a_missing_state():
     assert drive_transport_from_state({}) is None
 
 
+@pytest.mark.parametrize(
+    "state",
+    (
+        {},
+        {"steering_mode": ""},
+        {"steering_mode": "crab"},
+        {"steering_mode": True},
+    ),
+)
+def test_invalid_steering_mode_is_treated_as_unavailable(state):
+    """누락·오염된 상태가 임의 전환 payload나 표시 예외로 이어지면 안 된다."""
+    row = next(a for a in PANEL_ACTIONS if a.action == "steer_mode_skid")
+
+    assert steering_mode_from_state(state) is None
+    assert row.state_text_from_state(state) == "상태 미확인"
+    assert action_is_available("steer_mode_skid", state) == (
+        False,
+        "차대 상태 수신 전",
+    )
+    with pytest.raises(RuntimeError, match="steering mode unavailable"):
+        row.bool_value_from_state(state)
+
+
 def test_steer_mode_row_exists_and_is_a_bool_toggle():
     row = next(a for a in PANEL_ACTIONS if a.action == "steer_mode_skid")
 
     assert row.needs_bool is True
     assert row.bool_value_from_state is not None
     assert row.confirm_text
+    assert row.label == "조향 방식"
+    assert row.state_text_from_state is not None
 
 
 def test_steer_mode_toggle_requests_the_opposite_mode():
@@ -753,6 +778,13 @@ def test_steer_mode_toggle_requests_the_opposite_mode():
 
     assert row.bool_value_from_state(_state(steering_mode="ackermann")) is True
     assert row.bool_value_from_state(_state(steering_mode="skid")) is False
+
+
+def test_steer_mode_state_text_reports_the_current_mode():
+    row = next(a for a in PANEL_ACTIONS if a.action == "steer_mode_skid")
+
+    assert row.state_text_from_state(_state(steering_mode="ackermann")) == "애커만"
+    assert row.state_text_from_state(_state(steering_mode="skid")) == "스키드"
 
 
 def test_steer_mode_is_greyed_out_without_steering_hardware():

@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
-"""구동 ODrive 다축 CAN 풀캘리 — 전원 켤 때마다 필요(캘리 RAM-only).
+"""구동 ODrive 다축 CAN 풀캘리 — 현재 실행 상태를 갱신하며 NVM 저장은 하지 않는다.
 
 BL70200 HALL 캘리는 `Set_Axis_State`(CANSimple cmd 0x07) = **state 3**
 (FULL_CALIBRATION_SEQUENCE) 로 CAN 만으로 된다(HALL 은 index 없어 MOTOR_CAL→
 OFFSET_CAL 로 내부 분해 실행 → heartbeat 상태전이 4→7→1 로 관찰됨).
 USB 없이 can0 로 6축을 한 번에(순차) 캘리. 한 축씩 = 48V 전류 스파이크 방지.
+
+전원 인가 뒤 `motor.is_calibrated`, `encoder.is_ready`, 축 오류를 먼저 확인한다.
+`bl70200_setup.py --persist-calibration`으로 준비되고 이 확인을 통과한 축은 이
+명령을 매번 실행할 필요가 없다. 영속화되지 않았거나 준비되지 않은 축만 출력축을
+자유롭게 한 벤치에서 캘리한다. 운용 기록상 node 11/12는 전원사이클 3회 직진입을
+확인했고 13~16은 재캘리 없는 운용 관찰만 있다. 13~16의 동일한 3회 반복시험과
+USB에서의 플래그 직접 대조는 아직 완료되지 않았다.
 
 ⚠️ 각 축 출력축(바퀴)이 ~55s 양방향 회전 → 반드시 바퀴 자유(무부하) 상태에서.
 사전: can0 500k UP (`bash scripts/can_setup.sh` 또는 host `ip link set can0 up
@@ -152,7 +159,9 @@ def calibrate_nodes(bus, nodes, *, observe=None):
 def main():
     import can
 
-    ap = argparse.ArgumentParser(description="구동 ODrive 다축 CAN 풀캘리")
+    ap = argparse.ArgumentParser(
+        description="구동 ODrive 다축 CAN 풀캘리 (현재 상태만 갱신, NVM 저장 안 함)"
+    )
     ap.add_argument("--nodes", type=int, nargs="+", default=DRIVE_NODES,
                     help="캘리할 CAN node id (기본 11~16)")
     ap.add_argument("--channel", default="can0")

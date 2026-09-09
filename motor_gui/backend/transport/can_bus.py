@@ -28,7 +28,7 @@ C_SET_INPUT_VEL = 0x00D
 C_SET_INPUT_TORQUE = 0x00E
 C_SET_LIMITS = 0x00F
 C_GET_IQ = 0x014
-C_GET_TEMP = 0x015
+C_GET_SENSORLESS_EST = 0x015  # fw-v0.5.6: position/velocity, not temperature
 C_GET_BUS_VI = 0x017
 C_CLEAR_ERR = 0x018
 C_SET_POS_GAIN = 0x01A
@@ -48,7 +48,7 @@ IN_MODE = {"position": 3, "position_traj": 5, "velocity": 2, "torque": 1}
 
 _ODRIVE_SIGNALS = [
     "odrive.pos", "odrive.vel", "odrive.iq_meas", "odrive.iq_set",
-    "odrive.temp_fet", "odrive.vbus", "odrive.ibus", "odrive.state",
+    "odrive.vbus", "odrive.ibus", "odrive.state",
     "odrive.axis_err",
 ]
 _AK_SIGNALS = ["ak.pos_deg", "ak.speed", "ak.current", "ak.temp", "ak.fault"]
@@ -69,6 +69,8 @@ class CanBackend(Transport):
         self._ak_id = AK_ID             # AK 모터 id (웹에서 변경 가능)
         self._state = {k: 0.0 for k in _ODRIVE_SIGNALS}
         self._pos_offset = 0.0
+        self._last_poll = float("-inf")
+        self._tx_errors = 0
         # CAN Set_Limits/Set_Vel_Gains 는 페어 프레임 → 부분 업데이트 병합용 캐시
         self._last_limits: dict = {}
         self._last_vel_gains: dict = {}
@@ -117,17 +119,28 @@ class CanBackend(Transport):
                                    is_extended_id=False))
 
     def sample(self) -> dict:
-        self._request(C_GET_IQ)
-        self._request(C_GET_TEMP)
-        self._request(C_GET_BUS_VI)
+        import can
+        now = time.monotonic()
+        if now - self._last_poll >= 1.0 / 15.0:
+            self._last_poll = now
+            for cmd in (C_GET_ENC_EST, C_GET_IQ, C_GET_BUS_VI):
+                try:
+                    self._request(cmd)
+                except (can.CanError, OSError):
+                    self._tx_errors += 1
         deadline = time.monotonic() + 0.008
         while time.monotonic() < deadline:
             msg = self._bus.recv(timeout=0.002)
             if msg is None:
                 break
-            self._decode_odrive(msg)
-        self._ak.poll(timeout=0.005)
-        s = {"t_mono": time.monotonic()}
+            if msg.is_error_frame or msg.is_remote_frame:
+                continue
+            if msg.is_extended_id:
+                if (msg.arbitration_id >> 8) & 0xFF == 41 and msg.arbitration_id & 0xFF == self._ak_id and len(msg.data) >= 8:
+                    self._ak._parse_status(msg.data)
+            else:
+                self._decode_odrive(msg)
+        s = {"t_mono": time.monotonic(), "can.tx_errors": self._tx_errors}
         s.update(self._state)
         s["odrive.pos"] = float(self._state.get("odrive.pos", 0.0)) - self._pos_offset
         s["odrive.vel"] = float(self._state.get("odrive.vel", 0.0)) / self._gear_ratio
@@ -159,9 +172,6 @@ class CanBackend(Transport):
             iq_set, iq_meas = struct.unpack("<ff", d[:8])
             self._state["odrive.iq_set"] = iq_set
             self._state["odrive.iq_meas"] = iq_meas
-        elif cmd == C_GET_TEMP and len(d) >= 8:
-            fet, _motor = struct.unpack("<ff", d[:8])
-            self._state["odrive.temp_fet"] = fet
         elif cmd == C_GET_BUS_VI and len(d) >= 8:
             vbus, ibus = struct.unpack("<ff", d[:8])
             self._state["odrive.vbus"] = vbus
@@ -258,14 +268,18 @@ class CanBackend(Transport):
             return {"ok": False, "target": "ak", "op": op,
                     "detail": "unsupported op"}
         if op == "estop":
-            self._ak.stop()
+            if not self._ak.stop():
+                raise TransportError("AK stop send failed")
         elif op == "set_input":
             if "pos_deg" in args:
-                self._ak.send_pos_out(float(args["pos_deg"]))
+                if not self._ak.send_pos_out(float(args["pos_deg"])):
+                    raise TransportError("AK position send failed")
             elif "rpm" in args:
-                self._ak.send_rpm_out(float(args["rpm"]))
+                if not self._ak.send_rpm_out(float(args["rpm"])):
+                    raise TransportError("AK velocity send failed")
         elif op == "set_origin":
-            self._ak.set_origin_here()
+            if not self._ak.set_origin_here():
+                raise TransportError("AK origin send failed")
         return {"ok": True, "target": "ak", "op": op, "detail": "sent"}
 
     def capabilities(self) -> dict:
@@ -288,7 +302,8 @@ class CanBackend(Transport):
             "signal_meta": SIGNAL_META,
             "drive_gear_ratio": self._gear_ratio,
             "can_ids": self.device_ids(),
-            "notes": ["CAN 트랙 — ODrive+AK 동시. NVM 저장 불가 (USB 전용)"],
+            "notes": ["CAN 트랙 — ODrive+AK 동시. NVM 저장 불가 (USB 전용)",
+                      "fw-v0.5.6 CAN 온도 미지원 (USB로 확인)"],
         }
 
     def device_ids(self) -> dict:

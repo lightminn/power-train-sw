@@ -4,6 +4,7 @@ import json
 import socket
 import threading
 import time
+import uuid
 
 import pytest
 import rclpy
@@ -394,6 +395,19 @@ def test_absent_service_is_abandoned_and_releases_mutation_slot(
     monkeypatch.setattr(oc, "SERVICE_ORDER_ABANDON_S", 0.5, raising=False)
     port = _free_port()
     node = _node(token_dir, port)
+    # Earlier tests create /chassis_node/disarm. DDS discovery can retain that
+    # server briefly after destruction, making "absent" look once-ready and
+    # correctly produce OUTCOME_UNKNOWN. Use a real, uniquely absent endpoint
+    # while retaining the public order target and all broker result assertions.
+    original_client_for = node._client_for
+    absent_target = "/pytest_absent_%s/disarm" % uuid.uuid4().hex
+    monkeypatch.setattr(
+        node, "_client_for",
+        lambda service_type, target: original_client_for(
+            service_type,
+            absent_target if target == "/chassis_node/disarm" else target,
+        ),
+    )
     journals = []
     node._journal = lambda **entry: journals.append(entry)
     try:

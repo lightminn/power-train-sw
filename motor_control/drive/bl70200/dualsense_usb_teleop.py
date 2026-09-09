@@ -12,9 +12,10 @@ can0 이 아니라 USB 직결이라 CAN 버스 상태(ERROR-PASSIVE·조향 부�
 
   노트북: python3 motor_control/laptop/laptop_client_chassis.py --host 192.168.50.98 --port 9010
   젯슨  : docker exec -it powertrain_canwatchdog python3 \
-            /workspace/motor_control/drive/bl70200/dualsense_usb_teleop.py
+            /workspace/motor_control/drive/bl70200/dualsense_usb_teleop.py --serial <SERIAL> --axis both --node 11 --no-auto-arm
 
-  전원 사이클 직후엔 캘리(RAM-only)부터:  ... dualsense_usb_teleop.py --calibrate
+  준비 플래그/오류가 미준비일 때만 출력축을 자유롭게 하고 캘리:
+    ... dualsense_usb_teleop.py --calibrate
   벤치 전원이 약해 동시 arm 시 UV 트립 나면: ... --current-lim 2.0
 
 조작: RT=전진 / LT=후진 (깊이 비례) · 손 떼면 정지 · □=disarm/재arm · ○=정지 후 종료.
@@ -26,6 +27,11 @@ import selectors
 import socket
 import sys
 import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from chassis.usb_session import (motor_session, validate_target, normalize_serial,
+                                 axis_communication)
 
 GEAR_RATIO = 5.0          # 모터 5회전 = 바퀴 1회전
 ODRIVE_VID = 0x1209
@@ -36,12 +42,12 @@ DEFAULT_PORT = 9010       # 9000 은 teleop_command 노드가 쓰고 있음
 # ---------------------------------------------------------------- ODrive USB
 
 def discover_serials():
-    """USB 에 붙은 ODrive 시리얼 목록. 실패하면 빈 리스트(→ find_any 폴백)."""
+    """USB 에 붙은 ODrive 시리얼 목록. 읽기 전용 목록 보조; 제어 대상 자동 선택에는 사용하지 않는다."""
     try:
         import usb.core
         import usb.util
     except Exception as exc:
-        print("pyusb 없음 (%s) — 단일 보드 폴백" % exc)
+        print("pyusb 없음 (%s) — 자동 제어 대상 선택 없음" % exc)
         return []
     serials = []
     try:
@@ -53,24 +59,23 @@ def discover_serials():
             if sn:
                 serials.append(sn.strip())
     except Exception as exc:
-        print("USB 열거 실패 (%s) — 단일 보드 폴백" % exc)
+        print("USB 열거 실패 (%s) — 자동 제어 대상 선택 없음" % exc)
         return []
     return sorted(set(serials))
 
 
 def connect(serials):
+    if not serials:
+        raise ValueError("explicit --serial required; automatic first-board selection is disabled")
     import odrive
     boards = []
-    if serials:
-        for sn in serials:
-            print("🔌 ODrive %s 연결 중..." % sn)
-            boards.append((sn, odrive.find_any(serial_number=sn, timeout=20)))
-    else:
-        print("🔌 ODrive 검색 중 (아무 보드 1장)...")
-        odrv = odrive.find_any(timeout=20)
-        boards.append((str(odrv.serial_number), odrv))
-    for sn, odrv in boards:
-        print("✅ 보드 %s  vbus=%.1fV" % (sn, odrv.vbus_voltage))
+    for sn in serials:
+        normalize_serial(sn)
+        print("ODrive %s 연결 중..." % sn)
+        odrv = odrive.find_any(serial_number=sn, timeout=20)
+        if odrv is None or normalize_serial(odrv.serial_number) != normalize_serial(sn):
+            raise ValueError("ODrive serial mismatch or board unavailable")
+        boards.append((sn, odrv))
     return boards
 
 
@@ -112,7 +117,10 @@ def arm(ax, label, current_lim):
     from odrive.enums import (AXIS_STATE_CLOSED_LOOP_CONTROL, CONTROL_MODE_VELOCITY_CONTROL,
                               INPUT_MODE_PASSTHROUGH)
     if not ax.motor.is_calibrated or not ax.encoder.is_ready:
-        sys.exit("❌ %s 미캘리. 전원 사이클 후엔 --calibrate 를 먼저 돌려라 (캘리는 RAM-only)." % label)
+        sys.exit(
+            "❌ %s 캘리 상태 미준비. 영속 플래그·축 오류를 확인하고, "
+            "필요하면 출력축을 자유롭게 한 뒤 --calibrate를 실행한다." % label
+        )
     ax.error = ax.motor.error = ax.encoder.error = ax.controller.error = 0
     ax.motor.config.current_lim = current_lim
     ax.encoder.config.ignore_illegal_hall_state = True
@@ -201,7 +209,13 @@ def serve(axes, args):
                             print("\n○ 정지·종료 요청")
                             return
                         if sq and not prev_sq:
-                            armed = not armed
+                            if armed:
+                                idle_all(axes)
+                                armed = False
+                            else:
+                                for label, axis, _ in axes:
+                                    arm(axis, label, args.current_lim)
+                                armed = True
                             print("\n□ armed=%s" % armed)
                         prev_sq = sq
 
@@ -240,44 +254,59 @@ def serve(axes, args):
 def main():
     ap = argparse.ArgumentParser(description="DualSense(노트북) → BL70200 USB 구동 서버 (인터록 없음)")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT, help="수신 TCP 포트 (기본 9010)")
-    ap.add_argument("--serial", action="append", default=[],
-                    help="쓸 ODrive 시리얼 (여러 번). 생략 시 USB 에 붙은 보드 전부 자동")
-    ap.add_argument("--axis", choices=["both", "0", "1"], default="both", help="쓸 축 (기본 both)")
+    ap.add_argument("--serial", action="append", required=True,
+                    help="쓸 ODrive 시리얼 (여러 번); --node와 같은 순서")
+    ap.add_argument("--node", action="append", type=int, required=True,
+                    help="보드별 첫 선택축 CAN node; both이면 다음 축은 node+1")
+    ap.add_argument("--axis", choices=["both", "0", "1"], required=True, help="쓸 축 명시")
     ap.add_argument("--max-vel", type=float, default=3.0,
                     help="트리거 만땅 시 모터 turns/s (기본 3.0 = 바퀴 0.6 rev/s)")
     ap.add_argument("--accel", type=float, default=8.0, help="속도 슬루 제한 turns/s^2")
     ap.add_argument("--current-lim", type=float, default=9.0,
                     help="축당 전류 제한 A (기본 9.0). 전원 약해 UV 트립 나면 2.0")
     ap.add_argument("--timeout", type=float, default=0.3, help="무입력 시 0 으로 떨구는 시간 (s)")
-    ap.add_argument("--calibrate", action="store_true", help="구동 전 풀캘리 (전원 사이클마다 필요)")
+    ap.add_argument(
+        "--calibrate", action="store_true",
+        help="구동 전 풀캘리 (출력축 자유 필수, 현재 상태만 갱신하며 NVM 저장 안 함)",
+    )
     ap.add_argument("--no-invert-axis1", action="store_true",
                     help="axis1 부호 반전 끄기 (모터 프레임 그대로)")
     ap.add_argument("--no-auto-arm", action="store_true", help="시작 시 disarm 상태로 (□ 로 arm)")
     args = ap.parse_args()
 
-    serials = args.serial or discover_serials()
-    if serials:
-        print("USB ODrive: %s" % ", ".join(serials))
-    boards = connect(serials)
-    axes = collect_axes(boards, args.axis, not args.no_invert_axis1)
-    print("대상 축: " + ", ".join("%s(%+d)" % (l, s) for l, _, s in axes))
-
-    if args.calibrate:
-        for lbl, ax, _ in axes:
-            calibrate(ax, lbl, args.current_lim)
-
-    for lbl, ax, _ in axes:
-        arm(ax, lbl, args.current_lim)
-
-    print("\n⚠️  인터록 없음 — 바퀴 들렸는지 확인했나?")
-    try:
-        serve(axes, args)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        print("\n🛑 정지 후 IDLE 복귀")
-        idle_all(axes)
-        print("✅ 종료")
+    if len(args.serial) != len(args.node):
+        ap.error("each --serial requires a corresponding --node")
+    for serial, node in zip(args.serial, args.node):
+        try:
+            validate_target(serial, args.axis, node)
+        except ValueError as exc:
+            ap.error(str(exc))
+    with motor_session("dualsense_usb_teleop"):
+        boards = connect(args.serial)
+        # All addresses are checked before the first configuration/control write.
+        for (serial, board), first_node in zip(boards, args.node):
+            selected = (0, 1) if args.axis == "both" else (int(args.axis),)
+            for offset, idx in enumerate(selected):
+                if axis_communication(getattr(board, f"axis{idx}"))["node"] != first_node + offset:
+                    raise ValueError(f"{serial}/axis{idx} CAN node mismatch")
+        axes = collect_axes(boards, args.axis, not args.no_invert_axis1)
+        print("대상 축: " + ", ".join("%s(%+d)" % (l, s) for l, _, s in axes))
+        try:
+            if args.calibrate:
+                for lbl, ax, _ in axes:
+                    calibrate(ax, lbl, args.current_lim)
+            if args.no_auto_arm:
+                idle_all(axes)
+            else:
+                for lbl, ax, _ in axes:
+                    arm(ax, lbl, args.current_lim)
+            print("인터록 없음 — 바퀴를 든 벤치에서만 사용")
+            serve(axes, args)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            print("정지 후 IDLE 복귀")
+            idle_all(axes)
 
 
 if __name__ == "__main__":

@@ -102,10 +102,10 @@ US-100 UART
   sample부터 누적을 재개한다.
 - slip/stuck 임계값과 wheel별 원인 판정은 새로 구현하지 않는다. 코어는 기존
   `chassis.wheel_consistency.WheelConsistencyMonitor`를 소비하며 terrain profile 경고와
-  진단 flag만 낸다. wheel별 토크 재분배 API는 없다. 현 `WheelState.msg`에는 command 값이
-  없으므로 ROS adapter는 향후 additive `command_turns_per_s`를 `getattr`로 소비하고, 필드가
-  없을 때는 오탐 방지를 위해 측정값을 neutral command로 넣는다. 현재 실차 command/encoder
-  진단의 권위본은 `ChassisManager.snapshot().wheel_consistency`다.
+  진단 flag만 낸다. wheel별 토크 재분배 API는 없다. 현재 `WheelState.msg`는
+  `command_turns_per_s`와 실측 `drive_turns_per_s`를 함께 전달한다. ROS adapter의 `getattr`
+  fallback은 이 필드가 없는 옛 테스트 더블을 오탐 없이 읽기 위한 호환 경로다. 현재 실차
+  command/encoder 진단의 권위본은 `ChassisManager.snapshot().wheel_consistency`다.
 - `/odom` 누적거리 하나만으로 미션 도착을 판정하지 않는다. event·perception·정지 확인 등
   별도 조건과 함께 사용해야 한다.
 
@@ -437,7 +437,7 @@ ros2 run powertrain_ros chassis --ros-args \
 | 구독 | `/arm_status` | `robot_arm_msgs/ArmStatus` | RELIABLE, Keep Last 1, VOLATILE; 10 Hz stamp freshness와 locked posture final gate |
 | 발행 | `/wheel_states` | `powertrain_msgs/WheelStates` | 명목 50 Hz, 6바퀴 실측 상태·tick 시간·overrun |
 | 발행 | `/chassis_mode` | `robot_arm_msgs/ChassisMode` | 로봇팔 자세 의도 |
-| 발행 | `/chassis_state` | `robot_arm_msgs/ChassisMode` | 현재 차체 진단 문자열 |
+| 발행 | `/chassis_state` | `std_msgs/String` | 현재 차체 진단 문자열 |
 | 발행 | `/arrival_status` | `robot_arm_msgs/ArrivalStatus` | `contract_v2_verified=true` + `production`에서만 생성; compatibility/arm-absent profile은 0회 |
 | 서비스 | `/chassis_node/arm` | `std_srvs/Trigger` | `IDLE`에서 별도 arm; latch 중 거부 |
 | 서비스 | `/chassis_node/disarm` | `std_srvs/Trigger` | 모터를 `IDLE`로 내림 |
@@ -473,9 +473,10 @@ fresh `STOWED_LOCKED`를 확인하고 override를 명시적으로 꺼야 정상 
 - `ESTOP`: 유효 근거리, 확인된 `NO_RESPONSE`, safety topic startup/stale, 모터 fault/stale,
   수동 정지처럼 reset 전까지 유지되는 정지. reset과 arm은 반드시 별도 단계다.
 
-## 검증 상태
+## 검증 이력과 현재 경계
 
-- 배포 HEAD `c3610c136357a8c881263926ec18bcd7e3432a5d`에서 root가 직접 관찰한 로컬 결과:
+- 다음 항목은 **WP5.1 실기 전의 역사적 기준선**이다. 배포 HEAD
+  `c3610c136357a8c881263926ec18bcd7e3432a5d`에서 root가 직접 관찰한 로컬 결과:
   `motor_control` **189 passed** (`.superpowers/sdd/final-motor-control-c3610c1.xml`),
   `motor_gui` **91 passed** (`.superpowers/sdd/final-motor-gui-c3610c1.xml`).
 - 같은 HEAD의 격리 read-only ROS 워크스페이스에서 `robot_arm_msgs`·`powertrain_msgs`·
@@ -487,11 +488,14 @@ fresh `STOWED_LOCKED`를 확인하고 override를 명시적으로 꺼야 정상 
   startup `ESTOP`; far `ARMED/RUN`; 60초 count 3000, mean/minimum 5 s window 50.000 Hz,
   tick p99 0.280 ms, overrun 0, max interval 21.453 ms; near `ESTOP`; far 뒤 latch;
   reset→`IDLE`이며 implicit arm 없음; separate arm; publisher-death `ESTOP` delay 0.753 s.
-  이 FAKE tool capture는 파일로 보존되지 않아 최종 재실행 raw log가 대기 중이다.
-- WP5.1 Jetson/10모터/US-100 HIL: **NOT RUN**.
+  이 FAKE tool capture는 파일로 보존되지 않았다.
+- 이후 2026-07-11 Jetson/10모터/US-100 WP5.1 HIL은 완료됐다. `/cmd_vel → 10모터`,
+  `/safety_verdict`, `/wheel_states`, latched E-stop, 50 Hz 결과와 원시 로그 경계는
+  [`WP5.1 HIL 보고서`](../docs/reports/2026-07-10-wp5-control-safety-hil.md)에 기록돼 있다.
+  이 결과는 바퀴를 든 벤치 HIL이며, 차체 조립 후 지상 제동거리와 최종 `stop_mm`
+  커미셔닝을 대신하지 않는다.
 
-환경 확인, 아홉 시나리오, 시간·CAN counter, `stop_mm` 산정과 최종 go/no-go는
-[`2026-07-10-wp5-control-safety-hil.md`](../docs/reports/2026-07-10-wp5-control-safety-hil.md)에만 기록한다.
+현재 전체 상태와 남은 벤치/팀 게이트는 [루트 `AGENTS.md` §2](../AGENTS.md)를 우선한다.
 
 ## 로봇팔 공유 계약
 

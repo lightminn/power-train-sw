@@ -31,6 +31,9 @@ from powertrain_ros.autonomy_controller_node import (
 _TEST_QUALIFICATION = (
     Path(__file__).with_name("fixtures") / "l515_terrain_approved.yaml"
 )
+_DEPTH_WIDTH, _DEPTH_HEIGHT = 160, 120
+# Double the former 80x60 sensor's focal lengths to retain its field of view.
+_DEPTH_FX, _DEPTH_FY = 114.2, 115.2
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -45,20 +48,21 @@ def _stamp(node, message):
     return message
 
 
-def _camera_info(node, width=80, height=60):
+def _camera_info(node, width=_DEPTH_WIDTH, height=_DEPTH_HEIGHT):
     message = _stamp(node, CameraInfo())
     message.width = width
     message.height = height
-    message.k = [57.1, 0.0, (width - 1) / 2.0,
-                 0.0, 57.6, (height - 1) / 2.0,
+    message.k = [_DEPTH_FX * width / _DEPTH_WIDTH, 0.0, (width - 1) / 2.0,
+                 0.0, _DEPTH_FY * height / _DEPTH_HEIGHT, (height - 1) / 2.0,
                  0.0, 0.0, 1.0]
     return message
 
 
 def _render_flat_track_depth():
     """Render a 1.4 m elevated flat track and the lower floor beside it."""
-    height, width = 60, 80
-    fx, fy, cx, cy = 57.1, 57.6, 39.5, 29.5
+    height, width = _DEPTH_HEIGHT, _DEPTH_WIDTH
+    fx, fy = _DEPTH_FX, _DEPTH_FY
+    cx, cy = (width - 1) / 2.0, (height - 1) / 2.0
     rows, cols = np.indices((height, width), dtype=float)
     rays = np.stack(
         ((cols - cx) / fx, (rows - cy) / fy, np.ones((height, width))),
@@ -94,7 +98,7 @@ def _render_flat_track_depth():
     ).astype(np.uint16)
 
 
-def _depth(node, raw=None, width=80, height=60):
+def _depth(node, raw=None, width=_DEPTH_WIDTH, height=_DEPTH_HEIGHT):
     raw = _render_flat_track_depth() if raw is None else raw
     message = _stamp(node, Image())
     message.width = width
@@ -564,13 +568,13 @@ def test_changed_camera_info_resolution_and_matching_frame_are_ignored():
         controller._process_depth_now(_depth(controller))
         count = controller._terrain_update_count
 
-        controller._on_camera_info(_camera_info(controller, width=160, height=120))
-        resized = np.zeros((120, 160), dtype=np.uint16)
+        controller._on_camera_info(_camera_info(controller, width=320, height=240))
+        resized = np.zeros((240, 320), dtype=np.uint16)
         controller._process_depth_now(
-            _depth(controller, resized, width=160, height=120)
+            _depth(controller, resized, width=320, height=240)
         )
 
-        assert controller._grid_source_shape == (60, 80)
+        assert controller._grid_source_shape == (120, 160)
         assert controller._terrain_update_count == count
     finally:
         controller.destroy_node()
@@ -581,7 +585,7 @@ def test_first_camera_info_fixes_grid_from_qualified_roi_and_intrinsics():
 
     예전에는 노드가 전체 프레임의 중앙 크롭을 스스로 정했다. 그러면 잠정
     extrinsics/ROI 로 지형을 해석하게 되므로, 자격이 승인된 단일 출처에서만
-    ROI 를 받도록 바뀌었다(2026-07-18 리뷰 R04 #7). 픽스처 ROI 는 80x60@0,0 이라
+    ROI 를 받도록 바뀌었다(2026-07-18 리뷰 R04 #7). 픽스처 ROI 는 160x120@0,0 이라
     stride 는 1 이고 intrinsics 는 ROI 원점만큼 이동한다.
     """
     controller = _controller(enabled=False)
@@ -594,9 +598,9 @@ def test_first_camera_info_fixes_grid_from_qualified_roi_and_intrinsics():
 
         assert controller._grid_source_shape == (720, 1280)
         assert controller._row_indices[0] == 0
-        assert controller._row_indices[-1] == 59
+        assert controller._row_indices[-1] == 119
         assert controller._col_indices[0] == 0
-        assert controller._col_indices[-1] == 79
+        assert controller._col_indices[-1] == 159
         assert controller._intrinsics.fx == pytest.approx(960.0)
         assert controller._intrinsics.fy == pytest.approx(960.0)
         assert controller._intrinsics.cx == pytest.approx(639.5)
@@ -646,8 +650,8 @@ def test_degradation_wiring_uses_depth_odom_and_existing_controller_seam(
         controller._on_imu(_imu(controller))
         controller._on_odom(_odom(controller, x_m=0.0, y_m=0.0))
         controller._on_odom(_odom(controller, x_m=3.0, y_m=4.0))
-        raw = np.full((60, 80), 1500, dtype=np.uint16)
-        raw[:, :32] = 0
+        raw = np.full((_DEPTH_HEIGHT, _DEPTH_WIDTH), 1500, dtype=np.uint16)
+        raw[:, :64] = 0
         controller._process_depth_now(_depth(controller, raw=raw))
         now_s = controller._now_s()
         controller._on_diagnostics(

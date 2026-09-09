@@ -96,7 +96,10 @@ class AkDevice(CanDevice):
 
     def _fire(self) -> None:
         if self._active is not None:
-            self._active()
+            if not self._active():
+                self._active = None
+                self._armed = False
+                raise RuntimeError("AK CAN send failed")
             self._last_send = time.monotonic()
 
     def tick(self, bus) -> None:
@@ -132,7 +135,8 @@ class AkDevice(CanDevice):
         a = self._ak
         try:
             if op == "estop":
-                a.stop()
+                if not a.stop():
+                    raise RuntimeError("AK stop send failed")
                 self._active = None
                 self._armed = False
             elif op == "arm":
@@ -140,7 +144,8 @@ class AkDevice(CanDevice):
                 self._tripped = False
                 self._armed = True
             elif op == "disarm":
-                a.stop()
+                if not a.stop():
+                    raise RuntimeError("AK stop send failed")
                 self._active = None
                 self._armed = False
             elif op == "set_mode":
@@ -204,7 +209,8 @@ class AkDevice(CanDevice):
                 if not self._armed:
                     return {"ok": False, "target": "ak", "op": op,
                             "detail": "rejected: AK disarmed; arm required"}
-                a.set_origin_here()
+                if not a.set_origin_here():
+                    raise RuntimeError("AK origin send failed")
                 self._pos_cmd = 0.0
                 if self._mode == "position":
                     self._active = lambda: a.send_pos_out(0.0, self._spd, self._acc)
@@ -214,6 +220,8 @@ class AkDevice(CanDevice):
                         "detail": "unsupported op"}
             return {"ok": True, "target": "ak", "op": op, "detail": "sent"}
         except Exception as e:
+            self._active = None
+            self._armed = False
             return {"ok": False, "target": "ak", "op": op, "detail": str(e)}
 
     def close(self, bus) -> None:

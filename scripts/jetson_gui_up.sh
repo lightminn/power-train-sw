@@ -77,6 +77,17 @@ if [ -n "$CLI_OPERATOR_HOST" ] \
   die_usage '--operator-host는 IPv4 형식이어야 합니다.'
 fi
 
+# A prepared integrated stack owns public :9000/:9001 via its session service.
+# Refuse before CAN setup, environment rewrites, or base Compose recreation.
+if [ -f "${POWERTRAIN_ROOT:-}/etc/powertrain/integrated-prepared.env" ]; then
+  printf '통합 운용이 준비된 호스트입니다. scripts/robot-start를 사용하십시오.\n' >&2
+  exit 1
+fi
+if docker ps --format '{{.Names}}' | grep -qx 'powertrain_session'; then
+  printf '통합 세션이 실행 중입니다. scripts/robot-start를 사용하십시오.\n' >&2
+  exit 1
+fi
+
 POLL_S="${GUI_UP_POLL_S:-5}"
 [[ "$POLL_S" =~ ^[0-9]+([.][0-9]+)?$ ]] \
   || die_usage 'GUI_UP_POLL_S는 0 이상의 숫자여야 합니다.'
@@ -110,9 +121,7 @@ banner() {
 }
 
 can0_is_ready() {
-  local details
-  details="$(ip -details link show can0 2>/dev/null)" || return 1
-  [[ "$details" == *'state UP'* && "$details" == *'bitrate 500000'* ]]
+  python3 "$REPO_ROOT/motor_control/chassis/can_interface.py" >/dev/null 2>&1
 }
 
 read_operator_host() {
@@ -208,20 +217,6 @@ fi
 
 banner '1/7 호스트 준비'
 
-if can0_is_ready; then
-  add_result '✅' 'can0' 'UP / 500000 bps' 1
-else
-  printf 'can0가 준비되지 않아 sudo -n으로 설정을 시도합니다.\n'
-  sudo -n bash scripts/can_setup.sh
-  can_setup_rc=$?
-  if [ "$can_setup_rc" -eq 0 ] && can0_is_ready; then
-    add_result '✅' 'can0' '자동 복구됨: UP / 500000 bps' 1
-  else
-    printf '수동: sudo bash scripts/can_setup.sh\n'
-    add_result '❌' 'can0' '자동 설정 실패 — 수동: sudo bash scripts/can_setup.sh' 1
-  fi
-fi
-
 if [ -d /run/powertrain ] && [ -d /var/lib/powertrain ]; then
   add_result '✅' '런타임 디렉터리' '/run/powertrain, /var/lib/powertrain 존재'
 else
@@ -235,6 +230,23 @@ else
     printf '수동: sudo bash scripts/install_powertrain_runtime_dir.sh\n'
     add_result '❌' '런타임 디렉터리' \
       '자동 설치 실패 — 수동: sudo bash scripts/install_powertrain_runtime_dir.sh'
+    exit 1
+  fi
+fi
+
+if can0_is_ready; then
+  add_result '✅' 'can0' 'UP / 500000 bps' 1
+else
+  printf 'can0가 준비되지 않아 sudo -n으로 설정을 시도합니다.\n'
+  sudo -n bash scripts/can_setup.sh
+  can_setup_rc=$?
+  if [ "$can_setup_rc" -eq 0 ] && can0_is_ready; then
+    add_result '✅' 'can0' '자동 복구됨: UP / 500000 bps' 1
+  else
+    printf '수동: sudo bash scripts/can_setup.sh\n'
+    add_result '❌' 'can0' '자동 설정 실패 — 수동: sudo bash scripts/can_setup.sh' 1
+    printf 'CAN 준비 실패: 기존 owner/배선을 확인한 뒤 다시 기동하십시오.\n' >&2
+    exit 1
   fi
 fi
 

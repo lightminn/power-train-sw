@@ -1,0 +1,117 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+______ test_queued_commands_cannot_cross_reconnect_target_boundary[False] ______
+
+retarget = False
+
+    @pytest.mark.parametrize("retarget", [False, True])
+    def test_queued_commands_cannot_cross_reconnect_target_boundary(retarget):
+        worker, transport = _paused_worker()
+        arm = {"target": "odrive", "op": "arm", "args": {}}
+        velocity = {"target": "odrive", "op": "set_input", "args": {"vel": 1}}
+        with ThreadPoolExecutor(max_workers=4) as callers:
+            pending = []
+            for callback, arg in [(worker.submit, arm), (worker.submit, velocity),
+                                  (worker.apply_profile, "bl70200")]:
+                pending.append(callers.submit(callback, arg))
+                worker._cmd_q.arrivals.get(timeout=1)
+            change = callers.submit(worker.set_ids, {"odrive": 12}) if retarget else callers.submit(worker.reconnect)
+            worker._reconnect_q.arrivals.get(timeout=1)
+            worker._handle_reconnect()
+            worker._drain_commands()
+            assert change.result(timeout=1)["ok"]
+>           assert not any(op in ("arm", "set_input", "set_gain", "set_limit")
+                           for _, op, _ in transport.trace), transport.trace
+E           AssertionError: [(11, 'disarm', {}), (11, 'estop', {}), (11, 'disarm', {}), (11, 'estop', {}), (11, 'arm', {}), (11, 'set_input', {'vel': 1.0}), ...]
+E           assert not True
+E            +  where True = any(<generator object test_queued_commands_cannot_cross_reconnect_target_boundary.<locals>.<genexpr> at 0x7f88b2fa3300>)
+
+motor_gui/tests/test_can_remediation.py:228: AssertionError
+______ test_queued_commands_cannot_cross_reconnect_target_boundary[True] _______
+
+retarget = True
+
+    @pytest.mark.parametrize("retarget", [False, True])
+    def test_queued_commands_cannot_cross_reconnect_target_boundary(retarget):
+        worker, transport = _paused_worker()
+        arm = {"target": "odrive", "op": "arm", "args": {}}
+        velocity = {"target": "odrive", "op": "set_input", "args": {"vel": 1}}
+        with ThreadPoolExecutor(max_workers=4) as callers:
+            pending = []
+            for callback, arg in [(worker.submit, arm), (worker.submit, velocity),
+                                  (worker.apply_profile, "bl70200")]:
+                pending.append(callers.submit(callback, arg))
+                worker._cmd_q.arrivals.get(timeout=1)
+            change = callers.submit(worker.set_ids, {"odrive": 12}) if retarget else callers.submit(worker.reconnect)
+            worker._reconnect_q.arrivals.get(timeout=1)
+            worker._handle_reconnect()
+            worker._drain_commands()
+            assert change.result(timeout=1)["ok"]
+>           assert not any(op in ("arm", "set_input", "set_gain", "set_limit")
+                           for _, op, _ in transport.trace), transport.trace
+E           AssertionError: [(11, 'disarm', {}), (11, 'estop', {}), (12, 'disarm', {}), (12, 'estop', {}), (12, 'arm', {}), (12, 'set_input', {'vel': 1.0}), ...]
+E           assert not True
+E            +  where True = any(<generator object test_queued_commands_cannot_cross_reconnect_target_boundary.<locals>.<genexpr> at 0x7f88b2f95000>)
+
+motor_gui/tests/test_can_remediation.py:228: AssertionError
+____________ test_commands_submitted_during_reconnect_are_rejected _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f88b2e7a710>
+
+    def test_commands_submitted_during_reconnect_are_rejected(monkeypatch):
+        monkeypatch.setattr("motor_gui.backend.worker._SUBMIT_TIMEOUT", .05)
+        worker, transport = _paused_worker()
+        transport.connect_started = threading.Event()
+        transport.connect_release = threading.Event()
+        with ThreadPoolExecutor(max_workers=2) as callers:
+            change = callers.submit(worker.set_ids, {"odrive": 12})
+            worker._reconnect_q.arrivals.get(timeout=1)
+            reconnect = callers.submit(worker._handle_reconnect)
+            assert transport.connect_started.wait(1)
+            try:
+                for ack in (worker.submit({"target": "odrive", "op": "arm", "args": {}}),
+                            worker.apply_profile("bl70200")):
+                    assert not ack["ok"]
+                    assert ack["status"] == "FINAL_REJECTED"
+>                   assert "reconnect in progress" in ack["detail"]
+E                   AssertionError: assert 'reconnect in progress' in 'command timeout; cancelled before execution'
+
+motor_gui/tests/test_can_remediation.py:258: AssertionError
+_______ test_slow_usb_property_read_cannot_certify_old_encoder_as_fresh ________
+
+    def test_slow_usb_property_read_cannot_certify_old_encoder_as_fresh():
+        from chassis.chassis_manager import ChassisManager, build_corners
+        from corner_module.null_steer import NullSteer
+        from corner_module.tests.test_drive_odrive_usb_axis import FakeAxis, FakeBoard
+    
+        now = [10.0]
+    
+        class SlowStateAxis(FakeAxis):
+            def __getattribute__(self, name):
+                if name == "current_state":
+                    now[0] += .25
+                return super().__getattribute__(name)
+    
+        axes = {node: SlowStateAxis() if node == 11 else FakeAxis()
+                for node in range(11, 17)}
+        pool = UsbBoardPool(finder=lambda serial: FakeBoard(axis0=axes[int(serial)]))
+        corners = build_corners(lambda cid: NullSteer(), lambda node: DriveOdriveUsbAxis(
+            pool, str(node), 0, node_id=node, clock=lambda: now[0]))
+        manager = ChassisManager(corners, clock=lambda: now[0])
+        manager.connect()
+        try:
+            for corner in corners.values():
+                corner.drive._poll_now()
+            first = next(c.drive for c in corners.values() if c.drive._node_id == 11)
+            proof = manager.hardware_stop_proof("usb")
+>           assert proof["valid"] is False, proof
+E           AssertionError: {'source': 'chassis_usb', 'valid': True, 'stopped': True, 'node_ids': [11, 12, 13, 14, 15, 16], ...}
+E           assert True is False
+
+motor_control/corner_module/tests/test_usb_motor_ownership.py:174: AssertionError
+=========================== short test summary info ============================
+FAILED motor_gui/tests/test_can_remediation.py::test_queued_commands_cannot_cross_reconnect_target_boundary[False]
+FAILED motor_gui/tests/test_can_remediation.py::test_queued_commands_cannot_cross_reconnect_target_boundary[True]
+FAILED motor_gui/tests/test_can_remediation.py::test_commands_submitted_during_reconnect_are_rejected
+FAILED motor_control/corner_module/tests/test_usb_motor_ownership.py::test_slow_usb_property_read_cannot_certify_old_encoder_as_fresh
+4 failed, 22 deselected in 0.24s

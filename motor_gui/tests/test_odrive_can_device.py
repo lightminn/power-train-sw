@@ -4,7 +4,7 @@ import pytest
 
 from motor_gui.backend.transport.odrive_can_device import (
     OdriveCanDevice, NODE_ID, C_HEARTBEAT, C_SET_POS_GAIN, C_SET_VEL_GAINS,
-    C_GET_ENC_EST, C_GET_IQ, C_GET_TEMP, C_GET_BUS_VI,
+    C_GET_ENC_EST, C_GET_IQ, C_GET_BUS_VI,
     C_SET_CTRL_MODE, C_SET_INPUT_POS, C_SET_INPUT_VEL, C_SET_LIMITS,
     C_SET_TRAJ_VEL_LIMIT, C_SET_TRAJ_ACCEL_LIMITS,
     C_SET_STATE, C_SET_LINEAR_COUNT, C_CLEAR_ERR, C_ESTOP,
@@ -97,12 +97,12 @@ def _heartbeat_msg(axis_err=0, state=AXIS_IDLE):
                        data=struct.pack("<IB3x", axis_err, state), is_extended_id=False)
 
 
-def test_request_sends_four_rtr_polls():
+def test_request_sends_three_supported_rtr_polls():
     d, bus = _mk()
     bus.sent.clear()
     d.request(bus)
     rtr = [m.arbitration_id & 0x1F for m in bus.sent if m.is_remote_frame]
-    assert set(rtr) == {C_GET_ENC_EST, C_GET_IQ, C_GET_TEMP, C_GET_BUS_VI}
+    assert set(rtr) == {C_GET_ENC_EST, C_GET_IQ, C_GET_BUS_VI}
 
 
 def test_on_rx_reports_wheel_velocity_and_heartbeat():
@@ -347,12 +347,12 @@ def test_set_param_unknown_key_rejected():
 def test_request_throttled_to_poll_rate():
     d, bus = _mk()
     bus.sent.clear()
-    d.request(bus)                       # 첫 호출: 폴링 발생 (4 RTR)
+    d.request(bus)                       # 첫 호출: 폴링 발생 (3 RTR)
     n1 = len([m for m in bus.sent if m.is_remote_frame])
     d.request(bus)                       # 즉시 재호출: throttle 로 추가 폴링 없음
     n2 = len([m for m in bus.sent if m.is_remote_frame])
-    assert n1 == 4
-    assert n2 == 4
+    assert n1 == 3
+    assert n2 == 3
 
 
 def test_request_swallows_send_error():

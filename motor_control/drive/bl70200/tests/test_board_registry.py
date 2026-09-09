@@ -73,7 +73,7 @@ def test_resolve_node_uses_serial_and_axis() -> None:
 
 def test_argparse_exposes_serial_axis_and_persist_calibration() -> None:
     args = _setup_module().parse_args(
-        ["--serial", "3352", "--axis", "both", "--persist-calibration"]
+        ["--serial", "3352", "--axis", "both", "--node", "11", "--persist-calibration"]
     )
 
     assert args.serial == "3352"

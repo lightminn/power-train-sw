@@ -1,7 +1,7 @@
 # 2026 국방로봇경진대회 자율주행 SW 개발계획
 
 > 작성: 2026-07-12  
-> 상태: 조건부 승인 정본 후보 — WP5.2 계약 v2·안전 게이트 완료 전 합동 arm 금지
+> 상태: 2026-09-08 코드·문서 정합화 — 구현된 안전 코어와 실제 합동 운용 승인을 구분
 > 규정 근거: `docs/국방로봇_규정.pdf` SHA-256
 > `2a55aaf26933a59f4b2a4279f0e9534b1d6b812e88ff878cdaf95f091f6cc0d3`  
 > 적용 범위: 파워트레인 SW와 로봇팔 SW 간 통신 계약  
@@ -23,11 +23,17 @@
 `2026-07-02-autonomous-driving-kickoff.md`는 개발 이력으로 보존하고, 본 문서가 승인되면
 국방대회 자율주행 우선순위와 완료 기준의 새 정본으로 사용한다.
 
-현재 구현은 본 계획의 계약 v2와 호환되지 않는다. 파워트레인 `chassis_node`는 기본
-`DRIVING`을 2 Hz로 발행하고, 2026-07-13 Jetson 로봇팔 HEAD는 이를 팔 언락과 취소 모션
-재개로 해석한다. 또한 `/cmd_vel`의 팔 상태 게이트, 10 Hz 잠금 heartbeat와 CAN 배타 잠금이
-아직 없다. WP5.2 완료 전에는 두 실물 노드를 함께 arm하지 않으며, 혼합 버전은 fail-closed
-계약시험 외 production·HIL에 사용하지 않는다.
+**현재 적용 범위 (2026-09-08):** WP5.2 안전 코어·잠금 heartbeat·CAN owner lock은 구현돼
+있다. 실제 로봇팔의 계약 v2 동시 컷오버와 전체 작업 핸드셰이크는 별도 팀·실기 게이트다.
+`contract_v2_verified`와 부팅 자격 옵션을 문서 정리만으로 활성화하지 않는다.
+NumPy 백엔드 선택은 7/19 종결됐고, JAX는 x86 실험 커널이다. autonomy 전용 Compose는
+idle이며 receiver feedback의 Jetson 수신·프로파일 적용도 미연결이다. 시뮬레이션은 7/24 이후
+별도 `power-train-sim` Isaac 트랙만 활성이다. 코드·계획·노션의 상세 대응과 미검증 범위는
+[정합성 정리 기록](../reports/2026-09-08-workspace-consistency.md)을 따른다.
+
+**7/13 착수 당시 기록:** 당시 `DRIVING` 2 Hz, 팔 상태 게이트·잠금 heartbeat·CAN 배타 잠금
+부재가 WP5.2의 출발점이었다. 이는 현재 구현의 결함 목록이 아니다. 혼합 버전은 계속
+fail-closed 계약시험 범위에서 다루며, 실물 합동 arm은 현재 계약·실기 게이트 확인 후에만 허용한다.
 
 ## 1. 규정에서 직접 도출한 목표
 
@@ -75,18 +81,22 @@
   `/diagnostics/obstacle/*`만 발행하며 production chassis authority에 연결하지 않는다. production
   terrain은 상시 PointCloud2 없이 raw depth ROI 내부 복원 계약을 따른다.
 
-차체 조립 뒤 수행할 `base_link→l515_link` 실측, 최종 `stop_mm`, ODrive 13·14 재확인은
+차체 조립 뒤 수행할 `base_link→l515_link` 실측, 최종 `stop_mm`, ODrive 13~16의 동일 조건 NVM 반복시험은
 SW 구현 완료와 분리된 차량 커미셔닝 게이트로 유지한다.
 
 ### 3.1 차체와 트랙의 기하 입력
 
-현재 `/home/light/urdf_2/urdf_2.urdf`를 영점 자세로 계산한 잠정 외형은 폭 약 0.96 m,
+**7/13 URDF 추정 이력(현재 제작 기하가 아님):** 당시 `/home/light/urdf_2/urdf_2.urdf`를 영점 자세로 계산한 잠정 외형은 폭 약 0.96 m,
 길이 약 1.08 m, 높이 약 0.63 m다. 타이어 접지면에서 상부 프레임까지는 약 0.57~0.60 m이고,
 좌우 타이어 중심 간격은 약 0.879 m다. 규정의 트랙 폭 0.9144 m와 비교하면 바퀴 중심의
 좌우 여유는 각 약 18 mm뿐이다. 이 값은 메시와 영점 자세 기반 추정이며 production 파라미터가
 아니다.
 
-차체 조립 후 다음 값을 실측해 terrain footprint 설정으로 고정한다.
+현재 제작 v2 기하 정본은 `motor_control/chassis/kinematics.py`의 `default_geometry()`다.
+축간거리 CAD 875.5 mm(반올림한 코드 좌표 기준 875.4 mm), 앞/중/뒤 윤거 545/719/425 mm,
+반지름 103.56 mm이며 위 초기 추정의
+0.879 m를 현재 윤거로 사용하지 않는다. v4 최적화 반지름 100 mm·계산 질량 50 kg도 별도 기준이다.
+조립 상태를 확인한 후 다음 값을 실측해 terrain footprint 설정으로 고정한다.
 
 - 실제 최대 외폭과 타이어 접촉면의 좌우 끝.
 - 평탄면에서 접지한 여섯 바퀴 중심과 유효 wheel footprint.
@@ -341,18 +351,18 @@ confidence를 올리거나 작업·주행 허가를 만들 수 없다.
 production 최적화 목표는 개별 kernel 최고속도가 아니라 Orin Nano 8 GB에서 RGB 전송,
 로봇팔 YOLO, terrain, ROS, CAN·안전을 동시에 안정적으로 유지하는 것이다.
 
-- GPU 후보: depth deprojection, 좌표변환, elevation scatter, 표면 특징, RGB 대량 전처리와
-  신경망 추론.
+- 현재 terrain의 depth deprojection·좌표변환·elevation scatter·표면 특징은 NumPy CPU 경로다.
+  로봇팔 YOLO 추론의 GPU 사용은 별도 소유자의 계약이며 terrain의 GPU 배포를 뜻하지 않는다.
 - CPU 고정: CAN, US-100, 50 Hz chassis loop, E-stop/motion hold, command authority,
   segment FSM, 작은 wheel+IMU odometry, 프로세스 supervision.
-- GPU 입력은 프레임당 한 번만 배열화하고 terrain 결과가 완성될 때까지 GPU에 유지하며,
-  CPU에는 작은 path/diagnostic 결과만 반환.
+- 향후 accelerator 생산 후보를 별도로 검토할 경우에만 프레임당 배열화·결과 반환·동기화
+  비용을 측정한다. 현재 NumPy 경로에 GPU 상주를 요구하지 않는다.
 - Orin은 CPU/GPU가 같은 물리 DRAM을 공유하므로 외장 GPU식 PCIe `H2D`로 표현하지 않는다.
   실제 측정 대상은 CPU buffer에서 accelerator array로의 materialization/copy, cache coherency,
   synchronization과 memory-bandwidth 비용이다.
 - producer가 호환 device buffer를 제공할 때만 DLPack 등 zero-copy를 사용한다. L515 CPU buffer에
   불가능한 zero-copy를 가정하거나 수명·동기화가 불명확한 buffer를 공유하지 않는다.
-- terrain accelerator는 별도 프로세스와 cgroup/container에 두어 memory/CPU 한도를 적용하고,
+- terrain 배포 연결 시 별도 프로세스와 cgroup/container의 memory/CPU 한도를 검증하고,
   종료·OOM이 chassis/safety 프로세스를 함께 죽이지 않게 한다.
 - CPU affinity/cpuset 후보를 전체부하에서 검증해 chassis/safety가 x264와 NumPy terrain에
   굶지 않게 하되, 검증 없이 realtime priority나 core pinning을 production에 적용하지 않는다.
@@ -363,24 +373,27 @@ production 최적화 목표는 개별 kernel 최고속도가 아니라 Orin Nano
 
 ### 4.5 Jetson production service partition
 
-Compose는 책임과 장애 전파 경계를 다음 네 서비스로 고정한다.
+목표 서비스 경계는 다음과 같다. 현재 Compose에서 autonomy 서비스는 idle이며, 아래 발행 경로는 별도 연결·검증이 필요한 목표 계약이다.
 
 - `powertrain_ros`: 기존 L515 Gateway·ROS image. 카메라/SRT 단일 소유 계약을 유지하며 control을
   함께 띄우지 않는다.
-- `powertrain_control`: `chassis_node`, US-100, teleop input adapter를 감독한다. `network_mode: host`,
-  필요한 `/dev`, `/run/powertrain`, `/var/lib/powertrain` bind와 restart policy를 명시한다. ROS image에
-  pygame/SDL 또는 승인된 web-input dependency를 추가해 production teleop이 ROS adapter로
-  `/teleop/cmd_vel`만 발행하게 한다. direct-CAN teleop은 진단 profile에만 남긴다.
-- `powertrain_autonomy`: terrain와 autonomy controller를 같은 GPU-enabled 프로세스에 둔다.
-  내부 결과는 immutable dataclass로 전달하고 외부 출력은 `/autonomy/cmd_vel` 하나뿐이다. L4T R36.5
-  aarch64에서 pin한 CUDA/JAX image, cgroup memory limit, healthcheck와 supervised restart를 가진다.
+- `powertrain_control`: `control.launch.py`로 teleop input adapter와 ops broker를 감독한다.
+  teleop은 `/teleop/cmd_vel`만 발행하며 direct-CAN teleop은 진단 profile에만 남긴다.
+- `powertrain_chassis`: `wp5_control.launch.py`로 `chassis_node`와 US-100을 감독한다.
+  `/run/powertrain`, `/var/lib/powertrain`, `/etc/powertrain`과 `powertrain.env`의 명시적 `STOP_MM`,
+  preflight 통과를 요구한다. CAN·모터·최종 안전 정책은 이 경계 안에서 소유한다.
+- `powertrain_autonomy`: 현재 서비스는 기본 profile에서 제외되며 선택해도 idle이다.
+  terrain·controller 코어와 ROS adapter의 존재가 이 컨테이너의 발행을 뜻하지 않는다.
+  NumPy를 사용하는 실제 entrypoint 연결, 한 개의 `/autonomy/cmd_vel` publisher,
+  memory limit·healthcheck·supervised restart 검증을 배포 게이트로 남긴다.
+  production CUDA/JAX image가 이미 존재한다고 가정하지 않는다.
 - `powertrain_observability`: journal daemon만 실행한다. host network, `/run/powertrain`,
   `/var/lib/powertrain/runs`, `PYTHONPATH=/workspace`, 명시적 command/entrypoint와 restart policy를 둔다.
 
 서비스별 Compose contract와 install-space import를 자동시험한다. 한 서비스 kill/OOM이 다른 서비스의
 owner lock이나 50 Hz control을 함께 종료시키지 않아야 한다.
 
-로봇팔 저장소의 D435i camera owner와 sender는 위 네 powertrain 서비스 밖의 robot-arm 소유
+로봇팔 저장소의 D435i camera owner와 sender는 위 powertrain 서비스 밖의 robot-arm 소유
 process다. powertrain Compose가 이를 재시작하거나 D435i를 fallback-open하지 않는다. 양쪽 sender의
 상태와 노트북 receiver feedback만 observability가 읽으며, 한 encoder의 종료·재시작이 다른 encoder나
 camera SDK owner를 함께 죽이지 않아야 한다.
@@ -571,8 +584,9 @@ command authority·CAN lock은 WP5.2가 단독 소유하고 WP5.3은 이를 수�
 ### WP6-S. Production-parity 시뮬레이션 기반
 
 시뮬레이터 선택의 최우선 기준은 실제 로봇에 배포할 SW를 수정 없이 실행할 수 있는가다.
-MuJoCo를 production SW의 자동·폐루프 검증 authority로 사용하고 Isaac Sim은 고충실도
-RGB/depth perception challenge set 생성기로 제한한다. 실물 HIL이 최종 authority다.
+2026-07-24 이후 활성 시뮬레이션은 별도 `power-train-sim`의 Isaac 트랙이다.
+이 저장소의 MuJoCo `powertrain_sim/`은 폐기·읽기 전용이며 신규 acceptance의 필수 경로가 아니다.
+Isaac 결과도 시뮬레이션 증거이며 실물 주행·HIL을 통과한 것으로 승격하지 않는다.
 
 #### 공통 시뮬레이터 계약
 
@@ -590,11 +604,14 @@ RGB/depth perception challenge set 생성기로 제한한다. 실물 HIL이 최�
 시뮬레이터 공통 frame은 RGB, depth mm, CameraInfo, gyro, accel, wheel states, ground-truth pose,
 ground-truth track edge와 stamp를 포함한다. simulator-neutral `scenario.yaml`이 SI 단위, frame,
 PRNG algorithm/seed, track·sensor·fault parameters와 expected metric을 단독 소유한다. 같은 scenario에서
-MuJoCo와 Isaac Sim adapter가 동일한 기하·센서 계약을 생성해야 한다.
+활성 Isaac adapter와 기록 재생기가 같은 기하·센서 계약을 보존해야 한다.
 
-검증 범위는 일정에 따라 계층화한다. P0 필수는 분석 fixture, recorded replay, MuJoCo fast mode다.
-P1은 hidden seed 폐루프다. P2/stretch는 vcan 10모터 full-stack과 Isaac adapter다. P2 미완료가 P0/P1
-통과 기능의 실차 저속 HIL을 무기한 막지 않지만, 미검증 범위를 production claim으로 올리지 않는다.
+검증은 분석 fixture·recorded replay → 활성 Isaac adapter·hidden-seed 폐루프 →
+실제 ROS/CAN·벤치·지상 게이트 순으로 증거를 구분한다. 별도 Isaac 저장소의 현재 실행 결과는
+그 저장소의 기록으로 확인한다. 아래 MuJoCo 설계는 폐기 전 이력으로만 보존한다.
+
+<details>
+<summary>종료된 MuJoCo fast/vcan 설계 이력 (7/24 이후 실행·완료 요건에서 제외)</summary>
 
 #### MuJoCo fast autonomy mode
 
@@ -624,9 +641,11 @@ CAN emulator는 AK 명령/상태, ODrive 명령/heartbeat/encoder, node timeout,
 drop을 재현한다. 이 모드에서 실제 CAN frame codec, motor health, `/wheel_states`, command watchdog,
 motion hold와 E-stop 경계를 검증한다. production 모터 코드를 simulator API 호출로 바꾸지 않는다.
 
-#### Isaac Sim perception challenge mode
+</details>
 
-Isaac Sim은 로봇 제어 authority나 별도 production 구현이 아니다. RTX 워크스테이션에서 RGB/depth,
+#### 활성 Isaac Sim adapter와 perception challenge
+
+Isaac Sim은 별도 production 제어 정책을 구현하지 않고 동일한 순수 코어·ROS 계약을 사용한다. RTX 워크스테이션에서 RGB/depth,
 조명, 재질, 그림자, 반사, 가림막, 선도 로봇, 신호등·마커·마네킹 장면을 다양화해 같은 센서
 계약의 fixture를 만든다. terrain estimator와 로봇팔 인식은 Isaac Sim 밖의 production ROS2 Humble
 프로세스로 실행한다.
@@ -640,8 +659,9 @@ API upgrade를 금지한다.
 
 - production autonomy source에 simulator 이름 분기 0개.
 - 같은 recorded input에서 실차 launch와 simulation launch의 알고리즘 출력 일치.
-- MuJoCo fast mode hidden seed에서 낙하 방향 wheel footprint 진입 0회와 fail-open 0회.
-- MuJoCo vcan mode에서 실제 50 Hz chassis loop, 10모터 상태, watchdog/fault 전이 검증.
+- 활성 Isaac hidden-seed 폐루프에서 낙하 방향 wheel footprint 진입 0회와 fail-open 0회.
+- 50 Hz chassis loop·10모터 상태·watchdog/fault 전이는 해당 ROS/CAN 통합·벤치 게이트로 검증하고,
+  폐기된 MuJoCo vcan 결과를 현재 하드웨어 증거로 사용하지 않음.
 - Isaac Sim fixture가 production ROS topic adapter를 통해 terrain/인식 node에 입력됨.
 - 시뮬레이터 통과를 실물 성능으로 과장하지 않고 실제 L515·차체 HIL 차이를 보고서에 기록.
 
@@ -722,33 +742,24 @@ raw depth + CameraInfo
 - 출력은 path offset, heading error, 좌우 wheel clearance, bank angle, longitudinal slope,
   roughness, confidence, stamp.
 
-#### JAX 계산 backend
+#### Terrain 계산 backend: NumPy 생산 경로 / JAX 실험 커널
 
-첫 production authority는 NumPy다. JAX GPU는 NumPy와 fixture 동등성 및 Jetson 전체부하 gate를
-모두 통과한 뒤에만 별도 production profile 후보가 된다. 두 backend는 같은 고정 shape 입력과 같은
-결과 계약을 사용한다. terrain와 controller는 `powertrain_autonomy`의 한 프로세스 안에서 immutable
-dataclass로 연결하고 외부에는 `/autonomy/cmd_vel`만 발행한다.
+2026-07-19 Jetson 백엔드 선택은 **NumPy**로 종결됐다. 근거 보고서
+`docs/reports/2026-07-19-terrain-backend-jetson-qualification.md`는 라이브 전체 부하 중
+3개 커널 케이스 각각 warm-up 5회·측정 100회의 p95 3.28/3.88/6.98 ms를 기록한다.
+이는 30분 센서→제어→영상 전체 E2E 자격을 뜻하지 않으며 §8.4 게이트는 별도로 남는다.
 
-- JAX 대상: depth deprojection, 좌표 변환, mask, elevation scatter, 표면 특징 계산.
-- ROI, stride, grid shape를 고정하고 invalid point는 shape 변경 대신 mask로 처리.
-- 시작 시 dummy frame으로 JIT warm-up을 끝내고 warm-up 전 자율 arm을 금지.
-- 주행 중 새로운 shape나 dtype으로 재컴파일하지 않음.
-- accelerator 결과의 shape, stamp, finite value, range를 CPU 경계에서 검증하고 NaN, device error,
-  timeout은 결과 폐기와 motion hold로 변환.
-- `XLA_PYTHON_CLIENT_PREALLOCATE=false`를 기본 후보로 검증해 로봇팔 YOLO와 8 GB RAM을 보호.
-- JAX/jaxlib/CUDA 조합은 JetPack R36.5 aarch64 컨테이너에서 qualification을 통과한 정확한 버전으로
-  함께 pin하고 `jax.devices()`가 의도한 GPU를 반환하는지 preflight에서 확인.
-- backend는 preflight에서 configuration으로 한 번 선택하고 주행 중 자동 전환하지 않음. JAX가
-  시작 또는 실행 중 실패하면 terrain freshness 상실로 motion hold하고 supervised restart.
-  NumPy는 전체부하 승인을 별도로 받은 launch profile일 때만 다음 arm 전에 선택할 수 있으며
-  JAX 장애 직후 같은 run에서 자동 fallback하지 않음.
+- 생산 terrain은 NumPy 고정 shape·mask 계약을 사용한다. 결과의 shape·stamp·finite·range를
+  검사하고 오류·timeout은 결과 폐기와 motion hold로 처리한다.
+- JAX 커널은 x86 동등성 검증용 실험 코드다. Jetson CUDA/JAX 설치·가동·성능 우위는 주장하지 않는다.
+- 새로운 JAX 생산 경로는 별도 설계·버전 고정·warm-up·메모리·전체부하 자격이 있어야 검토할 수 있다.
+  이를 현재 배포에 필요한 설치 단계나 미완료 필수 백엔드 선택으로 기재하지 않는다.
+- run 도중 backend 자동 전환은 없다. terrain/controller 코어의 존재와 standalone Compose의
+  실제 publisher 연결 여부를 구분한다.
 
-JAX 채택은 kernel 단독 속도가 아니라 전체 시스템 영향으로 결정한다. L515 Gateway, software
-x264 두 sender, 전체 ROS/CAN/SRT, 로봇팔 YOLO를 동시에 실행해 terrain p99 30 ms 이하,
-depth 10 Hz deadline 준수, L515·D435i RGB SRT receiver 각각 29 fps 이상, 동일 장면 YOLO rate
-기준선 대비 지속 저하 5% 이하,
-OOM 0을 모두 확인한다. NumPy도 동일한 전체부하 gate를 독립 통과해야 fallback profile 자격을
-얻는다. 둘 중 하나가 더 빠르더라도 chassis 50 Hz와 시스템 메모리를 더 침해하면 채택하지 않는다.
+전체 파이프라인은 L515 Gateway, software x264 두 sender, ROS/CAN/SRT와 로봇팔 YOLO를
+동시에 실행해 terrain p99 30 ms 이하, depth 10 Hz deadline, 두 RGB receiver 각각 29 fps 이상,
+동일 장면 YOLO rate 저하 5% 이하와 OOM 0을 확인해야 한다. 커널 측정만으로 이를 통과 처리하지 않는다.
 
 완료 기준:
 
@@ -960,9 +971,9 @@ arm 직전 fail-closed preflight는 다음을 확인한다.
 ### 8.3 시뮬레이션 검증
 
 1. 분석적 fixture로 JAX/NumPy terrain 수학과 경계조건을 검증한다.
-2. MuJoCo perception-in-the-loop에서 정답 pose·track edge와 알고리즘 출력을 비교한다.
-3. MuJoCo fast mode로 production autonomy 폐루프와 hidden procedural seed를 반복한다.
-4. MuJoCo vcan mode로 production chassis/CAN/safety까지 확장한다.
+2. 활성 Isaac adapter에서 정답 pose·track edge와 알고리즘 출력을 비교한다.
+3. 같은 production autonomy 코어로 Isaac 폐루프와 hidden procedural seed를 반복한다.
+4. production chassis/CAN/safety는 ROS·CAN 통합 및 벤치 게이트로 별도 검증한다.
 5. Isaac Sim challenge fixture로 RGB/depth 재질·조명·가림 변화에 대한 perception을 검증한다.
 6. 실제 L515 기록을 동일 replay adapter에 넣어 sim-to-real 차이를 noise model과 보고서에 반영한다.
 7. 같은 환경 열화 fixture를 simulator, recorded replay, 실제 대체 환경 HIL에 공통 ID로 추적해
@@ -976,8 +987,8 @@ track edge overrun, false hold, fail-open, completion, recovery time, estimator 
 
 - `powertrain_ros`, L515 Gateway, 로봇팔 인식, terrain backend 동시 부하에서 CPU/RSS/GPU
   memory, `MemAvailable`, swap I/O, EMC/GR3D 사용률, 온도·클럭과 각 rate 측정.
-- NumPy와 JAX 각각 terrain 평균/p99, depth age, CPU buffer→accelerator array
-  materialization/copy·동기화 비용, 추가 JIT compile 횟수 측정.
+- 현재 생산 NumPy의 terrain 평균/p99, depth age, 버퍼 copy·동기화 비용을 측정한다.
+  JAX의 accelerator/JIT 계측은 향후 생산 경로를 제안할 때 추가하는 조건부 항목이다.
 - L515 1280×720×30과 D435i 848×480×30을 동시에 우선 보존하고 L515 depth/overlay와 terrain
   diagnostic cadence는 낮출 수 있다. D435i YOLO가 raw sender를 기다리게 하거나 frame backlog를
   만들 수 없으며, inference rate는 별도 지표로 기록한다.
@@ -989,7 +1000,7 @@ track edge overrun, false hold, fail-open, completion, recovery time, estimator 
 - commissioning에서 확정한 L515 pitch·ROI·TF·quality threshold YAML의 SHA-256을 arm 전 기록하고
   run 도중 변경을 거부.
 
-전체부하 backend 채택 gate는 다음과 같다.
+NumPy 선택과 별개로 남은 전체 파이프라인 장시간 운용 gate는 다음과 같다.
 
 - 30분 연속 실행 중 Linux OOM killer 0, terrain/chassis 비정상 종료 0, sustained swap I/O 0.
 - `MemAvailable` 최솟값 1.5 GB 이상. 미달 backend는 kernel 속도와 무관하게 거부.
@@ -999,13 +1010,14 @@ track edge overrun, false hold, fail-open, completion, recovery time, estimator 
 - terrain p99 30 ms 이하, depth deadline 10 Hz, 같은 완전한 5초 window에서 L515와 D435i SRT
   receiver 각각 29 fps 이상.
 - 동일 장면 로봇팔 YOLO rate 저하 5% 이하.
-- JAX compile은 arm 전 warm-up 1회만 허용하고 arm 뒤 추가 compile 0회.
-- terrain process kill, CUDA device error와 terrain cgroup memory-limit 초과를 주입해 terrain만
+- 향후 JAX 생산 후보를 검토할 경우에만 warm-up 뒤 추가 compile 0회·CUDA device error를 검증한다.
+- 현재 NumPy terrain process kill과 terrain cgroup memory-limit 초과를 주입해 terrain만
   종료되고 chassis/safety 50 Hz가 유지되며 motion hold로 전이하는지 확인.
 
-GPU 사용 여부는 통합 메모리 OOM이 CPU safety까지 전파되는 위험, software x264와 NumPy
-fallback의 CPU 경합, 10 Hz depth에서 accelerator dispatch가 실익보다 클 가능성을 실제 계측으로
-판정한다. 측정 전 JAX가 NumPy보다 우월하다고 가정하지 않는다. 2026-07-13 `agy`의 Gemini 3.1 Pro
+NumPy 운용에서도 공유 메모리 OOM의 safety 전파와 x264 CPU 경합을 측정한다.
+
+**아래 7/13 검토 이력은 당시 미구현 상태를 기록한 것이며 현재 결함 목록이 아니다.**
+2026-07-13 `agy`의 Gemini 3.1 Pro
 High 재검토는 현행 코드의 arm gate·CAN lock·authority·wheel-stop 미구현을 S0/S1로 판정했다. 이는
 계획 구조의 폐기가 아니라 WP5.2를 구현 선행조건으로 유지해야 한다는 근거로 반영했다.
 
@@ -1036,7 +1048,7 @@ P0/P1/P2 simulation 순서와 WP5.3↔WP6 의존성 분리를 본 정본에 반�
 10. mission journal tail 복구, CAN 10-node health matrix와 채널별 kill/restart 진단.
 11. 평탄 저속에서 odometry, virtual-shaft 진단과 NumPy terrain 기준 구현.
 12. L515 20°·25°·30° 장착·TF·known-target 비교와 robust depth 품질·낙하 경계 검증.
-13. 전체 Jetson 부하에서 JAX/NumPy backend production 선택.
+13. 이미 선택한 NumPy를 포함해 전체 Jetson 파이프라인의 30분 부하·장애 격리 자격 검증.
 14. 모의 표적 추종, frame/TF 실패와 가림막 재획득.
 15. 네트워크 profile별 L515·D435i SRT 열화·복구, D435i metadata stale와 profile hysteresis 시험.
 16. 스모그·모래·자갈·수중·빙판 조건별 degradation·motion-hold 제동 시험.
@@ -1056,16 +1068,19 @@ P0/P1/P2 simulation 순서와 WP5.3↔WP6 의존성 분리를 본 정본에 반�
    `CARRYING_LOCKED` drop 수락과 멱등 arrival 동시 컷오버.
 8. Task 7 mock 계약시험과 실제 DDS 합동 1사이클.
 9. WP5.3 Task 1~3과 5의 journal·health·CAN/arm adapter 코어.
-10. WP6-S P0 fixture/replay/MuJoCo fast mode와 WP6-A odometry.
+10. WP6-S fixture/replay와 활성 Isaac adapter 계약, WP6-A odometry.
 11. WP5.3 Task 4 depth/time/TF qualification 뒤 WP6-B NumPy terrain 기준.
 12. WP6-C `chassis_node` 내부 authority와 autonomy controller.
 13. WP5.3 Task 6 dual-video operator console·remote profile/assist 뒤 WP5.2 Task 7 원격 팔 합동 HIL, *(콘솔 헌장 개정 2026-07-18, 스펙 r6 §3.3/A2b: read-only → "관측 수신 전용 + 조작은 게이트된 ops 채널(:9001 역할 토큰) 경유만" — 송신 표면 계약 테스트로 봉인)*
     이어서 WP5.3 Task 7 regression과 Task 8 최종 HIL.
-14. JAX qualification profile → WP7 → WP8 → WP9. P2 vcan/Isaac은 stretch로 병행.
+14. NumPy 전체 파이프라인 자격 → WP7 → WP8 → WP9. 활성 Isaac 검증과 ROS/CAN 벤치 게이트를 병행.
 
 1~5가 끝나기 전 실물 합동 arm은 금지하지만, 독립 fake·simulation과 WP6 순수 코어 개발은
 병행할 수 있다. 파워트레인 단독 실차 주행 HIL은 §5의 `arm_gate_mode=arm_absent_field` profile
 요건(팔 노드 부재 + 운영자 기계적 접힘 확인 + journal 기록)을 만족하는 경우에만 병행할 수 있다.
+
+**아래 날짜별 일정은 7월 작성 당시 계획 이력이다.** 완료 실적이나 현재 작업 목록이 아니며,
+폐기 전 MuJoCo·JAX 일정도 당시 계획으로 보존한다. 현재 우선순위는 위 의존 순서와 §2·§8의 게이트를 따른다.
 
 ### 7월 12~19일: 서류와 설계 고정
 
@@ -1134,9 +1149,11 @@ P0/P1/P2 simulation 순서와 WP5.3↔WP6 의존성 분리를 본 정본에 반�
 기능 완료는 코드 merge가 아니라 다음 다섯 조건을 모두 만족해야 한다.
 
 1. 순수 코어 자동시험과 기존 회귀시험 통과.
-2. 해당 production node를 수정하지 않은 MuJoCo hidden-seed simulation 통과.
+2. 해당 production 코어를 수정하지 않은 활성 Isaac hidden-seed simulation과 기록 재생 통과.
 3. Jetson exact-HEAD 배포와 전체 프로세스 동시 실행.
-4. 해당 구간의 정상·센서 단절·프로세스 사망 HIL. *(개정 2026-07-18, A/B/C 스펙 r6 §0-2: 실전/모의 트랙 영구 부재 확정에 따라 TRACKING류 주행 검증은 MuJoCo 폐루프·캠페인이 영구 대체하고, HIL은 벤치 가능 표면(안전·전이·통신)에 한정한다.)*
+4. 정상·센서 단절·프로세스 사망의 벤치 HIL. 실전 트랙이 없어 수행하지 못한 TRACKING 주행은
+   활성 Isaac 시뮬레이션 결과로 한정해 보고하며, 실제 지상 성능·제동·최종 `stop_mm`은 미검증으로 남긴다.
+   7/18의 MuJoCo 대체 경로는 7/24 폐기로 종료됐다.
 5. 운영자가 로그 없이도 TUI 상태와 절차로 복구 가능.
 
 로봇팔 통합 기능은 추가로 다음을 모두 통과해야 완료다.

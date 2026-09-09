@@ -25,6 +25,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 
@@ -93,6 +94,113 @@ def _probe_rover_widths(probe_file: Path) -> tuple[int, int] | None:
         return int(states["rover_l515_width"]), int(states["rover_d435_width"])
     except (OSError, ValueError, KeyError, TypeError):
         return None
+
+
+def _probe_ops_steering(
+    probe_file: Path,
+) -> tuple[str, bool, int, str] | None:
+    try:
+        states = json.loads(probe_file.read_text(encoding="utf-8"))
+        label = states["ops_steering_label"]
+        sensitive = states["ops_steering_sensitive"]
+        revision = states["ops_state_revision"]
+        mode = states["ops_state_steering_mode"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if (
+        not isinstance(label, str)
+        or not isinstance(sensitive, bool)
+        or not isinstance(revision, int)
+        or isinstance(revision, bool)
+        or not isinstance(mode, str)
+    ):
+        return None
+    return label, sensitive, revision, mode
+
+
+class _OpsStateFixture:
+    """Serve one malformed-but-well-framed ops state to the real Gtk client."""
+
+    def __init__(self) -> None:
+        self._listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._listener.bind(("127.0.0.1", 0))
+        self._listener.listen(1)
+        self._listener.settimeout(0.2)
+        self.port = self._listener.getsockname()[1]
+        self._stop = threading.Event()
+        self._thread = threading.Thread(
+            target=self._run,
+            name="runtime-smoke-ops-fixture",
+            daemon=True,
+        )
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def _run(self) -> None:
+        connection = None
+        try:
+            while not self._stop.is_set() and connection is None:
+                try:
+                    connection, _address = self._listener.accept()
+                except TimeoutError:
+                    continue
+                except OSError:
+                    return
+            if connection is None:
+                return
+            connection.settimeout(0.2)
+            hello = bytearray()
+            while not self._stop.is_set() and b"\n" not in hello:
+                try:
+                    chunk = connection.recv(4096)
+                except TimeoutError:
+                    continue
+                if not chunk:
+                    return
+                hello.extend(chunk)
+            payload = {
+                "schema_version": 1,
+                "push": "ops_state",
+                "revision": 1,
+                "authority_mode": "IDLE",
+                "chassis_mode": "IDLE",
+                "estop_latched": False,
+                "estop_source": "",
+                "estop_detail": "",
+                "active_estop_sources": [],
+                "component_mask": {
+                    "drive": True,
+                    "steer": True,
+                    "us100": True,
+                    "robot_arm": True,
+                },
+                "wheels_stopped": True,
+                "steering_mode": "invalid-smoke-mode",
+                "steering_available": True,
+            }
+            record = (json.dumps(payload) + "\n").encode("utf-8")
+            while not self._stop.is_set():
+                try:
+                    connection.sendall(record)
+                except (OSError, TimeoutError):
+                    return
+                self._stop.wait(0.1)
+        finally:
+            if connection is not None:
+                try:
+                    connection.close()
+                except OSError:
+                    pass
+
+    def close(self) -> None:
+        self._stop.set()
+        try:
+            self._listener.close()
+        except OSError:
+            pass
+        self._thread.join(timeout=1.0)
 
 
 def _free_udp_port() -> int:
@@ -207,6 +315,8 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
         "metadata": _free_udp_port(), "telemetry": _free_udp_port(),
         "chassis": _free_udp_port(), "arm": _free_udp_port(),
     }
+    ops_fixture = _OpsStateFixture()
+    ops_fixture.start()
     with tempfile.NamedTemporaryFile(
         mode="w",
         encoding="utf-8",
@@ -228,6 +338,7 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
                 "--chassis-telemetry-port", str(ports["chassis"]),
                 "--arm-telemetry-port", str(ports["arm"]),
                 "--ops-token-file", token_file,
+                "--ops-port", str(ops_fixture.port),
                 "--smoke-probe-file", str(probe_file),
             ],
             cwd=REPO_ROOT,
@@ -238,6 +349,7 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
         )
     except BaseException:
         Path(token_file).unlink(missing_ok=True)
+        ops_fixture.close()
         raise
     sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     builders = {
@@ -248,6 +360,7 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
     stale_seen: set[str] = set()
     unexpected_auto_swap_seen = False
     role_sized_rovers_seen = False
+    invalid_steering_held_seen = False
     try:
         # 콘솔이 Gtk 루프에 진입하기 전에 주입 창을 소진하면 LIVE 를 한 번도
         # 못 보고 거짓 FAIL 이 난다(부하가 높으면 xvfb 기동이 수 초 걸린다).
@@ -283,6 +396,12 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
                 _probe_main_video(probe_file) == "작업 카메라"
             )
             role_sized_rovers_seen |= _probe_rover_widths(probe_file) == (290, 90)
+            invalid_steering_held_seen |= _probe_ops_steering(probe_file) == (
+                "조향 방식 [상태 미확인]",
+                False,
+                1,
+                "invalid-smoke-mode",
+            )
         # phase 2 — 주입 중단: 전 패널 LIVE→STALE 전이 + 오버레이 숨김 경로.
         stale_deadline = time.monotonic() + 2.5
         while time.monotonic() < stale_deadline and console.poll() is None:
@@ -330,6 +449,7 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
             _, stderr = console.communicate()
     finally:
         sender.close()
+        ops_fixture.close()
         Path(token_file).unlink(missing_ok=True)
         shutil.rmtree(probe_file.parent, ignore_errors=True)
         if console.poll() is None:
@@ -375,9 +495,12 @@ def run_smoke(run_s: float = RUN_S) -> tuple[bool, str]:
         return False, (
             "default front-MAIN/work-PiP placeholder sizes changed\n" + text
         )
+    if not invalid_steering_held_seen:
+        return False, "invalid steering ops state was not held disabled\n" + text
     return True, (
         f"PASS · {sequence} ticks on 4 channels · "
         f"LIVE+STALE observed on {', '.join(sorted(REQUIRED_PANELS))} · "
+        "invalid steering mode held disabled · "
         "no automatic camera swap observed · no tracebacks"
     )
 

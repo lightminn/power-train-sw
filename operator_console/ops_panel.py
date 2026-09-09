@@ -113,6 +113,7 @@ class PanelAction:
     needs_bool: bool = False
     confirm_text: str = ""
     bool_value_from_state: Callable[[dict[str, Any]], bool] | None = None
+    state_text_from_state: Callable[[dict[str, Any]], str] | None = None
     advanced: bool = False
     # 같은 action 이름을 서로 다른 고정 data 로 보내는 행 쌍(잠금 해제 걸기/
     # 취소)을 허용한다. bool_value_from_state 가 있으면 그쪽이 우선.
@@ -173,7 +174,14 @@ def steering_mode_from_state(state: Mapping[str, Any] | None) -> str | None:
     if state is None:
         return None
     mode = state.get("steering_mode")
-    return mode if isinstance(mode, str) and mode else None
+    return mode if isinstance(mode, str) and mode in _STEERING_KOREAN else None
+
+
+def _steering_state_text(state: Mapping[str, Any] | None) -> str:
+    mode = steering_mode_from_state(state)
+    if mode is None:
+        return "상태 미확인"
+    return _STEERING_KOREAN[mode]
 
 
 def steering_available_from_state(state: Mapping[str, Any] | None) -> bool:
@@ -277,12 +285,13 @@ PANEL_ACTIONS: tuple[PanelAction, ...] = (
     ),
     PanelAction(
         "steer_mode_skid",
-        "조향: 스키드",
+        "조향 방식",
         GESTURE_STRIP,
         needs_bool=True,
         confirm_text="조향 방식을 전환합니까? 차대가 멈추고 조향이 0° 로 돌아온 "
                      "뒤에 적용됩니다.",
         bool_value_from_state=_steer_mode_toggle_value,
+        state_text_from_state=_steering_state_text,
     ),
     PanelAction(
         "authority_manual",

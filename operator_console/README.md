@@ -1,5 +1,11 @@
 # Operator Console
 
+Integrated entrypoint: `python -m operator_console` uses the prepared paired-robot
+config, reconnects automatically, supervises a separate gamepad process and offers
+a held manual-start action. See [the integrated operation runbook](../docs/integrated-operation.md)
+for setup, legacy-service migration and the pending real-hardware acceptance.
+`python -m operator_console.app --host ...` remains the explicit legacy entrypoint.
+
 Native GTK/GStreamer operator console. Observation is RX-only; operator
 actions travel only through the token-gated ops channel. It embeds L515 driving
 RGB SRT (`:5000`) and D435i raw RGB SRT (`:5002`) with per-channel receiver health.
@@ -44,6 +50,15 @@ ros2 run powertrain_ros arm_console_bridge --ros-args -p console_host:=<laptop-i
 ```bash
 /usr/bin/python3 -m operator_console.app --host 192.168.8.106
 ```
+
+`/usr/bin/python3 -m operator_console.runtime_smoke` launches the real GTK application under
+Xvfb, injects maximal synthetic datagrams into isolated UDP ports, and verifies LIVE→STALE,
+sparse-payload, clean-shutdown, traceback, role-layout, and no-automatic-camera-swap paths.
+A loopback ops TCP fixture also sends an unknown steering mode through the real client and
+checks that the GTK control stays unavailable. It
+does not inject or observe a decoded real SRT frame, prove GStreamer frame rendering, exercise a
+real network or hardware sender, or cover the environment-sensing path in draft PR #4. Those need
+separate runtime, E2E, or PR evidence.
 
 The interface is organized into three roles: **시연 화면** (mission/video), **로봇 상태** (device summaries with expandable raw diagnostics), and **관리자 조작** (unchanged token-gated safety controls). Press `F11` for the competition display. Camera panels can be clicked to exchange the large and preview views; technical stream errors remain in the collapsed event log and robot diagnostics.
 

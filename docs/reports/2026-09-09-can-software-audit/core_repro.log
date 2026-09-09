@@ -1,0 +1,7 @@
+{"case": "send_errors_swallowed", "arm_return": true, "chassis_mode": "ARMED", "failed_send_attempts": 24}
+{"case": "arm_next_tick_no_feedback_guard", "chassis_mode": "ESTOP"}
+{"case": "failed_tx_with_fresh_idle_feedback", "chassis_mode": "ARMED", "axis_states": [1, 1, 1, 1, 1, 1], "feedback_ticks": 5, "all_send_attempts_failed": true}
+{"case": "old_frame_marked_fresh", "injected_frame_age_s": 10, "reported_encoder_age_ms": 0.0, "actual_vel": 1.0}
+{"case": "encoder_loss_not_in_drive_tick_gate", "corner_mode": "ARMED", "stale": false, "encoder_stale": true}
+{"case": "idle_poll_50_ticks", "total_tx_frames": 600, "command_ids": {"9": 300, "20": 300}, "all_rtr": true}
+{"case": "watchdogs_reset_same_stall", "reset_calls": 2, "events": ["reset", "reset"]}

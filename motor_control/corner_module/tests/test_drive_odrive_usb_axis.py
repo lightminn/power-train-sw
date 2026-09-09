@@ -159,18 +159,20 @@ def test_stale_turns_true_when_polls_stop_landing():
 
     axis.fail = True
     make_driver.now = 100.9                # 900 ms 경과
-    driver.tick()
+    with pytest.raises(RuntimeError, match="USB velocity write failed"):
+        driver.tick()
 
     assert driver.state()["stale"] is True
 
 
-def test_usb_failure_is_absorbed_and_counted():
+def test_usb_control_failure_is_propagated_and_counted():
     driver, axis = make_driver(poll_period_ticks=1)
     driver.arm()
     axis.fail = True
 
     driver.set_velocity(0.5)
-    driver.tick()                          # 예외가 새어나오면 제어 루프가 죽는다
+    with pytest.raises(RuntimeError, match="USB velocity write failed"):
+        driver.tick()                      # 차체에서 실패를 latch하고 나머지 축을 정지
 
     assert driver.state()["error_count"] >= 1
 
@@ -217,12 +219,17 @@ def test_estop_zeroes_and_idles():
     assert driver.state()["target_vel"] == 0.0
 
 
-def test_estop_survives_a_dead_link():
+def test_estop_reports_a_dead_link_after_attempting_both_writes():
     driver, axis = make_driver()
     driver.arm()
     axis.fail = True
 
-    driver.estop()                         # 예외가 새면 estop 전파가 끊긴다
+    before = driver.state()["error_count"]
+    with pytest.raises(RuntimeError, match="USB stop write failed"):
+        driver.estop()
+    assert driver.state()["error_count"] == before + 1
+    # FakeAxis blocks reads but still accepts the independent IDLE setattr.
+    assert object.__getattribute__(axis, "requested_state") == _AXIS_IDLE
 
     assert driver.state()["target_vel"] == 0.0
 

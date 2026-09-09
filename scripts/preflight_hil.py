@@ -10,7 +10,7 @@
 왜 필요한가 — 과거에 여기서 다 터졌다
 ────────────────────────────────────────────────────────────────────────
 · **좀비 teleop** 이 계속 `v=0` 을 명령해 새 테스트와 싸웠다.
-· **캘리브레이션이 RAM-only** 라 전원 사이클마다 사라진다 → arm 은 되는데 **모터가 안 돈다.**
+· 캘리 준비 플래그·축 오류를 확인하지 않으면 폐루프 진입이 거부될 수 있다.
 · `chassis_node` 와 `teleop_server` 를 **동시에** 띄워 같은 모터에 상반된 명령이 갔다.
 · 텔레메트리만 보고 통과시켰다가 **바퀴가 실제로는 안 돌고 있었다**(HALL 코깅존).
 """
@@ -51,37 +51,12 @@ def check(name, fn):
 # ── 1. CAN 버스 ──────────────────────────────────────────────────────────
 
 def can_up():
-    """⚠️ `ip` 는 powertrain_ros 컨테이너에 없다 → sysfs 로 확인한다."""
+    from chassis.can_interface import readiness, CanReadinessError
     try:
-        out = subprocess.run(["ip", "-details", "link", "show", "can0"],
-                             capture_output=True, text=True).stdout
-    except FileNotFoundError:
-        out = ""
-
-    if out:
-        if "state UP" not in out:
-            return FAIL, "can0 이 DOWN → 호스트에서 `bash scripts/can_setup.sh`"
-        if "loopback on" in out:
-            return FAIL, ("can0 이 LOOPBACK 모드다(버스 무음) → "
-                          "`ip link set can0 type can loopback off`")
-        bitrate = next((w for w in out.split()
-                        if w.isdigit() and len(w) >= 6), "?")
-        return OK, f"can0 UP (bitrate {bitrate}). **500000 이어야 한다.**"
-
-    # sysfs 폴백
-    path = "/sys/class/net/can0"
-    if not os.path.isdir(path):
-        return FAIL, "can0 이 없다 → 호스트에서 `bash scripts/can_setup.sh`"
-    try:
-        with open(os.path.join(path, "operstate")) as f:
-            state = f.read().strip()
-    except OSError:
-        state = "?"
-    if state not in ("up", "unknown"):             # CAN 은 보통 unknown 으로 뜬다
-        return FAIL, f"can0 operstate={state} → 호스트에서 `bash scripts/can_setup.sh`"
-    return WARN, (f"can0 존재 (operstate={state}). ⚠️ 이 컨테이너엔 `ip` 가 없어 "
-                  "**bitrate·loopback 을 확인 못 한다** — 호스트에서 확인:\n"
-                  "      ip -details link show can0   (500000 · loopback off 여야 한다)")
+        return OK, readiness("can0")
+    except (OSError, subprocess.SubprocessError, CanReadinessError) as exc:
+        return FAIL, (f"CAN readiness 미확인/실패: {exc}. "
+                      "호스트에서 ip -details link show can0 로 확인하십시오.")
 
 
 # ── 2. 좀비 프로세스 ─────────────────────────────────────────────────────
@@ -224,22 +199,28 @@ def geometry_changed_warning():
     front = solve(g, 0.4, 0.4).wheels["front_left"].steer_deg
     rear = solve(g, 0.4, 0.4).wheels["rear_left"].steer_deg
     return WARN, (
-        "**기하가 마지막 HIL(2026-07-05) 때와 다르다.** 설계팀 CAD 실측치로 교체됐다.\n"
+        "**현재 제작 v2 기하는 2026-07-05 HIL의 초기 기하와 다르다.**\n"
         f"    같은 명령(v=0.4, ω=0.4)에서 앞 조향 +22.1° → **{front:+.1f}°**, "
         f"뒤 −22.1° → **{rear:+.1f}°**.\n"
-        "    CAD 가 실물이므로 지금 값이 맞다. 다만 **첫 주행은 저속으로, 조향각을 눈으로 "
+        "    CAD 입력과 실제 장착은 별도 확인한다. **첫 주행은 저속으로, 조향각을 눈으로 "
         "확인**하며 시작할 것.\n"
-        "    (앞뒤 윤거가 705 / 585 mm 로 달라 조향각이 더 이상 거울상이 아니다 — "
-        "설계팀 확인 대기)")
+        "    (현재 코드의 앞뒤 윤거는 545 / 425 mm로 다르다. "
+        "현재 지상 조향·제동 검증 완료를 뜻하지 않는다.)")
 
 
-# ── 6. ODrive 캘리브레이션 (RAM-only) ────────────────────────────────────
+# ── 6. ODrive 캘리브레이션 상태 ──────────────────────────────────────────
 
 def calibration_reminder():
     return WARN, (
-        "**ODrive 캘리브레이션은 RAM-only** — 전원을 껐다 켰으면 반드시 다시 한다:\n"
+        "**전원 인가 뒤 캘리 준비 플래그와 축 오류를 먼저 확인한다.** "
+        "`bl70200_setup.py --persist-calibration`으로 준비돼 있고 "
+        "motor.is_calibrated / encoder.is_ready / 오류 0을 확인한 축은 재캘리 없이 "
+        "폐루프에 진입할 수 있다. 미준비 축은 바퀴를 들고 복구한다. "
+        "아래 명령은 6축 전체를 재캘리하며, 일부 축만 할 때는 --nodes로 명시한다:\n"
         "      python3 drive/bl70200/can_calibrate_all.py     (6축, 약 6분)\n"
-        "    안 하면 **arm 은 되는데 모터가 전혀 안 돈다**(폐루프 진입 거부).")
+        "    이 명령은 현재 실행 상태만 갱신하며 NVM에는 저장하지 않는다. "
+        "node 11/12는 전원사이클 3회 직진입 확인, 13~16은 재캘리 없는 운용 관찰만 "
+        "있고 동일한 3회 반복시험과 USB 플래그 직접 대조는 미완료다.")
 
 
 # ── 7. 코깅존 플로어 ─────────────────────────────────────────────────────
@@ -250,12 +231,12 @@ def cogging_floor():
     circ = 2 * math.pi * g.wheel_radius_m
     v_min = 1.0 * circ
     return WARN, (
-        f"**min_rev=1.0 이면 최저 속도가 {v_min:.2f} m/s** 다(상한 {g.drive_limit_mps}). "
-        f"속도 범위 {g.drive_limit_mps/v_min:.2f}:1 — 사실상 '전속 아니면 정지'.\n"
-        "    감속 힌트·정밀 접근·미션 정차가 전부 영향받는다.\n"
-        "    실측 '깨끗한 대역'은 0.5~10 rev/s → **min_rev 0.6 검토** "
-        "(docs/specs/2026-07-13-min-rev-speed-range.md).\n"
-        "    ⚠️ 바꾸려면 **바퀴 띄우고 6바퀴가 실제로 도는지 육안 확인** 후에.")
+        "**현재 min_rev 기본은 0이다(7/17 D3/D4, 플로어 폐지).**\n"
+        f"    과거 min_rev=1.0 가정은 최저 {v_min:.2f} m/s "
+        f"(설계 상한 {g.drive_limit_mps}, 범위 {g.drive_limit_mps/v_min:.2f}:1)로 "
+        "감속 힌트·정밀 접근을 방해했다.\n"
+        "    저속 코깅 대응은 friction_ff/v_knee의 별도 벤치 튜닝이며 기본 OFF다. "
+        "⚠️ 바퀴를 띄우고 실제 회전을 확인하며, 과거 플로어를 임의 복원하지 않는다.")
 
 
 # ── 8. 테스트 통과 여부 ──────────────────────────────────────────────────

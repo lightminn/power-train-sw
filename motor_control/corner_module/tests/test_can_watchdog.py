@@ -1,4 +1,16 @@
+import pytest
+
 from corner_module.can_watchdog import CanWatchdog
+
+
+@pytest.fixture(autouse=True)
+def isolated_reset_lock(tmp_path, monkeypatch):
+    original = CanWatchdog.__init__
+    def init(self, *args, **kwargs):
+        kwargs.setdefault("lock_path", str(tmp_path / "can0.lock"))
+        original(self, *args, **kwargs)
+    monkeypatch.setattr(CanWatchdog, "__init__", init)
+
 
 
 class FakeWatchdog(CanWatchdog):
@@ -71,7 +83,7 @@ def test_transition_to_up_resumes_normal_probe_logic():
 
 
 def test_up_wedge_resets_after_two_stalled_failed_probes():
-    wd = FakeWatchdog(up=True, probes=(False, False), tx=(7, 7))
+    wd = FakeWatchdog(up=True, probes=(False, False, False), tx=(7, 7, 7))
 
     assert wd._step() == "failed"
     assert wd._step() == "reset"
@@ -84,8 +96,8 @@ def test_up_wedge_resets_after_two_stalled_failed_probes():
 def test_failed_interface_reset_is_not_counted_or_reopened():
     wd = FakeWatchdog(
         up=True,
-        probes=(False, False),
-        tx=(7, 7),
+        probes=(False, False, False),
+        tx=(7, 7, 7),
         reset_error=OSError("not configured"),
     )
 

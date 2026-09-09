@@ -27,7 +27,8 @@
    · 바퀴 6개를 완전히 띄웠거나, 주행 가능한 안전한 공간인가
    · 48 V 물리 E-stop 에 손이 닿는가
    · `teleop_server` 가 안 떠 있는가 (can0 락이 막지만, 확인이 먼저다)
-   · ODrive 재캘리를 했는가 (전원 사이클마다 필요 — 안 하면 arm 은 되는데 안 돈다)
+   · ODrive 준비 플래그와 오류 0을 확인했는가
+     (영속화 미자격·미준비 축만 출력축을 자유롭게 한 뒤 재캘리한다)
 
 🛑 **유도 소스는 동시에 켜지 않는다** — 모두 `/autonomy/cmd_vel` 를 쓴다.
    `guidance:=lane|wall|follow|terrain` 중 하나만 선택한다.
@@ -106,7 +107,7 @@ def generate_launch_description():
                         "🛑 동시에 켜지 않는다 (전부 /autonomy/cmd_vel 를 쓴다)"),
         DeclareLaunchArgument(
             "chassis", default_value="false",
-            description="🛑 실차 모터 제어. 바퀴 상태·E-stop·재캘리를 확인하고 켤 것"),
+            description="🛑 실차 모터 제어. 바퀴 상태·E-stop·캘리 준비/오류를 확인하고 켤 것"),
         DeclareLaunchArgument("fake_chassis", default_value="false",
                               description="가짜 모터로 chassis_node 를 띄운다 (벤치)"),
         DeclareLaunchArgument("min_rev", default_value="0.0",

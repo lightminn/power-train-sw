@@ -80,6 +80,7 @@ def cleanup_corner_resources(corner, background, sensor, pygame_module):
 
 
 def main(argv=None):
+    raise SystemExit("DEPRECATED: unnamed USB motor control is quarantined; use motor_control/drive/bl70200/bl70200_setup.py with explicit --serial --axis --node, and chassis.teleop_server for operation.")
     import argparse
     import os
 

@@ -1,0 +1,21 @@
+........................................................................ [ 24%]
+........................................................................ [ 48%]
+........................................................................ [ 72%]
+........................................................................ [ 96%]
+............                                                             [100%]
+=============================== warnings summary ===============================
+../../../../../../../usr/lib/python3.14/site-packages/gi/overrides/__init__.py:159
+  /usr/lib/python3.14/site-packages/gi/overrides/__init__.py:159: PyGIDeprecationWarning: GLib.unix_signal_add_full is deprecated; use GLibUnix.signal_add_full instead
+    value = getattr(proxy, attr)
+
+operator_console/tests/test_integrated_app.py::test_integrated_boot_keeps_start_disabled_and_preserves_estop
+  /usr/lib/python3.14/site-packages/gi/events.py:803: DeprecationWarning: 'asyncio.AbstractEventLoopPolicy' is deprecated and slated for removal in Python 3.16
+    AbstractEventLoopPolicy = getattr(asyncio, "AbstractEventLoopPolicy", object)
+
+operator_console/tests/test_integrated_app.py: 1413 warnings
+operator_console/tests/test_interactions.py: 9 warnings
+  /usr/lib/python3.14/site-packages/gi/events.py:890: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    if not isinstance(_get_event_loop_policy(), GLibEventLoopPolicy):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+300 passed, 1424 warnings in 31.70s

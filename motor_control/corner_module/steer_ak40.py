@@ -14,7 +14,7 @@ import time
 
 import can
 
-from corner_module.actuator import SteerActuator
+from corner_module.actuator import SteerActuator, FeedbackClock
 
 _STEERING_DIR = os.path.join(os.path.dirname(__file__), "..", "steering")
 sys.path.insert(0, os.path.abspath(_STEERING_DIR))
@@ -32,15 +32,17 @@ class SteerAk40(SteerActuator):
         self._target_deg = 0.0
         self._last_rx_ms = None
         self._now = time.monotonic if clock is None else clock
+        self._feedback_clock = FeedbackClock(self._now)
         self._feedback_rate_hz = 0.0
         self._rx_packets = 0
         self._recovery_count = 0
+        self._control_tx_failures = 0
 
     def _now_ms(self) -> float:
         return self._now() * 1000.0
 
-    def _record_feedback(self) -> None:
-        now_ms = self._now_ms()
+    def _record_feedback(self, received_ms=None) -> None:
+        now_ms = self._now_ms() if received_ms is None else received_ms
         previous_ms = self._last_rx_ms
         if previous_ms is not None:
             interval_ms = now_ms - previous_ms
@@ -51,6 +53,38 @@ class SteerAk40(SteerActuator):
                 self._feedback_rate_hz = 1000.0 / interval_ms
         self._last_rx_ms = now_ms
         self._rx_packets += 1
+
+    def _receive_feedback(self) -> None:
+        if self._ak is None:
+            return
+        if self._bus is None:
+            # Legacy injected AK doubles have no socket. Production connect()
+            # always creates a BusABC and takes the timestamped branch below.
+            if self._ak.poll(timeout=0.0):
+                self._record_feedback()
+            return
+        for _ in range(32):
+            message = self._bus.recv(timeout=0.0)
+            if message is None:
+                break
+            if (not message.is_extended_id or message.is_remote_frame
+                    or message.is_error_frame
+                    or message.arbitration_id != (PKT_STATUS_1 << 8) | self._motor_id
+                    or len(message.data) < 8):
+                continue
+            received_ms = self._feedback_clock.received_ms(
+                message.timestamp,
+                allow_unstamped=not isinstance(self._bus, can.BusABC))
+            if (received_ms is None or (self._last_rx_ms is not None
+                                       and received_ms < self._last_rx_ms)):
+                continue
+            self._ak._parse_status(message.data)
+            self._record_feedback(received_ms)
+
+    def _require_sent(self, result) -> None:
+        if result is False:
+            self._control_tx_failures += 1
+            raise can.CanOperationError(f"AK {self._motor_id} control send failed")
 
     def connect(self) -> None:
         # 자기 AK 의 STATUS_1(ext arb (41<<8)|id) 만 받는 필터 — 단일 can0 다중모터에서
@@ -67,23 +101,20 @@ class SteerAk40(SteerActuator):
         self._ak = AK40(self._bus, self._motor_id, name="steer")
 
     def arm(self) -> None:
-        # poll 성공 시 수신시각 기록 → arm 직후 state()가 stale 로 오판해
-        # CornerModule.tick() 첫 호출에서 estop 되는 것을 방지.
-        if self._ak.poll(timeout=0.1):
-            self._record_feedback()
+        # Use available feedback without blocking the chassis/input watchdog.
+        # No reply must remain stale, never receive a synthetic fresh stamp.
+        self._receive_feedback()
         self._target_deg = self._ak.pos_out_deg
 
     def disarm(self) -> None:
-        self._ak.stop()
+        self.estop()
 
     def set_angle(self, deg: float) -> None:
         self._target_deg = deg
 
     def tick(self) -> None:
-        self._ak.send_pos_out(self._target_deg)
-        got = self._ak.poll(timeout=0.0)
-        if got:
-            self._record_feedback()
+        self._require_sent(self._ak.send_pos_out(self._target_deg))
+        self._receive_feedback()
 
     def state(self) -> dict:
         # stale 판정 전에 커널 버퍼에 쌓인 status 를 논블로킹 드레인해 최신 수신
@@ -92,8 +123,7 @@ class SteerAk40(SteerActuator):
         # tick 처럼 마지막 poll 이후 stale_ms 가 지난 시점이면 실제 수신과 무관
         # 하게 트립해 버림 — connect() 의 CAN 필터 덕에 버퍼엔 자기 status(50Hz)
         # 만 쌓여 있어 timeout=0 드레인으로 즉시 회수된다.
-        if self._ak is not None and self._ak.poll(timeout=0.0):
-            self._record_feedback()
+        self._receive_feedback()
         return self.health_state()
 
     def health_state(self) -> dict:
@@ -118,6 +148,7 @@ class SteerAk40(SteerActuator):
             "feedback_rate_hz": self._feedback_rate_hz,
             "rx_packets": self._rx_packets,
             "recovery_count": self._recovery_count,
+            "control_tx_failures": self._control_tx_failures,
         }
 
     def estop(self) -> None:
@@ -125,8 +156,9 @@ class SteerAk40(SteerActuator):
             # E-stop 경로는 50 Hz 제어 tick 안에서 호출된다. AK40.stop()은
             # 5회 재전송 사이에 50 ms씩 대기하므로 AK 4개에서 전역 정지를
             # 약 1~2초 막는다. 첫 0 RPM 프레임을 즉시 보내고 반환하며,
-            # 반복 정지는 시간 제약이 없는 disarm()/close()에만 남긴다.
-            self._ak.send_rpm_out(0)
+            # 일반 disarm도 같은 executor에서 실행한다. 반복 정지는
+            # 제어 루프 종료 후 close()에만 남긴다.
+            self._require_sent(self._ak.send_rpm_out(0))
 
     def close(self) -> None:
         if self._ak:

@@ -1,3 +1,5 @@
+raise SystemExit("DEPRECATED: first-board auto calibration/configuration/control is quarantined; use motor_control/drive/bl70200/bl70200_setup.py with explicit --serial --axis --node, or the gated chassis teleop runtime.")
+
 import time
 import pygame
 

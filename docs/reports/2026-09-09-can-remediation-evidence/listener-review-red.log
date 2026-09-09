@@ -1,0 +1,42 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_worker_start_failure_is_supervised_and_releases_connection ________
+
+tmp_path = PosixPath('/tmp/pytest-of-light/pytest-52/test_worker_start_failure_is_s0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f36a4492a10>
+
+    def test_worker_start_failure_is_supervised_and_releases_connection(tmp_path, monkeypatch):
+        import socket
+        token = tmp_path / 'pair.token'
+        token.write_text('test-only-pair-key')
+        server = SessionServer(dict(robot_id='worker-recovery', token_file=str(token)),
+                               lambda: {}, lambda: {}, lambda: {})
+        conn, peer = socket.socketpair()
+    
+        class Listener:
+            def accept(self):
+                return conn, ('127.0.0.1', 1)
+    
+        def cannot_start(_):
+            raise RuntimeError("can't start new thread")
+    
+        monkeypatch.setattr(threading.Thread, 'start', cannot_start)
+        try:
+>           server._accept(Listener(), 'session')
+
+powertrain_runtime/tests/test_listener_recovery.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+powertrain_runtime/session.py:169: in _accept
+    worker.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_ = <Thread(Thread-1 (_handle), initial daemon)>
+
+    def cannot_start(_):
+>       raise RuntimeError("can't start new thread")
+E       RuntimeError: can't start new thread
+
+powertrain_runtime/tests/test_listener_recovery.py:81: RuntimeError
+=========================== short test summary info ============================
+FAILED powertrain_runtime/tests/test_listener_recovery.py::test_worker_start_failure_is_supervised_and_releases_connection
+1 failed in 0.03s

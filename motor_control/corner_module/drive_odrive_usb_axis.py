@@ -61,6 +61,8 @@ class UsbBoardPool:
         self._finder = finder
         self._enumerator = enumerator
         self._boards = {}
+        self._session = None
+        self._users = set()
 
     def discover_serials(self) -> list:
         """USB 에 붙은 ODrive 시리얼 목록(정렬·중복제거). 실패하면 빈 리스트."""
@@ -94,27 +96,67 @@ class UsbBoardPool:
     def _find(self, serial: str):
         if self._finder is not None:
             return self._finder(serial)
-        import odrive
-        handle = odrive.find_any(serial_number=serial, timeout=self._find_timeout)
-        if handle is None:
-            raise RuntimeError(
-                "ODrive %s USB 미발견 — 케이블·전원·권한(udev) 확인." % serial)
-        return handle
+        from chassis.usb_session import motor_session, normalize_serial
+        normalize_serial(serial)
+        if self._session is None:
+            session = motor_session("usb_chassis_pool")
+            session.__enter__()
+            self._session = session
+        try:
+            import odrive
+            handle = odrive.find_any(serial_number=serial, timeout=self._find_timeout)
+            if handle is None:
+                raise RuntimeError("ODrive %s USB 미발견" % serial)
+            if normalize_serial(handle.serial_number) != normalize_serial(serial):
+                raise ValueError("ODrive serial mismatch")
+            return handle
+        except BaseException:
+            if not self._users:
+                self.close()
+            raise
 
     def axis(self, serial: str, axis_index: int):
         if axis_index not in (0, 1):
             raise ValueError("axis_index must be 0 or 1, got %r" % (axis_index,))
         return getattr(self.board(serial), "axis%d" % axis_index)
 
+    def acquire_axis(self, owner, serial, axis_index, node_id):
+        if self._finder is None:
+            from chassis.usb_session import validate_target, axis_communication
+            validate_target(serial, axis_index, node_id)
+        axis = self.axis(serial, axis_index)
+        try:
+            if self._finder is None:
+                if axis_communication(axis)["node"] != node_id:
+                    raise ValueError("USB axis node does not match board registry")
+            self._users.add(id(owner))
+            return axis
+        except BaseException:
+            if not self._users:
+                self.close()
+            raise
+
+    def release_axis(self, owner):
+        self._users.discard(id(owner))
+        if not self._users:
+            self.close()
+
     def close(self) -> None:
+        if self._users:
+            raise RuntimeError("USB axes must stop and release before closing the pool")
         self._boards.clear()
+        if self._session is not None:
+            self._session.close()
+            self._session = None
 
 
 def calibrate_axis(axis, label: str, current_lim_a: float = 9.0,
                    timeout_s: float = 120.0, clock=None, sleep=None) -> bool:
     """축 1개 풀캘리 (~55 s 회전, 출력축이 자유로워야 한다).
 
-    ⚠️ 캘리 결과는 **RAM-only** 라 전원 사이클마다 다시 해야 한다.
+    이 함수는 현재 실행 상태만 갱신하고 NVM에는 저장하지 않는다. 영속화되지
+    않았거나 준비 플래그가 거짓인 축에 사용한다. 영속화가 자격화된 축은 전원
+    인가 뒤 준비 플래그와 오류 0을 확인하면 이 함수를 건너뛸 수 있다.
     """
     clock = clock or time.monotonic
     sleep = sleep or time.sleep
@@ -207,14 +249,15 @@ class DriveOdriveUsbAxis(DriveActuator):
     # ------------------------------------------------------------------
 
     def connect(self) -> None:
-        self._axis = self._pool.axis(self._serial, self._axis_index)
+        self._axis = self._pool.acquire_axis(self, self._serial, self._axis_index, self._node_id)
 
     def arm(self) -> None:
         """velocity-control + passthrough 로 폐루프 진입 (input_vel=0 점프 방지)."""
         axis = self._axis
         if not axis.motor.is_calibrated or not axis.encoder.is_ready:
             raise RuntimeError(
-                "%s 미캘리 — 캘리는 RAM-only 라 전원 사이클마다 다시 해야 한다."
+                "%s 캘리 상태 미준비 — 출력축을 자유롭게 한 뒤 캘리하거나 "
+                "영속 플래그와 축 오류를 확인한다."
                 % self.label)
         axis.error = 0
         axis.motor.error = 0
@@ -226,14 +269,28 @@ class DriveOdriveUsbAxis(DriveActuator):
         axis.controller.config.input_mode = _INPUT_PASSTHROUGH
         axis.controller.input_vel = 0.0
         self._target_vel = 0.0
+        self._last_rx_ms = None
+        self._last_arm_check_ms = self._now_ms()
         axis.requested_state = _AXIS_CLOSED_LOOP
         self._poll_now()      # arm 직후 stale 오판 방지 — last_rx 시드
                               # (steer_ak40 이 이걸 빼서 첫 tick estop 이 났었다)
 
+    def arm_confirmed(self) -> bool:
+        # ChassisManager's bounded confirmation loop does not call tick().
+        # Refresh pending USB state at most 50 Hz, without sending commands.
+        now = self._now_ms()
+        if now - getattr(self, "_last_arm_check_ms", float("-inf")) >= 20.0:
+            self._last_arm_check_ms = now
+            self._poll_now()
+        state = self.state()
+        return not state["stale"] and state["axis_state"] == _AXIS_CLOSED_LOOP and state["axis_error"] == 0
+
     def disarm(self) -> None:
         self._target_vel = 0.0
-        self._safe(lambda axis: setattr(axis.controller, "input_vel", 0.0))
-        self._safe(lambda axis: setattr(axis, "requested_state", _AXIS_IDLE))
+        zeroed = self._safe(lambda axis: setattr(axis.controller, "input_vel", 0.0))
+        idled = self._safe(lambda axis: setattr(axis, "requested_state", _AXIS_IDLE))
+        if not (zeroed and idled):
+            raise RuntimeError("USB stop write failed")
 
     def set_velocity(self, turns_per_s: float) -> None:
         """다음 tick() 에 전송할 **바퀴** 목표 속도(turns/s)."""
@@ -241,9 +298,15 @@ class DriveOdriveUsbAxis(DriveActuator):
 
     def tick(self) -> None:
         """쓰기는 매 tick, 읽기는 자기 슬롯 차례에만."""
-        self._tick_index += 1
         motor_tps = self._target_vel * self._gear_ratio * self._sign
-        self._safe(lambda axis: setattr(axis.controller, "input_vel", motor_tps))
+        written = self._safe(lambda axis: setattr(axis.controller, "input_vel", motor_tps))
+        self.poll_feedback()
+        if not written:
+            raise RuntimeError("USB velocity write failed")
+
+    def poll_feedback(self) -> None:
+        """Round-robin feedback in IDLE/FAULT/ARMING without command writes."""
+        self._tick_index += 1
         if self._tick_index % self._poll_period_ticks == self._poll_slot:
             self._poll_now()
 
@@ -264,17 +327,24 @@ class DriveOdriveUsbAxis(DriveActuator):
             "axis_state": self._axis_state,
             "stale": age_ms is None or age_ms > self._stale_ms,
             "last_rx_age_ms": age_ms,
+            "last_feedback_age_ms": age_ms,
             "rx_polls": self._rx_polls,
             "error_count": self._error_count,
         }
 
     def estop(self) -> None:
-        self._target_vel = 0.0
-        self._safe(lambda axis: setattr(axis.controller, "input_vel", 0.0))
-        self._safe(lambda axis: setattr(axis, "requested_state", _AXIS_IDLE))
+        self.disarm()
+
+    def health_state(self) -> dict:
+        return self.state()
 
     def close(self) -> None:
-        self._safe(lambda axis: setattr(axis, "requested_state", _AXIS_IDLE))
+        try:
+            if self._axis is not None:
+                self.disarm()
+        finally:
+            self._axis = None
+            self._pool.release_axis(self)
 
     # ------------------------------------------------------------------
     # 내부 — 모든 USB 접근은 여기를 지난다
@@ -296,6 +366,9 @@ class DriveOdriveUsbAxis(DriveActuator):
         `stale` 로 드러난다."""
         if self._axis is None:
             return
+        # Sequential USB properties may block. The first value can already be
+        # old when the last read completes, so age the batch from its start.
+        started_ms = self._now_ms()
         try:
             axis = self._axis
             actual_vel = axis.encoder.vel_estimate
@@ -309,5 +382,5 @@ class DriveOdriveUsbAxis(DriveActuator):
         self._cur_a = cur_a
         self._axis_error = axis_error
         self._axis_state = axis_state
-        self._last_rx_ms = self._now_ms()
+        self._last_rx_ms = started_ms
         self._rx_polls += 1

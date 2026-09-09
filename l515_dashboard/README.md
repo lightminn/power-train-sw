@@ -7,9 +7,10 @@ does not stop camera capture, ROS publication, or SRT.
 The local control endpoint is the Linux abstract Unix socket `@powertrain-l515-gateway`.
 It creates no socket pathname, and the Gateway accepts only same-UID peers using `SO_PEERCRED`.
 
-Run the managed Gateway in `powertrain_ros`, then attach any number of dashboards. On a fresh
-checkout the container entrypoint builds the three ROS packages before starting the Gateway; it
-also rebuilds when a source file is newer than the installed workspace:
+Run the managed Gateway in `powertrain_ros`, then attach up to eight concurrent dashboards (the
+control server's configured `max_clients`). On a fresh checkout the container entrypoint builds
+the three ROS packages before starting the Gateway; it also rebuilds when a source file is newer
+than the installed workspace:
 
 ```bash
 sudo bash scripts/install_powertrain_runtime_dir.sh  # one-time host install
@@ -53,6 +54,13 @@ ROS color, 10.0 Hz raw Depth, and zero SRT drops/native frame gaps. Native conti
 counts forward-missing frame numbers in `gap_count`, repeated frame numbers in
 `duplicate_count`, and all non-increasing events (duplicates plus backward resets) in
 `discontinuity_count`; duplicate callbacks are not counted as unique frames.
+
+Receiver-feedback parsing/sending contracts and the `ProfileStateMachine` policy core exist, but
+the current Gateway runtime does not bind the UDP `:5006` feedback receiver or instantiate the
+profile state machine. It therefore does not apply automatic
+`NORMAL → CONGESTED → EMERGENCY_REMOTE` profile changes. The laptop sender in
+`scripts/recv_remote_operation.py` and the pure-core tests are implementation evidence for those
+pieces, not an end-to-end Gateway integration result.
 
 If startup reports a singleton/lock failure, do not delete the persistent
 `/run/powertrain/l515-gateway.lock` file or kill an unknown process. A stale file is normal;

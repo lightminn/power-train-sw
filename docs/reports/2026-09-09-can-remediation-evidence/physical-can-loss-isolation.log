@@ -1,0 +1,92 @@
+powertrain preflight ok: STOP_MM=200 provenance=BENCH
+[INFO] [launch]: All log files can be found below /root/.ros/log/2026-08-18-06-56-56-625077-jetson-orin-1
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [us100_safety-1]: process started with pid [25]
+[INFO] [chassis-2]: process started with pid [27]
+[chassis-2] [INFO] [1787036217.807401648] [chassis_node]: Real chassis on can0
+[chassis-2] [INFO] [1787036217.975839376] [chassis_node]: chassis_node started (loop 50 Hz, min_rev 0.0, gear_ratio 5.0, v_max 1.5, safety_required=True, authority_enabled=True, contract_v2_verified=False, arm_gate_mode=production)
+[chassis-2] [WARN] [1787036272.271043376] [chassis_node]: authority request IDLE accepted: mode=IDLE; state=IDLE
+powertrain preflight warning: STOP_MM provenance is BENCH
+[can_watchdog] can0 monitoring; external reset requires no owner
+3: can0: <NOARP,UP,LOWER_UP,ECHO> mtu 16 qdisc pfifo_fast state UP mode DEFAULT group default qlen 1000
+    link/can  promiscuity 0 minmtu 0 maxmtu 0 
+    can state ERROR-ACTIVE (berr-counter tx 0 rx 0) restart-ms 100 
+	  bitrate 500000 sample-point 0.870 
+	  tq 20 prop-seg 43 phase-seg1 43 phase-seg2 13 sjw 1
+	  mttcan: tseg1 2..255 tseg2 0..127 sjw 1..127 brp 1..511 brp-inc 1
+	  mttcan: dtseg1 1..31 dtseg2 0..15 dsjw 1..15 dbrp 1..15 dbrp-inc 1
+	  clock 50000000 
+	  re-started bus-errors arbit-lost error-warn error-pass bus-off
+	  0          0          0          0          0          0         numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 parentbus platform parentdev c310000.mttcan 
+    RX:  bytes packets errors dropped  missed   mcast           
+      17016128 2127016      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+          5600   35369      0       0       0       0 
+powertrain_session
+powertrain_control
+powertrain_chassis
+powertrain_canwatchdog
+{
+  "recognized_all_ten": false,
+  "all_motor_errors_zero": true,
+  "missing": [
+    "ODrive13",
+    "ODrive14"
+  ],
+  "counts": {
+    "ODrive15": 300,
+    "ODrive16": 300,
+    "AK3": 300,
+    "AK4": 300,
+    "AK2": 300,
+    "ODrive11": 300,
+    "ODrive12": 300,
+    "AK1": 300
+  },
+  "states": {
+    "ODrive15": {
+      "axis_error": 0,
+      "axis_state": 1
+    },
+    "ODrive16": {
+      "axis_error": 0,
+      "axis_state": 1
+    },
+    "AK3": {
+      "position_deg": 3.8,
+      "speed_raw": 0,
+      "current_raw": 0,
+      "temperature_c": 53,
+      "fault": 0
+    },
+    "AK4": {
+      "position_deg": 0.0,
+      "speed_raw": 0,
+      "current_raw": 0,
+      "temperature_c": 52,
+      "fault": 0
+    },
+    "AK2": {
+      "position_deg": 0.0,
+      "speed_raw": 0,
+      "current_raw": 0,
+      "temperature_c": 53,
+      "fault": 0
+    },
+    "ODrive11": {
+      "axis_error": 0,
+      "axis_state": 1
+    },
+    "ODrive12": {
+      "axis_error": 0,
+      "axis_state": 1
+    },
+    "AK1": {
+      "position_deg": -0.7,
+      "speed_raw": 0,
+      "current_raw": 0,
+      "temperature_c": 52,
+      "fault": 0
+    }
+  }
+}

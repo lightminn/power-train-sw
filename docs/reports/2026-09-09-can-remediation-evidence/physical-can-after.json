@@ -1,0 +1,322 @@
+{
+  "started_at": "2026-08-18T06:59:04.143807+00:00",
+  "interface": "can0",
+  "method": "receive_only_external_frames",
+  "before": {
+    "ifindex": 3,
+    "ifname": "can0",
+    "flags": [
+      "NOARP",
+      "UP",
+      "LOWER_UP",
+      "ECHO"
+    ],
+    "mtu": 16,
+    "qdisc": "pfifo_fast",
+    "operstate": "UP",
+    "linkmode": "DEFAULT",
+    "group": "default",
+    "txqlen": 1000,
+    "link_type": "can",
+    "promiscuity": 0,
+    "min_mtu": 0,
+    "max_mtu": 0,
+    "linkinfo": {
+      "info_kind": "can",
+      "info_data": {
+        "state": "ERROR-ACTIVE",
+        "berr_counter": {
+          "tx": 0,
+          "rx": 0
+        },
+        "restart_ms": 100,
+        "bittiming": {
+          "bitrate": 500000,
+          "sample_point": 0.87,
+          "tq": 20,
+          "prop_seg": 43,
+          "phase_seg1": 43,
+          "phase_seg2": 13,
+          "sjw": 1
+        },
+        "bittiming_const": {
+          "name": "mttcan",
+          "tseg1": {
+            "min": 2,
+            "max": 255
+          },
+          "tseg2": {
+            "min": 0,
+            "max": 127
+          },
+          "sjw": {
+            "min": 1,
+            "max": 127
+          },
+          "brp": {
+            "min": 1,
+            "max": 511
+          },
+          "brp_inc": 1
+        },
+        "data_bittiming_const": {
+          "name": "mttcan",
+          "tseg1": {
+            "min": 1,
+            "max": 31
+          },
+          "tseg2": {
+            "min": 0,
+            "max": 15
+          },
+          "sjw": {
+            "min": 1,
+            "max": 15
+          },
+          "brp": {
+            "min": 1,
+            "max": 15
+          },
+          "brp_inc": 1
+        },
+        "clock": 50000000
+      },
+      "info_xstats": {
+        "restarts": 0,
+        "bus_error": 0,
+        "arbitration_lost": 0,
+        "error_warning": 0,
+        "error_passive": 0,
+        "bus_off": 0
+      }
+    },
+    "num_tx_queues": 1,
+    "num_rx_queues": 1,
+    "gso_max_size": 65536,
+    "gso_max_segs": 65535,
+    "parentbus": "platform",
+    "parentdev": "c310000.mttcan",
+    "stats64": {
+      "rx": {
+        "bytes": 16460376,
+        "packets": 2057547,
+        "errors": 0,
+        "dropped": 0,
+        "over_errors": 0,
+        "multicast": 0
+      },
+      "tx": {
+        "bytes": 5600,
+        "packets": 17093,
+        "errors": 0,
+        "dropped": 0,
+        "carrier_errors": 0,
+        "collisions": 0
+      }
+    }
+  },
+  "feedback_counts": {
+    "11:9": 100,
+    "11:20": 25,
+    "12:9": 100,
+    "12:20": 25,
+    "15:9": 100,
+    "15:20": 25,
+    "16:9": 100,
+    "16:20": 25
+  },
+  "encoders": {
+    "11": {
+      "motor_position_turns": 0.04987508803606033,
+      "motor_velocity_turns_s": 0.0
+    },
+    "12": {
+      "motor_position_turns": 0.0,
+      "motor_velocity_turns_s": 0.0
+    },
+    "15": {
+      "motor_position_turns": 0.03320838510990143,
+      "motor_velocity_turns_s": 0.0
+    },
+    "16": {
+      "motor_position_turns": -0.033222224563360214,
+      "motor_velocity_turns_s": 0.0
+    }
+  },
+  "counts": {
+    "AK3": 300,
+    "AK4": 300,
+    "ODrive15": 300,
+    "ODrive16": 300,
+    "AK2": 300,
+    "AK1": 300,
+    "ODrive11": 300,
+    "ODrive12": 300
+  },
+  "states": {
+    "AK3": {
+      "position_deg": 3.8,
+      "speed_raw": 0,
+      "current_raw": 0,
+      "temperature_c": 53,
+      "fault": 0
+    },
+    "AK4": {
+      "position_deg": 0.0,
+      "speed_raw": 0,
+      "current_raw": 0,
+      "temperature_c": 52,
+      "fault": 0
+    },
+    "ODrive15": {
+      "axis_error": 0,
+      "axis_state": 1
+    },
+    "ODrive16": {
+      "axis_error": 0,
+      "axis_state": 1
+    },
+    "AK2": {
+      "position_deg": 0.0,
+      "speed_raw": 0,
+      "current_raw": 0,
+      "temperature_c": 52,
+      "fault": 0
+    },
+    "AK1": {
+      "position_deg": -0.7,
+      "speed_raw": 0,
+      "current_raw": 0,
+      "temperature_c": 51,
+      "fault": 0
+    },
+    "ODrive11": {
+      "axis_error": 0,
+      "axis_state": 1
+    },
+    "ODrive12": {
+      "axis_error": 0,
+      "axis_state": 1
+    }
+  },
+  "missing": [
+    "ODrive13",
+    "ODrive14"
+  ],
+  "after": {
+    "ifindex": 3,
+    "ifname": "can0",
+    "flags": [
+      "NOARP",
+      "UP",
+      "LOWER_UP",
+      "ECHO"
+    ],
+    "mtu": 16,
+    "qdisc": "pfifo_fast",
+    "operstate": "UP",
+    "linkmode": "DEFAULT",
+    "group": "default",
+    "txqlen": 1000,
+    "link_type": "can",
+    "promiscuity": 0,
+    "min_mtu": 0,
+    "max_mtu": 0,
+    "linkinfo": {
+      "info_kind": "can",
+      "info_data": {
+        "state": "ERROR-ACTIVE",
+        "berr_counter": {
+          "tx": 0,
+          "rx": 0
+        },
+        "restart_ms": 100,
+        "bittiming": {
+          "bitrate": 500000,
+          "sample_point": 0.87,
+          "tq": 20,
+          "prop_seg": 43,
+          "phase_seg1": 43,
+          "phase_seg2": 13,
+          "sjw": 1
+        },
+        "bittiming_const": {
+          "name": "mttcan",
+          "tseg1": {
+            "min": 2,
+            "max": 255
+          },
+          "tseg2": {
+            "min": 0,
+            "max": 127
+          },
+          "sjw": {
+            "min": 1,
+            "max": 127
+          },
+          "brp": {
+            "min": 1,
+            "max": 511
+          },
+          "brp_inc": 1
+        },
+        "data_bittiming_const": {
+          "name": "mttcan",
+          "tseg1": {
+            "min": 1,
+            "max": 31
+          },
+          "tseg2": {
+            "min": 0,
+            "max": 15
+          },
+          "sjw": {
+            "min": 1,
+            "max": 15
+          },
+          "brp": {
+            "min": 1,
+            "max": 15
+          },
+          "brp_inc": 1
+        },
+        "clock": 50000000
+      },
+      "info_xstats": {
+        "restarts": 0,
+        "bus_error": 0,
+        "arbitration_lost": 0,
+        "error_warning": 0,
+        "error_passive": 0,
+        "bus_off": 0
+      }
+    },
+    "num_tx_queues": 1,
+    "num_rx_queues": 1,
+    "gso_max_size": 65536,
+    "gso_max_segs": 65535,
+    "parentbus": "platform",
+    "parentdev": "c310000.mttcan",
+    "stats64": {
+      "rx": {
+        "bytes": 16483664,
+        "packets": 2060458,
+        "errors": 0,
+        "dropped": 0,
+        "over_errors": 0,
+        "multicast": 0
+      },
+      "tx": {
+        "bytes": 5600,
+        "packets": 17861,
+        "errors": 0,
+        "dropped": 0,
+        "carrier_errors": 0,
+        "collisions": 0
+      }
+    }
+  },
+  "seconds": 6.0,
+  "recognized_all_ten": false,
+  "all_motor_errors_zero": true
+}

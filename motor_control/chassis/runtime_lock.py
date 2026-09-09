@@ -18,6 +18,7 @@ nonblocking ``flock``을 건다. 프로세스가 죽으면 커널이 fd를 닫�
 경로는 이 API를 호출하지 않아야 한다.
 """
 
+from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import errno
@@ -25,6 +26,7 @@ import fcntl
 import os
 from pathlib import Path
 import sys
+import threading
 from typing import Optional
 
 
@@ -107,6 +109,7 @@ class RealCanSession:
         self.path = os.fspath(path)
         self.owner_snapshot: Optional[CanOwnerSnapshot] = None
         self._lock = CanOwnerLock(self.path)
+        self._state_guard = threading.RLock()
 
     def __enter__(self):
         try:
@@ -144,7 +147,8 @@ class RealCanSession:
     def close(self) -> None:
         """lock fd를 닫는다. lock 파일은 삭제하지 않는다."""
 
-        self._lock.close()
+        with self._state_guard:
+            self._lock.close()
 
     def _busy_message(self) -> str:
         return (
@@ -158,3 +162,71 @@ class RealCanSession:
             "docker exec powertrain_ros pgrep -fa "
             "'teleop|chassis|motor_gui|preflight|calibrate|status_ak|can_|odrive|ak_control'"
         )
+
+
+def reset_generation(path: str) -> int:
+    """Read the persistent reset attempt sequence; never unlink its lock file."""
+    try:
+        with open(path + ".reset", encoding="ascii") as stream:
+            value = stream.read().strip()
+    except FileNotFoundError:
+        return 0
+    return int(value) if value else 0
+
+
+class CanMaintenanceSession:
+    """Serialize link mutation and require no owner or explicit live-owner consent.
+
+    An owner must stop/latch its controller in the same executor before mutation.
+    Passing its session only avoids recursively acquiring its own CAN flock; it
+    never grants permission to a different process or a closed session.
+    """
+
+    def __init__(self, channel="can0", path=None, owner_session=None):
+        self.channel = channel
+        self.owner_session = owner_session
+        self.path = path or (owner_session.path if owner_session else
+                             f"/run/powertrain/{channel}.lock")
+        self._reset_lock = CanOwnerLock(self.path + ".reset")
+        self._stack = None
+
+    def __enter__(self):
+        stack = ExitStack()
+        try:
+            self._reset_lock.acquire()
+            stack.callback(self._reset_lock.close)
+            if self.owner_session is None:
+                stack.enter_context(RealCanSession(
+                    channel=self.channel, owner="can-maintenance", path=self.path))
+            else:
+                owner = self.owner_session
+                stack.enter_context(owner._state_guard)
+                if (owner.path != self.path or owner.channel != self.channel
+                        or owner._lock.fd is None or owner.owner_snapshot is None
+                        or owner.owner_snapshot.pid != os.getpid()):
+                    raise CanOwnershipError("CAN reset requires the live local owner session")
+            self._stack = stack
+            return self
+        except BaseException:
+            stack.close()
+            raise
+
+    @property
+    def generation(self):
+        return reset_generation(self.path)
+
+    def mark_reset(self):
+        """Invalidate every pre-reset observation, including on a failed reset."""
+        if self._stack is None:
+            raise CanOwnershipError("CAN reset requires acquired maintenance ownership")
+        generation = self.generation + 1
+        data = str(generation).encode("ascii")
+        os.pwrite(self._reset_lock.fd, data, 0)
+        os.ftruncate(self._reset_lock.fd, len(data))
+        return generation
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self._stack is not None:
+            self._stack.close()
+            self._stack = None
+        return False

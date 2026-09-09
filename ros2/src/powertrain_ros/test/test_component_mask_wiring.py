@@ -149,13 +149,19 @@ def test_component_services_round_trip_and_motor_changes_require_idle(harness):
 
 
 def test_us100_off_ignores_no_response_and_reenable_restores_estop(harness):
+    # Masking one sensor must not clear an unrelated safety hold. In a live
+    # ROS graph the arm gate may also be held independently of US-100.
+    harness.chassis.cm.set_motion_hold("independent_test_hold", True)
     assert harness.set_component("us100", False).success is True
 
     harness.publish_no_response()
 
     safety = harness.chassis.cm.safety_snapshot()
-    assert safety.state == "RUN"
+    assert safety.state == "MOTION_HOLD"
     assert safety.estop_latched is False
+    assert "independent_test_hold" in safety.hold_sources
+    assert not any(source.startswith("us100") or source == "safety_topic_stale"
+                   for source in safety.hold_sources)
 
     assert harness.set_component("us100", True).success is True
     harness.publish_no_response()
@@ -163,6 +169,7 @@ def test_us100_off_ignores_no_response_and_reenable_restores_estop(harness):
         lambda: harness.chassis.cm.safety_snapshot().estop_latched
     )
     assert harness.chassis.cm.safety_snapshot().state == "ESTOP"
+    assert "us100" in harness.chassis.cm.safety_snapshot().active_estop_sources
 
 
 def test_robot_arm_off_ignores_stale_arm_gate_hold(harness):

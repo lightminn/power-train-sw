@@ -1251,6 +1251,158 @@ def test_ops_panel_clears_cached_component_mask_when_state_becomes_unavailable()
     assert calls == ["reset", "hide"]
 
 
+def test_ops_panel_labels_steer_mode_by_current_state_without_changing_payload():
+    import ast
+    from pathlib import Path
+    from types import SimpleNamespace
+    import operator_console.labels as labels
+    import operator_console.ops_panel as ops_panel
+
+    source_path = Path(__file__).resolve().parents[1] / "app.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    panel = next(
+        item
+        for item in tree.body
+        if isinstance(item, ast.ClassDef) and item.name == "OpsPanel"
+    )
+    method = next(
+        item
+        for item in panel.body
+        if isinstance(item, ast.FunctionDef) and item.name == "_on_state"
+    )
+    module = ast.Module(body=[method], type_ignores=[])
+    ast.fix_missing_locations(module)
+
+    class FakeButton:
+        def __init__(self):
+            self.labels = []
+            self.sensitive = []
+            self.tooltips = []
+
+        def set_label(self, value):
+            self.labels.append(value)
+
+        def set_sensitive(self, value):
+            self.sensitive.append(value)
+
+        def set_tooltip_text(self, value):
+            self.tooltips.append(value)
+
+    buttons = {action.action: FakeButton() for action in ops_panel.PANEL_ACTIONS if action.action}
+    namespace = {
+        "OFF_LABEL": labels.OFF_LABEL,
+        "ON_LABEL": labels.ON_LABEL,
+        "action_is_available": ops_panel.action_is_available,
+        "component_mask_from_state": ops_panel.component_mask_from_state,
+        "mode_allows_action": ops_panel.mode_allows_action,
+        "next_estop_cause_event": lambda *_args, **_kwargs: (None, None),
+        "PANEL_ACTIONS": ops_panel.PANEL_ACTIONS,
+    }
+    exec(compile(module, str(source_path), "exec"), namespace)
+
+    base_state = {
+        "component_mask": {"drive": True, "steer": True, "us100": True, "robot_arm": True},
+        "chassis_mode": "IDLE",
+        "estop_source": "",
+        "estop_detail": "",
+        "active_estop_sources": (),
+    }
+    node = SimpleNamespace(
+        _latest_component_mask=None,
+        _latest_chassis_mode="UNKNOWN",
+        _latest_estop_source="",
+        _latest_estop_detail="",
+        _latest_active_estop_sources=(),
+        _last_estop_cause_key=None,
+        _flow=SimpleNamespace(reset=lambda: None),
+        _hide_confirmation=lambda: None,
+        _event_sink=lambda *_args: None,
+        _action_buttons=buttons,
+        _refresh_status_line=lambda: None,
+    )
+
+    namespace["_on_state"](node, {**base_state, "steering_mode": "ackermann", "steering_available": True})
+    assert buttons["steer_mode_skid"].labels[-1] == "조향 방식 [애커만]"
+    assert buttons["steer_mode_skid"].sensitive[-1] is True
+
+    namespace["_on_state"](node, {**base_state, "steering_mode": "skid", "steering_available": True})
+    assert buttons["steer_mode_skid"].labels[-1] == "조향 방식 [스키드]"
+    assert buttons["steer_mode_skid"].sensitive[-1] is True
+
+    namespace["_on_state"](node, {**base_state, "steering_mode": "skid", "steering_available": False})
+    assert buttons["steer_mode_skid"].labels[-1] == "조향 방식 [스키드]"
+    assert buttons["steer_mode_skid"].sensitive[-1] is False
+    assert buttons["steer_mode_skid"].tooltips[-1] == "조향 모터가 없는 구성입니다 (USB 스택)"
+
+
+@pytest.mark.parametrize(
+    "mode",
+    (pytest.param(None, id="missing"), "", "crab"),
+)
+def test_ops_panel_real_state_callback_disables_invalid_steering_mode(mode):
+    """실제 GTK callback 메서드는 잘못된 모드를 상태 미확인으로 fail-close한다."""
+    from types import SimpleNamespace
+
+    import operator_console.ops_panel as ops_panel
+    from operator_console.app import OpsPanel
+
+    class FakeButton:
+        def __init__(self):
+            self.label = None
+            self.sensitive = None
+            self.tooltip = None
+
+        def set_label(self, value):
+            self.label = value
+
+        def set_sensitive(self, value):
+            self.sensitive = value
+
+        def set_tooltip_text(self, value):
+            self.tooltip = value
+
+    buttons = {
+        action.action: FakeButton()
+        for action in ops_panel.PANEL_ACTIONS
+        if action.action
+    }
+    node = SimpleNamespace(
+        _latest_component_mask=None,
+        _latest_chassis_mode="UNKNOWN",
+        _latest_estop_source="",
+        _latest_estop_detail="",
+        _latest_active_estop_sources=(),
+        _last_estop_cause_key=None,
+        _flow=SimpleNamespace(reset=lambda: None),
+        _hide_confirmation=lambda: None,
+        _event_sink=lambda *_args: None,
+        _action_buttons=buttons,
+        _refresh_status_line=lambda: None,
+    )
+    state = {
+        "component_mask": {
+            "drive": True,
+            "steer": True,
+            "us100": True,
+            "robot_arm": True,
+        },
+        "chassis_mode": "IDLE",
+        "estop_source": "",
+        "estop_detail": "",
+        "active_estop_sources": (),
+        "steering_available": True,
+    }
+    if mode is not None:
+        state["steering_mode"] = mode
+
+    OpsPanel._on_state(node, state)
+
+    button = buttons["steer_mode_skid"]
+    assert button.label == "조향 방식 [상태 미확인]"
+    assert button.sensitive is False
+    assert button.tooltip == "차대 상태 수신 전"
+
+
 def test_ops_panel_passes_the_panel_action_object_to_confirm_flow():
     # 같은 action 이름의 행이 2개(arm_lock_override 걸기/취소)라서 문자열을
     # 넘기면 _ACTION_BY_NAME 이 한 행으로 뭉개진다 — 반드시 행 객체를 넘긴다.
@@ -1263,6 +1415,143 @@ def test_ops_panel_passes_the_panel_action_object_to_confirm_flow():
     assert "self._flow.begin(action.action)" not in source
     assert "self._flow.confirm(action, held_s=held_s)" in source
     assert "self._flow.confirm(action.action" not in source
+
+
+def test_ops_panel_steer_mode_confirmation_mentions_target_mode_without_touching_payload():
+    import operator_console.ops_panel as ops_panel
+
+    flow = ops_panel.ConfirmFlow(
+        clock=lambda: 10.0,
+        state_provider=lambda: {
+            "revision": 1,
+            "steering_mode": "ackermann",
+            "steering_available": True,
+        },
+    )
+    action = next(a for a in ops_panel.PANEL_ACTIONS if a.action == "steer_mode_skid")
+
+    pending = flow.begin(action)
+    assert pending.params == {"data": True}
+    assert flow.confirm(action) == {
+        "action": "steer_mode_skid",
+        "params": {"data": True},
+        "expected_state_revision": 1,
+    }
+
+    flow = ops_panel.ConfirmFlow(
+        clock=lambda: 10.0,
+        state_provider=lambda: {
+            "revision": 1,
+            "steering_mode": "skid",
+            "steering_available": True,
+        },
+    )
+    pending = flow.begin(action)
+    assert pending.params == {"data": False}
+    assert flow.confirm(action) == {
+        "action": "steer_mode_skid",
+        "params": {"data": False},
+        "expected_state_revision": 1,
+    }
+
+
+def test_ops_panel_begin_uses_target_mode_in_steer_confirmation_copy():
+    import ast
+    from html import escape
+    from pathlib import Path
+    from types import SimpleNamespace
+    import operator_console.ops_panel as ops_panel
+
+    source_path = Path(__file__).resolve().parents[1] / "app.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    panel = next(
+        item
+        for item in tree.body
+        if isinstance(item, ast.ClassDef) and item.name == "OpsPanel"
+    )
+    method = next(
+        item
+        for item in panel.body
+        if isinstance(item, ast.FunctionDef) and item.name == "_begin"
+    )
+    module = ast.Module(body=[method], type_ignores=[])
+    ast.fix_missing_locations(module)
+
+    class FakeText:
+        def __init__(self):
+            self.values = []
+
+        def set_markup(self, value):
+            self.values.append(value)
+
+        def set_text(self, value):
+            self.values.append(value)
+
+    class FakeButton:
+        def __init__(self):
+            self.labels = []
+            self.visibilities = []
+
+        def set_label(self, value):
+            self.labels.append(value)
+
+        def set_visible(self, value):
+            self.visibilities.append(value)
+
+        def hide(self):
+            self.visibilities.append(False)
+
+    class FakeStrip:
+        def __init__(self):
+            self.no_show_all = []
+            self.shown = 0
+
+        def set_no_show_all(self, value):
+            self.no_show_all.append(value)
+
+        def show_all(self):
+            self.shown += 1
+
+    namespace = {
+        "GLib": SimpleNamespace(markup_escape_text=escape),
+        "GESTURE_HOLD": ops_panel.GESTURE_HOLD,
+    }
+    exec(compile(module, str(source_path), "exec"), namespace)
+
+    node = SimpleNamespace(
+        _flow=ops_panel.ConfirmFlow(
+            clock=lambda: 10.0,
+            state_provider=lambda: {
+                "revision": 1,
+                "steering_mode": "ackermann",
+                "steering_available": True,
+            },
+        ),
+        _active_action=None,
+        _confirm_copy=FakeText(),
+        _confirm_state=FakeText(),
+        _confirm_button=FakeButton(),
+        _confirm_strip=FakeStrip(),
+        _state_text=lambda snapshot: f"snapshot:{snapshot['steering_mode']}",
+        _emit=lambda *_args: None,
+        _hide_confirmation=lambda: None,
+    )
+    action = next(a for a in ops_panel.PANEL_ACTIONS if a.action == "steer_mode_skid")
+
+    assert namespace["_begin"](node, action) is True
+    assert "조향 방식을 스키드로 전환합니까?" in node._confirm_copy.values[0]
+
+    node._flow = ops_panel.ConfirmFlow(
+        clock=lambda: 10.0,
+        state_provider=lambda: {
+            "revision": 1,
+            "steering_mode": "skid",
+            "steering_available": True,
+        },
+    )
+    node._confirm_copy = FakeText()
+    assert namespace["_begin"](node, action) is True
+    assert "조향 방식을 애커만으로 전환합니까?" in node._confirm_copy.values[0]
 
 
 def test_video_panel_has_stale_watchdog_and_restart_resets_freshness():

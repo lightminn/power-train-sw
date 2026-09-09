@@ -93,7 +93,7 @@ class AK40:
         try:
             self.bus.send(msg, timeout=0.01)
             return True
-        except can.CanOperationError:
+        except (can.CanError, OSError):
             return False
 
     def _send(self, packet_id, data):
@@ -247,9 +247,11 @@ class AK40:
             remaining -= abs(chunk_out)
 
     def stop(self, n=5):
+        sent = False
         for _ in range(n):
-            self.send_rpm_out(0)  # ID 3은 절대 죽지 않는 안전한 패킷!
+            sent = self.send_rpm_out(0) or sent
             time.sleep(0.05)
+        return sent
 
 # ============================================================
 # 컨텍스트 매니저

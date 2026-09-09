@@ -121,7 +121,7 @@ ok "전송 완료"
 #
 # 로봇팔은 이번 구성에서 안 쓴다. 팔 스택은 팀이 별도 레포로 돌리므로 여기서
 # 건드리지 않고, 우리 쪽 팔 연동(arm_console_bridge 등)이 든 컨테이너만 내린다.
-CONFLICTS=(powertrain_control powertrain_chassis powertrain_ros powertrain_autonomy canwatchdog)
+CONFLICTS=(powertrain_control powertrain_chassis powertrain_ros powertrain_autonomy powertrain_session powertrain_canwatchdog)
 if [ "${KEEP_OTHERS:-0}" = "1" ]; then
   warn "KEEP_OTHERS=1 — 다른 컨테이너를 그대로 둔다 (모터 충돌 주의)"
 else

@@ -1,7 +1,9 @@
 # Jetson Orin Nano 전용 (ARM64, JetPack 6). nvidia-container-runtime 은 JetPack 에 기본 포함.
-# 사용 예 (젯슨에서):
-#   docker compose -f docker/docker-compose.jetson.yml up -d --build
-#   docker compose -f docker/docker-compose.jetson.yml exec powertrain bash
+# 이미지 준비 (젯슨에서, repo 루트 기준):
+#   sudo bash scripts/install_powertrain_runtime_dir.sh
+#   docker compose -f docker/docker-compose.jetson.yml build
+# 운용 기동은 README의 현재 매뉴얼을 따른다. /etc/powertrain 토큰·powertrain.env·STOP_MM
+# 및 preflight 준비 없이 기본 모든 서비스를 up하지 않는다.
 
 services:
   powertrain:
@@ -51,6 +53,11 @@ services:
     privileged: true                     # ioctl 로 인터페이스 down/up
     volumes:
       - ../:/workspace:rw
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
     working_dir: /workspace/motor_control
     command: python3 -u -m corner_module.can_watchdog
     restart: unless-stopped
@@ -256,9 +263,9 @@ services:
       retries: 3
       start_period: 10s
 
-  # WP6-B autonomy skeleton. This service is intentionally excluded from the default profile
-  # and idle even when the profile is selected. Once WP6-B exists, this service must remain the
-  # only /autonomy/cmd_vel publisher; no controller or publisher is present in Task 4.
+  # Standalone autonomy deployment is not wired, although controller code exists.
+  # This service stays outside the default profile and idle when explicitly selected.
+  # A future deployment must preserve one /autonomy/cmd_vel publisher and pass qualification.
   powertrain_autonomy:
     profiles: ["autonomy"]
     build:
@@ -281,10 +288,10 @@ services:
       - |
         set -eu
         if [ "$${AUTONOMY_ENABLED:-false}" != "false" ]; then
-          echo "WP6-B controller absent; refusing enabled state" >&2
+          echo "autonomy deployment not wired; refusing enabled state" >&2
           exit 64
         fi
-        echo "idle: no /autonomy/cmd_vel publisher in WP5.3 Task 4"
+        echo "idle: no /autonomy/cmd_vel publisher in this service"
         exec sleep infinity
     restart: unless-stopped
     healthcheck:

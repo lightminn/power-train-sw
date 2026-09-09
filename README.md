@@ -15,6 +15,19 @@ ZETIN 6륜 로커-보기(rocker-bogie) 방위 로봇의 파워트레인 SW 저�
 > 이 README 안의 날짜별 상태 문구나 `docs/reports/` 의 예전 핸드오프 보고서는 **역사적 기록**이지
 > 현재 권위가 아니다. 스크립트 단위 개발자 상세도 같은 파일을 본다.
 
+9/8 코드·문서 대조 결과와 확인 범위는 [정합성 정리 기록](docs/reports/2026-09-08-workspace-consistency.md)을
+참고한다. NumPy 백엔드 선택은 완료됐지만 autonomy 전용 Compose 배포와 Jetson receiver
+feedback 적용은 미연결이다. 환경 센싱 콘솔 탭은 팀원 Draft PR #4에 있으며 main 기능이 아니다.
+
+**통합 운용 경로(2026-09-08):** 최초 준비 후 젯슨 `scripts/robot-start`와 노트북
+`python -m operator_console`로 세션·패드·기존 관측 기능을 연결하는 선택 경로를 추가했다.
+운전 시작은 별도 길게 누르기로 확인한다. 설치 절차와 실차 미검증 범위는
+[통합 운용 안내](docs/integrated-operation.md)를 따른다. 9/9 Jetson 배포·콘솔 수신·가상 모터 ROS 루프는
+[Jetson 검증 기록](docs/reports/2026-09-09-integrated-jetson-validation.md)에 있으며,
+현재 인수 대상은 원격주행이다. 선 재연결 후 CAN 10축 통신은 확인했고 실제 모터
+구동·제동은 별도 인수다. US-100·L515는
+의도적 분리 상태이고 미완성 자율주행은 이번 테스트 판정 범위에서 제외한다.
+
 ---
 
 ## 저장소 구조
@@ -35,6 +48,7 @@ ZETIN 6륜 로커-보기(rocker-bogie) 방위 로봇의 파워트레인 SW 저�
 │                          powertrain_msgs, robot_arm_msgs(벤더링 사본)
 ├── powertrain_autonomy/ WP6 자율주행 순수 코어 (지형 추정·컨트롤러). ROS·하드웨어·시뮬 분기 없음
 ├── powertrain_observability/  진단 이벤트·헬스 순수 코어
+├── powertrain_runtime/  통합 연결 세션·인증 프록시·운전 시작 절차 (하드웨어 직접 소유 없음)
 ├── remote_video/        원격 영상 수신측 계약
 ├── operator_console/    운용 PC GTK 콘솔 (관측 수신 전용 — 조작은 ops 채널 :9001 경유만)
 ├── l515_dashboard/      L515 Gateway·TUI (단일 SDK 소유 — SRT 송신 + ROS 발행 + Textual 대시보드)
@@ -91,17 +105,24 @@ python -m pytest motor_control -q          # 대부분: python-can·pyserial 있
 알려진 기존 실패 2건은 `tests/` 의 `procedural-dev-0/analytic` 매니페스트 체크섬 드리프트,
 `powertrain_sim` 17건은 ⛔폐기된 MuJoCo 트랙 안이다.
 
-### Jetson Orin Nano (배포)
+### Jetson Orin Nano (이미지 준비)
 
 ```bash
-git clone https://github.com/lightminn/power-train-sw.git && cd power-train-sw
-sudo docker compose -f docker/docker-compose.jetson.yml up -d --build
-sudo docker compose -f docker/docker-compose.jetson.yml exec powertrain bash
+# Jetson 호스트, SSH 접속 직후 ~/ 기준. 이미 clone했다면 해당 checkout으로 이동한다.
+git clone https://github.com/lightminn/power-train-sw.git
+cd power-train-sw
+sudo bash scripts/install_powertrain_runtime_dir.sh
+sudo docker compose -f docker/docker-compose.jetson.yml build
 ```
 
 베이스 `dustynv/l4t-pytorch:r36.4.0` (CUDA + cuDNN + TensorRT + ARM PyTorch) + RealSense SDK
-(librealsense / pyrealsense2) 소스 빌드 포함. JetPack 의 `nvidia-container-runtime` 으로 추가
-설정 없이 동작. **Orin Nano 는 NVENC 하드웨어 인코더가 없어**(Orin NX/AGX 만 탑재) 영상은
+(librealsense / pyrealsense2) 소스 빌드 포함. JetPack 의 `nvidia-container-runtime` 으로
+GPU를 컨테이너에 노출한다. 위 명령은 이미지 준비까지이며, 운용 기동은
+[현재 매뉴얼](https://www.notion.so/3b02d27b08d381d99641e3565fe40ca2)의 절차를 따른다.
+특히 `/etc/powertrain`의 역할 토큰·`powertrain.env`·검증된 `STOP_MM`, preflight와
+런타임 디렉터리 준비 없이 기본 모든 서비스를 `up`하지 않는다.
+`powertrain_control`은 teleop/ops, `powertrain_chassis`는 chassis/US-100을 각각 소유한다.
+**Orin Nano 는 NVENC 하드웨어 인코더가 없어**(Orin NX/AGX 만 탑재) 영상은
 SW 인코딩(`x264enc`) + SRT(ARQ 손실복구) 로 보낸다.
 Gateway 상태에는 SDK native callback Hz, ROS 6토픽별 Hz, SRT submit/sent/drop Hz,
 aligned-depth age, 프로세스 CPU/RSS가 포함된다.
@@ -203,13 +224,15 @@ ROS 실행·토픽·서비스 표는 [`ros2/README.md`](ros2/README.md), HIL 전
 | `motor_control/corner_module/` 코너 모듈 (조향+구동 통합) | [코너 모듈 컨트롤러 — 조향+구동 통합 제어 API](https://app.notion.com/p/36b2d27b08d381818b04c1d194bcade1) |
 | `motor_control/chassis/kinematics.py` 4WS 애커만 키네마틱스 (WP2) | [4WS 애커만 키네마틱스 — 차체 명령(v, ω) → 바퀴 조향·속도](https://app.notion.com/p/3912d27b08d381a0a452fa4afdc61c45) |
 | `motor_control/chassis/` 4WS 차체 통합 제어 (ChassisManager, WP3 — 실기 HIL 완료) | [차체 통합 제어 ChassisManager — 코너 6개를 하나의 4WS 차체로](https://app.notion.com/p/3912d27b08d381e79716e04398e34bd2) |
-| `chassis/teleop_server.py`+`laptop/laptop_client_chassis.py` 무선 원격주행 (DualSense 텔레옵) | [무선 원격주행 — DualSense→노트북→젯슨→10모터 4WS](https://app.notion.com/p/39b2d27b08d38140bf8df53fe7661c6c) |
+| 현재 ROS·ops 경로의 DualSense 원격 운용 | [DualSense 운용 매뉴얼](https://www.notion.so/3b02d27b08d381d99641e3565fe40ca2) |
+| `chassis/teleop_server.py`+`laptop/laptop_client_chassis.py` 직접 CAN 텔레옵 (벤치·진단 경로) | [무선 원격주행 — DualSense→노트북→젯슨→10모터 4WS](https://app.notion.com/p/39b2d27b08d38140bf8df53fe7661c6c) |
 | `chassis/` USB 스키드 조향 (애커만↔스키드 런타임 전환, 2026-08) | 레포 문서만 — [브링업 절차](docs/reports/2026-08-05-usb-skid-bringup.md) · [설계](docs/superpowers/specs/2026-08-04-usb-skid-steer-design.md). Notion 페이지 미작성 |
 | `ros2/…/pdist80b.py`+`scripts/pdist80b_view.py` 전원 분배보드 플래그·계측 | 근거 = 레포 동봉 PDF `docs/PDIST_사용자매뉴얼_V1.7.pdf` p.16 (PID 238) · 공백표 [`docs/ui_data_gap.md`](docs/ui_data_gap.md) — 관련: [통신 GUI·스트리밍·전원 텔레메트리](https://app.notion.com/p/39d2d27b08d3815c907ae8aa338c5fa8) |
 | `docs/plans/2026-07-12-defense-robot-autonomy-software-plan.md` 자율주행 전체 계획 (**정본**) | [2026 국방로봇 자율주행 SW 전체 개발계획](https://app.notion.com/p/39c2d27b08d381728c1ade21cc72216b) — 이력: [착수 계획(~07-11)](https://app.notion.com/p/3912d27b08d381af9e8ed16fb08b0840) |
 | `l515_dashboard/` L515 Gateway·TUI | [L515 Gateway·TUI — 카메라 단일 소유·SRT 원격주행](https://app.notion.com/p/39a2d27b08d381eb8307fa7d136ad374) |
 | `ros2/` RViz 시각화 (벤치 자산) | [RViz 로봇 시각화 — 오도메트리·IMU·장애물 감지](https://app.notion.com/p/39b2d27b08d3815da7c6f46e173d7a8a) |
 | `scripts/recv_*` + 운용 콘솔 | [통신 GUI·스트리밍·전원 텔레메트리 — 통합 현황](https://app.notion.com/p/39d2d27b08d3815c907ae8aa338c5fa8) |
+| 환경 센싱 콘솔 탭 (**main 미포함**, [Draft PR #4](https://github.com/lightminn/power-train-sw/pull/4)) | [환경 센싱 모듈 기록](https://www.notion.so/3c32d27b08d3811aba24e3dbf70a63ef) |
 | `motor_control/vision/` 기존 D435i 실험·로봇팔 인식 참고 | [RGB-D 카메라 D435i 켜는 법 — 로봇팔 인식용 참고](https://app.notion.com/p/3752d27b08d381619d73d6bc19fc02d2) |
 | `motor_control/vision/` YOLO + Depth 3D 좌표 | [YOLO+Depth 융합 — 검출 물체 3D 좌표 추출](https://app.notion.com/p/37b2d27b08d38147b9aceb16268615a8) |
 | `motor_control/sensors`+`safety_us100/` US-100 거리 + 충돌방지 | [US-100 초음파 센서 — UART 거리 측정](https://app.notion.com/p/35d2d27b08d380f591b9d6553c6a320d) |
@@ -225,8 +248,8 @@ ROS 실행·토픽·서비스 표는 [`ros2/README.md`](ros2/README.md), HIL 전
 
 ## 기여 가이드
 
-- `parameter_calc/` 수정 전 [`parameter_calc/CLAUDE.md`](parameter_calc/CLAUDE.md) 의 GPU 버그 히스토리 섹션 필독.
-- **BL70200 트랙(HALL 모드) / X2212 트랙(엔코더 모드) 을 한 ODrive 에서 번갈아 쓰지 말 것** — NVM 에 남은 캘리 설정이 의도치 않게 적용된다(폭주/과전류). BL70200 복구·대조·적용은 최신 정본 `drive/bl70200/bl70200_setup.py --read/--apply/--calibrate`를 사용한다. 구형 `odrive_calibration.py`·`odrive_diff_drive_test.py`는 pp=5/cpr=30(캘리 스크립트는 UV 도 8V)을 NVM 에 써서 보드를 손상시키므로 `drive/bl70200/archive/` 로 이동하고 import 시 하드스톱으로 막았다(2026-07-19).
+- `parameter_calc/`는 종료된 읽기 전용 트랙이다. [`parameter_calc/CLAUDE.md`](parameter_calc/CLAUDE.md)의 GPU 버그 이력을 참고하되, 새 불일치는 보고만 하고 수정·재계산하지 않는다.
+- **BL70200 트랙(HALL 모드) / X2212 트랙(엔코더 모드) 을 한 ODrive 에서 번갈아 쓰지 말 것** — NVM 에 남은 캘리 설정이 의도치 않게 적용된다(폭주/과전류). BL70200 복구·대조·적용은 최신 정본 `motor_control/drive/bl70200/bl70200_setup.py --read --serial <SERIAL>` 및 `--apply/--calibrate --serial <SERIAL> --axis both --node 11`를 사용한다. 구형 `odrive_calibration.py`·`odrive_diff_drive_test.py`는 pp=5/cpr=30(캘리 스크립트는 UV 도 8V)을 NVM 에 써서 보드를 손상시키므로 `drive/bl70200/archive/` 로 이동하고 import 시 하드스톱으로 막았다(2026-07-19).
 - 구동 ODrive 는 듀얼축(M0=`axis0`+M1=`axis1`) 3보드 — 축·node 매핑은 `chassis/chassis_manager.py` 의 `DEFAULT_WHEEL_MAP` 이 기준. 단축 레거시 스크립트는 `axis1`.
 - 결과 파일(`*.pkl`, `*.mat`, `*.mp4`, `fig*.png`)은 서버 검증본 — 의도 없이 덮어쓰지 말 것.
 - `motor_control/` 스크립트는 독립 실행형 원칙 유지 — 공용 모듈 분리는 사전 합의. `motor_gui` 는 `motor_control` 을 import 하되 역의존 금지.

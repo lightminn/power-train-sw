@@ -489,6 +489,9 @@ class ChassisManager:
                     "; ".join(reasons) or "qualified=false",
                 )
                 return False
+        # One wall-time budget for all six requests and confirmations. Never
+        # wait once per axis in the single ROS executor (input TTL is 300 ms).
+        deadline = time.monotonic() + .150
         for name, c in self.corners.items():
             try:
                 c.arm()
@@ -498,14 +501,37 @@ class ChassisManager:
                 if isinstance(exc, Exception):
                     return False
                 raise
+        if not self._confirm_all_armed(deadline, "arm"):
+            return False
         self._v = self._omega = 0.0
         self._last_set_ms = self._now_ms()
         self.mode = "ARMED"
         return True
 
-    def set(self, v_mps: float, omega_rad_s: float) -> None:
+    def _confirm_all_armed(self, deadline, source) -> bool:
+        pending = list(self.corners)
+        while pending:
+            try:
+                pending = [name for name in self.corners
+                           if not self.corners[name].confirm_arm()]
+            except Exception as exc:
+                self.estop(source + "_failure", str(exc))
+                return False
+            if not pending:
+                break
+            if time.monotonic() >= deadline:
+                self.estop(source + "_confirmation_timeout", ",".join(pending))
+                return False
+            time.sleep(min(.002, max(0.0, deadline - time.monotonic())))
+        return True
+
+    def set(self, v_mps: float, omega_rad_s: float, *, received_s=None) -> None:
         if self.mode not in {"ARMED", "EXTRACTION"}:
             logger.warning("set() 무시: ARMED/EXTRACTION 아님 (mode=%s)", self.mode)
+            return
+        command_ms = self._now_ms() if received_s is None else float(received_s) * 1000.0
+        if (not math.isfinite(command_ms)
+                or not 0 <= self._now_ms() - command_ms <= self.cfg.watchdog_ms):
             return
         if not math.isfinite(v_mps) or not math.isfinite(omega_rad_s):
             self._v = self._omega = 0.0
@@ -530,7 +556,7 @@ class ChassisManager:
             # 순간 운전자의 새 의사 확인 없이 과거 명령이 재생될 수 있다. 입력의
             # 생존 시각만 갱신하고 명령은 폐기한다. cmd_watchdog HOLD와 내부
             # command_recovery HOLD는 새 set() 자체가 복구 신호이므로 예외다.
-            self._last_set_ms = self._now_ms()
+            self._last_set_ms = command_ms
             logger.info(
                 "set() 폐기: MOTION_HOLD 활성 (sources=%s)",
                 ",".join(sorted(blocking_holds)),
@@ -538,7 +564,7 @@ class ChassisManager:
             return
         self._v = v_mps
         self._omega = omega_rad_s
-        self._last_set_ms = self._now_ms()
+        self._last_set_ms = command_ms
         self._interlock.set_motion_hold(_COMMAND_RECOVERY_HOLD, False)
 
     def extraction_grant(self) -> bool:
@@ -571,6 +597,7 @@ class ChassisManager:
             self._last_extraction_reject = "distance_budget_exhausted"
             return False
 
+        deadline = time.monotonic() + .150
         for name, corner in self.corners.items():
             try:
                 corner.arm()
@@ -579,6 +606,10 @@ class ChassisManager:
                 self.estop("extraction_arm_failure", detail)
                 self._last_extraction_reject = "extraction_arm_failure"
                 return False
+
+        if not self._confirm_all_armed(deadline, "extraction_arm"):
+            self._last_extraction_reject = "extraction_arm_failure"
+            return False
 
         now_s = self._now()
         self._v = self._omega = 0.0
@@ -621,8 +652,19 @@ class ChassisManager:
         )
 
     def disarm(self) -> None:
-        for c in self.corners.values():
-            c.disarm()
+        first_error = None
+        self._v = self._omega = 0.0
+        for name, c in self.corners.items():
+            try:
+                c.disarm()
+            except BaseException as exc:
+                first_error = first_error or (name, exc)
+        if first_error is not None:
+            name, exc = first_error
+            self.estop("disarm_failure", f"{name}: {type(exc).__name__}: {exc}")
+            if not isinstance(exc, Exception):
+                raise exc
+            return
         if self.mode != "ESTOP":
             self.mode = "IDLE"
 
@@ -770,6 +812,10 @@ class ChassisManager:
         if safety.estop_latched:
             if self.mode != "ESTOP":
                 self.estop(safety.first_source or "estop", safety.first_detail)
+            for corner in self.corners.values():
+                # Never dispatch the command tick under a global ESTOP, even
+                # if a failed actuator stop left its corner mode unchanged.
+                corner._service_receive()
             return
 
         if self.mode != "ARMED":
@@ -803,8 +849,14 @@ class ChassisManager:
             self.corners[w.name].set(wc.steer_deg, drive)
 
         # 일괄 tick (각 코너가 자기 fault/과전류/stale/워치독 처리)
-        for c in self.corners.values():
-            c.tick()
+        for name, c in self.corners.items():
+            try:
+                c.tick()
+            except BaseException as exc:
+                self.estop("control_failure", f"{name}: {type(exc).__name__}: {exc}")
+                if not isinstance(exc, Exception):
+                    raise
+                return
 
         # estop 전파(사후): 이번 tick 에 트립한 코너가 있으면 전체 정지
         faulted = [name for name, c in self.corners.items() if c.mode == "FAULT"]
@@ -884,6 +936,57 @@ class ChassisManager:
             )
             self._extraction_last_tick_s = interval_end_s
 
+    def hardware_stop_proof(self, transport: str) -> dict:
+        """Local hardware evidence only; never accepts published wheel messages.
+
+        ``valid`` certifies six enabled axes, state IDLE/CLOSED_LOOP, zero error,
+        and measured feedback no older than 200 ms. ``stopped`` additionally
+        applies the existing ops threshold of 0.1 wheel turns/s.
+        """
+        from corner_module.drive_odrive_can import DriveOdriveCan
+        from corner_module.drive_odrive_usb_axis import DriveOdriveUsbAxis
+
+        proof = {"source": "chassis_" + transport, "valid": False,
+                 "stopped": False, "node_ids": [], "max_feedback_age_ms": None}
+        expected_type = {"can": DriveOdriveCan, "usb": DriveOdriveUsbAxis}.get(transport)
+        if (expected_type is None or not self._component_mask["drive"]
+                or len(self.corners) != 6):
+            return proof
+        node_ids, ages, speeds = [], [], []
+        try:
+            for name, corner in self.corners.items():
+                if not isinstance(corner.drive, expected_type) or not corner._drive_enabled:
+                    return proof
+                state = self._cached_actuator_state(corner.drive)
+                node = state["node_id"]
+                expected_node = next(item.drive_node_id for item in self._wheel_map if item.wheel == name)
+                if type(node) is not int or node != expected_node:
+                    return proof
+                node_ids.append(node)
+                if transport == "can":
+                    axis_ages = (state["last_heartbeat_age_ms"], state["last_encoder_age_ms"])
+                else:
+                    axis_ages = (state["last_feedback_age_ms"],)
+                for age in axis_ages:
+                    if (isinstance(age, bool) or not isinstance(age, (int, float))
+                            or not math.isfinite(age) or not 0 <= age <= 200):
+                        return proof
+                    ages.append(float(age))
+                speed = float(state["actual_vel"])
+                if (not math.isfinite(speed) or state.get("stale", True)
+                        or state["axis_error"] != 0 or state["axis_state"] not in (1, 8)):
+                    return proof
+                speeds.append(speed)
+        except (KeyError, TypeError, ValueError, StopIteration):
+            return proof
+        proof["node_ids"] = sorted(node_ids)
+        if proof["node_ids"] != list(range(11, 17)):
+            return proof
+        proof["max_feedback_age_ms"] = max(ages)
+        proof["valid"] = True
+        proof["stopped"] = all(abs(speed) < .1 for speed in speeds)
+        return proof
+
     def snapshot(self) -> ChassisSnapshot:
         wheels = []
         corner_states = {}
@@ -899,7 +1002,14 @@ class ChassisManager:
                 steer_deg=float(steer_state.get("actual_deg", 0.0)),
                 drive_current_a=float(drive_state.get("cur_a", 0.0)),
                 steer_current_a=float(steer_state.get("cur_a", 0.0)),
-                drive_stale=bool(drive_state.get("stale", False)),
+                drive_stale=bool(
+                    drive_state.get("stale", False)
+                    or drive_state.get("encoder_stale", False)
+                    or drive_state.get("heartbeat_stale", False)
+                    or ("axis_state" in drive_state
+                        and drive_state["axis_state"] not in (1, 8))
+                    or (corner.mode == "ARMED" and "axis_state" in drive_state
+                        and drive_state["axis_state"] != 8)),
                 steer_stale=bool(steer_state.get("stale", False)),
                 drive_axis_error=int(drive_state.get("axis_error", 0)),
                 steer_fault=int(steer_state.get("fault", 0)),

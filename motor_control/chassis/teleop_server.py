@@ -384,15 +384,11 @@ def main(argv=None):
         STEERING_SKID,
     )
 
-    if not args.skid_usb:
-        # USB 스키드는 can0 을 아예 열지 않으므로 워치독도 lock 도 필요 없다.
-        from corner_module.can_watchdog import CanWatchdog
-        CanWatchdog(args.channel).start()   # mttcan TX 웻지 자가복구 (데몬 스레드)
-
     background = None
     sensor = None
     cm = None
     can_session = None
+    can_watchdog = None
     if not args.skid_usb:
         from chassis.runtime_lock import RealCanSession
         can_session = RealCanSession(
@@ -450,6 +446,12 @@ def main(argv=None):
         )
         cm = ChassisManager(corners, cfg)
         cm.connect()
+        if can_session is not None:
+            from corner_module.can_watchdog import CanWatchdog
+            can_watchdog = CanWatchdog(
+                args.channel, owner_session=can_session,
+                before_reset=lambda: cm.estop("can_reset", "CAN recovery requires fresh re-arm"),
+            )
     except BaseException as exc:
         if cm is not None and not isinstance(exc, KeyboardInterrupt):
             _best_effort_estop(
@@ -458,6 +460,8 @@ def main(argv=None):
                 _safe_exception_detail(exc),
             )
         cleanup_chassis_resources(cm, background, sensor)
+        if can_watchdog is not None:
+            can_watchdog.close()
         if can_session is not None:
             can_session.close()
         raise
@@ -473,11 +477,17 @@ def main(argv=None):
     prev_sq = 0
     period = 1.0 / cfg.loop_hz
     last_print = 0.0
+    last_can_check = 0.0
     verdict = None
 
     def control_step():
-        nonlocal prev_sq, last_print, verdict
+        nonlocal prev_sq, last_print, last_can_check, verdict
         t0 = time.monotonic()
+        if can_watchdog is not None and t0 - last_can_check >= 1.0:
+            # Same control thread: the stop latch and link reset cannot race
+            # with this process sending another motion command.
+            can_watchdog.step()
+            last_can_check = t0
         with lock:
             disconnect_pending = consume_wireless_disconnect(shared)
             estop_pending = consume_wireless_estop(shared)
@@ -584,6 +594,8 @@ def main(argv=None):
             background,
             sensor,
         )
+        if can_watchdog is not None:
+            can_watchdog.close()
         if can_session is not None:
             can_session.close()
         raise
@@ -676,6 +688,8 @@ def main(argv=None):
         if errors:
             print("[server] 정리 예외 %d건: %s" % (len(errors), errors[0]),
                   flush=True)
+        if can_watchdog is not None and stopped:
+            can_watchdog.close()
         if can_session is not None:
             can_session.close()
         print("[server] IDLE — 종료", flush=True)

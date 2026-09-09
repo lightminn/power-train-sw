@@ -22,13 +22,13 @@ from .transport.base import validate_gear_ratio
 _FRONTEND = Path(__file__).resolve().parents[1] / "frontend"
 
 
-def _make_transport(track: str, drive_gear_ratio: float = 5.0):
+def _make_transport(track: str, drive_gear_ratio: float = 5.0, *, usb_serial=None, usb_axis=None, usb_node=None):
     if track == "fake":
         from .transport.fake import FakeTransport
         return FakeTransport()
     if track == "usb":
         from .transport.usb_odrive import UsbOdriveBackend
-        return UsbOdriveBackend(gear_ratio=drive_gear_ratio)
+        return UsbOdriveBackend(gear_ratio=drive_gear_ratio, serial=usb_serial, axis_num=usb_axis, node_id=usb_node)
     if track == "ak":
         from .transport.can_device import CanTransport
         from .transport.ak_device import AkDevice
@@ -43,9 +43,10 @@ def _make_transport(track: str, drive_gear_ratio: float = 5.0):
     raise ValueError(f"unknown track: {track!r}")
 
 
-def create_app(track: str = "fake", drive_gear_ratio: float = 5.0) -> FastAPI:
+def create_app(track: str = "fake", drive_gear_ratio: float = 5.0, *, usb_serial=None, usb_axis=None, usb_node=None) -> FastAPI:
     app = FastAPI(title="motor_gui", version="0.1")
-    worker = HardwareWorker(_make_transport(track, drive_gear_ratio=drive_gear_ratio))
+    kwargs = dict(usb_serial=usb_serial, usb_axis=usb_axis, usb_node=usb_node) if track == "usb" else {}
+    worker = HardwareWorker(_make_transport(track, drive_gear_ratio=drive_gear_ratio, **kwargs))
     recorder = Recorder(worker)
 
     @app.on_event("startup")
@@ -158,6 +159,9 @@ def _positive_gear_ratio(value: str) -> float:
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="motor_gui backend")
     p.add_argument("--track", choices=["fake", "usb", "can", "ak", "odrive_can"], default="fake")
+    p.add_argument("--usb-serial", help="USB board serial (required for USB)")
+    p.add_argument("--usb-axis", type=int, choices=(0, 1), help="USB axis (required for USB)")
+    p.add_argument("--usb-node", type=int, help="Expected CAN node of USB axis (required for USB)")
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=8000)
     p.add_argument(
@@ -174,8 +178,15 @@ def main() -> None:
     import uvicorn
     p = _build_parser()
     args = p.parse_args()
+    if args.track == "usb":
+        from .transport.usb_odrive import validate_target
+        try:
+            validate_target(args.usb_serial, args.usb_axis, args.usb_node)
+        except ValueError as exc:
+            p.error(str(exc))
+    kwargs = dict(usb_serial=args.usb_serial, usb_axis=args.usb_axis, usb_node=args.usb_node) if args.track == "usb" else {}
     uvicorn.run(
-        create_app(track=args.track, drive_gear_ratio=args.drive_gear_ratio),
+        create_app(track=args.track, drive_gear_ratio=args.drive_gear_ratio, **kwargs),
         host=args.host,
         port=args.port,
     )

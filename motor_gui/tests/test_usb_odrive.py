@@ -7,7 +7,7 @@ import pytest
 from motor_gui.backend.transport.usb_odrive import UsbOdriveBackend
 
 
-def test_connect_reads_tunables_without_writing_device_config(monkeypatch):
+def test_connect_reads_tunables_without_writing_device_config(monkeypatch, tmp_path):
     writes = []
 
     class TrackingConfig:
@@ -37,10 +37,13 @@ def test_connect_reads_tunables_without_writing_device_config(monkeypatch):
         )),
         encoder=SimpleNamespace(vel_estimate=0.0),
     )
-    driver = SimpleNamespace(axis0=axis, axis1=axis)
+    from drive.bl70200.tests.test_usb_remediation import board
+    driver = board(nodes=(13, 14))
+    axis.config = driver.axis1.config
+    driver.axis1 = axis
 
     odrive = types.ModuleType("odrive")
-    odrive.find_any = lambda timeout: driver
+    odrive.find_any = lambda **kwargs: driver
     enums = types.ModuleType("odrive.enums")
 
     class EnumValues:
@@ -61,12 +64,16 @@ def test_connect_reads_tunables_without_writing_device_config(monkeypatch):
     monkeypatch.setitem(sys.modules, "odrive", odrive)
     monkeypatch.setitem(sys.modules, "odrive.enums", enums)
 
-    backend = UsbOdriveBackend(gear_ratio=5.0)
+    from chassis import runtime_lock
+    session_cls = runtime_lock.RealCanSession
+    monkeypatch.setattr(runtime_lock, "RealCanSession", lambda **kw: session_cls(path=str(tmp_path / "can0.lock"), **kw))
+    backend = UsbOdriveBackend(gear_ratio=5.0, serial="3352", axis_num=1, node_id=14)
     backend.connect()
 
     assert writes == []
     assert backend.read_tunables()["vel_gain"] == 0.12
     assert backend.read_tunables()["current_lim"] == 9.0
+    backend.close()
 
 
 def _backend(gear_ratio=5.0):
@@ -161,3 +168,18 @@ def test_usb_velocity_tunables_cross_wheel_motor_boundary():
 def test_usb_gear_ratio_rejects_nonpositive_values(ratio):
     with pytest.raises(ValueError, match="gear_ratio must be finite and positive"):
         UsbOdriveBackend(gear_ratio=ratio)
+
+
+def test_usb_gui_requires_explicit_target_before_loading_hardware():
+    backend = UsbOdriveBackend()
+    with pytest.raises(ValueError, match="serial"):
+        backend.connect()
+
+
+def test_usb_gui_save_requires_complete_comms_and_exact_serial():
+    backend, axis = _backend()
+    saved = []
+    backend._drv.save_configuration = lambda: saved.append(True)
+    ack = backend.apply({"target": "odrive", "op": "save_nvm", "args": {}})
+    assert ack["ok"] is False
+    assert saved == []
