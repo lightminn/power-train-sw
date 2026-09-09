@@ -41,6 +41,7 @@ class WheelStopSample:
     wheels: Sequence[WheelStopWheel]
     authority_v: float
     authority_omega: float
+    authority_steering: float = 0.0
 
 
 def load_wheel_stop_config(path) -> WheelStopConfig:
@@ -172,13 +173,13 @@ class WheelStopPredicate:
         try:
             authority_v = float(sample.authority_v)
             authority_omega = float(sample.authority_omega)
+            authority_steering = float(sample.authority_steering)
         except (TypeError, ValueError):
             return self._reject("authority_output_nonfinite")
-        if not math.isfinite(authority_v) or not math.isfinite(
-            authority_omega
-        ):
+        if not all(math.isfinite(value) for value in (
+                authority_v, authority_omega, authority_steering)):
             return self._reject("authority_output_nonfinite")
-        if authority_v != 0.0 or authority_omega != 0.0:
+        if authority_v != 0.0 or authority_omega != 0.0 or authority_steering != 0.0:
             return self._reject("authority_output_nonzero")
 
         for wheel in wheels:

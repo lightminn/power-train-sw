@@ -1,0 +1,12 @@
+HELD START PASS: installed ops -> manual authority -> arm
+MOTION LOOP PASS: encoded input -> Jetson ROS -> virtual CAN wheel feedback -> laptop UDP
+RT-left MANUAL ACKERMANN PASS
+RT-right MANUAL ACKERMANN PASS
+LT-left MANUAL ACKERMANN PASS
+LT-right MANUAL ACKERMANN PASS
+STOP-left MANUAL ACKERMANN PASS
+STOP-right MANUAL ACKERMANN PASS
+ANGLE INDEPENDENCE PASS: same stick at RT/LT/zero has identical CAN angles within .001 degree
+INPUT LOSS / RECONNECT PASS: fresh IDLE, zero wheel feedback, no re-arm
+fixture exit 0
+All installed nodes stopped without traceback

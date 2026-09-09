@@ -218,7 +218,7 @@ def test_integrator_pivot_turns_in_place():
 
     이전 넓은 기하보다 좁은 v2는 피벗 필요 조향각이 앞 51.2°→58.1°,
     뒤 56.2°→64.1°로 커졌지만 AK 한계는 그대로 ±45°다. 따라서 클램프 후
-    스크럽이 증가해 2 s × 0.5 rad/s 명령의 적분 결과가 **0.960907 rad
+    스크럽이 증가해 2 s × 0.5 rad/s 명령의 적분 결과가 **0.9608944 rad
     (−3.91%)**로 실제 저하됐다. 명령 대비 5% 물리 계약과 이 측정값을 함께
     고정해, 더 느슨한 한계를 단순 테스트 우회로 오해하지 않게 한다.
     """
@@ -232,7 +232,7 @@ def test_integrator_pivot_turns_in_place():
     x, y, th = odo.pose()
     # 좌우 대칭이라 전진 병진은 0. 앞뒤 비대칭 때문에 횡방향으로 아주 조금 밀린다.
     assert math.hypot(x, y) < 0.03               # 2 초 피벗에 3 cm 이내
-    assert th == pytest.approx(0.960907, abs=1e-5)  # v2 결정론적 2초 적분값
+    assert th == pytest.approx(0.9608944, abs=1e-5)  # 2026-09-09 full-precision URDF 좌표의 결정론적 2초 적분값
     assert th == pytest.approx(1.0, rel=0.05)    # 실제 3.91% 손실 + 공학 여유
 
 

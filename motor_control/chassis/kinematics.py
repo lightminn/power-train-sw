@@ -156,15 +156,82 @@ def solve(geom: ChassisGeometry, v_mps: float, omega_rad_s: float) -> SolveResul
     return SolveResult(wheels, omega, steer_clamped, speed_clamped)
 
 
+def solve_steering(geom: ChassisGeometry, v_mps: float, steering: float,
+                   *, max_omega_rad_s: float = 1.2) -> SolveResult:
+    """Car-like manual 4WS: speed and normalized curvature are independent.
+
+    ``steering`` is [-1, 1], positive left. Full input reaches the inner
+    wheel's configured steering limit. The ICR lies on the fixed middle
+    axle, so every wheel shares a rolling circle without lateral scrub.
+    Speed is longitudinal at that axle's centre (also body-frame vx).
+    Body-frame vy is -omega * middle_axle_x; the geometry origin is unchanged.
+    Reverse changes wheel speeds, never steering angles. At zero speed only
+    steering moves. Yaw and wheel-speed limits slow all wheels together.
+    Legacy body Twist/pivot semantics remain exclusively in ``solve``.
+    """
+    if not all(math.isfinite(v) for v in (v_mps, steering, max_omega_rad_s)):
+        raise ValueError("non-finite manual steering input")
+    if abs(steering) > 1 or max_omega_rad_s <= 0:
+        raise ValueError("manual steering must be in [-1, 1] and yaw limit positive")
+    if not 0 < geom.steer_limit_deg < 90:
+        raise ValueError("manual steering limit must be between 0 and 90 degrees")
+    if not any(w.steerable for w in geom.wheels):
+        raise ValueError("manual Ackermann geometry needs steering wheels")
+    fixed = [w.x for w in geom.wheels if not w.steerable]
+    reference_x = sum(fixed) / len(fixed) if fixed else 0.0
+    if any(abs(x - reference_x) > 1e-6 for x in fixed):
+        raise ValueError("fixed wheels must share a transverse axle")
+
+    tangent = math.tan(math.radians(geom.steer_limit_deg))
+    direction = -1 if steering < 0 else 1
+    # |k*(x-x_ref)| <= tan(limit)*(1-k*y). Also keep each
+    # wheel's forward component positive: normal driving must not pivot.
+    bounds = []
+    for w in geom.wheels:
+        if w.steerable:
+            denominator = abs(w.x - reference_x) + direction * w.y * tangent
+            if denominator > 0:
+                bounds.append(tangent / denominator)
+        if direction * w.y > 0:
+            bounds.append(1.0 / (direction * w.y))
+    if not bounds:
+        raise ValueError("manual geometry has no finite curvature limit")
+    curvature = steering * min(bounds)
+
+    raw = []
+    for w in geom.wheels:
+        forward = 1.0 - curvature * w.y
+        lateral = curvature * (w.x - reference_x)
+        delta = math.atan2(lateral, forward) if w.steerable else 0.0
+        factor = math.hypot(forward, lateral) if w.steerable else forward
+        raw.append((w, delta, v_mps * factor))
+    peak = max(abs(speed) for _, _, speed in raw)
+    omega = v_mps * curvature
+    scale = min(1.0, geom.drive_limit_mps / peak) if peak else 1.0
+    if abs(omega) > max_omega_rad_s:
+        scale = min(scale, max_omega_rad_s / abs(omega))
+    circumference = 2 * math.pi * geom.wheel_radius_m
+    wheels = {
+        w.name: WheelCommand(w.name, math.degrees(delta), speed * scale,
+                             speed * scale / circumference)
+        for w, delta, speed in raw
+    }
+    if not all(math.isfinite(value) for w in wheels.values()
+               for value in (w.steer_deg, w.drive_mps, w.drive_turns_per_s)):
+        raise ValueError("non-finite manual steering output")
+    return SolveResult(wheels, omega * scale, False, scale < 1.0)
+
+
 # ── 기본 기하 (as-built v2 CAD 실측) ──────────────────────────────────────
 
 
 def default_geometry() -> ChassisGeometry:
     """6륜 로커보기 바퀴 배치 — **설계팀 CAD URDF 실제 제작 치수**.
 
-    출처: as-built v2 CAD URDF (`urdf/urdf_and_usd_v2.zip`, 이 안의 URDF와
-    `rover_arm_integrated/urdf/2026_07_24_URDF.urdf` 가 동일). CAD 좌표계는
-    forward=+y / lateral=+x 이며, 전체 base_link→wheel joint chain 의 rpy 를 합성한
+    출처: power-train-sim/rover_arm_integrated/urdf/2026_07_24_URDF.urdf.
+    SHA256 29581f39e888c6120fb4e31860609ff084c9233bdac53d54a3adfe47eac11afa.
+    tools/extract_ackermann_geometry.py 로 2026-09-09 재추출했다. CAD 좌표계는
+    forward=+Y / left=−X 이며, 전체 base_link→wheel joint chain 의 rpy 를 합성한
     바퀴 중심을 REP-103 으로 변환하고 좌우 대칭화했다. 키네마틱스 원점은 축거중점 ·
     좌우 대칭 중심선 · 지면이다.
 
@@ -181,7 +248,8 @@ def default_geometry() -> ChassisGeometry:
 
     ⚠️ **중간 바퀴가 축거 중심에서 60.3 mm 뒤로 치우쳐 있다.** x≈0 이면 선회·피벗 시
        측면 스크럽이 0 인데(그게 중간 2륜에 조향모터를 안 다는 근거였다), 실제로는
-       −60.3 mm 라 **스크럽이 남는다**. v4 최적화 설계값은 −11.4 mm 로 거의 중앙이었다.
+       −60.336 mm 라 legacy solve(v,ω)는 **스크럽이 남는다**.
+       수동 solve_steering()은 중간축을 회전 중심선으로 사용해 이를 피한다. v4 최적화 설계값은 −11.4 mm 로 거의 중앙이었다.
 
     ⚠️ **제자리 피벗은 현 조향한계로 불가능**: 필요 |δ| = 90° − atan(|y| ÷ |x|) →
        **앞 58.1° · 뒤 64.1°** 로 AK 한계 ±45° 를 넘는다. `solve()` 가 45° 로 클램프하고
@@ -190,16 +258,18 @@ def default_geometry() -> ChassisGeometry:
 
     참고 — **v4 최적화 설계값과 다르다**(제작 과정에서 바뀜):
        v4: 축거 1018 mm, 앞 +509.0 / 중간 −11.4 / 뒤 −509.0 mm (윤거는 v4 범위 밖)
-       CAD 도출은 `parameter_calc/python_gpu_triangle/export_chassis_geometry.py`.
+       추출 근거: docs/reports/2026-09-09-ackermann-urdf-evidence.json.
+    URDF의 continuous 조향에는 각도 한계가 없다. ±45°는 운용 한계이며
+    103.56 mm는 무하중 메시 외형 반경이다(지상 실효 반경 커미셔닝 별도).
     """
     return ChassisGeometry(wheels=[
-        # as-built v2 CAD URDF joint-chain 합성 (forward=+y/lateral=+x, 좌우 대칭화)
-        Wheel("front_left",  +0.4377, +0.2725, True),
-        Wheel("front_right", +0.4377, -0.2725, True),
-        Wheel("mid_left",    -0.0603, +0.3595, False),
-        Wheel("mid_right",   -0.0603, -0.3595, False),
-        Wheel("rear_left",   -0.4377, +0.2125, True),
-        Wheel("rear_right",  -0.4377, -0.2125, True),
+        # Zero-pose full-chain FK → REP-103=(CAD Y,-CAD X), 좌우 대칭화
+        Wheel("front_left",  +0.437747327500, +0.2725, True),
+        Wheel("front_right", +0.437747327500, -0.2725, True),
+        Wheel("mid_left",    -0.060335567500, +0.3595, False),
+        Wheel("mid_right",   -0.060335567500, -0.3595, False),
+        Wheel("rear_left",   -0.437747327500, +0.2125, True),
+        Wheel("rear_right",  -0.437747327500, -0.2125, True),
     ])
 
 

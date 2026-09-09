@@ -63,12 +63,13 @@ def _frame(
 def _assert_zero(output):
     assert output.drive.linear == 0.0
     assert output.drive.angular == 0.0
+    assert output.drive.steering == 0.0
     assert output.arm.joint_velocity == 0.0
     assert output.arm.gripper == 0.0
 
 
 def _assert_exclusive(output):
-    drive_nonzero = output.drive.linear != 0.0 or output.drive.angular != 0.0
+    drive_nonzero = any((output.drive.linear, output.drive.angular, output.drive.steering))
     arm_nonzero = (
         output.arm.joint_velocity != 0.0 or output.arm.gripper != 0.0
     )
@@ -99,7 +100,8 @@ def test_drive_stick_direction_uses_rep103_before_four_wheel_steering(
 ):
     from chassis.kinematics import default_geometry, solve
 
-    gateway = RemoteInputGateway(GatewayConfig(max_linear=1.5, max_angular=1.2))
+    gateway = RemoteInputGateway(GatewayConfig(
+        max_linear=1.5, max_angular=1.2, manual_command_format="twist"))
     session_id = _connect_drive(gateway)
     gateway.submit(_frame(
         sequence=1, received_s=0.01, session_id=session_id, deadman=True,
@@ -109,11 +111,32 @@ def test_drive_stick_direction_uses_rep103_before_four_wheel_steering(
     assert output.drive.linear == pytest.approx(linear)
     # SDL stick-right is positive; REP-103 yaw-right is negative.
     assert output.drive.angular == pytest.approx(angular)
+    assert output.drive.steering == 0.0
     wheels = solve(default_geometry(), output.drive.linear, output.drive.angular).wheels
     for name in ("front_left", "front_right"):
         assert wheels[name].steer_deg * front_sign > 0
     for name in ("rear_left", "rear_right"):
         assert wheels[name].steer_deg * front_sign < 0
+
+
+@pytest.mark.parametrize("rt,lt,speed", [(0.0, 0.0, 0.0), (0.5, 0.0, 0.75), (0.0, 0.5, -0.75)])
+@pytest.mark.parametrize("left_x,steering", [(0.6, -0.6), (-0.6, 0.6)])
+def test_default_manual_steering_is_unchanged_at_stop_forward_and_reverse(rt, lt, speed, left_x, steering):
+    gateway = RemoteInputGateway(GatewayConfig(max_linear=1.5))
+    session_id = _connect_drive(gateway)
+    gateway.submit(_frame(
+        sequence=1, received_s=0.01, session_id=session_id, deadman=True,
+        left_x=left_x, right_trigger=rt, left_trigger=lt,
+    ))
+    output = gateway.tick(0.01)
+    assert output.drive.linear == pytest.approx(speed)
+    assert output.drive.steering == pytest.approx(steering)
+    assert output.drive.angular == 0.0
+
+
+def test_unknown_manual_format_fails_instead_of_falling_back_to_twist():
+    with pytest.raises(ValueError, match="manual_command_format"):
+        RemoteInputGateway(GatewayConfig(manual_command_format="steerng"))
 
 
 def test_30hz_drive_stops_on_stale_and_hold_clear_never_restores_command():
@@ -134,7 +157,8 @@ def test_30hz_drive_stops_on_stale_and_hold_clear_never_restores_command():
         )
         output = gateway.tick(now_s)
         assert output.drive.linear == pytest.approx(0.7)
-        assert output.drive.angular == pytest.approx(0.2)
+        assert output.drive.angular == 0.0
+        assert output.drive.steering == pytest.approx(0.2)
         _assert_exclusive(output)
 
     output = gateway.tick(now_s + 0.200001)
@@ -177,6 +201,7 @@ def test_deadman_release_and_estop_edge_zero_on_the_next_tick():
             received_s=0.01,
             deadman=True,
             right_trigger=0.5,
+            left_x=0.5,
             session_id=session_id,
         )
     )

@@ -19,6 +19,16 @@ MOTION_HOLD = "MOTION_HOLD"
 JOINT_NAMES = tuple("joint_%d" % index for index in range(1, 6))
 
 
+def validate_manual_command_format(command_format, *, assist_enabled=False):
+    """Reject unsupported startup combinations before opening control inputs."""
+    if command_format not in ("steering", "twist"):
+        raise ValueError("manual_command_format must be steering or twist")
+    if command_format == "steering" and assist_enabled:
+        raise ValueError(
+            "assist_enabled=true requires manual_command_format=twist; "
+            "steering assist is not qualified")
+
+
 @dataclass(frozen=True)
 class GatewayConfig:
     input_timeout_s: float = 0.20
@@ -26,12 +36,14 @@ class GatewayConfig:
     max_linear: float = 1.0
     max_angular: float = 1.0
     max_joint_velocity: float = 1.0
+    manual_command_format: str = "steering"
 
 
 @dataclass(frozen=True)
 class DriveOutput:
     linear: float = 0.0
     angular: float = 0.0
+    steering: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -88,6 +100,7 @@ class RemoteInputGateway:
         stow_confirmed=None,
     ):
         self.cfg = cfg or GatewayConfig()
+        validate_manual_command_format(self.cfg.manual_command_format)
         for name in (
             "input_timeout_s",
             "stopping_timeout_s",
@@ -287,12 +300,17 @@ class RemoteInputGateway:
         linear = (
             frame.axes.right_trigger - frame.axes.left_trigger
         ) * self.cfg.max_linear
-        # SDL stick-right is positive, but REP-103 yaw-right is negative.
-        angular = -frame.axes.left_x * self.cfg.max_angular
+        # Steering is independent of speed, including at zero and in reverse.
+        # SDL stick-right is positive; our wheel-frame steering is left-positive.
+        steering = -frame.axes.left_x
+        angular = 0.0
+        if self.cfg.manual_command_format == "twist":
+            angular = steering * self.cfg.max_angular
+            steering = 0.0
         self._last_reason = "DRIVE input"
         return GatewayOutput(
             state=self.state,
-            drive=DriveOutput(linear, angular),
+            drive=DriveOutput(linear, angular, steering),
             arm=ArmOutput(joint_name=JOINT_NAMES[self._selected_joint]),
             reason=self._last_reason,
             input_fresh=True,

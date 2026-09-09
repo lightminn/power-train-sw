@@ -1,0 +1,13 @@
+[INFO] [0000020026.366296448] [chassis_node]: Real chassis on vcan77
+[INFO] [0000020026.651159008] [chassis_node]: chassis_node started (loop 50 Hz, min_rev 0.0, gear_ratio 5.0, v_max 1.5, safety_required=True, authority_enabled=True, contract_v2_verified=False, arm_gate_mode=production)
+[INFO] [0000020026.654682912] [chassis_node]: arm status mission=0 status=STOWED_LOCKED
+[WARN] [0000020028.934618720] [chassis_node]: authority request MANUAL accepted: mode=TELEOP; neutral confirmation required; state=TELEOP
+set() 무시: ARMED/EXTRACTION 아님 (mode=IDLE)
+set() 무시: ARMED/EXTRACTION 아님 (mode=IDLE)
+set() 무시: ARMED/EXTRACTION 아님 (mode=IDLE)
+[INFO] [0000020029.011834336] [chassis_node]: arm request: mode=ARMED
+set() 무시: ARMED/EXTRACTION 아님 (mode=IDLE)
+[WARN] [0000020032.848723040] [chassis_node]: authority request IDLE accepted: mode=IDLE; state=IDLE
+set() 무시: ARMED/EXTRACTION 아님 (mode=IDLE)
+[WARN] [0000020034.195899872] [chassis_node]: authority request IDLE accepted: mode=IDLE; state=IDLE
+[WARN] [0000020034.301817472] [chassis_node]: authority request IDLE accepted: mode=IDLE; state=IDLE

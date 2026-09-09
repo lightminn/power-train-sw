@@ -269,8 +269,10 @@ python -m pytest motor_control -q
 
 - 6륜 로커-보기. **v4 최적화 기준 반지름 100 mm·질량 50 kg**과 제작 v2 기하를 구분한다.
   런타임 `default_geometry()`의 v2 반지름은 **103.56 mm**, 앞/중/뒤 윤거는
-  **545/719/425 mm**다. 축간거리는 CAD 기준 **875.5 mm**, 반올림한 런타임 좌표
-  `x = ±0.4377 m` 기준 **875.4 mm**다. 정본은 `chassis/kinematics.py`다.
+  **545/719/425 mm**다. 축간거리는 **875.494655 mm**, 런타임 좌표는
+  `x = ±0.437747327500 m`, 중간축 `x = −0.060335567500 m`다.
+  2026-09-09 URDF 전체 joint chain 재추출 근거는
+  `docs/reports/2026-09-09-ackermann-urdf-evidence.json`, 정본은 `chassis/kinematics.py`다.
   설계 기본 속도 0.80 m/s와 원격 수동운용 설정 1.5 m/s·1.2 rad/s도 별도 값이다.
 - **구동**: BL70200 + 내장 HALL ×3 — **pp=10, cpr=60**(2026-06 실측. 구문서의 pp=5/cpr=30은
   오기) ×6. **MKS ODrive v3.6**(2026-09-09 사용자 확인) **듀얼축 보드 3장** = CAN node 11/12 · 13/14 · 15/16. 감속 1:5
@@ -334,6 +336,11 @@ python -m pytest motor_control -q
   `skid_geometry()`), `chassis_manager.py`(코너 6개 통합, estop 전파·US-100 게이팅·워치독,
   `build_real_corners()` / `build_usb_skid_corners()`),
   `teleop_dualsense.py`(유선), `teleop_server.py`(무선. `--skid-usb`로 USB 스키드).
+  - **수동 애커만 조향**: 기본 `/teleop/drive_command`는 속도와 정규화 조향을
+    독립 전달한다. L1을 누른 상태에서 L스틱만 움직이면 구동 0으로 조향하고,
+    RT/LT 전후진에도 동일 스틱은 동일 조향각이다. 회전 중심은 고정 중간축에 둔다.
+    `manual_command_format=twist`는 명시적 레거시이며 보조주행 `assist_enabled`는
+    이 레거시에서만 지원한다. 새 메시지와 ROS 노드를 함께 재빌드한다.
   - **min_drive_turns_per_s는 2026-07-17 D3/D4로 기본값 전면 0 = 폐지.** 저속 코깅 대응은
     `DriveOdriveCan`의 `friction_ff`/`v_knee`(torque_ff 피드포워드, 기본 off)로 대체.
   - **ops 채널 :9001** — 복구·운용 명령 단일 게이트 `ops_broker`. 역할 토큰

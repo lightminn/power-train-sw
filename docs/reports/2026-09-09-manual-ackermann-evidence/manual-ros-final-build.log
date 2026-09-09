@@ -1,0 +1,12 @@
+Error response from daemon: No such container: powertrain-manual-loop
+Starting >>> powertrain_ros
+Finished <<< powertrain_ros [2.21s]
+--- stderr: powertrain_ros
+warning: build_py: byte-compiling is disabled, skipping.
+
+warning: install_lib: byte-compiling is disabled, skipping.
+
+---
+
+Summary: 1 package finished [2.74s]
+  1 package had stderr output: powertrain_ros

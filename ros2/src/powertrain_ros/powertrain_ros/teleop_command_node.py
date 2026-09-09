@@ -15,6 +15,8 @@ import uuid
 
 from control_msgs.msg import JointJog
 from geometry_msgs.msg import Twist
+from powertrain_msgs.msg import ManualDriveCommand
+from rcl_interfaces.msg import ParameterDescriptor
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import (
@@ -60,14 +62,19 @@ def make_status_line(output):
 
 
 class TeleopCommandNode(Node):
-    def __init__(self):
-        super().__init__("teleop_command")
+    def __init__(self, parameter_overrides=None):
+        super().__init__("teleop_command", parameter_overrides=parameter_overrides or [])
         self.declare_parameter("host", "0.0.0.0")
         self.declare_parameter("port", DEFAULT_PORT)
         self.declare_parameter("input_timeout_s", 0.20)
         self.declare_parameter("stopping_timeout_s", 2.0)
         self.declare_parameter("max_linear", 1.5)
         self.declare_parameter("max_angular", 1.2)
+        self.declare_parameter(
+            "manual_command_format", "steering",
+            descriptor=ParameterDescriptor(read_only=True),
+        )
+        self._manual_command_format = str(self.get_parameter("manual_command_format").value)
 
         self._host = str(self.get_parameter("host").value)
         self._port = int(self.get_parameter("port").value)
@@ -87,6 +94,7 @@ class TeleopCommandNode(Node):
                 max_angular=float(
                     self.get_parameter("max_angular").value
                 ),
+                manual_command_format=self._manual_command_format,
             ),
             arm_output_enabled=ARM_OUTPUT_ENABLED,
             # Task 7 will inject qualified physical evidence only after the
@@ -117,11 +125,11 @@ class TeleopCommandNode(Node):
         self._violation_events_reported = 0
         self._last_violation_log_s = None
 
-        self.pub_drive = self.create_publisher(
-            Twist,
-            "/teleop/cmd_vel",
-            10,
-        )
+        if self._manual_command_format == "steering":
+            self.pub_drive = self.create_publisher(
+                ManualDriveCommand, "/teleop/drive_command", 1)
+        else:
+            self.pub_drive = self.create_publisher(Twist, "/teleop/cmd_vel", 1)
         self.pub_arm = self.create_publisher(
             JointJog,
             "/arm/teleop_jog",
@@ -505,9 +513,14 @@ class TeleopCommandNode(Node):
         return True
 
     def _publish_drive(self, output):
-        message = Twist()
-        message.linear.x = float(output.drive.linear)
-        message.angular.z = float(output.drive.angular)
+        if self._manual_command_format == "steering":
+            message = ManualDriveCommand()
+            message.speed_mps = float(output.drive.linear)
+            message.steering = float(output.drive.steering)
+        else:
+            message = Twist()
+            message.linear.x = float(output.drive.linear)
+            message.angular.z = float(output.drive.angular)
         self.pub_drive.publish(message)
 
     def _publish_arm(self, output):
