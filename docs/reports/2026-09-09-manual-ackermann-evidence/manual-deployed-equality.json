@@ -1,0 +1,1 @@
+{"installed_source_files_equal": 50, "changed_launch_files_equal": 2, "message_type": "<class 'powertrain_msgs.msg._manual_drive_command.ManualDriveCommand'>", "module": "/workspace/ros2/install/powertrain_ros/lib/python3.10/site-packages/powertrain_ros", "front_x_m": 0.4377473275}

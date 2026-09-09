@@ -1,0 +1,13 @@
+can0 UP / 500000 bps / controller ERROR-ACTIVE / LOOPBACK, LISTEN-ONLY off
+ Container powertrain_observability  Running
+ Container powertrain_ros  Running
+ Container powertrain_canwatchdog  Running
+ Container powertrain_chassis_telemetry  Running
+ Container powertrain_pdist80b_telemetry  Running
+ Container powertrain_chassis  Starting
+ Container powertrain_control  Starting
+ Container powertrain_session  Starting
+robot-start PASS: profile=can-4ws, session=:9002, input=:9000, ops=:9001
+ Container powertrain_session  Started
+ Container powertrain_chassis  Started
+ Container powertrain_control  Started

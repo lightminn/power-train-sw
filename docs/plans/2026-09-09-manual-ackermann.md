@@ -23,5 +23,6 @@ Preserve the other Jetson checkout, calibrated signs, NVM, CAN configuration, an
 - [x] Add `ManualDriveCommand.msg`, ROS pub/sub and startup format selection, gateway mapping, and steering-aware stop evidence. Run pure gateway RED/GREEN and installed ROS boundary tests.
 - [x] Run installed session→pad frames→gateway→authority→real CAN drivers on isolated vcan77→wheel telemetry→client loop. Verify six stop/forward/reverse directions and zero raw drive at stationary steering; disconnect must stop and not re-arm.
 - [x] Review scoped diff, run relevant regression suites, and record counts/limits. Update operating docs and paired project guidance with geometry/command contracts.
-- [ ] Sync reviewed code to local main, GitHub, and canonical Jetson checkout; rebuild interfaces and nodes, compare installed sources, restart operational services and confirm healthy/no traceback.
-- [ ] Open console ready for the user's physical steering acceptance; record it separately from emulated feedback.
+- [x] Sync reviewed code to local main, GitHub, and canonical Jetson checkout; rebuild interfaces and nodes, compare installed sources, restart operational services and confirm healthy/no traceback.
+- [x] Open console and verify live connection. Startup US-100 ESTOP remains pending operator recovery; no automatic reset/arm.
+- [ ] Operator physical steering acceptance after restoring unmounted component settings and acknowledging ESTOP.

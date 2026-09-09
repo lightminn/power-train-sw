@@ -1,0 +1,135 @@
+Starting >>> powertrain_msgs
+Starting >>> robot_arm_msgs
+Finished <<< robot_arm_msgs [1.17s]
+--- stderr: robot_arm_msgs
+gmake: Warning: File 'Makefile' has modification time 1787014851 s in the future
+gmake[1]: Warning: File 'CMakeFiles/Makefile2' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'robot_arm_msgs__rs/CMakeFiles/robot_arm_msgs__rs.dir/progress.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_generator_c.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__cpp.dir/progress.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/ament_cmake_python_copy_robot_arm_msgs.dir/progress.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'robot_arm_msgs__rs/CMakeFiles/robot_arm_msgs__rs.dir/progress.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_generator_c.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__cpp.dir/progress.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/ament_cmake_python_copy_robot_arm_msgs.dir/progress.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_fastrtps_c.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_introspection_c.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_c.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_fastrtps_cpp.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_introspection_cpp.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_c.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_cpp.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_introspection_c.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_fastrtps_c.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_fastrtps_cpp.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/ament_cmake_python_build_robot_arm_msgs_egg.dir/progress.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_introspection_cpp.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_cpp.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/ament_cmake_python_build_robot_arm_msgs_egg.dir/progress.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs.dir/progress.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs.dir/progress.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'robot_arm_msgs__py/CMakeFiles/robot_arm_msgs__py.dir/progress.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'robot_arm_msgs__py/CMakeFiles/robot_arm_msgs__py.dir/progress.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_generator_py.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_generator_py.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_c__pyext.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_fastrtps_c__pyext.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_introspection_c__pyext.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_fastrtps_c__pyext.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_c__pyext.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File 'CMakeFiles/robot_arm_msgs__rosidl_typesupport_introspection_c__pyext.dir/flags.make' has modification time 1787014850 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[1]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake: warning:  Clock skew detected.  Your build may be incomplete.
+---
+Finished <<< powertrain_msgs [18.7s]
+Starting >>> powertrain_ros
+--- stderr: powertrain_msgs
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112492 s in the future
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112492 s in the future
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112492 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112491 s in the future
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112491 s in the future
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112491 s in the future
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112491 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112490 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112490 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112490 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112489 s in the future
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112488 s in the future
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112488 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112488 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112487 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112487 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File '/workspace/ros2/src/powertrain_msgs/msg/SafetyVerdict.msg' has modification time 1783729113 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File '/opt/ros/humble/share/builtin_interfaces/msg/Time.idl' has modification time 1776112483 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File '/usr/lib/aarch64-linux-gnu/libpython3.10.so' has modification time 1772518596 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: Warning: File '/usr/lib/aarch64-linux-gnu/libpython3.10.so' has modification time 1772518595 s in the future
+gmake[2]: Warning: File '/usr/lib/aarch64-linux-gnu/libpython3.10.so' has modification time 1772518595 s in the future
+gmake[2]: Warning: File '/usr/lib/aarch64-linux-gnu/libpython3.10.so' has modification time 1772518595 s in the future
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+gmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+---
+Finished <<< powertrain_ros [1.91s]
+
+Summary: 3 packages finished [21.1s]
+  3 packages had stderr output: powertrain_msgs powertrain_ros robot_arm_msgs
+--- stderr: powertrain_ros
+warning: build_py: byte-compiling is disabled, skipping.
+
+warning: install_lib: byte-compiling is disabled, skipping.
+
+---

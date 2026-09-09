@@ -2,7 +2,7 @@
 
 운전자는 이전 부호 교정 후 **직선 전진/후진 정상**을 확인했다. 남은 마름모 조향은
 정지 상태의 스틱을 yaw rate로 해석한 기존 피벗 경로였다. 이를 자동차식 독립 조향으로
-개편하고 실제 제작 URDF 치수를 적용했다. **이 문서는 배포 전 격리 검증 기록이다.
+개편하고 실제 제작 URDF 치수를 적용했다. **격리 소프트웨어 검증과 운영 배포 확인을 아래에 구분한다.
 새 조향의 실차 운전자 인수는 별도이며, 자율주행은 이번 인수 범위가 아니다.**
 
 ## 원인과 변경
@@ -88,3 +88,23 @@ ROS 메시지 패키지와 노드를 함께 재빌드하고 설치물을 검증�
 운전자는 L1+L스틱으로 정지 좌/우 조향을 먼저 확인하고 RT/LT에서도 같은 각도가
 유지되는지 확인한다. 실측 장착 부호와 영점/NVM은 이번 변경에서 다시 바꾸지 않았다.
 지상 영점, 하중 상태 마찰·조향 도달오차, 최종 제동은 실차 인수 대상이다.
+
+## 운영 배포 후 확인
+
+구현 커밋 `b18b770`을 로컬 main·GitHub·Jetson 정본 체크아웃에 동기화했다.
+팀원 체크아웃의 미커밋/미추적 파일은 보존했다. Jetson DNS 제약으로 검증된 Git bundle을
+전달해 main을 fast-forward했다. control/session/chassis를 정지하고 기존 두 패키지의
+build/install을 보존한 뒤 `powertrain_msgs`와 `powertrain_ros`를 재빌드했다.
+
+- 설치 Python 50개와 변경 launch 2개가 소스와 바이트 단위 일치, 생성 메시지 타입 확인.
+- `robot-start` PASS, control/chassis/session 모두 healthy, 새 기동 로그에 traceback 없음.
+- 실제 can0는 500 kbps ERROR-ACTIVE, LOOPBACK/LISTEN-ONLY off.
+- 실제 ROS 바퀴 피드백 6행에서 구동 6축·조향 4축 stale=false, error/fault=0,
+  모든 구동 명령/피드백=0 확인. 실차에 운전 시작이나 시험 주행 명령을 보내지 않았다.
+- 운영 콘솔 실행·Jetson 연결·telemetry/chassis LIVE 확인. 재시작은 구성요소를 모두
+  ON으로 초기화하므로, 의도적으로 분리한 US-100의 liveness_timeout으로 ESTOP다.
+  운전자가 기존 미장착 설정(US-100/로봇팔 OFF)과 비상정지 초기화를 확인한 뒤
+  명시적으로 운전 시작해야 한다. 자동 초기화·재무장은 하지 않았다.
+
+배포 증거는 같은 evidence 폴더의 `manual-deployed-equality.json`,
+`manual-live-wheels.json`, `manual-robot-start.log`, `manual-deploy-build.log`에 있다.
