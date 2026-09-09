@@ -2,6 +2,8 @@
 
 **확인된 애플리케이션 결함 수정과 SW 검증은 완료했다. 실물 CAN 안정성은 미통과다.** 최초에는 10개 모터가 모두 응답했지만 통합 기동 후 ODrive 13·14가 다시 소실됐다. 제어·워치독 정지와 CAN down/up 1회 후에도 최종 인식은 **8/10**이다. 이 현상의 원인을 이번 SW 수정으로 해결했다고 주장하지 않는다.
 
+**원인 복기 추가:** 사용자 확인상 하드웨어 변경이 없었다. 제가 추가한 유휴 조회는 기존 0회/s에서 최초 통합본 600회/s, 보완본 재실행 126회/s로 바뀌었다. 보완본에서도 소실이 재발했다. SW 유발 가능성은 배제되지 않았으며, 프로세스 종료 후 지속된다는 이유로 하드웨어 고장에 귀속하지 않는다. [상세 복기·원인 분리 순서](2026-09-09-can-sw-causality-review.md).
+
 사용자 요청 범위는 이전 [CAN 전수 감사](2026-09-09-can-software-interference-audit.md)의 실제 결함 수정, Jetson 코드 대조, 로컬·GitHub·Jetson 통합 운용 정본 동기화다. 미완성 자율주행, US-100·L515 의도적 분리의 센서 결함 판정, 실물 비영점 주행·제동은 인수에서 제외했다. ODrive NVM 저장·캘리브레이션·펌웨어 플래시는 수행하지 않았다.
 
 ## 1. 가장 최근 실물 결과
@@ -93,6 +95,6 @@ ODrive USB 장치는 Jetson USB 목록에 없었다. 따라서 실제 보드 fir
 
 배포 정본은 로컬/GitHub `main` 및 Jetson `~/power-train-sw-integrated`다. 팀원 `~/power-train-sw`는 독립 상태로 보존한다. 기존 배포 소스/설치 공간은 `~/powertrain-deploy-backups/2026-09-09-can-remediation/`에 보존했고 이전 ROS 이미지는 `powertrain-sw:ros-before-can-20260909`로 남겼다. 실제 토큰·현장 설정·보드 registry는 Git에 넣지 않는다.
 
-초기 소스 비교·검증 후에도 모든 원본 로컬 파일의 해시를 다시 대조해 이 작업 밖의 동시 변경이 없음을 확인했다. 검증한 변경만 파일별로 stage하여 커밋·푸시한다. Jetson의 외부 DNS 장애를 피하기 위해, GitHub push를 확인한 같은 `main`의 Git 메타데이터/소스를 SSH로 전달한다. 최종 HEAD와 추적 파일 바이트가 같은지 별도로 확인한다.
+초기 소스 비교·검증 후에도 모든 원본 로컬 파일의 해시를 다시 대조해 이 작업 밖의 동시 변경이 없음을 확인했다. 검증한 변경만 파일별로 stage하여 커밋·푸시했다. 수정 코드 `b9292af`는 로컬/GitHub/Jetson 통합본 HEAD가 같고 추적 파일 980개 바이트 차이가 0임을 확인했다. [동기화 증거](2026-09-09-can-remediation-evidence/source-synchronization.json). Jetson 외부 DNS 장애를 피하기 위해, GitHub push를 확인한 같은 `main`의 Git 메타데이터/소스를 SSH로 전달했다. Jetson은 해당 commit부터 시작하는 shallow `main`이며 origin은 GitHub다. 이후 원인 복기 문서·증거 보충도 같은 세 곳에 반영한다.
 
 남은 것은 **13/14 보드 CAN 재소실 원인과 실물 안정성**, 실제 USB/NVM·펌웨어 상태 확인, USB RTT, 실물 주행·제동 인수다. 이는 SW 회귀/가상 CAN PASS로 대체되지 않는다. 현재 센서의 의도적 분리와 보드 무응답을 혼합해 판정하지 않는다.

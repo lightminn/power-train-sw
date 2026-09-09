@@ -1,0 +1,12 @@
+2026-08-18T06:56:55.220705264Z powertrain preflight ok: STOP_MM=200 provenance=BENCH
+2026-08-18T06:56:55.220834000Z powertrain preflight warning: STOP_MM provenance is BENCH
+2026-08-18T06:56:56.628584816Z [INFO] [launch]: All log files can be found below /root/.ros/log/2026-08-18-06-56-56-625077-jetson-orin-1
+2026-08-18T06:56:56.628936624Z [INFO] [launch]: Default logging verbosity is set to INFO
+2026-08-18T06:56:56.789768752Z [INFO] [us100_safety-1]: process started with pid [25]
+2026-08-18T06:56:56.790973232Z [INFO] [chassis-2]: process started with pid [27]
+2026-08-18T06:56:57.808874096Z [chassis-2] [INFO] [1787036217.807401648] [chassis_node]: Real chassis on can0
+2026-08-18T06:56:57.976914448Z [chassis-2] [INFO] [1787036217.975839376] [chassis_node]: chassis_node started (loop 50 Hz, min_rev 0.0, gear_ratio 5.0, v_max 1.5, safety_required=True, authority_enabled=True, contract_v2_verified=False, arm_gate_mode=production)
+2026-08-18T06:57:52.272136592Z [chassis-2] [WARN] [1787036272.271043376] [chassis_node]: authority request IDLE accepted: mode=IDLE; state=IDLE
+2026-08-18T07:01:33.108588912Z [chassis-2] [WARN] [1787036493.106847152] [chassis_node]: authority request IDLE accepted: mode=IDLE; state=IDLE
+2026-08-18T06:56:55.516742160Z [can_watchdog] can0 monitoring; external reset requires no owner
+{"Status":"exited","Running":false,"Paused":false,"Restarting":false,"OOMKilled":false,"Dead":false,"Pid":0,"ExitCode":137,"Error":"","StartedAt":"2026-08-18T06:56:54.780195536Z","FinishedAt":"2026-08-18T07:01:48.237979376Z","Health":{"Status":"unhealthy","FailingStreak":0,"Log":[{"Start":"2026-08-18T15:59:30.66162792+09:00","End":"2026-08-18T15:59:30.756668336+09:00","ExitCode":0,"Output":""},{"Start":"2026-08-18T16:00:00.757552816+09:00","End":"2026-08-18T16:00:00.864831568+09:00","ExitCode":0,"Output":""},{"Start":"2026-08-18T16:00:30.866843632+09:00","End":"2026-08-18T16:00:30.963868752+09:00","ExitCode":0,"Output":""},{"Start":"2026-08-18T16:01:00.965249872+09:00","End":"2026-08-18T16:01:01.058364688+09:00","ExitCode":0,"Output":""},{"Start":"2026-08-18T16:01:31.059610704+09:00","End":"2026-08-18T16:01:31.14996296+09:00","ExitCode":0,"Output":""}]}} 0
