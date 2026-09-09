@@ -166,6 +166,8 @@ label { color: #f8fafc; }
 .nav button { background: transparent; color: #C4D0DE; border: none; border-bottom: 2px solid transparent; border-radius: 0; min-height: 42px; padding: 7px 24px; font-weight: 800; }
 .nav button:hover { color: #FFFFFF; background: rgba(255,255,255,0.035); }
 .nav button:checked { background: transparent; color: #FFFFFF; border-bottom: 3px solid #3478FF; }
+.nav button.ops-settings-button { background: #111936; color: #DDE4FF; border: 1px solid #344268; border-radius: 6px; min-height: 28px; padding: 3px 12px; }
+.nav button.ops-settings-button:hover { background: #172044; color: #FFFFFF; border-color: #4D5EAD; }
 .page { padding: 8px 10px 0 10px; }
 .card { background: #0d1b2a; border: 1px solid rgba(148,163,184,0.18); border-radius: 10px; }
 .card label { color: #f8fafc; }
@@ -1302,6 +1304,55 @@ menuitem:hover label, menuitem:active label {{ color: #FFFFFF; }}
 .progress-marker.active {{ background: #4B8BEA; border-color: #7AB4F3; }}
 .progress-marker.completed {{ color: #55C995; border-color: #55C995; }}
 scrollbar slider {{ background: #344A61; }}
+
+/* Integrated controls stay legible inside the competition-dark shell. */
+.integrated-operation {{
+  background: #0B1726;
+  border-top: 1px solid #22364B;
+  border-bottom: 1px solid #22364B;
+  padding: 6px 18px;
+}}
+.integrated-operation label {{ color: #DDE8F3; }}
+.integrated-operation button {{
+  background: #173353;
+  color: #DDE8F3;
+  border: 1px solid #315F91;
+  border-radius: 7px;
+}}
+.integrated-operation button label {{ color: #DDE8F3; }}
+.integrated-operation button:hover {{ background: #214A75; }}
+.integrated-operation button:disabled {{
+  background: #111A28;
+  color: #71869C;
+  border-color: #26384E;
+  opacity: 1;
+}}
+.integrated-operation button:disabled label {{ color: #71869C; }}
+
+window.ops-settings-window, .ops-settings-shell {{ background: #07101B; }}
+.ops-settings-panel {{
+  background: #0D1B2B;
+  color: #D7E2EC;
+  border-color: #30465F;
+}}
+.ops-settings-panel > label,
+.ops-settings-panel label {{ color: #D7E2EC; }}
+.ops-settings-panel button {{
+  background: #173353;
+  color: #DDE8F3;
+  border: 1px solid #315F91;
+  border-radius: 7px;
+}}
+.ops-settings-panel button label {{ color: #DDE8F3; }}
+.ops-settings-panel button:hover {{ background: #214A75; }}
+.ops-settings-panel button:disabled {{
+  background: #111A28;
+  color: #71869C;
+  border-color: #26384E;
+  opacity: 1;
+}}
+.ops-settings-panel button:disabled label {{ color: #71869C; }}
+.ops-settings-panel expander {{ color: #A8B6C4; }}
 """.format(**token)
     return css.encode("utf-8")
 
@@ -2037,6 +2088,11 @@ class VideoPanel(Gtk.Box):
         self._pipeline = Gst.parse_launch(
             pipeline_description(host, port, latency_ms).replace(
                 "srtsrc uri=", "srtsrc name=operator_source uri=", 1))
+        # parse_launch's initial delayed link does not survive NULL -> PLAYING.
+        # Keep linking new H264 demux pads on every session/retry restart while
+        # retaining the GTK-owned sink and its widget.
+        self._pipeline.get_by_name("video_demux").connect(
+            "pad-added", self._on_demux_pad_added)
         self._sink = self._pipeline.get_by_name("video_sink")
         self._video_widget = self._sink.get_property("widget")
         self._video_widget.set_hexpand(True)
@@ -2136,6 +2192,17 @@ class VideoPanel(Gtk.Box):
         bus.enable_sync_message_emission()
         bus.connect("sync-message::element", self._on_sync_message)
         GLib.timeout_add(200, self._refresh_video_health)
+
+    def _on_demux_pad_added(self, _demux: Gst.Element, pad: Gst.Pad) -> None:
+        # This callback runs on the streaming thread; do not touch GTK here.
+        caps = pad.get_current_caps()
+        if caps is None or caps.get_size() == 0:
+            return
+        if caps.get_structure(0).get_name() != "video/x-h264":
+            return
+        sink_pad = self._pipeline.get_by_name("video_parser").get_static_pad("sink")
+        if not sink_pad.is_linked():
+            pad.link(sink_pad)
 
     def set_header_action(self, action: Gtk.Widget) -> None:
         """Place the PiP action inside this panel's header without overlap."""
@@ -3051,9 +3118,13 @@ class OpsPanel(Gtk.Frame):
         self._hide_confirmation()
 
     def _on_cancel_clicked(self, _button: Gtk.Button) -> None:
+        self.cancel_confirmation()
+        self._emit("confirmation cancelled")
+
+    def cancel_confirmation(self) -> None:
+        """Cancel any pending confirmation without submitting an action."""
         if self._flow is not None:
             self._flow.reset()
-        self._emit("confirmation cancelled")
         self._hide_confirmation()
 
     def _hide_confirmation(self) -> None:
@@ -3237,6 +3308,7 @@ class IntegratedOperationPanel(Gtk.Box):
 
     def __init__(self, runtime) -> None:
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        _style(self, "integrated-operation")
         self._runtime = runtime
         self._gesture_active = False
         self.set_border_width(8)
@@ -3561,7 +3633,7 @@ class OperatorConsole(Gtk.Window):
             self.connect("focus-out-event", self._operation_panel.cancel)
             self._operation_source_id = GLib.timeout_add(100, self._refresh_operation)
         self._refresh_estop_availability()
-        _style(self._ops_panel, "danger-card")
+        _style(self._ops_panel, "danger-card", "ops-settings-panel")
 
         mission_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         _style(mission_page, "page", "mission-page")
@@ -3804,8 +3876,15 @@ class OperatorConsole(Gtk.Window):
 
         self._mission_metrics["safety"] = self._preparation_status["safety"][1]
 
+        rail_scroll = Gtk.ScrolledWindow()
+        rail_scroll.set_policy(
+            Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC,
+        )
+        rail_scroll.set_propagate_natural_height(False)
+        rail_scroll.add(rail)
+        self._mission_rail_scroll = rail_scroll
         mission_body.pack_start(videos, True, True, 0)
-        mission_body.pack_end(rail, False, False, 0)
+        mission_body.pack_end(rail_scroll, False, False, 0)
         self._mission_body = mission_body
         mission_page.pack_start(mission_body, True, True, 0)
         mission_event_expander, self._mission_event_latest = (
@@ -3840,6 +3919,7 @@ class OperatorConsole(Gtk.Window):
 
         ops_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         ops_page.set_border_width(14)
+        _style(ops_page, "ops-settings-shell")
         ops_heading = Gtk.Label(label="안전 조작")
         ops_heading.set_xalign(0.0)
         _style(ops_heading, "section-title")
@@ -3853,6 +3933,24 @@ class OperatorConsole(Gtk.Window):
         ops_page.pack_start(ops_heading, False, False, 0)
         ops_page.pack_start(ops_note, False, False, 0)
         ops_page.pack_start(self._ops_panel, False, False, 0)
+        ops_scroll = Gtk.ScrolledWindow()
+        ops_scroll.set_policy(
+            Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC,
+        )
+        ops_scroll.add(ops_page)
+        self._ops_settings_window = Gtk.Window(title="복구 · 설정")
+        _style(self._ops_settings_window, "ops-settings-window")
+        self._ops_settings_window.set_default_size(560, 680)
+        self._ops_settings_window.set_transient_for(self)
+        self._ops_settings_window.set_destroy_with_parent(True)
+        self._ops_settings_window.set_modal(False)
+        self._ops_settings_window.add(ops_scroll)
+        self._ops_settings_window.connect(
+            "delete-event", self._hide_ops_settings,
+        )
+        self._ops_settings_window.connect(
+            "focus-out-event", self._cancel_ops_settings_confirmation,
+        )
 
         stack = Gtk.Stack()
         stack.set_hhomogeneous(False)
@@ -3863,17 +3961,28 @@ class OperatorConsole(Gtk.Window):
         stack.set_transition_duration(0)
         stack.add_titled(mission_page, "mission", "실시간 화면")
         stack.add_titled(systems_scroll, "systems", "시스템 상태")
-        # The token-gated controls remain implemented for a future maintenance
-        # surface, but are not exposed in the judge-facing competition console.
+        # Keep recovery controls outside the two judge-facing pages; the header
+        # button exposes their existing token-gated panel in a transient window.
         self._stack = stack
         switcher = Gtk.StackSwitcher()
         switcher.set_stack(stack)
         switcher.set_halign(Gtk.Align.START)
         switcher.set_margin_start(0)
         switcher.set_size_request(238, 34)
-        nav = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         _style(nav, "nav")
         nav.pack_start(switcher, False, False, 0)
+        self._ops_settings_button = Gtk.Button(label="복구 · 설정")
+        self._ops_settings_button.set_valign(Gtk.Align.CENTER)
+        self._ops_settings_button.set_size_request(104, 30)
+        self._ops_settings_button.set_tooltip_text(
+            "경고 초기화, 안전 센서, 조향 방식과 고급 복구 조작을 엽니다"
+        )
+        _style(self._ops_settings_button, "ops-settings-button")
+        self._ops_settings_button.connect(
+            "clicked", lambda _button: self._show_ops_settings(),
+        )
+        nav.pack_end(self._ops_settings_button, False, False, 4)
         layout.pack_start(nav, False, False, 0)
         layout.pack_start(stack, True, True, 0)
         event_expander = EventDrawer(self._events)
@@ -3901,6 +4010,20 @@ class OperatorConsole(Gtk.Window):
         """Keep the Mission footer and the other-tab footer identical."""
         self._events.add_event(source, message)
         self._mission_events.add_event(source, message)
+
+    def _show_ops_settings(self) -> None:
+        """Show the existing token-gated panel without issuing an action."""
+        self._ops_settings_window.show_all()
+        self._ops_settings_window.present()
+
+    def _cancel_ops_settings_confirmation(self, *_args: object) -> bool:
+        self._ops_panel.cancel_confirmation()
+        return False
+
+    def _hide_ops_settings(self, *_args: object) -> bool:
+        self._ops_panel.cancel_confirmation()
+        self._ops_settings_window.hide()
+        return True
 
     def _refresh_operation(self) -> bool:
         runtime = self._operation_runtime
@@ -4903,8 +5026,11 @@ class OperatorConsole(Gtk.Window):
             safety_ready=safety_summary == "정상",
         )
         _severity, latest_event = self._events.latest_public()
+        _mission_severity, mission_latest_event = (
+            self._mission_events.latest_public()
+        )
         self._event_latest.set_text(f"최근: {latest_event}")
-        self._mission_event_latest.set_text(f"최근: {latest_event}")
+        self._mission_event_latest.set_text(f"최근: {mission_latest_event}")
         ready = (
             chassis_state == "LIVE" and power_ok
             and l515_video == d435_video == "LIVE"
@@ -4980,6 +5106,8 @@ class OperatorConsole(Gtk.Window):
             pass
 
     def _on_destroy(self, *_args: object) -> None:
+        self._ops_panel.cancel_confirmation()
+        self._ops_settings_window.destroy()
         if self._operation_runtime is not None:
             self._operation_panel.cancel()
             self._operation_runtime.stop()

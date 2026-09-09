@@ -20,7 +20,8 @@ def main(argv=None):
         if not Path(config['token_file']).read_text().strip():
             raise ValueError('token_file이 비어 있습니다')
         defaults = dict(d435_port=5002, l515_port=5000, metadata_port=5003,
-                        telemetry_port=5004, chassis_telemetry_port=5005, arm_telemetry_port=5007)
+                        telemetry_port=5004, chassis_telemetry_port=5005,
+                        arm_telemetry_port=5007, environment_telemetry_port=5008)
         ports = {key: config.get(key, value) for key, value in defaults.items()}
         for key, value in ports.items():
             if type(value) is not int or not 1 <= value <= 65535:

@@ -26,6 +26,7 @@ from .telemetry import TelemetrySnapshot, WheelStatus, power_fault_reasons
 
 
 STALE_AFTER_S = 1.0
+METADATA_STATUS_STALE_AFTER_S = 0.25
 GRAPH_WINDOW_S = 60.0
 GRAPH_REFRESH_MS = 200
 MAX_GRAPH_SAMPLES = 600
@@ -52,6 +53,22 @@ PDIST_BATTERY_STATES = {0: "수동 충전기 연결", 1: "자동 충전기 연�
 PDIST_CONTROL_STATES = {
     5: "외부 제어", 6: "충전 중",
 }
+
+
+def metadata_status_fresh(
+    metadata: MetadataFrame | None, now_s: float,
+) -> bool:
+    """Use the conservative status threshold, not the longer visual overlay window.
+
+    Status/readiness expires at 0.25 s. The visual overlay may retain metadata
+    through ``metadata.OVERLAY_STALE_AFTER_S`` (0.50 s) without certifying it
+    as current system status.
+    """
+    return (
+        metadata is not None
+        and now_s - metadata.received_monotonic_s
+        <= METADATA_STATUS_STALE_AFTER_S
+    )
 
 
 def _flag_names(value: int | None, mapping: dict[int, str]) -> tuple[str, ...]:
@@ -115,6 +132,47 @@ def power_card_state(
     return "정상", str(getattr(power, "rs485_state", "") or "정상")
 
 
+def chassis_estop_active(snapshot: object) -> bool:
+    """Include the chassis latch; safety_estop_required describes US-100 only."""
+    return (
+        getattr(snapshot, "safety_estop_required", None) is True
+        or "ESTOP" in str(getattr(snapshot, "drive_state", "")).upper().split("/")
+    )
+
+
+def drive_card_state(
+    snapshot: TelemetrySnapshot | None, *, fresh: bool,
+) -> tuple[str, str]:
+    """Return one shared drive-health decision for every status surface."""
+    if snapshot is None:
+        return "정보 없음", "주행 정보 없음"
+    if not fresh:
+        return "확인 필요", "주행 정보 없음"
+    wheel_issue = any(
+        wheel.stale or wheel.drive_axis_error or wheel.steer_fault or wheel.mode == "FAULT"
+        for wheel in snapshot.wheel_statuses
+    )
+    can_state = snapshot.can_state.strip().lower()
+    if chassis_estop_active(snapshot) or wheel_issue:
+        state = "확인 필요"
+    elif can_state.startswith("unhealthy"):
+        state = "확인 필요"
+    elif (
+        snapshot.drive_state.lower().startswith("unavailable")
+        or can_state.startswith("unavailable")
+    ):
+        state = "정보 없음"
+    else:
+        state = "정상"
+    reason = (
+        "구동 모터 상태 확인 필요" if wheel_issue
+        else "CAN 상태 확인 필요"
+        if can_state.startswith(("unavailable", "unhealthy"))
+        else snapshot.drive_state
+    )
+    return state, reason
+
+
 def public_link_state(value: object, *, control: bool = False) -> str:
     """Translate transport codes without leaking diagnostics into the main UI."""
     normalized = str(value or "").strip().upper()
@@ -174,7 +232,7 @@ def safety_badge_state(
     if chassis is None:
         return "정보 없음", "status-muted"
     estop = getattr(chassis, "safety_estop_required", None)
-    if chassis_fresh and estop is True:
+    if chassis_fresh and chassis_estop_active(chassis):
         return "비상정지", "status-bad"
     if not chassis_fresh:
         return "확인 필요", "status-warn"
@@ -1050,10 +1108,12 @@ class EnvironmentSensorDashboard(Gtk.Box):
             self._format(snapshot.pressure_hpa, "hPa", 2)
         )
         self._values["eco2"].set_text(
-            self._format(snapshot.eco2_ppm, "ppm", 0)
+            "예열 중" if snapshot.sgp30_warming_up
+            else self._format(snapshot.eco2_ppm, "ppm", 0)
         )
         self._values["tvoc"].set_text(
-            self._format(snapshot.tvoc_ppb, "ppb", 0)
+            "예열 중" if snapshot.sgp30_warming_up
+            else self._format(snapshot.tvoc_ppb, "ppb", 0)
         )
         self._values["co"].set_text(
             self._format(snapshot.co_estimated_ppm, "ppm", 1)
@@ -1109,6 +1169,8 @@ class EnvironmentSensorDashboard(Gtk.Box):
                 set_status(key, "갱신 지연", "status-warn")
             elif not snapshot.sensor_ok:
                 set_status(key, "확인 필요", "status-warn")
+            elif key in ("eco2", "tvoc") and snapshot.sgp30_warming_up:
+                set_status(key, "예열 중", "status-warn")
             else:
                 set_status(key, "정상", "status-live")
 
@@ -1159,10 +1221,13 @@ class EnvironmentSensorDashboard(Gtk.Box):
             f"습도 {self._format(snapshot.humidity_pct, '%', 2)}",
             f"기압 {self._format(snapshot.pressure_hpa, 'hPa', 2)}",
         ))
-        self._probe_air = " · ".join((
-            f"eCO₂ {self._format(snapshot.eco2_ppm, 'ppm', 0)}",
-            f"TVOC {self._format(snapshot.tvoc_ppb, 'ppb', 0)}",
-        ))
+        self._probe_air = (
+            "eCO₂ 예열 중 · TVOC 예열 중"
+            if snapshot.sgp30_warming_up else " · ".join((
+                f"eCO₂ {self._format(snapshot.eco2_ppm, 'ppm', 0)}",
+                f"TVOC {self._format(snapshot.tvoc_ppb, 'ppb', 0)}",
+            ))
+        )
         flame = (
             "—" if snapshot.flame_detected is None
             else "O" if snapshot.flame_detected else "X"
@@ -1727,10 +1792,7 @@ class RobotStatusDashboard(Gtk.Box):
         power_fresh = self._fresh(power, now_s)
         chassis_fresh = self._fresh(chassis, now_s)
         arm_fresh = self._fresh(arm, now_s)
-        metadata_fresh = (
-            metadata is not None
-            and now_s - metadata.received_monotonic_s <= 0.25
-        )
+        metadata_fresh = metadata_status_fresh(metadata, now_s)
         if power is not None and self._last_sequences.get("power") != power.sequence:
             self._last_sequences["power"] = power.sequence
             self._last_updates["power"] = power.received_monotonic_s
@@ -1778,36 +1840,19 @@ class RobotStatusDashboard(Gtk.Box):
         else:
             self.video_fps.mark_gap(now_s)
 
-        drive_state = self._state(chassis, now_s)
-        if chassis_fresh and chassis is not None:
-            wheel_issue = any(
-                wheel.stale or wheel.drive_axis_error or wheel.steer_fault
-                for wheel in chassis.wheel_statuses
-            )
-            if chassis.safety_estop_required is True or wheel_issue:
-                drive_state = "확인 필요"
-            elif (
-                chassis.drive_state.lower().startswith("unavailable")
-                or chassis.can_state.lower().startswith("unavailable")
-            ):
-                drive_state = "정보 없음"
-            drive_reason = (
-                "구동 모터 상태 확인 필요" if wheel_issue
-                else "CAN 상태 확인 필요"
-                if chassis.can_state.lower().startswith("unavailable")
-                else chassis.drive_state
-            )
-        else:
-            drive_reason = "주행 정보 없음"
+        drive_state, drive_reason = drive_card_state(
+            chassis, fresh=chassis_fresh,
+        )
         power_state, power_reason = power_card_state(power, fresh=power_fresh)
         safety_state = self._state(chassis, now_s)
         safety_reason = "안전 정보 없음"
         if chassis_fresh and chassis is not None:
-            if chassis.component_mask is not None and chassis.component_mask.get("us100") is False:
-                safety_state, safety_reason = "보호 해제", "US-100 자동 정지 비활성"
-            elif chassis.safety_estop_required is True:
+            if chassis_estop_active(chassis):
                 safety_state = "정지 중"
-                safety_reason = chassis.safety_detail or chassis.safety_status or "원인 미수신"
+                safety_reason = "비상정지" if "ESTOP" in chassis.drive_state.upper().split("/") else (
+                    chassis.safety_detail or chassis.safety_status or "원인 미수신")
+            elif chassis.component_mask is not None and chassis.component_mask.get("us100") is False:
+                safety_state, safety_reason = "보호 해제", "US-100 자동 정지 비활성"
             elif chassis.safety_estop_required is False:
                 safety_state, safety_reason = "정지 없음", "작동 중인 안전 로직 없음"
             else:
@@ -2120,7 +2165,7 @@ class RobotStatusDashboard(Gtk.Box):
                 else f"{chassis.safety_distance_mm:.0f} mm"
             )
             estop = (
-                "발동됨" if chassis.safety_estop_required is True
+                "비상정지" if chassis_estop_active(chassis)
                 else "정상" if chassis.safety_estop_required is False
                 else "정보 없음"
             )
@@ -2711,7 +2756,7 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
         power_fresh = self._fresh(power, now_s)
         chassis_fresh = self._fresh(chassis, now_s)
         arm_fresh = self._fresh(arm, now_s)
-        metadata_fresh = self._fresh(metadata, now_s)
+        metadata_fresh = metadata_status_fresh(metadata, now_s)
 
         for target, source in (
             ("power_voltage", "voltage"),
@@ -2799,8 +2844,13 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
         )
         self._set_badge("safety", safety_state, safety_tone)
 
+        drive_state, _drive_reason = drive_card_state(
+            chassis, fresh=chassis_fresh,
+        )
+
         overall_ok = (
-            power_state == "정상"
+            drive_state == "정상"
+            and power_state == "정상"
             and communication_state == "정상"
             and safety_state == "정상"
         )

@@ -53,9 +53,11 @@ ros2 run powertrain_ros arm_console_bridge --ros-args -p console_host:=<laptop-i
 
 The judge-facing interface uses **실시간 화면** (mission/video) and **시스템 상태**
 (integrated power, communication, and safety summaries with collapsed raw
-diagnostics). The unchanged token-gated
-administrator controls remain implemented but are not exposed in this
-navigation. Press `F11` for the competition display. Camera panels can be
+diagnostics). Open **복구 · 설정** beside the two-tab navigation to reach the
+existing token-gated controls for E-STOP reset, component settings, steering
+mode, and advanced recovery actions. This non-modal window hides on close and
+cancels any unfinished confirmation; reopening it keeps the same authenticated
+ops session. Press `F11` for the competition display. Camera panels can be
 clicked to exchange the large and preview views; technical stream errors
 remain in the collapsed event log and robot diagnostics.
 
@@ -74,9 +76,9 @@ four confirmed equipment categories (그리퍼 1, 그리퍼 2, 청소 모듈, �
 arm control-mode telemetry is not yet wired. Selecting a tool or pressing its
 detail button opens a common non-modal detail window. The environment window
 groups climate, air quality, and hazard readings. CO/LPG use plain numeric
-values, flame detection is shown as O/X, and lost sensor power or stale input
-clears the previous readings and displays 미연결. Source/sequence details stay
-collapsed.
+values, flame detection is shown as O/X, and SGP30 eCO₂/TVOC values display
+`예열 중` until warmup ends. Lost sensor power or stale input clears the previous
+readings and displays 미연결. Source/sequence details stay collapsed.
 
 The **시스템 상태** tab is a single RX-only live view for PDIST80B power,
 communications, and safety. Drive speed and AI summaries are on the mission
@@ -129,6 +131,11 @@ from `~/.config/powertrain/ops_console.token`. Override these independently
 with `--ops-host`, `--ops-port`, and `--ops-token-file`. If the token file is
 absent or empty, the command panel is disabled while every observation channel
 continues normally.
+
+For the integrated `python -m operator_console` entrypoint, the validated
+`~/.config/powertrain/operator.json` keys include
+`environment_telemetry_port` (default `5008`). Overrides must be integer ports
+from 1 through 65535 and must match the robot-side sender configuration.
 
 Observation remains caller/receiver-only: it never opens D435i/L515 or writes
 CAN. Commands are possible only through the authenticated ops client and every

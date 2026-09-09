@@ -12,7 +12,7 @@ def pipeline_description(host: str, port: int, latency_ms: int) -> str:
     """Low-latency SRT receiver rendered by a GTK-owned video widget."""
     uri = srt_uri(host, port, latency_ms)
     return (
-        f'srtsrc uri="{uri}" ! tsdemux ! h264parse ! '
+        f'srtsrc uri="{uri}" ! tsdemux name=video_demux ! h264parse name=video_parser ! '
         "avdec_h264 max-threads=1 ! videoconvert ! video/x-raw,format=BGRA ! "
         "gtksink name=video_sink sync=false force-aspect-ratio=true"
     )
