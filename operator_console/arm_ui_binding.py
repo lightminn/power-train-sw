@@ -66,6 +66,10 @@ class ArmUiTelemetryBinding:
             readings = tuple(
                 C.ToolMotorReading(
                     actuator_id=row["id"],
+                    position_deg=(float(row["position"]) * 360.0 / 4096.0
+                                  if isinstance(row.get("position"), (int, float)) else None),
+                    load_percent=(float(row["effort"])
+                                  if isinstance(row.get("effort"), (int, float)) else None),
                     torque_on=(True if row.get("torque_state") == "ON" else
                                False if row.get("torque_state") == "OFF" else None),
                     online=row.get("online"),
