@@ -26,7 +26,7 @@ def test_every_action_is_prefixed_to_avoid_the_chassis_vocabulary():
         assert action.startswith("robot_arm_"), action
 
 
-def test_arm_actions_are_not_registered_in_the_ops_contract():
+def test_only_the_fsm_mode_and_tool_actions_are_registered_in_the_ops_contract():
     """The console cannot send any arm command yet — and that is on purpose.
 
     If this test starts failing, the arm actions have been registered
@@ -34,11 +34,11 @@ def test_arm_actions_are_not_registered_in_the_ops_contract():
     "실연결 전제" section rather than deleting the assertion.
     """
     source = OPS_CONTRACT.read_text(encoding="utf-8")
-    for action in sorted(K.ARM_ACTIONS):
-        assert f'"{action}"' not in source, (
-            f"{action} appears in ops_contract.py — 전송 가능 상태로 바뀌었다면 "
-            "보고서의 실연결 전제를 갱신할 것"
-        )
+    registered = {K.ACTION_MODE_REQUEST, K.ACTION_TOOL_COMMAND}
+    for action in sorted(registered):
+        assert f'"{action}"' in source
+    for action in sorted(K.ARM_ACTIONS - registered):
+        assert f'"{action}"' not in source
 
 
 def test_unregistered_actions_reports_everything_against_an_empty_registry():
@@ -46,11 +46,9 @@ def test_unregistered_actions_reports_everything_against_an_empty_registry():
     assert K.unregistered_actions(K.ARM_ACTIONS) == ()
 
 
-def test_planned_actions_cover_every_action_and_none_is_resolved():
+def test_planned_actions_cover_every_action_and_only_existing_fsm_ingress_is_resolved():
     planned = {item.action: item for item in K.PLANNED_ACTIONS}
     assert set(planned) == K.ARM_ACTIONS
-    # A resolved entry would mean a ROS target was chosen here, which is the
-    # arm side's decision and explicitly out of scope.
     assert [item.action for item in K.PLANNED_ACTIONS if item.resolved] == []
     assert all(item.note for item in K.PLANNED_ACTIONS)
 

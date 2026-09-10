@@ -115,6 +115,14 @@ ACTIONS = {
         _CONSOLE, "service_setbool",
         ("/chassis_node/component_enable_robot_arm",),
     ),
+    # Existing arm-stack FSM ingress only.  These do not expose register,
+    # torque, calibration, or raw joint-position control through ops.
+    "robot_arm_mode_request": ActionSpec(
+        _CONSOLE, "publish_arm_mode", ("/control/mode",),
+    ),
+    "robot_arm_tool_command": ActionSpec(
+        _CONSOLE, "publish_tool_fsm", ("/tool/fsm_command",),
+    ),
     "steer_mode_skid": ActionSpec(
         _CONSOLE, "service_setbool",
         ("/chassis_node/steer_mode_skid",),

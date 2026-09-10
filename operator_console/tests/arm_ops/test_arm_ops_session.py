@@ -118,12 +118,14 @@ def test_registered_actions_can_be_read_off_the_real_ops_contract_module():
     registered = registered_actions_from(module)
 
     assert "estop" in registered
-    assert not (registered & K.ARM_ACTIONS)
+    assert {K.ACTION_MODE_REQUEST, K.ACTION_TOOL_COMMAND} <= registered
     transport = ContractGatedTransport(
         submit_fn=lambda *args: "no", registered_actions=registered,
     )
     for action in sorted(K.ARM_ACTIONS):
-        assert not transport.known(action)
+        assert transport.known(action) == (action in {
+            K.ACTION_MODE_REQUEST, K.ACTION_TOOL_COMMAND,
+        })
 
 
 def test_a_transport_error_is_reported_not_swallowed():

@@ -18,11 +18,17 @@ def normalize_tool(value):
             or len(set(ids)) != len(ids)):
         raise ValueError('invalid tool IDs')
     out = {'tool_type': value['tool_type'], 'actuator_ids': ids, 'actuators': []}
-    for key in ('actuators_discovered', 'tool_detached', 'physical_tool_detached', 'mock_mode'):
+    for key in ('actuators_discovered', 'tool_detached', 'physical_tool_detached',
+                'mock_mode', 'motion_allowed', 'read_only', 'emergency_stop'):
         item = value.get(key)
         if item is not None and type(item) is not bool:
             raise ValueError('invalid tool flag')
         out[key] = item
+    for key in ('control_mode', 'fsm_state', 'reason'):
+        item = value.get(key)
+        if item is not None and (not isinstance(item, str) or len(item) > 160):
+            raise ValueError('invalid tool status text')
+        out[key] = item.strip() if item else None
     samples = value.get('actuators', [])
     if not isinstance(samples, list) or len(samples) > 8:
         raise ValueError('invalid actuators')

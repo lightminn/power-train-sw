@@ -50,8 +50,12 @@ class ArmUiTelemetryBinding:
             tool_key = (kind, ids)
             if tool_key != self._tool_key:
                 self._tool_generation += 1
+            # The arm status has no hardware serial number.  This is therefore
+            # an observed active-profile fingerprint, not an invented serial.
+            profile_id = f"{tool['tool_type']}:{','.join(map(str, ids))}"
             identity = C.ToolIdentity(
                 kind=kind,
+                tool_id=profile_id,
                 display_name=C.TOOL_KIND_KOREAN[kind],
                 actuator_ids=ids,
                 attached=(False if tool.get("tool_detached") or tool.get("physical_tool_detached")
@@ -94,11 +98,24 @@ class ArmUiTelemetryBinding:
             age = self._age(snapshot, runtime_ages.get(key))
             return C.FsmState(raw=value) if value and age is not None and age <= 1.0 else C.FsmState()
 
+        manual = arm_runtime.get("control_mode")
+        manual_age = self._age(snapshot, runtime_ages.get("control_mode"))
+        granted = manual == "MANUAL" and manual_age is not None and manual_age <= 1.0
+        capabilities = frozenset()
+        if (tool is not None and tool.get("motion_allowed") is True
+                and tool.get("read_only") is not True
+                and tool.get("emergency_stop") is not True):
+            capabilities = frozenset({C.CAP_GRIPPER_COMMAND})
         return C.ArmUiState(
             link=C.SourceLink(state=link_state, age_s=receive_age),
             detected_tool=identity,
             arm_fsm=runtime_state("fsm_state"),
             arm_status=runtime_state("arm_status"),
+            authority=C.ControlAuthority(
+                granted_mode="MANUAL" if granted else "",
+                status=C.AUTHORITY_GRANTED if granted else C.AUTHORITY_UNKNOWN,
+            ),
             teleop=C.TeleopState(axes=axes),
             diagnostics=diagnostics,
+            capabilities=capabilities,
         )

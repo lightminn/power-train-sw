@@ -149,6 +149,11 @@ class OpsBrokerNode(Node):
         self._section_pub = self.create_publisher(
             String, "/section_events", 10
         )
+        # The arm repository already owns these FSM ingress topics.  This node
+        # only forwards a tiny validated vocabulary through the authenticated
+        # ops channel; it never owns a motor or publishes a raw Dynamixel goal.
+        self._arm_mode_pub = self.create_publisher(String, "/control/mode", 10)
+        self._tool_fsm_pub = self.create_publisher(String, "/tool/fsm_command", 10)
         self.create_subscription(
             String, "/command_authority/state", self._on_authority, 10
         )
@@ -463,6 +468,34 @@ class OpsBrokerNode(Node):
             return client
 
     def _execute(self, order, connection, role):
+        if order.kind == "publish_arm_mode":
+            mode = order.params.get("mode")
+            if mode not in ("MANUAL", "FSM"):
+                self._complete_order(order, connection, role, False, "invalid arm mode")
+                return
+            self._arm_mode_pub.publish(String(data=mode))
+            self._complete_order(order, connection, role, True, "published arm mode request")
+            return
+        if order.kind == "publish_tool_fsm":
+            params = dict(order.params)
+            if (set(params) != {"target", "command", "tool_id", "tool_generation"}
+                    or params.get("target") not in ("single", "left", "right", "both")
+                    or params.get("command") not in ("open", "close", "stop")
+                    or not isinstance(params.get("tool_id"), str)
+                    or not isinstance(params.get("tool_generation"), int)):
+                self._complete_order(order, connection, role, False, "invalid tool FSM params")
+                return
+            # The existing bridge validates tool_type against its active FSM;
+            # the observed fingerprint is only an ops concurrency guard.
+            tool_type = params["tool_id"].split(":", 1)[0]
+            if tool_type not in ("spur_1motor_gripper", "dual_motor_gripper"):
+                self._complete_order(order, connection, role, False, "unsupported active tool")
+                return
+            self._tool_fsm_pub.publish(String(data=json.dumps({
+                "tool_type": tool_type, "command": params["command"].upper(),
+            }, separators=(",", ":"), sort_keys=True)))
+            self._complete_order(order, connection, role, True, "published tool FSM command")
+            return
         if order.kind == "service_setbool" and not isinstance(
             order.params.get("data"), bool
         ):
