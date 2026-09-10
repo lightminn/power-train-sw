@@ -63,6 +63,7 @@ def test_parse_arm_telemetry_round_trips_motors_joints_and_ages():
     assert snapshot.joint_names == ("joint_a", "joint_b")
     assert snapshot.joint_position_rad == (0.25, -0.5)
     assert snapshot.joint_velocity == (0.1, -0.2)
+    assert snapshot.joint_effort_raw == ()
     assert snapshot.dynamixel_age_s == 0.1
     assert snapshot.joints_age_s == 0.2
     assert snapshot.detections_age_s == 0.3
@@ -98,6 +99,47 @@ def test_null_sources_remain_explicitly_unavailable():
     assert snapshot.detections_age_s is None
     assert snapshot.end_effector_id is None
     assert snapshot.end_effector_type is None
+
+
+def test_velocity_omission_keeps_joint_positions():
+    joints = {
+        "names": ["arm_joint_1"],
+        "position_rad": [0.25],
+        "velocity": [],
+    }
+    snapshot = parse_arm_telemetry(_payload(joints=joints))
+    assert snapshot.joint_names == ("arm_joint_1",)
+    assert snapshot.joint_position_rad == (0.25,)
+    assert snapshot.joint_velocity == ()
+
+
+def test_joint_effort_raw_round_trips_without_claiming_a_unit():
+    snapshot = parse_arm_telemetry(_payload(joints={
+        "names": ["arm_joint_1"],
+        "position_rad": [0.25],
+        "velocity": [],
+        "effort_raw": [-321],
+    }))
+
+    assert snapshot.joint_effort_raw == (-321.0,)
+
+
+def test_nonfinite_joint_feedback_is_rejected():
+    with pytest.raises(ValueError):
+        parse_arm_telemetry(_payload(joints={
+            "names": ["arm_joint_1"],
+            "position_rad": [float("nan")],
+            "velocity": [],
+        }))
+
+
+def test_runtime_status_has_independent_ages():
+    snapshot = parse_arm_telemetry(_payload(arm_runtime={
+        "control_mode": "MANUAL", "fsm_state": "IDLE", "arm_status": "READY",
+        "source_age_s": {"control_mode": 0.1, "fsm_state": 0.2, "arm_status": 0.3},
+    }))
+    assert snapshot.arm_runtime["control_mode"] == "MANUAL"
+    assert snapshot.arm_runtime["source_age_s"]["fsm_state"] == 0.2
     assert snapshot.end_effector_attached is None
     assert snapshot.end_effector_interface is None
 

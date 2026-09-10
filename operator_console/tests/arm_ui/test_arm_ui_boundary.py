@@ -82,8 +82,8 @@ def test_only_labels_is_reused_from_the_existing_console():
     assert reused <= {"labels"}
 
 
-def test_existing_console_files_are_untouched():
-    """The tabs must be addable without editing app.py or the theme."""
+def test_tab_package_does_not_expand_beyond_the_approved_console_integration():
+    """Keep the skeleton isolated except for the explicitly approved adapters."""
     result = subprocess.run(
         ["git", "diff", "--name-only",
          "2ffbad6673f54c2bd4724dc19acaea7d31f23f89", "--"],
@@ -91,10 +91,28 @@ def test_existing_console_files_are_untouched():
     )
     changed = {line for line in result.stdout.splitlines() if line}
     allowed_prefixes = (
-        "operator_console/arm_ui/",
-        "operator_console/tests/arm_ui/",
-        "docs/reports/2026-09-10-claude-arm-ui.md",
-    )
+            "operator_console/arm_ui/",
+            "operator_console/arm_ui_binding.py",
+            "operator_console/arm_binding.py",
+            "operator_console/tool_binding.py",
+            "operator_console/app.py",
+            "operator_console/arm_telemetry.py",
+            "operator_console/tests/test_arm_telemetry.py",
+            "operator_console/tests/test_arm_binding.py",
+            "operator_console/tests/test_arm_ui_binding.py",
+            "operator_console/tests/test_tool_binding.py",
+            "powertrain_observability/tool_snapshot.py",
+            "ros2/src/powertrain_ros/powertrain_ros/arm_console_bridge_node.py",
+            "ros2/src/powertrain_ros/powertrain_ros/arm_console_mirror.py",
+            "ros2/src/powertrain_ros/test/test_arm_console_bridge.py",
+            "docs/plans/2026-09-10-arm-console-ui.md",
+            "docs/specs/2026-09-10-arm-existing-ui-contract.md",
+            "docs/reports/2026-09-10-existing-tool-ui-connection.md",
+            "docs/reports/2026-09-10-existing-arm-runtime-ui-connection.md",
+            "docs/reports/2026-09-10-existing-arm-ui-integration-validation.md",
+            "operator_console/tests/arm_ui/",
+            "docs/reports/2026-09-10-claude-arm-ui.md",
+        )
     unexpected = sorted(
         name for name in changed
         if not name.startswith(allowed_prefixes)

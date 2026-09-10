@@ -158,10 +158,9 @@ def test_arm_telemetry_payload_can_include_end_effector_identity():
     assert payload["end_effector_interface"] == "센서 데이터"
 
 
-def test_arm_telemetry_payload_degrades_mismatched_joints_without_killing_motors():
-    # ROS 관례상 JointState 는 velocity 를 생략(빈 배열)할 수 있다. 이런
-    # 합법 변형이 datagram 전체(모터 온도 포함)를 침묵시키면 안 된다 —
-    # joints 만 강등한다 (2026-07-19 콘솔 E2E 리뷰 A#2).
+def test_arm_telemetry_payload_preserves_joint_positions_without_velocity():
+    # ROS JointState 는 velocity를 생략할 수 있다. 팔 브리지는 position/raw
+    # feedback을 계속 발행하므로 콘솔도 위치를 버리면 안 된다.
     encoded = build_arm_telemetry_payload(
         sequence=0,
         stamp_s=0.0,
@@ -175,7 +174,12 @@ def test_arm_telemetry_payload_degrades_mismatched_joints_without_killing_motors
     )
 
     payload = json.loads(encoded)
-    assert payload["joints"] is None
+    assert payload["joints"] == {
+        "names": ["joint_1", "joint_2"],
+        "position_rad": [0.1, 0.2],
+        "velocity": [],
+        "effort_raw": [],
+    }
     assert payload["dynamixel"][0]["id"] == 11
 
 
