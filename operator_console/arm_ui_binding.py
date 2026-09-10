@@ -132,7 +132,8 @@ class ArmUiTelemetryBinding:
                     code="tool_detached",
                     korean="도구가 분리됨으로 판정됨 — 재연결 후 브릿지 재시작 필요",
                 ))
-            elif tool.get("motion_allowed") is False:
+            elif (tool.get("motion_allowed") is False
+                  and tool.get("tool_enable_allowed") is not True):
                 detail = str(tool.get("reason") or "도구 동작 준비 안 됨")
                 block_reasons.append(C.BlockReason(
                     code="tool_not_ready", korean=f"도구 준비 안 됨 — {detail}",

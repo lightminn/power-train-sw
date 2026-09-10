@@ -141,6 +141,15 @@ class ArmConsoleBridge(Node):
                 raise ValueError('oversize tool status')
             self._tool = normalize_tool(json.loads(message.data))
             self._tool_at = time.monotonic()
+            # The hardware bridge publishes /control/mode_status only when a
+            # mode changes.  After a console mirror restart that one-shot can
+            # be missed, leaving the UI to claim "보유한 제어권 없음" while
+            # /tool/status continuously says MANUAL.  Treat the tool status as
+            # the current-state fallback; it is refreshed at the bridge rate.
+            mode = self._tool.get('control_mode')
+            if mode in ('MANUAL', 'FSM'):
+                self._control_mode = mode
+                self._control_mode_at = self._tool_at
         except (ValueError, TypeError):
             self._tool = None
             self._tool_at = None
