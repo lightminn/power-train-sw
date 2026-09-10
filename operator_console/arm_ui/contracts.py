@@ -483,7 +483,13 @@ def gate(
             and not has_manual_grant(state)
             and not state.developer_mode):
         return False, "수동 제어권 미승인"
-    if state.block_reasons:
+    # A missing tool must not prevent obtaining/releasing control authority or
+    # asking the bridge to re-scan it.  Those are the recovery paths which can
+    # make the tool ready again; only motion/torque controls need the ready
+    # condition below.
+    if (state.block_reasons and capability not in {
+            CAP_CONTROL_MODE, CAP_TOOL_CHANGE, CAP_BRIDGE_RESTART,
+    }):
         return False, state.block_reasons[0].korean
     return True, ""
 

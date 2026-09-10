@@ -66,6 +66,17 @@ def test_bridge_restart_remains_available_when_the_bridge_telemetry_is_down():
     assert C.gate(state, lambda: None, C.CAP_BRIDGE_RESTART) == (True, "")
 
 
+def test_tool_fault_does_not_block_the_authority_or_rescan_recovery_paths():
+    state = replace(
+        fixtures.single_gripper(),
+        block_reasons=(C.BlockReason("tool_not_ready", "도구 준비 안 됨"),),
+    )
+
+    assert C.gate(state, lambda: None, C.CAP_CONTROL_MODE)[0] is True
+    assert C.gate(state, lambda: None, C.CAP_TOOL_CHANGE)[0] is True
+    assert C.gate(state, lambda: None, C.CAP_GRIPPER_COMMAND)[0] is False
+
+
 def test_requested_mode_alone_does_not_unlock_motion():
     state = replace(
         fixtures.single_gripper(),
