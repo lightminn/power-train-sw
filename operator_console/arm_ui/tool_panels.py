@@ -350,7 +350,7 @@ class InformationOnlyToolPanel(_ToolPanelBase):
             )
         elif tool.kind == C.TOOL_CLEANER:
             self._note.set_text(
-                "청소 모듈은 장착·상태 표시만 제공합니다.",
+                "청소 모듈의 좌·우·정지 조작은 전용 패널에서 제공합니다.",
             )
         else:
             self._note.set_text(

@@ -57,8 +57,8 @@ SELECTABLE_TOOL_KINDS = (
     TOOL_ENVIRONMENT_SENSOR,
 )
 
-# Kinds that carry a gripper control panel.  Everything else shows information
-# only -- the cleaner's direction control and any developer drive path are
+# Kinds that carry an existing end-effector FSM control panel.  The cleaner is
+# limited to its existing LEFT/RIGHT/STOP FSM path; raw motor drive remains
 # deliberately absent from this UI.
 GRIPPER_TOOL_KINDS = frozenset({TOOL_SINGLE_GRIPPER, TOOL_DUAL_GRIPPER})
 
@@ -411,6 +411,8 @@ ACTION_CAPTURE_CLOSE = "capture_close"
 COMMAND_OPEN = "open"
 COMMAND_CLOSE = "close"
 COMMAND_STOP = "stop"
+COMMAND_LEFT = "left"
+COMMAND_RIGHT = "right"
 
 TARGET_SINGLE = "single"
 TARGET_LEFT = "left"
