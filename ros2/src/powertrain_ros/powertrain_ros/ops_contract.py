@@ -129,6 +129,15 @@ ACTIONS = {
     "robot_arm_tool_enable": ActionSpec(
         _CONSOLE, "publish_tool_torque", ("/dynamixel/torque_request",),
     ),
+    "robot_arm_calibration": ActionSpec(
+        _CONSOLE, "publish_tool_calibration", ("/tool/dual_calibration_command",),
+    ),
+    "robot_arm_calibration_jog": ActionSpec(
+        _CONSOLE, "publish_tool_calibration_jog", ("/tool/dual_calibration_command",),
+    ),
+    "robot_arm_calibration_jog_stop": ActionSpec(
+        _CONSOLE, "publish_tool_calibration_hold", ("/tool/dual_calibration_command",),
+    ),
     "steer_mode_skid": ActionSpec(
         _CONSOLE, "service_setbool",
         ("/chassis_node/steer_mode_skid",),

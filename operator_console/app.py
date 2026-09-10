@@ -36,6 +36,9 @@ from operator_console.arm_ops import (
 )
 from operator_console.arm_ops.contract import (
     ACTION_MODE_REQUEST,
+    ACTION_CALIBRATION,
+    ACTION_CALIBRATION_JOG,
+    ACTION_CALIBRATION_JOG_STOP,
     ACTION_TOOL_CHANGE,
     ACTION_TOOL_COMMAND,
     ACTION_TOOL_ENABLE,
@@ -4021,6 +4024,8 @@ class OperatorConsole(Gtk.Window):
                         ACTION_MODE_REQUEST, ACTION_TOOL_CHANGE,
                         ACTION_TOOL_COMMAND,
                         ACTION_TOOL_ENABLE,
+                        ACTION_CALIBRATION, ACTION_CALIBRATION_JOG,
+                        ACTION_CALIBRATION_JOG_STOP,
                     }),
                 ),
             ),

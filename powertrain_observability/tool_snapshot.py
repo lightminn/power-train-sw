@@ -30,6 +30,15 @@ def normalize_tool(value):
         if item is not None and (not isinstance(item, str) or len(item) > 160):
             raise ValueError('invalid tool status text')
         out[key] = item.strip() if item else None
+    dual_calibration = value.get('dual_calibration')
+    if isinstance(dual_calibration, dict):
+        out['dual_calibration'] = {
+            'active': bool(dual_calibration.get('active')),
+            'validated': bool(dual_calibration.get('validated')),
+            'candidate_valid': bool(dual_calibration.get('candidate_valid')),
+            'state': str(dual_calibration.get('state') or ''),
+            'captures': dict(dual_calibration.get('captures') or {}),
+        }
     samples = value.get('actuators', [])
     if not isinstance(samples, list) or len(samples) > 8:
         raise ValueError('invalid actuators')

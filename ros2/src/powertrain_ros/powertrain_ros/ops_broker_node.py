@@ -155,6 +155,8 @@ class OpsBrokerNode(Node):
         self._arm_mode_pub = self.create_publisher(String, "/control/mode", 10)
         self._tool_fsm_pub = self.create_publisher(String, "/tool/fsm_command", 10)
         self._tool_change_pub = self.create_publisher(String, "/tool/change", 10)
+        self._tool_dual_calibration_pub = self.create_publisher(
+            String, "/tool/dual_calibration_command", 10)
         self._tool_torque_pub = self.create_publisher(
             Int32MultiArray, "/dynamixel/torque_request", 10,
         )
@@ -527,6 +529,45 @@ class OpsBrokerNode(Node):
                 return
             self._tool_change_pub.publish(String(data=tool_type))
             self._complete_order(order, connection, role, True, "published tool re-scan request")
+            return
+        if order.kind in (
+                "publish_tool_calibration", "publish_tool_calibration_jog",
+                "publish_tool_calibration_hold"):
+            params = dict(order.params)
+            if order.kind == "publish_tool_calibration":
+                scope = params.get("scope")
+                action = params.get("action")
+                target = params.get("step")
+            else:
+                scope = "tool"
+                action = "jog" if order.kind == "publish_tool_calibration_jog" else "hold"
+                target = params.get("target")
+            if scope != "tool" or not isinstance(action, str) or not isinstance(target, str):
+                self._complete_order(order, connection, role, False, "invalid tool calibration params")
+                return
+            command = {
+                "start": "start", "cancel": "stop", "verify": "validate",
+                "save": "save", "capture_open": "capture_open",
+                "capture_close": "capture_close",
+            }.get(action)
+            if order.kind == "publish_tool_calibration_jog":
+                command = "jog_motor_degrees"
+            elif order.kind == "publish_tool_calibration_hold":
+                command = "hold"
+            if command is None:
+                self._complete_order(order, connection, role, False, "unsupported dual calibration action")
+                return
+            request = {"command": command}
+            if command == "jog_motor_degrees":
+                actuator = {"left": 3, "right": 4}.get(target)
+                direction = params.get("direction")
+                if actuator is None or direction not in (-1, 1):
+                    self._complete_order(order, connection, role, False, "invalid dual calibration jog")
+                    return
+                request.update({"actuator_id": actuator, "delta_deg": 0.5 * direction})
+            self._tool_dual_calibration_pub.publish(String(data=json.dumps(
+                request, separators=(",", ":"), sort_keys=True)))
+            self._complete_order(order, connection, role, True, "published dual calibration command")
             return
         if order.kind == "publish_tool_torque":
             params = dict(order.params)

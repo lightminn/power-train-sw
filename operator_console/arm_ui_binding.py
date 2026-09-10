@@ -119,6 +119,11 @@ class ArmUiTelemetryBinding:
                 and tool.get("read_only") is not True
                 and tool.get("emergency_stop") is not True):
             capabilities.add(C.CAP_GRIPPER_COMMAND)
+        if (link_state == C.LINK_LIVE and ops_link_ready and tool is not None
+                and isinstance(tool.get("dual_calibration"), dict)
+                and tool.get("read_only") is not True):
+            capabilities.update({C.CAP_TOOL_CALIBRATION,
+                                 C.CAP_DUAL_TOOL_CALIBRATION})
         block_reasons: list[C.BlockReason] = []
         if tool is not None:
             hardware_error = tool.get("hardware_error")
