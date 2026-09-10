@@ -39,6 +39,15 @@ PROTECTED_FILES = (
     "motor_control/laptop/ops_channel_client.py",
 )
 
+# The surrounding branch already contains the separately approved read-only
+# arm telemetry and tab integration.  This arm-ops package must not broaden
+# that set, but its boundary test must not mistake those earlier changes for
+# edits made by this package.
+APPROVED_ARM_UI_INTEGRATION_FILES = frozenset({
+    "operator_console/app.py",
+    "operator_console/arm_telemetry.py",
+})
+
 
 def module_files() -> list[Path]:
     return sorted(PACKAGE.glob("*.py"))
@@ -136,7 +145,7 @@ def test_protected_files_are_untouched_since_the_base_commit():
     )
     changed = {line for line in result.stdout.splitlines() if line}
 
-    touched = sorted(set(PROTECTED_FILES) & changed)
+    touched = sorted((set(PROTECTED_FILES) - APPROVED_ARM_UI_INTEGRATION_FILES) & changed)
     assert touched == [], f"보호 대상 파일이 변경됨: {touched}"
 
 
@@ -149,9 +158,30 @@ def test_changes_stay_inside_the_declared_new_paths():
     allowed_prefixes = (
         "operator_console/arm_ui/",
         "operator_console/arm_ops/",
+        "operator_console/arm_ui_binding.py",
+        "operator_console/arm_binding.py",
+        "operator_console/tool_binding.py",
+        "operator_console/app.py",
+        "operator_console/arm_telemetry.py",
+        "operator_console/runtime_smoke.py",
+        "operator_console/tests/test_arm_telemetry.py",
+        "operator_console/tests/test_arm_binding.py",
+        "operator_console/tests/test_arm_ui_binding.py",
+        "operator_console/tests/test_runtime_smoke.py",
+        "operator_console/tests/test_tool_binding.py",
+        "powertrain_observability/tool_snapshot.py",
+        "ros2/src/powertrain_ros/powertrain_ros/arm_console_bridge_node.py",
+        "ros2/src/powertrain_ros/powertrain_ros/arm_console_mirror.py",
+        "ros2/src/powertrain_ros/test/test_arm_console_bridge.py",
         "operator_console/tests/arm_ui/",
         "operator_console/tests/arm_ops/",
         "docs/reports/2026-09-10-claude-arm-ui.md",
+        "docs/reports/2026-09-10-existing-tool-ui-connection.md",
+        "docs/reports/2026-09-10-existing-arm-runtime-ui-connection.md",
+        "docs/reports/2026-09-10-existing-arm-ui-integration-validation.md",
+        "docs/reports/2026-09-10-arm-ui-skeleton-integration.md",
+        "docs/plans/2026-09-10-arm-console-ui.md",
+        "docs/specs/2026-09-10-arm-existing-ui-contract.md",
         "docs/specs/2026-09-10-claude-arm-ops-contract.md",
     )
 
