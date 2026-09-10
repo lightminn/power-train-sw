@@ -52,7 +52,8 @@ def normalize_tool(value):
             raise ValueError('duplicate actuator')
         seen.add(sample['id'])
         row = {'id': sample['id']}
-        for key in ('position', 'effort', 'hardware_error', 'operating_mode', 'model'):
+        for key in ('position', 'effort', 'hardware_error', 'operating_mode', 'model',
+                    'temperature_c'):
             item = sample.get(key)
             if item is not None and (type(item) not in (int, float) or not math.isfinite(item)):
                 raise ValueError('invalid numeric feedback')
