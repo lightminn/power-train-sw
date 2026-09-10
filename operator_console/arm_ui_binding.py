@@ -32,7 +32,7 @@ class ArmUiTelemetryBinding:
             return None
         return source_age_s + max(0.0, time.monotonic() - snapshot.received_monotonic_s)
 
-    def state(self, snapshot):
+    def state(self, snapshot, *, ops_link_ready=False):
         if snapshot is None:
             return C.default_state()
         receive_age = max(0.0, time.monotonic() - snapshot.received_monotonic_s)
@@ -101,11 +101,14 @@ class ArmUiTelemetryBinding:
         manual = arm_runtime.get("control_mode")
         manual_age = self._age(snapshot, runtime_ages.get("control_mode"))
         granted = manual == "MANUAL" and manual_age is not None and manual_age <= 1.0
-        capabilities = frozenset()
-        if (tool is not None and tool.get("motion_allowed") is True
+        capabilities = set()
+        if link_state == C.LINK_LIVE and ops_link_ready:
+            capabilities.add(C.CAP_CONTROL_MODE)
+        if (link_state == C.LINK_LIVE and ops_link_ready
+                and tool is not None and tool.get("motion_allowed") is True
                 and tool.get("read_only") is not True
                 and tool.get("emergency_stop") is not True):
-            capabilities = frozenset({C.CAP_GRIPPER_COMMAND})
+            capabilities.add(C.CAP_GRIPPER_COMMAND)
         return C.ArmUiState(
             link=C.SourceLink(state=link_state, age_s=receive_age),
             detected_tool=identity,
@@ -117,5 +120,5 @@ class ArmUiTelemetryBinding:
             ),
             teleop=C.TeleopState(axes=axes),
             diagnostics=diagnostics,
-            capabilities=capabilities,
+            capabilities=frozenset(capabilities),
         )

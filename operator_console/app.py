@@ -27,9 +27,17 @@ from operator_console.arm_ui import (
     ARM_MANUAL_TAB_TITLE,
     ArmCalibrationTab,
     ArmManualTab,
-    ArmUiCallbacks,
 )
 from operator_console.arm_ui_binding import ArmUiTelemetryBinding
+from operator_console.arm_ops import (
+    ArmCommandSession,
+    ArmOpsCallbackAdapter,
+    ContractGatedTransport,
+)
+from operator_console.arm_ops.contract import (
+    ACTION_MODE_REQUEST,
+    ACTION_TOOL_COMMAND,
+)
 
 import gi
 
@@ -3132,6 +3140,25 @@ class OpsPanel(Gtk.Frame):
             self._emit(f"{action}: submitted · request {request_id}")
         self._hide_confirmation()
 
+    def submit_external(
+        self, action: str, params: dict, expected_state_revision: int | None,
+    ) -> str:
+        """Submit an already-authorized arm request through this ops client.
+
+        Arm controls have their own safety policy and do not use the chassis
+        confirmation strip.  They still use this panel's authenticated client,
+        request tracking and operation log, so there is only one network door.
+        """
+        if self._client is None:
+            raise RuntimeError("ops client unavailable")
+        request_id = self._client.submit(
+            action=str(action), params=dict(params),
+            expected_state_revision=expected_state_revision,
+        )
+        self._pending_requests[request_id] = str(action)
+        self._emit(f"{action}: submitted · request {request_id}")
+        return request_id
+
     def _on_cancel_clicked(self, _button: Gtk.Button) -> None:
         self.cancel_confirmation()
         self._emit("confirmation cancelled")
@@ -3977,9 +4004,22 @@ class OperatorConsole(Gtk.Window):
         stack.set_transition_duration(0)
         stack.add_titled(mission_page, "mission", "실시간 화면")
         stack.add_titled(systems_scroll, "systems", "시스템 상태")
-        # The arm tabs only receive the already-mirrored UDP observation here.
-        # No callback is supplied until an authenticated arm ops contract exists.
-        arm_callbacks = ArmUiCallbacks()
+        # The arm tabs use exactly the existing authenticated ops connection.
+        # Only the two ingress paths implemented by the existing arm FSM are
+        # registered; every other arm callback remains locally refused.
+        self._arm_ops_adapter = ArmOpsCallbackAdapter(
+            ArmCommandSession(
+                clock=time.monotonic,
+                transport=ContractGatedTransport(
+                    submit_fn=self._ops_panel.submit_external,
+                    registered_actions=frozenset({
+                        ACTION_MODE_REQUEST, ACTION_TOOL_COMMAND,
+                    }),
+                ),
+            ),
+            outcome_sink=self._report_arm_command_outcome,
+        )
+        arm_callbacks = self._arm_ops_adapter.callbacks()
         self._arm_manual_tab = ArmManualTab(arm_callbacks)
         self._arm_calibration_tab = ArmCalibrationTab(arm_callbacks)
         stack.add_titled(
@@ -4041,6 +4081,21 @@ class OperatorConsole(Gtk.Window):
         """Keep the Mission footer and the other-tab footer identical."""
         self._events.add_event(source, message)
         self._mission_events.add_event(source, message)
+
+    def _report_arm_command_outcome(self, outcome: object) -> None:
+        """Surface arm policy refusal/submission in the existing event drawer."""
+        if getattr(outcome, "accepted", False):
+            self._add_event(
+                "ARM OPS",
+                f"{getattr(outcome, 'action', 'arm')}: 전송 대기 "
+                f"{getattr(outcome, 'request_id', '')}",
+            )
+            return
+        self._add_event(
+            "ARM OPS",
+            f"{getattr(outcome, 'action', 'arm')}: 거부 · "
+            f"{getattr(outcome, 'korean', '알 수 없는 사유')}",
+        )
 
     def _show_ops_settings(self) -> None:
         """Show the existing token-gated panel without issuing an action."""
@@ -5046,7 +5101,16 @@ class OperatorConsole(Gtk.Window):
             arm_state=arm_state,
             environment_state=environment_state,
         )
-        arm_ui_state = self._arm_ui_binding.state(arm_snapshot)
+        arm_ui_state = self._arm_ui_binding.state(
+            arm_snapshot, ops_link_ready=self._ops_panel.link_ready(),
+        )
+        ops_state = self._ops_panel.latest_state() or {}
+        revision = ops_state.get("revision")
+        self._arm_ops_adapter.update_state(
+            arm_ui_state,
+            state_revision=revision if isinstance(revision, int) else None,
+        )
+        self._arm_ops_adapter.pump()
         self._arm_manual_tab.update_state(arm_ui_state)
         self._arm_calibration_tab.update_state(arm_ui_state)
         self._l515.set_rover_component_states(
@@ -5148,6 +5212,8 @@ class OperatorConsole(Gtk.Window):
 
     def _on_destroy(self, *_args: object) -> None:
         self._ops_panel.cancel_confirmation()
+        self._arm_ops_adapter.blur()
+        self._arm_ops_adapter.pump()
         self._arm_manual_tab.dispose()
         self._arm_calibration_tab.dispose()
         self._ops_settings_window.destroy()
