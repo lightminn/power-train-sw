@@ -90,29 +90,38 @@ def test_tab_package_does_not_expand_beyond_the_approved_console_integration():
         cwd=REPO_ROOT, capture_output=True, text=True, check=True,
     )
     changed = {line for line in result.stdout.splitlines() if line}
+    # The declared scope of this branch's work.  The arm-ops contract work
+    # extended it with its own new paths; both tasks are listed here so this
+    # assertion keeps meaning "nothing outside what was declared".
     allowed_prefixes = (
-            "operator_console/arm_ui/",
-            "operator_console/arm_ui_binding.py",
-            "operator_console/arm_binding.py",
-            "operator_console/tool_binding.py",
-            "operator_console/app.py",
-            "operator_console/arm_telemetry.py",
-            "operator_console/tests/test_arm_telemetry.py",
-            "operator_console/tests/test_arm_binding.py",
-            "operator_console/tests/test_arm_ui_binding.py",
-            "operator_console/tests/test_tool_binding.py",
-            "powertrain_observability/tool_snapshot.py",
-            "ros2/src/powertrain_ros/powertrain_ros/arm_console_bridge_node.py",
-            "ros2/src/powertrain_ros/powertrain_ros/arm_console_mirror.py",
-            "ros2/src/powertrain_ros/test/test_arm_console_bridge.py",
-            "docs/plans/2026-09-10-arm-console-ui.md",
-            "docs/specs/2026-09-10-arm-existing-ui-contract.md",
-            "docs/reports/2026-09-10-existing-tool-ui-connection.md",
-            "docs/reports/2026-09-10-existing-arm-runtime-ui-connection.md",
-            "docs/reports/2026-09-10-existing-arm-ui-integration-validation.md",
-            "operator_console/tests/arm_ui/",
-            "docs/reports/2026-09-10-claude-arm-ui.md",
-        )
+        "operator_console/arm_ui/",
+        "operator_console/arm_ops/",
+        "operator_console/arm_ui_binding.py",
+        "operator_console/arm_binding.py",
+        "operator_console/tool_binding.py",
+        "operator_console/app.py",
+        "operator_console/arm_telemetry.py",
+        "operator_console/runtime_smoke.py",
+        "operator_console/tests/test_arm_telemetry.py",
+        "operator_console/tests/test_arm_binding.py",
+        "operator_console/tests/test_arm_ui_binding.py",
+        "operator_console/tests/test_runtime_smoke.py",
+        "operator_console/tests/test_tool_binding.py",
+        "powertrain_observability/tool_snapshot.py",
+        "ros2/src/powertrain_ros/powertrain_ros/arm_console_bridge_node.py",
+        "ros2/src/powertrain_ros/powertrain_ros/arm_console_mirror.py",
+        "ros2/src/powertrain_ros/test/test_arm_console_bridge.py",
+        "docs/plans/2026-09-10-arm-console-ui.md",
+        "docs/specs/2026-09-10-arm-existing-ui-contract.md",
+        "docs/specs/2026-09-10-claude-arm-ops-contract.md",
+        "docs/reports/2026-09-10-existing-tool-ui-connection.md",
+        "docs/reports/2026-09-10-existing-arm-runtime-ui-connection.md",
+        "docs/reports/2026-09-10-existing-arm-ui-integration-validation.md",
+        "docs/reports/2026-09-10-arm-ui-skeleton-integration.md",
+        "operator_console/tests/arm_ui/",
+        "operator_console/tests/arm_ops/",
+        "docs/reports/2026-09-10-claude-arm-ui.md",
+    )
     unexpected = sorted(
         name for name in changed
         if not name.startswith(allowed_prefixes)
