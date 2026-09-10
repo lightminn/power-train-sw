@@ -12,7 +12,9 @@ import json
 import math
 import os
 from pathlib import Path
+import shlex
 import signal
+import subprocess
 import sys
 import time
 from collections.abc import Callable
@@ -3453,12 +3455,21 @@ class OperatorConsole(Gtk.Window):
                  ops_token_file: str = DEFAULT_OPS_TOKEN_FILE,
                  smoke_probe_file: str | None = None,
                  input_source: str = "LIVE", operation_runtime=None,
-                 arm_developer_mode: bool = False) -> None:
+                 arm_developer_mode: bool = False,
+                 arm_bridge_restart_command: str | None = None) -> None:
         super().__init__(title="파워트레인 운영 콘솔")
         _install_console_css()
         self._operation_runtime = operation_runtime
         self._arm_developer_mode = bool(arm_developer_mode)
         self._arm_developer_mode_notice_sent = False
+        restart_text = arm_bridge_restart_command
+        if restart_text is None:
+            restart_text = os.environ.get("POWERTRAIN_ARM_BRIDGE_RESTART_CMD", "")
+        try:
+            self._arm_bridge_restart_argv = tuple(shlex.split(restart_text))
+        except ValueError:
+            self._arm_bridge_restart_argv = ()
+        self._arm_bridge_restart_process: subprocess.Popen[bytes] | None = None
         self._operation_source_id = None
         self._operation_session = None
         self._smoke_probe_path = (
@@ -4023,6 +4034,7 @@ class OperatorConsole(Gtk.Window):
                 ),
             ),
             outcome_sink=self._report_arm_command_outcome,
+            restart_bridge=self._restart_arm_bridge,
         )
         arm_callbacks = self._arm_ops_adapter.callbacks()
         self._arm_manual_tab = ArmManualTab(arm_callbacks)
@@ -4101,6 +4113,38 @@ class OperatorConsole(Gtk.Window):
             f"{getattr(outcome, 'action', 'arm')}: 거부 · "
             f"{getattr(outcome, 'korean', '알 수 없는 사유')}",
         )
+
+    def _restart_arm_bridge(self) -> None:
+        """Ask the deployment's configured supervisor to restart the bridge.
+
+        The console never guesses whether the bridge is managed by systemd,
+        docker compose, or a ROS launch process.  The configured command is
+        split into argv and started without a shell so the UI cannot turn a
+        button label into an arbitrary shell command.
+        """
+        if not self._arm_bridge_restart_argv:
+            self._add_event(
+                "ARM BRIDGE",
+                "재시작 명령이 설정되지 않았습니다 (POWERTRAIN_ARM_BRIDGE_RESTART_CMD)",
+            )
+            return
+        if (self._arm_bridge_restart_process is not None
+                and self._arm_bridge_restart_process.poll() is None):
+            self._add_event("ARM BRIDGE", "재시작 명령이 이미 실행 중입니다")
+            return
+        try:
+            self._arm_bridge_restart_process = subprocess.Popen(
+                self._arm_bridge_restart_argv,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                start_new_session=True,
+            )
+        except OSError as exc:
+            self._add_event("ARM BRIDGE", f"재시작 명령 실행 실패: {exc}")
+            return
+        self._add_event("ARM BRIDGE", "supervisor 재시작 명령을 실행했습니다")
 
     def _show_ops_settings(self) -> None:
         """Show the existing token-gated panel without issuing an action."""
@@ -5109,6 +5153,7 @@ class OperatorConsole(Gtk.Window):
         arm_ui_state = self._arm_ui_binding.state(
             arm_snapshot, ops_link_ready=self._ops_panel.link_ready(),
             developer_mode=self._arm_developer_mode,
+            bridge_restart_ready=bool(self._arm_bridge_restart_argv),
         )
         ops_state = self._ops_panel.latest_state() or {}
         revision = ops_state.get("revision")
@@ -5314,6 +5359,12 @@ def main() -> None:
         "--arm-developer-mode", action="store_true",
         help="local bench mode: bypass arm grant/capability UI gates; keep FSM safety/stop",
     )
+    parser.add_argument(
+        "--arm-bridge-restart-command",
+        default=None,
+        help=("arm bridge supervisor restart command. If omitted, "
+              "POWERTRAIN_ARM_BRIDGE_RESTART_CMD is used."),
+    )
     parser.add_argument("--latency-ms", type=int, default=60)
     parser.add_argument(
         "--smoke-probe-file",
@@ -5339,7 +5390,8 @@ def main() -> None:
                               ops_token_file=args.ops_token_file,
                               smoke_probe_file=args.smoke_probe_file,
                               input_source=args.input_source,
-                              arm_developer_mode=args.arm_developer_mode)
+                              arm_developer_mode=args.arm_developer_mode,
+                              arm_bridge_restart_command=args.arm_bridge_restart_command)
     console.show_all()
     console.maximize()
 

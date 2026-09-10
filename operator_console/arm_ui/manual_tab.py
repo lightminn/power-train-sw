@@ -289,6 +289,18 @@ class ArmManualTab:
         )
         section.pack_start(self._tool_enable_button, False, False, 0)
 
+        restart = self._callbacks.restart_bridge
+        self._restart_button = button("브릿지 재시작", "arm-danger")
+        if restart is not None:
+            self.tracker.connect(
+                self._restart_button, "clicked", lambda _b: restart(),
+            )
+        self.gate.add(
+            self._restart_button, restart, C.CAP_BRIDGE_RESTART,
+            hint="도구 bridge를 supervisor 명령으로 재시작합니다",
+        )
+        section.pack_start(self._restart_button, False, False, 0)
+
         self._requested = Metric("요청한 모드", width_chars=12)
         self._granted = Metric("승인된 모드", width_chars=12)
         section.pack_start(

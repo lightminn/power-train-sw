@@ -59,6 +59,13 @@ def test_stale_link_is_not_treated_as_usable():
     assert "STALE" in reason
 
 
+def test_bridge_restart_remains_available_when_the_bridge_telemetry_is_down():
+    state = C.default_state()
+    state = replace(state, capabilities=frozenset({C.CAP_BRIDGE_RESTART}))
+
+    assert C.gate(state, lambda: None, C.CAP_BRIDGE_RESTART) == (True, "")
+
+
 def test_requested_mode_alone_does_not_unlock_motion():
     state = replace(
         fixtures.single_gripper(),

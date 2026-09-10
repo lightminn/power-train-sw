@@ -73,6 +73,7 @@ CAP_TELEOP_JOG = "teleop_jog"
 CAP_TELEOP_POSE = "teleop_pose"
 CAP_GRIPPER_COMMAND = "gripper_command"
 CAP_TOOL_ENABLE = "tool_enable"
+CAP_BRIDGE_RESTART = "bridge_restart"
 CAP_DUAL_SYNC = "dual_sync"
 CAP_ARM_CALIBRATION = "arm_calibration"
 CAP_TOOL_CALIBRATION = "tool_calibration"
@@ -393,6 +394,7 @@ class ArmUiCallbacks:
     move_to_pose: Callback = None                 # (name: str)
     delete_pose: Callback = None                  # (name: str)
     # 도구 조작
+    restart_bridge: Callback = None               # () bridge supervisor restart
     set_tool_enabled: Callback = None             # (enabled: bool) active tool only
     tool_command: Callback = None                 # (target: str, command: str)
     tool_jog_start: Callback = None               # (target: str, direction: int)
@@ -459,8 +461,19 @@ def gate(
     """
     if callback is None:
         return False, "미연결 — 명령 경로가 연결되지 않음"
+    # Developer mode never invents a supervisor command.  Unlike an arm
+    # capability this is a local deployment configuration requirement.
+    if (capability == CAP_BRIDGE_RESTART
+            and capability not in state.capabilities):
+        return False, "브릿지 supervisor 재시작 명령이 설정되지 않음"
     if capability and capability not in state.capabilities and not state.developer_mode:
         return False, "지원하지 않음 — 백엔드가 이 기능을 보고하지 않음"
+    # A bridge restart is deliberately available even when the telemetry which
+    # normally proves a LIVE link has gone away.  It is a local supervisor
+    # operation, not a robot motion command, and is precisely the recovery
+    # path for a stopped bridge.
+    if capability == CAP_BRIDGE_RESTART:
+        return True, ""
     if not is_live(state):
         if state.link.state == LINK_STALE:
             return False, "상태 지연(STALE) — 최신 상태 없이 조작 불가"

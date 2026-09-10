@@ -32,7 +32,8 @@ class ArmUiTelemetryBinding:
             return None
         return source_age_s + max(0.0, time.monotonic() - snapshot.received_monotonic_s)
 
-    def state(self, snapshot, *, ops_link_ready=False, developer_mode=False):
+    def state(self, snapshot, *, ops_link_ready=False, developer_mode=False,
+              bridge_restart_ready=False):
         if snapshot is None:
             return C.default_state()
         receive_age = max(0.0, time.monotonic() - snapshot.received_monotonic_s)
@@ -104,6 +105,8 @@ class ArmUiTelemetryBinding:
         capabilities = set()
         if link_state == C.LINK_LIVE and ops_link_ready:
             capabilities.add(C.CAP_CONTROL_MODE)
+        if bridge_restart_ready:
+            capabilities.add(C.CAP_BRIDGE_RESTART)
         if (link_state == C.LINK_LIVE and ops_link_ready
                 and tool is not None
                 and tool.get("tool_enable_allowed") is True
@@ -115,6 +118,24 @@ class ArmUiTelemetryBinding:
                 and tool.get("read_only") is not True
                 and tool.get("emergency_stop") is not True):
             capabilities.add(C.CAP_GRIPPER_COMMAND)
+        block_reasons: list[C.BlockReason] = []
+        if tool is not None:
+            hardware_error = tool.get("hardware_error")
+            if isinstance(hardware_error, int) and hardware_error:
+                block_reasons.append(C.BlockReason(
+                    code="tool_hardware_error",
+                    korean=f"도구 하드웨어 오류 {hardware_error} — 전원·기구 상태 확인 필요",
+                ))
+            elif tool.get("physical_tool_detached") or tool.get("tool_detached"):
+                block_reasons.append(C.BlockReason(
+                    code="tool_detached",
+                    korean="도구가 분리됨으로 판정됨 — 재연결 후 브릿지 재시작 필요",
+                ))
+            elif tool.get("motion_allowed") is False:
+                detail = str(tool.get("reason") or "도구 동작 준비 안 됨")
+                block_reasons.append(C.BlockReason(
+                    code="tool_not_ready", korean=f"도구 준비 안 됨 — {detail}",
+                ))
         return C.ArmUiState(
             link=C.SourceLink(state=link_state, age_s=receive_age),
             detected_tool=identity,
@@ -127,5 +148,6 @@ class ArmUiTelemetryBinding:
             teleop=C.TeleopState(axes=axes),
             diagnostics=diagnostics,
             capabilities=frozenset(capabilities),
+            block_reasons=tuple(block_reasons),
             developer_mode=bool(developer_mode),
         )

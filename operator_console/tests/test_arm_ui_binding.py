@@ -42,3 +42,16 @@ def test_tool_generation_changes_only_when_detected_tool_changes():
     assert repeated.detected_tool.generation == first.detected_tool.generation
     assert changed.detected_tool.generation == first.detected_tool.generation + 1
     assert [motor.actuator_id for motor in changed.diagnostics.motors] == [3, 4]
+
+
+def test_hardware_fault_is_exposed_as_the_operator_block_reason():
+    snapshot = _snapshot()
+    snapshot.tool_runtime["tool"].update({
+        "hardware_error": 32,
+        "motion_allowed": False,
+    })
+
+    state = ArmUiTelemetryBinding().state(snapshot, ops_link_ready=True)
+
+    assert state.block_reasons[0].code == "tool_hardware_error"
+    assert "32" in state.block_reasons[0].korean

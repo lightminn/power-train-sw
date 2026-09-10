@@ -124,7 +124,24 @@ def test_only_the_deliberately_unbound_callbacks_are_none():
 def test_the_unbound_callbacks_are_the_ones_with_no_agreed_arm_meaning():
     # select_axis is a view change; change_speed has no confirmed arm-side
     # representation, and guessing one would put an unagreed command on the wire.
-    assert set(UNBOUND_CALLBACKS) == {"select_axis", "change_speed"}
+    assert set(UNBOUND_CALLBACKS) == {
+        "select_axis", "change_speed", "restart_bridge",
+    }
+
+
+def test_configured_bridge_restart_is_exposed_without_becoming_an_ops_action():
+    clock = FakeClock()
+    transport = RecordingArmTransport()
+    called = []
+    adapter = ArmOpsCallbackAdapter(
+        ArmCommandSession(clock=clock, transport=transport),
+        restart_bridge=lambda: called.append(True),
+    )
+
+    adapter.callbacks().restart_bridge()
+
+    assert called == [True]
+    assert transport.actions == ()
 
 
 def test_a_bound_callback_reaches_the_transport():
@@ -246,7 +263,7 @@ def test_the_pure_core_imports_without_gtk():
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "17"
+    assert result.stdout.strip() == "18"
 
 
 def test_the_adapter_is_still_reachable_from_the_package_root():

@@ -80,9 +80,11 @@ class ArmOpsCallbackAdapter:
         session: ArmCommandSession,
         *,
         outcome_sink: Callable[[CommandOutcome], None] | None = None,
+        restart_bridge: Callable[[], object] | None = None,
     ) -> None:
         self._session = session
         self._outcome_sink = outcome_sink
+        self._restart_bridge = restart_bridge
 
     @property
     def session(self) -> ArmCommandSession:
@@ -155,6 +157,7 @@ class ArmOpsCallbackAdapter:
             save_pose=self._wrap(session.save_pose),
             move_to_pose=self._wrap(session.move_to_pose),
             delete_pose=self._wrap(session.delete_pose),
+            restart_bridge=self._restart_bridge,
             set_tool_enabled=self._wrap(session.set_tool_enabled),
             tool_command=self._wrap(session.tool_command),
             tool_jog_start=self._wrap(session.press_tool_jog),
@@ -174,7 +177,7 @@ class ArmOpsCallbackAdapter:
         )
 
 
-UNBOUND_CALLBACKS = ("select_axis", "change_speed")
+UNBOUND_CALLBACKS = ("select_axis", "change_speed", "restart_bridge")
 """Callbacks this adapter deliberately leaves ``None``.
 
 ``select_axis`` is a view change with no ops meaning.  ``change_speed`` has no
