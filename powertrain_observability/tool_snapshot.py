@@ -20,7 +20,7 @@ def normalize_tool(value):
     out = {'tool_type': value['tool_type'], 'actuator_ids': ids, 'actuators': []}
     for key in ('actuators_discovered', 'tool_detached', 'physical_tool_detached',
                 'mock_mode', 'motion_allowed', 'tool_enable_allowed', 'read_only',
-                'emergency_stop'):
+                'emergency_stop', 'calibration_jog_enabled'):
         item = value.get(key)
         if item is not None and type(item) is not bool:
             raise ValueError('invalid tool flag')

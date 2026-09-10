@@ -130,6 +130,11 @@ class ArmUiTelemetryBinding:
                 and tool.get("read_only") is not True):
             capabilities.update({C.CAP_TOOL_CALIBRATION,
                                  C.CAP_DUAL_TOOL_CALIBRATION})
+        if (link_state == C.LINK_LIVE and ops_link_ready and tool is not None
+                and tool.get("tool_type") == "spur_1motor_gripper"
+                and tool.get("calibration_jog_enabled") is True
+                and tool.get("read_only") is not True):
+            capabilities.add(C.CAP_TOOL_CALIBRATION)
         block_reasons: list[C.BlockReason] = []
         if tool is not None:
             hardware_error = tool.get("hardware_error")

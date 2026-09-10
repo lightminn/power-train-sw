@@ -157,6 +157,8 @@ class OpsBrokerNode(Node):
         self._tool_change_pub = self.create_publisher(String, "/tool/change", 10)
         self._tool_dual_calibration_pub = self.create_publisher(
             String, "/tool/dual_calibration_command", 10)
+        self._tool_single_calibration_pub = self.create_publisher(
+            String, "/tool/calibration_command", 10)
         self._tool_torque_pub = self.create_publisher(
             Int32MultiArray, "/dynamixel/torque_request", 10,
         )
@@ -557,17 +559,23 @@ class OpsBrokerNode(Node):
             if command is None:
                 self._complete_order(order, connection, role, False, "unsupported dual calibration action")
                 return
+            tool_id = str(params.get("tool_id", ""))
+            is_single = tool_id.startswith("spur_1motor_gripper:")
             request = {"command": command}
             if command == "jog_motor_degrees":
-                actuator = {"left": 3, "right": 4}.get(target)
                 direction = params.get("direction")
-                if actuator is None or direction not in (-1, 1):
+                actuator = {"left": 3, "right": 4}.get(target)
+                if direction not in (-1, 1) or (not is_single and actuator is None):
                     self._complete_order(order, connection, role, False, "invalid dual calibration jog")
                     return
-                request.update({"actuator_id": actuator, "delta_deg": 0.5 * direction})
-            self._tool_dual_calibration_pub.publish(String(data=json.dumps(
+                request["delta_deg"] = 0.5 * direction
+                if not is_single:
+                    request["actuator_id"] = actuator
+            publisher = (self._tool_single_calibration_pub if is_single
+                         else self._tool_dual_calibration_pub)
+            publisher.publish(String(data=json.dumps(
                 request, separators=(",", ":"), sort_keys=True)))
-            self._complete_order(order, connection, role, True, "published dual calibration command")
+            self._complete_order(order, connection, role, True, "published tool calibration command")
             return
         if order.kind == "publish_tool_torque":
             params = dict(order.params)
