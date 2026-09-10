@@ -364,6 +364,26 @@ class InformationOnlyToolPanel(_ToolPanelBase):
                 self._badge.set("조작 없음", "status-muted")
 
 
+class CleanerPanel(_ToolPanelBase):
+    """Existing cleaner FSM only: LEFT/RIGHT/STOP, never raw motor drive."""
+
+    kind = C.TOOL_CLEANER
+
+    def __init__(self, callbacks: C.ArmUiCallbacks) -> None:
+        super().__init__(callbacks)
+        card = Card(
+            "청소 모듈 조작",
+            "기존 엔드이펙터 FSM의 좌·우·정지 명령만 전달합니다.",
+            accent="gripper",
+        )
+        card.pack(reflow_row([
+            self._command("좌회전", C.TARGET_BOTH, C.COMMAND_LEFT),
+            self._command("우회전", C.TARGET_BOTH, C.COMMAND_RIGHT),
+            self._command("정지", C.TARGET_BOTH, C.COMMAND_STOP, "arm-danger"),
+        ], columns=3))
+        self.box.pack_start(card.box, False, False, 0)
+
+
 class ToolPanelStack:
     """Shows exactly one tool panel, chosen by the detected tool kind.
 
@@ -374,10 +394,12 @@ class ToolPanelStack:
     def __init__(self, callbacks: C.ArmUiCallbacks) -> None:
         self.single = SingleGripperPanel(callbacks)
         self.dual = DualGripperPanel(callbacks)
+        self.cleaner = CleanerPanel(callbacks)
         self.other = InformationOnlyToolPanel(callbacks)
         self._panels = {
             C.TOOL_SINGLE_GRIPPER: self.single,
             C.TOOL_DUAL_GRIPPER: self.dual,
+            C.TOOL_CLEANER: self.cleaner,
         }
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.NONE)
@@ -385,6 +407,7 @@ class ToolPanelStack:
         self.stack.set_vhomogeneous(False)
         self.stack.add_named(self.single.box, C.TOOL_SINGLE_GRIPPER)
         self.stack.add_named(self.dual.box, C.TOOL_DUAL_GRIPPER)
+        self.stack.add_named(self.cleaner.box, C.TOOL_CLEANER)
         self.stack.add_named(self.other.box, "other")
         self._active_name = "other"
         self.stack.set_visible_child_name("other")
@@ -414,11 +437,11 @@ class ToolPanelStack:
         self.active_panel.update(state)
 
     def release_holds(self) -> None:
-        for panel in (self.single, self.dual, self.other):
+        for panel in (self.single, self.dual, self.cleaner, self.other):
             panel.release_holds()
 
     def dispose(self) -> None:
-        for panel in (self.single, self.dual, self.other):
+        for panel in (self.single, self.dual, self.cleaner, self.other):
             panel.dispose()
 
 

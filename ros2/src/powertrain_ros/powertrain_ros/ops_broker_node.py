@@ -480,7 +480,7 @@ class OpsBrokerNode(Node):
             params = dict(order.params)
             if (set(params) != {"target", "command", "tool_id", "tool_generation"}
                     or params.get("target") not in ("single", "left", "right", "both")
-                    or params.get("command") not in ("open", "close", "stop")
+                    or params.get("command") not in ("open", "close", "stop", "left", "right")
                     or not isinstance(params.get("tool_id"), str)
                     or not isinstance(params.get("tool_generation"), int)):
                 self._complete_order(order, connection, role, False, "invalid tool FSM params")
@@ -488,8 +488,14 @@ class OpsBrokerNode(Node):
             # The existing bridge validates tool_type against its active FSM;
             # the observed fingerprint is only an ops concurrency guard.
             tool_type = params["tool_id"].split(":", 1)[0]
-            if tool_type not in ("spur_1motor_gripper", "dual_motor_gripper"):
+            if tool_type not in ("spur_1motor_gripper", "dual_motor_gripper", "cleaner"):
                 self._complete_order(order, connection, role, False, "unsupported active tool")
+                return
+            if tool_type == "cleaner" and params["command"] not in ("left", "right", "stop"):
+                self._complete_order(order, connection, role, False, "unsupported cleaner command")
+                return
+            if tool_type != "cleaner" and params["command"] not in ("open", "close", "stop"):
+                self._complete_order(order, connection, role, False, "unsupported gripper command")
                 return
             self._tool_fsm_pub.publish(String(data=json.dumps({
                 "tool_type": tool_type, "command": params["command"].upper(),
