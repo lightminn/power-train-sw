@@ -277,6 +277,18 @@ class ArmManualTab:
         buttons.append(self._release_button)
         section.pack_start(reflow_row(buttons, columns=3), False, False, 0)
 
+        enable = self._callbacks.set_tool_enabled
+        self._tool_enable_button = button("도구 토크 활성화", "arm-primary")
+        if enable is not None:
+            self.tracker.connect(
+                self._tool_enable_button, "clicked", lambda _b: enable(True),
+            )
+        self.gate.add(
+            self._tool_enable_button, enable, C.CAP_TOOL_ENABLE,
+            hint="현재 감지된 도구 actuator에만 토크를 인가합니다",
+        )
+        section.pack_start(self._tool_enable_button, False, False, 0)
+
         self._requested = Metric("요청한 모드", width_chars=12)
         self._granted = Metric("승인된 모드", width_chars=12)
         section.pack_start(

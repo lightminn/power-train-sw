@@ -105,6 +105,12 @@ class ArmUiTelemetryBinding:
         if link_state == C.LINK_LIVE and ops_link_ready:
             capabilities.add(C.CAP_CONTROL_MODE)
         if (link_state == C.LINK_LIVE and ops_link_ready
+                and tool is not None
+                and tool.get("tool_enable_allowed") is True
+                and tool.get("read_only") is not True
+                and tool.get("emergency_stop") is not True):
+            capabilities.add(C.CAP_TOOL_ENABLE)
+        if (link_state == C.LINK_LIVE and ops_link_ready
                 and tool is not None and tool.get("motion_allowed") is True
                 and tool.get("read_only") is not True
                 and tool.get("emergency_stop") is not True):

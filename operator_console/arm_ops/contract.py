@@ -65,6 +65,7 @@ ACTION_POSE_SAVE = "robot_arm_pose_save"
 ACTION_POSE_MOVE = "robot_arm_pose_move"
 ACTION_POSE_DELETE = "robot_arm_pose_delete"
 ACTION_TOOL_COMMAND = "robot_arm_tool_command"
+ACTION_TOOL_ENABLE = "robot_arm_tool_enable"
 ACTION_TOOL_JOG = "robot_arm_tool_jog"
 ACTION_TOOL_JOG_STOP = "robot_arm_tool_jog_stop"
 ACTION_CALIBRATION = "robot_arm_calibration"
@@ -80,6 +81,7 @@ MOTION_ACTIONS = frozenset({
     ACTION_HOME,
     ACTION_POSE_MOVE,
     ACTION_TOOL_COMMAND,
+    ACTION_TOOL_ENABLE,
     ACTION_TOOL_JOG,
     ACTION_TOOL_JOG_STOP,
     ACTION_CALIBRATION_JOG,
@@ -100,6 +102,7 @@ STOP_ACTIONS = frozenset({
 # was swapped in between.
 TOOL_SCOPED_ACTIONS = frozenset({
     ACTION_TOOL_COMMAND,
+    ACTION_TOOL_ENABLE,
     ACTION_TOOL_JOG,
     ACTION_TOOL_JOG_STOP,
     ACTION_CALIBRATION_JOG,
@@ -267,6 +270,10 @@ ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
         _spec("command", _in(TOOL_COMMANDS)),
         *_TOOL_IDENTITY,
     ),
+    ACTION_TOOL_ENABLE: (
+        _spec("enabled", lambda value: isinstance(value, bool)),
+        *_TOOL_IDENTITY,
+    ),
     ACTION_TOOL_JOG: (
         _spec("target", _in(TOOL_TARGETS)),
         _spec("direction", _in(DIRECTIONS)),
@@ -431,6 +438,7 @@ PLANNED_ACTIONS: tuple[PlannedAction, ...] = tuple(
         (ACTION_POSE_MOVE, "저장 자세로 이동"),
         (ACTION_POSE_DELETE, "저장 자세 삭제"),
         (ACTION_TOOL_COMMAND, "그리퍼 open/close/stop. 백엔드의 정상 FSM 경로를 사용해야 한다"),
+        (ACTION_TOOL_ENABLE, "현재 감지 도구의 프로필에 고정된 actuator 토크 활성화/해제"),
         (ACTION_TOOL_JOG, "그리퍼 누름 조그. deadman"),
         (ACTION_TOOL_JOG_STOP, "그리퍼 조그 종료"),
         (ACTION_CALIBRATION, "팔/도구 보정 단계 명령. 측정·검증·임시적용·저장이 구분되어야 한다"),

@@ -72,6 +72,7 @@ CAP_CONTROL_MODE = "control_mode"
 CAP_TELEOP_JOG = "teleop_jog"
 CAP_TELEOP_POSE = "teleop_pose"
 CAP_GRIPPER_COMMAND = "gripper_command"
+CAP_TOOL_ENABLE = "tool_enable"
 CAP_DUAL_SYNC = "dual_sync"
 CAP_ARM_CALIBRATION = "arm_calibration"
 CAP_TOOL_CALIBRATION = "tool_calibration"
@@ -84,6 +85,7 @@ MANUAL_GRANT_REQUIRED = frozenset({
     CAP_TELEOP_POSE,
     CAP_GRIPPER_COMMAND,
     CAP_DUAL_SYNC,
+    CAP_TOOL_ENABLE,
 })
 
 # Actions that belong to a calibration session and therefore stay live while
@@ -388,6 +390,7 @@ class ArmUiCallbacks:
     move_to_pose: Callback = None                 # (name: str)
     delete_pose: Callback = None                  # (name: str)
     # 도구 조작
+    set_tool_enabled: Callback = None             # (enabled: bool) active tool only
     tool_command: Callback = None                 # (target: str, command: str)
     tool_jog_start: Callback = None               # (target: str, direction: int)
     tool_jog_stop: Callback = None                # (target: str)

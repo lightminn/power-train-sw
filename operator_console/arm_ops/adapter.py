@@ -154,6 +154,7 @@ class ArmOpsCallbackAdapter:
             save_pose=self._wrap(session.save_pose),
             move_to_pose=self._wrap(session.move_to_pose),
             delete_pose=self._wrap(session.delete_pose),
+            set_tool_enabled=self._wrap(session.set_tool_enabled),
             tool_command=self._wrap(session.tool_command),
             tool_jog_start=self._wrap(session.press_tool_jog),
             tool_jog_stop=self._wrap(session.release_tool_jog),

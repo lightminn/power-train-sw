@@ -37,6 +37,7 @@ from operator_console.arm_ops import (
 from operator_console.arm_ops.contract import (
     ACTION_MODE_REQUEST,
     ACTION_TOOL_COMMAND,
+    ACTION_TOOL_ENABLE,
 )
 
 import gi
@@ -4014,6 +4015,7 @@ class OperatorConsole(Gtk.Window):
                     submit_fn=self._ops_panel.submit_external,
                     registered_actions=frozenset({
                         ACTION_MODE_REQUEST, ACTION_TOOL_COMMAND,
+                        ACTION_TOOL_ENABLE,
                     }),
                 ),
             ),

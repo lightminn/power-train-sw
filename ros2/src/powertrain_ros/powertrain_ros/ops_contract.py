@@ -123,6 +123,9 @@ ACTIONS = {
     "robot_arm_tool_command": ActionSpec(
         _CONSOLE, "publish_tool_fsm", ("/tool/fsm_command",),
     ),
+    "robot_arm_tool_enable": ActionSpec(
+        _CONSOLE, "publish_tool_torque", ("/dynamixel/torque_request",),
+    ),
     "steer_mode_skid": ActionSpec(
         _CONSOLE, "service_setbool",
         ("/chassis_node/steer_mode_skid",),

@@ -17,7 +17,7 @@ import uuid
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import Int32MultiArray, String
 from std_srvs.srv import SetBool, Trigger
 
 from powertrain_ros.stop_proof import decode_hardware_stop_proof
@@ -154,6 +154,9 @@ class OpsBrokerNode(Node):
         # ops channel; it never owns a motor or publishes a raw Dynamixel goal.
         self._arm_mode_pub = self.create_publisher(String, "/control/mode", 10)
         self._tool_fsm_pub = self.create_publisher(String, "/tool/fsm_command", 10)
+        self._tool_torque_pub = self.create_publisher(
+            Int32MultiArray, "/dynamixel/torque_request", 10,
+        )
         self.create_subscription(
             String, "/command_authority/state", self._on_authority, 10
         )
@@ -501,6 +504,30 @@ class OpsBrokerNode(Node):
                 "tool_type": tool_type, "command": params["command"].upper(),
             }, separators=(",", ":"), sort_keys=True)))
             self._complete_order(order, connection, role, True, "published tool FSM command")
+            return
+        if order.kind == "publish_tool_torque":
+            params = dict(order.params)
+            if (set(params) != {"enabled", "tool_id", "tool_generation"}
+                    or not isinstance(params.get("enabled"), bool)
+                    or not isinstance(params.get("tool_id"), str)
+                    or not isinstance(params.get("tool_generation"), int)):
+                self._complete_order(order, connection, role, False, "invalid tool torque params")
+                return
+            # This is deliberately a short, profile-bound vocabulary.  No raw
+            # motor IDs cross the ops socket; the existing FSM bridge remains
+            # the final profile/safety gate for the active tool.
+            tool_type = params["tool_id"].split(":", 1)[0]
+            ids = {
+                "spur_1motor_gripper": [5],
+                "dual_motor_gripper": [3, 4],
+            }.get(tool_type)
+            if ids is None:
+                self._complete_order(order, connection, role, False, "unsupported tool torque target")
+                return
+            self._tool_torque_pub.publish(Int32MultiArray(
+                data=[1 if params["enabled"] else 0, *ids],
+            ))
+            self._complete_order(order, connection, role, True, "published profile-bound tool torque request")
             return
         if order.kind == "service_setbool" and not isinstance(
             order.params.get("data"), bool

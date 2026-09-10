@@ -257,6 +257,13 @@ class ArmCommandSession:
             intent=f"도구 {command}",
         )
 
+    def set_tool_enabled(self, enabled: bool) -> CommandOutcome:
+        return self._issue(
+            K.ACTION_TOOL_ENABLE,
+            {"enabled": bool(enabled), **self._tool_identity()},
+            intent="도구 토크 활성화" if enabled else "도구 토크 해제",
+        )
+
     def calibration_command(
         self, scope: str, step: str, action: str,
     ) -> CommandOutcome:
