@@ -247,6 +247,15 @@ class ArmCommandSession:
             K.ACTION_POSE_DELETE, {"name": str(name)}, intent="자세 삭제")
 
     def tool_command(self, target: str, command: str) -> CommandOutcome:
+        # In explicit bench mode, STOP is allowed to release torque and the
+        # next OPEN/CLOSE should be usable without a second operator ritual.
+        # Queue the profile-bound enable first; the broker serializes both
+        # mutations, while the arm FSM remains the final motion gate.
+        if self._context.developer_mode \
+                and str(command).lower() in (K.COMMAND_OPEN, K.COMMAND_CLOSE):
+            enabled = self.set_tool_enabled(True)
+            if not enabled:
+                return enabled
         return self._issue(
             K.ACTION_TOOL_COMMAND,
             {
