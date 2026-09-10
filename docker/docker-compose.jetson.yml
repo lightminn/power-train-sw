@@ -152,7 +152,7 @@ services:
         PYTHONPATH=/workspace/ros2/src/powertrain_ros python3 -m powertrain_ros.preflight || exit 1
         source /opt/ros/humble/setup.bash
         cd /workspace/ros2
-        colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
+        colcon build --packages-select robot_arm_msgs powertrain_msgs dynamixel_control powertrain_ros
         source install/setup.bash
         exec ros2 launch powertrain_ros control.launch.py
     restart: unless-stopped
@@ -211,7 +211,7 @@ services:
         [ -n "$$STOP_MM" ] || { echo "STOP_MM missing in /etc/powertrain/powertrain.env"; exit 1; }
         source /opt/ros/humble/setup.bash
         cd /workspace/ros2
-        colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
+        colcon build --packages-select robot_arm_msgs powertrain_msgs dynamixel_control powertrain_ros
         source install/setup.bash
         exec ros2 launch powertrain_ros wp5_control.launch.py stop_mm:=$$STOP_MM authority_enabled:=true
     restart: unless-stopped
