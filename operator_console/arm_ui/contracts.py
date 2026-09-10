@@ -461,17 +461,14 @@ def gate(
     """
     if callback is None:
         return False, "미연결 — 명령 경로가 연결되지 않음"
-    # Developer mode never invents a supervisor command.  Unlike an arm
-    # capability this is a local deployment configuration requirement.
     if (capability == CAP_BRIDGE_RESTART
             and capability not in state.capabilities):
-        return False, "브릿지 supervisor 재시작 명령이 설정되지 않음"
+        return False, "브릿지 연결 또는 ops 연결 대기 중"
     if capability and capability not in state.capabilities and not state.developer_mode:
         return False, "지원하지 않음 — 백엔드가 이 기능을 보고하지 않음"
-    # A bridge restart is deliberately available even when the telemetry which
-    # normally proves a LIVE link has gone away.  It is a local supervisor
-    # operation, not a robot motion command, and is precisely the recovery
-    # path for a stopped bridge.
+    # This invokes the bridge's existing same-tool re-scan/re-initialization
+    # ingress. It is not a motion command, so it may recover a stale tool
+    # state before normal LIVE telemetry resumes.
     if capability == CAP_BRIDGE_RESTART:
         return True, ""
     if not is_live(state):

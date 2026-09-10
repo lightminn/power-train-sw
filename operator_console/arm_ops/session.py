@@ -209,6 +209,26 @@ class ArmCommandSession:
             intent="도구 변경 요청",
         )
 
+    def revalidate_active_tool(self) -> CommandOutcome:
+        """Ask the existing bridge to re-scan and re-initialize its active tool.
+
+        A same-type ``/tool/change`` request is already the arm stack's
+        recovery API: it re-probes the physical IDs and rebuilds readiness
+        without enabling torque.  It is more useful on a bench than trying to
+        restart an unknown process supervisor from the GUI.
+        """
+        tool_type = {
+            "single_gripper": "spur_1motor_gripper",
+            "dual_gripper": "dual_motor_gripper",
+            "cleaner": "cleaner",
+        }.get(self._context.tool_kind, "")
+        if not tool_type:
+            return self._audit(
+                K.ACTION_TOOL_CHANGE,
+                P.Decision(False, "unknown_tool", "활성 도구를 재탐색할 수 없음"),
+            )
+        return self.request_tool_change(tool_type)
+
     def request_mode(self, mode: str) -> CommandOutcome:
         return self._issue(
             K.ACTION_MODE_REQUEST, {"mode": str(mode)}, intent="제어권 요청",

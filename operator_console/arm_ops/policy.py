@@ -178,7 +178,10 @@ def authorize(
         if mismatch is not None:
             return mismatch
 
-    if context.blocked_reasons:
+    # Tool change is also the bridge's existing re-scan/re-initialization
+    # operation.  Let it observe a disconnected/faulted tool so it can report
+    # fresh hardware state; it never enables torque or commands motion.
+    if context.blocked_reasons and action != K.ACTION_TOOL_CHANGE:
         return _refuse("backend_blocked", context.blocked_reasons[0])
 
     return ALLOWED

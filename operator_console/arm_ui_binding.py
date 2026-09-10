@@ -105,6 +105,7 @@ class ArmUiTelemetryBinding:
         capabilities = set()
         if link_state == C.LINK_LIVE and ops_link_ready:
             capabilities.add(C.CAP_CONTROL_MODE)
+            capabilities.add(C.CAP_TOOL_CHANGE)
         if bridge_restart_ready:
             capabilities.add(C.CAP_BRIDGE_RESTART)
         if (link_state == C.LINK_LIVE and ops_link_ready

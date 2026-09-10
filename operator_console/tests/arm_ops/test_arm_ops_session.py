@@ -124,7 +124,8 @@ def test_registered_actions_can_be_read_off_the_real_ops_contract_module():
     )
     for action in sorted(K.ARM_ACTIONS):
         assert transport.known(action) == (action in {
-            K.ACTION_MODE_REQUEST, K.ACTION_TOOL_COMMAND,
+            K.ACTION_MODE_REQUEST, K.ACTION_TOOL_CHANGE,
+            K.ACTION_TOOL_COMMAND, K.ACTION_TOOL_ENABLE,
         })
 
 

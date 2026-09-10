@@ -297,7 +297,7 @@ class ArmManualTab:
             )
         self.gate.add(
             self._restart_button, restart, C.CAP_BRIDGE_RESTART,
-            hint="도구 bridge를 supervisor 명령으로 재시작합니다",
+            hint="현재 도구를 재탐색하고 bridge의 도구 FSM을 다시 초기화합니다",
         )
         section.pack_start(self._restart_button, False, False, 0)
 

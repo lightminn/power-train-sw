@@ -120,6 +120,9 @@ ACTIONS = {
     "robot_arm_mode_request": ActionSpec(
         _CONSOLE, "publish_arm_mode", ("/control/mode",),
     ),
+    "robot_arm_tool_change": ActionSpec(
+        _CONSOLE, "publish_tool_change", ("/tool/change",),
+    ),
     "robot_arm_tool_command": ActionSpec(
         _CONSOLE, "publish_tool_fsm", ("/tool/fsm_command",),
     ),

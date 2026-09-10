@@ -154,6 +154,7 @@ class OpsBrokerNode(Node):
         # ops channel; it never owns a motor or publishes a raw Dynamixel goal.
         self._arm_mode_pub = self.create_publisher(String, "/control/mode", 10)
         self._tool_fsm_pub = self.create_publisher(String, "/tool/fsm_command", 10)
+        self._tool_change_pub = self.create_publisher(String, "/tool/change", 10)
         self._tool_torque_pub = self.create_publisher(
             Int32MultiArray, "/dynamixel/torque_request", 10,
         )
@@ -504,6 +505,28 @@ class OpsBrokerNode(Node):
                 "tool_type": tool_type, "command": params["command"].upper(),
             }, separators=(",", ":"), sort_keys=True)))
             self._complete_order(order, connection, role, True, "published tool FSM command")
+            return
+        if order.kind == "publish_tool_change":
+            params = dict(order.params)
+            if (set(params) != {"requested_kind", "observed_tool_generation"}
+                    or not isinstance(params.get("requested_kind"), str)
+                    or not isinstance(params.get("observed_tool_generation"), int)):
+                self._complete_order(order, connection, role, False, "invalid tool change params")
+                return
+            # The bridge owns physical signature validation.  This maps the
+            # console vocabulary onto its existing /tool/change interface;
+            # requesting the current type performs a read-only re-scan and
+            # FSM re-initialization, never an implicit torque enable.
+            tool_type = {
+                "single_gripper": "spur_1motor_gripper",
+                "dual_gripper": "dual_motor_gripper",
+                "cleaner": "cleaner",
+            }.get(params["requested_kind"], params["requested_kind"])
+            if tool_type not in ("spur_1motor_gripper", "dual_motor_gripper", "cleaner"):
+                self._complete_order(order, connection, role, False, "unsupported tool change target")
+                return
+            self._tool_change_pub.publish(String(data=tool_type))
+            self._complete_order(order, connection, role, True, "published tool re-scan request")
             return
         if order.kind == "publish_tool_torque":
             params = dict(order.params)

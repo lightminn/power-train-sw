@@ -125,7 +125,7 @@ def test_the_unbound_callbacks_are_the_ones_with_no_agreed_arm_meaning():
     # select_axis is a view change; change_speed has no confirmed arm-side
     # representation, and guessing one would put an unagreed command on the wire.
     assert set(UNBOUND_CALLBACKS) == {
-        "select_axis", "change_speed", "restart_bridge",
+        "select_axis", "change_speed",
     }
 
 
@@ -142,6 +142,16 @@ def test_configured_bridge_restart_is_exposed_without_becoming_an_ops_action():
 
     assert called == [True]
     assert transport.actions == ()
+
+
+def test_default_bridge_restart_revalidates_the_observed_tool():
+    _clock, transport, adapter = build_adapter()
+
+    outcome = adapter.callbacks().restart_bridge()
+
+    assert outcome
+    assert transport.accepted[-1].action == K.ACTION_TOOL_CHANGE
+    assert transport.accepted[-1].params["requested_kind"] == "spur_1motor_gripper"
 
 
 def test_a_bound_callback_reaches_the_transport():
