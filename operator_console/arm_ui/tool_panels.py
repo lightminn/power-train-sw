@@ -3,9 +3,8 @@
 A single gripper and a dual gripper get genuinely different panels, not one
 command panel wearing two skins: the dual panel addresses each side
 independently, adds a synchronised jog, and carries a synchronisation verdict
-that has no meaning for a single gripper.  Tools that are not grippers
-(청소 모듈 · 환경 센서 모듈) get an information-only panel -- cleaner direction
-control and any developer drive path are deliberately not offered here.
+that has no meaning for a single gripper.  The cleaner gets its existing
+LEFT/RIGHT/STOP FSM controls; other non-gripper tools are information-only.
 
 Only the active tool is ever shown.  :func:`contracts.cleared_for_tool` drops
 any reading whose actuator id or generation does not match the detected tool,

@@ -6,12 +6,13 @@ Layout, top to bottom:
   functionally apart.  Choosing a candidate changes nothing on the robot; only
   ``변경 요청`` reports the intent, and completion is shown only once the
   backend reports the new active tool.
-* 제어권 — MANUAL/FSM request buttons beside the *granted* state.  Asking never
+* 제어권 — detected-tool card directly below the observed tool.  Asking never
   enables a motion control; only an approval does.
 * 상태 — arm FSM, ``/arm_status``-style contract state and tool FSM as three
   separate readings, plus the concrete reasons operation is blocked.
 * 키보드 텔레옵 — :mod:`keyboard_panel`.
-* 도구 전용 패널 — :mod:`tool_panels`, single vs dual vs information-only.
+* 도구 전용 조작 — beside the detected-tool card, single vs dual vs
+  information-only.
 * 현재 도구 진단 — collapsible, active tool only.
 
 The tab owns no data source and no timer of its own: it is rendered by
@@ -107,17 +108,17 @@ class ArmManualTab:
         top = reflow(2)
         top.set_row_spacing(11)
         top.set_column_spacing(11)
+        self.tool_panels = ToolPanelStack(self._callbacks)
         top.add(self._build_tool_card())
-        top.add(self._build_authority_card())
+        # Keep the active tool's controls beside its identity.  The operator
+        # should not have to scan below teleop to tell which tool is moving.
+        top.add(self.tool_panels.stack)
         page.pack_start(top, False, False, 0)
 
         page.pack_start(self._build_state_card(), False, False, 0)
 
         self.keyboard = KeyboardTeleopPanel(self._callbacks)
         page.pack_start(self.keyboard.box, False, False, 0)
-
-        self.tool_panels = ToolPanelStack(self._callbacks)
-        page.pack_start(self.tool_panels.stack, False, False, 0)
 
         self.diagnostics = ToolDiagnosticsPanel()
         page.pack_start(self.diagnostics.box, False, False, 0)
@@ -174,6 +175,11 @@ class ArmManualTab:
         card.pack(detected)
         card.pack(divider())
 
+        # Authority belongs to the detected tool, not to a separate column:
+        # a MANUAL grant applies to whichever observed tool is active.
+        card.pack(self._build_authority_section())
+        card.pack(divider())
+
         candidate = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         candidate.pack_start(label("변경할 도구", "arm-metric-label"), False, False, 0)
         row = Gtk.Box(spacing=7)
@@ -227,13 +233,21 @@ class ArmManualTab:
         if request is not None and kind:
             request(kind)
 
-    def _build_authority_card(self) -> Gtk.Widget:
-        card = Card(
-            "제어권",
-            "요청과 승인은 별개입니다. 요청만으로 수동 조작이 열리지 않습니다.",
-            accent="authority",
+    def _build_authority_section(self) -> Gtk.Widget:
+        """Build the authority controls directly below the observed tool."""
+        section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        heading = Gtk.Box(spacing=8)
+        heading.pack_start(label("제어권", "arm-metric-label"), False, False, 0)
+        self._authority_badge = Badge("확인 불가")
+        heading.pack_start(self._authority_badge.label, False, False, 0)
+        section.pack_start(heading, False, False, 0)
+        section.pack_start(
+            label(
+                "요청만으로 조작은 열리지 않으며, 팔이 MANUAL 승인을 보고해야 합니다.",
+                "arm-note", wrap=True,
+            ),
+            False, False, 0,
         )
-        self._authority_badge = card.badge
 
         buttons: list[Gtk.Widget] = []
         request = self._callbacks.request_control_mode
@@ -261,15 +275,17 @@ class ArmManualTab:
             ),
         )
         buttons.append(self._release_button)
-        card.pack(reflow_row(buttons, columns=3))
+        section.pack_start(reflow_row(buttons, columns=3), False, False, 0)
 
         self._requested = Metric("요청한 모드", width_chars=12)
         self._granted = Metric("승인된 모드", width_chars=12)
-        card.pack(metric_grid((self._requested, self._granted), columns=2))
+        section.pack_start(
+            metric_grid((self._requested, self._granted), columns=2),
+            False, False, 0,
+        )
         self._authority_detail = label("", "arm-note", wrap=True)
-        card.pack(self._authority_detail)
-        card.box.set_valign(Gtk.Align.START)
-        return card.box
+        section.pack_start(self._authority_detail, False, False, 0)
+        return section
 
     def _build_state_card(self) -> Gtk.Widget:
         card = Card(
