@@ -3452,10 +3452,13 @@ class OperatorConsole(Gtk.Window):
                  ops_host: str | None = None, ops_port: int = 9001,
                  ops_token_file: str = DEFAULT_OPS_TOKEN_FILE,
                  smoke_probe_file: str | None = None,
-                 input_source: str = "LIVE", operation_runtime=None) -> None:
+                 input_source: str = "LIVE", operation_runtime=None,
+                 arm_developer_mode: bool = False) -> None:
         super().__init__(title="파워트레인 운영 콘솔")
         _install_console_css()
         self._operation_runtime = operation_runtime
+        self._arm_developer_mode = bool(arm_developer_mode)
+        self._arm_developer_mode_notice_sent = False
         self._operation_source_id = None
         self._operation_session = None
         self._smoke_probe_path = (
@@ -5105,6 +5108,7 @@ class OperatorConsole(Gtk.Window):
         )
         arm_ui_state = self._arm_ui_binding.state(
             arm_snapshot, ops_link_ready=self._ops_panel.link_ready(),
+            developer_mode=self._arm_developer_mode,
         )
         ops_state = self._ops_panel.latest_state() or {}
         revision = ops_state.get("revision")
@@ -5112,6 +5116,18 @@ class OperatorConsole(Gtk.Window):
             arm_ui_state,
             state_revision=revision if isinstance(revision, int) else None,
         )
+        if (self._arm_developer_mode and not self._arm_developer_mode_notice_sent
+                and arm_ui_state.link.state == "LIVE"
+                and revision is not None):
+            self._add_event(
+                "ARM DEV",
+                "개발자 모드: 제어권·capability UI 게이트 우회(정지/FSM 안전 게이트 유지)",
+            )
+            self._arm_developer_mode_notice_sent = True
+            # The existing bridge accepts motion only after it has observed
+            # MANUAL.  Developer mode requests that mode once; it does not
+            # alter the arm-side FSM safety check.
+            self._arm_ops_adapter.callbacks().request_control_mode("MANUAL")
         self._arm_ops_adapter.pump()
         self._arm_manual_tab.update_state(arm_ui_state)
         self._arm_calibration_tab.update_state(arm_ui_state)
@@ -5294,6 +5310,10 @@ def main() -> None:
     )
     parser.add_argument("--ops-port", type=int, default=9001)
     parser.add_argument("--ops-token-file", default=DEFAULT_OPS_TOKEN_FILE)
+    parser.add_argument(
+        "--arm-developer-mode", action="store_true",
+        help="local bench mode: bypass arm grant/capability UI gates; keep FSM safety/stop",
+    )
     parser.add_argument("--latency-ms", type=int, default=60)
     parser.add_argument(
         "--smoke-probe-file",
@@ -5318,7 +5338,8 @@ def main() -> None:
                               ops_port=args.ops_port,
                               ops_token_file=args.ops_token_file,
                               smoke_probe_file=args.smoke_probe_file,
-                              input_source=args.input_source)
+                              input_source=args.input_source,
+                              arm_developer_mode=args.arm_developer_mode)
     console.show_all()
     console.maximize()
 

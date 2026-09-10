@@ -354,6 +354,9 @@ class ArmUiState:
     # True only for the preview fixtures.  Panels render a visible banner so a
     # screenshot of fake data can never be mistaken for a live arm.
     is_fixture: bool = False
+    # Explicit local bench mode.  It bypasses presentation capability/grant
+    # gates but never invents an active tool or disables the stop path.
+    developer_mode: bool = False
 
 
 def default_state() -> ArmUiState:
@@ -456,7 +459,7 @@ def gate(
     """
     if callback is None:
         return False, "미연결 — 명령 경로가 연결되지 않음"
-    if capability and capability not in state.capabilities:
+    if capability and capability not in state.capabilities and not state.developer_mode:
         return False, "지원하지 않음 — 백엔드가 이 기능을 보고하지 않음"
     if not is_live(state):
         if state.link.state == LINK_STALE:
@@ -466,7 +469,9 @@ def gate(
         return False, "캘리브레이션 진행 중 — 일반 조작 차단"
     if state.tool_change.status in REQUEST_ACTIVE and capability != CAP_TOOL_CHANGE:
         return False, "도구 교체 중 — 조작 차단"
-    if capability in MANUAL_GRANT_REQUIRED and not has_manual_grant(state):
+    if (capability in MANUAL_GRANT_REQUIRED
+            and not has_manual_grant(state)
+            and not state.developer_mode):
         return False, "수동 제어권 미승인"
     if state.block_reasons:
         return False, state.block_reasons[0].korean

@@ -350,6 +350,16 @@ class ArmManualTab:
         self.diagnostics.update(state)
         self._page.show_all()
         self._fixture_banner.set_visible(state.is_fixture)
+        if state.developer_mode:
+            self._fixture_banner.set_text(
+                "개발자 모드 — 제어권·capability UI 게이트 우회. "
+                "정지·도구 식별·기존 FSM 안전 게이트는 유지됩니다.",
+            )
+        elif state.is_fixture:
+            self._fixture_banner.set_text(
+                "미리보기 fixture 데이터입니다 — 실제 로봇팔 상태가 아닙니다.",
+            )
+        self._fixture_banner.set_visible(state.is_fixture or state.developer_mode)
         self._mismatch.set_visible(bool(self._mismatch.get_text()))
 
     def _update_header(self, state: C.ArmUiState) -> None:

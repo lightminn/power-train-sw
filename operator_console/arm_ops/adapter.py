@@ -31,7 +31,7 @@ from .session import ArmCommandSession, CommandOutcome
 
 
 def context_from_state(
-    state: ArmUiState, *, state_revision: int | None = None,
+        state: ArmUiState, *, state_revision: int | None = None,
 ) -> P.ArmCommandContext:
     """Project the UI state onto the flat snapshot the policy may look at.
 
@@ -61,6 +61,7 @@ def context_from_state(
             reason.korean for reason in state.block_reasons
         ),
         state_revision=state_revision,
+        developer_mode=state.developer_mode,
     )
 
 

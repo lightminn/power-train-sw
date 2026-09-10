@@ -32,7 +32,7 @@ class ArmUiTelemetryBinding:
             return None
         return source_age_s + max(0.0, time.monotonic() - snapshot.received_monotonic_s)
 
-    def state(self, snapshot, *, ops_link_ready=False):
+    def state(self, snapshot, *, ops_link_ready=False, developer_mode=False):
         if snapshot is None:
             return C.default_state()
         receive_age = max(0.0, time.monotonic() - snapshot.received_monotonic_s)
@@ -127,4 +127,5 @@ class ArmUiTelemetryBinding:
             teleop=C.TeleopState(axes=axes),
             diagnostics=diagnostics,
             capabilities=frozenset(capabilities),
+            developer_mode=bool(developer_mode),
         )

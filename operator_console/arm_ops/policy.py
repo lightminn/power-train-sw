@@ -92,6 +92,7 @@ class ArmCommandContext:
     # concurrency guard on the wire.  ``None`` means the ops channel had no
     # state, which is itself a reason to refuse.
     state_revision: int | None = None
+    developer_mode: bool = False
 
     @property
     def manual_granted(self) -> bool:
@@ -139,7 +140,8 @@ def authorize(
 
     # Rule 1.
     capability = ACTION_CAPABILITY.get(action, "")
-    if capability and capability not in context.capabilities:
+    if capability and capability not in context.capabilities \
+            and not context.developer_mode:
         return _refuse(
             "capability_missing",
             "지원하지 않음 — 백엔드가 이 기능을 보고하지 않음",
@@ -156,7 +158,8 @@ def authorize(
         return _refuse("no_ops_state", "ops 상태 미수신 — 명령을 만들 수 없음")
 
     # Rule 4.  The mode request itself is exempt, or the grant is unreachable.
-    if action in K.MOTION_ACTIONS and not context.manual_granted:
+    if action in K.MOTION_ACTIONS and not context.manual_granted \
+            and not context.developer_mode:
         return _refuse("manual_not_granted", "수동 제어권 미승인")
 
     # Rule 5.
