@@ -60,6 +60,16 @@ def test_ops_probe_requires_the_received_state_identity(tmp_path):
     )
 
 
+def test_arm_tabs_probe_requires_observed_tool_and_disabled_actions(tmp_path):
+    probe_file = tmp_path / "panels.json"
+    probe_file.write_text(json.dumps({
+        "arm_ui_detected_tool": "dual_gripper",
+        "arm_ui_actions_disabled": True,
+    }), encoding="utf-8")
+
+    assert runtime_smoke._probe_arm_tabs(probe_file) == ("dual_gripper", True)
+
+
 def test_runtime_smoke_constructs_the_token_gated_ops_controls():
     source = (
         Path(__file__).resolve().parents[1] / "runtime_smoke.py"

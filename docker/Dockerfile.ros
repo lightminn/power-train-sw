@@ -51,6 +51,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #    캐시가 무효화돼 Jetson 에서 전체 리빌드가 강제된다(2026-07-14 실측).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ros-humble-control-msgs \
+        ros-humble-dynamixel-sdk \
         iproute2 \
     && rm -rf /var/lib/apt/lists/*
 

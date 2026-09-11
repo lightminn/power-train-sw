@@ -1,0 +1,74 @@
+# Simulation fixtures only; these values do not calibrate physical hardware.
+tool_profiles:
+  spur_1motor_gripper:
+    backend: gripper
+    calibrated: true
+    actuator_ids:
+    - 5
+    joint_names:
+    - gripper_drive_joint
+    direction: -1
+    open_tick: 2945
+    close_tick: 3752
+    safe_min_tick: 2945
+    safe_max_tick: 3752
+    profile_velocity: 20
+    profile_acceleration: 5
+    no_load_effort: null
+    grasp_effort: null
+    grasp_threshold: null
+    release_drop_threshold: null
+    action_time: null
+    required_operating_modes:
+      5: 3
+    mock_only: true
+  dual_motor_gripper:
+    backend: gripper
+    calibrated: true
+    actuator_ids:
+    - 3
+    - 4
+    joint_names:
+    - gripper_left_pinion_joint
+    direction: 1
+    open_tick: -675
+    close_tick: -2211
+    safe_min_tick: -2211
+    safe_max_tick: 2559
+    motor_endpoints:
+      3:
+        open: -675
+        close: -2211
+      4:
+        open: 2559
+        close: 1017
+    required_operating_modes:
+      3: 4
+      4: 3
+    endpoint_calibration_verified: true
+    endpoint_calibration_models:
+      3: 1060
+      4: 1060
+    profile_velocity: 80
+    profile_acceleration: 25
+    no_load_effort: 119
+    grasp_effort: 290
+    grasp_threshold: 250
+    release_drop_threshold: 200
+    action_time: 2.5
+    goal_pwm: 280
+    max_abs_effort: 500
+    open_position: 1.9444444444444444
+    close_position: 0.0
+    mock_only: true
+  cleaner:
+    backend: cleaner
+    calibrated: false
+    actuator_ids:
+    - 6
+    joint_names:
+    - cleaning_actuator_joint
+    direction: -1
+    profile_velocity: 30
+    profile_acceleration: null
+    mock_only: true

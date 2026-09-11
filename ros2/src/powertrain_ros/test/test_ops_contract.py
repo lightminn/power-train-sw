@@ -112,6 +112,15 @@ def test_component_enable_actions_are_console_only_setbool(action, target):
     assert spec.target == (target,)
 
 
+def test_arm_fsm_actions_are_console_only_and_use_existing_arm_topics():
+    mode = oc.ACTIONS["robot_arm_mode_request"]
+    tool = oc.ACTIONS["robot_arm_tool_command"]
+
+    assert mode.roles == tool.roles == frozenset({oc.ROLE_CONSOLE})
+    assert mode.kind == "publish_arm_mode" and mode.target == ("/control/mode",)
+    assert tool.kind == "publish_tool_fsm" and tool.target == ("/tool/fsm_command",)
+
+
 def test_extraction_grant_is_console_only_chassis_service():
     spec = oc.ACTIONS["extraction_grant"]
     assert spec.roles == frozenset({oc.ROLE_CONSOLE})
