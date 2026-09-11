@@ -290,6 +290,11 @@ def test_happy_path_starts_exact_stacks_and_prints_operator_command(tmp_path):
     ) in log
     assert "arm_console_bridge" in log
     assert "console_host:=192.168.50.10" in log
+    cleanup = log.index("pkill -f moveit_dynamixel_bridge")
+    start = log.index("ros2 run dynamixel_control moveit_dynamixel_bridge")
+    assert cleanup < start
+    assert "read_only:=true" in log
+    assert "control_scope:=END_EFFECTOR_ONLY" in log
     assert (
         "운영 PC에서: /usr/bin/python3 -m operator_console.app "
         "--host 192.168.8.106"
@@ -541,6 +546,7 @@ def test_no_arm_skips_arm_stack_but_starts_bridge(tmp_path):
     assert "extreme-robot/docker-compose" not in log
     assert "ros2_humble" not in log
     assert "arm_console_bridge" in log
+    assert "moveit_dynamixel_bridge" not in log
 
 
 def test_metadata_sender_prevents_bridge_start(tmp_path):
