@@ -130,6 +130,19 @@ def _probe_ops_steering(
     return label, sensitive, revision, mode
 
 
+def _probe_arm_tabs(probe_file: Path) -> tuple[str, bool] | None:
+    """Read the new tabs' observed tool and their no-command safety gate."""
+    try:
+        states = json.loads(probe_file.read_text(encoding="utf-8"))
+        tool = states["arm_ui_detected_tool"]
+        actions_disabled = states["arm_ui_actions_disabled"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not isinstance(tool, str) or not isinstance(actions_disabled, bool):
+        return None
+    return tool, actions_disabled
+
+
 class _OpsStateFixture:
     """Serve one malformed-but-well-framed ops state to the real Gtk client."""
 
@@ -307,6 +320,18 @@ def _arm_payload(sequence: int) -> dict:
         "joints": {"names": ["arm_joint_1", "arm_joint_2"],
                    "position_rad": [0.25, -0.5], "velocity": [0.0, 0.1]},
         "source_age_s": {"dynamixel": 0.1, "joints": 0.1, "detections": 0.2},
+        "tool_runtime": {
+            "tool": {
+                "tool_type": "dual_motor_gripper", "actuator_ids": [3, 4],
+                "actuators_discovered": True,
+                "actuators": [{"id": 3, "online": True}, {"id": 4, "online": True}],
+            },
+            "source_age_s": 0.1,
+        },
+        "arm_runtime": {
+            "control_mode": "MANUAL", "fsm_state": "IDLE", "arm_status": "READY",
+            "source_age_s": {"control_mode": 0.1, "fsm_state": 0.1, "arm_status": 0.1},
+        },
         "truncated": False,
     }
 
@@ -408,6 +433,7 @@ def run_smoke(
     role_sized_rovers_seen = False
     environment_values_seen = False
     invalid_steering_held_seen = False
+    arm_tabs_seen = False
     try:
         # 콘솔이 Gtk 루프에 진입하기 전에 주입 창을 소진하면 LIVE 를 한 번도
         # 못 보고 거짓 FAIL 이 난다(부하가 높으면 xvfb 기동이 수 초 걸린다).
@@ -459,6 +485,9 @@ def run_smoke(
                 False,
                 1,
                 "invalid-smoke-mode",
+            )
+            arm_tabs_seen |= _probe_arm_tabs(probe_file) == (
+                "dual_gripper", True,
             )
         # phase 2 — 주입 중단: 전 패널 LIVE→STALE 전이 + 오버레이 숨김 경로.
         stale_deadline = time.monotonic() + 3.5
@@ -563,10 +592,13 @@ def run_smoke(
         return False, "environment values never rendered in the GUI\n" + text
     if not invalid_steering_held_seen:
         return False, "invalid steering ops state was not held disabled\n" + text
+    if not arm_tabs_seen:
+        return False, "arm tabs did not render live tool in safe disabled state\n" + text
     return True, (
         f"PASS · {sequence} ticks on 5 channels · "
         f"LIVE+STALE observed on {', '.join(sorted(REQUIRED_PANELS))} · "
         "invalid steering mode held disabled · "
+        "arm tabs observed safely disabled · "
         "no automatic camera swap observed · no tracebacks"
     )
 

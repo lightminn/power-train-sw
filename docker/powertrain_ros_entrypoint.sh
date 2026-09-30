@@ -23,7 +23,7 @@ fi
 
 if [[ "$needs_build" == true ]]; then
     cd "$ros_workspace"
-    colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
+    colcon build --packages-select robot_arm_msgs powertrain_msgs dynamixel_control powertrain_ros
 fi
 
 source_setup "$install_setup"

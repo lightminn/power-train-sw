@@ -51,6 +51,11 @@ ros2 run powertrain_ros arm_console_bridge --ros-args -p console_host:=<laptop-i
 /usr/bin/python3 -m operator_console.app --host 192.168.8.106
 ```
 
+로봇 측에서는 `scripts/jetson_gui_up.sh --operator-host <laptop-ip>`를 사용한다.
+이 시작 경로는 남아 있는 `moveit_dynamixel_bridge`를 먼저 종료하고, 토크·목표
+위치 쓰기 없이 자동 도구 감지를 수행하는 읽기 전용 브릿지를 다시 올린 다음
+`arm_console_bridge`로 상태를 관제 화면에 전달한다.
+
 The judge-facing interface uses **실시간 화면** (mission/video) and **시스템 상태**
 (integrated power, communication, and safety summaries with collapsed raw
 diagnostics). Open **복구 · 설정** beside the two-tab navigation to reach the

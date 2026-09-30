@@ -18,6 +18,31 @@ import time
 from collections.abc import Callable
 
 from operator_console.pipelines import pipeline_description, srt_uri
+from operator_console.tool_binding import refresh_tool
+from operator_console.arm_binding import control_mode_text, contract_text, fsm_text, refresh_arm_summary
+from operator_console.arm_ui import (
+    ARM_CALIBRATION_TAB_NAME,
+    ARM_CALIBRATION_TAB_TITLE,
+    ARM_MANUAL_TAB_NAME,
+    ARM_MANUAL_TAB_TITLE,
+    ArmCalibrationTab,
+    ArmManualTab,
+)
+from operator_console.arm_ui_binding import ArmUiTelemetryBinding
+from operator_console.arm_ops import (
+    ArmCommandSession,
+    ArmOpsCallbackAdapter,
+    ContractGatedTransport,
+)
+from operator_console.arm_ops.contract import (
+    ACTION_MODE_REQUEST,
+    ACTION_CALIBRATION,
+    ACTION_CALIBRATION_JOG,
+    ACTION_CALIBRATION_JOG_STOP,
+    ACTION_TOOL_CHANGE,
+    ACTION_TOOL_COMMAND,
+    ACTION_TOOL_ENABLE,
+)
 
 import gi
 
@@ -2675,10 +2700,13 @@ class ArmTelemetryPanel(Gtk.Frame):
         elif not snapshot.joint_names:
             self._labels["joints"].set_text("미수신(UNAVAILABLE)")
         else:
+            effort = snapshot.joint_effort_raw
             self._labels["joints"].set_text(", ".join(
                 f"{name} {math.degrees(position_rad):+.1f}°"
-                for name, position_rad in zip(
+                + (f" · {raw_effort:+.0f} raw" if effort else "")
+                for name, position_rad, raw_effort in zip(
                     snapshot.joint_names, snapshot.joint_position_rad,
+                    effort if effort else (None,) * len(snapshot.joint_names),
                 )
             ))
         self._labels["detections"].set_text(
@@ -3117,6 +3145,25 @@ class OpsPanel(Gtk.Frame):
             self._emit(f"{action}: submitted · request {request_id}")
         self._hide_confirmation()
 
+    def submit_external(
+        self, action: str, params: dict, expected_state_revision: int | None,
+    ) -> str:
+        """Submit an already-authorized arm request through this ops client.
+
+        Arm controls have their own safety policy and do not use the chassis
+        confirmation strip.  They still use this panel's authenticated client,
+        request tracking and operation log, so there is only one network door.
+        """
+        if self._client is None:
+            raise RuntimeError("ops client unavailable")
+        request_id = self._client.submit(
+            action=str(action), params=dict(params),
+            expected_state_revision=expected_state_revision,
+        )
+        self._pending_requests[request_id] = str(action)
+        self._emit(f"{action}: submitted · request {request_id}")
+        return request_id
+
     def _on_cancel_clicked(self, _button: Gtk.Button) -> None:
         self.cancel_confirmation()
         self._emit("confirmation cancelled")
@@ -3409,10 +3456,13 @@ class OperatorConsole(Gtk.Window):
                  ops_host: str | None = None, ops_port: int = 9001,
                  ops_token_file: str = DEFAULT_OPS_TOKEN_FILE,
                  smoke_probe_file: str | None = None,
-                 input_source: str = "LIVE", operation_runtime=None) -> None:
+                 input_source: str = "LIVE", operation_runtime=None,
+                 arm_developer_mode: bool = False) -> None:
         super().__init__(title="파워트레인 운영 콘솔")
         _install_console_css()
         self._operation_runtime = operation_runtime
+        self._arm_developer_mode = bool(arm_developer_mode)
+        self._arm_developer_mode_notice_sent = False
         self._operation_source_id = None
         self._operation_session = None
         self._smoke_probe_path = (
@@ -3430,6 +3480,7 @@ class OperatorConsole(Gtk.Window):
         self._telemetry_receiver = LatestTelemetryReceiver(telemetry_port)
         self._chassis_receiver = LatestTelemetryReceiver(chassis_telemetry_port)
         self._arm_receiver = LatestArmTelemetryReceiver(arm_telemetry_port)
+        self._arm_ui_binding = ArmUiTelemetryBinding()
         self._environment_receiver = LatestEnvironmentTelemetryReceiver(
             environment_telemetry_port,
         )
@@ -3961,6 +4012,38 @@ class OperatorConsole(Gtk.Window):
         stack.set_transition_duration(0)
         stack.add_titled(mission_page, "mission", "실시간 화면")
         stack.add_titled(systems_scroll, "systems", "시스템 상태")
+        # The arm tabs use exactly the existing authenticated ops connection.
+        # Only the two ingress paths implemented by the existing arm FSM are
+        # registered; every other arm callback remains locally refused.
+        self._arm_ops_adapter = ArmOpsCallbackAdapter(
+            ArmCommandSession(
+                clock=time.monotonic,
+                transport=ContractGatedTransport(
+                    submit_fn=self._ops_panel.submit_external,
+                    registered_actions=frozenset({
+                        ACTION_MODE_REQUEST, ACTION_TOOL_CHANGE,
+                        ACTION_TOOL_COMMAND,
+                        ACTION_TOOL_ENABLE,
+                        ACTION_CALIBRATION, ACTION_CALIBRATION_JOG,
+                        ACTION_CALIBRATION_JOG_STOP,
+                    }),
+                ),
+            ),
+            outcome_sink=self._report_arm_command_outcome,
+        )
+        arm_callbacks = self._arm_ops_adapter.callbacks()
+        self._arm_manual_tab = ArmManualTab(arm_callbacks)
+        self._arm_calibration_tab = ArmCalibrationTab(arm_callbacks)
+        stack.add_titled(
+            self._arm_manual_tab.widget,
+            ARM_MANUAL_TAB_NAME,
+            ARM_MANUAL_TAB_TITLE,
+        )
+        stack.add_titled(
+            self._arm_calibration_tab.widget,
+            ARM_CALIBRATION_TAB_NAME,
+            ARM_CALIBRATION_TAB_TITLE,
+        )
         # Keep recovery controls outside the two judge-facing pages; the header
         # button exposes their existing token-gated panel in a transient window.
         self._stack = stack
@@ -3968,7 +4051,7 @@ class OperatorConsole(Gtk.Window):
         switcher.set_stack(stack)
         switcher.set_halign(Gtk.Align.START)
         switcher.set_margin_start(0)
-        switcher.set_size_request(238, 34)
+        switcher.set_size_request(500, 34)
         nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         _style(nav, "nav")
         nav.pack_start(switcher, False, False, 0)
@@ -4010,6 +4093,21 @@ class OperatorConsole(Gtk.Window):
         """Keep the Mission footer and the other-tab footer identical."""
         self._events.add_event(source, message)
         self._mission_events.add_event(source, message)
+
+    def _report_arm_command_outcome(self, outcome: object) -> None:
+        """Surface arm policy refusal/submission in the existing event drawer."""
+        if getattr(outcome, "accepted", False):
+            self._add_event(
+                "ARM OPS",
+                f"{getattr(outcome, 'action', 'arm')}: 전송 대기 "
+                f"{getattr(outcome, 'request_id', '')}",
+            )
+            return
+        self._add_event(
+            "ARM OPS",
+            f"{getattr(outcome, 'action', 'arm')}: 거부 · "
+            f"{getattr(outcome, 'korean', '알 수 없는 사유')}",
+        )
 
     def _show_ops_settings(self) -> None:
         """Show the existing token-gated panel without issuing an action."""
@@ -4270,16 +4368,18 @@ class OperatorConsole(Gtk.Window):
         arm.values["receive"].set_text(public_freshness(
             arm_state, waiting="수신 대기"))
         arm.values["stage"].set_text(mission.title)
-        arm.values["motion"].set_text(public_freshness(arm_state))
+        arm.values["motion"].set_text(
+            control_mode_text(arm_snapshot) if arm_snapshot else public_freshness(arm_state))
         arm.values["joints"].set_text(
             "수신 대기" if arm_snapshot is None
             else "정상" if arm_snapshot.joint_names else "정보 없음")
-        arm.values["tool"].set_text("정보 없음")
+        arm.values["tool"].set_text(
+            contract_text(arm_snapshot) if arm_snapshot else "정보 없음")
         arm.values["target"].set_text(public_freshness(
             yolo_state, waiting="대상 탐지 대기"))
         arm.values["done"].set_text("완료" if mission.title == "완료" else "수신 대기")
         arm.developer_values["fsm"].set_text(
-            self._ops_panel.latest_chassis_mode() or "없음")
+            fsm_text(arm_snapshot) if arm_snapshot else "수신 대기")
         arm.developer_values["motor"].set_text(arm_state)
         arm.developer_values["joints"].set_text(
             "없음" if arm_snapshot is None else str(arm_snapshot.joint_position_rad))
@@ -4532,6 +4632,10 @@ class OperatorConsole(Gtk.Window):
         arm_state: str | None = None,
         environment_state: str | None = None,
     ) -> None:
+        active_snapshot = arm_snapshot or self._arm_receiver.latest()
+        refresh_arm_summary(self, active_snapshot)
+        if refresh_tool(self, active_snapshot):
+            return
         selected = self._mission_tool_selector.get_active_text() or "미확인"
         purpose = END_EFFECTOR_PURPOSES.get(
             selected, "사용할 엔드이펙터를 선택하세요",
@@ -4589,7 +4693,7 @@ class OperatorConsole(Gtk.Window):
         self._mission_tool_reading.set_text(reading)
         attachment = "정보 없음"
         telemetry = "수신 대기"
-        operation = "연동 예정 · 조종 모드 상태 필드 없음"
+        operation = control_mode_text(arm_snapshot) if arm_snapshot else "수신 대기"
         load = "정보 없음"
         if arm_state == "LIVE" and arm_snapshot is not None:
             if arm_snapshot.end_effector_attached is True:
@@ -4598,24 +4702,20 @@ class OperatorConsole(Gtk.Window):
                 attachment = "미체결"
             if arm_snapshot.end_effector_id:
                 attachment += f" · ID {arm_snapshot.end_effector_id}"
-            if arm_snapshot.dynamixel is not None:
-                if arm_snapshot.dynamixel:
-                    peak_current = max(
-                        abs(motor.current) for motor in arm_snapshot.dynamixel
-                    )
+            if arm_snapshot.joint_names:
+                if arm_snapshot.joint_effort_raw:
                     load = (
-                        f"최고 {peak_current} raw · "
-                        f"{len(arm_snapshot.dynamixel)}개 관절"
+                        f"최고 {max(abs(value) for value in arm_snapshot.joint_effort_raw):.0f} raw · "
+                        f"관절 {len(arm_snapshot.joint_names)}개"
                     )
                 else:
-                    load = "관절 모터 0개"
+                    load = f"관절 {len(arm_snapshot.joint_names)}개 · 피드백 raw 미수신"
             interface = arm_snapshot.end_effector_interface or "인터페이스 정보 없음"
             telemetry = (
                 f"{interface} · 선택 항목과 관측값 일치"
                 if observed_match else
                 f"{interface} · 선택 항목과 관측값 불일치 또는 미수신"
             )
-        self._mission_arm_mode.set_text("연동 예정")
         self._mission_arm_load.set_text(load)
         self._end_effector_popup_values["selection"].set_text(
             f"{selected} · {state_text}"
@@ -5013,6 +5113,33 @@ class OperatorConsole(Gtk.Window):
             arm_state=arm_state,
             environment_state=environment_state,
         )
+        arm_ui_state = self._arm_ui_binding.state(
+            arm_snapshot, ops_link_ready=self._ops_panel.link_ready(),
+            developer_mode=self._arm_developer_mode,
+            bridge_restart_ready=(arm_snapshot is not None
+                                  and self._ops_panel.link_ready()),
+        )
+        ops_state = self._ops_panel.latest_state() or {}
+        revision = ops_state.get("revision")
+        self._arm_ops_adapter.update_state(
+            arm_ui_state,
+            state_revision=revision if isinstance(revision, int) else None,
+        )
+        if (self._arm_developer_mode and not self._arm_developer_mode_notice_sent
+                and arm_ui_state.link.state == "LIVE"
+                and revision is not None):
+            self._add_event(
+                "ARM DEV",
+                "개발자 모드: 제어권·capability UI 게이트 우회(정지/FSM 안전 게이트 유지)",
+            )
+            self._arm_developer_mode_notice_sent = True
+            # The existing bridge accepts motion only after it has observed
+            # MANUAL.  Developer mode requests that mode once; it does not
+            # alter the arm-side FSM safety check.
+            self._arm_ops_adapter.callbacks().request_control_mode("MANUAL")
+        self._arm_ops_adapter.pump()
+        self._arm_manual_tab.update_state(arm_ui_state)
+        self._arm_calibration_tab.update_state(arm_ui_state)
         self._l515.set_rover_component_states(
             front_live=l515_video == "LIVE",
             work_live=d435_video == "LIVE" and arm_state == "LIVE",
@@ -5071,6 +5198,11 @@ class OperatorConsole(Gtk.Window):
             "main_video": self._main_video._name,
             "rover_l515_width": self._l515._rover_status_overlay.get_size_request()[0],
             "rover_d435_width": self._d435._rover_status_overlay.get_size_request()[0],
+            "arm_ui_detected_tool": arm_ui_state.detected_tool.kind,
+            "arm_ui_actions_disabled": not any(
+                widget.get_sensitive()
+                for widget in self._arm_manual_tab.gate.widgets
+            ),
         })
         return True
 
@@ -5107,6 +5239,10 @@ class OperatorConsole(Gtk.Window):
 
     def _on_destroy(self, *_args: object) -> None:
         self._ops_panel.cancel_confirmation()
+        self._arm_ops_adapter.blur()
+        self._arm_ops_adapter.pump()
+        self._arm_manual_tab.dispose()
+        self._arm_calibration_tab.dispose()
         self._ops_settings_window.destroy()
         if self._operation_runtime is not None:
             self._operation_panel.cancel()
@@ -5183,6 +5319,10 @@ def main() -> None:
     )
     parser.add_argument("--ops-port", type=int, default=9001)
     parser.add_argument("--ops-token-file", default=DEFAULT_OPS_TOKEN_FILE)
+    parser.add_argument(
+        "--arm-developer-mode", action="store_true",
+        help="local bench mode: bypass arm grant/capability UI gates; keep FSM safety/stop",
+    )
     parser.add_argument("--latency-ms", type=int, default=60)
     parser.add_argument(
         "--smoke-probe-file",
@@ -5207,7 +5347,8 @@ def main() -> None:
                               ops_port=args.ops_port,
                               ops_token_file=args.ops_token_file,
                               smoke_probe_file=args.smoke_probe_file,
-                              input_source=args.input_source)
+                              input_source=args.input_source,
+                              arm_developer_mode=args.arm_developer_mode)
     console.show_all()
     console.maximize()
 

@@ -17,6 +17,7 @@ setup(
             [
                 "launch/wp5_control.launch.py",
                 "launch/control.launch.py",
+                "launch/arm_tool.launch.py",
                 "launch/l515_viz.launch.py",
                 "launch/robot_viz.launch.py",
                 "launch/autonomy.launch.py",

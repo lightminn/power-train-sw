@@ -17,7 +17,7 @@ import uuid
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import Int32MultiArray, String
 from std_srvs.srv import SetBool, Trigger
 
 from powertrain_ros.stop_proof import decode_hardware_stop_proof
@@ -148,6 +148,19 @@ class OpsBrokerNode(Node):
 
         self._section_pub = self.create_publisher(
             String, "/section_events", 10
+        )
+        # The arm repository already owns these FSM ingress topics.  This node
+        # only forwards a tiny validated vocabulary through the authenticated
+        # ops channel; it never owns a motor or publishes a raw Dynamixel goal.
+        self._arm_mode_pub = self.create_publisher(String, "/control/mode", 10)
+        self._tool_fsm_pub = self.create_publisher(String, "/tool/fsm_command", 10)
+        self._tool_change_pub = self.create_publisher(String, "/tool/change", 10)
+        self._tool_dual_calibration_pub = self.create_publisher(
+            String, "/tool/dual_calibration_command", 10)
+        self._tool_single_calibration_pub = self.create_publisher(
+            String, "/tool/calibration_command", 10)
+        self._tool_torque_pub = self.create_publisher(
+            Int32MultiArray, "/dynamixel/torque_request", 10,
         )
         self.create_subscription(
             String, "/command_authority/state", self._on_authority, 10
@@ -463,6 +476,131 @@ class OpsBrokerNode(Node):
             return client
 
     def _execute(self, order, connection, role):
+        if order.kind == "publish_arm_mode":
+            mode = order.params.get("mode")
+            if mode not in ("MANUAL", "FSM"):
+                self._complete_order(order, connection, role, False, "invalid arm mode")
+                return
+            self._arm_mode_pub.publish(String(data=mode))
+            self._complete_order(order, connection, role, True, "published arm mode request")
+            return
+        if order.kind == "publish_tool_fsm":
+            params = dict(order.params)
+            if (set(params) != {"target", "command", "tool_id", "tool_generation"}
+                    or params.get("target") not in ("single", "left", "right", "both")
+                    or params.get("command") not in ("open", "close", "stop", "left", "right")
+                    or not isinstance(params.get("tool_id"), str)
+                    or not isinstance(params.get("tool_generation"), int)):
+                self._complete_order(order, connection, role, False, "invalid tool FSM params")
+                return
+            # The existing bridge validates tool_type against its active FSM;
+            # the observed fingerprint is only an ops concurrency guard.
+            tool_type = params["tool_id"].split(":", 1)[0]
+            if tool_type not in ("spur_1motor_gripper", "dual_motor_gripper", "cleaner"):
+                self._complete_order(order, connection, role, False, "unsupported active tool")
+                return
+            if tool_type == "cleaner" and params["command"] not in ("left", "right", "stop"):
+                self._complete_order(order, connection, role, False, "unsupported cleaner command")
+                return
+            if tool_type != "cleaner" and params["command"] not in ("open", "close", "stop"):
+                self._complete_order(order, connection, role, False, "unsupported gripper command")
+                return
+            self._tool_fsm_pub.publish(String(data=json.dumps({
+                "tool_type": tool_type, "command": params["command"].upper(),
+            }, separators=(",", ":"), sort_keys=True)))
+            self._complete_order(order, connection, role, True, "published tool FSM command")
+            return
+        if order.kind == "publish_tool_change":
+            params = dict(order.params)
+            if (set(params) != {"requested_kind", "observed_tool_generation"}
+                    or not isinstance(params.get("requested_kind"), str)
+                    or not isinstance(params.get("observed_tool_generation"), int)):
+                self._complete_order(order, connection, role, False, "invalid tool change params")
+                return
+            # The bridge owns physical signature validation.  This maps the
+            # console vocabulary onto its existing /tool/change interface;
+            # requesting the current type performs a read-only re-scan and
+            # FSM re-initialization, never an implicit torque enable.
+            tool_type = {
+                "single_gripper": "spur_1motor_gripper",
+                "dual_gripper": "dual_motor_gripper",
+                "cleaner": "cleaner",
+            }.get(params["requested_kind"], params["requested_kind"])
+            if tool_type not in ("spur_1motor_gripper", "dual_motor_gripper", "cleaner"):
+                self._complete_order(order, connection, role, False, "unsupported tool change target")
+                return
+            self._tool_change_pub.publish(String(data=tool_type))
+            self._complete_order(order, connection, role, True, "published tool re-scan request")
+            return
+        if order.kind in (
+                "publish_tool_calibration", "publish_tool_calibration_jog",
+                "publish_tool_calibration_hold"):
+            params = dict(order.params)
+            if order.kind == "publish_tool_calibration":
+                scope = params.get("scope")
+                action = params.get("action")
+                target = params.get("step")
+            else:
+                scope = "tool"
+                action = "jog" if order.kind == "publish_tool_calibration_jog" else "hold"
+                target = params.get("target")
+            if scope != "tool" or not isinstance(action, str) or not isinstance(target, str):
+                self._complete_order(order, connection, role, False, "invalid tool calibration params")
+                return
+            command = {
+                "start": "start", "cancel": "stop", "verify": "validate",
+                "save": "save", "capture_open": "capture_open",
+                "capture_close": "capture_close",
+            }.get(action)
+            if order.kind == "publish_tool_calibration_jog":
+                command = "jog_motor_degrees"
+            elif order.kind == "publish_tool_calibration_hold":
+                command = "hold"
+            if command is None:
+                self._complete_order(order, connection, role, False, "unsupported dual calibration action")
+                return
+            tool_id = str(params.get("tool_id", ""))
+            is_single = tool_id.startswith("spur_1motor_gripper:")
+            request = {"command": command}
+            if command == "jog_motor_degrees":
+                direction = params.get("direction")
+                actuator = {"left": 3, "right": 4}.get(target)
+                if direction not in (-1, 1) or (not is_single and actuator is None):
+                    self._complete_order(order, connection, role, False, "invalid dual calibration jog")
+                    return
+                request["delta_deg"] = 0.5 * direction
+                if not is_single:
+                    request["actuator_id"] = actuator
+            publisher = (self._tool_single_calibration_pub if is_single
+                         else self._tool_dual_calibration_pub)
+            publisher.publish(String(data=json.dumps(
+                request, separators=(",", ":"), sort_keys=True)))
+            self._complete_order(order, connection, role, True, "published tool calibration command")
+            return
+        if order.kind == "publish_tool_torque":
+            params = dict(order.params)
+            if (set(params) != {"enabled", "tool_id", "tool_generation"}
+                    or not isinstance(params.get("enabled"), bool)
+                    or not isinstance(params.get("tool_id"), str)
+                    or not isinstance(params.get("tool_generation"), int)):
+                self._complete_order(order, connection, role, False, "invalid tool torque params")
+                return
+            # This is deliberately a short, profile-bound vocabulary.  No raw
+            # motor IDs cross the ops socket; the existing FSM bridge remains
+            # the final profile/safety gate for the active tool.
+            tool_type = params["tool_id"].split(":", 1)[0]
+            ids = {
+                "spur_1motor_gripper": [5],
+                "dual_motor_gripper": [3, 4],
+            }.get(tool_type)
+            if ids is None:
+                self._complete_order(order, connection, role, False, "unsupported tool torque target")
+                return
+            self._tool_torque_pub.publish(Int32MultiArray(
+                data=[1 if params["enabled"] else 0, *ids],
+            ))
+            self._complete_order(order, connection, role, True, "published profile-bound tool torque request")
+            return
         if order.kind == "service_setbool" and not isinstance(
             order.params.get("data"), bool
         ):

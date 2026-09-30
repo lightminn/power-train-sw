@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import math
 import socket
 import threading
 import time
 from typing import Any
 
 from .udp_source import SourceSequenceGate
+from powertrain_observability.tool_snapshot import parse_arm_runtime, parse_runtime
 
 
 ARM_SOURCE_STALE_AFTER_S = 1.0
@@ -31,6 +33,7 @@ class ArmTelemetrySnapshot:
     joint_names: tuple[str, ...]
     joint_position_rad: tuple[float, ...]
     joint_velocity: tuple[float, ...]
+    joint_effort_raw: tuple[float, ...]
     dynamixel_age_s: float | None
     joints_age_s: float | None
     detections_age_s: float | None
@@ -40,6 +43,8 @@ class ArmTelemetrySnapshot:
     end_effector_interface: str | None
     truncated: bool
     received_monotonic_s: float
+    tool_runtime: dict | None = None
+    arm_runtime: dict | None = None
 
 
 def _required_int(payload: dict[str, Any], name: str) -> int:
@@ -110,33 +115,38 @@ def _parse_dynamixel(payload: dict[str, Any]) -> tuple[DynamixelMotorStatus, ...
 
 def _parse_joints(
     payload: dict[str, Any],
-) -> tuple[tuple[str, ...], tuple[float, ...], tuple[float, ...]]:
+) -> tuple[tuple[str, ...], tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
     raw_joints = payload.get("joints")
     if raw_joints is None:
-        return (), (), ()
+        return (), (), (), ()
     if not isinstance(raw_joints, dict):
         raise ValueError("invalid joints")
     try:
         raw_names = raw_joints["names"]
         raw_position = raw_joints["position_rad"]
         raw_velocity = raw_joints["velocity"]
+        raw_effort = raw_joints.get("effort_raw", [])
     except KeyError as exc:
         raise ValueError("invalid joints") from exc
     if not all(isinstance(values, list) for values in (
-        raw_names, raw_position, raw_velocity,
+        raw_names, raw_position, raw_velocity, raw_effort,
     )):
         raise ValueError("invalid joints")
-    if len(raw_names) > 16 or not (
-        len(raw_names) == len(raw_position) == len(raw_velocity)
+    if len(raw_names) > 16 or len(raw_names) != len(raw_position) or (
+        len(raw_velocity) not in (0, len(raw_names))
+        or len(raw_effort) not in (0, len(raw_names))
     ):
         raise ValueError("invalid joints")
     try:
         names = tuple(str(name) for name in raw_names)
         position = tuple(float(value) for value in raw_position)
         velocity = tuple(float(value) for value in raw_velocity)
+        effort = tuple(float(value) for value in raw_effort)
     except (TypeError, ValueError) as exc:
         raise ValueError("invalid joints") from exc
-    return names, position, velocity
+    if not all(math.isfinite(value) for value in position + velocity + effort):
+        raise ValueError("invalid joints")
+    return names, position, velocity, effort
 
 
 def parse_arm_telemetry(
@@ -157,7 +167,7 @@ def parse_arm_telemetry(
     except KeyError as exc:
         raise ValueError("invalid sequence") from exc
     dynamixel = _parse_dynamixel(payload)
-    joint_names, joint_position_rad, joint_velocity = _parse_joints(payload)
+    joint_names, joint_position_rad, joint_velocity, joint_effort_raw = _parse_joints(payload)
     source_age_s = payload.get("source_age_s", {})
     if source_age_s is None:
         source_age_s = {}
@@ -169,6 +179,7 @@ def parse_arm_telemetry(
         joint_names=joint_names,
         joint_position_rad=joint_position_rad,
         joint_velocity=joint_velocity,
+        joint_effort_raw=joint_effort_raw,
         dynamixel_age_s=_optional_number(source_age_s, "dynamixel"),
         joints_age_s=_optional_number(source_age_s, "joints"),
         detections_age_s=_optional_number(source_age_s, "detections"),
@@ -179,6 +190,8 @@ def parse_arm_telemetry(
             payload, "end_effector_interface",
         ),
         truncated=payload.get("truncated") is True,
+        tool_runtime=parse_runtime(payload.get('tool_runtime')),
+        arm_runtime=parse_arm_runtime(payload.get('arm_runtime')),
         received_monotonic_s=(
             time.monotonic() if received_monotonic_s is None else received_monotonic_s
         ),

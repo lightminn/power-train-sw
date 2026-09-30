@@ -7,6 +7,8 @@ no service, and never accesses a motor device.  :5003은 단일 송신 원칙 �
 from __future__ import annotations
 
 import socket
+import json
+from powertrain_observability.tool_snapshot import normalize_tool
 import os
 from powertrain_runtime.telemetry import send_datagram
 import time
@@ -15,9 +17,9 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Int32MultiArray
+from std_msgs.msg import Int32MultiArray, String
 
-from robot_arm_msgs.msg import DetectedObject, DetectedObjectArray
+from robot_arm_msgs.msg import ArmStatus, DetectedObject, DetectedObjectArray
 from powertrain_ros.arm_console_mirror import (
     build_arm_telemetry_payload,
     build_detection_metadata_payload,
@@ -84,6 +86,20 @@ class ArmConsoleBridge(Node):
         self._detections_at: float | None = None
         self._pick_target: DetectedObject | None = None
         self._pick_target_at: float | None = None
+        self._tool = None
+        self._tool_at = None
+        self._control_mode = None
+        self._control_mode_at = None
+        self._fsm_state = None
+        self._fsm_state_at = None
+        self._arm_status = None
+        self._arm_status_at = None
+        self.create_subscription(String, '/tool/status', self._on_tool, 10)
+        self.create_subscription(String, '/control/mode_status',
+                                 lambda msg: self._on_runtime('control_mode', msg.data), 10)
+        self.create_subscription(String, '/fsm/state',
+                                 lambda msg: self._on_runtime('fsm_state', msg.data), 10)
+        self.create_subscription(ArmStatus, '/arm_status', self._on_arm_status, 10)
 
         self.create_subscription(
             Int32MultiArray,
@@ -118,6 +134,35 @@ class ArmConsoleBridge(Node):
     def _on_dynamixel(self, message: Int32MultiArray) -> None:
         self._dynamixel = message
         self._dynamixel_at = time.monotonic()
+
+    def _on_tool(self, message):
+        try:
+            if len(message.data) > 65536:
+                raise ValueError('oversize tool status')
+            self._tool = normalize_tool(json.loads(message.data))
+            self._tool_at = time.monotonic()
+            # The hardware bridge publishes /control/mode_status only when a
+            # mode changes.  After a console mirror restart that one-shot can
+            # be missed, leaving the UI to claim "보유한 제어권 없음" while
+            # /tool/status continuously says MANUAL.  Treat the tool status as
+            # the current-state fallback; it is refreshed at the bridge rate.
+            mode = self._tool.get('control_mode')
+            if mode in ('MANUAL', 'FSM'):
+                self._control_mode = mode
+                self._control_mode_at = self._tool_at
+        except (ValueError, TypeError):
+            self._tool = None
+            self._tool_at = None
+
+    def _on_runtime(self, key, value):
+        text = str(value).strip()
+        if not text or len(text) > 80:
+            return
+        setattr(self, '_' + key, text)
+        setattr(self, '_' + key + '_at', time.monotonic())
+
+    def _on_arm_status(self, message):
+        self._on_runtime('arm_status', message.status)
 
     def _on_joints(self, message: JointState) -> None:
         self._joints = message
@@ -154,6 +199,7 @@ class ArmConsoleBridge(Node):
                 "names": self._joints.name,
                 "position_rad": self._joints.position,
                 "velocity": self._joints.velocity,
+                "effort": self._joints.effort,
             }
         source_age_s = {
             "dynamixel": self._age(self._dynamixel_at, now),
@@ -167,6 +213,20 @@ class ArmConsoleBridge(Node):
                 motors=motors,
                 joints=joints,
                 source_age_s=source_age_s,
+                tool_runtime={
+                    'tool': self._tool if self._fresh(self._tool_at, now) else None,
+                    'source_age_s': self._age(self._tool_at, now),
+                },
+                arm_runtime={
+                    'control_mode': self._control_mode if self._fresh(self._control_mode_at, now) else None,
+                    'fsm_state': self._fsm_state if self._fresh(self._fsm_state_at, now) else None,
+                    'arm_status': self._arm_status if self._fresh(self._arm_status_at, now) else None,
+                    'source_age_s': {
+                        'control_mode': self._age(self._control_mode_at, now),
+                        'fsm_state': self._age(self._fsm_state_at, now),
+                        'arm_status': self._age(self._arm_status_at, now),
+                    },
+                },
             )
             send_datagram(self._udp, payload, self._telemetry_endpoint)
             self._sequence += 1

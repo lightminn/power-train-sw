@@ -112,25 +112,29 @@ def _joint_payload(
         names = list(joints["names"])
         position = list(joints["position_rad"])
         velocity = list(joints["velocity"])
+        effort = list(joints.get("effort", []))
     except (KeyError, TypeError) as exc:
         raise ValueError("joint arrays are invalid") from exc
-    if len(names) != len(position) or len(names) != len(velocity):
+    if (len(names) != len(position) or len(velocity) not in (0, len(names))
+            or len(effort) not in (0, len(names))):
         raise ValueError("joint array lengths do not match")
 
     truncated = len(names) > MAX_JOINTS
     position_values = [float(value) for value in position[:MAX_JOINTS]]
     velocity_values = [float(value) for value in velocity[:MAX_JOINTS]]
+    effort_values = [float(value) for value in effort[:MAX_JOINTS]]
     # NaN 은 여기서 잡는다 — 전체 payload _encode(allow_nan=False) 단계까지
     # 가면 dynamixel 온도까지 함께 버려진다.
     if not all(
         math.isfinite(value)
-        for value in position_values + velocity_values
+        for value in position_values + velocity_values + effort_values
     ):
         raise ValueError("joint values must be finite")
     return {
         "names": [str(name) for name in names[:MAX_JOINTS]],
         "position_rad": position_values,
         "velocity": velocity_values,
+        "effort_raw": effort_values,
     }, truncated
 
 
@@ -145,6 +149,8 @@ def build_arm_telemetry_payload(
     end_effector_type=None,
     end_effector_attached=None,
     end_effector_interface=None,
+    tool_runtime=None,
+    arm_runtime=None,
 ) -> bytes:
     """Encode one bounded telemetry snapshot for UDP :5007."""
     joint_payload = None
@@ -184,12 +190,18 @@ def build_arm_telemetry_payload(
         (name, value) for name, value in end_effector.items()
         if value is not None
     )
+    if tool_runtime is not None:
+        payload['tool_runtime'] = tool_runtime
+    if arm_runtime is not None:
+        payload['arm_runtime'] = arm_runtime
     encoded = _encode(payload)
     if len(encoded) <= MAX_TELEMETRY_BYTES:
         return encoded
 
     payload["joints"] = None
     payload["truncated"] = True
+    if len(_encode(payload)) > MAX_TELEMETRY_BYTES and tool_runtime is not None:
+        payload['tool_runtime'] = {'tool': None, 'source_age_s': None}
     encoded = _encode(payload)
     if len(encoded) > MAX_TELEMETRY_BYTES:
         raise ValueError("arm telemetry exceeds 4096 bytes")

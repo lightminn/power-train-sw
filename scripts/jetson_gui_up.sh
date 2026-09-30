@@ -574,6 +574,28 @@ else
     else
       arm_stack_ready=1
       add_result '✅' 'ros2_humble' 'compose 실행 및 install 확인'
+      # 관제 화면은 /tool/status를 arm_console_bridge가 UDP로 미러링한 값으로
+      # 표시한다. 따라서 이전에 남은 버스 소유자를 먼저 내린 뒤, 실제 버스를
+      # 읽는 브릿지를 하나만 올린다. read_only는 감지·상태 관측만 허용하며
+      # 토크, 목표 위치, 제어 테이블을 쓰지 않는다.
+      docker exec ros2_humble bash -lc \
+        'pkill -f moveit_dynamixel_bridge >/dev/null 2>&1 || true'
+      tool_cleanup_rc=$?
+      if [ "$tool_cleanup_rc" -ne 0 ]; then
+        printf '⚠️ 기존 Dynamixel 브릿지 정리 명령이 실패했지만 재기동을 계속합니다.\n'
+      fi
+      docker exec -d ros2_humble bash -lc \
+        'source /opt/ros/humble/setup.bash && source /root/ros2_ws/install/setup.bash && exec ros2 run dynamixel_control moveit_dynamixel_bridge --ros-args -p mock_mode:=false -p read_only:=true -p control_scope:=END_EFFECTOR_ONLY -p auto_tool_detection:=true'
+      tool_bridge_start_rc=$?
+      sleep 3
+      if [ "$tool_bridge_start_rc" -eq 0 ] \
+        && docker exec ros2_humble pgrep -f moveit_dynamixel_bridge >/dev/null 2>&1; then
+        add_result '✅' 'Dynamixel 도구 브릿지' \
+          '기존 프로세스 정리 후 읽기 전용 자동 감지, 3초 생존 확인'
+      else
+        add_result '❌' 'Dynamixel 도구 브릿지' \
+          '기동 실패 또는 3초 내 종료 — /dev/ttyUSB0·팔 컨테이너 로그 확인' 1
+      fi
       if [ "$d435_present" -ne 1 ]; then
         add_result '⚠️' 'perception' 'D435i 미감지 — 기동 스킵'
         add_result '⚠️' 'stream' 'D435i 미감지 — 기동 스킵'
