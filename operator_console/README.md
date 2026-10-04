@@ -133,6 +133,26 @@ The replay tool defaults to 15003/15004/15005/15007 and rejects the live UDP
 ports. Recorded video or a GStreamer test sender must still use the existing
 SRT receiver contract; no DEMO control is added to the operator UI.
 
+For a continuous hardware-free rehearsal, start the bounded TEST fixture and
+point the same production receivers at its isolated ports:
+
+```bash
+python -m operator_console.demo_source
+
+/usr/bin/python3 -m operator_console.app \
+  --host 127.0.0.1 --d435-port 15002 --l515-port 15000 \
+  --metadata-port 15003 --telemetry-port 15004 \
+  --chassis-telemetry-port 15005 --arm-telemetry-port 15007 \
+  --environment-telemetry-port 15008 --input-source TEST \
+  --ops-token-file /tmp/operator-console-no-token
+```
+
+The fixture cycles through normal driving, rough terrain, traction assistance,
+and obstacle hold. It opens no device or ops command channel and refuses every
+live telemetry port. The field ownership, units, freshness rules, and remaining
+team decisions are recorded in the
+[festival GUI integration contract](../docs/operator-console-integration-contract.md).
+
 Use the system interpreter explicitly: a conda-base `python3` has no GTK
 bindings (`gi`) and dies with ModuleNotFoundError. The systemd unit already
 pins `/usr/bin/python3`.

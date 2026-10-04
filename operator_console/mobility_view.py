@@ -8,7 +8,8 @@ from collections.abc import Callable, Mapping
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Pango  # noqa: E402
+gi.require_version("Gdk", "3.0")
+from gi.repository import Gdk, Gtk, Pango  # noqa: E402
 
 from .telemetry import TelemetrySnapshot, WheelStatus
 
@@ -77,8 +78,70 @@ def _maximum_abs(values: tuple[float | None, ...]) -> float | None:
     return max(finite, default=None)
 
 
+def mission_mobility_values(
+    snapshot: TelemetrySnapshot | None,
+) -> dict[str, str]:
+    """Return compact, source-honest values for the main mission rail."""
+    unavailable = {
+        "path": "정보 없음",
+        "control": "정보 없음",
+        "attitude": "정보 없음",
+        "motors": "정보 없음",
+    }
+    if snapshot is None:
+        return unavailable
+
+    confidence = (
+        "" if snapshot.terrain_confidence is None
+        else f" · 신뢰도 {snapshot.terrain_confidence * 100:.0f}%"
+    )
+    path = (
+        "경로 확보" + confidence
+        if snapshot.terrain_path_available is True else
+        "경로 차단" + confidence
+        if snapshot.terrain_path_available is False else
+        "판정 대기"
+    )
+    scale = (
+        "" if snapshot.degradation_speed_scale is None
+        else f" · 속도 {snapshot.degradation_speed_scale * 100:.0f}%"
+    )
+    control = (snapshot.controller_fsm_state or "판정 대기") + scale
+    attitude = "Roll {} · Pitch {}".format(
+        _degrees(snapshot.roll_rad), _degrees(snapshot.pitch_rad),
+    )
+    healthy_wheels = sum(
+        wheel_health_text(wheel) == "정상" for wheel in snapshot.wheel_statuses
+    )
+    wheel_count = len(snapshot.wheel_statuses)
+    maximum_current = _maximum_abs(tuple(
+        wheel.drive_current_a for wheel in snapshot.wheel_statuses
+    ))
+    contact = (
+        " · 끼임 후보" if snapshot.stuck_candidate is True else
+        " · 슬립 후보" if snapshot.slip_candidate is True else ""
+    )
+    motors = (
+        "정보 없음" if not wheel_count else
+        f"{healthy_wheels}/{wheel_count} 정상 · max |Iq| "
+        f"{_number(maximum_current, ' A', 1)}{contact}"
+    )
+    return {
+        "path": path,
+        "control": control,
+        "attitude": attitude,
+        "motors": motors,
+    }
+
+
 class RoverCoordinationGraphic(Gtk.DrawingArea):
-    """Compact top-view rover status graphic; it never invents control data."""
+    """Interactive engineering view of the six-wheel chassis.
+
+    This is deliberately a lightweight Cairo status view rather than a CAD
+    renderer.  Dragging or scrolling changes only the viewing angle; it never
+    emits a robot command.  Clicking a wheel selects the live values already
+    present in the chassis telemetry contract.
+    """
 
     _WHEEL_POSITIONS = {
         "front_left": (-1, -1),
@@ -95,13 +158,42 @@ class RoverCoordinationGraphic(Gtk.DrawingArea):
 
     def __init__(self) -> None:
         super().__init__()
-        self.set_size_request(310, 158)
+        self.set_size_request(330, 210)
         self.set_hexpand(True)
         self.set_vexpand(True)
         _style(self, "mobility-rover-stage")
         self._snapshot: TelemetrySnapshot | None = None
         self._authority = "UNAVAILABLE"
+        self._yaw_deg = 28.0
+        self._selected_wheel = "front_left"
+        self._drag_x: float | None = None
+        self._wheel_screen_positions: dict[str, tuple[float, float]] = {}
+        self.add_events(
+            Gdk.EventMask.BUTTON_PRESS_MASK
+            | Gdk.EventMask.BUTTON_RELEASE_MASK
+            | Gdk.EventMask.POINTER_MOTION_MASK
+            | Gdk.EventMask.SCROLL_MASK
+        )
         self.connect("draw", self._draw)
+        self.connect("button-press-event", self._on_button_press)
+        self.connect("button-release-event", self._on_button_release)
+        self.connect("motion-notify-event", self._on_motion)
+        self.connect("scroll-event", self._on_scroll)
+
+    @staticmethod
+    def _normalise_angle(value: float) -> float:
+        return float(value) % 360.0
+
+    def set_view_angle(self, yaw_deg: float) -> None:
+        """Set the read-only camera orbit angle; useful for UI automation too."""
+        self._yaw_deg = self._normalise_angle(yaw_deg)
+        self.queue_draw()
+
+    def select_wheel(self, name: str) -> None:
+        if name not in self._WHEEL_POSITIONS:
+            raise ValueError(f"unknown wheel: {name}")
+        self._selected_wheel = name
+        self.queue_draw()
 
     def set_state(
         self,
@@ -152,11 +244,64 @@ class RoverCoordinationGraphic(Gtk.DrawingArea):
             return "#E56A74"
         return "#55C995"
 
+    def _project(
+        self, x: float, y: float, z: float, centre_x: float, centre_y: float,
+    ) -> tuple[float, float]:
+        yaw = math.radians(self._yaw_deg)
+        rotated_x = x * math.cos(yaw) - y * math.sin(yaw)
+        rotated_y = x * math.sin(yaw) + y * math.cos(yaw)
+        return (
+            centre_x + rotated_x * 45.0,
+            centre_y + rotated_y * 17.0 - z * 34.0,
+        )
+
+    def _on_button_press(self, _widget: Gtk.Widget, event: object) -> bool:
+        if getattr(event, "button", None) != 1:
+            return False
+        x, y = float(event.x), float(event.y)
+        closest = min(
+            self._wheel_screen_positions.items(),
+            key=lambda item: math.hypot(item[1][0] - x, item[1][1] - y),
+            default=None,
+        )
+        if closest is not None and math.hypot(
+            closest[1][0] - x, closest[1][1] - y,
+        ) <= 22.0:
+            self._selected_wheel = closest[0]
+        self._drag_x = x
+        self.queue_draw()
+        return True
+
+    def _on_button_release(self, _widget: Gtk.Widget, event: object) -> bool:
+        if getattr(event, "button", None) == 1:
+            self._drag_x = None
+            return True
+        return False
+
+    def _on_motion(self, _widget: Gtk.Widget, event: object) -> bool:
+        if self._drag_x is None:
+            return False
+        x = float(event.x)
+        self.set_view_angle(self._yaw_deg + (x - self._drag_x) * 0.8)
+        self._drag_x = x
+        return True
+
+    def _on_scroll(self, _widget: Gtk.Widget, event: object) -> bool:
+        direction = getattr(event, "direction", None)
+        if direction == Gdk.ScrollDirection.UP:
+            delta = 10.0
+        elif direction == Gdk.ScrollDirection.DOWN:
+            delta = -10.0
+        else:
+            delta = -float(getattr(event, "delta_y", 0.0)) * 10.0
+        self.set_view_angle(self._yaw_deg + delta)
+        return True
+
     def _draw(self, _widget: Gtk.Widget, context: object) -> bool:
         width = float(self.get_allocated_width())
         height = float(self.get_allocated_height())
         centre_x = width * 0.50
-        centre_y = height * 0.54
+        centre_y = height * 0.48
         snapshot = self._snapshot
 
         path_colour = "#52677B"
@@ -168,24 +313,39 @@ class RoverCoordinationGraphic(Gtk.DrawingArea):
 
         context.set_line_width(2.0)
         self._source(context, path_colour, 0.9)
-        context.move_to(centre_x - 50, 22)
-        context.line_to(centre_x + 50, 22)
+        context.move_to(centre_x - 50, 19)
+        context.line_to(centre_x + 50, 19)
         context.stroke()
         self._text(
-            context, path_label, max(10.0, centre_x - 42), 15,
+            context, path_label, max(10.0, centre_x - 42), 13,
             colour=path_colour, size=8, bold=True,
         )
 
-        # Rocker/bogie links explain the relationship between the six live wheels.
-        self._source(context, "#315F91", 0.85)
+        by_name = {
+            wheel.name: wheel for wheel in snapshot.wheel_statuses
+        } if snapshot is not None else {}
+        world_positions = {
+            name: (side * 1.18, row * 0.86, -0.28)
+            for name, (side, row) in self._WHEEL_POSITIONS.items()
+        }
+        self._wheel_screen_positions = {
+            name: self._project(*position, centre_x, centre_y)
+            for name, position in world_positions.items()
+        }
+
+        # Draw the far wheels and suspension first so the body has depth.
+        ordered_wheels = sorted(
+            self._wheel_screen_positions.items(), key=lambda item: item[1][1],
+        )
+        self._source(context, "#315F91", 0.9)
         context.set_line_width(3.0)
-        for side in (-1, 1):
-            wheel_x = centre_x + side * 92
-            context.move_to(wheel_x, centre_y - 38)
-            context.line_to(wheel_x, centre_y + 38)
-            context.stroke()
-            context.move_to(wheel_x, centre_y)
-            context.line_to(centre_x + side * 58, centre_y)
+        for name, (wheel_x, wheel_y) in ordered_wheels:
+            side, _row = self._WHEEL_POSITIONS[name]
+            anchor_x, anchor_y = self._project(
+                side * 0.58, 0.0, 0.0, centre_x, centre_y,
+            )
+            context.move_to(anchor_x, anchor_y)
+            context.line_to(wheel_x, wheel_y)
             context.stroke()
 
         body_border = "#4B8BEA"
@@ -193,47 +353,59 @@ class RoverCoordinationGraphic(Gtk.DrawingArea):
             body_border = "#E56A74"
         elif snapshot is not None and snapshot.slip_candidate is True:
             body_border = "#E7B34F"
-        self._source(context, "#10243A")
-        context.rectangle(centre_x - 58, centre_y - 43, 116, 86)
+        body_world = ((-0.72, -0.95), (0.72, -0.95), (0.72, 0.95), (-0.72, 0.95))
+        lower = [self._project(x, y, 0.0, centre_x, centre_y) for x, y in body_world]
+        upper = [self._project(x, y, 0.42, centre_x, centre_y) for x, y in body_world]
+        self._source(context, "#0B1A2A")
+        for index in range(4):
+            next_index = (index + 1) % 4
+            context.move_to(*lower[index])
+            context.line_to(*lower[next_index])
+            context.line_to(*upper[next_index])
+            context.line_to(*upper[index])
+            context.close_path()
+            context.fill()
+        self._source(context, "#153555")
+        context.move_to(*upper[0])
+        for point in upper[1:]:
+            context.line_to(*point)
+        context.close_path()
         context.fill_preserve()
         self._source(context, body_border)
         context.set_line_width(2.0)
         context.stroke()
 
-        self._source(context, "#173353")
-        context.rectangle(centre_x - 40, centre_y - 30, 80, 22)
-        context.fill()
         self._text(
-            context, "ROCKER-BOGIE", centre_x - 34, centre_y - 15,
+            context, "6-WHEEL", centre_x - 24, centre_y - 15,
             colour="#CDE5FF", size=7, bold=True,
         )
         controller = "정보 없음" if snapshot is None else snapshot.controller_fsm_state
         self._text(
-            context, controller[:18], centre_x - 39, centre_y + 8,
+            context, controller[:18], centre_x - 38, centre_y + 1,
             colour="#F1F6FB", size=9, bold=True,
         )
         self._text(
-            context, "MODE · " + self._authority[:14], centre_x - 39, centre_y + 25,
+            context, "MODE · " + self._authority[:14], centre_x - 38, centre_y + 15,
             colour="#8EA4B8", size=7,
         )
 
-        by_name = {
-            wheel.name: wheel for wheel in snapshot.wheel_statuses
-        } if snapshot is not None else {}
-        for name, (side, row) in self._WHEEL_POSITIONS.items():
+        for name, (wheel_x, wheel_y) in ordered_wheels:
             wheel = by_name.get(name)
-            wheel_x = centre_x + side * 92
-            wheel_y = centre_y + row * 38
             colour = self._wheel_colour(wheel)
             self._source(context, colour)
-            context.arc(wheel_x, wheel_y, 11, 0, math.tau)
+            context.arc(wheel_x, wheel_y, 12, 0, math.tau)
             context.fill()
             self._source(context, "#07101B")
-            context.arc(wheel_x, wheel_y, 6, 0, math.tau)
+            context.arc(wheel_x, wheel_y, 6.5, 0, math.tau)
             context.fill()
-            label_x = wheel_x - 25 if side < 0 else wheel_x + 14
+            if name == self._selected_wheel:
+                self._source(context, "#FFFFFF")
+                context.set_line_width(1.5)
+                context.arc(wheel_x, wheel_y, 16, 0, math.tau)
+                context.stroke()
+            label_x = wheel_x - 9
             self._text(
-                context, self._WHEEL_LABELS[name], label_x, wheel_y + 3,
+                context, self._WHEEL_LABELS[name], label_x, wheel_y + 25,
                 colour=colour, size=7, bold=True,
             )
 
@@ -241,12 +413,25 @@ class RoverCoordinationGraphic(Gtk.DrawingArea):
             wheel.drive_current_a for wheel in snapshot.wheel_statuses
         )) if snapshot is not None else None
         load = _number(maximum_current, " A", 1)
+        selected = by_name.get(self._selected_wheel)
+        selected_text = self._WHEEL_LABELS[self._selected_wheel] + " · NO DATA"
+        if selected is not None:
+            selected_text = (
+                f"{self._WHEEL_LABELS[self._selected_wheel]} · ACT "
+                f"{_number(selected.drive_turns_per_s, ' r/s', 2)} · CMD "
+                f"{_number(selected.command_turns_per_s, ' r/s', 2)} · Iq "
+                f"{_number(selected.drive_current_a, ' A', 1)}"
+            )
         self._text(
-            context, "6-WHEEL FEEDBACK", 12, height - 12,
-            colour="#71879C", size=7, bold=True,
+            context, selected_text[:58], 10, height - 27,
+            colour="#D9E8F5", size=7, bold=True,
         )
         self._text(
-            context, "MAX |Iq| · " + load, max(120.0, width - 112), height - 12,
+            context, f"DRAG/SCROLL: ORBIT · CLICK: SELECT · {self._yaw_deg:.0f} DEG",
+            10, height - 11, colour="#71879C", size=7,
+        )
+        self._text(
+            context, "MAX |Iq| · " + load, max(190.0, width - 100), height - 11,
             colour="#72CDB2", size=7, bold=True,
         )
         return False
@@ -311,7 +496,9 @@ class MobilityDashboard(Gtk.Box):
 
         evidence = Gtk.Box(spacing=14)
         _style(evidence, "mobility-evidence-bar")
-        evidence_title = Gtk.Label(label="균일구동 ↔ 협조구동 비교평가")
+        evidence_title = Gtk.Label(
+            label="균일구동 ↔ 협조구동 시험 설계 · 결과 연동 전"
+        )
         evidence_title.set_xalign(0.0)
         _style(evidence_title, "mobility-evidence-title")
         evidence.pack_start(evidence_title, False, False, 0)

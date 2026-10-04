@@ -80,7 +80,7 @@ from .metadata import (
     displayable_detections,
     target_distance_m,
 )
-from .mobility_view import MobilityDashboard
+from .mobility_view import MobilityDashboard, mission_mobility_values
 from .ops_client import ConsoleOpsClient
 from .ops_panel import (
     GESTURE_HOLD,
@@ -3927,7 +3927,7 @@ class OperatorConsole(Gtk.Window):
         _style(technology_title, "rail-title")
         technology.pack_start(technology_title, False, False, 0)
         for name, detail, tone in (
-            ("4륜 독립 구동·조향", "험지 기동과 제자리 방향 전환", "drive"),
+            ("6륜 독립 구동·4WS 조향", "험지 기동과 제자리 방향 전환", "drive"),
             ("RGB-D 인공지능 인식", "물체 종류·방향·거리 동시 판단", "vision"),
             ("독립 충돌 방지", "US-100 감지와 즉시 정지", "safety"),
             ("다관절 작업 장치", "인식 대상 접근·파지 작업", "arm"),
@@ -3961,6 +3961,10 @@ class OperatorConsole(Gtk.Window):
         self._mission_metrics = {}
         self._mission_metric_rows: dict[str, Gtk.Box] = {}
         for key, heading in (
+            ("path", "전방 주행 판단"),
+            ("control", "능동제어 상태"),
+            ("attitude", "차체 자세"),
+            ("motors", "6륜 모터 상태"),
             ("speed", "평균 속도"),
             ("target", "최신 인식"),
             ("distance", "대상 거리"),
@@ -5192,6 +5196,13 @@ class OperatorConsole(Gtk.Window):
             "정보 없음" if not wheel_speeds
             else f"{sum(wheel_speeds) / len(wheel_speeds):.2f} turn/s"
         )
+        mobility_values = mission_mobility_values(
+            chassis_snapshot
+            if chassis_state == "LIVE"
+            else None
+        )
+        for key, value in mobility_values.items():
+            self._mission_metrics[key].set_text(value)
         self._sync_overlay_rail(metadata)
         target = self._display_target_tracker.view().detection
         self._rail_preparation_target.set_text(

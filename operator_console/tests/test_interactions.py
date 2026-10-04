@@ -15,7 +15,12 @@ from operator_console.metadata import (
     MetadataFrame,
     parse_metadata,
 )
-from operator_console.mobility_view import MobilityDashboard, active_faults
+from operator_console.mobility_view import (
+    MobilityDashboard,
+    RoverCoordinationGraphic,
+    active_faults,
+    mission_mobility_values,
+)
 from operator_console.runtime_smoke import (
     _arm_payload,
     _chassis_payload,
@@ -185,6 +190,31 @@ def test_mobility_faults_keep_motor_and_terrain_sources_explicit():
     assert any("rear_right" in fault and "축 오류" in fault for fault in faults)
     assert "지형 · low_confidence" in faults
     assert "구동 · 슬립 후보" in faults
+
+
+def test_main_mission_mobility_values_show_only_received_measurements():
+    values = mission_mobility_values(
+        _parsed(parse_telemetry, _chassis_payload(3)),
+    )
+    assert values["path"] == "경로 확보 · 신뢰도 88%"
+    assert "TRACKING" in values["control"]
+    assert "Roll" in values["attitude"]
+    assert "max |Iq| 3.2 A" in values["motors"]
+    assert mission_mobility_values(None) == {
+        "path": "정보 없음", "control": "정보 없음",
+        "attitude": "정보 없음", "motors": "정보 없음",
+    }
+
+
+@requires_gtk
+def test_rover_graphic_orbits_360_and_selects_known_wheels_only():
+    graphic = RoverCoordinationGraphic()
+    graphic.set_view_angle(375.0)
+    assert graphic._yaw_deg == 15.0
+    graphic.select_wheel("rear_right")
+    assert graphic._selected_wheel == "rear_right"
+    with pytest.raises(ValueError, match="unknown wheel"):
+        graphic.select_wheel("invented")
 
 
 @requires_gtk
