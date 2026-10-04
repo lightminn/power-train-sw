@@ -1,0 +1,488 @@
+[
+  {
+    "case": "RT-left",
+    "raw": {
+      "drive": {
+        "11": -5.335543155670166,
+        "12": 6.341401100158691,
+        "13": -5.090972900390625,
+        "14": 6.435312271118164,
+        "15": -5.412025451660156,
+        "16": 6.200745105743408
+      },
+      "steer": {
+        "1": -10.052,
+        "2": -8.4448,
+        "3": 7.4919,
+        "4": 6.5345
+      }
+    },
+    "wheels": [
+      {
+        "name": "front_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": 1.0671086311340332,
+        "steer_deg": 10.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "front_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": 1.268280267715454,
+        "steer_deg": 8.399999618530273,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": 1.018194556236267,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": 1.287062406539917,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": 1.0824050903320312,
+        "steer_deg": -7.400000095367432,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": 1.2401490211486816,
+        "steer_deg": -6.5,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      }
+    ],
+    "icr_y_from_raw_steering_m": [
+      3.0823538407548643,
+      3.0823571099140703,
+      3.082362011531662,
+      3.0823602329704634
+    ]
+  },
+  {
+    "case": "RT-right",
+    "raw": {
+      "drive": {
+        "11": -6.341401100158691,
+        "12": 5.335543155670166,
+        "13": -6.435312271118164,
+        "14": 5.090972900390625,
+        "15": -6.200745105743408,
+        "16": 5.412025451660156
+      },
+      "steer": {
+        "1": 8.4448,
+        "2": 10.052,
+        "3": -6.5345,
+        "4": -7.4919
+      }
+    },
+    "wheels": [
+      {
+        "name": "front_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": 1.268280267715454,
+        "steer_deg": -8.399999618530273,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "front_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": 1.0671086311340332,
+        "steer_deg": -10.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": 1.287062406539917,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": 1.018194556236267,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": 1.2401490211486816,
+        "steer_deg": 6.5,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": 1.0824050903320312,
+        "steer_deg": 7.400000095367432,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      }
+    ],
+    "icr_y_from_raw_steering_m": [
+      -3.0823571099140703,
+      -3.0823538407548643,
+      -3.0823602329704634,
+      -3.082362011531662
+    ]
+  },
+  {
+    "case": "LT-left",
+    "raw": {
+      "drive": {
+        "11": 5.335543155670166,
+        "12": -6.341401100158691,
+        "13": 5.090972900390625,
+        "14": -6.435312271118164,
+        "15": 5.412025451660156,
+        "16": -6.200745105743408
+      },
+      "steer": {
+        "1": -10.052,
+        "2": -8.4448,
+        "3": 7.4919,
+        "4": 6.5345
+      }
+    },
+    "wheels": [
+      {
+        "name": "front_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": -1.0671086311340332,
+        "steer_deg": 10.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "front_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": -1.268280267715454,
+        "steer_deg": 8.399999618530273,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": -1.018194556236267,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": -1.287062406539917,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": -1.0824050903320312,
+        "steer_deg": -7.400000095367432,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": -1.2401490211486816,
+        "steer_deg": -6.5,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      }
+    ],
+    "icr_y_from_raw_steering_m": [
+      3.0823538407548643,
+      3.0823571099140703,
+      3.082362011531662,
+      3.0823602329704634
+    ]
+  },
+  {
+    "case": "LT-right",
+    "raw": {
+      "drive": {
+        "11": 6.341401100158691,
+        "12": -5.335543155670166,
+        "13": 6.435312271118164,
+        "14": -5.090972900390625,
+        "15": 6.200745105743408,
+        "16": -5.412025451660156
+      },
+      "steer": {
+        "1": 8.4448,
+        "2": 10.052,
+        "3": -6.5345,
+        "4": -7.4919
+      }
+    },
+    "wheels": [
+      {
+        "name": "front_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": -1.268280267715454,
+        "steer_deg": -8.399999618530273,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "front_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": -1.0671086311340332,
+        "steer_deg": -10.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": -1.287062406539917,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": -1.018194556236267,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": -1.2401490211486816,
+        "steer_deg": 6.5,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": -1.0824050903320312,
+        "steer_deg": 7.400000095367432,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      }
+    ],
+    "icr_y_from_raw_steering_m": [
+      -3.0823571099140703,
+      -3.0823538407548643,
+      -3.0823602329704634,
+      -3.082362011531662
+    ]
+  },
+  {
+    "case": "STOP-left",
+    "raw": {
+      "drive": {
+        "11": -0.0,
+        "12": 0.0,
+        "13": -0.0,
+        "14": 0.0,
+        "15": -0.0,
+        "16": 0.0
+      },
+      "steer": {
+        "1": -10.052,
+        "2": -8.4448,
+        "3": 7.4919,
+        "4": 6.5345
+      }
+    },
+    "wheels": [
+      {
+        "name": "front_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": 10.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "front_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": 8.399999618530273,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": -7.400000095367432,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": -6.5,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      }
+    ],
+    "icr_y_from_raw_steering_m": [
+      3.0823538407548643,
+      3.0823571099140703,
+      3.082362011531662,
+      3.0823602329704634
+    ]
+  },
+  {
+    "case": "STOP-right",
+    "raw": {
+      "drive": {
+        "11": -0.0,
+        "12": 0.0,
+        "13": -0.0,
+        "14": 0.0,
+        "15": -0.0,
+        "16": 0.0
+      },
+      "steer": {
+        "1": 8.4448,
+        "2": 10.052,
+        "3": -6.5345,
+        "4": -7.4919
+      }
+    },
+    "wheels": [
+      {
+        "name": "front_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": -8.399999618530273,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "front_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": -10.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_left",
+        "mode": "ARMED",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": 6.5,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_right",
+        "mode": "ARMED",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": 7.400000095367432,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      }
+    ],
+    "icr_y_from_raw_steering_m": [
+      -3.0823571099140703,
+      -3.0823538407548643,
+      -3.0823602329704634,
+      -3.082362011531662
+    ]
+  }
+]

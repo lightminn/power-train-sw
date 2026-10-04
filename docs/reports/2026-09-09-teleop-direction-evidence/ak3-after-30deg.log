@@ -1,0 +1,2 @@
+{"drive": {"11": {"error": 0, "state": 1}, "12": {"error": 0, "state": 1}, "13": {"error": 0, "state": 1}, "14": {"error": 0, "state": 1}, "15": {"error": 0, "state": 1}, "16": {"error": 0, "state": 1}}, "steer": {"1": {"fault": 0, "raw_deg": 2.1}, "2": {"fault": 0, "raw_deg": 2.2}, "3": {"fault": 0, "raw_deg": 5.1}, "4": {"fault": 0, "raw_deg": 0.0}}}
+CAN tx packets 330714 330714

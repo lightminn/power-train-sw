@@ -29,6 +29,14 @@ def generate_launch_description():
         ),
         GroupAction(actions=[
             DeclareLaunchArgument(
+                "manual_command_format", default_value="steering", choices=["steering", "twist"],
+                description="Must match control.launch.py; steering is the manual-drive default",
+            ),
+            DeclareLaunchArgument(
+                "manual_max_angular", default_value="1.2",
+                description="Manual steering yaw-rate cap (rad/s); slows speed without changing steering",
+            ),
+            DeclareLaunchArgument(
                 "contract_v2_verified",
                 default_value="false",
                 choices=["true", "false"],
@@ -59,10 +67,18 @@ def generate_launch_description():
                 default_value="false",
                 choices=["true", "false"],
                 description=(
-                    "Embedded CommandAuthority path (/teleop/cmd_vel + "
+                    "Embedded CommandAuthority path (/teleop/drive_command + "
                     "/autonomy/cmd_vel selection); false keeps the "
                     "deprecated external /cmd_vel subscription"
                 ),
+            ),
+            SetParameter(
+                name="manual_command_format",
+                value=LaunchConfiguration("manual_command_format"),
+            ),
+            SetParameter(
+                name="manual_max_angular",
+                value=ParameterValue(LaunchConfiguration("manual_max_angular"), value_type=float),
             ),
             SetParameter(
                 name="contract_v2_verified",

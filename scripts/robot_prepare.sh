@@ -189,7 +189,7 @@ else
   "${compose[@]}" build powertrain powertrain_ros
 fi
 "${compose[@]}" run --rm --no-deps --entrypoint /bin/bash powertrain_control -lc \
-  'set -e; source /opt/ros/humble/setup.bash; set -u; cd /workspace/ros2; colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros'
+  'set -e; source /opt/ros/humble/setup.bash; set -u; cd /workspace/ros2; colcon build --packages-select robot_arm_msgs powertrain_msgs dynamixel_control powertrain_ros'
 
 config_tmp="$(mktemp)"
 manifest_tmp="$(mktemp)"

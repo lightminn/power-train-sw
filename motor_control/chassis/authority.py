@@ -49,6 +49,7 @@ class AuthorityConfig:
     neutral_v: float = 0.02
     neutral_omega: float = 0.05
     handover_timeout_s: float = 2.0
+    neutral_steering: float = 0.02
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,7 @@ class Command:
     omega: float = 0.0
     ok: bool = False
     reason: str = ""
+    steering: float = None  # None = physical yaw-rate command; otherwise [-1, 1].
 
 
 @dataclass(frozen=True)
@@ -91,12 +93,13 @@ class CommandAuthority:
         self._pending_mode = None
         self._stopping_started_s = None
         self._stopping_zero_emitted = False
-        self._last_output = (0.0, 0.0)
+        self._last_output = (0.0, 0.0, 0.0)
         self._last_select_t = 0.0
         self.last_transition_reason = "initialized in IDLE"
 
-    def submit(self, source: str, v: float, omega: float, t: float) -> None:
-        self._src[source] = (float(v), float(omega), float(t))
+    def submit(self, source: str, v: float, omega: float, t: float, *, steering=None) -> None:
+        self._src[source] = (float(v), float(omega), float(t),
+                             None if steering is None else float(steering))
 
     def _transition_result(self, accepted, reason):
         self.last_transition_reason = reason
@@ -124,7 +127,7 @@ class CommandAuthority:
         return False
 
     def _output_is_nonzero(self):
-        return self._last_output != (0.0, 0.0)
+        return self._last_output != (0.0, 0.0, 0.0)
 
     def request_mode(self, mode: str, t: float = None) -> TransitionResult:
         target = _REQUEST_ALIASES.get(mode)
@@ -143,7 +146,7 @@ class CommandAuthority:
             self._stopping_started_s = None
             self._stopping_zero_emitted = False
             self._armed = False
-            self._last_output = (0.0, 0.0)
+            self._last_output = (0.0, 0.0, 0.0)
             return self._transition_result(True, "mode=IDLE")
 
         if self.mode == STOPPING_FOR_HANDOVER:
@@ -208,12 +211,12 @@ class CommandAuthority:
         self._stopping_started_s = None
         self._stopping_zero_emitted = False
         self._armed = False
-        self._last_output = (0.0, 0.0)
+        self._last_output = (0.0, 0.0, 0.0)
         self.last_transition_reason = "MOTION_HOLD cleared to IDLE"
         return True
 
     def _zero(self, reason):
-        self._last_output = (0.0, 0.0)
+        self._last_output = (0.0, 0.0, 0.0)
         return Command(0.0, 0.0, True, reason)
 
     def _select_stopping(self, t):
@@ -273,7 +276,13 @@ class CommandAuthority:
         if entry is None:
             return Command(reason=f"{name} 명령 없음")
 
-        v, omega, ts = entry
+        v, omega, ts, steering = entry
+        if (not all(math.isfinite(value) for value in (v, omega, ts, t))
+                or (steering is not None and (
+                    not math.isfinite(steering) or abs(steering) > 1 or omega != 0))):
+            self._set_mode(MOTION_HOLD)
+            self._armed = False
+            return Command(reason=f"{name} invalid command → MOTION_HOLD")
         age = t - ts
         if age < 0.0:
             self._set_mode(MOTION_HOLD)
@@ -285,18 +294,19 @@ class CommandAuthority:
             return Command(reason=f"{name} stale ({age:.2f}s) → MOTION_HOLD")
 
         if not self._armed:
-            if self._is_neutral(v, omega):
+            if self._is_neutral(v, omega, steering):
                 self._armed = True
                 return self._zero(f"{name} 중립 확인 — 권한 인계")
             return Command(
                 reason=f"{name} 중립 대기 (v={v:+.2f} ω={omega:+.2f})"
             )
 
-        self._last_output = (v, omega)
-        return Command(v, omega, True, name)
+        self._last_output = (v, omega, steering or 0.0)
+        return Command(v, omega, True, name, steering)
 
-    def _is_neutral(self, v, omega):
+    def _is_neutral(self, v, omega, steering=None):
         return (
             abs(v) <= self.cfg.neutral_v
             and abs(omega) <= self.cfg.neutral_omega
+            and (steering is None or abs(steering) <= self.cfg.neutral_steering)
         )

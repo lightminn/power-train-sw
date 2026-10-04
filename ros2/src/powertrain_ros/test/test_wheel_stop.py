@@ -101,6 +101,14 @@ def test_one_rotating_wheel_rejects_instead_of_using_median_of_six():
     assert predicate.last_reject_reason == "wheel_above_threshold:rear_left"
 
 
+@pytest.mark.parametrize("steering", [0.01, -0.01, float("nan"), float("inf")])
+def test_stationary_manual_steering_cannot_qualify_a_zero_command(steering):
+    predicate = _predicate(dwell_ms=0)
+    sample = replace(_sample(2.0), authority_steering=steering)
+    assert predicate.update(sample, now_s=2.0) is False
+    assert predicate.last_reject_reason in ("authority_output_nonzero", "authority_output_nonfinite")
+
+
 def _invalid_sample(case, stamp_s):
     sample = _sample(stamp_s)
     wheels = list(sample.wheels)

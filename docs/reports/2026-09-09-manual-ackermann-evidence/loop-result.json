@@ -1,0 +1,131 @@
+{
+  "result": "PASS",
+  "manual_ackermann_cases": 6,
+  "stationary_cases": 2,
+  "same_angle_tolerance_deg": 0.001,
+  "packets": 82,
+  "last_telemetry": {
+    "schema_version": 1,
+    "sequence": 85,
+    "odometry_source": "unavailable",
+    "x_m": null,
+    "y_m": null,
+    "yaw_rad": null,
+    "voltage_v": null,
+    "current_a": null,
+    "power_w": null,
+    "drive_state": "IDLE/MOTION_HOLD",
+    "can_state": "UNAVAILABLE \u00b7 observability [Errno 111] Connection refused",
+    "l515_state": "UNAVAILABLE",
+    "l515_detail": "[Errno 111] Connection refused",
+    "l515_mode": "-",
+    "l515_color_hz": null,
+    "l515_depth_hz": null,
+    "l515_submitted_hz": null,
+    "l515_sent_hz": null,
+    "l515_drop_hz": null,
+    "l515_ros_topic_rates_hz": {},
+    "l515_aligned_depth_age_ms": null,
+    "l515_process_cpu_percent": null,
+    "l515_process_rss_bytes": null,
+    "safety_status": "VALID",
+    "safety_distance_mm": 1000.0,
+    "safety_estop_required": false,
+    "safety_consecutive_failures": 0,
+    "safety_detail": "isolated synthetic sensor fixture",
+    "component_mask": {
+      "drive": true,
+      "steer": true,
+      "us100": true,
+      "robot_arm": true
+    },
+    "wheel_count": 6,
+    "wheel_fault_count": 0,
+    "wheel_stale_count": 0,
+    "wheel_axis_error_count": 0,
+    "wheel_steer_fault_count": 0,
+    "wheel_statuses": [
+      {
+        "name": "front_left",
+        "mode": "IDLE",
+        "drive_turns_per_s": -0.0,
+        "steer_deg": -0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "front_right",
+        "mode": "IDLE",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": -0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_left",
+        "mode": "IDLE",
+        "drive_turns_per_s": -0.0,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "mid_right",
+        "mode": "IDLE",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": 0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_left",
+        "mode": "IDLE",
+        "drive_turns_per_s": -0.0,
+        "steer_deg": -0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      },
+      {
+        "name": "rear_right",
+        "mode": "IDLE",
+        "drive_turns_per_s": 0.0,
+        "steer_deg": -0.0,
+        "stale": false,
+        "drive_axis_error": 0,
+        "steer_fault": 0
+      }
+    ]
+  },
+  "ops_state": {
+    "active_estop_sources": [],
+    "authority_mode": "IDLE",
+    "chassis_mode": "IDLE",
+    "component_mask": {
+      "drive": true,
+      "robot_arm": true,
+      "steer": true,
+      "us100": true
+    },
+    "estop_detail": "",
+    "estop_latched": false,
+    "estop_source": "",
+    "field_age_s": {
+      "authority": 0.12919321599474642,
+      "gateway": 0.14854259199637454,
+      "safety": 0.2045545279943326,
+      "wheels": 0.26868332799131167
+    },
+    "gateway_input_fresh": false,
+    "gateway_neutral": false,
+    "gateway_state": "DISCONNECTED",
+    "push": "ops_state",
+    "revision": 914645526,
+    "stamp_s": 20014.833596928,
+    "wheels_stopped": true
+  }
+}

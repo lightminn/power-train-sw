@@ -1,0 +1,240 @@
+{
+  "verified_date": "2026-09-09",
+  "scope": "Static zero-pose CAD geometry extraction and offline host verification; no hardware run",
+  "source": {
+    "urdf": "power-train-sim/rover_arm_integrated/urdf/2026_07_24_URDF.urdf",
+    "sha256": "29581f39e888c6120fb4e31860609ff084c9233bdac53d54a3adfe47eac11afa",
+    "authority": "power-train-sim/rover_arm_integrated/README.md:3,37",
+    "integrity_manifest": "power-train-sim/rover_arm_integrated/SHA256SUMS.txt:172",
+    "urdf_and_six_tire_mesh_hashes_match_manifest": true,
+    "tire_mesh_sha256": "d4a0b22ecb09343855dc5b667ec2b5b4a38642c48172310137d9924fa66bc862",
+    "older_0717_copies": [
+      "power-train-sim/urdf/urdf_last.urdf",
+      "power-train-sim/pkg/urdf/urdf_last.urdf"
+    ],
+    "older_0717_sha256": "d898debb36788c4166c699eba40a3652610bad70b55e3276b68405d4873158ac"
+  },
+  "method": {
+    "joint_pose": "q=0; compose the full base_link-to-wheel chain, including Rz(yaw) Ry(pitch) Rx(roll)",
+    "wheel_center": "drive joint child-link origin, not tire mesh bounding-box center",
+    "cad_axes": "X right, Y forward, Z up",
+    "cad_to_rep103": "(X, Y, Z) -> (Y, -X, Z)",
+    "planar_origin": "front/rear axle midpoint; mean left/right axle centerline; no ground-height shift",
+    "origin_cad_xy_m": [
+      0.1200001788346338,
+      0.353827856719238
+    ],
+    "symmetry": "axle X = mean forward coordinate of left/right; Y = +/- half measured track"
+  },
+  "wheelbase_m": 0.875494655000794,
+  "tracks_m": {
+    "front": 0.5450000000116959,
+    "mid": 0.7190000000004121,
+    "rear": 0.42500000001162563
+  },
+  "wheels": {
+    "front_left": {
+      "joint": "wheel_front_left",
+      "cad_xyz_m": [
+        -0.15249972878448148,
+        0.7915804920272895,
+        -0.22349095000000047
+      ],
+      "rep103_xyz_m": [
+        0.7915804920272895,
+        0.15249972878448148,
+        -0.22349095000000047
+      ],
+      "centered_rep103_xy_m": [
+        0.43775263530805153,
+        0.2724999076191153
+      ],
+      "symmetric_xy_m": [
+        0.437747327500397,
+        0.27250000000584795
+      ],
+      "steering_axis_cad": [
+        -1.3991811198025222e-16,
+        -1.5760786428371846e-18,
+        -1.0
+      ],
+      "steering_type": "continuous"
+    },
+    "front_right": {
+      "joint": "wheel_front_right",
+      "cad_xyz_m": [
+        0.3925002712272144,
+        0.7915698764119806,
+        -0.22349095000000055
+      ],
+      "rep103_xyz_m": [
+        0.7915698764119806,
+        -0.3925002712272144,
+        -0.22349095000000055
+      ],
+      "centered_rep103_xy_m": [
+        0.4377420196927426,
+        -0.2725000923925806
+      ],
+      "symmetric_xy_m": [
+        0.437747327500397,
+        -0.27250000000584795
+      ],
+      "steering_axis_cad": [
+        -1.3991817763735688e-16,
+        5.965604955625298e-17,
+        -1.0
+      ],
+      "steering_type": "continuous"
+    },
+    "mid_left": {
+      "joint": "wheel_center_left",
+      "cad_xyz_m": [
+        -0.23949973470174118,
+        0.2934922887399,
+        -0.2235118600000005
+      ],
+      "rep103_xyz_m": [
+        0.2934922887399,
+        0.23949973470174118,
+        -0.2235118600000005
+      ],
+      "centered_rep103_xy_m": [
+        -0.06033556797933798,
+        0.359499913536375
+      ],
+      "symmetric_xy_m": [
+        -0.06033556749989516,
+        0.35950000000020604
+      ],
+      "steering_axis_cad": null,
+      "steering_type": null
+    },
+    "mid_right": {
+      "joint": "wheel_center_right",
+      "cad_xyz_m": [
+        0.4795002652986709,
+        0.29349228969878566,
+        -0.2235118600000007
+      ],
+      "rep103_xyz_m": [
+        0.29349228969878566,
+        -0.4795002652986709,
+        -0.2235118600000007
+      ],
+      "centered_rep103_xy_m": [
+        -0.06033556702045234,
+        -0.3595000864640371
+      ],
+      "symmetric_xy_m": [
+        -0.06033556749989516,
+        -0.35950000000020604
+      ],
+      "steering_axis_cad": null,
+      "steering_type": null
+    },
+    "rear_left": {
+      "joint": "wheel_rear_left",
+      "cad_xyz_m": [
+        -0.09250000002174276,
+        -0.08391416363757531,
+        -0.2229588200000006
+      ],
+      "rep103_xyz_m": [
+        -0.08391416363757531,
+        0.09250000002174276,
+        -0.2229588200000006
+      ],
+      "centered_rep103_xy_m": [
+        -0.4377420203568133,
+        0.21250017885637656
+      ],
+      "symmetric_xy_m": [
+        -0.4377473275003971,
+        0.21250000000581282
+      ],
+      "steering_axis_cad": [
+        -1.3991811198025222e-16,
+        -1.5760786428371992e-18,
+        -1.0
+      ],
+      "steering_type": "continuous"
+    },
+    "rear_right": {
+      "joint": "wheel_rear_right",
+      "cad_xyz_m": [
+        0.3324999999898829,
+        -0.08392477792474284,
+        -0.22295882000000067
+      ],
+      "rep103_xyz_m": [
+        -0.08392477792474284,
+        -0.3324999999898829,
+        -0.22295882000000067
+      ],
+      "centered_rep103_xy_m": [
+        -0.43775263464398084,
+        -0.21249982115524907
+      ],
+      "symmetric_xy_m": [
+        -0.4377473275003971,
+        -0.21250000000581282
+      ],
+      "steering_axis_cad": [
+        -1.3991811198025548e-16,
+        -1.576078642838777e-18,
+        -1.0
+      ],
+      "steering_type": "continuous"
+    }
+  },
+  "fixed_middle_axle_ackermann": {
+    "mid_x_m": -0.06033556749989516,
+    "front_lever_arm_m": 0.4980828950002922,
+    "rear_lever_arm_m": -0.3774117600005019,
+    "body_lateral_velocity": "vy_body = -omega * mid_x; yields zero lateral velocity at both fixed middle wheels",
+    "wheel_lateral_velocity": "omega * (wheel_x - mid_x)",
+    "origin_change_required": false
+  },
+  "baseline_74aec89_delta_m": {
+    "front_x": 4.732750039704303e-05,
+    "mid_x": -3.5567499895160226e-05,
+    "rear_x": -4.732750039709854e-05,
+    "note": "Sub-0.05 mm differences are prior rounding, not evidence explaining the observed teleop steering problem"
+  },
+  "tire": {
+    "vertical_extent_radius_m": {
+      "front_left": 0.10356644821166994,
+      "front_right": 0.10356644821166998,
+      "mid_left": 0.10356644821167003,
+      "mid_right": 0.10355992941726314,
+      "rear_left": 0.10356644821167008,
+      "rear_right": 0.10356644821167005
+    },
+    "radial_envelope_max_m": 0.10379381097423948,
+    "axial_width_m_approx": 0.07,
+    "retained_runtime_radius_m": 0.10356,
+    "note": "Vertical half-extent, spindle radial envelope and loaded rolling radius are distinct. The latter is unverified; retain existing operational radius rather than infer a new rolling calibration."
+  },
+  "steering_limits": {
+    "urdf": "all four steering joints are continuous; no finite lower/upper bound",
+    "retained_controller_limit_deg": 45,
+    "note": "No mechanical steering-limit increase is authorized or certified by this URDF"
+  },
+  "verification": {
+    "test_command": "PYTHONPATH=motor_control:ros2/src/powertrain_ros python -m pytest tests/test_urdf_geometry_extraction.py -q",
+    "red": "10 failed before extractor existed",
+    "green": "10 passed",
+    "rotation_negative_control": "Copy with every origin rpy replaced by zero: 4 failed, 6 passed",
+    "actual_source_command": "python tools/extract_ackermann_geometry.py ../power-train-sim/rover_arm_integrated/urdf/2026_07_24_URDF.urdf",
+    "actual_source_exit_code": 0,
+    "independent_numpy_fk_and_mesh_bbox_max_tolerance_m": 1e-12,
+    "independent_scipy_rotation_fk_max_error_m": 1.3877787807814457e-16
+  },
+  "unverified": [
+    "Physical wheel placement after this CAD export",
+    "Loaded tire rolling radius",
+    "Mechanical steering range and calibrated steering zero",
+    "On-ground Ackermann motion, slip and braking"
+  ]
+}

@@ -1,0 +1,103 @@
+FFFFFFFFFFF............................................................. [ 69%]
+.............F.................                                          [100%]
+=================================== FAILURES ===================================
+___ test_command_and_feedback_cross_the_same_sign_boundary[True--30.0-12.5] ____
+motor_control/corner_module/tests/test_steer_invert.py:43: in test_command_and_feedback_cross_the_same_sign_boundary
+    steer = SteerAk40(motor_id=3, invert=invert)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: SteerAk40.__init__() got an unexpected keyword argument 'invert'
+___ test_command_and_feedback_cross_the_same_sign_boundary[False-30.0--12.5] ___
+motor_control/corner_module/tests/test_steer_invert.py:43: in test_command_and_feedback_cross_the_same_sign_boundary
+    steer = SteerAk40(motor_id=3, invert=invert)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: SteerAk40.__init__() got an unexpected keyword argument 'invert'
+_____ test_inverted_arm_preserves_raw_position_and_estop_still_sends_zero ______
+motor_control/corner_module/tests/test_steer_invert.py:58: in test_inverted_arm_preserves_raw_position_and_estop_still_sends_zero
+    steer = SteerAk40(motor_id=4, invert=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: SteerAk40.__init__() got an unexpected keyword argument 'invert'
+_ test_real_builder_applies_measured_clockwise_mounting_to_all_steering[front_left-1] _
+motor_control/corner_module/tests/test_steer_invert.py:88: in test_real_builder_applies_measured_clockwise_mounting_to_all_steering
+    assert _raw_target(bus) == -30.0
+E   assert 30.0 == -30.0
+E    +  where 30.0 = _raw_target(<test_steer_invert.Bus object at 0x7f7fe947b3d0>)
+_ test_real_builder_applies_measured_clockwise_mounting_to_all_steering[front_right-2] _
+motor_control/corner_module/tests/test_steer_invert.py:88: in test_real_builder_applies_measured_clockwise_mounting_to_all_steering
+    assert _raw_target(bus) == -30.0
+E   assert 30.0 == -30.0
+E    +  where 30.0 = _raw_target(<test_steer_invert.Bus object at 0x7f7fe9447090>)
+_ test_real_builder_applies_measured_clockwise_mounting_to_all_steering[rear_left-3] _
+motor_control/corner_module/tests/test_steer_invert.py:88: in test_real_builder_applies_measured_clockwise_mounting_to_all_steering
+    assert _raw_target(bus) == -30.0
+E   assert 30.0 == -30.0
+E    +  where 30.0 = _raw_target(<test_steer_invert.Bus object at 0x7f7fe9443dd0>)
+_ test_real_builder_applies_measured_clockwise_mounting_to_all_steering[rear_right-4] _
+motor_control/corner_module/tests/test_steer_invert.py:88: in test_real_builder_applies_measured_clockwise_mounting_to_all_steering
+    assert _raw_target(bus) == -30.0
+E   assert 30.0 == -30.0
+E    +  where 30.0 = _raw_target(<test_steer_invert.Bus object at 0x7f7fe93a42d0>)
+_ test_real_builder_applies_measured_clockwise_mounting_to_all_steering[front_left-21] _
+motor_control/corner_module/tests/test_steer_invert.py:88: in test_real_builder_applies_measured_clockwise_mounting_to_all_steering
+    assert _raw_target(bus) == -30.0
+E   assert 30.0 == -30.0
+E    +  where 30.0 = _raw_target(<test_steer_invert.Bus object at 0x7f7fe9804150>)
+____ test_build_real_corners_inverts_only_left_wheels[wheel_map0-expected0] ____
+motor_control/chassis/tests/test_drive_invert_wiring.py:65: in test_build_real_corners_inverts_only_left_wheels
+    assert _capture_drive_inversion(monkeypatch, wheel_map) == expected
+E   assert {11: False, 1...14: True, ...} == {11: True, 12...4: False, ...}
+E     
+E     Differing items:
+E     {11: False} != {11: True}
+E     {12: True} != {12: False}
+E     {13: False} != {13: True}
+E     {14: True} != {14: False}
+E     {15: False} != {15: True}
+E     {16: True} != {16: False}
+E     Use -v to get more diff
+____ test_build_real_corners_inverts_only_left_wheels[wheel_map1-expected1] ____
+motor_control/chassis/tests/test_drive_invert_wiring.py:65: in test_build_real_corners_inverts_only_left_wheels
+    assert _capture_drive_inversion(monkeypatch, wheel_map) == expected
+E   assert {11: False, 1...lse, 16: True} == {11: True, 12...ue, 16: False}
+E     
+E     Differing items:
+E     {16: True} != {16: False}
+E     {11: False} != {11: True}
+E     {12: True} != {12: False}
+E     {15: False} != {15: True}
+E     Use -v to get more diff
+_______ test_build_real_corners_derives_inversion_from_remapped_node_ids _______
+motor_control/chassis/tests/test_drive_invert_wiring.py:74: in test_build_real_corners_derives_inversion_from_remapped_node_ids
+    assert _capture_drive_inversion(monkeypatch, remapped) == {
+E   assert {101: False, 102: True} == {101: True, 102: False}
+E     
+E     Differing items:
+E     {101: False} != {101: True}
+E     {102: True} != {102: False}
+E     Use -v to get more diff
+________________ test_usb_skid_inverts_exactly_the_left_wheels _________________
+motor_control/chassis/tests/test_chassis_manager.py:1357: in test_usb_skid_inverts_exactly_the_left_wheels
+    assert inverted == {"front_left", "mid_left", "rear_left"}
+E   AssertionError: assert {'front_right... 'rear_right'} == {'front_left'..., 'rear_left'}
+E     
+E     Extra items in the left set:
+E     'front_right'
+E     'rear_right'
+E     'mid_right'
+E     Extra items in the right set:
+E     'rear_left'...
+E     
+E     ...Full output truncated (3 lines hidden), use '-vv' to show
+=========================== short test summary info ============================
+FAILED motor_control/corner_module/tests/test_steer_invert.py::test_command_and_feedback_cross_the_same_sign_boundary[True--30.0-12.5]
+FAILED motor_control/corner_module/tests/test_steer_invert.py::test_command_and_feedback_cross_the_same_sign_boundary[False-30.0--12.5]
+FAILED motor_control/corner_module/tests/test_steer_invert.py::test_inverted_arm_preserves_raw_position_and_estop_still_sends_zero
+FAILED motor_control/corner_module/tests/test_steer_invert.py::test_real_builder_applies_measured_clockwise_mounting_to_all_steering[front_left-1]
+FAILED motor_control/corner_module/tests/test_steer_invert.py::test_real_builder_applies_measured_clockwise_mounting_to_all_steering[front_right-2]
+FAILED motor_control/corner_module/tests/test_steer_invert.py::test_real_builder_applies_measured_clockwise_mounting_to_all_steering[rear_left-3]
+FAILED motor_control/corner_module/tests/test_steer_invert.py::test_real_builder_applies_measured_clockwise_mounting_to_all_steering[rear_right-4]
+FAILED motor_control/corner_module/tests/test_steer_invert.py::test_real_builder_applies_measured_clockwise_mounting_to_all_steering[front_left-21]
+FAILED motor_control/chassis/tests/test_drive_invert_wiring.py::test_build_real_corners_inverts_only_left_wheels[wheel_map0-expected0]
+FAILED motor_control/chassis/tests/test_drive_invert_wiring.py::test_build_real_corners_inverts_only_left_wheels[wheel_map1-expected1]
+FAILED motor_control/chassis/tests/test_drive_invert_wiring.py::test_build_real_corners_derives_inversion_from_remapped_node_ids
+FAILED motor_control/chassis/tests/test_chassis_manager.py::test_usb_skid_inverts_exactly_the_left_wheels
+12 failed, 91 passed in 0.22s

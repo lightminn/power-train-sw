@@ -92,7 +92,7 @@ class OdometryConfig:
 class TwistEstimate:
     """차체 운동 추정 결과."""
     vx: float                        # 전진속도[m/s]
-    vy: float                        # 횡속도[m/s] — 우리 IK는 0만 명령. 0이 아니면 슬립/크랩 신호
+    vy: float                        # 횡속도[m/s] — manual 4WS는 중간축 기준이므로 −ω·x_mid가 정상
     omega: float                     # 요레이트[rad/s], >0 = 좌회전
     rejected: tuple = ()             # 슬립으로 배제된 바퀴 이름
     residual_mps: float = 0.0        # 채택된 바퀴들의 RMS 잔차 — 추정 신뢰도 지표

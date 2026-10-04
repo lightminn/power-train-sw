@@ -1,0 +1,231 @@
+FFFFFFFFFFFFFFFFFFF                                                      [100%]
+=================================== FAILURES ===================================
+_____________ test_stationary_steering_is_ackermann_not_pivot[-1] ______________
+
+steering = -1
+
+    @pytest.mark.parametrize("steering", [-1, -.5, .5, 1])
+    def test_stationary_steering_is_ackermann_not_pivot(steering):
+>       result = kinematics.solve_steering(kinematics.default_geometry(), 0, steering)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:13: AttributeError
+____________ test_stationary_steering_is_ackermann_not_pivot[-0.5] _____________
+
+steering = -0.5
+
+    @pytest.mark.parametrize("steering", [-1, -.5, .5, 1])
+    def test_stationary_steering_is_ackermann_not_pivot(steering):
+>       result = kinematics.solve_steering(kinematics.default_geometry(), 0, steering)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:13: AttributeError
+_____________ test_stationary_steering_is_ackermann_not_pivot[0.5] _____________
+
+steering = 0.5
+
+    @pytest.mark.parametrize("steering", [-1, -.5, .5, 1])
+    def test_stationary_steering_is_ackermann_not_pivot(steering):
+>       result = kinematics.solve_steering(kinematics.default_geometry(), 0, steering)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:13: AttributeError
+______________ test_stationary_steering_is_ackermann_not_pivot[1] ______________
+
+steering = 1
+
+    @pytest.mark.parametrize("steering", [-1, -.5, .5, 1])
+    def test_stationary_steering_is_ackermann_not_pivot(steering):
+>       result = kinematics.solve_steering(kinematics.default_geometry(), 0, steering)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:13: AttributeError
+__________ test_same_steering_angles_at_stop_forward_and_reverse[-1] ___________
+
+steering = -1
+
+    @pytest.mark.parametrize("steering", [-1, -.3, 0, .3, 1])
+    def test_same_steering_angles_at_stop_forward_and_reverse(steering):
+        geom = kinematics.default_geometry()
+>       stop = kinematics.solve_steering(geom, 0, steering)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:30: AttributeError
+_________ test_same_steering_angles_at_stop_forward_and_reverse[-0.3] __________
+
+steering = -0.3
+
+    @pytest.mark.parametrize("steering", [-1, -.3, 0, .3, 1])
+    def test_same_steering_angles_at_stop_forward_and_reverse(steering):
+        geom = kinematics.default_geometry()
+>       stop = kinematics.solve_steering(geom, 0, steering)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:30: AttributeError
+___________ test_same_steering_angles_at_stop_forward_and_reverse[0] ___________
+
+steering = 0
+
+    @pytest.mark.parametrize("steering", [-1, -.3, 0, .3, 1])
+    def test_same_steering_angles_at_stop_forward_and_reverse(steering):
+        geom = kinematics.default_geometry()
+>       stop = kinematics.solve_steering(geom, 0, steering)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:30: AttributeError
+__________ test_same_steering_angles_at_stop_forward_and_reverse[0.3] __________
+
+steering = 0.3
+
+    @pytest.mark.parametrize("steering", [-1, -.3, 0, .3, 1])
+    def test_same_steering_angles_at_stop_forward_and_reverse(steering):
+        geom = kinematics.default_geometry()
+>       stop = kinematics.solve_steering(geom, 0, steering)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:30: AttributeError
+___________ test_same_steering_angles_at_stop_forward_and_reverse[1] ___________
+
+steering = 1
+
+    @pytest.mark.parametrize("steering", [-1, -.3, 0, .3, 1])
+    def test_same_steering_angles_at_stop_forward_and_reverse(steering):
+        geom = kinematics.default_geometry()
+>       stop = kinematics.solve_steering(geom, 0, steering)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:30: AttributeError
+________________ test_all_wheels_share_icr_on_fixed_middle_axle ________________
+
+    def test_all_wheels_share_icr_on_fixed_middle_axle():
+        geom = kinematics.default_geometry()
+>       result = kinematics.solve_steering(geom, .4, .7)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:42: AttributeError
+____________ test_yaw_and_wheel_speed_caps_slow_without_unsteering _____________
+
+    def test_yaw_and_wheel_speed_caps_slow_without_unsteering():
+        geom = kinematics.default_geometry()
+>       stop = kinematics.solve_steering(geom, 0, 1)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:57: AttributeError
+_________________ test_invalid_manual_command_rejected[nan-0] __________________
+
+v = nan, steering = 0
+
+    @pytest.mark.parametrize("v,steering", [(float("nan"), 0), (0, float("inf")), (0, 1.01)])
+    def test_invalid_manual_command_rejected(v, steering):
+        with pytest.raises(ValueError):
+>           kinematics.solve_steering(kinematics.default_geometry(), v, steering)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:69: AttributeError
+_________________ test_invalid_manual_command_rejected[0-inf] __________________
+
+v = 0, steering = inf
+
+    @pytest.mark.parametrize("v,steering", [(float("nan"), 0), (0, float("inf")), (0, 1.01)])
+    def test_invalid_manual_command_rejected(v, steering):
+        with pytest.raises(ValueError):
+>           kinematics.solve_steering(kinematics.default_geometry(), v, steering)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:69: AttributeError
+_________________ test_invalid_manual_command_rejected[0-1.01] _________________
+
+v = 0, steering = 1.01
+
+    @pytest.mark.parametrize("v,steering", [(float("nan"), 0), (0, float("inf")), (0, 1.01)])
+    def test_invalid_manual_command_rejected(v, steering):
+        with pytest.raises(ValueError):
+>           kinematics.solve_steering(kinematics.default_geometry(), v, steering)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'chassis.kinematics' has no attribute 'solve_steering'
+
+motor_control/chassis/tests/test_manual_steering.py:69: AttributeError
+____________ test_authority_steering_is_atomic_and_requires_neutral ____________
+
+    def test_authority_steering_is_atomic_and_requires_neutral():
+        authority = CommandAuthority()
+        authority.set_mode(MANUAL)
+>       authority.submit(MANUAL_SOURCE, 0, 0, 0, steering=.8)
+E       TypeError: CommandAuthority.submit() got an unexpected keyword argument 'steering'
+
+motor_control/chassis/tests/test_manual_steering.py:75: TypeError
+_________________ test_authority_bad_steering_enters_hold[nan] _________________
+
+steering = nan
+
+    @pytest.mark.parametrize("steering", [float("nan"), 1.1])
+    def test_authority_bad_steering_enters_hold(steering):
+        authority = CommandAuthority()
+        authority.set_mode(MANUAL)
+>       authority.submit(MANUAL_SOURCE, 0, 0, 0, steering=steering)
+E       TypeError: CommandAuthority.submit() got an unexpected keyword argument 'steering'
+
+motor_control/chassis/tests/test_manual_steering.py:92: TypeError
+_________________ test_authority_bad_steering_enters_hold[1.1] _________________
+
+steering = 1.1
+
+    @pytest.mark.parametrize("steering", [float("nan"), 1.1])
+    def test_authority_bad_steering_enters_hold(steering):
+        authority = CommandAuthority()
+        authority.set_mode(MANUAL)
+>       authority.submit(MANUAL_SOURCE, 0, 0, 0, steering=steering)
+E       TypeError: CommandAuthority.submit() got an unexpected keyword argument 'steering'
+
+motor_control/chassis/tests/test_manual_steering.py:92: TypeError
+_________ test_manager_stationary_steer_and_legacy_switch_clear_intent _________
+
+    def test_manager_stationary_steer_and_legacy_switch_clear_intent():
+        manager = _armed_manager()
+>       manager.set(0, 0, steering=.7)
+E       TypeError: ChassisManager.set() got an unexpected keyword argument 'steering'
+
+motor_control/chassis/tests/test_manual_steering.py:99: TypeError
+___________ test_manager_watchdog_and_estop_gate_stationary_steering ___________
+
+    def test_manager_watchdog_and_estop_gate_stationary_steering():
+        clock = FakeClock()
+        manager = _armed_manager(clock=clock)
+>       manager.set(0, 0, steering=.7)
+E       TypeError: ChassisManager.set() got an unexpected keyword argument 'steering'
+
+motor_control/chassis/tests/test_manual_steering.py:113: TypeError
+=========================== short test summary info ============================
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_stationary_steering_is_ackermann_not_pivot[-1]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_stationary_steering_is_ackermann_not_pivot[-0.5]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_stationary_steering_is_ackermann_not_pivot[0.5]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_stationary_steering_is_ackermann_not_pivot[1]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_same_steering_angles_at_stop_forward_and_reverse[-1]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_same_steering_angles_at_stop_forward_and_reverse[-0.3]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_same_steering_angles_at_stop_forward_and_reverse[0]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_same_steering_angles_at_stop_forward_and_reverse[0.3]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_same_steering_angles_at_stop_forward_and_reverse[1]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_all_wheels_share_icr_on_fixed_middle_axle
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_yaw_and_wheel_speed_caps_slow_without_unsteering
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_invalid_manual_command_rejected[nan-0]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_invalid_manual_command_rejected[0-inf]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_invalid_manual_command_rejected[0-1.01]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_authority_steering_is_atomic_and_requires_neutral
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_authority_bad_steering_enters_hold[nan]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_authority_bad_steering_enters_hold[1.1]
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_manager_stationary_steer_and_legacy_switch_clear_intent
+FAILED motor_control/chassis/tests/test_manual_steering.py::test_manager_watchdog_and_estop_gate_stationary_steering
+19 failed in 0.11s

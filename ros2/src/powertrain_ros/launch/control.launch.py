@@ -23,6 +23,10 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("input_host", default_value="0.0.0.0"),
         DeclareLaunchArgument("input_port", default_value="9000"),
+        DeclareLaunchArgument(
+            "manual_command_format", default_value="steering", choices=["steering", "twist"],
+            description="Manual steering command by default; twist selects the legacy yaw-rate topic",
+        ),
         DeclareLaunchArgument("ops_host", default_value="0.0.0.0"),
         DeclareLaunchArgument("ops_port", default_value="9001"),
         DeclareLaunchArgument(
@@ -36,6 +40,7 @@ def generate_launch_description():
             output="screen",
             parameters=[{
                 "host": LaunchConfiguration("input_host"),
+                "manual_command_format": LaunchConfiguration("manual_command_format"),
                 "port": ParameterValue(
                     LaunchConfiguration("input_port"),
                     value_type=int,

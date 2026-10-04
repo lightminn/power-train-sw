@@ -23,7 +23,7 @@ class _RecordingDrive:
 
 
 class _RecordingSteer:
-    def __init__(self, motor_id, channel="can0"):
+    def __init__(self, motor_id, channel="can0", **kwargs):
         self.motor_id = motor_id
 
 

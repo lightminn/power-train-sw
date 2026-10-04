@@ -1,0 +1,13 @@
+[INFO] [launch]: All log files can be found below /root/.ros/log/1970-01-01-05-33-44-952188-80f4e442734d-46
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [teleop_command-1]: process started with pid [70]
+[INFO] [ops_broker-2]: process started with pid [76]
+[ops_broker-2] [INFO] [0000020026.018311200] [ops_broker]: ops broker TCP 127.0.0.1:39001
+[teleop_command-1] [INFO] [0000020026.363463488] [teleop_command]: remote input TCP 127.0.0.1:39000; ARM output enabled=False
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+[INFO] [ops_broker-2]: sending signal 'SIGINT' to process[ops_broker-2]
+[INFO] [teleop_command-1]: sending signal 'SIGINT' to process[teleop_command-1]
+[INFO] [ops_broker-2]: process has finished cleanly [pid 76]
+[INFO] [launch]: process[ops_broker-2] was required: shutting down launched system
+[INFO] [teleop_command-1]: process has finished cleanly [pid 70]
+[INFO] [launch]: process[teleop_command-1] was required: shutting down launched system

@@ -258,8 +258,10 @@ python -m pytest motor_control -q
 
 - 6륜 로커-보기. **v4 최적화 기준 반지름 100 mm·질량 50 kg**과 제작 v2 기하를 구분한다.
   런타임 `default_geometry()`의 v2 반지름은 **103.56 mm**, 앞/중/뒤 윤거는
-  **545/719/425 mm**다. 축간거리는 CAD 기준 **875.5 mm**, 반올림한 런타임 좌표
-  `x = ±0.4377 m` 기준 **875.4 mm**다. 정본은 `chassis/kinematics.py`다.
+  **545/719/425 mm**다. 축간거리는 **875.494655 mm**, 런타임 좌표는
+  `x = ±0.437747327500 m`, 중간축 `x = −0.060335567500 m`다.
+  2026-09-09 URDF 전체 joint chain 재추출 근거는
+  `docs/reports/2026-09-09-ackermann-urdf-evidence.json`, 정본은 `chassis/kinematics.py`다.
   설계 기본 속도 0.80 m/s와 원격 수동운용 설정 1.5 m/s·1.2 rad/s도 별도 값이다.
 - **구동**: BL70200 + 내장 HALL ×3 — **pp=10, cpr=60**(2026-06 실측. 구문서의 pp=5/cpr=30은
   오기) ×6. **MKS ODrive v3.6**(2026-09-09 사용자 확인) **듀얼축 보드 3장** = CAN node 11/12 · 13/14 · 15/16. 감속 1:5
@@ -293,12 +295,15 @@ python -m pytest motor_control -q
   CAN 다축: `can_calibrate_all.py`(node 11~16 일괄 풀캘리 — **이 명령은 RAM만 갱신하며
   NVM 저장은 하지 않는다**), `can_drive_test.py`(6축 동시 주행). 벤치 전용 USB 직결 텔레옵:
   `dualsense_usb_teleop.py`(⚠️ 안전 게이팅 전무 — 바퀴 들고 쓸 것).
-  - ⚠️ **우측 구동축 미러 장착(2026-07-28 실물 확인)**: 각 보드 M1축 = node 12/14/16 =
-    로봇 오른쪽 바퀴이며 좌측과 반대로 돌아야 정방향. `DriveOdriveCan(invert=True)`가
-    **CAN 프레임 경계에서만** 부호를 뒤집고, 드라이버 바깥(chassis·odometry·텔레메트리)은
-    전부 바퀴 프레임 "+=전진"이다. **raw 스크립트와 `motor_gui`의 회전 방향 부호는 모터 기준**이다.
-    GUI의 ODrive 속도는 backend에서 감속비를 반영한 휠 rev/s이며, 우측 장착 방향 자동 반전과는
-    별개다. `can_drive_test.py` 전진 = 좌(11/13/15)+ / 우(12/14/16)−, 제자리선회 = 6축 전부 +.
+  - ⚠️ **구동 장착 방향(2026-09-09 실주행 관찰로 교정)**: 각 보드 M1축 = node 12/14/16 =
+    로봇 오른쪽 바퀴라는 배선 규약은 유지한다. 운전자 관찰에서 기존 좌+/우− 지령이 후진했다.
+    현재 전진은 **좌(11/13/15)− / 우(12/14/16)+**이며 CAN/USB 실기 빌더가 좌측만 반전한다.
+    모터↔바퀴 지령·피드백 변환은 **드라이버 경계에서만** 수행하고, 바깥
+    (chassis·odometry·텔레메트리)은 전부 바퀴 프레임 "+=전진"이다. 구동축별 위치 재식별은
+    이번에 수행하지 않았다. `motor_gui`와 raw 명령의 부호는 모터 기준이다.
+    `can_drive_test.py`의 전진 시퀀스와 USB 벤치 텔레옵 기본 방향도 위 부호를 따른다.
+    USB 벤치 `--raw-direction`(기존 `--no-invert-axis1` 별칭)은 양축 모두 raw +를 사용한다.
+    `can_drive_test.py`의 제자리선회는 6축 전부 +다.
   - **NVM 영속화**: `bl70200_setup.py --persist-calibration --serial <SERIAL> --axis both --node 11`로
     보드별 양축 캘리 상태 확인 후 저장한다(node는 해당 보드의 11/13/15). 저장 여부를 가정하지 말고 시작 전 오류·준비
     상태를 확인하며, 미준비 축은 바퀴를 든 벤치에서 재캘리한다. 축별 검증 범위는 §2와
@@ -307,6 +312,11 @@ python -m pytest motor_control -q
   `DEFAULT_SPD_ERPM=4500` ≈ 출력축 47°/s·45° 0.85 s, `DEFAULT_ACC_ERPM_S2=20000`),
   `calibrate_ak.py`(기어비 1회성), `status_ak.py`(CAN RX 디버깅).
   사전 준비 `bash scripts/can_setup.sh`.
+  - **조향 장착 방향(2026-09-09 단일축 +30° 시험)**: CAN1/2/3/4 = 앞왼쪽/앞오른쪽/
+    뒤왼쪽/뒤오른쪽. 네 축 모두 raw +가 위에서 본 시계방향(바퀴 앞끝은 차체 오른쪽)이다.
+    실기 `SteerAk40(invert=True)`가 지령·피드백을 반전해 차체 기준 +를 좌회전으로 맞춘다.
+    뒤를 향한 모터 외형을 근거로 뒤축만 뒤집지 않는다. 영점·실주행 X자 현상 전체 해결은
+    별도 확인 대상이다. 근거: `docs/reports/2026-09-09-teleop-direction.md`.
 - **corner_module/** — `CornerModule`(상태머신·워치독·estop·과전류 트립·폐루프 점프방지),
   `Actuator`/`SteerActuator`/`DriveActuator` ABC, 드라이버
   `steer_ak40`·`null_steer`·`drive_odrive_usb`·`drive_odrive_can`(CAN 정본)·
@@ -315,6 +325,11 @@ python -m pytest motor_control -q
   `skid_geometry()`), `chassis_manager.py`(코너 6개 통합, estop 전파·US-100 게이팅·워치독,
   `build_real_corners()` / `build_usb_skid_corners()`),
   `teleop_dualsense.py`(유선), `teleop_server.py`(무선. `--skid-usb`로 USB 스키드).
+  - **수동 애커만 조향**: 기본 `/teleop/drive_command`는 속도와 정규화 조향을
+    독립 전달한다. L1을 누른 상태에서 L스틱만 움직이면 구동 0으로 조향하고,
+    RT/LT 전후진에도 동일 스틱은 동일 조향각이다. 회전 중심은 고정 중간축에 둔다.
+    `manual_command_format=twist`는 명시적 레거시이며 보조주행 `assist_enabled`는
+    이 레거시에서만 지원한다. 새 메시지와 ROS 노드를 함께 재빌드한다.
   - **min_drive_turns_per_s는 2026-07-17 D3/D4로 기본값 전면 0 = 폐지.** 저속 코깅 대응은
     `DriveOdriveCan`의 `friction_ff`/`v_knee`(torque_ff 피드포워드, 기본 off)로 대체.
   - **ops 채널 :9001** — 복구·운용 명령 단일 게이트 `ops_broker`. 역할 토큰

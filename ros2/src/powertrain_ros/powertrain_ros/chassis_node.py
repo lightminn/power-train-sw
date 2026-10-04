@@ -3,9 +3,12 @@
 The verified WP5.1 default remains an external ``/cmd_vel`` subscription.  The
 WP5.2 command-authority path is opt-in with ``authority_enabled=true``:
 
-    /teleop/cmd_vel ───┐
-                       ├─→ CommandAuthority ─→ ChassisManager.set()
-    /autonomy/cmd_vel ─┘            └─→ /command_authority/state
+    /teleop/drive_command ─┐  (speed + normalized steering; default manual input)
+                           ├─→ CommandAuthority ─→ ChassisManager.set()
+    /autonomy/cmd_vel ─────┘            └─→ /command_authority/state
+
+``manual_command_format=twist`` replaces the manual input with the legacy
+``/teleop/cmd_vel`` yaw-rate topic. The two manual inputs are mutually exclusive.
 
 No ROS ``/cmd_vel`` message is republished by the embedded path.
 
@@ -44,7 +47,7 @@ from sensor_msgs.msg import Imu
 from std_msgs.msg import Bool, Header, String
 from std_srvs.srv import SetBool, Trigger
 
-from powertrain_msgs.msg import SafetyVerdict
+from powertrain_msgs.msg import ManualDriveCommand, SafetyVerdict
 from powertrain_msgs.msg import WheelState, WheelStates
 from powertrain_ros import contract
 from powertrain_ros.arm_interlock import ArmInterlock
@@ -53,6 +56,7 @@ from powertrain_ros.chassis_safety import (
     validate_runtime_clock_mode,
 )
 from powertrain_ros.message_adapter import fill_wheel_states_message
+from powertrain_ros.remote_input_gateway import validate_manual_command_format
 from powertrain_ros.steering_contract import (
     steering_state_fields,
     validate_transport_mode,
@@ -192,6 +196,12 @@ class ChassisNode(Node):
             "v_max", 1.5, descriptor=read_only_safety_parameter
         )
         self.declare_parameter(
+            "manual_command_format", "steering", descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
+            "manual_max_angular", 1.2, descriptor=read_only_safety_parameter
+        )
+        self.declare_parameter(
             "cmd_timeout", 0.5, descriptor=read_only_safety_parameter
         )
         self.declare_parameter("mode", contract.MODE_DRIVING)
@@ -312,9 +322,10 @@ class ChassisNode(Node):
             raise ValueError(
                 "section_enforcement=true requires authority_enabled=true"
             )
-        self._assist_enabled = bool(
-            self.get_parameter("assist_enabled").value
-        ) and self._authority_enabled
+        self._manual_command_format = str(self.get_parameter("manual_command_format").value)
+        assist_enabled = bool(self.get_parameter("assist_enabled").value)
+        validate_manual_command_format(self._manual_command_format, assist_enabled=assist_enabled)
+        self._assist_enabled = assist_enabled and self._authority_enabled
         self._profile_max_speed_m_s = v_max
         self._contract_v2_verified = bool(
             self.get_parameter("contract_v2_verified").value
@@ -365,6 +376,7 @@ class ChassisNode(Node):
             extraction_enabled=extraction_enabled,
             steering_mode=steering_mode,
             skid_track_gain=float(self.get_parameter("skid_track_gain").value),
+            manual_max_omega_rad_s=float(self.get_parameter("manual_max_angular").value),
         )
         self._section_floor_v_m_s = (
             cfg.min_drive_turns_per_s * 2.0 * math.pi * 0.10
@@ -503,6 +515,7 @@ class ChassisNode(Node):
         self._wheel_stop = None
         self._authority_final_v = 0.0
         self._authority_final_omega = 0.0
+        self._authority_final_steering = 0.0
         self.pub_authority_state = None
         if self._authority_enabled:
             from chassis.authority import (
@@ -546,12 +559,17 @@ class ChassisNode(Node):
                 wheel_stop_qualified=lambda: self._wheel_stop.qualified,
             )
             self._authority.set_mode(IDLE)
-            self.create_subscription(
-                Twist,
-                "/teleop/cmd_vel",
-                ReceiptTimeCallback(lambda msg, info: self._on_authority_cmd(MANUAL_SOURCE, msg, info)),
-                1,
-            )
+            if self._manual_command_format == "steering":
+                self.create_subscription(
+                    ManualDriveCommand, "/teleop/drive_command",
+                    ReceiptTimeCallback(self._on_manual_drive_command), 1)
+            else:
+                self.create_subscription(
+                    Twist,
+                    "/teleop/cmd_vel",
+                    ReceiptTimeCallback(lambda msg, info: self._on_authority_cmd(MANUAL_SOURCE, msg, info)),
+                    1,
+                )
             self.create_subscription(
                 Twist,
                 "/autonomy/cmd_vel",
@@ -633,6 +651,7 @@ class ChassisNode(Node):
                 authority_output_zero=lambda: (
                     self._authority_final_v == 0.0
                     and self._authority_final_omega == 0.0
+                    and self._authority_final_steering == 0.0
                 ),
                 clear_grip_lost=self._arm_interlock.clear_grip_lost,
             )
@@ -1099,6 +1118,7 @@ class ChassisNode(Node):
         if active:
             self._authority_final_v = 0.0
             self._authority_final_omega = 0.0
+            self._authority_final_steering = 0.0
         # ChassisManager.set_motion_hold routes through the command_recovery
         # hold so a pre-hold command is never replayed when mission clears.
         self.cm.set_motion_hold("mission", active, detail)
@@ -1413,7 +1433,7 @@ class ChassisNode(Node):
     def _command_received_s(self, message_info):
         """Use this host's DDS receipt timestamp, never callback execution time.
 
-        Twist has no source stamp. KEEP_LAST(1) limits queued commands; DDS
+        Drive commands have no source stamp. KEEP_LAST(1) limits queued commands; DDS
         receipt age additionally rejects executor backlog. This does not claim
         to measure pre-receipt network delay or synchronize remote clocks.
         """
@@ -1441,6 +1461,14 @@ class ChassisNode(Node):
             msg.angular.z,
             received_s,
         )
+
+    def _on_manual_drive_command(self, msg: ManualDriveCommand, message_info):
+        from chassis.authority import MANUAL_SOURCE
+
+        received_s = self._command_received_s(message_info)
+        if received_s is not None:
+            self._authority.submit(
+                MANUAL_SOURCE, msg.speed_mps, 0.0, received_s, steering=msg.steering)
 
     def _on_assist_correction(self, msg: String):
         try:
@@ -1511,6 +1539,7 @@ class ChassisNode(Node):
         previous = getattr(self, "_last_local_wheel_stamp_s", None)
         fingerprint = (
             bool(snapshot.healthy), self._authority_final_v, self._authority_final_omega,
+            getattr(self, "_authority_final_steering", 0.0),
             tuple((wheel.name, wheel.drive_turns_per_s, wheel.drive_stale,
                    wheel.steer_stale, wheel.drive_axis_error, wheel.steer_fault)
                   for wheel in snapshot.wheels),
@@ -1537,6 +1566,7 @@ class ChassisNode(Node):
             ),
             authority_v=self._authority_final_v,
             authority_omega=self._authority_final_omega,
+            authority_steering=getattr(self, "_authority_final_steering", 0.0),
         )
         self._wheel_stop.update(sample, now_s=now_s)
 
@@ -1574,6 +1604,7 @@ class ChassisNode(Node):
         command = self._authority.select(now_s)
         final_v = command.v
         final_omega = command.omega
+        final_steering = getattr(command, "steering", None)
         assist_suffix = ""
         if (
             getattr(self, "_assist_enabled", False)
@@ -1625,6 +1656,8 @@ class ChassisNode(Node):
                 input_v, input_omega = final_v, final_omega
                 if decision.force_hold:
                     final_v, final_omega = 0.0, 0.0
+                    if final_steering is not None:
+                        final_steering = 0.0
                 elif decision.v_cap is not None:
                     final_v = max(
                         -decision.v_cap, min(decision.v_cap, final_v)
@@ -1634,7 +1667,11 @@ class ChassisNode(Node):
                 )
             self._authority_final_v = final_v
             self._authority_final_omega = final_omega
-            self.cm.set(final_v, final_omega)
+            self._authority_final_steering = 0.0 if final_steering is None else final_steering
+            if final_steering is None:
+                self.cm.set(final_v, final_omega)
+            else:
+                self.cm.set(final_v, final_omega, steering=final_steering)
 
     def _on_safety_verdict(self, msg):
         status_name = {

@@ -1,0 +1,4 @@
+{"event": "BASELINE", "node": 3, "deg": 0.5, "drive_states": {"13": 1, "14": 1, "15": 1, "16": 1, "11": 1, "12": 1}}
+{"event": "PLUS_30", "node": 3, "target": 30.5, "actual": 30.1}
+{"event": "RETURNED", "node": 3, "target": 0.5, "actual": 1.0}
+PROBE_COMPLETE; chosen AK zero RPM; no drive/NVM/link writes

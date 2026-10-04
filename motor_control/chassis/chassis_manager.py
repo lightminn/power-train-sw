@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass, field, replace
 
 from chassis.kinematics import (
-    ChassisGeometry, default_geometry, skid_geometry, solve,
+    ChassisGeometry, default_geometry, skid_geometry, solve, solve_steering,
 )
 from chassis.safety_interlock import RUN, SafetyInterlock
 from chassis.telemetry import (
@@ -71,6 +71,7 @@ class ChassisConfig:
     extraction_max_grants: int = 3
     extraction_v_limit: float = 0.2
     steering_mode: str = STEERING_ACKERMANN   # 기동 시 조향모드
+    manual_max_omega_rad_s: float = 1.2       # manual yaw cap slows at fixed steering
     skid_track_gain: float = 1.0              # 스키드 유효 윤거 배수(>1 이 보정 방향)
     steer_settle_deg: float = 3.0             # 전환 전 조향 0° 수렴 허용 오차
     steer_settle_timeout_s: float = 3.0       # 수렴 대기 상한 — 넘으면 전환 취소
@@ -96,9 +97,11 @@ DEFAULT_WHEEL_MAP = [
     WheelMap("rear_right",  4,    16),
 ]
 
-# ⚠️ 각 ODrive 보드의 M1 축(=node 12/14/16)이 로봇 오른쪽 바퀴이며 좌측과 미러로
-#    장착돼 있다(2026-07-28 실물 확인). 구동 드라이버에서 부호를 반전한다.
+# 각 보드 axis1은 오른쪽이라는 배선 규약과 전진 방향 부호는 별개다.
+# 2026-09-09 운전자 실주행 관찰: 기존 좌+/우-가 후진. 전진은 좌-/우+.
+# 모터↔바퀴 부호 변환은 CAN/USB 드라이버 경계에만 적용한다.
 RIGHT_WHEELS = ("front_right", "mid_right", "rear_right")
+LEFT_WHEELS = ("front_left", "mid_left", "rear_left")
 
 #: 🛠️ **중륜 2개를 뺀 4륜 매핑** — 중간 ODrive 보드(node 13/14)를 부하모터(다이나모)에
 #: 쓰고 있을 때. `kinematics.four_wheel_geometry()` 와 **반드시 짝으로** 쓴다
@@ -142,7 +145,8 @@ def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
 
     friction_ff/v_knee_turns_s 는 저속 마찰/코깅 보상 노브(스펙 r6 §2.2b, 기본 off),
     gear_ratio 는 모터 회전수/바퀴 회전수이며 DriveOdriveCan 으로 그대로 전달된다.
-    우측 바퀴의 미러 장착 부호 반전은 wheel_map에서 유도해 구동 드라이버에만 건다.
+    전진 시 좌측 구동축의 부호 반전은 wheel_map에서 유도한다. 조향은 네 축 모두
+    raw +가 시계방향임을 단일축 실물 시험으로 확인해 지령/피드백을 반전한다.
 
     CAN 단독 소유권은 라이브러리 함수가 아니라 실물 실행 진입점의
     ``chassis.runtime_lock.RealCanSession``이 이 함수 호출 전에 획득한다. Fake/MuJoCo
@@ -153,10 +157,11 @@ def build_real_corners(channel: str = "can0", cfg: CornerConfig = None,
     source_map = wheel_map or DEFAULT_WHEEL_MAP
     feedback_scheduler = drive_mod.CanFeedbackScheduler()
     inverted_nodes = frozenset(
-        wm.drive_node_id for wm in source_map if wm.wheel in RIGHT_WHEELS
+        wm.drive_node_id for wm in source_map if wm.wheel in LEFT_WHEELS
     )
     return build_corners(
-        steer_factory=lambda cid: steer_mod.SteerAk40(motor_id=cid, channel=channel),
+        steer_factory=lambda cid: steer_mod.SteerAk40(
+            motor_id=cid, channel=channel, invert=True),
         drive_factory=lambda nid: drive_mod.DriveOdriveCan(
             node_id=nid, channel=channel,
             friction_ff=friction_ff, v_knee=v_knee_turns_s,
@@ -212,8 +217,8 @@ def build_usb_skid_corners(registry_path, cfg: CornerConfig = None,
                 "보드 레지스트리에 구동 node %d(%s)가 없다: %s"
                 % (wm.drive_node_id, wm.wheel, registry_path))
         serial, axis_index = node_to_axis[wm.drive_node_id]
-        inverted = wm.wheel in RIGHT_WHEELS
-        if inverted != (axis_index == 1):
+        inverted = wm.wheel in LEFT_WHEELS
+        if (wm.wheel in RIGHT_WHEELS) != (axis_index == 1):
             # 각 보드의 M1(axis1)이 로봇 우측이며 좌측과 미러로 장착돼 있다
             # (2026-07-28 실물 확인). 레지스트리가 이를 어기면 부호가 뒤집힌다.
             raise ValueError(
@@ -249,6 +254,9 @@ class ChassisManager:
         # 애커만 기하를 원본으로 보관한다. 스키드 기하는 steerable 정보를 잃어
         # 되돌릴 수 없으므로, 활성 기하는 항상 여기서 파생한다.
         # (drive_limit_mps 등 호출자가 생성 전에 올려놓은 값도 함께 승계된다.)
+        if (not math.isfinite(self.cfg.manual_max_omega_rad_s)
+                or self.cfg.manual_max_omega_rad_s <= 0):
+            raise ValueError("manual_max_omega_rad_s must be finite and positive")
         self._base_geometry = self.cfg.geometry
         if self.cfg.steering_mode not in STEERING_MODES:
             raise ValueError("unknown steering_mode: %r" % (self.cfg.steering_mode,))
@@ -261,6 +269,7 @@ class ChassisManager:
         self.mode = "DISCONNECTED"
         self._v = 0.0
         self._omega = 0.0
+        self._steering = None
         self._last_set_ms = None
         self._speed_scale = 1.0            # 전방 감속 힌트 (1.0 = 제한 없음)
         self._now = time.monotonic if clock is None else clock
@@ -365,6 +374,7 @@ class ChassisManager:
             return True, "already_%s" % mode
         self._v = 0.0
         self._omega = 0.0
+        self._steering = None
         self._pending_steering_mode = mode
         self._steering_change_started_s = self._now()
         self._interlock.set_motion_hold(
@@ -520,6 +530,7 @@ class ChassisManager:
         if not self._confirm_all_armed(deadline, "arm"):
             return False
         self._v = self._omega = 0.0
+        self._steering = None
         self._last_set_ms = self._now_ms()
         self.mode = "ARMED"
         return True
@@ -551,7 +562,7 @@ class ChassisManager:
             time.sleep(min(.002, max(0.0, deadline - time.monotonic())))
         return True
 
-    def set(self, v_mps: float, omega_rad_s: float, *, received_s=None) -> None:
+    def set(self, v_mps: float, omega_rad_s: float, *, received_s=None, steering=None) -> None:
         if self.mode not in {"ARMED", "EXTRACTION"}:
             logger.warning("set() 무시: ARMED/EXTRACTION 아님 (mode=%s)", self.mode)
             return
@@ -559,8 +570,11 @@ class ChassisManager:
         if (not math.isfinite(command_ms)
                 or not 0 <= self._now_ms() - command_ms <= self.cfg.watchdog_ms):
             return
-        if not math.isfinite(v_mps) or not math.isfinite(omega_rad_s):
+        if (not math.isfinite(v_mps) or not math.isfinite(omega_rad_s)
+                or (steering is not None and (
+                    not math.isfinite(steering) or abs(steering) > 1 or omega_rad_s != 0))):
             self._v = self._omega = 0.0
+            self._steering = None
             self._interlock.set_motion_hold(
                 _COMMAND_RECOVERY_HOLD,
                 True,
@@ -590,6 +604,7 @@ class ChassisManager:
             return
         self._v = v_mps
         self._omega = omega_rad_s
+        self._steering = steering
         self._last_set_ms = command_ms
         self._interlock.set_motion_hold(_COMMAND_RECOVERY_HOLD, False)
 
@@ -640,6 +655,7 @@ class ChassisManager:
 
         now_s = self._now()
         self._v = self._omega = 0.0
+        self._steering = None
         self._last_set_ms = now_s * 1000.0
         self._extraction_started_s = now_s
         self._extraction_last_tick_s = now_s
@@ -681,6 +697,7 @@ class ChassisManager:
     def disarm(self) -> None:
         first_error = None
         self._v = self._omega = 0.0
+        self._steering = None
         for name, c in self.corners.items():
             try:
                 c.disarm()
@@ -698,6 +715,7 @@ class ChassisManager:
     def estop(self, source="manual", detail="") -> None:
         self._interlock.trip_estop(source, detail)
         self._v = self._omega = 0.0
+        self._steering = None
         first_error = None
         for c in self.corners.values():
             try:
@@ -814,6 +832,7 @@ class ChassisManager:
         was_active = "robot_arm" in self._interlock.snapshot().hold_sources
         if active and not was_active:
             self._v = self._omega = 0.0
+            self._steering = None
         self._interlock.set_motion_hold("robot_arm", active, detail)
 
     def close(self) -> None:
@@ -867,7 +886,18 @@ class ChassisManager:
         v_eff = self._v * self._speed_scale if self._v > 0.0 else self._v
 
         # kinematics → 코너별 분배
-        result = solve(self.cfg.geometry, v_eff, self._omega)
+        if self._steering is None:
+            result = solve(self.cfg.geometry, v_eff, self._omega)
+        elif self._steering_mode == STEERING_SKID:
+            # Explicit skid mode has no steering axes; retain differential
+            # yaw control there, including a deliberate stationary turn.
+            result = solve(self.cfg.geometry, v_eff,
+                           self._steering * self.cfg.manual_max_omega_rad_s)
+        else:
+            result = solve_steering(self.cfg.geometry, v_eff, self._steering,
+                                   max_omega_rad_s=self.cfg.manual_max_omega_rad_s)
+        if self._steering is not None:
+            self._omega = result.omega_applied if drive_enabled else 0.0
         mn = self.cfg.min_drive_turns_per_s
         for w in self.cfg.geometry.wheels:
             wc = result.wheels[w.name]
@@ -1165,6 +1195,7 @@ class ChassisManager:
             "mode": self.mode,
             "v": self._v,
             "omega": self._omega,
+            "steering": self._steering,
             "safety": self._interlock.snapshot(),
             "last_estop_error": self._last_estop_error,
             "corners": {n: c.state() for n, c in self.corners.items()},

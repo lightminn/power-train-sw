@@ -1,0 +1,7 @@
+SYNTAX PASS loop_client.py
+SYNTAX PASS loop_fixture.py
+SYNTAX PASS run_loop.py
+PRESERVATION PASS: historical three scripts byte-identical
+NEGATIVE GATE PASS stationary-drive-nonzero
+NEGATIVE GATE PASS reverse-flips-steering
+NEGATIVE GATE PASS inconsistent-icr

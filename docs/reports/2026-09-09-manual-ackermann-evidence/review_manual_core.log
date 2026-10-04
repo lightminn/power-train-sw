@@ -1,0 +1,6 @@
+조향모드 전환 대기: ackermann → skid
+조향모드 전환 완료: skid
+조향모드 전환 대기: skid → ackermann
+조향모드 전환 완료: ackermann
+PASS manual numeric sweep 5427 cases; max odometry residual 2.4008221949337326e-16
+PASS manual->skid->manual clears old intent; explicit skid stationary turn, Ackermann stationary drive0
