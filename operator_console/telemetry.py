@@ -24,7 +24,10 @@ class WheelStatus:
     name: str
     mode: str
     drive_turns_per_s: float | None
+    command_turns_per_s: float | None
     steer_deg: float | None
+    drive_current_a: float | None
+    steer_current_a: float | None
     stale: bool
     drive_axis_error: int
     steer_fault: int
@@ -37,6 +40,8 @@ class TelemetrySnapshot:
     x_m: float | None
     y_m: float | None
     yaw_rad: float | None
+    roll_rad: float | None
+    pitch_rad: float | None
     voltage_v: float | None
     current_a: float | None
     power_w: float | None
@@ -76,6 +81,27 @@ class TelemetrySnapshot:
     wheel_axis_error_count: int | None
     wheel_steer_fault_count: int | None
     wheel_statuses: tuple[WheelStatus, ...]
+    terrain_path_available: bool | None
+    terrain_path_offset_m: float | None
+    terrain_heading_error_rad: float | None
+    terrain_support_m: float | None
+    terrain_bank_rad: float | None
+    terrain_slope_rad: float | None
+    terrain_roughness_m: float | None
+    terrain_confidence: float | None
+    terrain_reject_reasons: tuple[str, ...]
+    controller_fsm_state: str
+    controller_fsm_reasons: tuple[str, ...]
+    degradation_state: str
+    degradation_reasons: tuple[str, ...]
+    degradation_speed_scale: float | None
+    mission_fsm_state: str
+    mission_fsm_reason: str
+    section_fsm_section: str
+    section_fsm_phase: str
+    section_fsm_notices: tuple[str, ...]
+    slip_candidate: bool | None
+    stuck_candidate: bool | None
     truncated: bool
     received_monotonic_s: float
 
@@ -128,7 +154,10 @@ def _wheel_statuses(payload: dict[str, Any]) -> tuple[WheelStatus, ...]:
             status = WheelStatus(
                 name=str(raw["name"]), mode=str(raw["mode"]),
                 drive_turns_per_s=_optional_number(raw, "drive_turns_per_s"),
+                command_turns_per_s=_optional_number(raw, "command_turns_per_s"),
                 steer_deg=_optional_number(raw, "steer_deg"),
+                drive_current_a=_optional_number(raw, "drive_current_a"),
+                steer_current_a=_optional_number(raw, "steer_current_a"),
                 stale=_bool_or_default(raw, "stale", False),
                 drive_axis_error=int(raw.get("drive_axis_error", 0)),
                 steer_fault=int(raw.get("steer_fault", 0)),
@@ -137,6 +166,17 @@ def _wheel_statuses(payload: dict[str, Any]) -> tuple[WheelStatus, ...]:
             raise ValueError("invalid wheel status") from exc
         statuses.append(status)
     return tuple(statuses)
+
+
+def _bounded_strings(
+    payload: dict[str, Any], name: str, *, maximum: int = 16,
+) -> tuple[str, ...]:
+    raw_values = payload.get(name, [])
+    if raw_values is None:
+        return ()
+    if not isinstance(raw_values, list) or len(raw_values) > maximum:
+        raise ValueError(f"invalid {name}")
+    return tuple(str(value) for value in raw_values)
 
 
 def _l515_ros_topic_rates(payload: dict[str, Any]) -> tuple[tuple[str, float], ...]:
@@ -202,6 +242,8 @@ def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> Te
         odometry_source=str(payload.get("odometry_source", "unavailable")),
         x_m=_optional_number(payload, "x_m"), y_m=_optional_number(payload, "y_m"),
         yaw_rad=_optional_number(payload, "yaw_rad"), voltage_v=_optional_number(payload, "voltage_v"),
+        roll_rad=_optional_number(payload, "roll_rad"),
+        pitch_rad=_optional_number(payload, "pitch_rad"),
         current_a=_optional_number(payload, "current_a"), power_w=_optional_number(payload, "power_w"),
         drive_state=str(payload.get("drive_state", "unavailable")),
         can_state=str(payload.get("can_state", "unavailable")),
@@ -239,6 +281,27 @@ def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> Te
         wheel_axis_error_count=_optional_int(payload, "wheel_axis_error_count"),
         wheel_steer_fault_count=_optional_int(payload, "wheel_steer_fault_count"),
         wheel_statuses=_wheel_statuses(payload),
+        terrain_path_available=_optional_bool(payload, "terrain_path_available"),
+        terrain_path_offset_m=_optional_number(payload, "terrain_path_offset_m"),
+        terrain_heading_error_rad=_optional_number(payload, "terrain_heading_error_rad"),
+        terrain_support_m=_optional_number(payload, "terrain_support_m"),
+        terrain_bank_rad=_optional_number(payload, "terrain_bank_rad"),
+        terrain_slope_rad=_optional_number(payload, "terrain_slope_rad"),
+        terrain_roughness_m=_optional_number(payload, "terrain_roughness_m"),
+        terrain_confidence=_optional_number(payload, "terrain_confidence"),
+        terrain_reject_reasons=_bounded_strings(payload, "terrain_reject_reasons"),
+        controller_fsm_state=str(payload.get("controller_fsm_state", "unavailable")),
+        controller_fsm_reasons=_bounded_strings(payload, "controller_fsm_reasons"),
+        degradation_state=str(payload.get("degradation_state", "unavailable")),
+        degradation_reasons=_bounded_strings(payload, "degradation_reasons"),
+        degradation_speed_scale=_optional_number(payload, "degradation_speed_scale"),
+        mission_fsm_state=str(payload.get("mission_fsm_state", "unavailable")),
+        mission_fsm_reason=str(payload.get("mission_fsm_reason", "")),
+        section_fsm_section=str(payload.get("section_fsm_section", "unavailable")),
+        section_fsm_phase=str(payload.get("section_fsm_phase", "unavailable")),
+        section_fsm_notices=_bounded_strings(payload, "section_fsm_notices"),
+        slip_candidate=_optional_bool(payload, "slip_candidate"),
+        stuck_candidate=_optional_bool(payload, "stuck_candidate"),
         truncated=payload.get("truncated") is True,
         received_monotonic_s=time.monotonic() if received_monotonic_s is None else received_monotonic_s,
     )

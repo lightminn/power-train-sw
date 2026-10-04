@@ -55,6 +55,7 @@ from .metadata import (
     displayable_detections,
     target_distance_m,
 )
+from .mobility_view import MobilityDashboard
 from .ops_client import ConsoleOpsClient
 from .ops_panel import (
     GESTURE_HOLD,
@@ -367,6 +368,13 @@ menuitem:hover label, menuitem:active label { color: #174EA6; }
 .display-option { color: #17263A; font-size: 12px; padding: 0; }
 .display-option check { min-width: 15px; min-height: 15px; margin-right: 7px; border: 1px solid #9BA9B7; border-radius: 3px; background: #F8FAFC; }
 .display-option check:checked { background: #2D6EDB; border-color: #2D6EDB; color: #FFFFFF; }
+.mobility-card { padding: 12px; min-height: 132px; }
+.mobility-value { color: #34495E; font-size: 12px; }
+.mobility-wheel-value { color: #263A4D; font-size: 11px; font-family: "JetBrains Mono", "D2Coding", monospace; }
+.mobility-faults { color: #C43B43; font-size: 11px; background: #FFF7F7; border-left: 3px solid #C43B43; padding: 9px; }
+.mobility-control-card { padding: 11px 12px; }
+.mobility-control-button { min-height: 36px; background: #FFFFFF; border: 1px solid #BFCEDC; color: #263A4D; font-weight: 700; }
+.mobility-control-button:hover { background: #E8F0FE; border-color: #2D6EDB; }
 button { border-radius: 10px; padding: 7px 10px; }
 button:hover { border-color: rgba(56,189,248,0.55); }
 scrollbar slider { background: #33465d; border-radius: 10px; min-width: 6px; min-height: 6px; }
@@ -1353,6 +1361,111 @@ window.ops-settings-window, .ops-settings-shell {{ background: #07101B; }}
 }}
 .ops-settings-panel button:disabled label {{ color: #71869C; }}
 .ops-settings-panel expander {{ color: #A8B6C4; }}
+
+/* E2FESTA mobility surface — the same dark control-room language as the
+ * mission and system-status pages. Accent colours identify data domains;
+ * green/amber/red remain reserved for live, caution and danger. */
+.mobility-dashboard {{ background: #07101B; }}
+.mobility-header {{ padding: 1px 2px 4px 2px; }}
+.mobility-kicker {{ color: #70C7F2; font-size: 9px; font-weight: 900; letter-spacing: 1.5px; }}
+.mobility-title {{ color: #F1F6FB; font-size: 25px; font-weight: 900; }}
+.mobility-subtitle {{ color: #94A9BC; font-size: 11px; }}
+.mobility-live-pill {{
+  color: #A8B6C4;
+  background: #263442;
+  border: 1px solid #3B4B5B;
+  border-radius: 999px;
+  padding: 6px 11px;
+  font-size: 10px;
+  font-weight: 900;
+}}
+.mobility-live-pill.status-live {{ color: #8BE3B6; background: #123D2D; border-color: #277A59; }}
+.mobility-live-pill.status-warn {{ color: #FFD77A; background: #493514; border-color: #936A21; }}
+.mobility-live-pill.status-muted {{ color: #A8B6C4; background: #263442; border-color: #3B4B5B; }}
+.mobility-card {{
+  background: #0D1B2B;
+  border: 1px solid #263B52;
+  border-top: 3px solid #4B8BEA;
+  border-radius: 10px;
+  padding: 13px 14px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+}}
+.mobility-stage-card {{ min-height: 132px; }}
+.mobility-terrain-card {{ border-top-color: #55B9DE; }}
+.mobility-attitude-card {{ border-top-color: #4B8BEA; }}
+.mobility-traction-card {{ border-top-color: #55C995; }}
+.mobility-control-stage-card {{ border-top-color: #8C7BEA; }}
+.mobility-stage-title {{ color: #B8C8D8; font-size: 11px; font-weight: 900; }}
+.mobility-value {{ color: #8FA4B8; font-size: 10px; }}
+.mobility-primary-value {{ color: #F1F6FB; font-size: 14px; font-weight: 900; }}
+.mobility-primary-value.status-live {{ color: #8BE3B6; }}
+.mobility-primary-value.status-warn {{ color: #FFD77A; }}
+.mobility-primary-value.status-bad {{ color: #FF9BA8; }}
+.mobility-primary-value.status-muted {{ color: #A8B6C4; }}
+.mobility-evidence-bar {{
+  background-color: #0E1D2C;
+  background-image: linear-gradient(135deg, rgba(75,139,234,0.13), rgba(85,201,149,0.05));
+  border: 1px solid #2A4963;
+  border-left: 3px solid #4B8BEA;
+  border-radius: 8px;
+  padding: 8px 12px;
+}}
+.mobility-evidence-title {{ color: #DCE8F3; font-size: 11px; font-weight: 900; }}
+.mobility-evidence-metrics {{ color: #8EA4B8; font-size: 10px; }}
+.mobility-evidence-rule {{ color: #72CDB2; font-size: 9px; font-weight: 900; }}
+.mobility-panel-title {{ color: #F0F5FA; font-size: 15px; font-weight: 900; }}
+.mobility-source-chip {{
+  color: #76B7F6;
+  background: #173353;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 8px;
+  font-weight: 900;
+}}
+.mobility-wheel-grid {{ background: #0A1725; border: 1px solid #22364D; border-radius: 7px; padding: 8px 10px; }}
+.mobility-wheel-grid .detail-metric-title {{ color: #71879C; font-size: 9px; font-weight: 800; }}
+.mobility-rover-stage {{
+  background-color: #081421;
+  background-image: linear-gradient(145deg, rgba(75,139,234,0.10), rgba(85,185,222,0.03));
+  border: 1px solid #223A52;
+  border-radius: 8px;
+}}
+.mobility-wheel-value {{
+  color: #D9E5EF;
+  font-size: 10px;
+  font-family: "JetBrains Mono", "D2Coding", monospace;
+}}
+.mobility-wheel-value.status-live {{ color: #8BE3B6; font-weight: 900; }}
+.mobility-wheel-value.status-bad {{ color: #FF9BA8; font-weight: 900; }}
+.mobility-decision {{ font-size: 13px; font-weight: 900; }}
+.mobility-decision.status-live {{ color: #8BE3B6; }}
+.mobility-decision.status-warn {{ color: #FFD77A; }}
+.mobility-decision.status-bad {{ color: #FF9BA8; }}
+.mobility-decision.status-muted {{ color: #A8B6C4; }}
+.mobility-recovery-hint {{ color: #8EA4B8; font-size: 10px; }}
+.mobility-faults {{
+  color: #D6E2EC;
+  background: #0A1725;
+  border: 1px solid #22364D;
+  border-left: 3px solid #E7B34F;
+  border-radius: 6px;
+  padding: 9px;
+  font-size: 10px;
+}}
+.mobility-control-card {{ padding: 11px 13px; }}
+.mobility-control-card .role-sub {{ color: #A8B6C4; background: #263442; border-color: #3B4B5B; }}
+.mobility-control-button {{
+  min-height: 34px;
+  background: #173353;
+  color: #DDE8F3;
+  border: 1px solid #315F91;
+  border-radius: 7px;
+  font-weight: 800;
+}}
+.mobility-control-button label {{ color: #DDE8F3; }}
+.mobility-control-button:hover {{ background: #214A75; border-color: #5795E8; }}
+.mobility-control-button:hover label {{ color: #FFFFFF; }}
+.mobility-dashboard .muted {{ color: #71879B; font-size: 9px; }}
 """.format(**token)
     return css.encode("utf-8")
 
@@ -3223,6 +3336,16 @@ class OpsPanel(Gtk.Frame):
         )
         self._on_immediate_clicked(self._action_buttons.get("estop"), action)
 
+    def request_action(self, action_name: str) -> bool:
+        """Open the existing confirmation flow for a dashboard shortcut."""
+        action = next(
+            (item for item in PANEL_ACTIONS if item.action == action_name),
+            None,
+        )
+        if action is None or action.gesture in {GESTURE_IMMEDIATE, GESTURE_HOLD}:
+            return False
+        return self._begin(action)
+
     def _on_submit_response(self, response: dict) -> None:
         request_id = str(response.get("request_id", "unknown"))
         action = self._pending_requests.get(request_id, "unknown action")
@@ -3634,6 +3757,7 @@ class OperatorConsole(Gtk.Window):
             self._operation_source_id = GLib.timeout_add(100, self._refresh_operation)
         self._refresh_estop_availability()
         _style(self._ops_panel, "danger-card", "ops-settings-panel")
+        self._mobility = MobilityDashboard(self._open_mobility_action)
 
         mission_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         _style(mission_page, "page", "mission-page")
@@ -3917,6 +4041,13 @@ class OperatorConsole(Gtk.Window):
         systems_scroll.add(systems_page)
         self._systems_scroll = systems_scroll
 
+        mobility_scroll = Gtk.ScrolledWindow()
+        mobility_scroll.set_policy(
+            Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC,
+        )
+        mobility_scroll.add(self._mobility)
+        self._mobility_scroll = mobility_scroll
+
         ops_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         ops_page.set_border_width(14)
         _style(ops_page, "ops-settings-shell")
@@ -3960,6 +4091,7 @@ class OperatorConsole(Gtk.Window):
         stack.set_transition_type(Gtk.StackTransitionType.NONE)
         stack.set_transition_duration(0)
         stack.add_titled(mission_page, "mission", "실시간 화면")
+        stack.add_titled(mobility_scroll, "mobility", "협조구동")
         stack.add_titled(systems_scroll, "systems", "시스템 상태")
         # Keep recovery controls outside the two judge-facing pages; the header
         # button exposes their existing token-gated panel in a transient window.
@@ -3968,7 +4100,7 @@ class OperatorConsole(Gtk.Window):
         switcher.set_stack(stack)
         switcher.set_halign(Gtk.Align.START)
         switcher.set_margin_start(0)
-        switcher.set_size_request(238, 34)
+        switcher.set_size_request(344, 34)
         nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         _style(nav, "nav")
         nav.pack_start(switcher, False, False, 0)
@@ -4015,6 +4147,14 @@ class OperatorConsole(Gtk.Window):
         """Show the existing token-gated panel without issuing an action."""
         self._ops_settings_window.show_all()
         self._ops_settings_window.present()
+
+    def _open_mobility_action(self, action_name: str) -> None:
+        """Route shortcuts to the sole token-gated ops panel."""
+        if action_name != "__settings__":
+            if not self._ops_panel.request_action(action_name):
+                self._show_alert(f"{action_name}: 현재 조작을 시작할 수 없습니다")
+                return
+        self._show_ops_settings()
 
     def _cancel_ops_settings_confirmation(self, *_args: object) -> bool:
         self._ops_panel.cancel_confirmation()
@@ -5005,6 +5145,10 @@ class OperatorConsole(Gtk.Window):
             work_frame_age_s=self._d435.last_frame_age_s,
             control_link_ready=self._ops_panel.link_ready(),
             chassis_mode=chassis_mode,
+            ops_state=self._ops_panel.latest_state(),
+        )
+        self._mobility.update(
+            chassis_snapshot,
             ops_state=self._ops_panel.latest_state(),
         )
         self._environment_status.update(environment_snapshot)

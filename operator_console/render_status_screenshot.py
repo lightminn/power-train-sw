@@ -42,7 +42,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
         "--page",
-        choices=("mission", "systems", "environment"),
+        choices=("mission", "mobility", "systems", "environment"),
         default="systems",
     )
     parser.add_argument(
@@ -138,6 +138,11 @@ def main() -> int:
         pixbuf = Gdk.pixbuf_get_from_window(
             source_window, source_x, source_y, source_width, source_height,
         )
+        if args.page == "mobility":
+            # Xvfb can return a partially painted backing store after the
+            # four-column mobility layout resizes. Cairo draws the complete
+            # realized widget tree deterministically for review artifacts.
+            pixbuf = None
         if (
             (pixbuf is None or not any(pixbuf.get_pixels()))
             and source_window is not gdk_window

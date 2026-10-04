@@ -9,6 +9,7 @@ unavailable fields.
 from __future__ import annotations
 
 import math
+import json
 import os
 import socket
 import time
@@ -17,6 +18,7 @@ import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from std_msgs.msg import String
+from sensor_msgs.msg import Imu
 
 from l515_dashboard.client import GatewayClient
 from powertrain_msgs.msg import SafetyVerdict, WheelStates
@@ -61,6 +63,20 @@ class ChassisTelemetrySender(Node):
         self._safety_at: float | None = None
         self._component_mask: dict[str, bool] | None = None
         self._component_mask_at: float | None = None
+        self._attitude: tuple[float, float] | None = None
+        self._attitude_at: float | None = None
+        self._terrain: dict[str, object] | None = None
+        self._terrain_at: float | None = None
+        self._controller: dict[str, object] | None = None
+        self._controller_at: float | None = None
+        self._degradation: dict[str, object] | None = None
+        self._degradation_at: float | None = None
+        self._mission: dict[str, object] | None = None
+        self._mission_at: float | None = None
+        self._section: dict[str, object] | None = None
+        self._section_at: float | None = None
+        self._drive_diagnostics: dict[str, object] | None = None
+        self._drive_diagnostics_at: float | None = None
         self._gateway = GatewayClient("@powertrain-l515-gateway", request_timeout_s=0.5)
         self._l515: dict[str, object] = {}
         self._observability = ObservabilityClient(request_timeout_s=0.5)
@@ -87,6 +103,27 @@ class ChassisTelemetrySender(Node):
             self._on_safety_state,
             10,
         )
+        self.create_subscription(
+            Imu, "/imu/filtered", self._on_imu, 10,
+        )
+        self.create_subscription(
+            String, "/autonomy/terrain_diagnostics", self._on_terrain, 10,
+        )
+        self.create_subscription(
+            String, "/autonomy/controller_state", self._on_controller, 10,
+        )
+        self.create_subscription(
+            String, "/autonomy/degradation_state", self._on_degradation, 10,
+        )
+        self.create_subscription(
+            String, "/mission/state", self._on_mission, 10,
+        )
+        self.create_subscription(
+            String, "/section/state", self._on_section, 10,
+        )
+        self.create_subscription(
+            String, "/odom_diagnostics", self._on_drive_diagnostics, 10,
+        )
         self.create_timer(1.0 / hz, self._send)
 
     def _on_wheels(self, message: WheelStates) -> None:
@@ -112,6 +149,74 @@ class ChassisTelemetrySender(Node):
             return
         self._component_mask = component_mask
         self._component_mask_at = time.monotonic()
+
+    def _on_imu(self, message: Imu) -> None:
+        q = message.orientation
+        roll = math.atan2(
+            2.0 * (q.w * q.x + q.y * q.z),
+            1.0 - 2.0 * (q.x * q.x + q.y * q.y),
+        )
+        pitch = math.asin(max(
+            -1.0, min(1.0, 2.0 * (q.w * q.y - q.z * q.x)),
+        ))
+        if math.isfinite(roll) and math.isfinite(pitch):
+            self._attitude = (roll, pitch)
+            self._attitude_at = time.monotonic()
+
+    def _store_json_message(
+        self, message: String, *, field: str, timestamp_field: str,
+    ) -> None:
+        try:
+            payload = json.loads(message.data)
+            if not isinstance(payload, dict):
+                raise ValueError("payload must be an object")
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            self.get_logger().warning(
+                f"invalid telemetry source {field} ignored: {exc}",
+                throttle_duration_sec=5.0,
+            )
+            return
+        setattr(self, field, payload)
+        setattr(self, timestamp_field, time.monotonic())
+
+    def _on_terrain(self, message: String) -> None:
+        self._store_json_message(
+            message, field="_terrain", timestamp_field="_terrain_at",
+        )
+
+    def _on_degradation(self, message: String) -> None:
+        self._store_json_message(
+            message, field="_degradation", timestamp_field="_degradation_at",
+        )
+
+    def _on_section(self, message: String) -> None:
+        self._store_json_message(
+            message, field="_section", timestamp_field="_section_at",
+        )
+
+    def _on_drive_diagnostics(self, message: String) -> None:
+        self._store_json_message(
+            message,
+            field="_drive_diagnostics",
+            timestamp_field="_drive_diagnostics_at",
+        )
+
+    def _on_controller(self, message: String) -> None:
+        fields = message.data.split("|", 3)
+        if len(fields) != 4:
+            return
+        self._controller = {
+            "state": fields[0],
+            "reasons": [reason for reason in fields[3].split(",") if reason],
+        }
+        self._controller_at = time.monotonic()
+
+    def _on_mission(self, message: String) -> None:
+        state, separator, reason = message.data.partition("|")
+        if not state:
+            return
+        self._mission = {"state": state, "reason": reason if separator else ""}
+        self._mission_at = time.monotonic()
 
     def _poll_l515(self):
         try:
@@ -189,6 +294,18 @@ class ChassisTelemetrySender(Node):
             updated_s=self._component_mask_at,
             now_s=now,
         )
+        attitude = self._attitude if self._fresh(self._attitude_at, now) else None
+        terrain = self._terrain if self._fresh(self._terrain_at, now) else None
+        controller = self._controller if self._fresh(self._controller_at, now) else None
+        degradation = (
+            self._degradation if self._fresh(self._degradation_at, now) else None
+        )
+        mission = self._mission if self._fresh(self._mission_at, now) else None
+        section = self._section if self._fresh(self._section_at, now) else None
+        diagnostics = (
+            self._drive_diagnostics
+            if self._fresh(self._drive_diagnostics_at, now) else None
+        )
         if odom is None:
             x_m = y_m = yaw_rad = None
             odometry_source = "unavailable"
@@ -206,7 +323,10 @@ class ChassisTelemetrySender(Node):
                 "name": wheel.name,
                 "mode": wheel.corner_mode,
                 "drive_turns_per_s": wheel.drive_turns_per_s,
+                "command_turns_per_s": wheel.command_turns_per_s,
                 "steer_deg": wheel.steer_deg,
+                "drive_current_a": wheel.drive_current_a,
+                "steer_current_a": wheel.steer_current_a,
                 "stale": wheel.drive_stale or wheel.steer_stale,
                 "drive_axis_error": wheel.drive_axis_error,
                 "steer_fault": wheel.steer_fault,
@@ -218,6 +338,8 @@ class ChassisTelemetrySender(Node):
             "sequence": self._sequence,
             "odometry_source": odometry_source,
             "x_m": x_m, "y_m": y_m, "yaw_rad": yaw_rad,
+            "roll_rad": None if attitude is None else attitude[0],
+            "pitch_rad": None if attitude is None else attitude[1],
             "voltage_v": None, "current_a": None, "power_w": None,
             "drive_state": drive_state,
             # CAN health is measured by the flock-owning chassis process and
@@ -253,6 +375,27 @@ class ChassisTelemetrySender(Node):
             "wheel_steer_fault_count": None if wheels is None else sum(
                 wheel.steer_fault != 0 for wheel in wheel_feedback),
             "wheel_statuses": wheel_statuses,
+            "terrain_path_available": None if terrain is None else terrain.get("path_available"),
+            "terrain_path_offset_m": None if terrain is None else terrain.get("path_offset_m"),
+            "terrain_heading_error_rad": None if terrain is None else terrain.get("heading_error_rad"),
+            "terrain_support_m": None if terrain is None else terrain.get("confirmed_support_m"),
+            "terrain_bank_rad": None if terrain is None else terrain.get("bank_angle_rad"),
+            "terrain_slope_rad": None if terrain is None else terrain.get("longitudinal_slope_rad"),
+            "terrain_roughness_m": None if terrain is None else terrain.get("roughness_m"),
+            "terrain_confidence": None if terrain is None else terrain.get("confidence"),
+            "terrain_reject_reasons": [] if terrain is None else terrain.get("reject_reasons", []),
+            "controller_fsm_state": "unavailable" if controller is None else controller.get("state", "unavailable"),
+            "controller_fsm_reasons": [] if controller is None else controller.get("reasons", []),
+            "degradation_state": "unavailable" if degradation is None else degradation.get("stage", "unavailable"),
+            "degradation_reasons": [] if degradation is None else degradation.get("reasons", []),
+            "degradation_speed_scale": None if degradation is None else degradation.get("speed_scale"),
+            "mission_fsm_state": "unavailable" if mission is None else mission.get("state", "unavailable"),
+            "mission_fsm_reason": "" if mission is None else mission.get("reason", ""),
+            "section_fsm_section": "unavailable" if section is None else section.get("section", "unavailable"),
+            "section_fsm_phase": "unavailable" if section is None else section.get("phase", "unavailable"),
+            "section_fsm_notices": [] if section is None else section.get("notices", []),
+            "slip_candidate": None if diagnostics is None else diagnostics.get("slip_candidate"),
+            "stuck_candidate": None if diagnostics is None else diagnostics.get("stuck_candidate"),
         }
         try:
             send_datagram(self._udp, encode_telemetry_payload(payload), self._endpoint)
