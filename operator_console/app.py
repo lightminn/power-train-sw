@@ -285,7 +285,7 @@ label { color: #f8fafc; }
 .rail-data-row { border-bottom: 1px solid rgba(160,185,210,0.14); padding: 2px 0 10px 0; }
 .rail-data-label { color: #8090A3; font-size: 9px; font-weight: 800; }
 .rail-data-value { color: #FFFFFF; font-size: 17px; font-weight: 900; }
-.rail-data-target, .rail-data-distance { color: #00D5FF; }
+.rail-data-perception { color: #00D5FF; }
 .rail-tool-selector { min-height: 34px; font-size: 12px; font-weight: 800; }
 .rail-tool-selector button { padding: 5px 9px; }
 menu {
@@ -478,7 +478,7 @@ label {{ color: {text_main}; }}
 .rail-title, .rail-data-value {{ color: {text_main}; }}
 .rail-description {{ color: {text_secondary}; }}
 .rail-data-label {{ color: {text_muted}; }}
-.rail-data-target, .rail-data-distance {{ color: {ai_cyan}; }}
+.rail-data-perception {{ color: {ai_cyan}; }}
 .rail-safety-value {{ color: {text_muted}; }}
 .rail-safety-value.status-live {{ color: {success}; }}
 .rail-safety-value.status-warn {{ color: {warning}; }}
@@ -675,8 +675,7 @@ scrollbar slider {{ background: #A8B6C4; border-radius: 999px; min-width: 7px; m
 .mission-rail .rail-data-row {{ background: #162A40; border-color: #29425A; }}
 .mission-rail .rail-data-label {{ color: #8298AC; }}
 .mission-rail .rail-data-value {{ color: #F4F8FC; }}
-.mission-rail .rail-data-target,
-.mission-rail .rail-data-distance {{ color: #72D6FF; }}
+.mission-rail .rail-data-perception {{ color: #72D6FF; }}
 
 /* Category accents make the implemented subsystems scannable without a legend. */
 .status-summary-card.category-drive {{ border-left-color: #2F7CF6; }}
@@ -747,8 +746,7 @@ window {{ background: #F3F7FB; }}
 .mission-rail .rail-data-row {{ background: #FFFFFF; border-color: #D6E2EC; }}
 .mission-rail .rail-data-label {{ color: #7A8EA0; }}
 .mission-rail .rail-data-value {{ color: #17324A; }}
-.mission-rail .rail-data-target,
-.mission-rail .rail-data-distance {{ color: #2478D4; }}
+.mission-rail .rail-data-perception {{ color: #2478D4; }}
 .mission-rail .display-options {{
   background: #FFFFFF;
   border-color: #D6E2EC;
@@ -1152,8 +1150,10 @@ window, .console-shell, .page {{
 .mission-rail .rail-section-count {{ background: #173353; color: #76B7F6; }}
 .mission-rail .rail-section-divider {{ background: #263A52; }}
 .mission-rail .rail-data-label {{ color: #71869C; }}
-.mission-rail .rail-data-target,
-.mission-rail .rail-data-distance {{ color: #62BDE8; }}
+.mission-rail .rail-data-row {{ padding: 7px 9px; }}
+.mission-rail .rail-data-value {{ font-size: 13px; }}
+.mission-rail .rail-data-drive {{ font-size: 12px; }}
+.mission-rail .rail-data-perception {{ color: #62BDE8; }}
 .technology-marker {{ background: #4B8BEA; }}
 .technology-vision .technology-marker {{ background: #55B9DE; }}
 .technology-safety .technology-marker {{ background: #55C995; }}
@@ -1169,7 +1169,7 @@ window, .console-shell, .page {{
   border: 1px solid #2A4963;
   border-left: 3px solid #4DB89A;
   border-radius: 9px;
-  padding: 10px;
+  padding: 8px;
 }}
 .end-effector-summary-title {{ color: #E8F0F8; font-size: 15px; font-weight: 900; }}
 .end-effector-summary-state {{
@@ -3993,18 +3993,16 @@ class OperatorConsole(Gtk.Window):
         # the compact rail so judges/operators can verify the AI overlay.
         rail.pack_end(display_options, False, False, 0)
 
-        rail_data = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=11)
+        rail_data = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         rail_data.set_no_show_all(False)
         self._mission_metrics = {}
         self._mission_metric_rows: dict[str, Gtk.Box] = {}
+        # The live video is the primary mission view.  Keep its side rail
+        # scannable by grouping related telemetry instead of stacking one
+        # large card per measurement.
         for key, heading in (
-            ("path", "전방 주행 판단"),
-            ("control", "능동제어 상태"),
-            ("attitude", "차체 자세"),
-            ("motors", "6륜 모터 상태"),
-            ("speed", "평균 속도"),
-            ("target", "최신 인식"),
-            ("distance", "대상 거리"),
+            ("drive", "주행 상태"),
+            ("perception", "인식 대상"),
         ):
             row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             _style(row, "rail-data-row")
@@ -4013,7 +4011,9 @@ class OperatorConsole(Gtk.Window):
             _style(row_heading, "rail-data-label")
             row_value = Gtk.Label(label="")
             row_value.set_xalign(0.0)
-            row_value.set_line_wrap(False)
+            row_value.set_line_wrap(True)
+            row_value.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+            row_value.set_max_width_chars(25)
             _style(row_value, "rail-data-value", f"rail-data-{key}")
             row.pack_start(row_heading, False, False, 0)
             row.pack_start(row_value, False, False, 0)
@@ -4046,7 +4046,7 @@ class OperatorConsole(Gtk.Window):
         self._mission_tool_purpose = Gtk.Label(label="사용할 이펙터를 선택하세요")
         self._mission_tool_purpose.set_xalign(0.0)
         self._mission_tool_purpose.set_line_wrap(True)
-        self._mission_tool_purpose.set_max_width_chars(34)
+        self._mission_tool_purpose.set_max_width_chars(26)
         _style(self._mission_tool_purpose, "end-effector-summary-purpose")
         self._mission_tool_reading = Gtk.Label(label="상세 데이터 없음")
         self._mission_tool_reading.set_xalign(0.0)
@@ -4056,8 +4056,12 @@ class OperatorConsole(Gtk.Window):
         arm_summary_grid.set_column_homogeneous(True)
         self._mission_arm_mode = Gtk.Label(label="연동 예정")
         self._mission_arm_mode.set_xalign(0.0)
+        self._mission_arm_mode.set_ellipsize(Pango.EllipsizeMode.END)
+        self._mission_arm_mode.set_max_width_chars(10)
         self._mission_arm_load = Gtk.Label(label="정보 없음")
         self._mission_arm_load.set_xalign(0.0)
+        self._mission_arm_load.set_ellipsize(Pango.EllipsizeMode.END)
+        self._mission_arm_load.set_max_width_chars(14)
         for column, heading_text, value in (
             (0, "조종 모드", self._mission_arm_mode),
             (1, "관절 부하", self._mission_arm_load),
@@ -4096,6 +4100,8 @@ class OperatorConsole(Gtk.Window):
         rail_scroll.set_policy(
             Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC,
         )
+        rail_scroll.set_propagate_natural_width(True)
+        rail_scroll.set_max_content_width(350)
         rail_scroll.set_propagate_natural_height(False)
         rail_scroll.add(rail)
         self._mission_rail_scroll = rail_scroll
@@ -4968,6 +4974,7 @@ class OperatorConsole(Gtk.Window):
         else:
             rail_width = min(350, max(285, int(allocation.width * 0.22)))
         self._mission_rail.set_size_request(rail_width, -1)
+        self._mission_rail_scroll.set_max_content_width(rail_width)
 
     def _on_window_allocated(
         self, _widget: Gtk.Window, allocation: Gdk.Rectangle,
@@ -5032,24 +5039,21 @@ class OperatorConsole(Gtk.Window):
         self._rail_data.set_no_show_all(False)
         self._rail_data.show()
         self._mission_metric_rows["tool"].show_all()
-        self._mission_metric_rows["target"].show_all()
+        self._mission_metric_rows["perception"].show_all()
         if target is None:
-            self._mission_metrics["target"].set_text("인식 대상 없음")
+            perception = "인식 대상 없음"
+            if metadata is not None and not fresh:
+                perception += " · 거리 정보 지연"
         else:
-            self._mission_metrics["target"].set_text(
-                f"{target.class_name}  {target.confidence:.0%}"
+            distance = (
+                "거리 정보 지연" if metadata is not None and not fresh else
+                target_view.distance_state if target_view.distance_m is None else
+                f"거리 {target_view.distance_m:.2f} m"
             )
-        self._mission_metric_rows["distance"].show_all()
-        if metadata is not None and not fresh:
-            self._mission_metrics["distance"].set_text("거리 정보 지연")
-        elif target_view.distance_m is None:
-            self._mission_metrics["distance"].set_text(
-                target_view.distance_state
+            perception = (
+                f"{target.class_name}  {target.confidence:.0%}\n{distance}"
             )
-        else:
-            self._mission_metrics["distance"].set_text(
-                f"{target_view.distance_m:.2f} m"
-            )
+        self._mission_metrics["perception"].set_text(perception)
 
     def _refresh_estop_availability(self) -> None:
         sensitive, tooltip, warning = estop_availability(
@@ -5287,7 +5291,7 @@ class OperatorConsole(Gtk.Window):
                 if wheel.drive_turns_per_s is not None and not wheel.stale
             )
         )
-        self._mission_metrics["speed"].set_text(
+        speed_text = (
             "정보 없음" if not wheel_speeds
             else f"{sum(wheel_speeds) / len(wheel_speeds):.2f} turn/s"
         )
@@ -5296,8 +5300,15 @@ class OperatorConsole(Gtk.Window):
             if chassis_state == "LIVE"
             else None
         )
-        for key, value in mobility_values.items():
-            self._mission_metrics[key].set_text(value)
+        self._mission_metrics["drive"].set_text(
+            "정보 없음"
+            if chassis_state != "LIVE" or chassis_snapshot is None
+            else (
+                f'{mobility_values["path"]} · {mobility_values["control"]}\n'
+                f'{speed_text} · {mobility_values["attitude"]}\n'
+                f'{mobility_values["motors"]}'
+            )
+        )
         self._sync_overlay_rail(metadata)
         target = self._display_target_tracker.view().detection
         self._rail_preparation_target.set_text(

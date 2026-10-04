@@ -1638,7 +1638,10 @@ def test_console_layout_separates_mission_systems_and_ops_pages():
     ).read_text(encoding="utf-8")
 
     assert 'stack.add_titled(mission_page, "mission", "실시간 화면")' in source
+    assert 'stack.add_titled(mobility_scroll, "mobility", "협조구동")' in source
     assert 'stack.add_titled(systems_scroll, "systems", "시스템 상태")' in source
+    assert "ARM_MANUAL_TAB_TITLE" in source
+    assert "ARM_CALIBRATION_TAB_TITLE" in source
     assert 'stack.add_titled(ops_page, "ops", "관리자 조작")' not in source
     assert "Gtk.StackSwitcher()" in source
     assert "self.set_default_size(1100, 680)" in source
@@ -1713,11 +1716,11 @@ def test_judge_facing_mission_summary_uses_plain_language_and_live_data():
 
     for copy in (
         "재난 대응 로봇 관제 시스템", "현재 단계",
-        "평균 속도", "최신 인식", "로봇팔 · 도구", "안전 장치",
+        "주행 상태", "인식 대상", "로봇팔 · 도구", "안전 장치",
     ):
         assert copy in source
-    assert 'self._mission_metrics["target"].set_text' in source
-    assert 'self._mission_metrics["distance"].set_text' in source
+    assert 'self._mission_metrics["drive"].set_text' in source
+    assert 'self._mission_metrics["perception"].set_text' in source
     assert "self._readiness_count.set_text" in source
 
 
