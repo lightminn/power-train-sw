@@ -1640,10 +1640,7 @@ def test_console_layout_separates_mission_systems_and_ops_pages():
     assert 'stack.add_titled(mission_page, "mission", "실시간 화면")' in source
     assert 'stack.add_titled(systems_scroll, "systems", "시스템 상태")' in source
     assert 'stack.add_titled(ops_page, "ops", "관리자 조작")' not in source
-    assert "primary_nav = Gtk.Box(homogeneous=True" in source
-    assert 'Gtk.MenuButton(label="상세 화면")' in source
-    assert '("mobility", "협조구동 상세")' in source
-    assert '(ARM_CALIBRATION_TAB_NAME, "로봇팔·도구 캘리브레이션")' in source
+    assert "Gtk.StackSwitcher()" in source
     assert "self.set_default_size(1100, 680)" in source
     assert "videos = Gtk.Overlay()" in source
     assert "int(allocation.width * 0.27)" in source

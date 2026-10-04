@@ -1365,13 +1365,6 @@ window.viewport-spacious .mission-rail .rail-data-value {{ font-size: 15px; }}
 window.viewport-spacious .mobility-title {{ font-size: 28px; }}
 window.viewport-spacious .mobility-subtitle {{ font-size: 12px; }}
 window.viewport-spacious .mobility-card {{ padding: 15px 16px; }}
-.nav .primary-nav {{ background: rgba(10,14,28,0.58); border: 1px solid rgba(255,255,255,0.08); border-radius: 7px; padding: 3px; }}
-.nav .secondary-nav-button {{ background: #0D192A; color: #9DB0C4; border: 1px solid #2A4057; border-radius: 6px; }}
-.nav .secondary-nav-button:hover {{ background: #15263B; color: #E7F0F8; }}
-.nav .secondary-nav-button.secondary-active {{ background: #183052; color: #F4F8FC; border-color: #315F91; }}
-.secondary-nav-popover {{ background: #0D1B2B; border: 1px solid #2A4057; padding: 6px; }}
-.secondary-nav-popover button {{ background: transparent; color: #C8D5E1; border: none; padding: 8px 12px; }}
-.secondary-nav-popover button:hover {{ background: #173353; color: #FFFFFF; }}
 
 /* Integrated controls stay legible inside the competition-dark shell. */
 .integrated-operation {{
@@ -4227,51 +4220,17 @@ class OperatorConsole(Gtk.Window):
         # Keep recovery controls outside the two judge-facing pages; the header
         # button exposes their existing token-gated panel in a transient window.
         self._stack = stack
-        self._syncing_primary_navigation = False
-        primary_nav = Gtk.Box(homogeneous=True, spacing=2)
-        _style(primary_nav, "primary-nav")
-        self._primary_nav_buttons: dict[str, Gtk.ToggleButton] = {}
-        for page_name, label in (
-            ("mission", "실시간 화면"),
-            ("systems", "시스템 상태"),
-            (ARM_MANUAL_TAB_NAME, ARM_MANUAL_TAB_TITLE),
-        ):
-            button = Gtk.ToggleButton(label=label)
-            button.set_hexpand(True)
-            button.connect(
-                "toggled", self._on_primary_navigation_toggled, page_name,
-            )
-            primary_nav.pack_start(button, True, True, 0)
-            self._primary_nav_buttons[page_name] = button
-        primary_nav.set_size_request(520, 34)
-        self._primary_nav = primary_nav
-
-        self._secondary_nav_button = Gtk.MenuButton(label="상세 화면")
-        self._secondary_nav_button.set_valign(Gtk.Align.CENTER)
-        self._secondary_nav_button.set_size_request(112, 30)
-        _style(self._secondary_nav_button, "secondary-nav-button")
-        secondary_popover = Gtk.Popover.new(self._secondary_nav_button)
-        secondary_box = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL, spacing=2,
-        )
-        _style(secondary_box, "secondary-nav-popover")
-        for page_name, label in (
-            ("mobility", "협조구동 상세"),
-            (ARM_CALIBRATION_TAB_NAME, "로봇팔·도구 캘리브레이션"),
-        ):
-            button = Gtk.Button(label=label)
-            button.set_halign(Gtk.Align.FILL)
-            button.connect(
-                "clicked", self._on_secondary_navigation_clicked, page_name,
-            )
-            secondary_box.pack_start(button, False, False, 0)
-        secondary_popover.add(secondary_box)
-        self._secondary_nav_button.set_popover(secondary_popover)
-        self._secondary_nav_popover = secondary_popover
-
+        switcher = Gtk.StackSwitcher()
+        switcher.set_stack(stack)
+        switcher.set_halign(Gtk.Align.FILL)
+        switcher.set_hexpand(True)
+        switcher.set_homogeneous(True)
+        switcher.set_margin_start(0)
+        switcher.set_size_request(-1, 34)
+        self._nav_switcher = switcher
         nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         _style(nav, "nav")
-        nav.pack_start(primary_nav, False, False, 0)
+        nav.pack_start(switcher, True, True, 0)
         self._nav = nav
         self._ops_settings_button = Gtk.Button(label="복구 · 설정")
         self._ops_settings_button.set_valign(Gtk.Align.CENTER)
@@ -4284,7 +4243,6 @@ class OperatorConsole(Gtk.Window):
             "clicked", lambda _button: self._show_ops_settings(),
         )
         nav.pack_end(self._ops_settings_button, False, False, 4)
-        nav.pack_end(self._secondary_nav_button, False, False, 0)
         self._viewport_density: str | None = None
         self.connect("size-allocate", self._on_window_allocated)
         layout.pack_start(nav, False, False, 0)
@@ -4293,7 +4251,6 @@ class OperatorConsole(Gtk.Window):
         self._event_latest = event_expander.latest
         self._event_expander = event_expander
         stack.connect("notify::visible-child-name", self._on_page_changed)
-        self._primary_nav_buttons["mission"].set_active(True)
         layout.pack_start(event_expander, False, True, 0)
         # Preserve the original two-tab information architecture.  Navigation
         # stays in the header instead of introducing an unrelated side rail.
@@ -4718,32 +4675,7 @@ class OperatorConsole(Gtk.Window):
 
     def _on_page_changed(self, stack: Gtk.Stack, _param: object) -> None:
         """Use the in-page Mission footer; keep one footer on every tab."""
-        visible_name = stack.get_visible_child_name() or "mission"
-        mission_visible = visible_name == "mission"
-        if hasattr(self, "_primary_nav_buttons"):
-            self._syncing_primary_navigation = True
-            try:
-                for name, button in self._primary_nav_buttons.items():
-                    button.set_active(name == visible_name)
-            finally:
-                self._syncing_primary_navigation = False
-            secondary_context = self._secondary_nav_button.get_style_context()
-            secondary_context.remove_class("secondary-active")
-            compact = self._viewport_density == "compact"
-            if visible_name == "mobility":
-                self._secondary_nav_button.set_label(
-                    "주행 상세" if not compact else "주행"
-                )
-                secondary_context.add_class("secondary-active")
-            elif visible_name == ARM_CALIBRATION_TAB_NAME:
-                self._secondary_nav_button.set_label(
-                    "도구 보정" if not compact else "보정"
-                )
-                secondary_context.add_class("secondary-active")
-            else:
-                self._secondary_nav_button.set_label(
-                    "상세 화면" if not compact else "상세"
-                )
+        mission_visible = stack.get_visible_child_name() == "mission"
         if hasattr(self, "_rail_buttons"):
             for index, button in enumerate(self._rail_buttons):
                 context = button.get_style_context()
@@ -4757,27 +4689,6 @@ class OperatorConsole(Gtk.Window):
         if not mission_visible:
             self._mission_event_expander.set_expanded(False)
             self._event_expander.set_expanded(False)
-
-    def _on_primary_navigation_toggled(
-        self, button: Gtk.ToggleButton, page_name: str,
-    ) -> None:
-        if self._syncing_primary_navigation:
-            return
-        if button.get_active():
-            self._stack.set_visible_child_name(page_name)
-            return
-        if self._stack.get_visible_child_name() == page_name:
-            self._syncing_primary_navigation = True
-            try:
-                button.set_active(True)
-            finally:
-                self._syncing_primary_navigation = False
-
-    def _on_secondary_navigation_clicked(
-        self, _button: Gtk.Button, page_name: str,
-    ) -> None:
-        self._secondary_nav_popover.popdown()
-        self._stack.set_visible_child_name(page_name)
 
     def _on_rail_navigation(
         self, _button: Gtk.Button, destination: str,
@@ -5074,23 +4985,22 @@ class OperatorConsole(Gtk.Window):
         self._viewport_density = density
 
         compact = density == "compact"
-        primary_titles = {
+        titles = {
             "mission": "실시간" if compact else "실시간 화면",
+            "mobility": "협조구동",
             "systems": "시스템" if compact else "시스템 상태",
             ARM_MANUAL_TAB_NAME: "로봇팔 조작" if compact else ARM_MANUAL_TAB_TITLE,
+            ARM_CALIBRATION_TAB_NAME: (
+                "도구 보정" if compact else ARM_CALIBRATION_TAB_TITLE
+            ),
         }
-        for name, title in primary_titles.items():
-            self._primary_nav_buttons[name].set_label(title)
+        for name, title in titles.items():
+            child = self._stack.get_child_by_name(name)
+            if child is not None:
+                self._stack.child_set_property(child, "title", title)
 
         nav_height = 30 if compact else 40 if density == "spacious" else 34
-        self._primary_nav.set_size_request(
-            370 if compact else 620 if density == "spacious" else 520,
-            nav_height,
-        )
-        self._secondary_nav_button.set_size_request(
-            72 if compact else 126 if density == "spacious" else 112,
-            28 if compact else 34 if density == "spacious" else 30,
-        )
+        self._nav_switcher.set_size_request(-1, nav_height)
         self._ops_settings_button.set_label("설정" if compact else "복구 · 설정")
         self._ops_settings_button.set_size_request(
             72 if compact else 118 if density == "spacious" else 104,
@@ -5103,7 +5013,6 @@ class OperatorConsole(Gtk.Window):
         self._mobility.set_border_width(
             10 if compact else 22 if density == "spacious" else 18
         )
-        self._on_page_changed(self._stack, None)
 
     def _sync_overlay_rail(self, metadata: MetadataFrame | None) -> None:
         """Keep target cards live independently from video overlay choices."""
