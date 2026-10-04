@@ -460,6 +460,7 @@ class MobilityDashboard(Gtk.Box):
                    "공회전은 줄이며 과부하 바퀴는 보호합니다.")
         )
         subtitle.set_xalign(0.0)
+        subtitle.set_line_wrap(True)
         _style(subtitle, "mobility-subtitle")
         title_box.pack_start(kicker, False, False, 0)
         title_box.pack_start(title, False, False, 0)
@@ -492,6 +493,11 @@ class MobilityDashboard(Gtk.Box):
         summary.attach(self._attitude[0], 1, 0, 1, 1)
         summary.attach(self._traction[0], 2, 0, 1, 1)
         summary.attach(self._fsm[0], 3, 0, 1, 1)
+        self._summary_grid = summary
+        self._summary_cards = (
+            self._terrain[0], self._attitude[0],
+            self._traction[0], self._fsm[0],
+        )
         self.pack_start(summary, False, False, 0)
 
         evidence = Gtk.Box(spacing=14)
@@ -521,7 +527,42 @@ class MobilityDashboard(Gtk.Box):
         lower.attach(motors, 0, 0, 2, 1)
         lower.attach(faults, 2, 0, 1, 1)
         lower.attach(controls, 0, 1, 3, 1)
+        self._lower_grid = lower
+        self._lower_cards = (motors, faults, controls)
+        self._compact_layout: bool | None = None
         self.pack_start(lower, True, True, 0)
+        self.connect("size-allocate", self._on_size_allocated)
+
+    def _on_size_allocated(
+        self, _widget: Gtk.Widget, allocation: Gdk.Rectangle,
+    ) -> None:
+        """Reflow cards instead of squeezing their labels at narrow scales."""
+        compact = allocation.width < 1120
+        if compact == self._compact_layout:
+            return
+        self._compact_layout = compact
+        for card in self._summary_cards:
+            self._summary_grid.remove(card)
+        for card in self._lower_cards:
+            self._lower_grid.remove(card)
+        if compact:
+            for index, card in enumerate(self._summary_cards):
+                self._summary_grid.attach(card, index % 2, index // 2, 1, 1)
+            motors, faults, controls = self._lower_cards
+            self._lower_grid.set_column_homogeneous(False)
+            self._lower_grid.attach(motors, 0, 0, 1, 1)
+            self._lower_grid.attach(faults, 0, 1, 1, 1)
+            self._lower_grid.attach(controls, 0, 2, 1, 1)
+        else:
+            for index, card in enumerate(self._summary_cards):
+                self._summary_grid.attach(card, index, 0, 1, 1)
+            motors, faults, controls = self._lower_cards
+            self._lower_grid.set_column_homogeneous(True)
+            self._lower_grid.attach(motors, 0, 0, 2, 1)
+            self._lower_grid.attach(faults, 2, 0, 1, 1)
+            self._lower_grid.attach(controls, 0, 1, 3, 1)
+        self._summary_grid.show_all()
+        self._lower_grid.show_all()
 
     @staticmethod
     def _metric_card(

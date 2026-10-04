@@ -1338,6 +1338,34 @@ menuitem:hover label, menuitem:active label {{ color: #FFFFFF; }}
 .progress-marker.completed {{ color: #55C995; border-color: #55C995; }}
 scrollbar slider {{ background: #344A61; }}
 
+/* Viewport-density overrides. GTK allocations are logical pixels, so these
+ * rules also follow desktop HiDPI/fractional scaling without a manual zoom. */
+window.viewport-compact .topbar {{ padding: 8px 12px 5px 12px; }}
+window.viewport-compact .topbar .brand {{ font-size: 16px; }}
+window.viewport-compact .health-strip {{ margin-left: 4px; }}
+window.viewport-compact .status-chip {{ font-size: 9px; }}
+window.viewport-compact .nav {{ padding: 0 12px 6px 12px; }}
+window.viewport-compact .nav button {{ min-height: 29px; padding: 0 8px; font-size: 9px; }}
+window.viewport-compact .nav button.ops-settings-button {{ padding: 2px 8px; }}
+window.viewport-compact .page {{ padding: 6px 7px 0 7px; }}
+window.viewport-compact .mobility-title {{ font-size: 21px; }}
+window.viewport-compact .mobility-subtitle {{ font-size: 10px; }}
+window.viewport-compact .mobility-card {{ padding: 10px 11px; }}
+window.viewport-compact .mobility-stage-card {{ min-height: 112px; }}
+
+window.viewport-spacious .topbar {{ padding: 18px 30px 10px 30px; }}
+window.viewport-spacious .topbar .brand {{ font-size: 23px; }}
+window.viewport-spacious .status-chip {{ font-size: 11px; }}
+window.viewport-spacious .nav {{ padding: 0 30px 12px 30px; }}
+window.viewport-spacious .nav button {{ min-height: 38px; padding: 0 28px; font-size: 12px; }}
+window.viewport-spacious .nav button.ops-settings-button {{ padding: 4px 15px; }}
+window.viewport-spacious .page {{ padding: 11px 14px 0 14px; }}
+window.viewport-spacious .mission-rail .rail-data-label {{ font-size: 10px; }}
+window.viewport-spacious .mission-rail .rail-data-value {{ font-size: 15px; }}
+window.viewport-spacious .mobility-title {{ font-size: 28px; }}
+window.viewport-spacious .mobility-subtitle {{ font-size: 12px; }}
+window.viewport-spacious .mobility-card {{ padding: 15px 16px; }}
+
 /* Integrated controls stay legible inside the competition-dark shell. */
 .integrated-operation {{
   background: #0B1726;
@@ -1523,6 +1551,15 @@ def fit_overlay_transform(
         (display_width - frame_width * scale) / 2.0,
         (display_height - frame_height * scale) / 2.0,
     )
+
+
+def viewport_density(width: int, height: int) -> str:
+    """Classify the available logical pixels after desktop display scaling."""
+    if width < 1000 or height < 650:
+        return "compact"
+    if width >= 1400 and height >= 800:
+        return "spacious"
+    return "normal"
 
 
 def overlay_size_matches(
@@ -4185,14 +4222,16 @@ class OperatorConsole(Gtk.Window):
         self._stack = stack
         switcher = Gtk.StackSwitcher()
         switcher.set_stack(stack)
-        switcher.set_halign(Gtk.Align.START)
+        switcher.set_halign(Gtk.Align.FILL)
+        switcher.set_hexpand(True)
+        switcher.set_homogeneous(True)
         switcher.set_margin_start(0)
-        # Five operator pages need enough room to keep every Korean tab title
-        # legible: the local mobility view plus the two upstream arm pages.
-        switcher.set_size_request(640, 34)
+        switcher.set_size_request(-1, 34)
+        self._nav_switcher = switcher
         nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         _style(nav, "nav")
-        nav.pack_start(switcher, False, False, 0)
+        nav.pack_start(switcher, True, True, 0)
+        self._nav = nav
         self._ops_settings_button = Gtk.Button(label="복구 · 설정")
         self._ops_settings_button.set_valign(Gtk.Align.CENTER)
         self._ops_settings_button.set_size_request(104, 30)
@@ -4204,6 +4243,8 @@ class OperatorConsole(Gtk.Window):
             "clicked", lambda _button: self._show_ops_settings(),
         )
         nav.pack_end(self._ops_settings_button, False, False, 4)
+        self._viewport_density: str | None = None
+        self.connect("size-allocate", self._on_window_allocated)
         layout.pack_start(nav, False, False, 0)
         layout.pack_start(stack, True, True, 0)
         event_expander = EventDrawer(self._events)
@@ -4905,7 +4946,13 @@ class OperatorConsole(Gtk.Window):
             return
         # The compact placeholder needs ~150 px height for its header, rover,
         # and two text rows; smaller PiP slots clip their own content.
-        pip_width = min(360, max(270, int(allocation.width * 0.27)))
+        pip_width = int(allocation.width * 0.27)
+        if allocation.width < 1050:
+            pip_width = min(310, max(230, pip_width))
+        elif allocation.width >= 1500:
+            pip_width = min(460, max(340, pip_width))
+        else:
+            pip_width = min(380, max(270, pip_width))
         # D435i transport is 848x480.  Preserve the exact native ratio instead
         # of the close-but-not-identical 16:9 approximation.
         pip_height = int(round(pip_width * 480 / 848))
@@ -4914,10 +4961,58 @@ class OperatorConsole(Gtk.Window):
     def _on_mission_body_allocated(
         self, _widget: Gtk.Box, allocation: Gdk.Rectangle,
     ) -> None:
-        rail_width = min(330, max(235, int(allocation.width * 0.21)))
-        if allocation.width >= 1500:
-            rail_width = max(290, rail_width)
+        if allocation.width < 1050:
+            rail_width = min(285, max(235, int(allocation.width * 0.24)))
+        elif allocation.width >= 1500:
+            rail_width = min(410, max(340, int(allocation.width * 0.23)))
+        else:
+            rail_width = min(350, max(285, int(allocation.width * 0.22)))
         self._mission_rail.set_size_request(rail_width, -1)
+
+    def _on_window_allocated(
+        self, _widget: Gtk.Window, allocation: Gdk.Rectangle,
+    ) -> None:
+        """Apply one of three logical-pixel layouts, including HiDPI scaling."""
+        density = viewport_density(allocation.width, allocation.height)
+        if density == self._viewport_density:
+            return
+        context = self.get_style_context()
+        for candidate in (
+            "viewport-compact", "viewport-normal", "viewport-spacious",
+        ):
+            context.remove_class(candidate)
+        context.add_class(f"viewport-{density}")
+        self._viewport_density = density
+
+        compact = density == "compact"
+        titles = {
+            "mission": "실시간" if compact else "실시간 화면",
+            "mobility": "협조구동",
+            "systems": "시스템" if compact else "시스템 상태",
+            ARM_MANUAL_TAB_NAME: "로봇팔 조작" if compact else ARM_MANUAL_TAB_TITLE,
+            ARM_CALIBRATION_TAB_NAME: (
+                "도구 보정" if compact else ARM_CALIBRATION_TAB_TITLE
+            ),
+        }
+        for name, title in titles.items():
+            child = self._stack.get_child_by_name(name)
+            if child is not None:
+                self._stack.child_set_property(child, "title", title)
+
+        nav_height = 30 if compact else 40 if density == "spacious" else 34
+        self._nav_switcher.set_size_request(-1, nav_height)
+        self._ops_settings_button.set_label("설정" if compact else "복구 · 설정")
+        self._ops_settings_button.set_size_request(
+            72 if compact else 118 if density == "spacious" else 104,
+            28 if compact else 34 if density == "spacious" else 30,
+        )
+        self._global_estop.set_size_request(
+            108 if compact else 138 if density == "spacious" else 124,
+            38 if compact else 46 if density == "spacious" else 42,
+        )
+        self._mobility.set_border_width(
+            10 if compact else 22 if density == "spacious" else 18
+        )
 
     def _sync_overlay_rail(self, metadata: MetadataFrame | None) -> None:
         """Keep target cards live independently from video overlay choices."""

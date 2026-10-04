@@ -26,6 +26,15 @@ def test_srt_uri_uses_operator_caller_mode():
     )
 
 
+def test_viewport_density_uses_logical_pixels_for_scaled_displays():
+    from operator_console.app import viewport_density
+
+    assert viewport_density(900, 900) == "compact"
+    assert viewport_density(1100, 700) == "normal"
+    assert viewport_density(1440, 900) == "spacious"
+    assert viewport_density(1920, 640) == "compact"
+
+
 def test_d435_pipeline_is_low_latency_h264_receiver():
     pipeline = pipeline_description("robot", 5002, 60)
     assert "srtsrc" in pipeline

@@ -218,6 +218,30 @@ def test_rover_graphic_orbits_360_and_selects_known_wheels_only():
 
 
 @requires_gtk
+def test_mobility_dashboard_reflows_cards_instead_of_squeezing_them():
+    dashboard = MobilityDashboard(lambda _action: None)
+
+    dashboard._on_size_allocated(dashboard, type("Allocation", (), {"width": 900})())
+    assert dashboard._summary_grid.child_get_property(
+        dashboard._terrain[0], "left-attach",
+    ) == 0
+    assert dashboard._summary_grid.child_get_property(
+        dashboard._traction[0], "top-attach",
+    ) == 1
+    assert dashboard._lower_grid.child_get_property(
+        dashboard._lower_cards[1], "top-attach",
+    ) == 1
+
+    dashboard._on_size_allocated(dashboard, type("Allocation", (), {"width": 1400})())
+    assert dashboard._summary_grid.child_get_property(
+        dashboard._fsm[0], "left-attach",
+    ) == 3
+    assert dashboard._lower_grid.child_get_property(
+        dashboard._lower_cards[1], "left-attach",
+    ) == 2
+
+
+@requires_gtk
 def test_environment_dashboard_distinguishes_hazard_and_missing_data():
     dashboard = EnvironmentSensorDashboard(port=15008)
 
