@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robot_arm">
+    <xacro:arg name="initial_positions_file" default="initial_positions.yaml" />
+    <xacro:arg name="end_effector_preset" default="dual_motor_gripper" />
+
+    <!-- Import arm plus the fixed, single-link ee_description model. -->
+    <xacro:include filename="$(find robot_arm_description)/urdf/robot_arm.urdf.xacro" />
+    <xacro:property name="selected_end_effector_preset" value="$(arg end_effector_preset)"/>
+
+    <!-- Import control_xacro -->
+    <xacro:include filename="robot_arm.ros2_control.xacro" />
+
+
+    <xacro:robot_arm_ros2_control name="FakeSystem"
+        initial_positions_file="$(arg initial_positions_file)"
+        end_effector_preset="$(arg end_effector_preset)"/>
+
+</robot>

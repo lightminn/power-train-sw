@@ -1,0 +1,24 @@
+<mxfile host="app.diagrams.net" modified="2026-09-10T00:00:00.000Z" agent="Codex" version="24.7.17">
+  <diagram id="tool-change-transition" name="안전한 도구 교체 흐름">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+        <mxCell id="title" value="엔드이펙터 교체를 안전한 상태 전환으로 만드는 흐름" style="text;html=1;align=center;verticalAlign=middle;fontSize=27;fontStyle=1;fontColor=#1F2937;" vertex="1" parent="1"><mxGeometry x="260" y="35" width="1080" height="45" as="geometry"/></mxCell>
+        <mxCell id="start" value="도구 교체 요청" style="ellipse;whiteSpace=wrap;html=1;fillColor=#E0E7FF;strokeColor=#4F46E5;strokeWidth=2;fontSize=18;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="85" y="355" width="170" height="90" as="geometry"/></mxCell>
+        <mxCell id="stop" value="기존 도구 정지&lt;br&gt;&lt;font style=&quot;font-size:13px&quot;&gt;진행 중 명령을 새 도구로 전달하지 않음&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=2;fontSize=17;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="330" y="335" width="235" height="125" as="geometry"/></mxCell>
+        <mxCell id="detect" value="새 도구 확인&lt;br&gt;&lt;font style=&quot;font-size:13px&quot;&gt;연결 · 식별 · 통신 상태 검증&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=2;fontSize=17;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="645" y="335" width="235" height="125" as="geometry"/></mxCell>
+        <mxCell id="safe" value="안전 조건 확인&lt;br&gt;&lt;font style=&quot;font-size:13px&quot;&gt;분리 · 비상정지 · 오류 · 준비 상태&lt;/font&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FCE7F3;strokeColor=#DB2777;strokeWidth=2;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="965" y="320" width="205" height="155" as="geometry"/></mxCell>
+        <mxCell id="apply" value="프로파일 + 전용 FSM 적용&lt;br&gt;&lt;font style=&quot;font-size:13px&quot;&gt;도구 특성에 맞는 제어 규칙으로 전환&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#059669;strokeWidth=2;fontSize=17;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1240" y="335" width="250" height="125" as="geometry"/></mxCell>
+        <mxCell id="ready" value="새 도구 준비 완료" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;strokeWidth=3;fontSize=18;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1300" y="570" width="170" height="90" as="geometry"/></mxCell>
+        <mxCell id="blocked" value="구동 차단 + 이유 표시&lt;br&gt;&lt;font style=&quot;font-size:13px&quot;&gt;안전하게 복구 후 다시 요청&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;strokeWidth=2;fontSize=17;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="905" y="580" width="255" height="110" as="geometry"/></mxCell>
+        <mxCell id="note" value="핵심: 도구가 선택되었다는 사실만으로는 움직이지 않는다. 실제 연결과 안전 검증을 통과한 뒤에만 새 FSM이 활성화된다." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F9FAFB;strokeColor=#6B7280;strokeWidth=2;fontSize=17;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="335" y="760" width="920" height="65" as="geometry"/></mxCell>
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="start" target="stop"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="stop" target="detect"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="detect" target="safe"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" value="통과" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeWidth=2;endArrow=block;endFill=1;fontSize=14;" edge="1" parent="1" source="safe" target="apply"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="apply" target="ready"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" value="미통과" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#DC2626;strokeWidth=2;endArrow=block;endFill=1;fontSize=14;fontColor=#B91C1C;" edge="1" parent="1" source="safe" target="blocked"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

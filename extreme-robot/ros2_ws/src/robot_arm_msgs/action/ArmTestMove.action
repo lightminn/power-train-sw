@@ -1,0 +1,19 @@
+# Only the exact guarded integration sequence is accepted in production code.
+int32[] motor_ids
+int32[] delta_ticks
+bool random_demo
+int32 max_abs_current
+float32 stall_timeout
+float32 step_timeout
+---
+bool success
+int32 completed_steps
+string reason
+---
+int32 motor_id
+int32 goal_position
+int32 present_position
+int32 present_velocity
+int32 present_current
+uint8 moving_status
+uint8 hardware_error

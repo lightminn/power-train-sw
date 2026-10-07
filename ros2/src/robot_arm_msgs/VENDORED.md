@@ -19,7 +19,13 @@ wire 에서 **패키지명 + 구조 해시**로 매칭되므로, 동일한 `.msg
 
 로봇팔 팀이 `.msg` 를 바꾸면 이 사본과 어긋난다(= 계약 변경). 감지:
 
-    bash ros2/scripts/sync_check_msgs.sh          # ~/extreme-robot 대비 diff
+    bash ros2/scripts/sync_check_msgs.sh          # 내부 extreme-robot/ 대비 diff
+    bash ros2/scripts/sync_check_msgs.sh ~/extreme-robot  # 외부 체크아웃 명시
+
+폴더 통합 시점의 정본에는 `TaskCommand.msg`·`TaskResult.msg`가 추가되어 있다.
+현재 벤더 사본에는 없으므로 검사에서 드리프트로 보고한다. 폴더 통합에서 메시지
+계약은 재벤더하지 않았다. 출처와 빌드 경계는
+[`docs/extreme-robot-integration.md`](../../../docs/extreme-robot-integration.md)를 참고한다.
 
 ⚠️ 계약 변경은 **양 팀 합의 사항**이다 — 드리프트가 잡히면 임의 재복사하지 말고 먼저
 합의한 뒤 재벤더 + `docs/plans/2026-07-02-...` 계약 절 갱신.

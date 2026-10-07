@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--This does not replace URDF, and is not an extension of URDF.
+    This is a format for representing semantic information about the robot structure.
+    A URDF file must exist for this robot as well, where the joints and the links that are referenced are defined
+-->
+<robot name="robot_arm">
+    <!-- 2026-07-15 Isaac Sim 기반 재export(robotarm_urdf_20260711.urdf)로 robot_arm.urdf 전면 교체
+         (RViz에서 joint_2/3 축이 계속 이상해 기존 Fusion360/VerNOmiddle 계열을 폐기 — robot_arm.urdf
+         헤더 주석 참고). base_link -> link_051 체인(arm_joint_1~5). 그리퍼는 실제 구동 조인트
+         gripper_drive_joint 하나만 있고 나머지 8개(크랭크/조 관절)는 URDF <mimic> 태그로 자동
+         종속되는 평행 4절링크 — 예전 gripper_a_joint5/6(두 관절을 동일 값으로 미러링)에서 갈아탐. -->
+    <group name="arm">
+        <chain base_link="base_link" tip_link="single_gripper_grasp_frame"/>
+    </group>
+    <group name="gripper">
+        <joint name="gripper_drive_joint"/>
+    </group>
+    <group_state name="home" group="arm">
+        <joint name="arm_joint_1" value="0"/>
+        <joint name="arm_joint_2" value="0"/>
+        <joint name="arm_joint_3" value="0"/>
+        <joint name="arm_joint_4" value="0"/>
+        <joint name="arm_joint_5" value="0"/>
+    </group_state>
+    <!-- 캘리브레이션 전이라 우선 0/0 placeholder — 실측 후 open/closed 값 재조정 필요. -->
+    <group_state name="gripper_open" group="gripper">
+        <joint name="gripper_drive_joint" value="0"/>
+    </group_state>
+    <group_state name="gripper_closed" group="gripper">
+        <joint name="gripper_drive_joint" value="0"/>
+    </group_state>
+    <end_effector name="gripper_a" parent_link="single_gripper_grasp_frame" group="gripper" parent_group="arm"/>
+    <virtual_joint name="virtual_joint" type="fixed" parent_frame="world" child_link="base_link"/>
+    <!-- 아래 disable_collisions는 새 URDF(58 link)의 모든 joint(fixed 포함)로부터 자동 도출한
+         "Adjacent"(부모-자식) 쌍만 포함 — 프로그램적으로 100% 기계적 도출, 값 조작 없음. -->
+    <disable_collisions link1="link_031" link2="link_028" reason="Adjacent"/>
+    <disable_collisions link1="link_013" link2="link_015" reason="Adjacent"/>
+    <disable_collisions link1="link_017" link2="link_021" reason="Adjacent"/>
+    <disable_collisions link1="link_006" link2="link_038" reason="Adjacent"/>
+    <disable_collisions link1="link_040" link2="link_033" reason="Adjacent"/>
+    <disable_collisions link1="link_051" link2="link_055" reason="Adjacent"/>
+    <disable_collisions link1="link_049" link2="link_056" reason="Adjacent"/>
+    <disable_collisions link1="link_056" link2="link_042" reason="Adjacent"/>
+    <disable_collisions link1="link_056" link2="link_046" reason="Adjacent"/>
+    <disable_collisions link1="link_049" link2="link_057" reason="Adjacent"/>
+    <disable_collisions link1="link_057" link2="link_043" reason="Adjacent"/>
+    <disable_collisions link1="link_057" link2="link_047" reason="Adjacent"/>
+    <disable_collisions link1="link_049" link2="link_044" reason="Adjacent"/>
+    <disable_collisions link1="link_049" link2="link_045" reason="Adjacent"/>
+    <disable_collisions link1="base_link" link2="link_029" reason="Adjacent"/>
+    <disable_collisions link1="base_link" link2="link_031" reason="Adjacent"/>
+    <disable_collisions link1="link_031" link2="link_030" reason="Adjacent"/>
+    <disable_collisions link1="link_028" link2="link_003" reason="Adjacent"/>
+    <disable_collisions link1="link_028" link2="link_001" reason="Adjacent"/>
+    <disable_collisions link1="link_003" link2="link_016" reason="Adjacent"/>
+    <disable_collisions link1="link_016" link2="link_014" reason="Adjacent"/>
+    <disable_collisions link1="link_014" link2="link_013" reason="Adjacent"/>
+    <disable_collisions link1="link_015" link2="link_012" reason="Adjacent"/>
+    <disable_collisions link1="link_012" link2="link_002" reason="Adjacent"/>
+    <disable_collisions link1="link_002" link2="link_022" reason="Adjacent"/>
+    <disable_collisions link1="link_002" link2="link_025" reason="Adjacent"/>
+    <disable_collisions link1="link_012" link2="link_026" reason="Adjacent"/>
+    <disable_collisions link1="link_026" link2="link_010" reason="Adjacent"/>
+    <disable_collisions link1="link_026" link2="link_011" reason="Adjacent"/>
+    <disable_collisions link1="link_011" link2="link_020" reason="Adjacent"/>
+    <disable_collisions link1="link_022" link2="link_019" reason="Adjacent"/>
+    <disable_collisions link1="link_019" link2="link_018" reason="Adjacent"/>
+    <disable_collisions link1="link_018" link2="link_017" reason="Adjacent"/>
+    <disable_collisions link1="link_021" link2="link_004" reason="Adjacent"/>
+    <disable_collisions link1="link_004" link2="link_032" reason="Adjacent"/>
+    <disable_collisions link1="link_004" link2="link_024" reason="Adjacent"/>
+    <disable_collisions link1="link_004" link2="link_008" reason="Adjacent"/>
+    <disable_collisions link1="link_008" link2="link_006" reason="Adjacent"/>
+    <disable_collisions link1="link_038" link2="link_023" reason="Adjacent"/>
+    <disable_collisions link1="link_038" link2="link_036" reason="Adjacent"/>
+    <disable_collisions link1="link_036" link2="link_035" reason="Adjacent"/>
+    <disable_collisions link1="link_036" link2="link_034" reason="Adjacent"/>
+    <disable_collisions link1="link_032" link2="link_005" reason="Adjacent"/>
+    <disable_collisions link1="link_005" link2="link_009" reason="Adjacent"/>
+    <disable_collisions link1="link_009" link2="link_007" reason="Adjacent"/>
+    <disable_collisions link1="link_007" link2="link_027" reason="Adjacent"/>
+    <disable_collisions link1="link_035" link2="link_037" reason="Adjacent"/>
+    <disable_collisions link1="link_036" link2="link_040" reason="Adjacent"/>
+    <disable_collisions link1="link_033" link2="link_039" reason="Adjacent"/>
+    <disable_collisions link1="link_039" link2="link_041" reason="Adjacent"/>
+    <disable_collisions link1="link_041" link2="link_051" reason="Adjacent"/>
+    <disable_collisions link1="link_055" link2="link_052" reason="Adjacent"/>
+    <disable_collisions link1="link_056" link2="link_053" reason="Adjacent"/>
+    <disable_collisions link1="link_057" link2="link_054" reason="Adjacent"/>
+    <disable_collisions link1="link_046" link2="link_048" reason="Adjacent"/>
+    <disable_collisions link1="link_047" link2="link_050" reason="Adjacent"/>
+    <disable_collisions link1="link_051" link2="link_049" reason="Adjacent"/>
+
+    <!-- 2026-07-16: 위 Adjacent만으로는 기어 치합 등 항상-접촉 쌍이 self-collision 오탐으로
+         남아 mock 플래닝이 홈(all-zero) 자세부터 막혔음(RRTConnect: "Motion planning start
+         tree could not be initialized" / "Start state appears to be in collision") — 실측
+         확인 완료. 정식 MoveIt Setup Assistant GUI("Regenerate Default Collision Matrix")
+         대신, `/check_state_validity` 서비스로 arm_joint_1~5 리밋 안쪽 무작위 자세 40개를
+         샘플링해 매 자세 100% 항상 충돌하는 쌍만 아래에 "Default"로 등록(Setup Assistant가
+         내부적으로 하는 것과 동일한 원리, 샘플 수만 적음 — 디스플레이 없는 환경이라 GUI
+         재실행은 불가했음). 아래 쌍들은 관절각과 무관하게 항상 접촉 → 기어 치합/메쉬 중첩
+         등 기하 아티팩트로 판단, 안전하게 disable.
+         2026-08-11 재검증: 아래 8쌍을 활성화한 채 drive 전 범위와 arm 무작위
+         600자세를 /check_state_validity로 검사했으나 유효 상태가 0개였다. CAD chain을
+         다시 따라가면 link_002/026, link_034/037, link_034/040, link_041/049는
+         fixed-link 강체 클러스이고, link_041/052는 드라이브 축 주변, 나머지 3쌍은
+         URDF에서 닫힌 링크를 mimic open-tree로 표현하며 기구적으로 만나는 finger
+         linkage이다. 이를 실제 충돌로 다루면 로봇 상태 전체가 무조건 invalid가
+         되므로 아래에 KinematicClosure로 명시적 disable한다.
+         샘플 수(40)가 Setup Assistant 기본값(수천)보다 훨씬 적어 근거가 약함 — 디스플레이
+         있는 환경에서 기회가 되면 GUI로 "Regenerate Default Collision Matrix" 재실행해서
+         이 블록을 정식 결과로 덮어쓸 것. -->
+    <disable_collisions link1="link_001" link2="link_013" reason="Default"/>
+    <disable_collisions link1="link_001" link2="link_015" reason="Default"/>
+    <disable_collisions link1="link_004" link2="link_017" reason="Default"/>
+    <disable_collisions link1="link_005" link2="link_022" reason="Default"/>
+    <disable_collisions link1="link_005" link2="link_024" reason="Default"/>
+    <disable_collisions link1="link_010" link2="link_011" reason="Default"/>
+    <disable_collisions link1="link_010" link2="link_017" reason="Default"/>
+    <disable_collisions link1="link_010" link2="link_025" reason="Default"/>
+    <disable_collisions link1="link_011" link2="link_016" reason="Default"/>
+    <disable_collisions link1="link_011" link2="link_025" reason="Default"/>
+    <disable_collisions link1="link_016" link2="link_020" reason="Default"/>
+    <disable_collisions link1="link_027" link2="link_037" reason="Default"/>
+    <disable_collisions link1="link_028" link2="link_029" reason="Default"/>
+    <disable_collisions link1="link_028" link2="link_030" reason="Default"/>
+    <disable_collisions link1="link_034" link2="link_035" reason="Default"/>
+    <disable_collisions link1="link_035" link2="link_040" reason="Default"/>
+    <disable_collisions link1="link_052" link2="link_054" reason="Default"/>
+    <disable_collisions link1="link_053" link2="link_054" reason="Default"/>
+    <disable_collisions link1="link_002" link2="link_026" reason="KinematicClosure"/>
+    <disable_collisions link1="link_034" link2="link_037" reason="KinematicClosure"/>
+    <disable_collisions link1="link_034" link2="link_040" reason="KinematicClosure"/>
+    <disable_collisions link1="link_041" link2="link_049" reason="KinematicClosure"/>
+    <disable_collisions link1="link_041" link2="link_052" reason="KinematicClosure"/>
+    <disable_collisions link1="link_043" link2="link_045" reason="KinematicClosure"/>
+    <disable_collisions link1="link_044" link2="link_046" reason="KinematicClosure"/>
+    <disable_collisions link1="link_045" link2="link_047" reason="KinematicClosure"/>
+</robot>

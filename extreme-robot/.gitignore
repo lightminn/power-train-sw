@@ -1,0 +1,55 @@
+# ROS 2 빌드 산출물
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+extrame-robot/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 요구사항/문서 (계속 바뀌고 버전관리 불필요)
+docs/
+
+# FSM 원본 (용량 커서 커밋 제외, 로컬/별도 공유)
+*.drawio
+
+# YOLO 모델 가중치 (용량 커서 커밋 제외, 각자 다운로드/공유 드라이브)
+*.pt
+*.engine
+*.onnx
+
+# 실행 로그/디버그 캡처 (세션 산출물 — 중요한 건 예외적으로 git add로 개별 커밋됨)
+ros2_ws/*.log
+# ⚠️ 워크스페이스 루트에 떨어지는 png 는 전부 실행 산출물이다 — 뷰어/도해 스크립트가
+#    `cv2.imwrite('pca1.png')` 처럼 상대경로로 뱉기 때문이다. 개별 이름을 나열하다
+#    (debug_capture.png 만 있었다) 도해 png 7개(5.1MB)가 실제로 커밋에 섞여 들어갔다.
+#    보관할 자료는 `docs/images/` 로 옮긴다(docs/ 자체가 이 파일 위쪽에서 제외된다).
+ros2_ws/*.png
+
+# 키보드 텔레옵 저장 자세 (teleop_core poses_file 기본 경로 — 벤치마다 다름, 런타임 산출물)
+ros2_ws/dynamixel_arm_poses.json
+# 리미트 측정 모드(calib_*)로 실측한 관절별 상/하한 (teleop_core joint_limits_file
+# 기본 경로 — 벤치/서보마다 다른 실측값, 런타임 산출물)
+ros2_ws/dynamixel_arm_joint_limits.json
+
+# 분석 스크립트가 뱉는 중간 데이터 (stow_eval.py sweep 등 — 스크립트로 재생성 가능)
+ros2_ws/*.npy
+
+# camera_tf_tuner 의 save 서비스 산출물 (벤치/장착마다 다른 실측값 — 확정되면
+# camera_tf.launch.py 기본값에 직접 반영한다)
+ros2_ws/camera_tf_calib.txt
+
+# Powertrain local credentials
+*.token
+config/powertrain/operator.json
+config/powertrain/ops_console.token

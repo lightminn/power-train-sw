@@ -2,14 +2,13 @@
 # 벤더링된 robot_arm_msgs 가 로봇팔 팀 정본(ksp118/extreme-robot)과 일치하는지 확인.
 # 그들이 .msg 를 바꾸면(= 계약 변경) 여기서 드리프트가 잡힌다.
 #
-# 사용 (Jetson, ~/extreme-robot 체크아웃 존재 가정):
-#   bash ros2/scripts/sync_check_msgs.sh                 # 로컬 체크아웃 대비
+# 사용 (Power-train 레포 루트에서):
+#   bash ros2/scripts/sync_check_msgs.sh                 # 내부 extreme-robot/ 대비
 #   bash ros2/scripts/sync_check_msgs.sh ~/extreme-robot
-# ⚠️ 로컬 체크아웃이 origin/main 보다 뒤일 수 있음 — 정확히 하려면 먼저:
-#   git -C ~/extreme-robot fetch origin && git -C ~/extreme-robot checkout origin/main -- ros2_ws/src/robot_arm_msgs/msg
+# 외부 레포를 검사하려면 경로를 명시한다. 이 스크립트는 소스를 수정하지 않는다.
 set -e
-ARM_REPO="${1:-$HOME/extreme-robot}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"                # ros2/
+ARM_REPO="${1:-$HERE/../extreme-robot}"
 UPSTREAM="$ARM_REPO/ros2_ws/src/robot_arm_msgs/msg"
 LOCAL="$HERE/src/robot_arm_msgs/msg"
 
