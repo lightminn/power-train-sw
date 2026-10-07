@@ -1378,6 +1378,55 @@ window.ops-settings-window, .ops-settings-shell {{ background: #07101B; }}
 }}
 .ops-settings-panel button:disabled label {{ color: #71869C; }}
 .ops-settings-panel expander {{ color: #A8B6C4; }}
+
+/* End-effector operation theme: keep content surfaces opaque enough for
+ * legibility while using purple only for the non-semantic chrome.  Safety,
+ * live, warning and fault colours intentionally remain semantic colours. */
+window, .console-shell, .page {{
+  background-color: rgba(18, 12, 34, 0.97);
+  background-image: linear-gradient(160deg, rgba(37, 23, 64, 0.97), rgba(18, 12, 34, 0.97) 58%, rgba(27, 16, 48, 0.97));
+}}
+.side-rail, .topbar, .nav {{ background: rgba(24, 15, 43, 0.96); border-color: rgba(108, 78, 151, 0.88); }}
+.nav stackswitcher {{ background: rgba(42, 28, 70, 0.94); border-color: rgba(118, 87, 161, 0.88); }}
+.nav button:hover {{ background: rgba(72, 48, 112, 0.92); }}
+.nav button:checked {{ background: rgba(96, 64, 150, 0.95); border-color: #B296E8; box-shadow: 0 5px 16px rgba(136, 91, 207, 0.25); }}
+.rail-logo {{ background: #8965CC; box-shadow: 0 6px 18px rgba(137, 101, 204, 0.28); }}
+.rail-icon:hover {{ background: rgba(62, 41, 96, 0.92); }}
+.rail-icon.active {{ background: rgba(79, 53, 123, 0.95); color: #DECFFF; border-color: #AD90E3; }}
+.status-readiness, .status-summary-card, .status-panel, .competition-status-page,
+.mission-rail, .sensor-tile, .event-drawer-panel {{
+  background-color: rgba(35, 24, 58, 0.94);
+  border-color: rgba(111, 80, 153, 0.88);
+}}
+.status-readiness, .mission-rail {{ background: rgba(30, 20, 51, 0.95); }}
+.status-summary-card.category-drive:not(.selected),
+.status-summary-card.category-ai:not(.selected),
+.status-summary-card.category-power:not(.selected),
+.status-summary-card.category-network:not(.selected),
+.status-summary-card.category-environment:not(.selected),
+.status-summary-card.category-arm:not(.selected),
+.status-summary-card.category-safety:not(.selected) {{ background: rgba(45, 31, 73, 0.93); border-color: rgba(111, 80, 153, 0.88); }}
+.status-summary-card.selected,
+.status-summary-card.category-drive.selected,
+.status-summary-card.category-ai.selected,
+.status-summary-card.category-power.selected,
+.status-summary-card.category-network.selected,
+.status-summary-card.category-environment.selected,
+.status-summary-card.category-arm.selected,
+.status-summary-card.category-safety.selected {{ background-color: rgba(80, 54, 123, 0.95); border-color: #B296E8; border-left-color: #C8B0FF; }}
+.mission-rail .rail-section, .mission-rail .rail-preparation,
+.mission-rail .rail-technology, .mission-rail .rail-data-row,
+.mission-rail .display-options {{ background: rgba(48, 33, 78, 0.93); border-color: rgba(111, 80, 153, 0.88); }}
+.mission-rail .display-options {{ background-image: linear-gradient(135deg, rgba(156, 112, 226, 0.15), rgba(95, 61, 142, 0.10)); }}
+.end-effector-summary, .end-effector-popup-card, .environment-summary,
+.sensor-group {{ background-color: rgba(45, 31, 73, 0.94); border-color: rgba(119, 87, 162, 0.90); }}
+.end-effector-summary {{ background-image: linear-gradient(135deg, rgba(166, 121, 226, 0.18), rgba(57, 39, 91, 0.94)); border-left-color: #B896F0; }}
+.end-effector-detail-button, .ops-settings-panel button {{ background: rgba(77, 52, 122, 0.94); border-color: #9D7DD3; color: #F5F1FF; }}
+.end-effector-detail-button label, .ops-settings-panel button label {{ color: #F5F1FF; }}
+.end-effector-detail-button:hover, .ops-settings-panel button:hover {{ background: rgba(105, 73, 161, 0.96); }}
+.ops-settings-panel button:disabled {{ background: rgba(43, 34, 58, 0.92); color: #A99FBA; border-color: rgba(100, 84, 123, 0.88); opacity: 1; }}
+.ops-settings-panel button:disabled label {{ color: #A99FBA; }}
+window.end-effector-popup, .end-effector-popup-shell, .system-status-dashboard {{ background: rgba(18, 12, 34, 0.97); }}
 """.format(**token)
     return css.encode("utf-8")
 

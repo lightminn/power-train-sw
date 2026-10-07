@@ -35,6 +35,7 @@ from dynamixel_control.dual_manual_recovery import (
     DualManualRecovery, DualManualRecoveryError)
 from dynamixel_control.dual_calibration_session import (
     DualCalibrationSession, DualCalibrationError)
+from dynamixel_control.dual_gripper_targets import dual_relative_targets
 from dynamixel_control.tool_fsm.base import ToolState
 
 ADDR_TORQUE_ENABLE = 64
@@ -1488,11 +1489,16 @@ class MoveItDynamixelBridge(Node):
         if delta_tick == 0:
             raise RuntimeError('dual calibration pair jog produced zero ticks')
         state = self.read_dual_calibration_state()
-        targets = {
-            dxl_id: int(state[dxl_id]['position']) + delta_tick
-            for dxl_id in (3, 4)}
+        direction = 'OPEN' if delta_tick > 0 else 'CLOSE'
+        positions = {dxl_id: int(state[dxl_id]['position']) for dxl_id in (3, 4)}
+        try:
+            targets = dual_relative_targets(
+                self.tool_profile, (3, 4), positions, direction,
+                step_ticks=abs(delta_tick))
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
         self.get_logger().info(
-            f'dual calibration pair jog: delta_deg={delta_deg:+.1f}, '
+            f'dual calibration pair jog: delta_deg={delta_deg:+.1f}, direction={direction}, '
             f'present={{3: {state[3]["position"]}, 4: {state[4]["position"]}}}, '
             f'targets={targets}')
         with self._bus_lock:

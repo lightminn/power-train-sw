@@ -6,10 +6,11 @@ class.  That is the whole containment strategy: the shared theme in
 ``app.py`` is not edited, not re-declared, and not overridden -- these rules
 only ever match inside a widget this package built.
 
-The colours are lifted from the console's competition-dark surface so the arm
+The colours are lifted from the console's dark purple surface so the arm
 tabs sit beside 실시간 화면 / 시스템 상태 without looking bolted on:
-page ``#07101B``, card ``#0C1928`` on ``#263B52``, label ``#71879C``,
-value ``#E8F0F8``, action button ``#173353`` on ``#315F91``.  The
+page ``#110C20``, card ``rgba(31, 22, 52, .94)`` on
+``rgba(111, 79, 154, .90)``, label ``#B9A9D1``, value ``#F4F0FF``, action
+button ``rgba(77, 52, 122, .94)`` on ``#9D7DD3``.  The
 ``status-live`` / ``status-warn`` / ``status-bad`` / ``status-muted`` tone
 classes are the console's existing vocabulary and are reused verbatim.
 """
@@ -27,8 +28,8 @@ PREVIEW_STYLE_CLASS = "arm-ui-preview"
 
 
 ARM_UI_CSS = b"""
-.arm-ui { background: #07101B; }
-.arm-ui label { color: #D7E2EC; }
+.arm-ui { background: rgba(17, 12, 32, 0.96); }
+.arm-ui label { color: #EEE8FA; }
 
 .arm-ui .arm-page-title { color: #F2F7FC; font-size: 22px; font-weight: 900; }
 .arm-ui .arm-page-subtitle { color: #94A9BC; font-size: 11px; }
@@ -47,33 +48,33 @@ ARM_UI_CSS = b"""
 
 /* Card: same geometry and accent rule as .system-section. */
 .arm-ui .arm-card {
-  background: #0C1928;
-  border: 1px solid #263B52;
-  border-top: 3px solid #4B8BEA;
+  background: rgba(31, 22, 52, 0.94);
+  border: 1px solid rgba(111, 79, 154, 0.90);
+  border-top: 3px solid #A884E8;
   border-radius: 11px;
   padding: 13px;
 }
-.arm-ui .arm-card-tool { border-top-color: #D8799B; }
-.arm-ui .arm-card-authority { border-top-color: #8C7BEA; }
-.arm-ui .arm-card-fsm { border-top-color: #55B9DE; }
-.arm-ui .arm-card-teleop { border-top-color: #D9A64B; }
-.arm-ui .arm-card-gripper { border-top-color: #55C995; }
-.arm-ui .arm-card-diagnostics { border-top-color: #4B8BEA; }
-.arm-ui .arm-card-arm-calibration { border-top-color: #4B8BEA; }
-.arm-ui .arm-card-tool-calibration { border-top-color: #55C995; }
+.arm-ui .arm-card-tool { border-top-color: #E48DCA; }
+.arm-ui .arm-card-authority { border-top-color: #B99AFF; }
+.arm-ui .arm-card-fsm { border-top-color: #9EBAFF; }
+.arm-ui .arm-card-teleop { border-top-color: #E8BD6C; }
+.arm-ui .arm-card-gripper { border-top-color: #77D5AF; }
+.arm-ui .arm-card-diagnostics { border-top-color: #A884E8; }
+.arm-ui .arm-card-arm-calibration { border-top-color: #A884E8; }
+.arm-ui .arm-card-tool-calibration { border-top-color: #77D5AF; }
 
-.arm-ui .arm-card-title { color: #F0F5FA; font-size: 15px; font-weight: 900; }
-.arm-ui .arm-card-description { color: #859BAF; font-size: 10px; }
+.arm-ui .arm-card-title { color: #FAF7FF; font-size: 15px; font-weight: 900; }
+.arm-ui .arm-card-description { color: #C0B1D8; font-size: 10px; }
 
 /* Metric tile: mirrors .system-metric. */
 .arm-ui .arm-metric {
-  background: #111F31;
-  border: 1px solid #263A52;
+  background: rgba(45, 32, 73, 0.92);
+  border: 1px solid rgba(104, 75, 143, 0.88);
   border-radius: 7px;
   padding: 8px 10px;
 }
-.arm-ui .arm-metric-label { color: #71879C; font-size: 9px; font-weight: 800; }
-.arm-ui .arm-metric-value { color: #E8F0F8; font-size: 13px; font-weight: 900; }
+.arm-ui .arm-metric-label { color: #B9A9D1; font-size: 9px; font-weight: 800; }
+.arm-ui .arm-metric-value { color: #F4F0FF; font-size: 13px; font-weight: 900; }
 .arm-ui .arm-metric-value.status-live { color: #8BE3B6; }
 .arm-ui .arm-metric-value.status-warn { color: #FFD77A; }
 .arm-ui .arm-metric-value.status-bad { color: #FF9BA8; }
@@ -89,17 +90,17 @@ ARM_UI_CSS = b"""
 .arm-ui .arm-badge.status-live { color: #8BE3B6; background: #123D2D; }
 .arm-ui .arm-badge.status-warn { color: #FFD77A; background: #493514; }
 .arm-ui .arm-badge.status-bad { color: #FF9BA8; background: #4A1823; }
-.arm-ui .arm-badge.status-muted { color: #A8B6C4; background: #263442; }
+.arm-ui .arm-badge.status-muted { color: #D1C6E3; background: rgba(69, 52, 96, 0.92); }
 
-.arm-ui .arm-note { color: #9EB1C2; font-size: 10px; }
+.arm-ui .arm-note { color: #C9BEDA; font-size: 10px; }
 .arm-ui .arm-note.status-warn { color: #D8B668; }
 .arm-ui .arm-note.status-bad { color: #FF9BA8; }
-.arm-ui .arm-divider { background: #263B52; min-height: 1px; margin: 2px 0; }
+.arm-ui .arm-divider { background: rgba(111, 79, 154, 0.88); min-height: 1px; margin: 2px 0; }
 
 /* Blocking reasons read as a list of facts, not a single vague banner. */
 .arm-ui .arm-reason {
-  background: #18283B;
-  border: 1px solid #344A61;
+  background: rgba(62, 45, 81, 0.93);
+  border: 1px solid rgba(132, 95, 156, 0.90);
   border-left: 3px solid #D9A64B;
   border-radius: 6px;
   padding: 5px 9px;
@@ -112,26 +113,26 @@ ARM_UI_CSS = b"""
 /* Buttons: the console's .integrated-operation / .ops-settings-panel style,
    including its explicit non-faded disabled state. */
 .arm-ui button {
-  background: #173353;
-  color: #DDE8F3;
-  border: 1px solid #315F91;
+  background: rgba(77, 52, 122, 0.94);
+  color: #F5F1FF;
+  border: 1px solid rgba(157, 125, 211, 0.92);
   border-radius: 7px;
   padding: 5px 10px;
   font-size: 11px;
   font-weight: 800;
 }
-.arm-ui button label { color: #DDE8F3; }
-.arm-ui button:hover { background: #214A75; }
+.arm-ui button label { color: #F5F1FF; }
+.arm-ui button:hover { background: rgba(105, 73, 161, 0.96); }
 .arm-ui button:disabled {
-  background: #111A28;
-  color: #71869C;
-  border-color: #26384E;
+  background: rgba(43, 34, 58, 0.92);
+  color: #A99FBA;
+  border-color: rgba(100, 84, 123, 0.88);
   opacity: 1;
 }
-.arm-ui button:disabled label { color: #71869C; }
+.arm-ui button:disabled label { color: #A99FBA; }
 
-.arm-ui button.arm-primary { background: #23538A; border-color: #4C86C6; }
-.arm-ui button.arm-primary:hover { background: #2C6AAF; }
+.arm-ui button.arm-primary { background: rgba(102, 67, 163, 0.96); border-color: #B496F0; }
+.arm-ui button.arm-primary:hover { background: rgba(126, 82, 198, 0.98); }
 .arm-ui button.arm-danger { background: #4A1823; border-color: #8A3542; color: #FF9BA8; }
 .arm-ui button.arm-danger label { color: #FF9BA8; }
 .arm-ui button.arm-danger:hover { background: #61202E; }
@@ -139,31 +140,31 @@ ARM_UI_CSS = b"""
    otherwise win and leave a disabled control looking actionable. */
 .arm-ui button.arm-primary:disabled,
 .arm-ui button.arm-danger:disabled {
-  background: #111A28;
-  color: #71869C;
-  border-color: #26384E;
+  background: rgba(43, 34, 58, 0.92);
+  color: #A99FBA;
+  border-color: rgba(100, 84, 123, 0.88);
   opacity: 1;
 }
 .arm-ui button.arm-primary:disabled label,
-.arm-ui button.arm-danger:disabled label { color: #71869C; }
+.arm-ui button.arm-danger:disabled label { color: #A99FBA; }
 .arm-ui button.arm-axis { min-width: 34px; padding: 4px 6px; }
 .arm-ui button.arm-axis:checked { background: #26316C; border-color: #4C5BE5; color: #FFFFFF; }
 .arm-ui button.arm-axis:checked label { color: #FFFFFF; }
 
 .arm-ui combobox button { font-size: 11px; font-weight: 800; }
 .arm-ui entry {
-  background: #111F31;
-  color: #E8F0F8;
-  border: 1px solid #315F91;
+  background: rgba(45, 32, 73, 0.92);
+  color: #F4F0FF;
+  border: 1px solid rgba(157, 125, 211, 0.92);
   border-radius: 6px;
   padding: 3px 7px;
   font-size: 11px;
 }
 .arm-ui treeview, .arm-ui list, .arm-ui list row {
-  background: #111F31;
-  color: #D7E2EC;
+  background: rgba(45, 32, 73, 0.92);
+  color: #EEE8FA;
 }
-.arm-ui list row:selected { background: #26316C; color: #FFFFFF; }
+.arm-ui list row:selected { background: rgba(98, 66, 155, 0.96); color: #FFFFFF; }
 
 .arm-ui expander { color: #A8B6C4; font-size: 11px; }
 .arm-ui expander > title { color: #A8B6C4; }
@@ -190,7 +191,7 @@ ARM_UI_CSS = b"""
 .arm-ui flowboxchild:selected { background: transparent; }
 
 .arm-ui scrollbar slider { background: #344A61; border-radius: 10px; min-width: 6px; min-height: 6px; }
-.arm-ui scrolledwindow { background: #07101B; }
+.arm-ui scrolledwindow { background: rgba(17, 12, 32, 0.96); }
 
 /* Standalone preview only -- the hosting app supplies these otherwise. */
 window.arm-ui-preview { background: #07101B; }
