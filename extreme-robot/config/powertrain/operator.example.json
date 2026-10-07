@@ -1,0 +1,10 @@
+{
+  "robot_id": "zetin-rover",
+  "hosts": [
+    "jetson-orin.local"
+  ],
+  "session_port": 9002,
+  "token_file": "~/.config/powertrain/ops_console.token",
+  "controller_python": "/usr/bin/python3",
+  "profile": "can-4ws"
+}

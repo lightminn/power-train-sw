@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="robot_arm" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:arg name="end_effector_preset" default="dual_motor_gripper"/>
+  <xacro:if value="${'$(arg end_effector_preset)' == 'dual_motor_gripper'}">
+    <xacro:include filename="$(find robot_arm_moveit_config)/config/robot_arm.srdf"/>
+  </xacro:if>
+  <xacro:if value="${'$(arg end_effector_preset)' == 'single_motor_gripper'}">
+    <xacro:include filename="$(find robot_arm_moveit_config)/config/robot_arm.single_motor_gripper.srdf"/>
+  </xacro:if>
+</robot>

@@ -1,0 +1,20 @@
+<mxfile host="app.diagrams.net" modified="2026-09-10T00:00:00.000Z" agent="Codex" version="24.7.17">
+  <diagram id="operation-modes-safety" name="운영 모드와 안전 체계">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+        <mxCell id="title" value="같은 하드웨어, 다른 목적의 두 운영 경로" style="text;html=1;align=center;verticalAlign=middle;fontSize=27;fontStyle=1;fontColor=#1F2937;" vertex="1" parent="1"><mxGeometry x="320" y="35" width="960" height="45" as="geometry"/></mxCell>
+        <mxCell id="hardware" value="교체 가능한 엔드이펙터" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEDD5;strokeColor=#EA580C;strokeWidth=3;fontSize=20;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="625" y="140" width="350" height="90" as="geometry"/></mxCell>
+        <mxCell id="normal" value="정상 운영 경로&lt;br&gt;&lt;font style=&quot;font-size:14px&quot;&gt;보정된 끝점 · 도구 FSM · 작업 동작&lt;br&gt;반복 작업의 일관성과 안전성에 집중&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#059669;strokeWidth=3;fontSize=20;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="220" y="355" width="390" height="180" as="geometry"/></mxCell>
+        <mxCell id="developer" value="개발자 검증 경로&lt;br&gt;&lt;font style=&quot;font-size:14px&quot;&gt;연결 확인 · 토크 · 작은/큰 이동&lt;br&gt;장치 교체 직후 빠른 동작 검증에 집중&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=3;fontSize=20;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="990" y="355" width="390" height="180" as="geometry"/></mxCell>
+        <mxCell id="safety" value="공통 최소 안전 체계&lt;br&gt;&lt;font style=&quot;font-size:15px&quot;&gt;비상정지 · 통신 단절 · 하드웨어 오류 · 분리 상태 · 안전 범위&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;strokeWidth=3;fontSize=21;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="375" y="650" width="850" height="105" as="geometry"/></mxCell>
+        <mxCell id="normalCaption" value="“정확하게 반복한다”" style="text;html=1;align=center;verticalAlign=middle;fontSize=18;fontStyle=2;fontColor=#047857;" vertex="1" parent="1"><mxGeometry x="245" y="560" width="340" height="35" as="geometry"/></mxCell>
+        <mxCell id="developerCaption" value="“빠르게 확인한다”" style="text;html=1;align=center;verticalAlign=middle;fontSize=18;fontStyle=2;fontColor=#1D4ED8;" vertex="1" parent="1"><mxGeometry x="1015" y="560" width="340" height="35" as="geometry"/></mxCell>
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#059669;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="hardware" target="normal"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="hardware" target="developer"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#DC2626;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="normal" target="safety"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#DC2626;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="developer" target="safety"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

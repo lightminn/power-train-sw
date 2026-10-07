@@ -32,6 +32,10 @@ feedback 적용은 미연결이다. 환경 센싱 콘솔 탭은 팀원 Draft PR 
 
 ## 저장소 구조
 
+로봇팔·인식 소스는 [`extreme-robot/`](extreme-robot/)에 함께 포함된다.
+원본 레포의 Docker 설정과 ROS 워크스페이스를 유지하며, 시작 방법과 가져온 커밋은
+[폴더 통합 안내](docs/extreme-robot-integration.md)를 참고한다.
+
 ```
 .
 ├── motor_control/       ★ 하드웨어 소유권 + 순수 Python 제어·안전 정책
@@ -46,6 +50,7 @@ feedback 적용은 미연결이다. 환경 센싱 콘솔 탭은 팀원 Draft PR 
 │   └── pi/              라즈베리파이 측 서버 (laptop/ 과 1:1 짝)
 ├── ros2/                ★ 얇은 ROS2 어댑터 층 — src/powertrain_ros 노드 22종,
 │                          powertrain_msgs, robot_arm_msgs(벤더링 사본)
+├── extreme-robot/       로봇팔·인식 레포 전체 소스 — 자체 Docker·ros2_ws 유지
 ├── powertrain_autonomy/ WP6 자율주행 순수 코어 (지형 추정·컨트롤러). ROS·하드웨어·시뮬 분기 없음
 ├── powertrain_observability/  진단 이벤트·헬스 순수 코어
 ├── powertrain_runtime/  통합 연결 세션·인증 프록시·운전 시작 절차 (하드웨어 직접 소유 없음)

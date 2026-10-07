@@ -349,8 +349,10 @@ python -m pytest motor_control -q
 
 ### `ros2/`
 
-로봇팔 팀(`ksp118/extreme-robot`)과 **분리 개발**한다. 각 팀이 자기 노드·컨테이너를
-소유하고 `robot_arm_msgs` 계약만 공유하며 DDS(host network)로 통신한다.
+로봇팔·인식 소스는 `extreme-robot/`에 포함한다. 원본 출처는 `ksp118/extreme-robot`이며
+가져온 커밋과 사용법은 `docs/extreme-robot-integration.md`를 따른다.
+각 팀의 ROS 워크스페이스와 컨테이너는 분리하고 `robot_arm_msgs` 계약을 공유하며
+DDS(host network)로 통신한다. 같은 colcon 빌드에 두 워크스페이스를 섞지 않는다.
 `ros2/scripts/sync_check_msgs.sh`로 벤더 msg 드리프트를 검사한다.
 결합 기동 런치는 항상 **명시적 `stop_mm`을 요구**한다(생산 기본값 없음).
 

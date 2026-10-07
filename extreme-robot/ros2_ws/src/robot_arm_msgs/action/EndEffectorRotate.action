@@ -1,0 +1,18 @@
+# Goal: relative=true interprets ticks as a signed delta; otherwise absolute.
+bool relative
+int32 ticks
+int32 max_abs_current
+float32 timeout
+---
+bool success
+int32 final_position
+int32 actual_delta
+int32 max_abs_current
+string reason
+---
+int32 goal_position
+int32 present_position
+int32 present_velocity
+int32 present_current
+uint8 moving_status
+uint8 hardware_error

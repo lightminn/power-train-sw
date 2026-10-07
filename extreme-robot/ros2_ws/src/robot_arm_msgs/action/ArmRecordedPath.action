@@ -1,0 +1,20 @@
+int32[] motor_ids
+int32[] waypoint_counts
+int32[] signed_waypoints
+int32 max_abs_current
+float32 stall_timeout
+float32 step_timeout
+int32 goal_tolerance
+---
+bool success
+int32 completed_waypoints
+string reason
+---
+int32 motor_id
+int32 waypoint_index
+int32 goal_position
+int32 present_position
+int32 present_velocity
+int32 present_current
+uint8 moving_status
+uint8 hardware_error

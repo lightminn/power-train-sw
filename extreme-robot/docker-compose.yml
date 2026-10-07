@@ -1,0 +1,43 @@
+services:
+  ros2:
+    build:
+      context: .
+      platforms:
+        - linux/arm64
+    container_name: ros2_humble
+    stdin_open: true
+    tty: true
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - XAUTHORITY=/root/.Xauthority
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # 호스트 ~/.Xauthority 라이브 마운트. 로컬 데스크톱 xhost 방식과 달리 SSH -X(untrusted
+      # forwarding)는 재접속마다 새 MIT-MAGIC-COOKIE를 요구하는데, xhost +local:docker는 이
+      # 쿠키 인증까지는 못 뚫는다 — 컨테이너가 호스트의 실제 Xauthority를 그대로 봐야 매번 갱신된
+      # 쿠키를 읽는다(스냅샷 복사가 아니라 마운트라 세션이 바뀌어도 계속 맞음).
+      # ⚠️ 호스트에 ~/.Xauthority 파일이 아예 없으면(X를 한 번도 안 띄운 계정) Docker가 마운트
+      # 시점에 빈 디렉터리로 만들어버려 깨진다 — 처음 쓰는 팀원은 `touch ~/.Xauthority` 먼저.
+      - ${HOME}/.Xauthority:/root/.Xauthority:ro
+      # 호스트 폰트를 그대로 빌려온다. 컨테이너 이미지엔 한글 글리프가 **하나도** 없어서
+      # (`fc-list :lang=ko` 가 0건) Tk 창(calib_status_view 등)이 한글을 전부 두부(□)로
+      # 그린다. 이미지에 폰트를 설치하면 팀 전원이 arm64 재빌드라, CUDA/cuDNN 을 마운트로
+      # 해결한 것과 같은 방식을 쓴다. 기존 폰트를 덮지 않게 하위 경로에 얹는다.
+      # (RViz/Ogre 는 자기 번들 폰트를 쓰므로 여기 영향을 받지 않는다 — 그래서 3D 뷰에
+      #  뜨는 문자열은 여전히 영어여야 한다.)
+      - /usr/share/fonts:/usr/share/fonts/host:ro
+      - ./ros2_ws:/root/ros2_ws
+      - /dev:/dev
+    network_mode: host
+    # 파워트레인 컨테이너와 같은 DDS 그래프에서 통신하려면 필수.
+    # Fast-DDS 는 같은 호스트면 공유메모리(/dev/shm)로 데이터를 보내는데, Docker 는
+    # 컨테이너마다 별도 /dev/shm 을 준다. 이게 없으면 discovery 는 성공해 토픽 목록에
+    # 보이지만 데이터는 한 건도 안 온다(조용한 실패). 파워트레인 powertrain_ros 도 동일.
+    ipc: host
+    privileged: true
+
+# Jetson에서 GPU 가속(nvidia runtime + CUDA/cuDNN)을 쓰려면 override를 얹는다:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+# GPU 설정을 이 파일에 직접 넣으면 nvidia 런타임이 없는 팀원 환경에서
+# `unknown or invalid runtime name: nvidia` 로 컨테이너 생성 자체가 실패한다.

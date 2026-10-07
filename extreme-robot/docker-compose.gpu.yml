@@ -1,0 +1,35 @@
+# Jetson GPU 가속 override (base compose 위에 얹어서 사용)
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+#
+# 이 설정은 nvidia-container-runtime이 등록된 호스트에서만 동작한다. base
+# compose에 직접 넣으면 GPU 없는 팀원 환경에서 컨테이너 생성이 실패하므로 분리했다.
+#
+# 경로 기본값은 Jetson(JetPack) 기준. 다르면 .env 나 셸 환경변수로 덮어쓴다:
+#   CUDA_HOME=/usr/local/cuda-12.4 CUDNN_LIBS=$HOME/mylibs docker compose -f ... up -d
+#
+# TensorRT(TENSORRT_LIBS/TENSORRT_PYTHON)도 같은 방식 — 호스트 JetPack에 이미 설치된
+# TensorRT를 컨테이너 이미지에 다시 apt-get(TensorRT 저장소 설정 필요, 용량 큼)하는 대신
+# curated 디렉터리만 만들어 마운트한다(cudnn-libs와 동일 패턴). 준비 방법(최초 1회):
+#   mkdir -p ~/.tensorrt-libs && cd ~/.tensorrt-libs && \
+#     for l in libnvinfer libnvinfer_plugin libnvinfer_lean libnvinfer_dispatch libnvonnxparser; do \
+#       cp -L /usr/lib/aarch64-linux-gnu/$l.so.10 . && ln -sf $l.so.10 $l.so; done
+#   mkdir -p ~/.tensorrt-python && \
+#     cp -r /usr/lib/python3.10/dist-packages/tensorrt ~/.tensorrt-python/
+# (Tegra 드라이버 레벨 의존 라이브러리 — libcuda/libnvrm_*/libnvdla_*/libcudla —는
+# nvidia-container-runtime이 이미 자동으로 컨테이너에 넣어주므로 별도 마운트 불필요.)
+services:
+  ros2:
+    environment:
+      - XAUTHORITY=/root/.Xauthority
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - LD_LIBRARY_PATH=${CUDA_HOME:-/usr/local/cuda-12.6}/targets/aarch64-linux/lib:/opt/cudnn-libs:/opt/tensorrt-libs
+      - PYTHONPATH=/opt/tensorrt-python
+    volumes:
+      - ${CUDA_HOME:-/usr/local/cuda-12.6}:${CUDA_HOME:-/usr/local/cuda-12.6}:ro
+      - ${CUDNN_LIBS:-${HOME}/.cudnn-libs}:/opt/cudnn-libs:ro
+      - ${TENSORRT_LIBS:-${HOME}/.tensorrt-libs}:/opt/tensorrt-libs:ro
+      - ${TENSORRT_PYTHON:-${HOME}/.tensorrt-python}:/opt/tensorrt-python:ro
+      - ${HOME}/.Xauthority:/root/.Xauthority:ro
+    runtime: nvidia

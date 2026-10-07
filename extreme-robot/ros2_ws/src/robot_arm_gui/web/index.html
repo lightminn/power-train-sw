@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>로봇팔 관제 — 읽기 전용</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <strong>로봇팔 관제</strong>
+    <span class="badge badge-ro" title="이 모니터는 어떤 토픽도 발행하지 않습니다">읽기 전용</span>
+  </div>
+  <div class="topbar-right">
+    <span id="control-chip" class="chip chip-muted">읽기 전용</span>
+    <span id="conn" class="chip chip-muted">연결 중…</span>
+    <span id="clients" class="chip chip-muted">접속 —</span>
+    <button id="theme-toggle" class="btn" type="button" title="라이트/다크 전환">◑</button>
+  </div>
+</header>
+
+<!-- HW 에러가 있을 때만 나타나는 전폭 배너. 색만으로 알리지 않는다(아이콘+라벨 동반). -->
+<div id="hw-banner" class="banner banner-critical" hidden></div>
+<div id="js-banner" class="banner banner-serious" hidden></div>
+<!-- 제어 계층 초기화 실패. 이게 없으면 서버가 죽어 있어도 화면은 그냥
+     '읽기 전용'으로 보여서, 모드 설정을 의심하며 시간을 버리게 된다. -->
+<div id="control-banner" class="banner banner-serious" hidden></div>
+
+<section class="strip" aria-label="상태 스트립">
+  <div class="strip-card">
+    <div class="strip-label">팔 상태 <span class="muted">/arm_status</span></div>
+    <div class="strip-value"><span id="arm-status">—</span>
+      <span id="arm-mission" class="muted"></span></div>
+    <div id="arm-age" class="strip-sub">—</div>
+    <div class="strip-note">
+      State 17종은 어떤 토픽으로도 나오지 않습니다.
+      <code>EXECUTING</code> 하나에 APPROACH·DESCEND·GRASP·LIFT 가 뭉쳐 있습니다.
+    </div>
+  </div>
+
+  <div class="strip-card">
+    <div class="strip-label">섀시 <span class="muted">/chassis_mode</span></div>
+    <div class="strip-value"><span id="chassis-mode">—</span></div>
+    <div id="chassis-gate" class="strip-sub">—</div>
+    <div id="drive-ready" class="strip-sub">—</div>
+  </div>
+
+  <div class="strip-card">
+    <div class="strip-label">드라이버</div>
+    <div class="strip-value"><span id="js-domain">—</span></div>
+    <div id="js-domain-note" class="strip-sub">—</div>
+    <div id="ctrl-fault" class="strip-sub">—</div>
+  </div>
+
+  <div class="strip-card strip-card-wide">
+    <div class="strip-label">토픽 신선도</div>
+    <div id="topic-dots" class="dots"></div>
+  </div>
+</section>
+
+<main class="grid">
+
+  <!-- A. 모터 ------------------------------------------------------------ -->
+  <section class="panel panel-wide" aria-labelledby="h-motors">
+    <div class="panel-head">
+      <h2 id="h-motors">서보</h2>
+      <span id="motor-thresholds" class="muted small"></span>
+    </div>
+    <div class="table-wrap">
+      <table class="tbl" id="motor-table">
+        <caption class="sr-only">모터별 위치·속도·전류·급변 여유·온도</caption>
+        <thead>
+          <tr>
+            <th scope="col">ID</th><th scope="col">관절</th>
+            <th scope="col" class="num">위치</th>
+            <th scope="col" class="num">목표오차</th>
+            <th scope="col" class="num">속도</th>
+            <th scope="col">전류 / 트립</th>
+            <th scope="col">급변 여유</th>
+            <th scope="col">온도</th>
+            <th scope="col">전류 60초</th>
+          </tr>
+        </thead>
+        <tbody id="motor-rows"><tr><td colspan="9" class="muted">수신 대기…</td></tr></tbody>
+      </table>
+    </div>
+    <p class="footnote">
+      전류 raw 1 LSB ≈ 2.69 mA. 온도는 라운드로빈 2 Hz 라 모터별 갱신이 느리고,
+      <strong>0 은 “0 °C”가 아니라 아직 폴링이 안 닿았다는 뜻</strong>이라 <code>—</code> 로 표시합니다.
+    </p>
+  </section>
+
+  <!-- C. 비전 ------------------------------------------------------------ -->
+  <section class="panel" aria-labelledby="h-vision">
+    <div class="panel-head">
+      <h2 id="h-vision">비전</h2>
+      <label class="inline">
+        <span class="muted small">소스</span>
+        <select id="video-source" class="btn">
+          <option value="off">끔</option>
+          <option value="raw">raw — 전방 캠 원본 (인식 노드 부하 없음)</option>
+          <option value="debug">debug — 전방 캠 오버레이 (부하 있음)</option>
+          <option value="wrist">wrist — 손목 캠 원본</option>
+          <option value="wrist_debug">wrist_debug — 손목 캠 마스크·ROI 오버레이</option>
+        </select>
+      </label>
+    </div>
+    <div class="video-wrap">
+      <img id="video" alt="영상 스트림" hidden>
+      <canvas id="video-overlay" hidden></canvas>
+      <div id="video-off" class="video-off">
+        영상 꺼짐.
+        <strong>raw</strong> 는 인식 노드가 어차피 항상 발행하는 원본이라 켜도 그쪽 부하가 늘지 않습니다
+        (검출 박스는 이 화면이 대신 그립니다).
+        <strong>debug</strong> 는 켜는 동안에만 인식 노드가 마스크·거리 오버레이를 그립니다.
+        <strong>wrist</strong>·<strong>wrist_debug</strong> 는 손목 캠(`wrist_camera` 노드)입니다 —
+        노드가 안 떠 있으면 프레임이 안 올 뿐, 다른 소스에는 영향이 없습니다.
+      </div>
+    </div>
+    <div id="detect-meta" class="muted small">—</div>
+    <ul id="detections" class="detlist"></ul>
+  </section>
+
+  <!-- F. 인식 모델 (제어 모드 전용) --------------------------------------- -->
+  <section class="panel" aria-labelledby="h-model" data-control-only hidden>
+    <div class="panel-head">
+      <h2 id="h-model">인식 모델</h2>
+      <button id="model-refresh" class="btn" type="button" title="목록 다시 스캔">↻</button>
+    </div>
+
+    <label class="field">
+      <span class="field-label">가중치</span>
+      <select id="model-select" class="btn"></select>
+    </label>
+    <div id="model-source-hint" class="muted small"></div>
+
+    <div class="field-row">
+      <label class="field">
+        <span class="field-label">task</span>
+        <select id="model-task" class="btn">
+          <option value="segment">segment (마스크 → markerless pose 전체)</option>
+          <option value="detect">detect (bbox 중심 depth 만)</option>
+        </select>
+      </label>
+    </div>
+    <label class="field">
+      <span class="field-label">classes <span class="muted">쉼표 구분, 비우면 전체</span></span>
+      <input id="model-classes" class="btn" type="text" autocomplete="off">
+    </label>
+    <label class="field">
+      <span class="field-label">pick_classes <span class="muted">비우면 픽 후보 없음</span></span>
+      <input id="model-pick" class="btn" type="text" autocomplete="off">
+    </label>
+
+    <div class="btn-row">
+      <button id="model-swap" class="btn btn-primary" type="button">핫스왑</button>
+      <button id="model-restart" class="btn" type="button">노드 재시작</button>
+    </div>
+    <div id="model-result" class="muted small">—</div>
+    <div id="model-dir-note" class="footnote"></div>
+
+    <dl class="kv" id="model-status"></dl>
+    <div id="model-stale-warn" class="unobservable" hidden>
+      ⚠ <code>/pick_target</code> 은 transient_local(latched) 이라 <strong>이전 모델의
+      마지막 타깃이 그대로 남아 있습니다.</strong> 새 모델이 아직 아무것도 못 찾았어도
+      <code>arm_fsm</code> 은 그 값을 봅니다 — 픽을 시키기 전에 새 검출을 확인하세요.
+    </div>
+  </section>
+
+  <!-- B. 관절 ------------------------------------------------------------ -->
+  <section class="panel" aria-labelledby="h-joints">
+    <div class="panel-head"><h2 id="h-joints">관절</h2>
+      <span id="joint-domain" class="muted small"></span></div>
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead><tr>
+          <th scope="col">이름</th><th scope="col" class="num">위치</th>
+          <th scope="col" class="num">속도</th><th scope="col" class="num">effort</th>
+        </tr></thead>
+        <tbody id="joint-rows"><tr><td colspan="4" class="muted">수신 대기…</td></tr></tbody>
+      </table>
+    </div>
+    <div id="limit-note" class="footnote"></div>
+  </section>
+
+  <!-- G. 조종 (제어 모드 전용) -------------------------------------------- -->
+  <section class="panel panel-wide" aria-labelledby="h-drive" data-control-only hidden>
+    <div class="panel-head">
+      <h2 id="h-drive">조종 — 키보드 · 게임패드</h2>
+      <div class="btn-row" style="margin:0">
+        <button id="teleop-claim" class="btn btn-primary" type="button">조종권 획득</button>
+        <button id="teleop-estop" class="btn btn-danger" type="button"
+                title="즉시 정지 + 전 관절 토크 차단 (space 와 같음)">■ 정지</button>
+      </div>
+    </div>
+
+    <div id="teleop-force-row" class="btn-row" hidden>
+      <button id="teleop-force" class="btn" type="button">강제 획득</button>
+      <span class="muted small">다른 발행자가 있어도 뚫습니다 — 이벤트에 기록됩니다.</span>
+    </div>
+
+    <div id="teleop-hint" class="muted small">—</div>
+
+    <div class="teleop-grid">
+      <div>
+        <dl class="kv" id="teleop-live"></dl>
+        <div id="teleop-bars" class="jog-bars"></div>
+      </div>
+
+      <div>
+        <div class="field-label">명령 <span class="muted">teleop_core 어휘</span></div>
+        <div id="teleop-cmds" class="btn-row"></div>
+
+        <div class="field-label pose-head">자세 <span class="muted">저장·불러오기</span></div>
+        <div id="pose-list" class="btn-row"></div>
+        <div class="btn-row">
+          <input id="pose-name" class="pose-input" type="text" maxlength="32"
+                 autocomplete="off" spellcheck="false" placeholder="새 자세 이름">
+          <button id="pose-save" class="btn" type="button">자세 저장</button>
+        </div>
+        <!-- 저장은 2단계다: freedrive 로 토크를 푼 뒤 손으로 자세를 잡고 확정한다.
+             teleop_core 의 "프리드라이브 저장" 계약(save 전에 freedrive 선행)을
+             프론트엔드가 지켜야 한다 — 안 그러면 토크가 걸린 채라 자세를 못 잡는다. -->
+        <div id="pose-freedrive" class="pose-freedrive" hidden>
+          <div class="small">
+            <strong id="pose-pending-name">—</strong> 저장 대기 —
+            팔 토크를 풀었습니다. <b>손으로 자세를 잡은 뒤</b> 확정하세요.
+          </div>
+          <div class="btn-row">
+            <button id="pose-confirm" class="btn btn-primary" type="button">이 자세로 저장</button>
+            <button id="pose-cancel" class="btn" type="button">취소(토크 복귀)</button>
+          </div>
+        </div>
+        <div class="muted small">
+          그리퍼와 <code>arm_joint_5</code> 는 자세에 포함되지 않습니다(별도 조작).
+        </div>
+        <details class="keymap">
+          <summary>키맵 (기존 curses TUI 와 동일)</summary>
+          <ul>
+            <li><kbd>1</kbd>–<kbd>6</kbd> 축 선택 · <kbd>↑</kbd>/<kbd>w</kbd>,
+              <kbd>↓</kbd>/<kbd>s</kbd> 조그(누르는 동안) · <kbd>[</kbd>/<kbd>]</kbd> 속도</li>
+            <li><kbd>space</kbd> 정지 · <kbd>t</kbd> 복귀 · <kbd>h</kbd> home</li>
+            <li><kbd>p</kbd> 자세 저장(토크 OFF → 슬롯 1-9) · <kbd>g</kbd> 자세 이동 ·
+              <kbd>Esc</kbd> 취소</li>
+            <li><kbd>r</kbd> 선택 축 reboot · <kbd>Shift</kbd>+<kbd>R</kbd> 전체 reboot</li>
+            <li><kbd>c</kbd>/<kbd>m</kbd>/<kbd>x</kbd> 리밋 측정 시작/기록/취소</li>
+          </ul>
+          <p class="footnote">
+            TUI 의 <kbd>e</kbd>/<kbd>l</kbd>/<kbd>y</kbd>(급변·리밋·트립 토글)는 키로 넣지
+            않았습니다 — 현재 on/off 상태를 화면이 알 수 없는 것(<code>limit</code>)이 섞여
+            있어 <strong>블라인드 토글은 실제 상태와 어긋납니다.</strong> 위 명령 버튼으로
+            <code>on</code>/<code>off</code> 를 명시적으로 보내세요.
+          </p>
+        </details>
+      </div>
+    </div>
+
+    <div class="panel-head" style="margin-top:12px">
+      <h2>게임패드</h2>
+      <div class="btn-row" style="margin:0">
+        <button id="pad-bind" class="btn" type="button">데드맨 버튼 바인딩</button>
+        <label class="inline"><span class="muted small">데드존</span>
+          <input id="pad-deadzone" class="btn num-in" type="number" step="0.01"
+                 min="0" max="0.8"></label>
+      </div>
+    </div>
+    <div id="pad-info" class="muted small">—</div>
+    <div id="pad-axes" class="pad-live"></div>
+    <div class="table-wrap">
+      <table class="tbl">
+        <caption class="sr-only">관절별 게임패드 축 매핑</caption>
+        <thead><tr>
+          <th scope="col">관절</th><th scope="col">축</th><th scope="col">스케일</th>
+          <th scope="col">반전</th><th scope="col">+버튼</th><th scope="col">−버튼</th>
+        </tr></thead>
+        <tbody id="pad-map-rows"></tbody>
+      </table>
+    </div>
+    <p class="footnote">
+      기본값은 <code>joystick_teleop</code> 의 실측 매핑입니다. ⚠️ <strong>브라우저
+      Gamepad API 의 인덱스가 Jetson 의 <code>/joy</code> 인덱스와 같다는 보장은
+      없습니다</strong> — 스틱은 표준 매핑이 우연히 일치하지만 버튼은 드라이버마다
+      다릅니다. 위 실시간 값(<code>a0…</code>/<code>b0…</code>)으로 직접 확인하고
+      데드맨은 눌러서 바인딩하세요. 설정은 이 브라우저에만 저장됩니다.
+    </p>
+  </section>
+
+  <!-- D. 텔레옵 ---------------------------------------------------------- -->
+  <section class="panel" aria-labelledby="h-teleop">
+    <div class="panel-head"><h2 id="h-teleop">원격조종</h2></div>
+    <dl class="kv" id="teleop-kv"></dl>
+    <div class="unobservable">
+      <div class="unobservable-head">⚠ 관측 불가 — 이 화면으로 알 수 없는 것</div>
+      <ul id="unobservable-list"></ul>
+    </div>
+  </section>
+
+  <!-- H. 캘리브 (제어 모드 전용) ------------------------------------------ -->
+  <section class="panel panel-wide" id="calib-panel" aria-labelledby="h-calib"
+           data-control-only hidden>
+    <div class="panel-head"><h2 id="h-calib">관절 캘리브레이션</h2></div>
+    <div id="calib-unavailable" class="banner banner-serious" hidden></div>
+
+    <p class="footnote">
+      순서는 <strong>기어비 → 영점 → 가동범위</strong>입니다. 기어비가 틀리면 영점
+      역산이 같이 틀어지고, 둘 중 하나라도 바뀌면 기존 가동범위는 전부 무효입니다.
+      ⚠️ 여기 값은 전부 <strong>관절각 도메인</strong>(<code>JOINT_CONFIG</code>·
+      <code>joint_limits</code>)입니다 — <code>teleop_core</code> 의
+      <code>DEFAULT_CENTERS</code>/<code>DEFAULT_*_RADS</code>(서보축 도메인)와 숫자가
+      무관하니 <strong>서로 복사하지 마세요.</strong>
+      브릿지는 <code>read_only:=true</code> 로 띄워 두세요(토크가 꺼져 있어야 손으로 움직입니다).
+    </p>
+    <div id="calib-order-warn" class="banner banner-serious" hidden></div>
+
+    <div class="calib-grid">
+      <!-- 기어비 -->
+      <div class="calib-card">
+        <div class="field-label">① 기어비</div>
+        <label class="field"><span class="field-label">축</span>
+          <select id="calib-gear-joint" class="btn"></select></label>
+        <div class="btn-row">
+          <button id="calib-gear-start" class="btn" type="button">시작 캡처</button>
+          <button id="calib-gear-end" class="btn" type="button">끝 캡처</button>
+        </div>
+        <dl class="kv" id="calib-gear-captures"></dl>
+        <label class="field"><span class="field-label">실제로 돌린 관절 각도 [deg]</span>
+          <input id="calib-gear-deg" class="btn num-in" type="number" step="0.1" value="90"></label>
+        <button id="calib-gear-run" class="btn btn-primary" type="button">계산</button>
+        <div id="calib-gear-result" class="muted small">—</div>
+        <p class="footnote">
+          시작 캡처 → 관절을 크게(90° 권장) 손으로 돌림 → 끝 캡처 → 실제 각도 입력.
+          각도계 오차가 그대로 기어비 오차가 됩니다.
+        </p>
+      </div>
+
+      <!-- 영점 -->
+      <div class="calib-card">
+        <div class="field-label">② 영점 (center tick)</div>
+        <p class="footnote" style="margin-top:0">
+          팔을 <strong>기준 자세</strong>(기본 URDF home = 전 축 0)로 세운 뒤 계산을
+          누르세요. 구조상 0 으로 못 세우는 축은 아래에 기준각을 넣습니다.
+        </p>
+        <div id="calib-zero-refs"></div>
+        <button id="calib-zero-run" class="btn btn-primary" type="button">지금 자세로 계산</button>
+        <div id="calib-zero-result" class="muted small">—</div>
+      </div>
+
+      <!-- 그리퍼 -->
+      <div class="calib-card">
+        <div class="field-label">③ 그리퍼 끝단</div>
+        <div class="btn-row">
+          <button id="calib-gripper-closed" class="btn" type="button">완전 닫힘 캡처</button>
+          <button id="calib-gripper-open" class="btn" type="button">완전 열림 캡처</button>
+        </div>
+        <dl class="kv" id="calib-gripper-captures"></dl>
+        <label class="field"><span class="field-label">안전 마진 [tick]</span>
+          <input id="calib-gripper-margin" class="btn num-in" type="number" step="1"
+                 min="0" value="0"></label>
+        <button id="calib-gripper-run" class="btn btn-primary" type="button">계산</button>
+        <div id="calib-gripper-result" class="muted small">—</div>
+        <p class="footnote">⚠️ 랙 끝단에 억지로 밀어 넣지 마세요 — 그 지점이 끝단으로
+          박히면 운용 중 매번 거기까지 가려 들고, 그리퍼는 과전류 트립이 잘 납니다.</p>
+      </div>
+
+      <!-- 가동범위 -->
+      <div class="calib-card">
+        <div class="field-label">④ 가동범위 (리밋)</div>
+        <p class="footnote" style="margin-top:0">
+          이 절차는 <code>teleop_core</code> 가 수행하고 결과를
+          <code>~/ros2_ws/dynamixel_arm_joint_limits.json</code> 에 <strong>자동
+          저장</strong>합니다. 시작하면 팔 토크가 꺼집니다 — 축을 손으로 하한까지 밀고
+          [기록], 상한까지 밀고 [기록]을 축마다 반복하세요.
+        </p>
+        <div class="btn-row">
+          <button id="calib-range-start" class="btn btn-primary" type="button">측정 시작</button>
+          <button id="calib-range-mark" class="btn" type="button">기록 (m)</button>
+          <button id="calib-range-cancel" class="btn" type="button">취소 (x)</button>
+        </div>
+        <div id="calib-range-status" class="small">—</div>
+      </div>
+    </div>
+
+    <div id="calib-result" class="calib-result"></div>
+  </section>
+
+  <!-- E. 이벤트 ---------------------------------------------------------- -->
+  <section class="panel panel-wide" aria-labelledby="h-events">
+    <div class="panel-head"><h2 id="h-events">이벤트 · 트립 블랙박스</h2>
+      <a class="btn" id="dl-events" download="events.jsonl">이벤트 내려받기</a></div>
+    <ol id="events" class="events"></ol>
+  </section>
+
+  <!-- Jetson ------------------------------------------------------------- -->
+  <section class="panel" aria-labelledby="h-system">
+    <div class="panel-head"><h2 id="h-system">Jetson</h2></div>
+    <dl class="kv" id="system-kv"></dl>
+    <p class="footnote">
+      서멀 스로틀링은 현장에서 인식 FPS 가 떨어지는 가장 흔한 원인인데
+      지금까지 어디에도 표시되지 않았습니다.
+    </p>
+  </section>
+
+</main>
+
+<script src="/app.js"></script>
+<script src="/teleop.js"></script>
+<script src="/calib.js"></script>
+<script src="/control.js"></script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+# joint_limits.yaml allows the dynamics properties specified in the URDF to be overwritten or augmented as needed
+# 속도값은 URDF의 placeholder(effort=100, velocity=100)를 그대로 쓰지 않고 보수적인 기본값(1.0 rad/s)으로 제한.
+# 실제 서보(XM540/XC430 등) 스펙 확정 후 교체 필요 — docs/requirements/요구사항.md §8 참고.
+
+default_velocity_scaling_factor: 0.1
+default_acceleration_scaling_factor: 0.1
+
+joint_limits:
+  arm_joint_1:
+    has_velocity_limits: true
+    max_velocity: 1.0
+    has_acceleration_limits: false
+    max_acceleration: 0
+  arm_joint_2:
+    has_velocity_limits: true
+    max_velocity: 1.0
+    has_acceleration_limits: false
+    max_acceleration: 0
+  arm_joint_3:
+    has_velocity_limits: true
+    max_velocity: 1.0
+    has_acceleration_limits: false
+    max_acceleration: 0
+  arm_joint_4:
+    has_velocity_limits: true
+    max_velocity: 1.0
+    has_acceleration_limits: false
+    max_acceleration: 0
+  arm_joint_5:
+    has_velocity_limits: true
+    max_velocity: 1.0
+    has_acceleration_limits: false
+    max_acceleration: 0

@@ -1,0 +1,338 @@
+/* 관제 GUI 스타일.
+ *
+ * 색은 dataviz 기준 팔레트의 값을 그대로 쓴다 — 계열색은 slot 1(파랑) 하나뿐이고
+ * 상태색(good/warning/serious/critical)은 예약색이라 계열색으로 재사용하지 않는다.
+ * 상태색은 **단독으로 쓰지 않는다**: 항상 아이콘/라벨과 함께 나간다(색각 이상
+ * 운영자가 트립을 놓치면 안 된다).
+ *
+ * 기본은 다크다(야외 천막·야간 운용). 라이트는 토글과 OS 설정 양쪽에서 이긴다.
+ */
+
+:root {
+  color-scheme: dark;
+  --surface-1: #1a1a19;
+  --plane: #0d0d0d;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.10);
+
+  --series-1: #3987e5;        /* 계열 slot 1 — 이 화면의 유일한 계열색 */
+  --track: #104281;           /* 미터 트랙: 같은 램프의 어두운 단계 */
+  --series-band: rgba(57, 135, 229, 0.28);
+
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --surface-1: #fcfcfb;
+  --plane: #f9f9f7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+
+  --series-1: #2a78d6;
+  --track: #cde2fb;
+  --series-band: rgba(42, 120, 214, 0.22);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+h2 { font-size: 15px; margin: 0; font-weight: 600; }
+code { font-size: 0.92em; color: var(--text-secondary); }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── 상단 바 ───────────────────────────────────────────── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 10px 16px;
+  background: var(--surface-1); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 20;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+
+.badge {
+  font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--text-secondary);
+}
+.badge-ro { border-color: var(--good); color: var(--good); }
+
+.chip {
+  font-size: 12px; padding: 2px 8px; border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.chip-muted { color: var(--muted); }
+.chip-good { color: var(--good); border-color: var(--good); }
+.chip-warn { color: var(--warning); border-color: var(--warning); }
+.chip-critical { color: var(--critical); border-color: var(--critical); }
+
+.btn {
+  font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px;
+  background: var(--plane); color: var(--text-primary);
+  border: 1px solid var(--border); cursor: pointer; text-decoration: none;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn:disabled:hover { border-color: var(--border); }
+.btn-primary { border-color: var(--series-1); color: var(--series-1); }
+
+/* ── 폼 (제어 모드) ────────────────────────────────────── */
+.field { display: block; margin: 8px 0; }
+.field-label {
+  display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 3px;
+}
+.field .btn { width: 100%; box-sizing: border-box; text-align: left; }
+.field-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.field-row .field { flex: 1 1 160px; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 6px; }
+
+/* ── 자세 저장/불러오기 ───────────────────────────────── */
+.pose-head { margin-top: 14px; }
+.pose-input {
+  font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px;
+  background: var(--plane); color: var(--text-primary);
+  border: 1px solid var(--border); min-width: 0; flex: 1 1 120px;
+}
+.pose-input:focus { outline: none; border-color: var(--series-1); }
+.pose-freedrive {
+  border: 1px solid var(--warning, var(--series-1)); border-radius: 6px;
+  padding: 8px 10px; margin: 8px 0;
+}
+.pose-btn { display: inline-flex; align-items: center; gap: 0; padding: 0; }
+/* 이동/삭제가 한 칩처럼 붙어 보이게 — 자세 하나당 버튼이 둘이라 따로 떨어지면
+   어느 삭제가 어느 자세인지 눈으로 못 잇는다. */
+.pose-btn .btn { border-radius: 0; border-right-width: 0; }
+.pose-btn .btn:first-child { border-radius: 6px 0 0 6px; }
+.pose-btn .btn:last-child { border-radius: 0 6px 6px 0; border-right-width: 1px; }
+.pose-del { color: var(--text-secondary); padding-left: 7px; padding-right: 7px; }
+.pose-del:hover { color: var(--critical); border-color: var(--critical); }
+
+/* ── 배너 ─────────────────────────────────────────────── */
+.banner {
+  padding: 10px 16px; font-weight: 600;
+  display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+}
+.banner-critical { background: var(--critical); color: #ffffff; }
+.banner-serious { background: var(--serious); color: #1a1a19; }
+.banner .banner-sub { font-weight: 400; font-size: 12px; opacity: 0.9; }
+
+/* ── 상태 스트립 ───────────────────────────────────────── */
+.strip {
+  display: grid; gap: 10px; padding: 12px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+.strip-card {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px;
+}
+.strip-card-wide { grid-column: span 2; }
+.strip-label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+.strip-value { font-size: 20px; font-weight: 600; margin-top: 2px; }
+.strip-sub { font-size: 12px; color: var(--text-secondary); }
+.strip-note { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+.state-good { color: var(--good); }
+.state-warning { color: var(--warning); }
+.state-serious { color: var(--serious); }
+.state-critical { color: var(--critical); }
+
+/* 토픽 신선도 점 — 색만으로 알리지 않도록 title 과 텍스트 라벨을 함께 둔다. */
+.dots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.dot {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px;
+}
+.dot::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--muted);
+}
+.dot.fresh::before { background: var(--good); }
+.dot.stale::before { background: var(--critical); }
+.dot.stale { color: var(--critical); }
+
+/* ── 레이아웃 ─────────────────────────────────────────── */
+.grid {
+  display: grid; gap: 12px; padding: 0 16px 24px;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  align-items: start;
+}
+.panel {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px;
+}
+.panel-wide { grid-column: 1 / -1; }
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 8px;
+}
+.inline { display: inline-flex; align-items: center; gap: 6px; }
+.footnote { font-size: 11px; color: var(--muted); margin: 8px 0 0; }
+
+/* ── 표 ───────────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th, .tbl td {
+  padding: 6px 8px; border-bottom: 1px solid var(--grid);
+  text-align: left; white-space: nowrap;
+}
+.tbl th { font-size: 11px; color: var(--muted); font-weight: 600; }
+.tbl tbody tr.attn td { background: rgba(208, 59, 59, 0.08); }
+/* 문제 있는 행만 강조하고 나머지는 후퇴시킨다(emphasis). */
+.tbl tbody tr.recede td:not(.keep) { color: var(--text-secondary); }
+
+/* ── 미터 ─────────────────────────────────────────────── */
+.meter { min-width: 140px; }
+.meter-track {
+  position: relative; height: 8px; border-radius: 4px;
+  background: var(--track); overflow: hidden;
+}
+.meter-fill {
+  position: absolute; inset: 0 auto 0 0; border-radius: 4px;
+  background: var(--series-1);
+}
+.meter-fill.warning { background: var(--warning); }
+.meter-fill.serious { background: var(--serious); }
+.meter-fill.critical { background: var(--critical); }
+/* 임계 tick — 트랙 위 hairline */
+.meter-tick {
+  position: absolute; top: -2px; bottom: -2px; width: 1px;
+  background: var(--text-primary); opacity: 0.55;
+}
+.meter-label {
+  font-size: 11px; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums; margin-top: 2px;
+}
+.meter-empty {
+  height: 8px; border-radius: 4px; background: transparent;
+  border: 1px dashed var(--axis);
+}
+
+.spark { display: block; }
+
+/* ── 비전 ─────────────────────────────────────────────── */
+.video-wrap {
+  position: relative; background: var(--plane); border-radius: 6px;
+  border: 1px solid var(--border); overflow: hidden; min-height: 120px;
+}
+#video { display: block; width: 100%; height: auto; }
+#video-overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
+.video-off { padding: 24px 12px; color: var(--muted); font-size: 12px; text-align: center; }
+
+.detlist { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13px; }
+.detlist li {
+  display: flex; gap: 8px; align-items: baseline;
+  padding: 4px 0; border-bottom: 1px solid var(--grid);
+}
+.detlist .pick { color: var(--good); font-weight: 600; }
+.detlist .pos { font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.tag {
+  font-size: 11px; padding: 0 6px; border-radius: 4px;
+  border: 1px solid var(--border); color: var(--muted);
+}
+.tag-nodepth { color: var(--warning); border-color: var(--warning); }
+
+/* ── 키-값 ────────────────────────────────────────────── */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+.kv dt { color: var(--muted); font-size: 12px; }
+.kv dd { margin: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+.kv dd.inferred { color: var(--warning); font-style: italic; }
+
+.unobservable {
+  margin-top: 10px; padding: 8px 10px; border-radius: 6px;
+  border: 1px dashed var(--axis); background: var(--plane);
+}
+.unobservable-head { font-size: 12px; color: var(--warning); margin-bottom: 4px; }
+.unobservable ul { margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-secondary); }
+
+/* ── 이벤트 ───────────────────────────────────────────── */
+.events { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
+.events li {
+  display: flex; gap: 10px; align-items: baseline; padding: 4px 0;
+  border-bottom: 1px solid var(--grid); font-size: 13px;
+}
+.events time { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.events .kind { color: var(--muted); font-size: 11px; min-width: 96px; }
+
+/* ── 조종(제어 모드) ──────────────────────────────────── */
+.btn-danger { border-color: var(--critical); color: var(--critical); }
+.num-in { width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.teleop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+
+/* 축별 속도 막대 — 지금 브라우저가 무엇을 밀고 있는지가 한눈에 보여야 한다.
+ * 부호를 색만으로 구분하지 않는다(값이 숫자로 같이 나간다). */
+.jog-bars { margin-top: 10px; }
+.jog-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; font-size: 12px; }
+.jog-row-sel .jog-name { color: var(--series-1); font-weight: 600; }
+.jog-name { flex: 0 0 168px; color: var(--text-secondary); }
+.jog-track { flex: 1 1 auto; height: 8px; background: var(--grid); border-radius: 4px; }
+.jog-fill { display: block; height: 100%; border-radius: 4px; }
+.jog-bar-plus { background: var(--series-1); }
+.jog-bar-minus { background: var(--track); }
+.jog-val { flex: 0 0 52px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.keymap { margin-top: 10px; font-size: 12px; color: var(--text-secondary); }
+.keymap summary { cursor: pointer; color: var(--muted); }
+.keymap ul { margin: 6px 0; padding-left: 18px; }
+kbd {
+  font-family: ui-monospace, monospace; font-size: 11px; padding: 1px 5px;
+  border: 1px solid var(--axis); border-radius: 4px; background: var(--plane);
+}
+
+.pad-live { margin: 6px 0; line-height: 2; }
+.pad-cell {
+  display: inline-block; margin: 0 4px 2px 0; padding: 1px 6px; border-radius: 4px;
+  border: 1px solid var(--border); font-size: 11px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.pad-cell-on { border-color: var(--good); color: var(--good); }
+
+/* ── 캘리브 마법사 ────────────────────────────────────── */
+.calib-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px; margin-top: 10px;
+}
+.calib-card {
+  padding: 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--plane);
+}
+.calib-result { margin-top: 12px; }
+.calib-block {
+  margin: 4px 0; padding: 8px 10px; overflow-x: auto; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--plane);
+  font-family: ui-monospace, monospace; font-size: 12px; white-space: pre;
+}
+
+@media (max-width: 640px) {
+  .strip-card-wide { grid-column: span 1; }
+  .tbl th, .tbl td { padding: 5px 6px; }
+  .teleop-grid { grid-template-columns: 1fr; }
+}
