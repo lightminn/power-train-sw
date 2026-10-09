@@ -26,7 +26,7 @@ def test_panel_follows_the_detected_tool_kind():
         assert tab.tool_panels.active_name == C.TOOL_DUAL_GRIPPER
 
         tab.update_state(fixtures.cleaner_no_grant())
-        assert tab.tool_panels.active_name == "other"
+        assert tab.tool_panels.active_name == C.TOOL_CLEANER
 
         tab.update_state(fixtures.disconnected())
         assert tab.tool_panels.active_name == "other"

@@ -1,4 +1,5 @@
 from operator_console.themes import ACTIVE_THEME, THEMES, active_theme_name, theme_tokens
+from operator_console.arm_ui.styling import ARM_UI_CSS
 
 
 REQUIRED_TOKENS = {
@@ -37,3 +38,12 @@ def test_capture_override_only_selects_an_existing_theme(monkeypatch):
     assert theme_tokens()["app_bg"] == "#F4F7FB"
     monkeypatch.setenv("OPERATOR_CONSOLE_THEME", "not-a-theme")
     assert active_theme_name() == ACTIVE_THEME
+
+
+def test_arm_operation_surfaces_use_opaque_purple_alpha_without_fading_text():
+    """Panel/button alpha belongs to the surface, never a whole-widget opacity."""
+    css = ARM_UI_CSS.decode("utf-8")
+    assert "background: rgba(31, 22, 52, 0.94)" in css
+    assert "background: rgba(77, 52, 122, 0.94)" in css
+    assert "opacity: 0.8" not in css
+    assert ".arm-ui label { color: #EEE8FA; }" in css

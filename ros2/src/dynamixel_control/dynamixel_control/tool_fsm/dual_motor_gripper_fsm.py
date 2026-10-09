@@ -2,6 +2,7 @@
 
 from dynamixel_control.tool_fsm.base import ToolCommandError, ToolFSM, ToolState
 from dynamixel_control.tool_fsm.validation import validate_dual_motor_startup
+from dynamixel_control.dual_gripper_targets import dual_relative_targets
 
 
 class DualMotorGripperFSM(ToolFSM):
@@ -47,23 +48,12 @@ class DualMotorGripperFSM(ToolFSM):
             # Equal normalized increments preserve each motor's endpoint ratio.
             # Read actual positions every tick, so stalled motion cannot accrue
             # a queue of distant targets. Never alter calibration or profiles.
-            spans = {i: endpoints['open'][i] - endpoints['close'][i]
-                     for i in self.actuator_ids}
-            fractions = {i: (positions[i] - endpoints['close'][i]) / spans[i]
-                         for i in self.actuator_ids}
-            if any(not 0 <= value <= 1 for value in fractions.values()):
-                raise ToolCommandError('jog position outside motor endpoints')
-            if max(fractions.values()) - min(fractions.values()) > 0.05:
-                raise ToolCommandError('dual jog synchronization fault')
-            step = 100.0 / max(abs(span) for span in spans.values())
-            opening = endpoint_command == 'OPEN'
-            remaining = min((1 - value if opening else value)
-                            for value in fractions.values())
-            delta = min(step, remaining) * (1 if opening else -1)
-            targets = {i: max(min(endpoints['open'][i], endpoints['close'][i]),
-                              min(max(endpoints['open'][i], endpoints['close'][i]),
-                                  round(positions[i] + delta * spans[i])))
-                       for i in self.actuator_ids}
+            try:
+                targets = dual_relative_targets(
+                    self.profile, self.actuator_ids, positions,
+                    endpoint_command, step_ticks=100.0)
+            except ValueError as exc:
+                raise ToolCommandError(str(exc)) from exc
         opening = endpoint_command == 'OPEN'
         self.state = ToolState.OPENING if opening else ToolState.CLOSING
         try:
