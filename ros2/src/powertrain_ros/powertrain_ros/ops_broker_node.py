@@ -43,6 +43,9 @@ _SEMANTIC_FIELDS = (
     "active_estop_sources",
     "component_mask",
     "wheels_stopped",
+    "steering_mode",
+    "steering_available",
+    "drive_transport",
 )
 
 
@@ -245,6 +248,19 @@ class OpsBrokerNode(Node):
             )
             if not 0 <= time.monotonic() - stamp_s <= .5:
                 stopped, feedback_age_s = False, None
+            # Optional capability fields must not discard an otherwise valid
+            # safety/E-stop update from an older or malformed publisher.
+            steering_mode = decoded.get("steering_mode")
+            if steering_mode not in ("ackermann", "skid"):
+                steering_mode = None
+            steering_available = decoded.get("steering_available") is True
+            drive_transport = decoded.get("drive_transport")
+            if drive_transport not in ("can", "usb"):
+                drive_transport = None
+            # A future-dated packet must not become trusted merely because the
+            # clock later catches up; only a newly received valid sample can.
+            if not 0 <= time.monotonic() - stamp_s <= .5:
+                steering_mode, steering_available, drive_transport = None, False, None
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
             self.get_logger().warning(
                 "invalid /chassis/safety_state ignored: %s" % exc
@@ -257,6 +273,9 @@ class OpsBrokerNode(Node):
             self._fields["estop_detail"] = estop_detail
             self._fields["active_estop_sources"] = active_sources
             self._fields["component_mask"] = component_mask
+            self._fields["steering_mode"] = steering_mode
+            self._fields["steering_available"] = steering_available
+            self._fields["drive_transport"] = drive_transport
             self._stamps["safety"] = stamp_s
             self._fields["wheels_stopped"] = stopped
             self._stamps["wheels"] = (
@@ -288,6 +307,10 @@ class OpsBrokerNode(Node):
     def _ops_state(self):
         now_s = time.monotonic()
         with self._state_lock:
+            safety_stamp = self._stamps["safety"]
+            steering_fresh = (
+                safety_stamp is not None and 0 <= now_s - safety_stamp <= .5
+            )
             values = {
                 "authority_mode": self._fields["authority_mode"] or "UNKNOWN",
                 "chassis_mode": self._fields["chassis_mode"] or "UNKNOWN",
@@ -307,6 +330,15 @@ class OpsBrokerNode(Node):
                     or DEFAULT_COMPONENT_MASK
                 ),
                 "wheels_stopped": bool(self._fields["wheels_stopped"]),
+                "steering_mode": (
+                    self._fields["steering_mode"] if steering_fresh else None
+                ),
+                "steering_available": (
+                    self._fields["steering_available"] is True and steering_fresh
+                ),
+                "drive_transport": (
+                    self._fields["drive_transport"] if steering_fresh else None
+                ),
             }
             semantic = tuple(values[name] for name in _SEMANTIC_FIELDS)
             if semantic != self._last_semantic:
@@ -910,6 +942,9 @@ class OpsBrokerNode(Node):
                     ),
                     "component_mask": dict(state.component_mask),
                     "wheels_stopped": state.wheels_stopped,
+                    "steering_mode": state.steering_mode,
+                    "steering_available": state.steering_available,
+                    "drive_transport": state.drive_transport,
                     "field_age_s": dict(state.field_age_s),
                     "stamp_s": time.monotonic(),
                 },

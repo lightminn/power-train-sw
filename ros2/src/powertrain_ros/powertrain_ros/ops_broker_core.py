@@ -38,6 +38,9 @@ class OpsState:
     chassis_mode: str = "UNKNOWN"
     estop_source: str = ""
     estop_detail: str = ""
+    steering_mode: str | None = None
+    steering_available: bool = False
+    drive_transport: str | None = None
 
 
 @dataclass(frozen=True)
@@ -345,6 +348,18 @@ class OpsBrokerCore:
         request_id = request["request_id"]
         state = self._state()
         action = request["action"]
+
+        if action == "steer_zero_here":
+            for key in ("safety", "wheels"):
+                age = state.field_age_s.get(key)
+                if type(age) not in (int, float) or not 0 <= age <= oc.OPS_STATE_STALE_S:
+                    return self._reject(request_id, "fresh stopped state required")
+            if (state.chassis_mode != "IDLE" or state.estop_latched
+                    or not state.wheels_stopped or not state.steering_available
+                    or state.drive_transport != "can"
+                    or state.component_mask.get("drive") is not True
+                    or state.component_mask.get("steer") is not True):
+                return self._reject(request_id, "steering origin requires IDLE and stopped CAN motors")
 
         if emergency:
             phase = request.get("phase")

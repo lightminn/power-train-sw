@@ -142,6 +142,9 @@ ACTIONS = {
         _CONSOLE, "service_setbool",
         ("/chassis_node/steer_mode_skid",),
     ),
+    "steer_zero_here": ActionSpec(
+        _CONSOLE, "service", ("/chassis_node/steer_zero_here",),
+    ),
     "extraction_grant": ActionSpec(
         _CONSOLE, "service", ("/chassis_node/extraction_grant",)
     ),

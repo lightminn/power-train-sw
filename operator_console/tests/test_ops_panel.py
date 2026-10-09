@@ -97,7 +97,7 @@ def test_estop_reset_and_arm_use_distinct_gestures_with_spacer_between():
     assert PANEL_ACTIONS[reset_index + 1].gesture == GESTURE_SPACER
 
 
-def test_panel_keeps_nine_basic_actions_and_preserves_existing_action_keys():
+def test_panel_keeps_basic_actions_and_preserves_existing_action_keys():
     actions = tuple(action for action in PANEL_ACTIONS if action.action is not None)
     basic = {action.action for action in actions if not action.advanced}
     advanced = {action.action for action in actions if action.advanced}
@@ -112,6 +112,7 @@ def test_panel_keeps_nine_basic_actions_and_preserves_existing_action_keys():
         "us100_enable",
         "robot_arm_enable",
         "steer_mode_skid",
+        "steer_zero_here",
     }
     assert {
         "authority_manual",
@@ -136,6 +137,7 @@ def test_panel_keeps_nine_basic_actions_and_preserves_existing_action_keys():
         "us100_enable",
         "robot_arm_enable",
         "steer_mode_skid",
+        "steer_zero_here",
         "arm_lock_override",
         "mission_arrive_pickup",
         "mission_arrive_drop",

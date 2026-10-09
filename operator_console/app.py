@@ -2937,7 +2937,7 @@ class OpsPanel(Gtk.Frame):
                 button.connect("clicked", self._on_action_clicked, action)
             if action.action is not None:
                 self._action_buttons[action.action] = button
-            if action.bool_value_from_state is not None:
+            if action.bool_value_from_state is not None or action.action == "steer_zero_here":
                 if not mode_allows_action(action.action, "UNKNOWN"):
                     button.set_label(action.label + " · 대기에서만")
                 button.set_sensitive(False)
@@ -3212,6 +3212,12 @@ class OpsPanel(Gtk.Frame):
             self._event_sink("안전", event_message)
 
         for action in PANEL_ACTIONS:
+            if action.action == "steer_zero_here":
+                button = self._action_buttons[action.action]
+                available, reason = action_is_available(action.action, state)
+                button.set_sensitive(available)
+                button.set_tooltip_text(reason or None)
+                continue
             if action.action is None or action.bool_value_from_state is None:
                 continue
             button = self._action_buttons[action.action]
@@ -5220,6 +5226,10 @@ class OperatorConsole(Gtk.Window):
         if self._operation_runtime is not None:
             states = dict(states, operation=self._operation_runtime.snapshot(), console_pid=os.getpid())
         steer_button = self._ops_panel._action_buttons.get("steer_mode_skid")
+        zero_button = self._ops_panel._action_buttons.get("steer_zero_here")
+        if zero_button is not None:
+            states = dict(states, ops_steering_zero_sensitive=zero_button.get_sensitive(),
+                          ops_steering_zero_label=zero_button.get_label())
         if steer_button is not None:
             states = dict(states)
             states["ops_steering_label"] = steer_button.get_label()

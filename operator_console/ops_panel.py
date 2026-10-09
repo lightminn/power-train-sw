@@ -151,7 +151,7 @@ def component_mask_from_state(
 
 def mode_allows_action(action: str, chassis_mode: str) -> bool:
     """Gate only drive/steer mutation to IDLE; other modules stay operable."""
-    if str(action) not in {"drive_enable", "steer_enable"}:
+    if str(action) not in {"drive_enable", "steer_enable", "steer_zero_here"}:
         return True
     return str(chassis_mode) == "IDLE"
 
@@ -211,6 +211,22 @@ def action_is_available(action: str, state: Mapping[str, Any] | None) -> tuple:
     USB 스택에는 조향 액추에이터가 아예 없어(AK 는 CAN 전용) 애커만으로 되돌릴
     수 없다. 그 칸은 눌러도 서버가 거부하므로 콘솔에서 먼저 막는다.
     """
+    if str(action) == "steer_zero_here":
+        if not state or state.get("chassis_mode") != "IDLE":
+            return False, "대기(IDLE)에서만 저장할 수 있습니다"
+        ages = state.get("field_age_s") or {}
+        for key in ("safety", "wheels"):
+            age = ages.get(key)
+            if type(age) not in (int, float) or not 0 <= age <= .5:
+                return False, "최신 정지 상태 확인 중"
+        mask = component_mask_from_state(state) or {}
+        if (state.get("estop_latched") is not False
+                or state.get("wheels_stopped") is not True
+                or not steering_available_from_state(state)
+                or drive_transport_from_state(state) != "can"
+                or mask.get("drive") is not True or mask.get("steer") is not True):
+            return False, "CAN 구동·조향 사용 및 바퀴 정지가 필요합니다"
+        return True, ""
     if str(action) != "steer_mode_skid":
         return True, ""
     if state is None or steering_mode_from_state(state) is None:
@@ -292,6 +308,13 @@ PANEL_ACTIONS: tuple[PanelAction, ...] = (
                      "뒤에 적용됩니다.",
         bool_value_from_state=_steer_mode_toggle_value,
         state_text_from_state=_steering_state_text,
+    ),
+    PanelAction(
+        "steer_zero_here",
+        "현재 조향각을 영점으로 저장",
+        GESTURE_STRIP,
+        confirm_text="현재 네 조향 바퀴 자세를 0° 원점으로 저장합니다. "
+                     "바퀴가 직진 정렬됐는지 확인한 뒤 저장하세요.",
     ),
     PanelAction(
         "authority_manual",
@@ -462,6 +485,10 @@ class ConfirmFlow:
         if state is None:
             raise RuntimeError("ops state unavailable")
         snapshot = deepcopy(dict(state))
+        if panel_action.action == "steer_zero_here":
+            available, reason = action_is_available(panel_action.action, snapshot)
+            if not available:
+                raise RuntimeError(reason)
         if panel_action.bool_value_from_state is not None:
             params = {"data": panel_action.bool_value_from_state(snapshot)}
         elif panel_action.bool_value is not None:
@@ -491,6 +518,10 @@ class ConfirmFlow:
             return None
 
         current = self._state_provider()
+        if panel_action.action == "steer_zero_here" and not action_is_available(
+                panel_action.action, current)[0]:
+            self.reset()
+            return None
         try:
             current_revision = None if current is None else self._revision(current)
         except RuntimeError:
