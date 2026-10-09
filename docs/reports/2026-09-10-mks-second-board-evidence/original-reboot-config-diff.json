@@ -1,0 +1,10 @@
+{
+  "axis1.controller.config.input_mode": {
+    "pre_runtime_ram": 1,
+    "after_original_reboot": 2
+  },
+  "axis0.controller.config.input_mode": {
+    "pre_runtime_ram": 1,
+    "after_original_reboot": 2
+  }
+}

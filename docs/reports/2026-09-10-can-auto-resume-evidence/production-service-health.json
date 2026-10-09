@@ -1,0 +1,75 @@
+{
+  "result": "PASS",
+  "services": [
+    {
+      "name": "powertrain_canwatchdog",
+      "status": "running",
+      "running": true,
+      "started_at": "1970-01-01T07:43:24.138457568Z",
+      "restart_count": 0,
+      "health": null,
+      "traceback_or_process_death": false
+    },
+    {
+      "name": "powertrain_chassis",
+      "status": "running",
+      "running": true,
+      "started_at": "1970-01-01T07:43:24.14314144Z",
+      "restart_count": 0,
+      "health": "healthy",
+      "traceback_or_process_death": false
+    },
+    {
+      "name": "powertrain_control",
+      "status": "running",
+      "running": true,
+      "started_at": "1970-01-01T07:43:24.140866784Z",
+      "restart_count": 0,
+      "health": "healthy",
+      "traceback_or_process_death": false
+    },
+    {
+      "name": "powertrain_session",
+      "status": "running",
+      "running": true,
+      "started_at": "1970-01-01T07:43:24.136642688Z",
+      "restart_count": 0,
+      "health": "healthy",
+      "traceback_or_process_death": false
+    },
+    {
+      "name": "powertrain_ros",
+      "status": "running",
+      "running": true,
+      "started_at": "1970-01-01T02:52:21.489436768Z",
+      "restart_count": 0,
+      "health": "healthy"
+    },
+    {
+      "name": "powertrain_observability",
+      "status": "running",
+      "running": true,
+      "started_at": "1970-01-01T00:00:35.51776816Z",
+      "restart_count": 0,
+      "health": "healthy"
+    },
+    {
+      "name": "powertrain_chassis_telemetry",
+      "status": "running",
+      "running": true,
+      "started_at": "1970-01-01T00:00:35.524482976Z",
+      "restart_count": 0,
+      "health": null
+    },
+    {
+      "name": "powertrain_pdist80b_telemetry",
+      "status": "running",
+      "running": true,
+      "started_at": "1970-01-01T02:52:21.487643584Z",
+      "restart_count": 0,
+      "health": null
+    }
+  ],
+  "isolated_test_container_running": false,
+  "docker_unit": "active"
+}

@@ -32,7 +32,7 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
 
 ---
 
-## 2. 현재 상태 (2026-09-09 Jetson 검증 반영)
+## 2. 현재 상태 (2026-09-10 Jetson 검증 반영)
 
 이 섹션이 **유일한 현재 상태 선언**이다. 예전 문서·보고서에 남아 있는 날짜별
 "CURRENT STATE OVERRIDE" 문구는 전부 **역사적 기록**이지 현재 권위가 아니다.
@@ -74,16 +74,28 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
   `docs/reports/2026-09-09-can-sw-causality-review.md`에 세 버전 송신 패턴 복기를 남겼다.
   근거: `docs/reports/2026-09-09-can-remediation.md`.
 - **MKS CAN 신뢰성 패치(2026-09-09)** — 호스트 조회를 공유 논리 주기로 분산하고,
-  MKS TX 경합·유한 오류 복구·조회 watchdog 갱신을 수정했다. 연결된 node13/14 보드에만
+  MKS TX 경합·유한 오류 복구·조회 watchdog 갱신을 수정했다. 당시 연결된 node13/14 보드에
   patch1을 적용했고 원본 flash/NVM·307개 설정을 보존했다. 실물 0속도 시험에서 제어 단절
   약302.5ms 뒤 watchdog IDLE, CAN 재초기화 뒤 정지 래치, 명시 재무장을 확인했다.
   시험 중 엔코더 변위는0이며300ms watchdog은 RAM 시험 뒤 원래 disabled 설정으로 복원했다.
   전원 재인가1회에서 설정·캘리가 유지됐고 Stuff error 복구 뒤 정지 래치를 명시 해제했다.
   최종6축 조회600초는10모터 연속수신·stale0·host 오류/드롭0으로 통과했다. 보드 TX drop
   누계는2→4였고 복구횟수2는 불변이었다. 지상 ±0.25 motor rev 목표는 미달로 FAIL이며
-  IDLE/error0으로 종료했다. 나머지 두 보드 firmware·실주행·watchdog NVM 인수는 별도다.
+  IDLE/error0으로 종료했다. node11/12 firmware·실주행·watchdog NVM 인수는 별도다.
   재현 소스/빌드는 `firmware/mks_odrive/`, 최신 범위·실측은
   `docs/reports/2026-09-09-mks-can-reliability.md`를 따른다.
+- **MKS 두 번째 보드 적용(2026-09-10)** — USB serial `337733643235`의 node15/16에도
+  동일 patch1을 적용했다. 원본 flash1MiB를 두 번 읽어 보존하고 application768KiB만
+  교체했으며 NVM256KiB·저장 설정307개·캘리브레이션이 유지됐다. 자세한 검증 범위는
+  `docs/reports/2026-09-10-mks-second-board.md`를 따른다. node11/12는 아직 미적용이다.
+- **CAN 통신 복구 후 자동 재개(2026-09-10)** — node13/14·15/16을 최종 patch3으로
+  갱신했다. 보드가 CAN 자동 복구 출처·세대를 제공하고, 호스트가 6축 정지·통신 안정·
+  전체 상태를 검증하고 guarded RESUME 후 새 패드 입력부터 전달한다. 비상정지·주행해제·입력 단절·
+  기타 모터 오류는 자동 해제하지 않는다. 호스트1151건·젯슨 ROS231건·펌웨어 소스86건·
+  설치 ROS/TCP/vcan7개 시나리오를 통과했다. 두 보드 application 읽기 검증·NVM/설정/
+  캘리 보존·실물 IDLE 거부 시험을 통과했으며 비영속도 실주행은 별도다. node11/12는
+  패치 미적용이므로 그 축의 소실은 자동 재개 대상이 아니다.
+  `docs/reports/2026-09-10-can-auto-resume.md`를 따른다.
 - **USB 스키드 조향 레이어**(2026-08-05 작성, **실기 주행 확인 후 2026-08-24 main 병합**) —
   `DriveOdriveUsbAxis` USB 다보드 구동 → `skid_geometry()` → 애커만↔스키드 런타임 전환
   → ops 액션 `steer_mode_skid` → 콘솔 배지 → 젯슨 원클릭 배포 스크립트.
@@ -286,8 +298,9 @@ python -m pytest motor_control -q
 - **센서 분리(2026-07-07 확정)**: **L515 = 파워트레인 RGB/depth/IMU**,
   **D435i = 로봇팔 전용**, **US-100 = 독립 충돌 안전**. 파워트레인은 D435i 원본을 직접
   점유하지 않고 `/detected_objects`를 구독한다.
-- node13/14에는 원본 **0.5.1 unreleased** 백업 후 **0.5.1-dev·CAN patch1**을 적용했다(2026-09-09).
-  다른 두 보드의 firmware는 이번 USB 시험에서 미확인이다. 도구·프로토콜 검토용
+- node13/14(2026-09-09)와 node15/16(2026-09-10)은 원본 **0.5.1 unreleased** 백업 후
+  초기 patch1 이후 두 보드 모두 **0.5.1-dev·CAN patch3**으로 갱신했다(2026-09-10).
+  node11/12 firmware는 USB 미확인·패치 미적용이다. 도구·프로토콜 검토용
   fw-v0.5.6과 실물 firmware를 혼동하지 않는다. MKS 배포 소스와 설치 바이너리의 동일성은
   별도 확인 대상이다. 폐루프 진입 전
   `input_pos = 현재위치`(위치모드) 또는 `input_vel = 0`(속도모드)로 점프 방지.

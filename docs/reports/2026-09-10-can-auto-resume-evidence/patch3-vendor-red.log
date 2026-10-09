@@ -1,0 +1,87 @@
+FAIL: tx_race last mailbox preemption poisoned HAL PARAM
+PASS: mailbox_full ok
+FAIL: hal_add_failure HAL failure left sticky error
+FAIL: server_error busy spin: more than 100 HAL error polls without a bounded wait
+FAIL: server_retry_failure busy spin: more than 100 HAL error polls without a bounded wait
+FAIL: reinit_exclusion TX HAL reached during reinit
+PASS: startup ok
+FAIL: recovery_latch busy spin: more than 100 HAL error polls without a bounded wait
+FAIL: clear_before_idle clear erased latch before observed IDLE
+FAIL: telemetry_watchdog non-control traffic fed watchdog
+FAIL: unknown_watchdog non-control traffic fed watchdog
+FAIL: rtr_motion invalid motion mutated state or fed watchdog
+FAIL: short_motion invalid motion mutated state or fed watchdog
+FAIL: nonfinite_motion invalid motion mutated state or fed watchdog
+PASS: valid_control ok
+FAIL: rtr_state_clear invalid state command armed axis
+FAIL: short_state invalid state command armed axis
+FAIL: watchdog_expiry telemetry prevents watchdog expiry
+FAIL: idle_watchdog IDLE watchdog retrips and blocks neutral start
+PASS: idle_retains_expiry ok
+FAIL: automatic_rearm routine motor arm bypasses recovery latch
+FAIL: clear_during_recovery clear during restart erases safety latch
+FAIL: irq_error_retained IRQ callback cleared actual error before server recorded it
+FAIL: baud_request_coalescing setter touched HAL
+FAIL: persistent_recovery_failure busy spin: more than 100 HAL error polls without a bounded wait
+FAIL: stop_error_recorded no retained Stop error diagnostic
+FAIL: resume_heartbeat patch3 recovery provenance missing
+FAIL: resume_healthy patch3 recovery provenance missing
+FAIL: resume_retries patch3 recovery provenance missing
+FAIL: resume_manual patch3 recovery provenance missing
+FAIL: resume_manual_then_hal patch3 recovery provenance missing
+FAIL: resume_hal_then_manual patch3 recovery provenance missing
+FAIL: resume_manual_during_hal patch3 recovery provenance missing
+FAIL: resume_manual_at_dispatch patch3 recovery provenance missing
+FAIL: resume_manual_revokes patch3 recovery provenance missing
+FAIL: resume_reinit_revokes patch3 recovery provenance missing
+FAIL: resume_estop_before patch3 recovery provenance missing
+FAIL: resume_estop_after patch3 recovery provenance missing
+FAIL: resume_clear patch3 recovery provenance missing
+FAIL: resume_early_clear patch3 recovery provenance missing
+FAIL: resume_direct_latch patch3 recovery provenance missing
+FAIL: resume_pending_idle patch3 recovery provenance missing
+FAIL: resume_axis_error patch3 recovery provenance missing
+FAIL: resume_motor_error patch3 recovery provenance missing
+FAIL: resume_encoder_error patch3 recovery provenance missing
+FAIL: resume_controller_error patch3 recovery provenance missing
+FAIL: resume_sensorless_error patch3 recovery provenance missing
+FAIL: resume_generation_wrap patch3 recovery provenance missing
+FAIL: resume_reboot_defaults patch3 recovery provenance missing
+FAIL: resume_invalid_baud patch3 recovery provenance missing
+FAIL: resume_patch_identity patch3 recovery provenance missing
+FAIL: guard_resume_success guarded resume metadata missing
+FAIL: guard_resume_generation guarded resume metadata missing
+FAIL: guard_resume_new_axis_error guarded resume metadata missing
+FAIL: guard_resume_estop guarded resume metadata missing
+FAIL: guard_resume_manual_reinit guarded resume metadata missing
+FAIL: guard_resume_pending_hal guarded resume metadata missing
+FAIL: guard_resume_hal_error guarded resume metadata missing
+FAIL: guard_resume_reinitializing guarded resume metadata missing
+FAIL: guard_resume_progress guarded resume metadata missing
+FAIL: guard_resume_nonidle guarded resume metadata missing
+FAIL: guard_resume_pending_arm guarded resume metadata missing
+FAIL: guard_resume_motor_error guarded resume metadata missing
+FAIL: guard_resume_encoder_error guarded resume metadata missing
+FAIL: guard_resume_controller_error guarded resume metadata missing
+FAIL: guard_resume_sensorless_error guarded resume metadata missing
+FAIL: guard_resume_not_latched guarded resume metadata missing
+FAIL: guard_resume_ineligible guarded resume metadata missing
+FAIL: guard_resume_external_clear guarded resume metadata missing
+FAIL: guard_resume_wrong_magic guarded resume metadata missing
+FAIL: guard_resume_reserved guarded resume metadata missing
+FAIL: guard_resume_wrong_state guarded resume metadata missing
+FAIL: guard_resume_invalid_frame guarded resume metadata missing
+FAIL: guard_resume_pending_idle guarded resume metadata missing
+FAIL: guard_resume_atomic guarded resume metadata missing
+FAIL: guard_resume_replay_after_fault guarded resume metadata missing
+FAIL: guard_resume_late_fault guarded resume metadata missing
+FAIL: guard_manual_zero guarded resume metadata missing
+FAIL: guard_manual_empty guarded resume metadata missing
+FAIL: guard_clear_nonzero guarded resume metadata missing
+FAIL: guard_clear_old_cas guarded resume metadata missing
+FAIL: guard_resume_reserved_eligible guarded resume metadata missing
+FAIL: guard_resume_new_generation guarded resume metadata missing
+FAIL: guard_resume_no_can guarded resume metadata missing
+FAIL: guard_manual_state4 guarded resume metadata missing
+FAIL: guard_manual_state8 guarded resume metadata missing
+4 passed, 82 failed; PATCHED=False; source execution only

@@ -1,0 +1,15 @@
+{
+  "result": "PASS",
+  "source_hashes": 25,
+  "installed_modules": {
+    "chassis_node": "/workspace/ros2/install/powertrain_ros/lib/python3.10/site-packages/powertrain_ros/chassis_node.py",
+    "teleop_command_node": "/workspace/ros2/install/powertrain_ros/lib/python3.10/site-packages/powertrain_ros/teleop_command_node.py",
+    "remote_input_gateway": "/workspace/ros2/install/powertrain_ros/lib/python3.10/site-packages/powertrain_ros/remote_input_gateway.py"
+  },
+  "manual_message_fields": {
+    "speed_mps": "double",
+    "steering": "double",
+    "source_received_s": "double",
+    "connection_session_id": "string"
+  }
+}

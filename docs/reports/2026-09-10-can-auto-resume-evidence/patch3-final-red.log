@@ -1,0 +1,87 @@
+PASS: tx_race ok
+PASS: mailbox_full ok
+PASS: hal_add_failure ok
+PASS: server_error ok
+PASS: server_retry_failure ok
+PASS: reinit_exclusion ok
+PASS: startup ok
+PASS: recovery_latch ok
+PASS: clear_before_idle ok
+PASS: telemetry_watchdog ok
+PASS: unknown_watchdog ok
+PASS: rtr_motion ok
+PASS: short_motion ok
+PASS: nonfinite_motion ok
+PASS: valid_control ok
+PASS: rtr_state_clear ok
+PASS: short_state ok
+PASS: watchdog_expiry ok
+PASS: idle_watchdog ok
+PASS: idle_retains_expiry ok
+PASS: automatic_rearm ok
+PASS: clear_during_recovery ok
+PASS: irq_error_retained ok
+PASS: baud_request_coalescing ok
+PASS: persistent_recovery_failure ok
+PASS: stop_error_recorded ok
+FAIL: resume_heartbeat missing explicit patch3 heartbeat marker
+FAIL: resume_healthy missing explicit patch3 heartbeat marker
+FAIL: resume_retries missing explicit patch3 heartbeat marker
+FAIL: resume_manual missing explicit patch3 heartbeat marker
+FAIL: resume_manual_then_hal missing explicit patch3 heartbeat marker
+FAIL: resume_hal_then_manual missing explicit patch3 heartbeat marker
+FAIL: resume_manual_during_hal missing explicit patch3 heartbeat marker
+FAIL: resume_manual_at_dispatch missing explicit patch3 heartbeat marker
+FAIL: resume_manual_revokes missing explicit patch3 heartbeat marker
+FAIL: resume_reinit_revokes missing explicit patch3 heartbeat marker
+FAIL: resume_estop_before missing explicit patch3 heartbeat marker
+FAIL: resume_estop_after missing explicit patch3 heartbeat marker
+FAIL: resume_clear missing explicit patch3 heartbeat marker
+FAIL: resume_early_clear missing explicit patch3 heartbeat marker
+FAIL: resume_direct_latch missing explicit patch3 heartbeat marker
+FAIL: resume_pending_idle missing explicit patch3 heartbeat marker
+FAIL: resume_axis_error missing explicit patch3 heartbeat marker
+FAIL: resume_motor_error missing explicit patch3 heartbeat marker
+FAIL: resume_encoder_error missing explicit patch3 heartbeat marker
+FAIL: resume_controller_error missing explicit patch3 heartbeat marker
+FAIL: resume_sensorless_error missing explicit patch3 heartbeat marker
+FAIL: resume_generation_wrap missing explicit patch3 heartbeat marker
+FAIL: resume_reboot_defaults missing explicit patch3 heartbeat marker
+FAIL: resume_invalid_baud missing explicit patch3 heartbeat marker
+FAIL: resume_patch_identity patch3 identity missing
+FAIL: guard_resume_success accepted resume did not clear safely
+PASS: guard_resume_generation ok
+PASS: guard_resume_new_axis_error ok
+PASS: guard_resume_estop ok
+PASS: guard_resume_manual_reinit ok
+PASS: guard_resume_pending_hal ok
+PASS: guard_resume_hal_error ok
+PASS: guard_resume_reinitializing ok
+PASS: guard_resume_progress ok
+PASS: guard_resume_nonidle ok
+PASS: guard_resume_pending_arm ok
+PASS: guard_resume_motor_error ok
+PASS: guard_resume_encoder_error ok
+PASS: guard_resume_controller_error ok
+PASS: guard_resume_sensorless_error ok
+FAIL: guard_resume_not_latched rejected resume mutated requested state or input
+PASS: guard_resume_ineligible ok
+FAIL: guard_resume_external_clear rejected resume mutated requested state or input
+FAIL: guard_resume_wrong_magic rejected resume mutated requested state or input
+FAIL: guard_resume_reserved rejected resume mutated requested state or input
+FAIL: guard_resume_wrong_state rejected resume mutated requested state or input
+PASS: guard_resume_invalid_frame ok
+FAIL: guard_resume_pending_idle accepted resume did not clear safely
+FAIL: guard_resume_atomic accepted resume did not clear safely
+FAIL: guard_resume_replay_after_fault accepted resume did not clear safely
+FAIL: guard_resume_late_fault fault arriving at resume's IRQ boundary was masked
+PASS: guard_manual_zero ok
+PASS: guard_manual_empty ok
+FAIL: guard_clear_nonzero rejected resume mutated fault/provenance
+FAIL: guard_clear_old_cas rejected resume mutated fault/provenance
+PASS: guard_resume_reserved_eligible ok
+PASS: guard_resume_new_generation ok
+PASS: guard_resume_no_can ok
+PASS: guard_manual_state4 ok
+PASS: guard_manual_state8 ok
+49 passed, 37 failed; PATCHED=True; source execution only

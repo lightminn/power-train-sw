@@ -1,0 +1,48 @@
+Command '['git', 'describe', '--always', '--tags', '--match=*fw*', '--dirty=*']' returned non-zero exit status 128.
+fatal: not a git repository (or any of the parent directories): .git
+[93;1m06:08:05.312806944 [LEGACY_OBJ] protocol failed with 3 - propagating error to application[0m
+{
+  "serial": "337733643235",
+  "before_axes": [
+    {
+      "state": 1,
+      "position": -0.033222224563360214,
+      "velocity": 0.0,
+      "error": 0,
+      "calibrated": true,
+      "encoder_ready": true
+    },
+    {
+      "state": 1,
+      "position": 0.03320838510990143,
+      "velocity": 0.0,
+      "error": 0,
+      "calibrated": true,
+      "encoder_ready": true
+    }
+  ],
+  "bytes": 1048576,
+  "sha256": "7b5640d6b73d1a345655edb5f3fd271ca97f37fd57dccd77d01d9bab57be7ee7",
+  "reads_equal": true,
+  "nvm_sha256": "ab01ebabde5eb5e0a6de7e610816ff6fea7c65247eec763036466e095741688d",
+  "application_sha256": "fcc331b60c2f704119115fb6a3e2e5be2287822ec7e48a7eeec97cd8e6644056",
+  "after_axes": [
+    {
+      "state": 1,
+      "position": -0.033222224563360214,
+      "velocity": 0.0,
+      "error": 0,
+      "calibrated": true,
+      "encoder_ready": true
+    },
+    {
+      "state": 1,
+      "position": 0.03320838510990143,
+      "velocity": 0.0,
+      "error": 0,
+      "calibrated": true,
+      "encoder_ready": true
+    }
+  ],
+  "configuration_unchanged": true
+}

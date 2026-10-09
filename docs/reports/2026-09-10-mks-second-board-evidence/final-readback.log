@@ -1,0 +1,156 @@
+Command '['git', 'describe', '--always', '--tags', '--match=*fw*', '--dirty=*']' returned non-zero exit status 128.
+fatal: not a git repository (or any of the parent directories): .git
+{
+  "started_at": "1970-01-01T06:13:59.714102+00:00",
+  "boot_id": "172cb798-60c3-43a1-bd6e-7426435ac3b3",
+  "patch": 1,
+  "configuration_unchanged": true,
+  "can_diagnostics": {
+    "hal_error": 0,
+    "last_hal_error": 0,
+    "hal_error_history": 0,
+    "tx_drop_count": 0,
+    "tx_error_count": 0,
+    "recovery_count": 0,
+    "recovery_failure_count": 0,
+    "reinit_requested": false,
+    "reinitializing": false
+  },
+  "axes": [
+    {
+      "node": 15,
+      "state": 1,
+      "error": 0,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "calibrated": true,
+      "ready": true,
+      "motor_pre_calibrated": true,
+      "encoder_pre_calibrated": true,
+      "input_vel": 0.0,
+      "velocity": 0.0,
+      "watchdog_enabled": false,
+      "watchdog_timeout": 0.0
+    },
+    {
+      "node": 16,
+      "state": 1,
+      "error": 0,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "calibrated": true,
+      "ready": true,
+      "motor_pre_calibrated": true,
+      "encoder_pre_calibrated": true,
+      "input_vel": 0.0,
+      "velocity": 0.0,
+      "watchdog_enabled": false,
+      "watchdog_timeout": 0.0
+    }
+  ],
+  "vbus_voltage": 43.351173400878906
+}
+{
+  "started_at": "1970-01-01T06:13:59.714102+00:00",
+  "boot_id": "172cb798-60c3-43a1-bd6e-7426435ac3b3",
+  "patch": 1,
+  "configuration_unchanged": true,
+  "can_diagnostics": {
+    "hal_error": 0,
+    "last_hal_error": 0,
+    "hal_error_history": 0,
+    "tx_drop_count": 0,
+    "tx_error_count": 0,
+    "recovery_count": 0,
+    "recovery_failure_count": 0,
+    "reinit_requested": false,
+    "reinitializing": false
+  },
+  "axes": [
+    {
+      "node": 15,
+      "state": 1,
+      "error": 0,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "calibrated": true,
+      "ready": true,
+      "motor_pre_calibrated": true,
+      "encoder_pre_calibrated": true,
+      "input_vel": 0.0,
+      "velocity": 0.0,
+      "watchdog_enabled": false,
+      "watchdog_timeout": 0.0
+    },
+    {
+      "node": 16,
+      "state": 1,
+      "error": 0,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "calibrated": true,
+      "ready": true,
+      "motor_pre_calibrated": true,
+      "encoder_pre_calibrated": true,
+      "input_vel": 0.0,
+      "velocity": 0.0,
+      "watchdog_enabled": false,
+      "watchdog_timeout": 0.0
+    }
+  ],
+  "vbus_voltage": 43.351173400878906,
+  "heartbeat_counts": {
+    "11": 1501,
+    "12": 1500,
+    "ak4": 1500,
+    "ak2": 1500,
+    "15": 1500,
+    "16": 1500,
+    "13": 1500,
+    "14": 1500,
+    "ak1": 1500,
+    "ak3": 1500
+  },
+  "states": {
+    "11": {
+      "error": 0,
+      "state": 1
+    },
+    "12": {
+      "error": 0,
+      "state": 1
+    },
+    "15": {
+      "error": 0,
+      "state": 1
+    },
+    "16": {
+      "error": 0,
+      "state": 1
+    },
+    "13": {
+      "error": 0,
+      "state": 1
+    },
+    "14": {
+      "error": 0,
+      "state": 1
+    }
+  },
+  "recovery_count_stable_during_thirty_seconds": true,
+  "axes_after_check": [
+    {
+      "state": 1,
+      "error": 0,
+      "latched": false,
+      "velocity": 0.0
+    },
+    {
+      "state": 1,
+      "error": 0,
+      "latched": false,
+      "velocity": 0.0
+    }
+  ],
+  "result": "PASS"
+}

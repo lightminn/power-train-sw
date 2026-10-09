@@ -1,0 +1,2 @@
+[INFO] [0000026873.889846944] [teleop_command]: remote input TCP 127.0.0.1:39000; ARM output enabled=False
+[ERROR] [0000026876.981265600] [teleop_command]: CONTRACT_VIOLATION: session_id was already used by a prior TCP connection (2 occurrences)

@@ -1,0 +1,38 @@
+{
+  "axis_fault": {
+    "expected_failure": "guard_resume_new_axis_error",
+    "result": "85 passed, 1 failed; PATCHED=True; source execution only"
+  },
+  "eligibility": {
+    "expected_failure": "guard_resume_estop",
+    "result": "84 passed, 2 failed; PATCHED=True; source execution only"
+  },
+  "generation": {
+    "expected_failure": "guard_resume_new_generation",
+    "result": "84 passed, 2 failed; PATCHED=True; source execution only"
+  },
+  "can_pending": {
+    "expected_failure": "guard_resume_pending_hal",
+    "result": "84 passed, 2 failed; PATCHED=True; source execution only"
+  },
+  "hal_error": {
+    "expected_failure": "guard_resume_hal_error",
+    "result": "85 passed, 1 failed; PATCHED=True; source execution only"
+  },
+  "motor_error": {
+    "expected_failure": "guard_resume_motor_error",
+    "result": "85 passed, 1 failed; PATCHED=True; source execution only"
+  },
+  "atomic": {
+    "expected_failure": "guard_resume_atomic",
+    "result": "84 passed, 2 failed; PATCHED=True; source execution only"
+  },
+  "metadata": {
+    "expected_failure": "guard_resume_reserved_eligible",
+    "result": "85 passed, 1 failed; PATCHED=True; source execution only"
+  },
+  "manual_clear_payload": {
+    "expected_failure": "guard_clear_old_cas",
+    "result": "84 passed, 2 failed; PATCHED=True; source execution only"
+  }
+}

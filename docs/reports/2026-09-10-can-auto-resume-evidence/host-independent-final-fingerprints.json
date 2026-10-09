@@ -1,0 +1,15 @@
+{
+  "motor_control/chassis/authority.py": "94c7d8b418ddad86bd929bea3c059f7c7a4937ae96d4a5406bc2398617cb0a99",
+  "motor_control/chassis/can_recovery.py": "276aadce5b4a5e21e09ae9c0f27912893cefcfbca5b4902b91c25e900fa7f3df",
+  "motor_control/chassis/chassis_manager.py": "ab8627332636fcac8485dcdbfe96f33bc9e249e7455210801f9a96aed056a017",
+  "motor_control/corner_module/corner_module.py": "ed108a1868cdac227abf913ad5089dc7f316915bec1eb405a2ff5aab2368aeba",
+  "motor_control/corner_module/drive_odrive_can.py": "d3c71fe3eae9c2701220702bd1e177f9cf03471d7a44b0f9799d1f11f09a95e2",
+  "ros2/src/powertrain_msgs/msg/ManualDriveCommand.msg": "9d87dbf84665d7a5607d1c206a618783b94a2988e30858025503bf8827cb6dd7",
+  "ros2/src/powertrain_ros/powertrain_ros/chassis_node.py": "53348e47db3b89bd6ff2a396c58678d5621ee6d6496d166dd716d904fbc47a7f",
+  "ros2/src/powertrain_ros/powertrain_ros/remote_input_gateway.py": "8e058221a831c39656fc4525dc6734aec2e8afdea1cf4c2028e8e831f999fb9a",
+  "ros2/src/powertrain_ros/powertrain_ros/teleop_command_node.py": "fb1a39ec2871138ab1183cd60f60a69e7c5b3e3d06eaac3e0e8bd72a55172257",
+  "motor_control/chassis/tests/test_can_auto_recovery.py": "f8656773fe6c4c84c8c1c4d65eaf18d786227e83b4286b143b39b9d8f9fbdfb1",
+  "motor_control/chassis/tests/test_authority_receipt.py": "401de6a63bb52f6902e3d824eab5339bf5db5380365792a620993f79839f0353",
+  "motor_control/corner_module/tests/test_can_recovery_metadata.py": "ebe52e45e5c4f6fda047d0a7a84e2090ca346d0466eb9a0a52d3f2ed43a8eec0",
+  "ros2/src/powertrain_ros/test/test_can_recovery_receipt.py": "60898716af8fdb846f41266175b38001567c29110929194acfd575c8d3ed39fb"
+}

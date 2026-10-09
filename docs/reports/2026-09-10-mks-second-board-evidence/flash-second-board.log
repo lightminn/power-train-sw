@@ -1,0 +1,52 @@
+Command '['git', 'describe', '--always', '--tags', '--match=*fw*', '--dirty=*']' returned non-zero exit status 128.
+fatal: not a git repository (or any of the parent directories): .git
+[93;1m06:12:30.445914720 [LEGACY_OBJ] protocol failed with 3 - propagating error to application[0m
+{
+  "serial": "337733643235",
+  "started_at": "1970-01-01T06:12:17.165534+00:00",
+  "original_sha256": "7b5640d6b73d1a345655edb5f3fd271ca97f37fd57dccd77d01d9bab57be7ee7",
+  "candidate_sha256": "7567809465b9646d39b1f9595f8a8e037ed758344f90269ba49038f8c6bfc710",
+  "before_axes": [
+    {
+      "state": 1,
+      "position": -0.033222224563360214,
+      "velocity": 0.0,
+      "error": 0,
+      "calibrated": true,
+      "encoder_ready": true
+    },
+    {
+      "state": 1,
+      "position": 0.03320838510990143,
+      "velocity": 0.0,
+      "error": 0,
+      "calibrated": true,
+      "encoder_ready": true
+    }
+  ],
+  "enter_disconnects": [
+    "ObjectLostError"
+  ],
+  "program_verified": true,
+  "after_axes": [
+    {
+      "state": 1,
+      "position": -0.033222224563360214,
+      "velocity": 0.0,
+      "error": 0,
+      "calibrated": true,
+      "encoder_ready": true
+    },
+    {
+      "state": 1,
+      "position": 0.03320838510990143,
+      "velocity": 0.0,
+      "error": 0,
+      "calibrated": true,
+      "encoder_ready": true
+    }
+  ],
+  "patch": 1,
+  "config_unchanged": true,
+  "finished_at": "1970-01-01T06:13:36.733720+00:00"
+}

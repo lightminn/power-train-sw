@@ -1,0 +1,9 @@
+set() 무시: ARMED/EXTRACTION 아님 (mode=ESTOP)
+set() 무시: ARMED/EXTRACTION 아님 (mode=IDLE)
+set() 무시: ARMED/EXTRACTION 아님 (mode=IDLE)
+set() 무시: ARMED/EXTRACTION 아님 (mode=IDLE)
+{"case": "P1-1", "new_packet_immediately": false, "mode": "ESTOP", "nonzero_sends": {"11": [], "12": [], "13": [], "14": [], "15": [], "16": []}, "result": "PASS"}
+{"case": "P1-1", "new_packet_immediately": true, "mode": "ESTOP", "nonzero_sends": {"11": [], "12": [], "13": [], "14": [], "15": [], "16": []}, "result": "PASS"}
+{"case": "P1-2", "board13_14": "eligible", "board15_16": "reboot_error0", "state": {"state": "CANCELLED", "reason": "recovery_timeout", "count": 0, "required_nodes": [13, 14, 15, 16]}, "result": "PASS"}
+{"drained_events": 3, "published_gateway_state": "DRIVE", "after_reconnect_neutral": {"state": "CANCELLED", "reason": "manual_connection_changed", "count": 0, "required_nodes": [13]}, "after_next_drive": {"state": "CANCELLED", "reason": "manual_connection_changed", "count": 0, "required_nodes": [13]}, "mode": "IDLE", "raw_drive_velocities": {"11": 0.0, "12": 0.0, "13": 0.0, "14": 0.0, "15": 0.0, "16": 0.0}}
+{"case": "P1-3", "same_client_session_id": true, "result": "PASS"}

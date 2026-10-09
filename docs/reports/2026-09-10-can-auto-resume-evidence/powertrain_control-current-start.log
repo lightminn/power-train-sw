@@ -1,0 +1,48 @@
+powertrain preflight ok: STOP_MM=200 provenance=BENCH
+[INFO] [launch]: All log files can be found below /root/.ros/log/2026-08-18-06-56-56-708211-jetson-orin-1
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [teleop_command-1]: process started with pid [25]
+[INFO] [ops_broker-2]: process started with pid [27]
+[ops_broker-2] [INFO] [1787036217.476795728] [ops_broker]: ops broker TCP 127.0.0.1:19001
+[teleop_command-1] [INFO] [1787036217.676778032] [teleop_command]: remote input TCP 127.0.0.1:19000; ARM output enabled=False
+powertrain preflight ok: STOP_MM=200 provenance=BENCH
+[INFO] [launch]: All log files can be found below /root/.ros/log/1970-01-01-03-45-00-965559-jetson-orin-1
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [teleop_command-1]: process started with pid [25]
+[INFO] [ops_broker-2]: process started with pid [27]
+[ops_broker-2] [INFO] [0000013501.555356224] [ops_broker]: ops broker TCP 127.0.0.1:19001
+[teleop_command-1] [INFO] [0000013501.863488160] [teleop_command]: remote input TCP 127.0.0.1:19000; ARM output enabled=False
+powertrain preflight ok: STOP_MM=200 provenance=BENCH
+[INFO] [launch]: All log files can be found below /root/.ros/log/1970-01-01-05-05-23-725500-jetson-orin-1
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [teleop_command-1]: process started with pid [25]
+[INFO] [ops_broker-2]: process started with pid [27]
+[ops_broker-2] [INFO] [0000018324.374909152] [ops_broker]: ops broker TCP 127.0.0.1:19001
+[teleop_command-1] [INFO] [0000018324.584834496] [teleop_command]: remote input TCP 127.0.0.1:19000; ARM output enabled=False
+powertrain preflight ok: STOP_MM=200 provenance=BENCH
+[INFO] [launch]: All log files can be found below /root/.ros/log/1970-01-01-05-41-11-201417-jetson-orin-1
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [teleop_command-1]: process started with pid [25]
+[INFO] [ops_broker-2]: process started with pid [27]
+[ops_broker-2] [INFO] [0000020472.094596032] [ops_broker]: ops broker TCP 127.0.0.1:19001
+[teleop_command-1] [INFO] [0000020472.173627008] [teleop_command]: remote input TCP 127.0.0.1:19000; ARM output enabled=False
+powertrain preflight ok: STOP_MM=200 provenance=BENCH
+[INFO] [launch]: All log files can be found below /root/.ros/log/1970-01-01-06-15-10-493315-jetson-orin-1
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [teleop_command-1]: process started with pid [25]
+[INFO] [ops_broker-2]: process started with pid [27]
+[ops_broker-2] [INFO] [0000022511.437870624] [ops_broker]: ops broker TCP 127.0.0.1:19001
+[teleop_command-1] [INFO] [0000022511.467076896] [teleop_command]: remote input TCP 127.0.0.1:19000; ARM output enabled=False
+powertrain preflight ok: STOP_MM=200 provenance=BENCH
+[INFO] [launch]: All log files can be found below /root/.ros/log/1970-01-01-07-43-25-960440-jetson-orin-1
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [teleop_command-1]: process started with pid [24]
+[INFO] [ops_broker-2]: process started with pid [26]
+[ops_broker-2] [INFO] [0000027806.558244544] [ops_broker]: ops broker TCP 127.0.0.1:19001
+[teleop_command-1] [INFO] [0000027806.793455616] [teleop_command]: remote input TCP 127.0.0.1:19000; ARM output enabled=False
+powertrain preflight warning: STOP_MM provenance is BENCH
+powertrain preflight warning: STOP_MM provenance is BENCH
+powertrain preflight warning: STOP_MM provenance is BENCH
+powertrain preflight warning: STOP_MM provenance is BENCH
+powertrain preflight warning: STOP_MM provenance is BENCH
+powertrain preflight warning: STOP_MM provenance is BENCH

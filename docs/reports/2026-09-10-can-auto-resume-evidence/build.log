@@ -1,0 +1,109 @@
+image_reference: sha256:977d830e78e15bf17d84d16f17b1c7eb5ad4a6eb4a79cc561cd5221a88e13258
+image_id: sha256:977d830e78e15bf17d84d16f17b1c7eb5ad4a6eb4a79cc561cd5221a88e13258
+board_version: v3.6-56V
+docker_command: docker run --rm --network none --user 1000:1000 --tmpfs /work:rw,exec,mode=1777 --mount type=bind,src=/tmp/can-usb-diagnosis-20260909/mks-v36-fw051.zip,dst=/input/vendor.zip,readonly --mount type=bind,src=/home/light/ZETIN/robotics/power-train-sw/firmware/mks_odrive,dst=/tool,readonly --mount type=bind,src=/tmp/mks-can-auto-resume-20260910/build,dst=/out --entrypoint /bin/bash sha256:977d830e78e15bf17d84d16f17b1c7eb5ad4a6eb4a79cc561cd5221a88e13258 -lc <embedded-build-script>
+container_commands: ["python3 /tool/prepare_source.py --zip /input/vendor.zip --dest /work/source", "cp /work/source/Firmware/tup.config.default /work/source/Firmware/tup.config", "printf '\\nCONFIG_BOARD_VERSION=v3.6-56V\\n' >> /work/source/Firmware/tup.config", "tup init", "tup generate /work/build-generated.sh", "bash -e /work/build-generated.sh"]
+=== PACKAGE_VERSIONS ===
+build-essential	12.9ubuntu3
+gcc-arm-none-eabi	15:10.3-2021.07-4
+git	1:2.34.1-1ubuntu1.17
+libstdc++-arm-none-eabi-newlib	15:10.3-2021.07-4+17
+patch	2.7.6-7build2
+python3	3.10.6-1~22.04.1
+python3-jinja2	3.0.3-1ubuntu0.4
+python3-jsonschema	3.2.0-0ubuntu2
+python3-yaml	5.4.1-1ubuntu1
+tup	0.7.8-3
+=== END_PACKAGE_VERSIONS ===
+=== TOOL_VERSIONS ===
+arm-none-eabi-gcc (15:10.3-2021.07-4) 10.3.1 20210621 (release)
+tup 0.7.8-3 [debian]
+Python 3.10.12
+GNU patch 2.7.6
+=== END_TOOL_VERSIONS ===
+patching file Firmware/communication/interface_can.cpp
+patching file Firmware/communication/interface_can.hpp
+patching file Firmware/communication/can_simple.cpp
+patching file Firmware/MotorControl/axis.hpp
+patching file Firmware/MotorControl/axis.cpp
+patching file Firmware/MotorControl/low_level.cpp
+patching file Firmware/odrive-interface.yaml
+patching file Firmware/Tupfile.lua
+patching file tools/odrive/mks_reliability_version.py
+/work/source
+CONFIG_USB_PROTOCOL=native
+CONFIG_UART_PROTOCOL=ascii
+CONFIG_DEBUG=false
+.tup repository initialized.
+.tup repository initialized.
+Scanning...
+Reading tup.config...
+Parsing...
+ ~ 1% .vscode
+ ~ 3% Board/v3/Drivers/CMSIS/Device/ST/STM32F4xx/Include
+ ~ 5% Board/v3/Drivers/CMSIS/Device/ST/STM32F4xx
+ ~ 7% Board/v3/Drivers/CMSIS/Device/ST
+ ~ 9% Board/v3/Drivers/CMSIS/Device
+ ~10% Board/v3/Drivers/CMSIS/Include
+ ~12% Board/v3/Drivers/CMSIS/Lib
+ ~14% Board/v3/Drivers/CMSIS
+ ~16% Board/v3/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy
+ ~18% Board/v3/Drivers/STM32F4xx_HAL_Driver/Inc
+ ~20% Board/v3/Drivers/STM32F4xx_HAL_Driver/Src
+ ~21% Board/v3/Drivers/STM32F4xx_HAL_Driver
+ ~23% Board/v3/Drivers
+ ~25% Board/v3/Inc/prev_board_ver
+ ~27% Board/v3/Inc
+ ~29% Board/v3/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc
+ ~30% Board/v3/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src
+ ~32% Board/v3/Middlewares/ST/STM32_USB_Device_Library/Class/CDC
+ ~34% Board/v3/Middlewares/ST/STM32_USB_Device_Library/Class
+ ~36% Board/v3/Middlewares/ST/STM32_USB_Device_Library/Core/Inc
+ ~38% Board/v3/Middlewares/ST/STM32_USB_Device_Library/Core/Src
+ ~40% Board/v3/Middlewares/ST/STM32_USB_Device_Library/Core
+ ~41% Board/v3/Middlewares/ST/STM32_USB_Device_Library
+ ~43% Board/v3/Middlewares/ST
+ ~45% Board/v3/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS
+ ~47% Board/v3/Middlewares/Third_Party/FreeRTOS/Source/include
+ ~49% Board/v3/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F
+ ~50% Board/v3/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC
+ ~52% Board/v3/Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang
+ ~54% Board/v3/Middlewares/Third_Party/FreeRTOS/Source/portable
+ ~56% Board/v3/Middlewares/Third_Party/FreeRTOS/Source
+ ~58% Board/v3/Middlewares/Third_Party/FreeRTOS
+ ~60% Board/v3/Middlewares/Third_Party
+ ~61% Board/v3/Middlewares
+ ~63% Board/v3/Src/prev_board_ver
+ ~65% Board/v3/Src
+ ~67% Board/v3
+ ~69% Board
+ ~70% Drivers/DRV8301
+ ~72% Drivers
+ ~74% MotorControl
+ ~76% Tests
+ ~78% communication
+ ~80% doctest/parts
+ ~81% doctest
+ ~83% fibre/cpp/include/fibre
+ ~85% fibre/cpp/include
+ ~87% fibre/cpp
+ ~89% fibre/python/fibre
+ ~90% fibre/python
+ ~92% fibre/test
+ ~94% fibre/tools
+ ~96% fibre/tupfiles
+ ~98% fibre
+ 100% .
+Using python command "python3 -B"
+Generate: /work/build-generated.sh
+Firmware version 0.5.1-dev (MKS pinned source, ZETIN can.reliability_patch=2)
+   text	   data	    bss	    dec	    hex	filename
+ 246972	   1580	 136064	 384616	  5de68	build/ODriveFirmware.elf
+   text	   data	    bss	    dec	    hex	filename
+ 246972	   1580	 136064	 384616	  5de68	build/ODriveFirmware.elf
+
+=== ARTIFACT_SUMMARY ===
+ODriveFirmware.elf	1102364	88c534981fbe3ca50362b86cf78b53ac4baaec46ed64c666a05c46e6e90c9d62
+ODriveFirmware.bin	248612	0b42bfdbaa0a377df5b0270a8e79b014d551aac649cbd5b323b35033343a68fc
+elf_sections	{"bss": 136064, "data": 1580, "dec": 384616, "hex": "5de68", "text": 246972}
+manifest	mks-build-manifest.json

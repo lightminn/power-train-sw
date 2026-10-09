@@ -1,0 +1,203 @@
+{
+  "host_recorded_at": "2026-09-09T15:43:52.235944+00:00",
+  "scope": "Read-only USB identity and property GETs; no configuration writes, clear, arm, reboot, CAN writes or production-service restart. Snapshot times use Jetson monotonic clock.",
+  "hal_error_decode": {
+    "0x008": "stuff error",
+    "0x010": "form error",
+    "0x200": "Rx FIFO0 overrun"
+  },
+  "samples": [
+    {
+      "event": "identity",
+      "serial": "336A33523235",
+      "nodes": [
+        13,
+        14
+      ],
+      "patch": 1,
+      "firmware": [
+        0,
+        5,
+        1
+      ],
+      "hardware": [
+        3,
+        6,
+        56
+      ],
+      "baud": 500000,
+      "vbus_voltage": 43.56547927856445
+    },
+    {
+      "event": "snapshot",
+      "monotonic_s": 24067.715620512,
+      "can": {
+        "error": 0,
+        "hal_error": 0,
+        "last_hal_error": 16,
+        "hal_error_history": 536,
+        "tx_drop_count": 30,
+        "tx_error_count": 0,
+        "recovery_count": 10,
+        "recovery_failure_count": 0,
+        "rx_discard_count": 14,
+        "reinit_requested": false,
+        "reinitializing": false
+      },
+      "axes": [
+        {
+          "node": 13,
+          "state": 1,
+          "requested_state": 0,
+          "axis_error": 16384,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "controller_error": 0,
+          "can_recovery_latched": true,
+          "can_recovery_in_progress": false,
+          "input_vel": 0.0,
+          "input_torque": 0.0,
+          "velocity": 0.0,
+          "position": -7.4332475662231445,
+          "calibrated": true,
+          "encoder_ready": true,
+          "watchdog_enabled": false,
+          "watchdog_timeout": 0.0
+        },
+        {
+          "node": 14,
+          "state": 1,
+          "requested_state": 0,
+          "axis_error": 16384,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "controller_error": 0,
+          "can_recovery_latched": true,
+          "can_recovery_in_progress": false,
+          "input_vel": 0.0,
+          "input_torque": 0.0,
+          "velocity": 0.0,
+          "position": 7.916673183441162,
+          "calibrated": true,
+          "encoder_ready": true,
+          "watchdog_enabled": false,
+          "watchdog_timeout": 0.0
+        }
+      ]
+    },
+    {
+      "event": "snapshot",
+      "monotonic_s": 24069.755754912,
+      "can": {
+        "error": 0,
+        "hal_error": 0,
+        "last_hal_error": 16,
+        "hal_error_history": 536,
+        "tx_drop_count": 30,
+        "tx_error_count": 0,
+        "recovery_count": 10,
+        "recovery_failure_count": 0,
+        "rx_discard_count": 14,
+        "reinit_requested": false,
+        "reinitializing": false
+      },
+      "axes": [
+        {
+          "node": 13,
+          "state": 1,
+          "requested_state": 0,
+          "axis_error": 16384,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "controller_error": 0,
+          "can_recovery_latched": true,
+          "can_recovery_in_progress": false,
+          "input_vel": 0.0,
+          "input_torque": 0.0,
+          "velocity": 0.0,
+          "position": -7.4332475662231445,
+          "calibrated": true,
+          "encoder_ready": true,
+          "watchdog_enabled": false,
+          "watchdog_timeout": 0.0
+        },
+        {
+          "node": 14,
+          "state": 1,
+          "requested_state": 0,
+          "axis_error": 16384,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "controller_error": 0,
+          "can_recovery_latched": true,
+          "can_recovery_in_progress": false,
+          "input_vel": 0.0,
+          "input_torque": 0.0,
+          "velocity": 0.0,
+          "position": 7.916673183441162,
+          "calibrated": true,
+          "encoder_ready": true,
+          "watchdog_enabled": false,
+          "watchdog_timeout": 0.0
+        }
+      ]
+    },
+    {
+      "event": "snapshot",
+      "monotonic_s": 24071.792084544,
+      "can": {
+        "error": 0,
+        "hal_error": 0,
+        "last_hal_error": 16,
+        "hal_error_history": 536,
+        "tx_drop_count": 30,
+        "tx_error_count": 0,
+        "recovery_count": 10,
+        "recovery_failure_count": 0,
+        "rx_discard_count": 14,
+        "reinit_requested": false,
+        "reinitializing": false
+      },
+      "axes": [
+        {
+          "node": 13,
+          "state": 1,
+          "requested_state": 0,
+          "axis_error": 16384,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "controller_error": 0,
+          "can_recovery_latched": true,
+          "can_recovery_in_progress": false,
+          "input_vel": 0.0,
+          "input_torque": 0.0,
+          "velocity": 0.0,
+          "position": -7.4332475662231445,
+          "calibrated": true,
+          "encoder_ready": true,
+          "watchdog_enabled": false,
+          "watchdog_timeout": 0.0
+        },
+        {
+          "node": 14,
+          "state": 1,
+          "requested_state": 0,
+          "axis_error": 16384,
+          "motor_error": 0,
+          "encoder_error": 0,
+          "controller_error": 0,
+          "can_recovery_latched": true,
+          "can_recovery_in_progress": false,
+          "input_vel": 0.0,
+          "input_torque": 0.0,
+          "velocity": 0.0,
+          "position": 7.916673183441162,
+          "calibrated": true,
+          "encoder_ready": true,
+          "watchdog_enabled": false,
+          "watchdog_timeout": 0.0
+        }
+      ]
+    }
+  ]
+}

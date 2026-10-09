@@ -1,0 +1,76 @@
+{
+  "actions": [
+    {
+      "action": "us100_enable",
+      "status": "FINAL_SUCCESS",
+      "detail": "us100 disabled"
+    },
+    {
+      "action": "robot_arm_enable",
+      "status": "FINAL_SUCCESS",
+      "detail": "robot_arm disabled"
+    },
+    {
+      "action": "estop_reset",
+      "status": "FINAL_SUCCESS",
+      "detail": "mode=IDLE; explicit arm required"
+    }
+  ],
+  "before": {
+    "active_estop_sources": [
+      "us100"
+    ],
+    "authority_mode": "IDLE",
+    "chassis_mode": "ESTOP",
+    "component_mask": {
+      "drive": true,
+      "robot_arm": true,
+      "steer": true,
+      "us100": true
+    },
+    "estop_detail": "liveness_timeout",
+    "estop_latched": true,
+    "estop_source": "us100",
+    "field_age_s": {
+      "authority": 0.0024701440015633125,
+      "gateway": 0.005921023999690078,
+      "safety": 0.018753759999526665,
+      "wheels": 0.081390207997174
+    },
+    "gateway_input_fresh": false,
+    "gateway_neutral": false,
+    "gateway_state": "DISCONNECTED",
+    "push": "ops_state",
+    "revision": 1616653032,
+    "stamp_s": 27810.970692512,
+    "wheels_stopped": true
+  },
+  "after": {
+    "active_estop_sources": [],
+    "authority_mode": "IDLE",
+    "chassis_mode": "IDLE",
+    "component_mask": {
+      "drive": true,
+      "robot_arm": false,
+      "steer": true,
+      "us100": false
+    },
+    "estop_detail": "",
+    "estop_latched": false,
+    "estop_source": "",
+    "field_age_s": {
+      "authority": 0.0023339520012086723,
+      "gateway": 0.0056483840016881,
+      "safety": 0.18026345600083005,
+      "wheels": 0.24089894400458434
+    },
+    "gateway_input_fresh": false,
+    "gateway_neutral": false,
+    "gateway_state": "DISCONNECTED",
+    "push": "ops_state",
+    "revision": 1616653034,
+    "stamp_s": 27811.770725984,
+    "wheels_stopped": true
+  },
+  "result": "PASS"
+}

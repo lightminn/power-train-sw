@@ -1,0 +1,332 @@
+{
+  "serial": "337733643235",
+  "method": "IDLE manual reinit, guarded RESUME negative checks, explicit clear; no successful arm or motion command",
+  "before": [
+    {
+      "node": 15,
+      "state": 1,
+      "error": 0,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "controller_error": 0,
+      "input_vel": 0.0,
+      "input_torque": 0.0,
+      "velocity": 0.0,
+      "latched": false,
+      "in_progress": false,
+      "eligible": false,
+      "generation": 0
+    },
+    {
+      "node": 16,
+      "state": 1,
+      "error": 0,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "controller_error": 0,
+      "input_vel": 0.0,
+      "input_torque": 0.0,
+      "velocity": 0.0,
+      "latched": false,
+      "in_progress": false,
+      "eligible": false,
+      "generation": 0
+    }
+  ],
+  "manual_recovery_can": {
+    "counts": {
+      "ak1": 102,
+      "11": 102,
+      "12": 101,
+      "ak2": 101,
+      "ak4": 101,
+      "15": 101,
+      "16": 101,
+      "ak3": 101,
+      "13": 101,
+      "14": 101
+    },
+    "states": {
+      "11": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001000000"
+      },
+      "12": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001000000"
+      },
+      "15": {
+        "error": 16384,
+        "state": 1,
+        "data_hex": "0040000001a30102"
+      },
+      "16": {
+        "error": 16384,
+        "state": 1,
+        "data_hex": "0040000001a30102"
+      },
+      "13": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001a20002"
+      },
+      "14": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001a20002"
+      }
+    }
+  },
+  "latched": [
+    {
+      "node": 15,
+      "state": 1,
+      "error": 16384,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "controller_error": 0,
+      "input_vel": 0.0,
+      "input_torque": 0.0,
+      "velocity": 0.0,
+      "latched": true,
+      "in_progress": false,
+      "eligible": false,
+      "generation": 2
+    },
+    {
+      "node": 16,
+      "state": 1,
+      "error": 16384,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "controller_error": 0,
+      "input_vel": 0.0,
+      "input_torque": 0.0,
+      "velocity": 0.0,
+      "latched": true,
+      "in_progress": false,
+      "eligible": false,
+      "generation": 2
+    }
+  ],
+  "guard_rejected_can": {
+    "counts": {
+      "12": 27,
+      "ak2": 27,
+      "ak4": 27,
+      "15": 27,
+      "16": 27,
+      "ak3": 27,
+      "13": 26,
+      "14": 26,
+      "ak1": 26,
+      "11": 26
+    },
+    "states": {
+      "12": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001000000"
+      },
+      "15": {
+        "error": 16384,
+        "state": 1,
+        "data_hex": "0040000001a30102"
+      },
+      "16": {
+        "error": 16384,
+        "state": 1,
+        "data_hex": "0040000001a30102"
+      },
+      "13": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001a20002"
+      },
+      "14": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001a20002"
+      },
+      "11": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001000000"
+      }
+    }
+  },
+  "guard_rejected_axes": [
+    {
+      "node": 15,
+      "state": 1,
+      "error": 16384,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "controller_error": 0,
+      "input_vel": 0.0,
+      "input_torque": 0.0,
+      "velocity": 0.0,
+      "latched": true,
+      "in_progress": false,
+      "eligible": false,
+      "generation": 2
+    },
+    {
+      "node": 16,
+      "state": 1,
+      "error": 16384,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "controller_error": 0,
+      "input_vel": 0.0,
+      "input_torque": 0.0,
+      "velocity": 0.0,
+      "latched": true,
+      "in_progress": false,
+      "eligible": false,
+      "generation": 2
+    }
+  ],
+  "manual_origin_guarded_resume_rejected": true,
+  "healthy_idle_guard_rejected_can": {
+    "counts": {
+      "13": 28,
+      "14": 28,
+      "ak1": 28,
+      "11": 28,
+      "12": 28,
+      "ak2": 28,
+      "ak4": 27,
+      "15": 27,
+      "16": 27,
+      "ak3": 27
+    },
+    "states": {
+      "13": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001a20002"
+      },
+      "14": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001a20002"
+      },
+      "11": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001000000"
+      },
+      "12": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001000000"
+      },
+      "15": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001a30002"
+      },
+      "16": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001a30002"
+      }
+    }
+  },
+  "healthy_idle_guarded_resume_rejected": true,
+  "recovery_count_before_final": 2,
+  "final_can": {
+    "counts": {
+      "ak4": 253,
+      "15": 253,
+      "16": 253,
+      "ak3": 253,
+      "13": 252,
+      "14": 252,
+      "ak1": 252,
+      "11": 252,
+      "12": 252,
+      "ak2": 252
+    },
+    "states": {
+      "15": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001a30002"
+      },
+      "16": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001a30002"
+      },
+      "13": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001a20002"
+      },
+      "14": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001a20002"
+      },
+      "11": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001000000"
+      },
+      "12": {
+        "error": 0,
+        "state": 1,
+        "data_hex": "0000000001000000"
+      }
+    }
+  },
+  "after": [
+    {
+      "node": 15,
+      "state": 1,
+      "error": 0,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "controller_error": 0,
+      "input_vel": 0.0,
+      "input_torque": 0.0,
+      "velocity": 0.0,
+      "latched": false,
+      "in_progress": false,
+      "eligible": false,
+      "generation": 2
+    },
+    {
+      "node": 16,
+      "state": 1,
+      "error": 0,
+      "motor_error": 0,
+      "encoder_error": 0,
+      "controller_error": 0,
+      "input_vel": 0.0,
+      "input_torque": 0.0,
+      "velocity": 0.0,
+      "latched": false,
+      "in_progress": false,
+      "eligible": false,
+      "generation": 2
+    }
+  ],
+  "recovery_count_after_final": 2,
+  "can_diagnostics": {
+    "error": 0,
+    "hal_error": 0,
+    "last_hal_error": 512,
+    "hal_error_history": 512,
+    "recovery_count": 2,
+    "recovery_failure_count": 0,
+    "reinitializing": false,
+    "reinit_requested": false
+  },
+  "configuration_unchanged": true,
+  "result": "PASS"
+}

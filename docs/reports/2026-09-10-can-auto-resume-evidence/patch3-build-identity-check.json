@@ -1,0 +1,28 @@
+{
+  "reviewed_source_matches_build_prepared_files": 388,
+  "build_manifest_sha256": "5d0530017f384d1924762a3231c56748c141555c6fd8cb6c567f815e17093126",
+  "source_manifest_sha256": "3b27bb658d5edd968022de59a4f19f8de0a365e19a263cfdeae9ec1ba2562d6e",
+  "patch_sha256": "9b0e7b271d10b824e7edd70ae8b540f61e9b018a73f592928eb020de6d52a2ca",
+  "artifacts": {
+    "ODriveFirmware.bin": {
+      "matches_reference_sha256": false,
+      "matches_reference_size": false,
+      "sha256": "022ac8f148501c084748336f7a65126ab2f1d96c381a4c95bc2079deaa497b86",
+      "size_bytes": 248988
+    },
+    "ODriveFirmware.elf": {
+      "matches_reference_sha256": false,
+      "matches_reference_size": false,
+      "sha256": "a709f42074d2afaafb8982e08dd234804b4deacfe1f588ce1359382b721126fe",
+      "size_bytes": 1102688
+    }
+  },
+  "elf_sections": {
+    "bss": 136064,
+    "data": 1580,
+    "dec": 384996,
+    "hex": "5dfe4",
+    "text": 247352
+  },
+  "patch2_original_bin_still_matches": true
+}

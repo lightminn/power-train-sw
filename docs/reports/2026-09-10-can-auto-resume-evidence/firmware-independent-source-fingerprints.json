@@ -1,0 +1,25 @@
+{
+  "config_declarations": {
+    "MotorControl/axis.hpp": {
+      "unchanged": true,
+      "sha256": "14eed68ecbcf5067c06747a0d71a3d1e9e098b89abb275ef894ebc124eb74e0c"
+    },
+    "communication/interface_can.hpp": {
+      "unchanged": true,
+      "sha256": "aba7e6bb4959a1a580af2674db1c61f53620497b7bd30aa3c4920243f227369d"
+    }
+  },
+  "unchanged_sources": {
+    "MotorControl/main.cpp": "18759d34bb7113e46c6680afb972f41efa421245b9e49fa771817ec306433fb2",
+    "MotorControl/nvm_config.hpp": "23a326d1c49c1ba4cbb1b0e2d6c0b48122f79bb3fae6218e017cdf7276bf6b34",
+    "MotorControl/axis.cpp": "bbbd4a0592b365edffb990a43526680fc21ab8f4fc5320ca80738e0b5d59d282",
+    "MotorControl/low_level.cpp": "9582988fd095d155e79cf34cc43147a8d8809880b9d066d080e249099857c3cf"
+  },
+  "patch2_files": {
+    "MotorControl/axis.hpp": "a0c18c67ce4cf7fa8008f357bc78373542ddaf21c36285f82fe85a34daf140dc",
+    "communication/interface_can.hpp": "9d59f85aec1c4aaaec24b44a864db42b5ae50f557493efba98bc9f1d015de055",
+    "communication/interface_can.cpp": "19db24a4e551d6a77de2ec85d7a4a75d544050d9c977be6b309af82bba1b58cf",
+    "communication/can_simple.cpp": "35ac035b490bcf8f98a5e9ff9e6f482d0b3dd34d5366cba9ec4c080e865bb050",
+    "odrive-interface.yaml": "6a1855fcaf0e2ebeacffc7698e7a2bb079cd348abbcbd3d826e811176639b966"
+  }
+}
