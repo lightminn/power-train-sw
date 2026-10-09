@@ -48,7 +48,7 @@ class PreparationTests(unittest.TestCase):
             patch = Path(__file__).parents[1] / 'reliability.patch'
             manifest = prepare_source.prepare(ARCHIVE, dest, patch)
             self.assertEqual(manifest['vendor_archive_sha256'], prepare_source.ZIP_SHA256)
-            self.assertEqual(manifest['reliability_patch'], 1)
+            self.assertEqual(manifest['reliability_patch'], 3)
             self.assertEqual(manifest['installed_board_binary_equivalence'], 'NOT PROVEN')
             self.assertIn('c_getter: get_hal_error()', (dest / 'Firmware/odrive-interface.yaml').read_text())
             changed = {p for p, h in manifest['prepared_file_sha256'].items() if manifest['original_file_sha256'].get(p) != h}

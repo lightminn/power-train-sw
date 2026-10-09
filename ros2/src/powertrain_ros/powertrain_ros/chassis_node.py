@@ -559,6 +559,12 @@ class ChassisNode(Node):
                 wheel_stop_qualified=lambda: self._wheel_stop.qualified,
             )
             self._authority.set_mode(IDLE)
+            self._gateway_input_ok = False
+            self._gateway_received_s = None
+            self._gateway_connection_session_id = None
+            self.create_subscription(
+                String, "/teleop/gateway_state",
+                ReceiptTimeCallback(self._on_gateway_state), 1)
             if self._manual_command_format == "steering":
                 self.create_subscription(
                     ManualDriveCommand, "/teleop/drive_command",
@@ -757,6 +763,7 @@ class ChassisNode(Node):
             "~/steer_mode_skid",
             self._srv_steer_mode_skid,
         )
+        self.create_service(Trigger, "~/steer_zero_here", self._srv_steer_zero_here)
         for component in ("drive", "steer", "us100", "robot_arm"):
             self.create_service(
                 SetBool,
@@ -1364,6 +1371,15 @@ class ChassisNode(Node):
         response.message = reason or mode
         return response
 
+    def _srv_steer_zero_here(self, request, response):
+        manager = getattr(self, "cm", None)
+        if manager is None:
+            response.success = False
+            response.message = "chassis manager unavailable"
+            return response
+        response.success, response.message = manager.register_steering_origin()
+        return response
+
     def _srv_component_enable(self, component, request, response):
         enabled = bool(request.data)
         manager = getattr(self, "cm", None)
@@ -1433,8 +1449,8 @@ class ChassisNode(Node):
     def _command_received_s(self, message_info):
         """Use this host's DDS receipt timestamp, never callback execution time.
 
-        Drive commands have no source stamp. KEEP_LAST(1) limits queued commands; DDS
-        receipt age additionally rejects executor backlog. This does not claim
+        KEEP_LAST(1) limits queued commands; DDS receipt age rejects executor
+        backlog independently of a manual command's original TCP receipt. This does not claim
         to measure pre-receipt network delay or synchronize remote clocks.
         """
         received_ns = (message_info.get("received_timestamp", 0) if isinstance(message_info, dict)
@@ -1468,7 +1484,27 @@ class ChassisNode(Node):
         received_s = self._command_received_s(message_info)
         if received_s is not None:
             self._authority.submit(
-                MANUAL_SOURCE, msg.speed_mps, 0.0, received_s, steering=msg.steering)
+                MANUAL_SOURCE, msg.speed_mps, 0.0, received_s, steering=msg.steering,
+                source_received_s=(msg.source_received_s if msg.source_received_s > 0 else None),
+                connection_session_id=msg.connection_session_id)
+
+    def _on_gateway_state(self, msg: String, message_info):
+        received_s = self._command_received_s(message_info)
+        epoch = None
+        try:
+            state = json.loads(msg.data)
+            epoch = state.get("connection_session_id") if isinstance(state, dict) else None
+            valid = (received_s is not None and isinstance(state, dict)
+                     and state.get("state") == "DRIVE" and state.get("input_fresh") is True
+                     and isinstance(epoch, str) and bool(epoch))
+        except (ValueError, TypeError):
+            valid = False
+        previous_epoch = getattr(self, "_gateway_connection_session_id", None)
+        self._gateway_connection_session_id = epoch if valid else None
+        self._gateway_input_ok = valid
+        self._gateway_received_s = received_s if valid else None
+        if not valid or (previous_epoch is not None and previous_epoch != epoch):
+            self.cm.set_manual_input_state(False)
 
     def _on_assist_correction(self, msg: String):
         try:
@@ -1602,6 +1638,23 @@ class ChassisNode(Node):
 
     def _tick_authority(self, now_s):
         command = self._authority.select(now_s)
+        source_stamp = getattr(command, "source_received_s", None)
+        connection_epoch = getattr(command, "connection_session_id", None)
+        gateway_stamp = getattr(self, "_gateway_received_s", None)
+        manual_active = (
+            self._authority.mode == "TELEOP" and command.ok
+            and not getattr(self, "_assist_enabled", False)
+            and getattr(self, "_gateway_input_ok", False)
+            and isinstance(connection_epoch, str) and bool(connection_epoch)
+            and connection_epoch == getattr(self, "_gateway_connection_session_id", None)
+            and isinstance(gateway_stamp, (int, float))
+            and 0 <= now_s - gateway_stamp <= .300
+            and isinstance(source_stamp, (int, float)) and math.isfinite(source_stamp)
+            and 0 < source_stamp <= now_s and now_s - source_stamp <= .300)
+        manual_input = getattr(self.cm, "set_manual_input_state", None)
+        if callable(manual_input):
+            manual_input(manual_active, received_s=source_stamp,
+                         connection_session_id=connection_epoch)
         final_v = command.v
         final_omega = command.omega
         final_steering = getattr(command, "steering", None)
@@ -1655,6 +1708,8 @@ class ChassisNode(Node):
                 )
                 input_v, input_omega = final_v, final_omega
                 if decision.force_hold:
+                    if callable(manual_input):
+                        manual_input(False)
                     final_v, final_omega = 0.0, 0.0
                     if final_steering is not None:
                         final_steering = 0.0
@@ -1668,10 +1723,17 @@ class ChassisNode(Node):
             self._authority_final_v = final_v
             self._authority_final_omega = final_omega
             self._authority_final_steering = 0.0 if final_steering is None else final_steering
-            if final_steering is None:
-                self.cm.set(final_v, final_omega)
-            else:
-                self.cm.set(final_v, final_omega, steering=final_steering)
+            receipt = getattr(command, "received_s", None)
+            command_options = {}
+            if receipt is not None:
+                command_options["received_s"] = receipt
+            if source_stamp is not None:
+                command_options["source_received_s"] = source_stamp
+            if connection_epoch is not None:
+                command_options["connection_session_id"] = connection_epoch
+            if final_steering is not None:
+                command_options["steering"] = final_steering
+            self.cm.set(final_v, final_omega, **command_options)
 
     def _on_safety_verdict(self, msg):
         status_name = {
@@ -1821,6 +1883,8 @@ class ChassisNode(Node):
         message.data = json.dumps(
             {
                 "mode": self.cm.mode,
+                "can_recovery": (
+                    self.cm.can_recovery_state() if hasattr(self.cm, "can_recovery_state") else {}),
                 "estop_latched": bool(safety.estop_latched),
                 "active_estop_sources": list(safety.active_estop_sources),
                 "estop_source": (

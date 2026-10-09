@@ -1,4 +1,4 @@
-# MKS ODrive v3.6 CAN reliability patch 1
+# MKS ODrive v3.6 CAN reliability patch 3
 
 고정한 Makerbase **0.5.1 소스**에 적용하는 재현 가능한 패치다. 실물에서 읽은
 `0.5.1 unreleased` 바이너리와 제조사 ZIP의 동일성은 **입증되지 않았다**.
@@ -13,15 +13,23 @@
 python firmware/mks_odrive/prepare_source.py \
   --zip /path/to/mks-v36-fw051.zip --dest /tmp/mks-original --unpatched
 python firmware/mks_odrive/tests/run_source_tests.py /tmp/mks-original
-# 기대: 4 passed, 22 failed (수정 계약에 대한 원본의 RED)
+# 기대: 4 passed, 82 failed (수정 계약에 대한 원본의 RED)
 
 python firmware/mks_odrive/prepare_source.py \
   --zip /path/to/mks-v36-fw051.zip --dest /tmp/mks-patched
 python firmware/mks_odrive/tests/run_source_tests.py /tmp/mks-patched
-# 기대: 26 passed, 0 failed
+# 기대: 86 passed, 0 failed
 python firmware/mks_odrive/tests/test_prepare.py --zip /path/to/mks-v36-fw051.zip
-# 기대: 준비 도구 3개 통과 + 새 추출/패치 소스에서 26개 통과
+# 기대: 준비 도구 3개 통과 + 새 추출/패치 소스에서 86개 통과
 ```
+
+patch3의 최종 계약은 보존한 patch2 소스에서 **49 passed, 37 failed**를 확인했다.
+구현 전 guarded clear 반례와 atomic RESUME 반례를 각각 RED로 실행했고, 최종 시험은
+자동 복구 자격·취소·세대와 원자적 clear/zero/state 요청을 함께 검사한다. 현재 오류,
+자격, 세대, CAN pending/HAL 오류, motor 오류, critical 원자성, reserved metadata,
+manual clear payload를 각각 깨뜨린 9개 변이가 지정된 실제 소스 반례에서 실패했다.
+기존 patch2의 provenance 계약도 함께 유지한다. 준비 시험의 전체 재생은 `--zip` 또는
+`MKS_VENDOR_ZIP`이 필요하며, 미지정 시 해당 시험만 명시적으로 skip한다.
 
 원본 ZIP SHA256:
 `1c9ff347f997bbbf8cb693cdb44d93fe6f6ef992aefde60b6a65b0e1fa25a777`.
@@ -35,6 +43,8 @@ python firmware/mks_odrive/tests/test_prepare.py --zip /path/to/mks-v36-fw051.zi
 경계 stub이다. 마지막 슬롯 확인 직후의 선점은 PRIMASK 해제까지 지연되며, HAL 상태
 고장은 IRQ 마스킹과 무관하게 주입한다. `get_watchdog_reset()`은 설정 계산 경계이며
 호출 횟수와 결정적인 작은 tick 수를 제공한다. 실제 watchdog 감소·만료 코드는 원문이다.
+heartbeat 데이터는 실제 송신 함수가 만든 패킷을 `write()` 진입 경계에서 관측한다.
+재초기화 중 관측한 패킷은 송신 시도에 해당하며, 기존 TX gate가 실제 HAL 전송을 막는다.
 
 ## 빌드
 
@@ -54,9 +64,11 @@ python firmware/mks_odrive/build_firmware.py \
 `mks-build-manifest.json`, `build.log`이다. 매니페스트와 로그에는 ZIP·패치 해시,
 실제 Docker image ID, 패키지·컴파일러 버전, 실행 명령, ELF section 크기와 산출물
 크기·SHA256이 남는다. 생성된 tup 스크립트는 `bash -e`로 실행하므로 실패 뒤 오래된
-출력을 성공으로 취급하지 않는다. 고정 입력과 기본 이미지의 확인값은 ELF 1,102,364 bytes
+출력을 성공으로 취급하지 않는다. **이전 patch1의 비교 기준**은 ELF 1,102,364 bytes
 (`fd75b613…22d2`), BIN 247,880 bytes (`75678094…c710`),
 text/data/bss/dec = 246244/1580/136064/383888이다.
+patch3는 코드가 달라 이 값과 일치하지 않는다. 빌드 매니페스트는 현재 패치 ID와
+`reference_reliability_patch=1`을 구분하며, 현재 산출물의 크기·SHA256을 별도로 기록한다.
 
 이미지가 없는 머신은 다음 Dockerfile로 대체 이미지를 만들고 `--image`로 지정할 수 있다.
 Ubuntu 22.04 base digest와 직접 빌드 의존성 버전은 `Dockerfile.build`와
@@ -74,7 +86,7 @@ python firmware/mks_odrive/build_firmware.py \
 패키지 저장소 상태와 transitive dependency 때문에 Dockerfile 재빌드의 image ID나 산출물
 바이트 동일성은 별도 입증 대상이다. 스크립트는 실제 비교 결과를 기록하며 환경 간 동일성을
 가정하지 않는다. 패치의 version generator는 **0.5.1-dev /
-fw_version_unreleased=1**을 생성하고 식별자는 `can.reliability_patch == 1`이다.
+fw_version_unreleased=1**을 생성하고 식별자는 `can.reliability_patch == 3`이다.
 이 경로는 ZIP·벤더 소스·바이너리를 저장소에 복제하지 않으며 flash 동작을 전혀 수행하지 않는다.
 
 ## 런타임 계약
@@ -99,10 +111,32 @@ fw_version_unreleased=1**을 생성하고 식별자는 `can.reliability_patch ==
   멎는 고장은 이 소스 시험의 보장 범위가 아니다. PRIMASK 실행시간은 MCU에서 측정해야 한다.
 - 재초기화는 CLOSED_LOOP를 요청하거나 ESTOP를 자동 해제하지 않는다. Axis가 실제
   IDLE이고 CAN 재초기화가 끝나야 명시적 `axis.clear_errors()`가 래치를 해제한다.
-  clear는 입력을 다시 0/현재 위치로 지운다. 호스트는 **IDLE 관측 → 명시 clear → 새
-  0속도/0토크 → 명시 arm** 순서를 따라야 한다. routine telemetry와 자동 PWM rearm,
+  clear는 입력을 다시 0/현재 위치로 지운다. 수동 재시작은 **IDLE 관측 → 명시 clear → 새
+  0속도/0토크 → 명시 arm** 순서를 따른다. routine telemetry와 자동 PWM rearm,
   USB의 `axis.error=0`만으로는 래치를 우회하지 못한다.
-- **새 zero 프레임의 순서는 호스트 계약**이다. 펌웨어가 clear 이후 별도 neutral ACK를
+- 자동 HAL 복구가 최초 래치 직전 **오류 없는 CLOSED_LOOP**를 중단한 축에만 자동
+  재개 자격을 부여한다. Axis·motor·encoder·controller·sensorless 오류와 대기 중인
+  상태 요청이 없어야 한다. 이미 IDLE이거나 IDLE 요청이 대기 중이면 자격이 없다.
+  재시도는 기존 결정을 유지한다. 같은 baud를 포함한 유효 수동 재초기화 요청은
+  enqueue 시 양축 자격을 즉시 취소하며 동시 HAL 오류보다 우선한다. CAN E-stop,
+  `clear_errors()`(아직 IDLE이 아니라 거절된 clear 포함), MCU 재시작도 자격을 취소한다.
+  이 자격만으로 펌웨어가 arm하거나 과거 입력을 재생하지 않는다.
+  호스트의 전체 정지·새 피드백·guarded RESUME·새 수동 입력 계약은
+  [자동 재개 사양](../../docs/specs/2026-09-10-can-auto-resume.md)을 따른다.
+- 자동 재개는 **cmd `0x07`, DLC8, `<IBBBB` = `(8, 0xA3, expected_generation, 0, 0)`**
+  하나로 요청한다. 같은 critical section에서 eligible+latch, !in-progress, IDLE,
+  pending 상태 UNDEFINED/IDLE, 정확한 axis error `0x4000`, 일치하는 세대, 모든 하위
+  motor/encoder/controller/sensorless error 0, CAN pending/reinitializing 없음과 현재
+  HAL error 0을 검사한다. 통과하면 clear→입력 0/현재 위치→requested state8을 원자적으로
+  커밋한다. 실제 PWM arm은 기존 Axis 상태머신이 담당한다. 거절은 상태·오류·입력을
+  바꾸지 않고 watchdog도 갱신하지 않는다. IRQ 복원 뒤 새 오류는 기존 health check가
+  보존한다. 호스트는 이 명령 뒤 별도 generic clear/일반 arm을 보내면 안 된다.
+- cmd `0x18`은 수동 zero8/기존 DLC0 clear만 허용하며, 그 외 payload는 거부한다.
+  분리된 guarded clear 명령은 없다. 일반 state 요청은 DLC4 또는 zero-padded DLC8을
+  유지하되, 비zero suffix는 정확한 guarded RESUME만 허용한다. 외부 manual clear가
+  먼저 실행되면 자격과 래치가 취소되므로 늦은 guarded RESUME는 arm을 요청하지 않는다.
+  영향받지 않은 error0 peer의 자동 재무장에서는 호스트가 clear 자체를 생략해야 한다.
+- **수동 경로의 새 zero 프레임 순서는 호스트 계약**이다. 펌웨어가 clear 이후 별도 neutral ACK를
   강제하는 것은 아니다. clear 자체가 입력을 0/현재 위치로 지우며, 이후 명시 arm을
   허용한다. 적용 대상은 **모든 `startup_*` 설정이 false인 보드**로 제한하고 flash 전과
   부팅 후 대조한다. 래치는 RAM 상태이므로 전원·USB reboot·CAN Reset ODrive 명령으로
@@ -134,7 +168,7 @@ USB Fibre에서 input 값을 쓰는 것만으로는 watchdog이 갱신되지 않
 
 | 속성 | 의미 |
 |---|---|
-| `can.reliability_patch` | 이 패치의 정수 식별자 `1` |
+| `can.reliability_patch` | 이 패치의 정수 식별자 `3` |
 | `can.hal_error` | 현재 STM32 HAL ErrorCode 값 |
 | `can.last_hal_error` | 가장 최근에 기록한 0이 아닌 HAL 오류 snapshot |
 | `can.hal_error_history` | 부팅 이후 기록한 HAL 오류의 OR |
@@ -145,6 +179,15 @@ USB Fibre에서 input 값을 쓰는 것만으로는 watchdog이 갱신되지 않
 | `can.rx_discard_count` | 리셋 직전 관측한 오래된 FIFO 프레임 수 |
 | `can.reinit_requested`, `can.reinitializing` | 대기/진행 중 상태 |
 | `axisN.can_recovery_latched`, `axisN.can_recovery_in_progress` | 운전 금지 래치/복구 진행 |
+| `axisN.can_recovery_auto_resume_eligible` | 자동 HAL 복구가 중단한 건강한 폐루프 축의 재개 자격 |
+| `axisN.can_recovery_generation` | 각 복구 시도마다 증가하는 uint8 세대, 255→0 wrap |
+
+heartbeat는 error의 little-endian 4바이트와 **byte4 axis state**를 그대로 유지한다.
+byte5는 `0xA3`, byte6의 bit0/1/2는 각각 latch/in-progress/eligible이며 나머지 비트는 0이다.
+byte7은 복구 세대다. error/state/flags/generation을 같은 짧은 critical section에서
+snapshot하고 IRQ를 복원한 뒤 TX gate로 보낸다. 정상 부팅은 flags=0/generation=0이다.
+clear는 자격·허용된 래치를 지우지만 세대는 유지하며, MCU 재시작 때 세대도 0이 된다.
+마커 없는 기존 펌웨어나 guarded RESUME가 없는 patch2/A2의 `0x4000`으로 자동 재개를 허용하면 안 된다.
 
 counter는 RAM의 uint32이며 재부팅 때 초기화되고 wrap할 수 있다. `can.error`는 기존
 중복 node-ID flag이므로 HAL 오류와 구분한다. 보드 backup·복구 경로와 실제 firmware

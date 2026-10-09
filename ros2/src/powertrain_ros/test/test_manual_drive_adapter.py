@@ -27,7 +27,7 @@ def test_startup_contract_rejects_unsupported_steering_assist(command_format, as
 
 
 class ManualMessage:
-    __slots__ = ("speed_mps", "steering")
+    __slots__ = ("speed_mps", "steering", "source_received_s", "connection_session_id")
 
 
 class TwistMessage:
@@ -77,20 +77,21 @@ def test_explicit_legacy_drive_adapter_keeps_twist_payload():
 
 
 @pytest.mark.parametrize("age_ms,accepted", [(100, True), (400, False)])
-def test_manual_adapter_preserves_steering_and_dds_receipt_age(age_ms, accepted):
+def test_manual_adapter_preserves_steering_and_dds_receipt_age(age_ms, accepted, monkeypatch):
+    monkeypatch.setattr(time, "time_ns", lambda: 123_000_000_000)
     cls = _methods("chassis_node.py", "ChassisNode", "_on_manual_drive_command", "_command_received_s")
     node = cls()
     node._now_s = lambda: 10.0
     sent = []
     node._authority = SimpleNamespace(submit=lambda *args, **kwargs: sent.append((args, kwargs)))
-    message = SimpleNamespace(speed_mps=-0.7, steering=0.5)
+    message = SimpleNamespace(speed_mps=-0.7, steering=0.5, source_received_s=9.8, connection_session_id="server-1")
     info = SimpleNamespace(received_timestamp=time.time_ns() - age_ms * 1_000_000)
     node._on_manual_drive_command(message, info)
     if accepted:
         args, kwargs = sent[0]
         assert args[:3] == ("teleop", -0.7, 0.0)
         assert args[3] == pytest.approx(9.9, abs=0.01)
-        assert kwargs == {"steering": 0.5}
+        assert kwargs == {"steering": 0.5, "source_received_s": 9.8, "connection_session_id": "server-1"}
     else:
         assert sent == []
 

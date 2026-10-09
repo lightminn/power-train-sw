@@ -57,7 +57,9 @@ def test_enforcement_decision_is_applied_immediately_before_final_set():
         and [arg.id for arg in node.args] == ["final_v", "final_omega"]
     )
     assert decide.lineno < final_set.lineno
-    assert final_set.lineno - decide.lineno < 25
+    # Receipt/session keyword assembly sits between them; it never rewrites
+    # final_v/final_omega.
+    assert final_set.lineno - decide.lineno < 35
 
 
 def test_floor_conversion_clamp_and_journal_throttle_are_explicit():

@@ -162,6 +162,9 @@ class DriveOdriveCan(DriveActuator):
         self._arm_requested_ms = None
         self._arm_heartbeat_sequence = None
         self._heartbeat_sequence = 0
+        self._can_recovery_supported = False
+        self._can_recovery_flags = 0
+        self._can_recovery_generation = None
 
     @property
     def invert(self) -> bool:
@@ -212,6 +215,10 @@ class DriveOdriveCan(DriveActuator):
                 return False
             self._axis_error = struct.unpack("<I", m.data[0:4])[0]
             self._axis_state = m.data[4]
+            self._can_recovery_supported = (
+                len(m.data) == 8 and m.data[5] == 0xA3 and m.data[6] & ~7 == 0)
+            self._can_recovery_flags = m.data[6] if self._can_recovery_supported else 0
+            self._can_recovery_generation = m.data[7] if self._can_recovery_supported else None
             self._heartbeat_sequence += 1
             kind = "heartbeat"
         elif cmd == _GET_ENCODER_ESTIMATES and len(m.data) >= 8:
@@ -327,18 +334,32 @@ class DriveOdriveCan(DriveActuator):
                 f"can0 열기 실패({e}). 먼저 'bash scripts/can_setup.sh' 실행하세요."
             ) from e
 
-    def arm(self) -> None:
+    def arm(self, *, recovery_guard=None) -> None:
         """velocity-control + passthrough 로 폐루프 진입(input_vel=0 점프 방지)."""
         # Drain pre-request replies so timestamp-less injected doubles cannot
         # reuse cached state8 as evidence of this request either.
         self._drain_available()
+        if recovery_guard is not None and not recovery_guard(self.health_state()):
+            raise RuntimeError("CAN recovery evidence changed before clear_errors")
         self._arm_heartbeat_sequence = self._heartbeat_sequence
-        self._send(_CLEAR_ERRORS, bytes(8))
+        guarded_generation = (self._can_recovery_generation
+                              if recovery_guard is not None and self._axis_error == 0x4000
+                              else None)
+        if recovery_guard is None:
+            self._send(_CLEAR_ERRORS, bytes(8))
+        # Automatic recovery never sends CLEAR_ERRORS. Patch3 combines its
+        # eligibility/generation check, clear, zero and arm in one atomic
+        # firmware operation; a rejected operation cannot fall through to a
+        # normal state8 request after an external clear revoked eligibility.
         self._send(_SET_CONTROLLER_MODE, struct.pack("<ii", _CTRL_VELOCITY, _INPUT_PASSTHROUGH))
         self._send(_SET_INPUT_VEL, struct.pack("<ff", 0.0, 0.0))
         self._target_vel = 0.0
         self._arm_requested_ms = self._now_ms()
-        self._set_axis_state(_AXIS_CLOSED_LOOP)
+        if guarded_generation is None:
+            self._set_axis_state(_AXIS_CLOSED_LOOP)
+        else:
+            self._send(_SET_AXIS_STATE,
+                       struct.pack("<IBBBB", _AXIS_CLOSED_LOOP, 0xA3, guarded_generation, 0, 0))
         # Six sequential arms share the ROS executor with the 300 ms input
         # watchdog. Drain queued feedback without waiting 100 ms per axis;
         # missing feedback stays stale and is handled by the safety tick.
@@ -414,6 +435,11 @@ class DriveOdriveCan(DriveActuator):
             "cur_a": self._cur_a,
             "axis_error": self._axis_error,
             "axis_state": self._axis_state,
+            "can_recovery_supported": self._can_recovery_supported,
+            "can_recovery_latched": bool(self._can_recovery_flags & 1),
+            "can_recovery_in_progress": bool(self._can_recovery_flags & 2),
+            "can_auto_resume_eligible": bool(self._can_recovery_flags & 4),
+            "can_recovery_generation": self._can_recovery_generation,
             "stale": stale,
             "encoder_stale": encoder_age_ms is None or encoder_age_ms > self._stale_ms,
             "heartbeat_stale": heartbeat_age_ms is None or heartbeat_age_ms > self._stale_ms,

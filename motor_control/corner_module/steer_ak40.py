@@ -113,6 +113,19 @@ class SteerAk40(SteerActuator):
     def set_angle(self, deg: float) -> None:
         self._target_deg = deg
 
+    def set_origin_here(self) -> float:
+        """Register this physical pose as zero; return the post-send RX cutoff.
+
+        The chassis owns stationary/all-axis preflight. This sends only AK
+        packet 5/data 01 and never fabricates a zero position or fresh feedback.
+        """
+        if self._ak is None or self._bus is None:
+            raise RuntimeError(f"AK {self._motor_id} is not connected")
+        self._require_sent(self._ak.set_origin_here() is True)
+        sent_ms = self._now_ms()
+        self._target_deg = 0.0
+        return sent_ms
+
     def tick(self) -> None:
         self._require_sent(self._ak.send_pos_out(self._target_deg * self._sign))
         self._receive_feedback()
@@ -143,8 +156,10 @@ class SteerAk40(SteerActuator):
             "target_deg": self._target_deg,
             "actual_deg": self._ak.pos_out_deg * self._sign if self._ak else 0.0,
             "cur_a": self._ak.cur_a if self._ak else 0.0,
+            "speed_erpm": getattr(self._ak, "spd_erpm", None),
             "fault": self._ak.fault if self._ak else 0,
             "stale": stale,
+            "last_feedback_ms": self._last_rx_ms,
             "last_feedback_age_ms": age_ms,
             "feedback_rate_hz": self._feedback_rate_hz,
             "rx_packets": self._rx_packets,

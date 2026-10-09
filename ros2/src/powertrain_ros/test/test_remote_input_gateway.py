@@ -561,7 +561,7 @@ def test_ros_wrapper_publishes_one_zero_on_each_fresh_to_stale_edge():
         return SimpleNamespace(
             state="DRIVE",
             input_fresh=input_fresh,
-            drive=SimpleNamespace(linear=value, angular=value),
+            drive=SimpleNamespace(linear=value, angular=value, source_received_s=9.9 if input_fresh else None, connection_session_id="server-1"),
             arm=SimpleNamespace(joint_velocity=value, gripper=value),
         )
 

@@ -443,9 +443,9 @@ class TeleopCommandNode(Node):
             if event == "gateway_estop":
                 self._gateway._enter_hold("remote E-stop edge")
             elif event == "lifecycle":
-                lifecycle, _session_id = payload
+                lifecycle, connection_session_id = payload
                 if lifecycle == "connect":
-                    self._gateway.begin_connection()
+                    self._gateway.begin_connection(connection_session_id=connection_session_id)
                 elif lifecycle == "disconnect":
                     self._gateway.end_connection()
                     self._last_frame = None
@@ -517,6 +517,8 @@ class TeleopCommandNode(Node):
             message = ManualDriveCommand()
             message.speed_mps = float(output.drive.linear)
             message.steering = float(output.drive.steering)
+            message.source_received_s = float(output.drive.source_received_s or 0.0)
+            message.connection_session_id = output.drive.connection_session_id
         else:
             message = Twist()
             message.linear.x = float(output.drive.linear)
@@ -599,6 +601,8 @@ class TeleopCommandNode(Node):
             {
                 "state": output.state,
                 "input_fresh": bool(output.input_fresh),
+                "input_received_s": output.drive.source_received_s,
+                "connection_session_id": output.drive.connection_session_id,
                 "neutral": bool(
                     self._last_frame is not None
                     and frame_is_neutral(self._last_frame)

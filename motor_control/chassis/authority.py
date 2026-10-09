@@ -59,6 +59,9 @@ class Command:
     ok: bool = False
     reason: str = ""
     steering: float = None  # None = physical yaw-rate command; otherwise [-1, 1].
+    received_s: float = None  # Actual source receipt; synthetic hold/idle zeros have no receipt.
+    source_received_s: float = None  # Original TCP frame, carried atomically with manual values.
+    connection_session_id: str = None  # Server accept epoch, never the client-supplied session id.
 
 
 @dataclass(frozen=True)
@@ -97,9 +100,11 @@ class CommandAuthority:
         self._last_select_t = 0.0
         self.last_transition_reason = "initialized in IDLE"
 
-    def submit(self, source: str, v: float, omega: float, t: float, *, steering=None) -> None:
+    def submit(self, source: str, v: float, omega: float, t: float, *, steering=None,
+               source_received_s=None, connection_session_id=None) -> None:
         self._src[source] = (float(v), float(omega), float(t),
-                             None if steering is None else float(steering))
+                             None if steering is None else float(steering), source_received_s,
+                             connection_session_id)
 
     def _transition_result(self, accepted, reason):
         self.last_transition_reason = reason
@@ -215,9 +220,10 @@ class CommandAuthority:
         self.last_transition_reason = "MOTION_HOLD cleared to IDLE"
         return True
 
-    def _zero(self, reason):
+    def _zero(self, reason, received_s=None, source_received_s=None, connection_session_id=None):
         self._last_output = (0.0, 0.0, 0.0)
-        return Command(0.0, 0.0, True, reason)
+        return Command(0.0, 0.0, True, reason, received_s=received_s,
+                       source_received_s=source_received_s, connection_session_id=connection_session_id)
 
     def _select_stopping(self, t):
         elapsed = t - self._stopping_started_s
@@ -276,7 +282,7 @@ class CommandAuthority:
         if entry is None:
             return Command(reason=f"{name} 명령 없음")
 
-        v, omega, ts, steering = entry
+        v, omega, ts, steering, source_received_s, connection_session_id = entry
         if (not all(math.isfinite(value) for value in (v, omega, ts, t))
                 or (steering is not None and (
                     not math.isfinite(steering) or abs(steering) > 1 or omega != 0))):
@@ -296,13 +302,15 @@ class CommandAuthority:
         if not self._armed:
             if self._is_neutral(v, omega, steering):
                 self._armed = True
-                return self._zero(f"{name} 중립 확인 — 권한 인계")
+                return self._zero(f"{name} 중립 확인 — 권한 인계", received_s=ts,
+                                  source_received_s=source_received_s, connection_session_id=connection_session_id)
             return Command(
                 reason=f"{name} 중립 대기 (v={v:+.2f} ω={omega:+.2f})"
             )
 
         self._last_output = (v, omega, steering or 0.0)
-        return Command(v, omega, True, name, steering)
+        return Command(v, omega, True, name, steering, received_s=ts,
+                       source_received_s=source_received_s, connection_session_id=connection_session_id)
 
     def _is_neutral(self, v, omega, steering=None):
         return (

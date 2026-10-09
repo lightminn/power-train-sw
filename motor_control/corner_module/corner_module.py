@@ -33,11 +33,14 @@ class CornerModule:
         self.drive.connect()
         self.mode = "IDLE"
 
-    def arm(self) -> None:
+    def arm(self, *, drive_recovery_guard=None) -> None:
         if self._steer_enabled:
             self.steer.arm()
         if self._drive_enabled:
-            self.drive.arm()
+            if drive_recovery_guard is None:
+                self.drive.arm()
+            else:
+                self.drive.arm(recovery_guard=drive_recovery_guard)
         # 점프 방지: 조향 목표=현재 실제각, 구동 목표=0
         if self._steer_enabled:
             self._steer_target = self.steer.state()["actual_deg"]
@@ -159,7 +162,14 @@ class CornerModule:
             except Exception:
                 logger.debug("%s 유휴 수신 서비스 실패", name, exc_info=True)
 
-    def tick(self) -> None:
+    def tick(self, *, checked_drive_state=None, checked_steer_state=None,
+             defer_can_drive_error=False) -> None:
+        """Use one manager-checked sample when coordinating CAN recovery.
+
+        Defaults retain the standalone corner fault behavior. Only a CAN
+        drive TX exception can be deferred to the coordinating manager;
+        steering exceptions and every other exception still stop locally.
+        """
         if self.mode == "ARMING":
             self._service_receive()
             self.confirm_arm()
@@ -172,7 +182,8 @@ class CornerModule:
 
         st = None
         if self._steer_enabled:
-            st = self.steer.state()
+            st = (self.steer.state() if checked_steer_state is None
+                  else checked_steer_state)
 
             # 1) 조향 fault/전류 트립
             if st["fault"] != 0:
@@ -191,7 +202,8 @@ class CornerModule:
                 return
 
         if self._drive_enabled:
-            drive_state = self.drive.state()
+            drive_state = (self.drive.state() if checked_drive_state is None
+                           else checked_drive_state)
             if (drive_state.get("stale", False)
                     or drive_state.get("heartbeat_stale", False)
                     or drive_state.get("encoder_stale", False)):
@@ -226,14 +238,25 @@ class CornerModule:
         try:
             if self._steer_enabled:
                 self.steer.tick()
-            if self._drive_enabled:
-                self.drive.tick()
         except BaseException:
             try:
                 self.estop()
             except BaseException:
                 logger.exception("제어 송신 실패 뒤 정지 송신도 실패")
             raise
+        if self._drive_enabled:
+            try:
+                self.drive.tick()
+            except BaseException as exc:
+                if defer_can_drive_error:
+                    from can import CanError
+                    if isinstance(exc, CanError):
+                        raise
+                try:
+                    self.estop()
+                except BaseException:
+                    logger.exception("구동 송신 실패 뒤 정지 송신도 실패")
+                raise
 
     def run(self, hz: float = None) -> None:
         """편의 제어 루프. 외부 루프가 tick() 을 직접 호출해도 된다."""

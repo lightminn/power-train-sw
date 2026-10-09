@@ -4,3 +4,8 @@
 # This message never represents yaw rate or an in-place pivot command.
 float64 speed_mps
 float64 steering
+# Original accepted TCP frame receipt on the robot CLOCK_MONOTONIC clock.
+# Preserved on repeated publications. Zero/absent provenance forbids auto resume.
+float64 source_received_s
+# Server-generated UUID for this accepted TCP connection, bound to these values.
+string connection_session_id

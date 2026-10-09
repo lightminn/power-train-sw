@@ -44,6 +44,8 @@ class DriveOutput:
     linear: float = 0.0
     angular: float = 0.0
     steering: float = 0.0
+    source_received_s: float = None
+    connection_session_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -120,6 +122,7 @@ class RemoteInputGateway:
 
         self.state = DISCONNECTED
         self._connected = False
+        self._connection_session_id = ""
         self._connection_ready = False
         self._session_id = None
         self._frame = None
@@ -135,7 +138,9 @@ class RemoteInputGateway:
     def _zero(self, reason=None, *, fresh=False):
         return GatewayOutput(
             state=self.state,
-            drive=DriveOutput(),
+            drive=DriveOutput(source_received_s=(
+                self._frame.received_monotonic_s if fresh and self._frame is not None else None),
+                connection_session_id=self._connection_session_id),
             arm=ArmOutput(joint_name=JOINT_NAMES[self._selected_joint]),
             reason=self._last_reason if reason is None else reason,
             input_fresh=fresh,
@@ -146,8 +151,9 @@ class RemoteInputGateway:
             ),
         )
 
-    def begin_connection(self):
+    def begin_connection(self, connection_session_id=""):
         self._connected = True
+        self._connection_session_id = str(connection_session_id)
         self._connection_ready = False
         self._session_id = None
         self._frame = None
@@ -158,6 +164,7 @@ class RemoteInputGateway:
 
     def end_connection(self):
         self._connected = False
+        self._connection_session_id = ""
         self._connection_ready = False
         self._session_id = None
         self._frame = None
@@ -310,7 +317,8 @@ class RemoteInputGateway:
         self._last_reason = "DRIVE input"
         return GatewayOutput(
             state=self.state,
-            drive=DriveOutput(linear, angular, steering),
+            drive=DriveOutput(linear, angular, steering, frame.received_monotonic_s,
+                              self._connection_session_id),
             arm=ArmOutput(joint_name=JOINT_NAMES[self._selected_joint]),
             reason=self._last_reason,
             input_fresh=True,

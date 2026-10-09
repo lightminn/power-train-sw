@@ -15,6 +15,8 @@ DEFAULT_IMAGE = TRUSTED_IMAGE_ID
 BASE_IMAGE = 'ubuntu:22.04@sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc'
 BOARD_VERSION = 'v3.6-56V'
 
+# Historical patch1 qualification values; later patches intentionally produce new bytes.
+REFERENCE_RELIABILITY_PATCH = 1
 REFERENCE_ARTIFACTS = {
     'ODriveFirmware.elf': {
         'sha256': 'fd75b613d8fa589c4cf365d390ea885300c61754fa66d3b552a8943123ae22d2',
@@ -189,6 +191,7 @@ def build(archive, output, image):
         artifacts[name] = actual
 
     source_manifest = output / 'mks-source-manifest.json'
+    source_metadata = json.loads(source_manifest.read_text())
     manifest = {
         'schema': 1,
         'target': {
@@ -199,6 +202,7 @@ def build(archive, output, image):
         },
         'source': {
             'vendor_archive_sha256': archive_hash,
+            'reliability_patch': source_metadata['reliability_patch'],
             'reliability_patch_sha256': sha256_file(tool_dir / 'reliability.patch'),
             'preparation_manifest': source_manifest.name,
             'preparation_manifest_sha256': sha256_file(source_manifest),
@@ -217,10 +221,11 @@ def build(archive, output, image):
         'artifacts': artifacts,
         'elf_sections': sections,
         'reference_comparison': {
+            'reference_reliability_patch': REFERENCE_RELIABILITY_PATCH,
             'reference_artifacts': REFERENCE_ARTIFACTS,
             'reference_elf_sections': REFERENCE_SECTIONS,
             'matches_reference_elf_sections': sections == REFERENCE_SECTIONS,
-            'scope': 'Same pinned source, patch, board config, and trusted image; comparison is not a cross-environment reproducibility guarantee.',
+            'scope': 'Historical patch1 artifacts from the pinned vendor source, board config and trusted image. Different patch revisions are expected to differ; this is not a cross-environment reproducibility guarantee.',
         },
         'flash_performed': False,
         'installed_board_binary_equivalence': 'NOT PROVEN',

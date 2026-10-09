@@ -30,13 +30,15 @@ struct CAN_FilterTypeDef {uint32_t FilterActivation=0,FilterBank=0,FilterFIFOAss
 struct StopLoop{};
 void require(bool ok,const char* message){if(!ok)throw std::runtime_error(message);}
 uint32_t irq_mask=0, delay_count=0, waits=0, error_reads=0, stop_calls=0, init_calls=0, reset_calls=0, rx_reads=0;
+uint8_t observed_tx[8] = {}; uint32_t observed_tx_id=0; uint8_t observed_tx_len=0;
+template<class Message> void observe_tx_attempt(const Message& msg){std::memcpy(observed_tx,msg.buf,8);observed_tx_id=msg.id;observed_tx_len=msg.len;}
 uint32_t fail_inits=0, fifo[2]={0,0}, can_irqs_disabled=0, rcc_reset_count=0, pending_irq_cleared=0;
 bool can_clock_enabled=true;
 int wait_budget=1;
 bool reinit_active=false, fail_stop=false;
-std::function<void()> deferred_preemption, inject_free, during_reinit, inject_register_fault;
+std::function<void()> deferred_preemption, inject_free, during_reinit, inject_register_fault, on_irq_enable;
 uint32_t cpu_enter_critical(){uint32_t old=irq_mask;irq_mask=1;return old;}
-void cpu_exit_critical(uint32_t old){irq_mask=old;if(!irq_mask && deferred_preemption){auto f=deferred_preemption;deferred_preemption=nullptr;f();}}
+void cpu_exit_critical(uint32_t old){irq_mask=old;if(!irq_mask && deferred_preemption){auto f=deferred_preemption;deferred_preemption=nullptr;f();}if(!irq_mask && on_irq_enable){auto f=on_irq_enable;f();}}
 uint32_t HAL_CAN_GetError(CAN_HandleTypeDef* h){if(++error_reads>100)throw std::runtime_error("busy spin: more than 100 HAL error polls without a bounded wait");return h->ErrorCode;}
 uint32_t HAL_CAN_GetTxMailboxesFreeLevel(CAN_HandleTypeDef* h){
  require(!reinit_active,"TX HAL reached during reinit");
@@ -94,7 +96,7 @@ struct Axis {
  struct{uint32_t can_node_id=13,can_heartbeat_rate_ms=20;bool can_node_id_extended=false,enable_watchdog=true;}config_;
  uint32_t error_=0,last_heartbeat_=0,feed_count=0,watchdog_current_value_=3,watchdog_reset_value_=3;
  AxisState current_state_=AXIS_STATE_IDLE,requested_state_=AXIS_STATE_UNDEFINED;
- bool can_recovery_latched_=false,can_recovery_in_progress_=false;
+ /* ACTUAL_CAN_AXIS_FIELDS */
  Motor motor_;Controller controller_;Encoder encoder_;SensorlessEstimator sensorless_estimator_;struct{struct{float vel_limit=0,accel_limit=0,decel_limit=0;}config_;}trap_traj_;
  uint32_t get_watchdog_reset(){++feed_count;return watchdog_reset_value_;}
  void watchdog_feed();

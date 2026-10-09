@@ -128,7 +128,7 @@ def _node(mode=TELEOP, *, correction_stamp_s=10.0, bypass=False):
     node.pub_authority_state = Publisher()
     node.cm = SimpleNamespace(
         commands=[],
-        set=lambda v, w: node.cm.commands.append((v, w)),
+        set=lambda v, w, **_: node.cm.commands.append((v, w)),
     )
     node.get_logger = lambda: Logger()
     return node

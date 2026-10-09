@@ -48,7 +48,7 @@ def prepare(archive, destination, patch):
     manifest = {
         'vendor_archive_sha256': actual, 'vendor_source_url': SOURCE_URL,
         'archive_root': ARCHIVE_ROOT, 'patch_sha256': sha256(patch) if patch else None,
-        'reliability_patch': 1 if patch else 0,
+        'reliability_patch': 3 if patch else 0,
         'installed_board_binary_equivalence': 'NOT PROVEN',
         'original_file_sha256': original, 'prepared_file_sha256': resulting,
     }

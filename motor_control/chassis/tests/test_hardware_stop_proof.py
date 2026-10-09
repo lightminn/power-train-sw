@@ -44,6 +44,39 @@ def test_hardware_stop_proof_uses_exact_nodes_and_actual_feedback_age():
                      'max_feedback_age_ms': pytest.approx(50)}
 
 
+def test_idle_can_estop_latch_is_stop_evidence_without_clearing_or_arming():
+    cm, now = hardware_manager()
+    for corner in cm.corners.values():
+        corner.drive._axis_error = 0x4000
+    now[0] += .05
+    proof = cm.hardware_stop_proof('can')
+    assert proof['valid'] is True
+    assert proof['stopped'] is True
+    assert proof['node_ids'] == list(range(11, 17))
+    assert proof['max_feedback_age_ms'] == pytest.approx(50)
+    assert cm.mode == 'IDLE'
+    for corner in cm.corners.values():
+        assert corner.drive._axis_error == 0x4000
+        assert corner.drive._axis_state == 1
+        assert corner.drive._arm_requested_ms is None
+
+
+@pytest.mark.parametrize('defect', ['closed_loop', 'other_error', 'moving', 'stale'])
+def test_can_estop_stop_evidence_keeps_fault_freshness_and_motion_gates(defect):
+    cm, now = hardware_manager()
+    drive = next(iter(cm.corners.values())).drive
+    drive._axis_error = 0x4000
+    if defect == 'closed_loop':
+        drive._axis_state = 8
+    elif defect == 'other_error':
+        drive._axis_error |= 1
+    elif defect == 'moving':
+        drive._actual_vel = 1.0  # motor rev/s -> 0.2 wheel rev/s (5:1)
+    else:
+        now[0] += .21
+    assert cm.hardware_stop_proof('can')['stopped'] is False
+
+
 @pytest.mark.parametrize('defect', ['stale', 'missing_encoder', 'moving', 'error', 'calibrating', 'disabled', 'duplicate_id'])
 def test_hardware_stop_proof_rejects_missing_or_unsafe_evidence(defect):
     cm, now = hardware_manager()
@@ -78,3 +111,16 @@ def test_external_command_receipt_age_is_preserved_by_manager_watchdog():
     now[0] = 10.101
     cm.tick()
     assert 'cmd_watchdog' in cm.safety_snapshot().hold_sources
+
+
+def test_usb_idle_estop_error_never_uses_can_stop_evidence_exception():
+    from corner_module.drive_odrive_usb_axis import DriveOdriveUsbAxis
+    cm, _now = hardware_manager()
+    for corner in cm.corners.values():
+        cached = corner.drive.health_state()
+        cached.update(axis_state=1, axis_error=0x4000, last_feedback_age_ms=0)
+        usb = object.__new__(DriveOdriveUsbAxis)
+        usb.health_state = lambda state=cached: state
+        corner.drive = usb
+    assert cm.hardware_stop_proof('usb')['valid'] is False
+    assert cm.hardware_stop_proof('can')['valid'] is False

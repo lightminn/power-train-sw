@@ -23,6 +23,7 @@ from chassis.kinematics import (
     ChassisGeometry, default_geometry, skid_geometry, solve, solve_steering,
 )
 from chassis.safety_interlock import RUN, SafetyInterlock
+from chassis.can_recovery import CanRecovery
 from chassis.telemetry import (
     AkNodeHealth,
     CanBusHealth,
@@ -43,6 +44,7 @@ from corner_module.null_steer import NullSteer
 
 logger = logging.getLogger(__name__)
 _COMMAND_RECOVERY_HOLD = "command_recovery"
+_CAN_RECOVERY_HOLD = "can_recovery"
 COMPONENTS = ("drive", "steer", "us100", "robot_arm")
 STEERING_ACKERMANN = "ackermann"
 STEERING_SKID = "skid"
@@ -274,6 +276,11 @@ class ChassisManager:
         self._speed_scale = 1.0            # 전방 감속 힌트 (1.0 = 제한 없음)
         self._now = time.monotonic if clock is None else clock
         self._interlock = SafetyInterlock(clock=self._now)
+        self._can_recovery = CanRecovery()
+        self._can_resume_intent = False
+        self._manual_input_active = False
+        self._manual_received_s = None
+        self._manual_connection_session_id = None
         self._component_mask = {component: True for component in COMPONENTS}
         self._last_estop_error = None
         self._extraction_started_s = None
@@ -372,6 +379,7 @@ class ChassisManager:
             return False, "steering_unavailable"
         if mode == self._steering_mode and self._pending_steering_mode is None:
             return True, "already_%s" % mode
+        self._cancel_can_recovery("steering_mode_change")
         self._v = 0.0
         self._omega = 0.0
         self._steering = None
@@ -434,6 +442,102 @@ class ChassisManager:
     def component_mask(self) -> dict[str, bool]:
         return dict(self._component_mask)
 
+    def register_steering_origin(self) -> tuple[bool, str]:
+        """Register four stationary AK poses without moving or arming anything.
+
+        Called synchronously by the chassis owner while IDLE. All preflight
+        precedes writes; sends and new-feedback confirmation share 200 ms.
+        A partial write is reported explicitly and is never rolled back.
+        """
+        from corner_module.steer_ak40 import SteerAk40
+
+        if self.mode != "IDLE":
+            return False, "not_idle"
+        if not all(self._component_mask[key] for key in ("drive", "steer")):
+            return False, "drive_and_steer_required"
+        # command_recovery only forbids replay of an old drive command. It can
+        # remain in IDLE until a fresh ARMED input, so it must not block this
+        # stationary operation. Preserve the hold; never clear it here.
+        if self._pending_steering_mode is not None or self._can_recovery.pending:
+            return False, "transition_or_recovery_pending"
+
+        def safe_steering(state):
+            fields = ("actual_deg", "cur_a", "speed_erpm", "last_feedback_age_ms")
+            if any(isinstance(state.get(key), bool)
+                   or not isinstance(state.get(key), (int, float))
+                   or not math.isfinite(state[key]) for key in fields):
+                return False
+            return (state.get("fault") == 0 and not state.get("stale", True)
+                    and 0 <= state["last_feedback_age_ms"] <= 200
+                    and abs(state["speed_erpm"]) <= 200
+                    and abs(state["cur_a"]) < 5)
+
+        steers = {}
+        try:
+            for item in self._wheel_map:
+                if item.steer_can_id is None:
+                    continue
+                corner = self.corners[item.wheel]
+                steer = corner.steer
+                if (not isinstance(steer, SteerAk40) or not corner._steer_enabled
+                        or item.steer_can_id in steers):
+                    return False, "four_real_steering_axes_required"
+                state = steer.state()  # bounded RX-only drain before any writes
+                if state.get("can_id") != item.steer_can_id or not safe_steering(state):
+                    return False, "steering_preflight_failed:id=%s" % item.steer_can_id
+                steers[item.steer_can_id] = steer
+            if (sorted(steers) != [1, 2, 3, 4]
+                    or sum(isinstance(c.steer, SteerAk40) for c in self.corners.values()) != 4):
+                return False, "four_real_steering_axes_required"
+            proof = self.hardware_stop_proof("can")
+            if not proof["valid"] or not proof["stopped"]:
+                return False, "fresh_six_axis_stop_proof_required"
+            for corner in self.corners.values():
+                state = corner.drive.health_state()
+                if corner.mode != "IDLE" or state.get("axis_state") != 1:
+                    return False, "six_drive_axes_must_be_idle"
+                if state.get("can_recovery_in_progress", False):
+                    return False, "transition_or_recovery_pending"
+        except Exception as exc:
+            return False, "origin_preflight_failed:" + str(exc)
+
+        def ids(values):
+            return ",".join(str(value) for value in sorted(values)) or "none"
+
+        deadline = time.monotonic() + .200
+        cutoffs = {}
+        for motor_id, steer in sorted(steers.items()):
+            try:
+                cutoffs[motor_id] = steer.set_origin_here()
+            except Exception as exc:
+                return False, ("partial_send:failed_id=%s;possibly_changed_ids=%s;%s"
+                               % (motor_id, ids(cutoffs), exc))
+
+        confirmed = set()
+        errors = {}
+        while time.monotonic() < deadline:
+            for motor_id, steer in sorted(steers.items()):
+                try:
+                    state = steer.state()
+                    received_ms = state.get("last_feedback_ms")
+                    if (safe_steering(state) and received_ms is not None
+                            and received_ms > cutoffs[motor_id]
+                            and abs(state["actual_deg"]) <= .2):
+                        confirmed.add(motor_id)
+                    else:
+                        confirmed.discard(motor_id)
+                except Exception as exc:
+                    confirmed.discard(motor_id)
+                    errors[motor_id] = str(exc)
+            if len(confirmed) == 4:
+                return True, "registered:changed_ids=" + ids(confirmed)
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                time.sleep(min(.002, remaining))
+        return False, ("confirmation_failed:confirmed_ids=%s;unconfirmed_ids=%s;"
+                       "possibly_changed_ids=%s;errors=%s"
+                       % (ids(confirmed), ids(set(steers) - confirmed), ids(cutoffs), errors))
+
     def set_component_enabled(self, component: str, enabled: bool,
                               detail: str = "") -> tuple[bool, str]:
         if component not in COMPONENTS:
@@ -444,6 +548,8 @@ class ChassisManager:
             return True, ""
         if component in {"drive", "steer"} and self.mode != "IDLE":
             return False, "not_idle"
+
+        self._cancel_can_recovery("component_change:" + component)
 
         if component == "drive":
             for corner in self.corners.values():
@@ -491,7 +597,7 @@ class ChassisManager:
             c.connect()
         self.mode = "IDLE"
 
-    def arm(self) -> bool:
+    def arm(self, *, _recovery_guards=None, _arm_budget_s=.150) -> bool:
         if self.mode != "IDLE" or self._interlock.snapshot().estop_latched:
             return False
         if self._qualification_gate is not None:
@@ -516,11 +622,14 @@ class ChassisManager:
                 return False
         # One wall-time budget for all six requests and confirmations. Never
         # wait once per axis in the single ROS executor (input TTL is 300 ms).
-        deadline = time.monotonic() + .150
+        deadline = time.monotonic() + min(.150, _arm_budget_s)
         self._begin_drive_feedback_cycle()
         for name, c in self.corners.items():
             try:
-                c.arm()
+                if _recovery_guards is None:
+                    c.arm()
+                else:
+                    c.arm(drive_recovery_guard=_recovery_guards[name])
             except BaseException as exc:
                 detail = f"{name}: {type(exc).__name__}: {exc}"
                 self.estop("arm_failure", detail)
@@ -533,6 +642,10 @@ class ChassisManager:
         self._steering = None
         self._last_set_ms = self._now_ms()
         self.mode = "ARMED"
+        if _recovery_guards is None:
+            self._can_recovery.reset()
+            self._can_resume_intent = True
+            self._interlock.set_motion_hold(_CAN_RECOVERY_HOLD, False)
         return True
 
     def _confirm_all_armed(self, deadline, source) -> bool:
@@ -562,7 +675,8 @@ class ChassisManager:
             time.sleep(min(.002, max(0.0, deadline - time.monotonic())))
         return True
 
-    def set(self, v_mps: float, omega_rad_s: float, *, received_s=None, steering=None) -> None:
+    def set(self, v_mps: float, omega_rad_s: float, *, received_s=None, steering=None,
+            source_received_s=None, connection_session_id=None) -> None:
         if self.mode not in {"ARMED", "EXTRACTION"}:
             logger.warning("set() 무시: ARMED/EXTRACTION 아님 (mode=%s)", self.mode)
             return
@@ -586,6 +700,19 @@ class ChassisManager:
                 omega_rad_s,
             )
             return
+        source_stamp = received_s if source_received_s is None else source_received_s
+        if (self._can_recovery.state == "WAIT_INPUT"
+                and source_stamp is not None and self._manual_input_fresh()
+                and source_stamp == self._manual_received_s
+                and connection_session_id == self._can_recovery.connection_session_id
+                and source_stamp > self._can_recovery.rearmed_s
+                and self._now() - self._can_recovery.started_s < 5.0
+                and not (set(self._interlock.snapshot().hold_sources)
+                         - {_CAN_RECOVERY_HOLD})):
+            # Stage only. The next tick must validate every drive and steer
+            # before releasing the hold or distributing any nonzero command.
+            self._can_recovery.pending_command = (
+                v_mps, omega_rad_s, steering, command_ms, source_stamp)
         safety = self._interlock.snapshot()
         blocking_holds = set(safety.hold_sources) - {
             "cmd_watchdog",
@@ -695,6 +822,9 @@ class ChassisManager:
         )
 
     def disarm(self) -> None:
+        self._can_resume_intent = False
+        if self._can_recovery.pending:
+            self._can_recovery.cancel("disarm")
         first_error = None
         self._v = self._omega = 0.0
         self._steering = None
@@ -713,6 +843,9 @@ class ChassisManager:
             self.mode = "IDLE"
 
     def estop(self, source="manual", detail="") -> None:
+        self._can_resume_intent = False
+        if self._can_recovery.pending:
+            self._can_recovery.cancel("estop:" + str(source))
         self._interlock.trip_estop(source, detail)
         self._v = self._omega = 0.0
         self._steering = None
@@ -802,6 +935,8 @@ class ChassisManager:
         원인이 사라진 뒤 새 set()이 오면 자동으로 RUN으로 돌아간다. E-stop의
         reset/arm 절차와 달리 재무장은 요구하지 않는다.
         """
+        if active and source != _CAN_RECOVERY_HOLD:
+            self._cancel_can_recovery("other_hold:" + str(source))
         self._interlock.set_motion_hold(source, bool(active), detail)
         if active:
             self._interlock.set_motion_hold(
@@ -829,6 +964,8 @@ class ChassisManager:
         if not self._component_mask["robot_arm"]:
             return
         active = bool(active)
+        if active:
+            self._cancel_can_recovery("robot_arm_hold")
         was_active = "robot_arm" in self._interlock.snapshot().hold_sources
         if active and not was_active:
             self._v = self._omega = 0.0
@@ -836,9 +973,170 @@ class ChassisManager:
         self._interlock.set_motion_hold("robot_arm", active, detail)
 
     def close(self) -> None:
+        self._cancel_can_recovery("close")
         for c in self.corners.values():
             c.close()
         self.mode = "DISCONNECTED"
+
+    def can_recovery_state(self) -> dict:
+        return self._can_recovery.snapshot()
+
+    def set_manual_input_state(self, active: bool, *, received_s=None,
+                               connection_session_id=None) -> None:
+        """Remote adapter supplies actual source time and connected authority.
+
+        Re-selecting a cached command must pass its original receipt time.
+        No default-to-now timestamp exists on this recovery-only boundary.
+        """
+        self._manual_input_active = bool(active)
+        self._manual_received_s = received_s
+        self._manual_connection_session_id = connection_session_id
+        if (self._can_recovery.pending
+                and connection_session_id != self._can_recovery.connection_session_id):
+            self._cancel_can_recovery("manual_connection_changed")
+        if not self._manual_input_fresh():
+            self._cancel_can_recovery("manual_input_lost")
+
+    def _manual_input_fresh(self) -> bool:
+        stamp = self._manual_received_s
+        return (self._manual_input_active and isinstance(stamp, (int, float))
+                and isinstance(self._manual_connection_session_id, str)
+                and bool(self._manual_connection_session_id)
+                and math.isfinite(stamp) and 0 <= self._now() - stamp <= .300)
+
+    def _can_recovery_capable(self) -> bool:
+        if not self._can_resume_intent or not self._component_mask["drive"]:
+            return False
+        from corner_module.drive_odrive_can import DriveOdriveCan
+        nodes = [item.drive_node_id for item in self._wheel_map]
+        return (len(nodes) == len(self.corners) == len(set(nodes)) == 6
+                and all(isinstance(self.corners[item.wheel].drive, DriveOdriveCan)
+                        for item in self._wheel_map))
+
+    def _can_preflight(self):
+        """Drain once, then share the exact checked samples with corner tick."""
+        samples = {}
+        for item in self._wheel_map:
+            corner = self.corners[item.wheel]
+            if self._can_recovery.pending:
+                corner.drive.poll_feedback()
+            drive = corner.drive.state()
+            steer = corner.steer.state() if corner._steer_enabled else {}
+            if drive.get("node_id") != item.drive_node_id:
+                raise ValueError("CAN node identity mismatch: " + item.wheel)
+            if corner._steer_enabled and (
+                    steer.get("fault", 0) != 0
+                    or not math.isfinite(steer.get("cur_a", float("nan")))
+                    or abs(steer["cur_a"]) > corner.cfg.steer_current_limit_a):
+                raise ValueError("steering fault during CAN recovery: " + item.wheel)
+            samples[item.wheel] = (drive, steer)
+        return samples
+
+    def _stop_can_recovery_outputs(self) -> bool:
+        """Zero/IDLE every axis; only CAN-drive send failures may wait."""
+        from can import CanError
+        self._v = self._omega = 0.0
+        self._steering = None
+        for name, corner in self.corners.items():
+            corner._drive_target = 0.0
+            try:
+                corner.drive.disarm()
+            except CanError:
+                self._can_recovery.required_nodes.add(corner.drive.health_state()["node_id"])
+                pass  # all peers must still receive zero/IDLE
+            except Exception as exc:
+                self.estop("can_recovery_stop_failure", name + ": " + str(exc))
+                return False
+            try:
+                if corner._steer_enabled:
+                    corner.steer.disarm()
+            except Exception as exc:
+                self.estop("can_recovery_steer_failure", name + ": " + str(exc))
+                return False
+            corner.mode = "IDLE"
+        return True
+
+    def _cancel_can_recovery(self, reason) -> None:
+        if not self._can_recovery.pending:
+            return
+        self._can_recovery.cancel(reason)
+        self._can_resume_intent = False
+        self.disarm()
+
+    def _begin_can_recovery(self, reason, samples=None, affected_node=None) -> None:
+        self._can_recovery.begin(self._now(), reason)
+        self._can_recovery.connection_session_id = self._manual_connection_session_id
+        if samples is not None:
+            self._can_recovery.observe_interruption([pair[0] for pair in samples.values()])
+        if affected_node is not None:
+            self._can_recovery.required_nodes.add(affected_node)
+        self._interlock.set_motion_hold(_CAN_RECOVERY_HOLD, True, reason)
+        self._stop_can_recovery_outputs()
+
+    def _tick_can_recovery(self, samples) -> None:
+        recovery = self._can_recovery
+        if not self._manual_input_fresh():
+            self._cancel_can_recovery("manual_input_lost")
+            return
+        other_holds = set(self._interlock.snapshot().hold_sources) - {_CAN_RECOVERY_HOLD}
+        if other_holds:
+            self._cancel_can_recovery("other_hold:" + ",".join(sorted(other_holds)))
+            return
+        if self._now() - recovery.started_s >= 5.0:
+            self._cancel_can_recovery("recovery_timeout")
+            return
+        states = [pair[0] for pair in samples.values()]
+        if recovery.state == "WAIT_INPUT":
+            if any(steer.get("stale", False) for _, steer in samples.values()):
+                self.estop("can_recovery_steering_stale")
+                return
+            if all(CanRecovery.fresh(s) and s["axis_state"] == 8
+                   and s["axis_error"] == 0 for s in states):
+                command = recovery.pending_command
+                if command is not None and command[4] == self._manual_received_s:
+                    self._v, self._omega, self._steering, self._last_set_ms, _ = command
+                    recovery.pending_command = None
+                    recovery.state = "RESUMED"
+                    recovery.reason = "new manual input after rearm"
+                    recovery.count += 1
+                    self._interlock.set_motion_hold(_CAN_RECOVERY_HOLD, False)
+                    return True
+                return
+            # A second communication interruption shares this episode's
+            # original deadline. It cannot keep resetting the five seconds.
+            recovery.generations = {}
+            recovery.required_nodes = set()
+            self._begin_can_recovery("CAN interrupted after rearm", samples)
+            return
+        ready, fault = recovery.stopped_evidence(states, self._now())
+        if fault:
+            self.estop("can_recovery_ineligible", fault)
+            return
+        if any(steer.get("stale", False) for _, steer in samples.values()):
+            recovery.stable_s = None
+            ready = False
+        if not ready:
+            if any(not CanRecovery.fresh(s) or s["axis_state"] != 1 for s in states):
+                self._stop_can_recovery_outputs()
+            return
+        # Reuse the ordinary six-axis bounded arm/qualification gate, while
+        # preserving the recovery episode and keeping all command targets zero.
+        saved_state = recovery.snapshot()
+        saved_started = recovery.started_s
+        self.mode = "IDLE"
+        if not self.arm(_recovery_guards={name: CanRecovery.arm_guard(pair[0])
+                                         for name, pair in samples.items()},
+                        _arm_budget_s=max(0.0, 5.0 - (self._now() - saved_started))):
+            return
+        recovery.state = "WAIT_INPUT"
+        recovery.reason = "rearmed; waiting for newer manual receipt"
+        recovery.count = saved_state["count"]
+        recovery.started_s = saved_started
+        recovery.rearmed_s = self._now()
+        self._interlock.set_motion_hold(_CAN_RECOVERY_HOLD, True, recovery.reason)
+        # Input may have expired while the bounded arm path was running.
+        if not self._manual_input_fresh():
+            self._cancel_can_recovery("manual_input_expired_during_arm")
 
     # ── 50Hz 루프 ─────────────────────────────────────────────────────
     def tick(self) -> None:
@@ -876,6 +1174,30 @@ class ChassisManager:
             self.estop("corner_fault", ",".join(faulted))
             return
 
+        checked = None
+        if (self._can_recovery.pending or self._manual_input_fresh()) and self._can_recovery_capable():
+            try:
+                checked = self._can_preflight()
+            except Exception as exc:
+                self.estop("can_recovery_preflight", str(exc))
+                return
+            if self._can_recovery.pending:
+                if not self._tick_can_recovery(checked):
+                    return
+                safety = self._interlock.snapshot()
+            states = [pair[0] for pair in checked.values()]
+            interrupted = any(not CanRecovery.fresh(s) or CanRecovery.eligible(s)
+                              for s in states)
+            other_fault = any(CanRecovery.fresh(s) and (
+                (s["axis_error"] != 0 and not CanRecovery.eligible(s))
+                or (s["axis_state"] != 8 and not CanRecovery.eligible(s))) for s in states)
+            if interrupted and not other_fault and not safety.hold_sources:
+                self._begin_can_recovery("CAN feedback interrupted", checked)
+                return
+            if other_fault or any(steer.get("stale", False) for _, steer in checked.values()):
+                self.estop("can_preflight_fault", "drive/steering not healthy before dispatch")
+                return
+
         # 조향은 항상 명령하고, hold 중에는 구동만 0으로 게이팅한다.
         drive_enabled = safety.state == RUN
 
@@ -909,8 +1231,20 @@ class ChassisManager:
         # 일괄 tick (각 코너가 자기 fault/과전류/stale/워치독 처리)
         for name, c in self.corners.items():
             try:
-                c.tick()
+                if checked is None:
+                    c.tick()
+                else:
+                    c.tick(checked_drive_state=checked[name][0],
+                           checked_steer_state=checked[name][1],
+                           defer_can_drive_error=True)
             except BaseException as exc:
+                if checked is not None and not safety.hold_sources:
+                    from can import CanError
+                    if (isinstance(exc, CanError) and c.mode == "ARMED"
+                            and self._manual_input_fresh()):
+                        self._begin_can_recovery("CAN drive send interrupted", checked,
+                                                 affected_node=checked[name][0]["node_id"])
+                        return
                 self.estop("control_failure", f"{name}: {type(exc).__name__}: {exc}")
                 if not isinstance(exc, Exception):
                     raise
@@ -997,9 +1331,12 @@ class ChassisManager:
     def hardware_stop_proof(self, transport: str) -> dict:
         """Local hardware evidence only; never accepts published wheel messages.
 
-        ``valid`` certifies six enabled axes, state IDLE/CLOSED_LOOP, zero error,
-        and measured feedback no older than 200 ms. ``stopped`` additionally
-        applies the existing ops threshold of 0.1 wheel turns/s.
+        ``valid`` certifies six enabled axes, state IDLE/CLOSED_LOOP, and
+        measured feedback no older than 200 ms. CAN's sole ESTOP_REQUESTED
+        latch is permitted only in IDLE: it blocks motion, not measurement.
+        Other axis errors invalidate evidence. ``stopped`` additionally applies
+        the existing ops threshold of 0.1 wheel turns/s. This never clears a
+        latch or arms; the explicit manual-start path still owns those actions.
         """
         from corner_module.drive_odrive_can import DriveOdriveCan
         from corner_module.drive_odrive_usb_axis import DriveOdriveUsbAxis
@@ -1031,8 +1368,13 @@ class ChassisManager:
                         return proof
                     ages.append(float(age))
                 speed = float(state["actual_vel"])
+                idle_can_estop = (
+                    transport == "can" and state["axis_state"] == 1
+                    and state["axis_error"] == 0x4000  # ESTOP_REQUESTED
+                )
                 if (not math.isfinite(speed) or state.get("stale", True)
-                        or state["axis_error"] != 0 or state["axis_state"] not in (1, 8)):
+                        or (state["axis_error"] != 0 and not idle_can_estop)
+                        or state["axis_state"] not in (1, 8)):
                     return proof
                 speeds.append(speed)
         except (KeyError, TypeError, ValueError, StopIteration):
@@ -1076,7 +1418,7 @@ class ChassisManager:
                 ),
             ))
         wheel_tuple = tuple(wheels)
-        healthy = all(
+        healthy = not self._can_recovery.pending and all(
             not wheel.drive_stale
             and not wheel.steer_stale
             and wheel.drive_axis_error == 0
@@ -1196,6 +1538,7 @@ class ChassisManager:
             "v": self._v,
             "omega": self._omega,
             "steering": self._steering,
+            "can_recovery": self.can_recovery_state(),
             "safety": self._interlock.snapshot(),
             "last_estop_error": self._last_estop_error,
             "corners": {n: c.state() for n, c in self.corners.items()},
