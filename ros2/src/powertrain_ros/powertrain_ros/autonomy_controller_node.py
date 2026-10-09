@@ -284,6 +284,11 @@ class AutonomyControllerNode(Node):
             "/autonomy/terrain_state",
             10,
         )
+        self.pub_terrain_diagnostics = self.create_publisher(
+            String,
+            "/autonomy/terrain_diagnostics",
+            10,
+        )
         self.pub_assist_correction = self.create_publisher(
             String,
             "/autonomy/assist_correction",
@@ -380,6 +385,24 @@ class AutonomyControllerNode(Node):
             return False
         self.pub_terrain_state.publish(
             String(data="False|0.000000|0.000000|0.000000|" + reason)
+        )
+        self.pub_terrain_diagnostics.publish(
+            String(data=json.dumps(
+                {
+                    "path_available": False,
+                    "path_offset_m": None,
+                    "heading_error_rad": None,
+                    "confirmed_support_m": None,
+                    "bank_angle_rad": None,
+                    "longitudinal_slope_rad": None,
+                    "roughness_m": None,
+                    "confidence": None,
+                    "reject_reasons": [reason],
+                },
+                allow_nan=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ))
         )
         return True
 
@@ -664,6 +687,24 @@ class AutonomyControllerNode(Node):
                     reject,
                 )
             )
+        )
+        self.pub_terrain_diagnostics.publish(
+            String(data=json.dumps(
+                {
+                    "path_available": bool(estimate.path_available),
+                    "path_offset_m": estimate.path_offset_m,
+                    "heading_error_rad": estimate.heading_error_rad,
+                    "confirmed_support_m": estimate.confirmed_support_m,
+                    "bank_angle_rad": estimate.bank_angle_rad,
+                    "longitudinal_slope_rad": estimate.longitudinal_slope_rad,
+                    "roughness_m": estimate.roughness_m,
+                    "confidence": estimate.confidence,
+                    "reject_reasons": list(estimate.reject_reasons),
+                },
+                allow_nan=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ))
         )
 
     def _motion_state(self, now_s: float) -> MotionState | None:

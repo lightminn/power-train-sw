@@ -93,6 +93,15 @@ voltage, charge/discharge current, power, SOC, operating/protection flags,
 RS485 state, and freshness. Missing protocol fields remain `정보 없음` and are
 never read directly by the GUI or synthesized; see `docs/ui_data_gap.md`.
 
+The **협조구동** tab is the engineering-festival mobility surface. It combines
+the L515 terrain estimate (path, confidence, offset, heading, bank, slope and
+roughness), filtered IMU roll/pitch, six wheel Hall speed/command/Iq, active
+faults, and chassis/autonomy/mission/section FSM states. Missing producers stay
+`정보 없음`; Iq is labelled as a relative load indicator, not absolute wheel
+load or energy. Its basic controls are shortcuts into the existing token-gated,
+revision-checked confirmation panel. Velocity and direction remain on the
+approved DualSense teleop path, and E-STOP remains the global immediate action.
+
 The **시연 화면 → 화면 표시** checkboxes independently control YOLO
 box/class/confidence and target-distance text. They do not stop metadata
 reception or alter target selection, and stale metadata still hides every
@@ -123,6 +132,26 @@ unchanged.
 The replay tool defaults to 15003/15004/15005/15007 and rejects the live UDP
 ports. Recorded video or a GStreamer test sender must still use the existing
 SRT receiver contract; no DEMO control is added to the operator UI.
+
+For a continuous hardware-free rehearsal, start the bounded TEST fixture and
+point the same production receivers at its isolated ports:
+
+```bash
+python -m operator_console.demo_source
+
+/usr/bin/python3 -m operator_console.app \
+  --host 127.0.0.1 --d435-port 15002 --l515-port 15000 \
+  --metadata-port 15003 --telemetry-port 15004 \
+  --chassis-telemetry-port 15005 --arm-telemetry-port 15007 \
+  --environment-telemetry-port 15008 --input-source TEST \
+  --ops-token-file /tmp/operator-console-no-token
+```
+
+The fixture cycles through normal driving, rough terrain, traction assistance,
+and obstacle hold. It opens no device or ops command channel and refuses every
+live telemetry port. The field ownership, units, freshness rules, and remaining
+team decisions are recorded in the
+[festival GUI integration contract](../docs/operator-console-integration-contract.md).
 
 Use the system interpreter explicitly: a conda-base `python3` has no GTK
 bindings (`gi`) and dies with ModuleNotFoundError. The systemd unit already

@@ -80,6 +80,7 @@ from .metadata import (
     displayable_detections,
     target_distance_m,
 )
+from .mobility_view import MobilityDashboard, mission_mobility_values
 from .ops_client import ConsoleOpsClient
 from .ops_panel import (
     GESTURE_HOLD,
@@ -284,7 +285,7 @@ label { color: #f8fafc; }
 .rail-data-row { border-bottom: 1px solid rgba(160,185,210,0.14); padding: 2px 0 10px 0; }
 .rail-data-label { color: #8090A3; font-size: 9px; font-weight: 800; }
 .rail-data-value { color: #FFFFFF; font-size: 17px; font-weight: 900; }
-.rail-data-target, .rail-data-distance { color: #00D5FF; }
+.rail-data-perception { color: #00D5FF; }
 .rail-tool-selector { min-height: 34px; font-size: 12px; font-weight: 800; }
 .rail-tool-selector button { padding: 5px 9px; }
 menu {
@@ -392,6 +393,13 @@ menuitem:hover label, menuitem:active label { color: #174EA6; }
 .display-option { color: #17263A; font-size: 12px; padding: 0; }
 .display-option check { min-width: 15px; min-height: 15px; margin-right: 7px; border: 1px solid #9BA9B7; border-radius: 3px; background: #F8FAFC; }
 .display-option check:checked { background: #2D6EDB; border-color: #2D6EDB; color: #FFFFFF; }
+.mobility-card { padding: 12px; min-height: 132px; }
+.mobility-value { color: #34495E; font-size: 12px; }
+.mobility-wheel-value { color: #263A4D; font-size: 11px; font-family: "JetBrains Mono", "D2Coding", monospace; }
+.mobility-faults { color: #C43B43; font-size: 11px; background: #FFF7F7; border-left: 3px solid #C43B43; padding: 9px; }
+.mobility-control-card { padding: 11px 12px; }
+.mobility-control-button { min-height: 36px; background: #FFFFFF; border: 1px solid #BFCEDC; color: #263A4D; font-weight: 700; }
+.mobility-control-button:hover { background: #E8F0FE; border-color: #2D6EDB; }
 button { border-radius: 10px; padding: 7px 10px; }
 button:hover { border-color: rgba(56,189,248,0.55); }
 scrollbar slider { background: #33465d; border-radius: 10px; min-width: 6px; min-height: 6px; }
@@ -470,7 +478,7 @@ label {{ color: {text_main}; }}
 .rail-title, .rail-data-value {{ color: {text_main}; }}
 .rail-description {{ color: {text_secondary}; }}
 .rail-data-label {{ color: {text_muted}; }}
-.rail-data-target, .rail-data-distance {{ color: {ai_cyan}; }}
+.rail-data-perception {{ color: {ai_cyan}; }}
 .rail-safety-value {{ color: {text_muted}; }}
 .rail-safety-value.status-live {{ color: {success}; }}
 .rail-safety-value.status-warn {{ color: {warning}; }}
@@ -667,8 +675,7 @@ scrollbar slider {{ background: #A8B6C4; border-radius: 999px; min-width: 7px; m
 .mission-rail .rail-data-row {{ background: #162A40; border-color: #29425A; }}
 .mission-rail .rail-data-label {{ color: #8298AC; }}
 .mission-rail .rail-data-value {{ color: #F4F8FC; }}
-.mission-rail .rail-data-target,
-.mission-rail .rail-data-distance {{ color: #72D6FF; }}
+.mission-rail .rail-data-perception {{ color: #72D6FF; }}
 
 /* Category accents make the implemented subsystems scannable without a legend. */
 .status-summary-card.category-drive {{ border-left-color: #2F7CF6; }}
@@ -739,8 +746,7 @@ window {{ background: #F3F7FB; }}
 .mission-rail .rail-data-row {{ background: #FFFFFF; border-color: #D6E2EC; }}
 .mission-rail .rail-data-label {{ color: #7A8EA0; }}
 .mission-rail .rail-data-value {{ color: #17324A; }}
-.mission-rail .rail-data-target,
-.mission-rail .rail-data-distance {{ color: #2478D4; }}
+.mission-rail .rail-data-perception {{ color: #2478D4; }}
 .mission-rail .display-options {{
   background: #FFFFFF;
   border-color: #D6E2EC;
@@ -1144,8 +1150,10 @@ window, .console-shell, .page {{
 .mission-rail .rail-section-count {{ background: #173353; color: #76B7F6; }}
 .mission-rail .rail-section-divider {{ background: #263A52; }}
 .mission-rail .rail-data-label {{ color: #71869C; }}
-.mission-rail .rail-data-target,
-.mission-rail .rail-data-distance {{ color: #62BDE8; }}
+.mission-rail .rail-data-row {{ padding: 7px 9px; }}
+.mission-rail .rail-data-value {{ font-size: 13px; }}
+.mission-rail .rail-data-drive {{ font-size: 12px; }}
+.mission-rail .rail-data-perception {{ color: #62BDE8; }}
 .technology-marker {{ background: #4B8BEA; }}
 .technology-vision .technology-marker {{ background: #55B9DE; }}
 .technology-safety .technology-marker {{ background: #55C995; }}
@@ -1161,7 +1169,7 @@ window, .console-shell, .page {{
   border: 1px solid #2A4963;
   border-left: 3px solid #4DB89A;
   border-radius: 9px;
-  padding: 10px;
+  padding: 8px;
 }}
 .end-effector-summary-title {{ color: #E8F0F8; font-size: 15px; font-weight: 900; }}
 .end-effector-summary-state {{
@@ -1330,6 +1338,34 @@ menuitem:hover label, menuitem:active label {{ color: #FFFFFF; }}
 .progress-marker.completed {{ color: #55C995; border-color: #55C995; }}
 scrollbar slider {{ background: #344A61; }}
 
+/* Viewport-density overrides. GTK allocations are logical pixels, so these
+ * rules also follow desktop HiDPI/fractional scaling without a manual zoom. */
+window.viewport-compact .topbar {{ padding: 8px 12px 5px 12px; }}
+window.viewport-compact .topbar .brand {{ font-size: 16px; }}
+window.viewport-compact .health-strip {{ margin-left: 4px; }}
+window.viewport-compact .status-chip {{ font-size: 9px; }}
+window.viewport-compact .nav {{ padding: 0 12px 6px 12px; }}
+window.viewport-compact .nav button {{ min-height: 29px; padding: 0 8px; font-size: 9px; }}
+window.viewport-compact .nav button.ops-settings-button {{ padding: 2px 8px; }}
+window.viewport-compact .page {{ padding: 6px 7px 0 7px; }}
+window.viewport-compact .mobility-title {{ font-size: 21px; }}
+window.viewport-compact .mobility-subtitle {{ font-size: 10px; }}
+window.viewport-compact .mobility-card {{ padding: 10px 11px; }}
+window.viewport-compact .mobility-stage-card {{ min-height: 112px; }}
+
+window.viewport-spacious .topbar {{ padding: 18px 30px 10px 30px; }}
+window.viewport-spacious .topbar .brand {{ font-size: 23px; }}
+window.viewport-spacious .status-chip {{ font-size: 11px; }}
+window.viewport-spacious .nav {{ padding: 0 30px 12px 30px; }}
+window.viewport-spacious .nav button {{ min-height: 38px; padding: 0 28px; font-size: 12px; }}
+window.viewport-spacious .nav button.ops-settings-button {{ padding: 4px 15px; }}
+window.viewport-spacious .page {{ padding: 11px 14px 0 14px; }}
+window.viewport-spacious .mission-rail .rail-data-label {{ font-size: 10px; }}
+window.viewport-spacious .mission-rail .rail-data-value {{ font-size: 15px; }}
+window.viewport-spacious .mobility-title {{ font-size: 28px; }}
+window.viewport-spacious .mobility-subtitle {{ font-size: 12px; }}
+window.viewport-spacious .mobility-card {{ padding: 15px 16px; }}
+
 /* Integrated controls stay legible inside the competition-dark shell. */
 .integrated-operation {{
   background: #0B1726;
@@ -1378,6 +1414,111 @@ window.ops-settings-window, .ops-settings-shell {{ background: #07101B; }}
 }}
 .ops-settings-panel button:disabled label {{ color: #71869C; }}
 .ops-settings-panel expander {{ color: #A8B6C4; }}
+
+/* E2FESTA mobility surface — the same dark control-room language as the
+ * mission and system-status pages. Accent colours identify data domains;
+ * green/amber/red remain reserved for live, caution and danger. */
+.mobility-dashboard {{ background: #07101B; }}
+.mobility-header {{ padding: 1px 2px 4px 2px; }}
+.mobility-kicker {{ color: #70C7F2; font-size: 9px; font-weight: 900; letter-spacing: 1.5px; }}
+.mobility-title {{ color: #F1F6FB; font-size: 25px; font-weight: 900; }}
+.mobility-subtitle {{ color: #94A9BC; font-size: 11px; }}
+.mobility-live-pill {{
+  color: #A8B6C4;
+  background: #263442;
+  border: 1px solid #3B4B5B;
+  border-radius: 999px;
+  padding: 6px 11px;
+  font-size: 10px;
+  font-weight: 900;
+}}
+.mobility-live-pill.status-live {{ color: #8BE3B6; background: #123D2D; border-color: #277A59; }}
+.mobility-live-pill.status-warn {{ color: #FFD77A; background: #493514; border-color: #936A21; }}
+.mobility-live-pill.status-muted {{ color: #A8B6C4; background: #263442; border-color: #3B4B5B; }}
+.mobility-card {{
+  background: #0D1B2B;
+  border: 1px solid #263B52;
+  border-top: 3px solid #4B8BEA;
+  border-radius: 10px;
+  padding: 13px 14px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+}}
+.mobility-stage-card {{ min-height: 132px; }}
+.mobility-terrain-card {{ border-top-color: #55B9DE; }}
+.mobility-attitude-card {{ border-top-color: #4B8BEA; }}
+.mobility-traction-card {{ border-top-color: #55C995; }}
+.mobility-control-stage-card {{ border-top-color: #8C7BEA; }}
+.mobility-stage-title {{ color: #B8C8D8; font-size: 11px; font-weight: 900; }}
+.mobility-value {{ color: #8FA4B8; font-size: 10px; }}
+.mobility-primary-value {{ color: #F1F6FB; font-size: 14px; font-weight: 900; }}
+.mobility-primary-value.status-live {{ color: #8BE3B6; }}
+.mobility-primary-value.status-warn {{ color: #FFD77A; }}
+.mobility-primary-value.status-bad {{ color: #FF9BA8; }}
+.mobility-primary-value.status-muted {{ color: #A8B6C4; }}
+.mobility-evidence-bar {{
+  background-color: #0E1D2C;
+  background-image: linear-gradient(135deg, rgba(75,139,234,0.13), rgba(85,201,149,0.05));
+  border: 1px solid #2A4963;
+  border-left: 3px solid #4B8BEA;
+  border-radius: 8px;
+  padding: 8px 12px;
+}}
+.mobility-evidence-title {{ color: #DCE8F3; font-size: 11px; font-weight: 900; }}
+.mobility-evidence-metrics {{ color: #8EA4B8; font-size: 10px; }}
+.mobility-evidence-rule {{ color: #72CDB2; font-size: 9px; font-weight: 900; }}
+.mobility-panel-title {{ color: #F0F5FA; font-size: 15px; font-weight: 900; }}
+.mobility-source-chip {{
+  color: #76B7F6;
+  background: #173353;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 8px;
+  font-weight: 900;
+}}
+.mobility-wheel-grid {{ background: #0A1725; border: 1px solid #22364D; border-radius: 7px; padding: 8px 10px; }}
+.mobility-wheel-grid .detail-metric-title {{ color: #71879C; font-size: 9px; font-weight: 800; }}
+.mobility-rover-stage {{
+  background-color: #081421;
+  background-image: linear-gradient(145deg, rgba(75,139,234,0.10), rgba(85,185,222,0.03));
+  border: 1px solid #223A52;
+  border-radius: 8px;
+}}
+.mobility-wheel-value {{
+  color: #D9E5EF;
+  font-size: 10px;
+  font-family: "JetBrains Mono", "D2Coding", monospace;
+}}
+.mobility-wheel-value.status-live {{ color: #8BE3B6; font-weight: 900; }}
+.mobility-wheel-value.status-bad {{ color: #FF9BA8; font-weight: 900; }}
+.mobility-decision {{ font-size: 13px; font-weight: 900; }}
+.mobility-decision.status-live {{ color: #8BE3B6; }}
+.mobility-decision.status-warn {{ color: #FFD77A; }}
+.mobility-decision.status-bad {{ color: #FF9BA8; }}
+.mobility-decision.status-muted {{ color: #A8B6C4; }}
+.mobility-recovery-hint {{ color: #8EA4B8; font-size: 10px; }}
+.mobility-faults {{
+  color: #D6E2EC;
+  background: #0A1725;
+  border: 1px solid #22364D;
+  border-left: 3px solid #E7B34F;
+  border-radius: 6px;
+  padding: 9px;
+  font-size: 10px;
+}}
+.mobility-control-card {{ padding: 11px 13px; }}
+.mobility-control-card .role-sub {{ color: #A8B6C4; background: #263442; border-color: #3B4B5B; }}
+.mobility-control-button {{
+  min-height: 34px;
+  background: #173353;
+  color: #DDE8F3;
+  border: 1px solid #315F91;
+  border-radius: 7px;
+  font-weight: 800;
+}}
+.mobility-control-button label {{ color: #DDE8F3; }}
+.mobility-control-button:hover {{ background: #214A75; border-color: #5795E8; }}
+.mobility-control-button:hover label {{ color: #FFFFFF; }}
+.mobility-dashboard .muted {{ color: #71879B; font-size: 9px; }}
 """.format(**token)
     return css.encode("utf-8")
 
@@ -1410,6 +1551,15 @@ def fit_overlay_transform(
         (display_width - frame_width * scale) / 2.0,
         (display_height - frame_height * scale) / 2.0,
     )
+
+
+def viewport_density(width: int, height: int) -> str:
+    """Classify the available logical pixels after desktop display scaling."""
+    if width < 1000 or height < 650:
+        return "compact"
+    if width >= 1400 and height >= 800:
+        return "spacious"
+    return "normal"
 
 
 def overlay_size_matches(
@@ -3276,6 +3426,16 @@ class OpsPanel(Gtk.Frame):
         )
         self._on_immediate_clicked(self._action_buttons.get("estop"), action)
 
+    def request_action(self, action_name: str) -> bool:
+        """Open the existing confirmation flow for a dashboard shortcut."""
+        action = next(
+            (item for item in PANEL_ACTIONS if item.action == action_name),
+            None,
+        )
+        if action is None or action.gesture in {GESTURE_IMMEDIATE, GESTURE_HOLD}:
+            return False
+        return self._begin(action)
+
     def _on_submit_response(self, response: dict) -> None:
         request_id = str(response.get("request_id", "unknown"))
         action = self._pending_requests.get(request_id, "unknown action")
@@ -3691,6 +3851,7 @@ class OperatorConsole(Gtk.Window):
             self._operation_source_id = GLib.timeout_add(100, self._refresh_operation)
         self._refresh_estop_availability()
         _style(self._ops_panel, "danger-card", "ops-settings-panel")
+        self._mobility = MobilityDashboard(self._open_mobility_action)
 
         mission_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         _style(mission_page, "page", "mission-page")
@@ -3809,7 +3970,7 @@ class OperatorConsole(Gtk.Window):
         _style(technology_title, "rail-title")
         technology.pack_start(technology_title, False, False, 0)
         for name, detail, tone in (
-            ("4륜 독립 구동·조향", "험지 기동과 제자리 방향 전환", "drive"),
+            ("6륜 독립 구동·4WS 조향", "험지 기동과 제자리 방향 전환", "drive"),
             ("RGB-D 인공지능 인식", "물체 종류·방향·거리 동시 판단", "vision"),
             ("독립 충돌 방지", "US-100 감지와 즉시 정지", "safety"),
             ("다관절 작업 장치", "인식 대상 접근·파지 작업", "arm"),
@@ -3838,14 +3999,16 @@ class OperatorConsole(Gtk.Window):
         # the compact rail so judges/operators can verify the AI overlay.
         rail.pack_end(display_options, False, False, 0)
 
-        rail_data = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=11)
+        rail_data = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         rail_data.set_no_show_all(False)
         self._mission_metrics = {}
         self._mission_metric_rows: dict[str, Gtk.Box] = {}
+        # The live video is the primary mission view.  Keep its side rail
+        # scannable by grouping related telemetry instead of stacking one
+        # large card per measurement.
         for key, heading in (
-            ("speed", "평균 속도"),
-            ("target", "최신 인식"),
-            ("distance", "대상 거리"),
+            ("drive", "주행 상태"),
+            ("perception", "인식 대상"),
         ):
             row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             _style(row, "rail-data-row")
@@ -3854,7 +4017,9 @@ class OperatorConsole(Gtk.Window):
             _style(row_heading, "rail-data-label")
             row_value = Gtk.Label(label="")
             row_value.set_xalign(0.0)
-            row_value.set_line_wrap(False)
+            row_value.set_line_wrap(True)
+            row_value.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+            row_value.set_max_width_chars(25)
             _style(row_value, "rail-data-value", f"rail-data-{key}")
             row.pack_start(row_heading, False, False, 0)
             row.pack_start(row_value, False, False, 0)
@@ -3887,7 +4052,7 @@ class OperatorConsole(Gtk.Window):
         self._mission_tool_purpose = Gtk.Label(label="사용할 이펙터를 선택하세요")
         self._mission_tool_purpose.set_xalign(0.0)
         self._mission_tool_purpose.set_line_wrap(True)
-        self._mission_tool_purpose.set_max_width_chars(34)
+        self._mission_tool_purpose.set_max_width_chars(26)
         _style(self._mission_tool_purpose, "end-effector-summary-purpose")
         self._mission_tool_reading = Gtk.Label(label="상세 데이터 없음")
         self._mission_tool_reading.set_xalign(0.0)
@@ -3897,8 +4062,12 @@ class OperatorConsole(Gtk.Window):
         arm_summary_grid.set_column_homogeneous(True)
         self._mission_arm_mode = Gtk.Label(label="연동 예정")
         self._mission_arm_mode.set_xalign(0.0)
+        self._mission_arm_mode.set_ellipsize(Pango.EllipsizeMode.END)
+        self._mission_arm_mode.set_max_width_chars(10)
         self._mission_arm_load = Gtk.Label(label="정보 없음")
         self._mission_arm_load.set_xalign(0.0)
+        self._mission_arm_load.set_ellipsize(Pango.EllipsizeMode.END)
+        self._mission_arm_load.set_max_width_chars(14)
         for column, heading_text, value in (
             (0, "조종 모드", self._mission_arm_mode),
             (1, "관절 부하", self._mission_arm_load),
@@ -3937,6 +4106,8 @@ class OperatorConsole(Gtk.Window):
         rail_scroll.set_policy(
             Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC,
         )
+        rail_scroll.set_propagate_natural_width(True)
+        rail_scroll.set_max_content_width(350)
         rail_scroll.set_propagate_natural_height(False)
         rail_scroll.add(rail)
         self._mission_rail_scroll = rail_scroll
@@ -3973,6 +4144,13 @@ class OperatorConsole(Gtk.Window):
         systems_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         systems_scroll.add(systems_page)
         self._systems_scroll = systems_scroll
+
+        mobility_scroll = Gtk.ScrolledWindow()
+        mobility_scroll.set_policy(
+            Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC,
+        )
+        mobility_scroll.add(self._mobility)
+        self._mobility_scroll = mobility_scroll
 
         ops_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         ops_page.set_border_width(14)
@@ -4017,6 +4195,7 @@ class OperatorConsole(Gtk.Window):
         stack.set_transition_type(Gtk.StackTransitionType.NONE)
         stack.set_transition_duration(0)
         stack.add_titled(mission_page, "mission", "실시간 화면")
+        stack.add_titled(mobility_scroll, "mobility", "협조구동")
         stack.add_titled(systems_scroll, "systems", "시스템 상태")
         # The arm tabs use exactly the existing authenticated ops connection.
         # Only the two ingress paths implemented by the existing arm FSM are
@@ -4055,12 +4234,16 @@ class OperatorConsole(Gtk.Window):
         self._stack = stack
         switcher = Gtk.StackSwitcher()
         switcher.set_stack(stack)
-        switcher.set_halign(Gtk.Align.START)
+        switcher.set_halign(Gtk.Align.FILL)
+        switcher.set_hexpand(True)
+        switcher.set_homogeneous(True)
         switcher.set_margin_start(0)
-        switcher.set_size_request(500, 34)
+        switcher.set_size_request(-1, 34)
+        self._nav_switcher = switcher
         nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         _style(nav, "nav")
-        nav.pack_start(switcher, False, False, 0)
+        nav.pack_start(switcher, True, True, 0)
+        self._nav = nav
         self._ops_settings_button = Gtk.Button(label="복구 · 설정")
         self._ops_settings_button.set_valign(Gtk.Align.CENTER)
         self._ops_settings_button.set_size_request(104, 30)
@@ -4072,6 +4255,8 @@ class OperatorConsole(Gtk.Window):
             "clicked", lambda _button: self._show_ops_settings(),
         )
         nav.pack_end(self._ops_settings_button, False, False, 4)
+        self._viewport_density: str | None = None
+        self.connect("size-allocate", self._on_window_allocated)
         layout.pack_start(nav, False, False, 0)
         layout.pack_start(stack, True, True, 0)
         event_expander = EventDrawer(self._events)
@@ -4119,6 +4304,14 @@ class OperatorConsole(Gtk.Window):
         """Show the existing token-gated panel without issuing an action."""
         self._ops_settings_window.show_all()
         self._ops_settings_window.present()
+
+    def _open_mobility_action(self, action_name: str) -> None:
+        """Route shortcuts to the sole token-gated ops panel."""
+        if action_name != "__settings__":
+            if not self._ops_panel.request_action(action_name):
+                self._show_alert(f"{action_name}: 현재 조작을 시작할 수 없습니다")
+                return
+        self._show_ops_settings()
 
     def _cancel_ops_settings_confirmation(self, *_args: object) -> bool:
         self._ops_panel.cancel_confirmation()
@@ -4765,7 +4958,13 @@ class OperatorConsole(Gtk.Window):
             return
         # The compact placeholder needs ~150 px height for its header, rover,
         # and two text rows; smaller PiP slots clip their own content.
-        pip_width = min(360, max(270, int(allocation.width * 0.27)))
+        pip_width = int(allocation.width * 0.27)
+        if allocation.width < 1050:
+            pip_width = min(310, max(230, pip_width))
+        elif allocation.width >= 1500:
+            pip_width = min(460, max(340, pip_width))
+        else:
+            pip_width = min(380, max(270, pip_width))
         # D435i transport is 848x480.  Preserve the exact native ratio instead
         # of the close-but-not-identical 16:9 approximation.
         pip_height = int(round(pip_width * 480 / 848))
@@ -4774,10 +4973,59 @@ class OperatorConsole(Gtk.Window):
     def _on_mission_body_allocated(
         self, _widget: Gtk.Box, allocation: Gdk.Rectangle,
     ) -> None:
-        rail_width = min(330, max(235, int(allocation.width * 0.21)))
-        if allocation.width >= 1500:
-            rail_width = max(290, rail_width)
+        if allocation.width < 1050:
+            rail_width = min(285, max(235, int(allocation.width * 0.24)))
+        elif allocation.width >= 1500:
+            rail_width = min(410, max(340, int(allocation.width * 0.23)))
+        else:
+            rail_width = min(350, max(285, int(allocation.width * 0.22)))
         self._mission_rail.set_size_request(rail_width, -1)
+        self._mission_rail_scroll.set_max_content_width(rail_width)
+
+    def _on_window_allocated(
+        self, _widget: Gtk.Window, allocation: Gdk.Rectangle,
+    ) -> None:
+        """Apply one of three logical-pixel layouts, including HiDPI scaling."""
+        density = viewport_density(allocation.width, allocation.height)
+        if density == self._viewport_density:
+            return
+        context = self.get_style_context()
+        for candidate in (
+            "viewport-compact", "viewport-normal", "viewport-spacious",
+        ):
+            context.remove_class(candidate)
+        context.add_class(f"viewport-{density}")
+        self._viewport_density = density
+
+        compact = density == "compact"
+        titles = {
+            "mission": "실시간" if compact else "실시간 화면",
+            "mobility": "협조구동",
+            "systems": "시스템" if compact else "시스템 상태",
+            ARM_MANUAL_TAB_NAME: "로봇팔 조작" if compact else ARM_MANUAL_TAB_TITLE,
+            ARM_CALIBRATION_TAB_NAME: (
+                "도구 보정" if compact else ARM_CALIBRATION_TAB_TITLE
+            ),
+        }
+        for name, title in titles.items():
+            child = self._stack.get_child_by_name(name)
+            if child is not None:
+                self._stack.child_set_property(child, "title", title)
+
+        nav_height = 30 if compact else 40 if density == "spacious" else 34
+        self._nav_switcher.set_size_request(-1, nav_height)
+        self._ops_settings_button.set_label("설정" if compact else "복구 · 설정")
+        self._ops_settings_button.set_size_request(
+            72 if compact else 118 if density == "spacious" else 104,
+            28 if compact else 34 if density == "spacious" else 30,
+        )
+        self._global_estop.set_size_request(
+            108 if compact else 138 if density == "spacious" else 124,
+            38 if compact else 46 if density == "spacious" else 42,
+        )
+        self._mobility.set_border_width(
+            10 if compact else 22 if density == "spacious" else 18
+        )
 
     def _sync_overlay_rail(self, metadata: MetadataFrame | None) -> None:
         """Keep target cards live independently from video overlay choices."""
@@ -4797,24 +5045,21 @@ class OperatorConsole(Gtk.Window):
         self._rail_data.set_no_show_all(False)
         self._rail_data.show()
         self._mission_metric_rows["tool"].show_all()
-        self._mission_metric_rows["target"].show_all()
+        self._mission_metric_rows["perception"].show_all()
         if target is None:
-            self._mission_metrics["target"].set_text("인식 대상 없음")
+            perception = "인식 대상 없음"
+            if metadata is not None and not fresh:
+                perception += " · 거리 정보 지연"
         else:
-            self._mission_metrics["target"].set_text(
-                f"{target.class_name}  {target.confidence:.0%}"
+            distance = (
+                "거리 정보 지연" if metadata is not None and not fresh else
+                target_view.distance_state if target_view.distance_m is None else
+                f"거리 {target_view.distance_m:.2f} m"
             )
-        self._mission_metric_rows["distance"].show_all()
-        if metadata is not None and not fresh:
-            self._mission_metrics["distance"].set_text("거리 정보 지연")
-        elif target_view.distance_m is None:
-            self._mission_metrics["distance"].set_text(
-                target_view.distance_state
+            perception = (
+                f"{target.class_name}  {target.confidence:.0%}\n{distance}"
             )
-        else:
-            self._mission_metrics["distance"].set_text(
-                f"{target_view.distance_m:.2f} m"
-            )
+        self._mission_metrics["perception"].set_text(perception)
 
     def _refresh_estop_availability(self) -> None:
         sensitive, tooltip, warning = estop_availability(
@@ -5052,9 +5297,23 @@ class OperatorConsole(Gtk.Window):
                 if wheel.drive_turns_per_s is not None and not wheel.stale
             )
         )
-        self._mission_metrics["speed"].set_text(
+        speed_text = (
             "정보 없음" if not wheel_speeds
             else f"{sum(wheel_speeds) / len(wheel_speeds):.2f} turn/s"
+        )
+        mobility_values = mission_mobility_values(
+            chassis_snapshot
+            if chassis_state == "LIVE"
+            else None
+        )
+        self._mission_metrics["drive"].set_text(
+            "정보 없음"
+            if chassis_state != "LIVE" or chassis_snapshot is None
+            else (
+                f'{mobility_values["path"]} · {mobility_values["control"]}\n'
+                f'{speed_text} · {mobility_values["attitude"]}\n'
+                f'{mobility_values["motors"]}'
+            )
         )
         self._sync_overlay_rail(metadata)
         target = self._display_target_tracker.view().detection
@@ -5111,6 +5370,10 @@ class OperatorConsole(Gtk.Window):
             work_frame_age_s=self._d435.last_frame_age_s,
             control_link_ready=self._ops_panel.link_ready(),
             chassis_mode=chassis_mode,
+            ops_state=self._ops_panel.latest_state(),
+        )
+        self._mobility.update(
+            chassis_snapshot,
             ops_state=self._ops_panel.latest_state(),
         )
         self._environment_status.update(environment_snapshot)

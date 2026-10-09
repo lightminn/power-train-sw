@@ -143,12 +143,22 @@ def encode_telemetry_payload(payload: dict[str, object]) -> bytes:
     # Keep the console populated with the scalar operational summary.
     summary_keys = (
         "schema_version", "sequence", "odometry_source", "x_m", "y_m",
-        "yaw_rad", "drive_state", "can_state", "l515_state", "l515_detail",
+        "yaw_rad", "roll_rad", "pitch_rad", "drive_state", "can_state",
+        "l515_state", "l515_detail",
         "l515_mode", "safety_status", "safety_distance_mm",
         "safety_estop_required", "safety_consecutive_failures",
         "safety_detail", "component_mask", "wheel_count", "wheel_fault_count",
         "wheel_stale_count", "wheel_axis_error_count",
-        "wheel_steer_fault_count",
+        "wheel_steer_fault_count", "terrain_path_available",
+        "terrain_path_offset_m", "terrain_heading_error_rad",
+        "terrain_support_m", "terrain_bank_rad", "terrain_slope_rad",
+        "terrain_roughness_m", "terrain_confidence",
+        "terrain_reject_reasons", "controller_fsm_state",
+        "controller_fsm_reasons", "degradation_state",
+        "degradation_reasons", "degradation_speed_scale",
+        "mission_fsm_state", "mission_fsm_reason", "section_fsm_section",
+        "section_fsm_phase", "section_fsm_notices", "slip_candidate",
+        "stuck_candidate",
     )
     summary = {key: bounded[key] for key in summary_keys if key in bounded}
     summary["truncated"] = True

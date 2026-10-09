@@ -26,6 +26,15 @@ def test_srt_uri_uses_operator_caller_mode():
     )
 
 
+def test_viewport_density_uses_logical_pixels_for_scaled_displays():
+    from operator_console.app import viewport_density
+
+    assert viewport_density(900, 900) == "compact"
+    assert viewport_density(1100, 700) == "normal"
+    assert viewport_density(1440, 900) == "spacious"
+    assert viewport_density(1920, 640) == "compact"
+
+
 def test_d435_pipeline_is_low_latency_h264_receiver():
     pipeline = pipeline_description("robot", 5002, 60)
     assert "srtsrc" in pipeline
@@ -929,6 +938,30 @@ def test_telemetry_contract_exposes_individual_wheel_statuses():
     assert frame.wheel_statuses[0].steer_deg == 1.5
 
 
+def test_telemetry_contract_exposes_competition_mobility_fields():
+    frame = parse_telemetry(
+        b'{"schema_version":1,"sequence":30,"roll_rad":0.1,"pitch_rad":-0.2,'
+        b'"terrain_path_available":true,"terrain_confidence":0.82,'
+        b'"terrain_slope_rad":0.15,"terrain_reject_reasons":[],'
+        b'"controller_fsm_state":"TRACKING","controller_fsm_reasons":[],'
+        b'"mission_fsm_state":"DRIVE","section_fsm_section":"APPROACH",'
+        b'"section_fsm_phase":"DRIVE","slip_candidate":false,'
+        b'"stuck_candidate":false,"wheel_statuses":[{"name":"front_left",'
+        b'"mode":"ARMED","drive_turns_per_s":0.5,"command_turns_per_s":0.6,'
+        b'"drive_current_a":3.2,"steer_current_a":0.4,"steer_deg":1.5,'
+        b'"stale":false,"drive_axis_error":0,"steer_fault":0}]}',
+        received_monotonic_s=10.0,
+    )
+
+    assert frame.roll_rad == 0.1
+    assert frame.terrain_path_available is True
+    assert frame.terrain_confidence == 0.82
+    assert frame.controller_fsm_state == "TRACKING"
+    assert frame.section_fsm_phase == "DRIVE"
+    assert frame.wheel_statuses[0].command_turns_per_s == 0.6
+    assert frame.wheel_statuses[0].drive_current_a == 3.2
+
+
 def test_telemetry_contract_retains_complete_l515_gateway_status():
     frame = parse_telemetry(
         b'{"schema_version":1,"sequence":16,"l515_ros_topic_rates_hz":'
@@ -1605,7 +1638,10 @@ def test_console_layout_separates_mission_systems_and_ops_pages():
     ).read_text(encoding="utf-8")
 
     assert 'stack.add_titled(mission_page, "mission", "실시간 화면")' in source
+    assert 'stack.add_titled(mobility_scroll, "mobility", "협조구동")' in source
     assert 'stack.add_titled(systems_scroll, "systems", "시스템 상태")' in source
+    assert "ARM_MANUAL_TAB_TITLE" in source
+    assert "ARM_CALIBRATION_TAB_TITLE" in source
     assert 'stack.add_titled(ops_page, "ops", "관리자 조작")' not in source
     assert "Gtk.StackSwitcher()" in source
     assert "self.set_default_size(1100, 680)" in source
@@ -1680,11 +1716,11 @@ def test_judge_facing_mission_summary_uses_plain_language_and_live_data():
 
     for copy in (
         "재난 대응 로봇 관제 시스템", "현재 단계",
-        "평균 속도", "최신 인식", "로봇팔 · 도구", "안전 장치",
+        "주행 상태", "인식 대상", "로봇팔 · 도구", "안전 장치",
     ):
         assert copy in source
-    assert 'self._mission_metrics["target"].set_text' in source
-    assert 'self._mission_metrics["distance"].set_text' in source
+    assert 'self._mission_metrics["drive"].set_text' in source
+    assert 'self._mission_metrics["perception"].set_text' in source
     assert "self._readiness_count.set_text" in source
 
 

@@ -15,6 +15,12 @@ from operator_console.metadata import (
     MetadataFrame,
     parse_metadata,
 )
+from operator_console.mobility_view import (
+    MobilityDashboard,
+    RoverCoordinationGraphic,
+    active_faults,
+    mission_mobility_values,
+)
 from operator_console.runtime_smoke import (
     _arm_payload,
     _chassis_payload,
@@ -127,6 +133,112 @@ def _update_competition_dashboard(
         control_link_ready=True, now_s=10.0,
     )
     return dashboard
+
+
+@requires_gtk
+def test_mobility_dashboard_shows_terrain_attitude_motor_and_fsms():
+    payload = _chassis_payload(1)
+    snapshot = _parsed(parse_telemetry, payload)
+    actions = []
+    dashboard = MobilityDashboard(actions.append)
+
+    dashboard.update(
+        snapshot,
+        ops_state={"authority_mode": "MANUAL"},
+        now_s=10.0,
+    )
+
+    assert "주행 경로 확보" in dashboard._terrain[1]["path"].get_text()
+    assert "88%" in dashboard._terrain[1]["confidence"].get_text()
+    assert "Roll" in dashboard._attitude[1]["roll"].get_text()
+    assert "감지 없음" in dashboard._traction[1]["contact"].get_text()
+    assert "3.2 A" in dashboard._traction[1]["load"].get_text()
+    assert dashboard._wheel_rows[0][2].get_text() == "0.60 r/s"
+    assert dashboard._wheel_rows[0][3].get_text() == "3.2 A"
+    assert "TRACKING" in dashboard._fsm[1]["controller"].get_text()
+    assert dashboard._authority.get_text() == "권한 · MANUAL"
+    assert dashboard._rover_graphic._snapshot is snapshot
+    assert dashboard._rover_graphic._authority == "MANUAL"
+
+
+@requires_gtk
+def test_mobility_dashboard_hides_stale_measurements_and_holds_operation():
+    payload = _chassis_payload(1)
+    dashboard = MobilityDashboard(lambda _action: None)
+
+    dashboard.update(
+        _parsed(parse_telemetry, payload, received_monotonic_s=8.0),
+        ops_state=None,
+        now_s=10.0,
+    )
+
+    assert dashboard._terrain[1]["path"].get_text() == "정보 없음"
+    assert dashboard._traction[1]["load"].get_text() == "정보 없음"
+    assert "운용 보류" in dashboard._fault_summary.get_text()
+    assert "갱신 지연" in dashboard._faults.get_text()
+    assert dashboard._rover_graphic._snapshot is None
+
+
+def test_mobility_faults_keep_motor_and_terrain_sources_explicit():
+    payload = _chassis_payload(2)
+    payload["terrain_reject_reasons"] = ["low_confidence"]
+    payload["slip_candidate"] = True
+    snapshot = _parsed(parse_telemetry, payload)
+
+    faults = active_faults(snapshot)
+
+    assert any("rear_right" in fault and "축 오류" in fault for fault in faults)
+    assert "지형 · low_confidence" in faults
+    assert "구동 · 슬립 후보" in faults
+
+
+def test_main_mission_mobility_values_show_only_received_measurements():
+    values = mission_mobility_values(
+        _parsed(parse_telemetry, _chassis_payload(3)),
+    )
+    assert values["path"] == "경로 확보 · 신뢰도 88%"
+    assert "TRACKING" in values["control"]
+    assert "Roll" in values["attitude"]
+    assert "max |Iq| 3.2 A" in values["motors"]
+    assert mission_mobility_values(None) == {
+        "path": "정보 없음", "control": "정보 없음",
+        "attitude": "정보 없음", "motors": "정보 없음",
+    }
+
+
+@requires_gtk
+def test_rover_graphic_orbits_360_and_selects_known_wheels_only():
+    graphic = RoverCoordinationGraphic()
+    graphic.set_view_angle(375.0)
+    assert graphic._yaw_deg == 15.0
+    graphic.select_wheel("rear_right")
+    assert graphic._selected_wheel == "rear_right"
+    with pytest.raises(ValueError, match="unknown wheel"):
+        graphic.select_wheel("invented")
+
+
+@requires_gtk
+def test_mobility_dashboard_reflows_cards_instead_of_squeezing_them():
+    dashboard = MobilityDashboard(lambda _action: None)
+
+    dashboard._on_size_allocated(dashboard, type("Allocation", (), {"width": 900})())
+    assert dashboard._summary_grid.child_get_property(
+        dashboard._terrain[0], "left-attach",
+    ) == 0
+    assert dashboard._summary_grid.child_get_property(
+        dashboard._traction[0], "top-attach",
+    ) == 1
+    assert dashboard._lower_grid.child_get_property(
+        dashboard._lower_cards[1], "top-attach",
+    ) == 1
+
+    dashboard._on_size_allocated(dashboard, type("Allocation", (), {"width": 1400})())
+    assert dashboard._summary_grid.child_get_property(
+        dashboard._fsm[0], "left-attach",
+    ) == 3
+    assert dashboard._lower_grid.child_get_property(
+        dashboard._lower_cards[1], "left-attach",
+    ) == 2
 
 
 @requires_gtk

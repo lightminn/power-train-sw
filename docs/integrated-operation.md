@@ -8,6 +8,196 @@
 현재 프로젝트 인수는 원격주행을 중심으로 한다. 미완성 자율주행은 이번 테스트·운용
 판정 범위에서 제외한다(2026-09-09 사용자 지시).
 
+## 매일 복붙 빠른 시작 — 전원 ON부터 주행 콘솔까지
+
+이 절차는 **최초 준비가 끝난 현재 현장 구성**을 매일 켜는 순서다. Jetson의 운용
+체크아웃은 `~/power-train-sw-integrated`, 노트북의 콘솔 실행기는
+`~/.local/bin/powertrain-integrated-console`이다. 파일이 없다는 오류가 나오면 아래의
+`최초 준비 — 젯슨`과 `최초 준비 — 노트북`을 먼저 1회 수행한다.
+
+### 0. 전원을 넣기 전에 눈으로 확인
+
+1. 로봇 주변에 사람·공구·케이블이 없고 비상정지 수단에 바로 손이 닿는지 확인한다.
+2. `can0` 모터 전원, US-100, PDIST80B, L515를 연결한다. 의도적으로 빼고 시험할
+   장치는 운전 시작 전에 담당자가 명시적으로 합의해야 한다.
+3. 노트북에 DualSense를 연결하되 스틱·트리거·버튼은 모두 놓는다.
+4. 로봇/Jetson과 공유기 전원을 켜고, 노트북을 같은 운용망에 연결한 뒤 약 1분 기다린다.
+
+⚠️ 처음 조립했거나 CAN·모터를 정비한 직후라면 바퀴를 지면에서 들어 올린 벤치 상태로
+먼저 확인한다. 캘리브레이션과 지상 제동 인수가 끝나지 않은 상태에서 바로 지상 주행하지
+않는다.
+
+### 1. 터미널 A — Jetson 연결
+
+아래 명령은 **노트북 터미널**에서 복사해 실행한다.
+
+```bash
+ping -c 3 jetson-orin.local
+ssh zetin@jetson-orin.local
+```
+
+✅ 기대 결과:
+
+- ping에 `0% packet loss`가 보인다.
+- SSH 비밀번호를 입력하면 프롬프트가 `zetin@jetson-orin`으로 바뀐다.
+- 비밀번호 입력 중 글자가 화면에 보이지 않는 것은 정상이다.
+
+`Name or service not known`이면 노트북이 로봇 운용망에 붙었는지 확인한다.
+`Permission denied`이면 임의 계정으로 바꾸지 말고 등록된 `zetin` 계정 인증을 확인한다.
+
+### 2. 터미널 A — Jetson 시각 확인
+
+이제부터는 **SSH로 들어간 Jetson 터미널**에서 실행한다.
+
+```bash
+date -Is
+```
+
+✅ 기대 결과: 현재 연도·날짜가 표시된다. 예: `2026-09-12T...+09:00`.
+
+⚠️ `1970-01-01`이 나오면 그대로 운용하지 않는다. `exit`로 노트북 터미널로 돌아와
+아래 명령으로 노트북 시각을 Jetson에 한 번 전달한다.
+
+```bash
+ssh -t zetin@jetson-orin.local "sudo date -s '$(date -Is)'"
+```
+
+명령이 끝나 노트북 프롬프트로 돌아오면 다시 접속한다.
+
+```bash
+ssh zetin@jetson-orin.local
+```
+
+접속되어 프롬프트가 `zetin@jetson-orin`으로 바뀐 뒤 **Jetson 터미널**에서 시각을
+재확인한다.
+
+```bash
+date -Is
+```
+
+✅ 기대 결과: 마지막 `date -Is`가 현재 날짜를 표시한다. 이 조치는 현장망에서 NTP를
+받지 못할 때의 임시 복구다. 매 부팅마다 1970년으로 돌아가면 RTC/NTP 자체를 정비한다.
+
+### 3. 터미널 A — 로봇 서비스 시작
+
+**Jetson 터미널**에서 그대로 복사한다.
+
+```bash
+cd ~/power-train-sw-integrated
+./scripts/robot-start
+```
+
+✅ 마지막 기대 출력:
+
+```text
+robot-start PASS: profile=can-4ws, session=:9002, input=:9000, ops=:9001
+```
+
+`robot-start PASS`는 서비스 기동 성공만 뜻한다. 모터·센서·패드까지 주행 준비가
+끝났다는 뜻은 아니다.
+
+### 4. 터미널 A — 서비스·CAN·필수 장치 확인
+
+아직 **Jetson 터미널**이다. 아래 블록 전체를 복사한다.
+
+```bash
+docker compose \
+  -f docker/docker-compose.jetson.yml \
+  -f docker/docker-compose.integrated.yml ps
+
+ip -details link show can0 | sed -n '1,12p'
+
+test -e /dev/ttyTHS1 \
+  && echo "US100_UART=present" \
+  || echo "US100_UART=MISSING"
+
+test -e /dev/powertrain-pdist80b \
+  && echo "PDIST80B=present" \
+  || echo "PDIST80B=MISSING"
+```
+
+✅ 기대 결과:
+
+- 아래 필수 서비스 8개가 모두 `Up`이다.
+  `powertrain_chassis`, `powertrain_control`, `powertrain_observability`,
+  `powertrain_ros`, `powertrain_session`은 `(healthy)`도 보여야 한다.
+- CAN은 `state ERROR-ACTIVE`, `bitrate 500000`, 현재 `berr-counter tx 0 rx 0`이다.
+- 장치 확인은 `US100_UART=present`, `PDIST80B=present`다.
+
+`Restarting`, `unhealthy`, `Exited`, `CAN readiness 검증 실패`, `MISSING`이 하나라도
+나오면 **운전 시작을 누르지 않는다**. US-100 UART 파일이 있어도 센서 응답 자체는
+콘솔의 안전 상태로 최종 확인한다.
+
+### 5. 터미널 B — 주행 콘솔 열기
+
+터미널 A의 SSH는 상태 확인용으로 그대로 둬도 된다. 새 **노트북 터미널 B**를 열고
+아래 한 줄을 실행한다.
+
+```bash
+~/.local/bin/powertrain-integrated-console
+```
+
+✅ 기대 결과: **Powertrain Integrated Console** 창이 열리고 잠시 뒤 다음 상태가 보인다.
+
+- 로봇 세션 연결됨
+- 전방 카메라 `LIVE`
+- 차체/전원 상태 `LIVE`
+- 패드 연결됨·입력 중립
+- ESTOP 원인 없음
+- 최신 wheel 상태 수신, 운전 시작 가능
+
+터미널에 `Xlib: extension "DRI2" missing` 한 줄만 보이고 창과 영상이 정상이라면
+소프트웨어 렌더링 환경의 경고일 수 있다. `Traceback`이나 콘솔 프로세스 종료는 정상이
+아니다.
+
+### 6. 화면에서 운전 시작
+
+1. 전방 영상이 실제 현재 화면인지 확인한다.
+2. 안전 배너, 모터 상태, 패드 상태를 확인한다. `WAITING`, `STALE`, `UNAVAILABLE`,
+   `ESTOP`, `최신 wheels 상태 대기`가 있으면 시작하지 않는다.
+3. 패드의 모든 입력을 놓은 상태로 화면의 **운전 시작 (1.5초)**을 끝까지 누른다.
+4. 최종 ACK가 성공이고 차체가 TELEOP/주행 준비 상태가 된 것을 확인한다.
+5. **L1 데드맨을 누른 동안만** R2 전진 / L2 후진, 왼쪽 스틱으로 조향한다.
+
+운전 시작은 ESTOP를 자동 초기화하지 않는다. US-100을 단순 통신 장애 때문에
+미장착 처리하거나, 최신 wheel 증거가 없는데 안전 조건을 우회하지 않는다.
+
+### 7. 정상 정지
+
+1. 데드맨과 트리거를 모두 놓는다.
+2. 화면에서 **주행 해제**를 누른다.
+3. 6축 속도 0, 최신 wheel 상태, 차체 `IDLE`을 확인한 뒤에만 접근한다.
+4. 즉시 정지가 필요하면 화면의 **긴급 정지** 또는 패드 ○ ESTOP를 사용한다.
+
+창을 닫거나 네트워크가 끊어져도 안전 정지를 요청하지만, `OUTCOME_UNKNOWN`은 정지
+성공이 아니다. 이때는 로봇에 접근하지 말고 터미널 A에서 상태와 로그를 확인한다.
+
+### 막혔을 때 복붙 진단
+
+**Jetson 터미널 A**에서 실행한다.
+
+```bash
+cd ~/power-train-sw-integrated
+docker compose \
+  -f docker/docker-compose.jetson.yml \
+  -f docker/docker-compose.integrated.yml logs --tail=100 \
+  powertrain_session powertrain_control powertrain_chassis \
+  powertrain_pdist80b_telemetry
+```
+
+| 콘솔 표시 | 먼저 확인할 것 | 진행 여부 |
+|---|---|---|
+| 로봇 연결 대기 | ping, `robot-start`, `powertrain_session` | 시작 금지 |
+| 패드 대기 | DualSense USB/BT 연결, 입력을 모두 놓음 | 시작 금지 |
+| `ESTOP · liveness_timeout` | US-100 연결·UART 응답 | 시작 금지 |
+| 최신 wheels 상태 대기 | 모터 전원, can0, 10모터 응답 | 시작 금지 |
+| 전원 상태 오류 | `/dev/powertrain-pdist80b`와 PDIST 배선 | 시작 금지 |
+| D435/로봇팔/환경 미연결 | 해당 선택 스택이 필요한 시험인지 확인 | 해당 기능 판정 제외 |
+| `OUTCOME_UNKNOWN` | 실제 정지·최신 wheel 증거 확인 | 로봇 접근 금지 |
+
+복구가 끝나면 오류 원인을 제거하고 콘솔의 별도 확인 절차를 따른다. 결과가 불명확한
+명령을 성공으로 간주하거나 연결 복구만으로 운전을 자동 재개하지 않는다.
+
 **2026-09-09 CAN 수정 후 검증:** 단일 CAN/USB 소유권, 리셋 직렬화, 실제 축 상태 기반
 무장 확인, 수신 시각과 정지 증거, 세션 복구를 보강했다. 젯슨의 설치된 ROS 노드와
 가상 CAN 10축으로 시작→구동→입력 단절 정지→재연결 후 IDLE 유지가 통과했다.
@@ -80,13 +270,14 @@ GTK/GStreamer/gtksink를 제공하는 Python과 pygame을 제공하는 Python을
 
 ```bash
 # 노트북 호스트 — 최초 1회 (저장소 위치에 맞춰 이동)
-cd ~/ZETIN/robotics/power-train-sw
+cd ~/power-train-sw
+"$HOME/miniconda3/bin/python" -m pip install pygame
 bash scripts/install_integrated_console.sh \
   --robot-id zetin-rover \
   --host jetson-orin.local \
   --token-file "$HOME/.config/powertrain/ops_console.token" \
   --console-python /usr/bin/python3 \
-  --controller-python /usr/bin/python3
+  --controller-python "$HOME/miniconda3/bin/python"
 ```
 
 기대 출력: `integrated console install PASS`. 이후 앱 메뉴에서
