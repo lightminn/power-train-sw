@@ -1,0 +1,1 @@
+RealSense nominal sensor extrinsic values are derived from realsense-ros official description files. Copyright 2023 RealSense, Inc.; Copyright 2017 Intel Corporation. Apache License 2.0. Sources: ros2-development/_d435.urdf.xacro, _d435i_imu_modules.urdf.xacro, and legacy ros2/_l515.urdf.xacro. CAD mechanical mounts and the JETIN transformations were added in this package.

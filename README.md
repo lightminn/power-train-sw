@@ -262,3 +262,7 @@ ROS 실행·토픽·서비스 표는 [`ros2/README.md`](ros2/README.md), HIL 전
 ## 라이선스 / 연락
 
 내부 프로젝트. 외부 공개·재배포 전 ZETIN 측 확인.
+
+## JETIN Isaac Sim 최종 전달본
+
+[통합 로봇 형상·관절·센서·장면·검증 영상](simulation/README.md)을 별도 보관합니다. 실차 런타임 설정과 구분하여 사용하세요.

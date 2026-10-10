@@ -1,0 +1,396 @@
+{
+  "revision": "virtual_sensors_20261009",
+  "enabled_streams": 5,
+  "streams": [
+    {
+      "name": "ov5640_rgb",
+      "device": "OV5640",
+      "frame": "ov5640_optical_frame",
+      "frame_path": "/JETIN/arm_link5/ov5640_link/ov5640_optical_frame",
+      "prim_path": "/JETIN/arm_link5/ov5640_link/ov5640_optical_frame/SensorCamera",
+      "resolution": [
+        640,
+        480
+      ],
+      "frequency_hz": 30,
+      "K": [
+        [
+          442.68877159319015,
+          0.0,
+          319.5
+        ],
+        [
+          0.0,
+          442.6887715931902,
+          239.5
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_model": "opencv_pinhole",
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "fov_deg": [
+        71.72298124535831,
+        56.92792674399431
+      ],
+      "depth_enabled": false,
+      "depth_model": null,
+      "range_m": [
+        0.02,
+        100.0
+      ],
+      "enabled": true,
+      "hardware_calibrated": false,
+      "distortion_basis": "Zero distortion is an initial ideal-lens assumption; coefficients are editable.",
+      "physical_fidelity": "Generic OV5640 module reference; actual board/lens and calibration unknown."
+    },
+    {
+      "name": "d435i_rgb",
+      "device": "D435i",
+      "frame": "d435i_color_optical_frame",
+      "frame_path": "/JETIN/base_link/d435i_bottom_screw_frame/d435i_link/d435i_color_frame/d435i_color_optical_frame",
+      "prim_path": "/JETIN/base_link/d435i_bottom_screw_frame/d435i_link/d435i_color_frame/d435i_color_optical_frame/SensorCamera",
+      "resolution": [
+        1280,
+        720
+      ],
+      "frequency_hz": 30,
+      "K": [
+        [
+          931.2057783503649,
+          0.0,
+          639.5
+        ],
+        [
+          0.0,
+          937.8320632897686,
+          359.5
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_model": "opencv_pinhole",
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "fov_deg": [
+        69,
+        42
+      ],
+      "depth_enabled": false,
+      "depth_model": null,
+      "range_m": [
+        0.02,
+        100.0
+      ],
+      "enabled": true,
+      "hardware_calibrated": false,
+      "distortion_basis": "Zero distortion is an initial ideal-lens assumption; coefficients are editable.",
+      "physical_fidelity": "D435i stereo matching, active IR pattern and depth noise not modeled."
+    },
+    {
+      "name": "d435i_depth",
+      "device": "D435i",
+      "frame": "d435i_depth_optical_frame",
+      "frame_path": "/JETIN/base_link/d435i_bottom_screw_frame/d435i_link/d435i_depth_frame/d435i_depth_optical_frame",
+      "prim_path": "/JETIN/base_link/d435i_bottom_screw_frame/d435i_link/d435i_depth_frame/d435i_depth_optical_frame/SensorCamera",
+      "resolution": [
+        848,
+        480
+      ],
+      "frequency_hz": 30,
+      "K": [
+        [
+          446.80277311912806,
+          0.0,
+          423.5
+        ],
+        [
+          0.0,
+          432.97146126514167,
+          239.5
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_model": "opencv_pinhole",
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "fov_deg": [
+        87,
+        58
+      ],
+      "depth_enabled": true,
+      "depth_model": "ideal_geometry_depth",
+      "range_m": [
+        0.3,
+        10
+      ],
+      "enabled": true,
+      "hardware_calibrated": false,
+      "distortion_basis": "Zero distortion is an initial ideal-lens assumption; coefficients are editable.",
+      "physical_fidelity": "D435i stereo matching, active IR pattern and depth noise not modeled."
+    },
+    {
+      "name": "l515_rgb",
+      "device": "L515",
+      "frame": "l515_color_optical_frame",
+      "frame_path": "/JETIN/base_link/l515_bottom_screw_frame/l515_link/l515_color_frame/l515_color_optical_frame",
+      "prim_path": "/JETIN/base_link/l515_bottom_screw_frame/l515_link/l515_color_frame/l515_color_optical_frame/SensorCamera",
+      "resolution": [
+        1280,
+        720
+      ],
+      "frequency_hz": 30,
+      "K": [
+        [
+          931.2057783503649,
+          0.0,
+          639.5
+        ],
+        [
+          0.0,
+          937.8320632897686,
+          359.5
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_model": "opencv_pinhole",
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "fov_deg": [
+        69,
+        42
+      ],
+      "depth_enabled": false,
+      "depth_model": null,
+      "range_m": [
+        0.02,
+        100.0
+      ],
+      "enabled": true,
+      "hardware_calibrated": false,
+      "distortion_basis": "Zero distortion is an initial ideal-lens assumption; coefficients are editable.",
+      "physical_fidelity": "L515 MEMS scan timing, intensity, reflectivity, multipath and dropout not modeled."
+    },
+    {
+      "name": "l515_depth",
+      "device": "L515",
+      "frame": "l515_depth_optical_frame",
+      "frame_path": "/JETIN/base_link/l515_bottom_screw_frame/l515_link/l515_depth_frame/l515_depth_optical_frame",
+      "prim_path": "/JETIN/base_link/l515_bottom_screw_frame/l515_link/l515_depth_frame/l515_depth_optical_frame/SensorCamera",
+      "resolution": [
+        1024,
+        768
+      ],
+      "frequency_hz": 30,
+      "K": [
+        [
+          731.2117794519627,
+          0.0,
+          511.5
+        ],
+        [
+          0.0,
+          737.6571367569278,
+          383.5
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_model": "opencv_pinhole",
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "fov_deg": [
+        70,
+        55
+      ],
+      "depth_enabled": true,
+      "depth_model": "ideal_geometry_depth",
+      "range_m": [
+        0.25,
+        6.5
+      ],
+      "enabled": true,
+      "hardware_calibrated": false,
+      "distortion_basis": "Zero distortion is an initial ideal-lens assumption; coefficients are editable.",
+      "physical_fidelity": "XGA 95% reflectivity range; VGA-noise transfer approximation, no measured device calibration"
+    },
+    {
+      "name": "d435i_infra1",
+      "device": "D435i",
+      "frame": "d435i_infra1_optical_frame",
+      "frame_path": "/JETIN/base_link/d435i_bottom_screw_frame/d435i_link/d435i_infra1_frame/d435i_infra1_optical_frame",
+      "prim_path": "/JETIN/base_link/d435i_bottom_screw_frame/d435i_link/d435i_infra1_frame/d435i_infra1_optical_frame/SensorCamera",
+      "resolution": [
+        848,
+        480
+      ],
+      "frequency_hz": 30,
+      "K": [
+        [
+          446.80277311912806,
+          0.0,
+          423.5
+        ],
+        [
+          0.0,
+          432.97146126514167,
+          239.5
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_model": "opencv_pinhole",
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "fov_deg": [
+        87,
+        58
+      ],
+      "depth_enabled": false,
+      "depth_model": null,
+      "range_m": [
+        0.3,
+        10
+      ],
+      "enabled": false,
+      "hardware_calibrated": false,
+      "distortion_basis": "Zero distortion is an initial ideal-lens assumption; coefficients are editable.",
+      "physical_fidelity": "D435i stereo matching, active IR pattern and depth noise not modeled."
+    },
+    {
+      "name": "d435i_infra2",
+      "device": "D435i",
+      "frame": "d435i_infra2_optical_frame",
+      "frame_path": "/JETIN/base_link/d435i_bottom_screw_frame/d435i_link/d435i_infra2_frame/d435i_infra2_optical_frame",
+      "prim_path": "/JETIN/base_link/d435i_bottom_screw_frame/d435i_link/d435i_infra2_frame/d435i_infra2_optical_frame/SensorCamera",
+      "resolution": [
+        848,
+        480
+      ],
+      "frequency_hz": 30,
+      "K": [
+        [
+          446.80277311912806,
+          0.0,
+          423.5
+        ],
+        [
+          0.0,
+          432.97146126514167,
+          239.5
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_model": "opencv_pinhole",
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "fov_deg": [
+        87,
+        58
+      ],
+      "depth_enabled": false,
+      "depth_model": null,
+      "range_m": [
+        0.3,
+        10
+      ],
+      "enabled": false,
+      "hardware_calibrated": false,
+      "distortion_basis": "Zero distortion is an initial ideal-lens assumption; coefficients are editable.",
+      "physical_fidelity": "D435i stereo matching, active IR pattern and depth noise not modeled."
+    }
+  ],
+  "hardware_calibrated": false,
+  "camera_motion": "All sensor Camera prims inherit the existing optical-frame transform; OV5640 follows arm_link5.",
+  "output": "RGB/depth/pointcloud via virtual_sensors.py,public-spec L515 range/noise via manufacturer_models.py; L515 IMU,wheel/steering/AS feedback via runtime installer. D435i depth remains ideal geometry; actual stereo matching/IR/rolling shutter/lens calibration not reproduced.",
+  "OV5640_reference": "Arducam OV5640 RZ/V2L module 84.2 degree diagonal FOV. This is a generic lens reference, not identification of the user module.",
+  "sources": [
+    "https://www.arducam.com/blog/product/arducam-5mp-ov5640-camera-module-for-renesas-rz-v2l-evaluation-kit/",
+    "https://docs.isaacsim.omniverse.nvidia.com/5.1.0/sensors/isaacsim_sensors_camera.html",
+    "https://realsenseai.com/wp-content/uploads/2025/06/Intel_RealSense_LiDAR_L515_Datasheet_Rev003.pdf",
+    "https://cdrdv2-public.intel.com/841984/Intel-RealSense-D400-Series-Datasheet.pdf"
+  ],
+  "depth_output_intrinsics": "depth_K is derived from the underlying USD pinhole camera; K describes the RGB OpenCV lens. RGB and depth pixel grids are not assumed aligned.",
+  "public_spec_revision": "integrated_vision_ready_20261010"
+}

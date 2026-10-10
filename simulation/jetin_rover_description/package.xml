@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='utf-8'?>
+<package format="3">
+  <name>jetin_rover_description</name>
+  <version>0.0.0</version>
+  <description>JET-IN rover CAD-derived URDF draft for visualization and simulator preparation.</description>
+  <maintainer email="todo@todo.com">JET-IN (contact pending)</maintainer>
+  <license>Proprietary</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>xacro</depend>
+  <depend>rviz2</depend>
+  <depend>robot_state_publisher</depend>
+  <depend>joint_state_publisher</depend>
+  <depend>joint_state_publisher_gui</depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+</package>

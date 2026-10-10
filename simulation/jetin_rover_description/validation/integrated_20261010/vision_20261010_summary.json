@@ -1,0 +1,148 @@
+{
+  "passed": true,
+  "status": "completed",
+  "job": 2048,
+  "seed": 20261010,
+  "asset_sha256": "f063792baba3b37a48455d06f71525d1f6ef6c9b176fe0e9e435ef6748d23056",
+  "object_kinematic": false,
+  "object_attached_by_constraint": false,
+  "controller_uses_object_ground_truth": false,
+  "detector": "RGB color segmentation,not a general unknown-object model",
+  "hardware_calibrated": false,
+  "generation_for_evaluator_only": {
+    "seed": 20261010,
+    "size_m": [
+      0.04110531366162502,
+      0.029153838158921346,
+      0.07544409963342254
+    ],
+    "center_m": [
+      0.7201967778329392,
+      0.037130767738011314,
+      0.6448587009996226
+    ],
+    "yaw_deg": -2.9615502409836463,
+    "mass_kg": 0.08
+  },
+  "time_s": 90.00833333333334,
+  "phase": "retreat",
+  "frames": 1840,
+  "visual_target": {
+    "rgbd": {
+      "center_world_m": [
+        0.7136658317409456,
+        0.03791947662830353,
+        0.6480714678764343
+      ],
+      "width_m": 0.027666609957814215,
+      "height_m": 0.06420337677001953,
+      "surface_world_m": [
+        0.6995505690574646,
+        0.0379139669239521,
+        0.6480576395988464
+      ],
+      "pixels": 13071,
+      "depth_points": 1437,
+      "rgb_uv": [
+        625.0599036033968,
+        98.39499655726418
+      ],
+      "bbox": [
+        588,
+        11,
+        76,
+        175
+      ],
+      "confidence": "visible measured surface + cube-like unseen-depth assumption",
+      "source": "RGB color segmentation + registered measured D435i depth only"
+    },
+    "occluded_current_rgbd": {
+      "center_world_m": [
+        0.7138008007762329,
+        0.03774423934209597,
+        0.6216681431304162
+      ],
+      "width_m": 0.02816525258123875,
+      "height_m": 0.02772984266281131,
+      "surface_world_m": [
+        0.699718177318573,
+        0.037744633853435516,
+        0.6216592192649841
+      ],
+      "pixels": 4293,
+      "depth_points": 477,
+      "rgb_uv": [
+        625.2539017004426,
+        155.1546703936641
+      ],
+      "bbox": [
+        588,
+        127,
+        76,
+        57
+      ],
+      "confidence": "visible measured surface + cube-like unseen-depth assumption",
+      "source": "RGB color segmentation + registered measured D435i depth only"
+    },
+    "ov5640": {
+      "center_world_m": [
+        0.7135193316500531,
+        0.038309785590292786,
+        0.6415952433300715
+      ],
+      "pixels": 21665,
+      "uv": [
+        347.2524348026771,
+        358.60410800830834
+      ],
+      "source": "OV5640 RGB bearing,depth supplied by D435i observation",
+      "correction_m": 0.006489629244984157
+    },
+    "fused_center_m": [
+      0.7135925816954993,
+      0.03811463110929816,
+      0.6448333556032528
+    ],
+    "fused_goal_m": [
+      0.7135925816954993,
+      0.03811463110929816,
+      0.6640943686342586
+    ],
+    "grasp_above_center_m": 0.019261013031005858,
+    "IK_error_m": 4.0188179549533144e-11,
+    "pre_joint_deg": [
+      -4.802612317573801,
+      -101.4511222073954,
+      -11.802847206194517,
+      -89.64827311513,
+      -1.4775992401213034e-10
+    ],
+    "pick_joint_deg": [
+      -3.831720176858822,
+      -109.03716742389096,
+      -38.29280545715464,
+      -70.70918107746289,
+      0.018029838820882896
+    ],
+    "lift_joint_deg": [
+      -3.8285256505618728,
+      -93.77099917175994,
+      -44.914846800041026,
+      -48.82097059945798,
+      0.018027877287550606
+    ]
+  },
+  "metrics": {
+    "held_min_lift_m": 0.09791171550750732,
+    "held_max_object_tcp_error_m": 0.013406763180768968,
+    "held_both_contact_fraction": 1.0,
+    "release_height_error_m": 1.722574234008789e-05,
+    "rack_max_error_m": 0.00022843280560346305,
+    "max_tracking_error_deg": 2.8667699976997056,
+    "evaluator_vision_position_error_m": 0.006677254739012015,
+    "max_kinematic_geometry_error_m": 0.00030657236083017793
+  },
+  "full_sequence_executed": true,
+  "wall_seconds": 481.4505768030067,
+  "full_grasp_completed": true
+}

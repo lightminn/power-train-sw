@@ -1,0 +1,68 @@
+{
+  "passed": true,
+  "status": "completed",
+  "job": 2061,
+  "domain_id": "171",
+  "localhost_only": true,
+  "asset_sha256": "f063792baba3b37a48455d06f71525d1f6ef6c9b176fe0e9e435ef6748d23056",
+  "controls_and_ROS_same_runtime": true,
+  "observed_commanded_joint_rad": {
+    "arm_J1_yaw": -0.09005133807659149,
+    "fl_steer_joint": 0.04014499485492706
+  },
+  "received_counts": {
+    "/clock": 1027,
+    "/jetin/joint_states": 428,
+    "/jetin/encoders": 515,
+    "/jetin/wheel_steering_feedback": 428,
+    "/jetin/l515/imu": 841,
+    "/tf": 430,
+    "/jetin/ov5640_rgb/image": 86,
+    "/jetin/ov5640_rgb/camera_info": 87,
+    "/jetin/d435i_rgb/image": 86,
+    "/jetin/d435i_rgb/camera_info": 87,
+    "/jetin/d435i_depth/image": 86,
+    "/jetin/d435i_depth/camera_info": 87,
+    "/jetin/d435i_depth/depth": 86,
+    "/jetin/d435i_depth/depth_camera_info": 87,
+    "/jetin/d435i_depth/points": 84,
+    "/jetin/l515_rgb/image": 85,
+    "/jetin/l515_rgb/camera_info": 86,
+    "/jetin/l515_depth/image": 86,
+    "/jetin/l515_depth/camera_info": 86,
+    "/jetin/l515_depth/depth": 86,
+    "/jetin/l515_depth/depth_camera_info": 86,
+    "/jetin/l515_depth/points": 84
+  },
+  "controls_ROS_stop_play_passed": true,
+  "restart_seconds": 0.4,
+  "bounded_commands_accepted": 2,
+  "passive_command_rejected": [
+    "unknown/passive/nonfinite joint: rocker_left_joint"
+  ],
+  "actual_commanded_joint_rad": {
+    "arm_J1_yaw": -0.09005133807659149,
+    "fl_steer_joint": 0.04014499485492706
+  },
+  "encoders": [
+    "ml_rocker_joint",
+    "mr_rocker_joint",
+    "bl_bogie_joint",
+    "br_bogie_joint"
+  ],
+  "feedback_channels": [
+    "fl_wheel_joint",
+    "fr_wheel_joint",
+    "cl_wheel_joint",
+    "cr_wheel_joint",
+    "rl_wheel_joint",
+    "rr_wheel_joint",
+    "fl_steer_joint",
+    "fr_steer_joint",
+    "rl_steer_joint",
+    "rr_steer_joint"
+  ],
+  "tf_transforms": 52,
+  "seconds": 7,
+  "rate_interpretation": "UI/restart behavior check. During part of this run another own frame-presence probe shared domain171;received counts are not used to assert Hz. Isolated7s rates are from job2052."
+}

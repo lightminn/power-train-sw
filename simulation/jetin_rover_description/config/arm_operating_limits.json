@@ -1,0 +1,124 @@
+{
+  "current_revision": "end_effector_revision4_20261007",
+  "source_document": "rover_assembly",
+  "source_version": 168,
+  "joints": [
+    {
+      "name": "arm_J1_yaw",
+      "type_for_export": "continuous",
+      "limits": null,
+      "minimum_deg": null,
+      "maximum_deg": null,
+      "source_axis_sign": 1,
+      "before": {
+        "type_for_export": "revolute",
+        "limits": {
+          "minimum_enabled": true,
+          "minimum_rad": -0.3490658503988659,
+          "maximum_enabled": true,
+          "maximum_rad": 0.3490658503988659
+        },
+        "limits_status": "CAD interference based initial operational profile; no hardware stop; finite sampled configurations, other joints at CAD reference",
+        "angular_limit_policy": null
+      },
+      "changed": true,
+      "limit_source": "rover_assembly v168; user adjustment",
+      "physical_interference_verified_this_revision": false
+    },
+    {
+      "name": "arm_J2_shoulder",
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_rad": -3.141592653589793,
+        "maximum_rad": 0.0
+      },
+      "minimum_deg": -180.0,
+      "maximum_deg": 0.0,
+      "source_axis_sign": 1,
+      "before": {
+        "type_for_export": "revolute",
+        "limits": {
+          "minimum_enabled": true,
+          "minimum_rad": -1.9198621771937625,
+          "maximum_enabled": true,
+          "maximum_rad": 0.0
+        },
+        "limits_status": "CAD values, operating limits not confirmed",
+        "angular_limit_policy": null
+      },
+      "changed": true,
+      "limit_source": "rover_assembly v168; user adjustment",
+      "physical_interference_verified_this_revision": false
+    },
+    {
+      "name": "arm_J3_elbow",
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_rad": -3.141592653589793,
+        "maximum_rad": 0.0
+      },
+      "minimum_deg": -180.0,
+      "maximum_deg": 0.0,
+      "source_axis_sign": 1,
+      "before": {
+        "type_for_export": "revolute",
+        "limits": {
+          "minimum_enabled": true,
+          "minimum_rad": -2.9670597283903604,
+          "maximum_enabled": true,
+          "maximum_rad": 0.0
+        },
+        "limits_status": "CAD values, operating limits not confirmed",
+        "angular_limit_policy": null
+      },
+      "changed": true,
+      "limit_source": "rover_assembly v168; user adjustment",
+      "physical_interference_verified_this_revision": false
+    },
+    {
+      "name": "arm4_rotation",
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_rad": -1.7453292519943295,
+        "maximum_rad": 1.7453292519943295
+      },
+      "minimum_deg": -100.0,
+      "maximum_deg": 100.0,
+      "source_axis_sign": 1,
+      "before": {
+        "type_for_export": "continuous",
+        "limits": null,
+        "limits_status": null,
+        "angular_limit_policy": "Not supplied or inspected; CAD rotation limits disabled, URDF continuous. Not a verified physical unlimited range."
+      },
+      "changed": true,
+      "limit_source": "rover_assembly v168; user adjustment",
+      "physical_interference_verified_this_revision": false
+    },
+    {
+      "name": "axis5_rotation",
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_rad": -3.141592653589793,
+        "maximum_rad": 3.141592653589793
+      },
+      "minimum_deg": -180.0,
+      "maximum_deg": 180.0,
+      "source_axis_sign": 1,
+      "before": {
+        "type_for_export": "revolute",
+        "limits": {
+          "minimum_rad": -3.141592653589793,
+          "maximum_rad": 3.141592653589793
+        },
+        "limits_status": null,
+        "angular_limit_policy": null
+      },
+      "changed": false,
+      "limit_source": "rover_assembly v168; user adjustment",
+      "physical_interference_verified_this_revision": false
+    }
+  ],
+  "independent_interference_tested": false,
+  "torque_speed_status": "Pending user input; existing placeholder effort/velocity values preserved."
+}

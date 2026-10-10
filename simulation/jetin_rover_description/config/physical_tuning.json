@@ -1,0 +1,89 @@
+{
+  "revision": "physical_tuning_20261007",
+  "units": "SI except explicit degrees",
+  "status": "theoretical editable defaults; not measured Sim-to-Real calibration",
+  "tire": {
+    "static_friction": 0.9,
+    "dynamic_friction": 0.8,
+    "restitution": 0,
+    "contact_stiffness_N_m": 30000,
+    "contact_damping_Ns_m": 600,
+    "acceleration_spring": false,
+    "model": "PhysX implicit compliant contact per contact, rigid detailed SDF wheel mesh; no visible rubber deformation. Aggregate radial stiffness depends on contact count and terrain.",
+    "nominal_radius_m": 0.10375,
+    "youngs_modulus_applied": false
+  },
+  "drivetrain": {
+    "gearbox_efficiency": 0.9,
+    "efficiency_measured": false,
+    "max_current_A": 9,
+    "motor_Kt_Nm_A": 0.353,
+    "gear_ratio": 5,
+    "wheel_torque_limit_Nm": 14.296499999999998,
+    "rotor_inertia_or_backlash_measured": false,
+    "wheel_velocity_P_gain_Nm_per_deg_s": 0.007500000000000001,
+    "wheel_velocity_limit_deg_s": 3600.0
+  },
+  "connector": {
+    "mode": "passive revolute",
+    "angle_trigger_for_rotation": null,
+    "axial_retention": "bearing shaft retained by snap rings on both sides",
+    "usd_axis": "-Y",
+    "usd_limits_deg": [
+      -120,
+      29.5
+    ],
+    "master_native_limits_deg": [
+      -120,
+      29.5
+    ],
+    "prepared_native_limits_deg": [
+      -29.5,
+      120
+    ],
+    "friction_coefficient": 0,
+    "friction_basis": "ideal bearing initial approximation; no measured bearing drag",
+    "base_bolt_contact": {
+      "enabled_in_usd": false,
+      "fusion_contact_sets_enabled": false,
+      "basis": "user removed upper bolts/nuts and filled holes in both Fusion documents; geometry refreshed 20261009"
+    }
+  },
+  "ball_joint": {
+    "representation": "serial 3R",
+    "individual_limits_deg": {
+      "rx": [
+        -5,
+        5
+      ],
+      "ry": [
+        -5,
+        5
+      ],
+      "rz": [
+        -25,
+        25
+      ]
+    },
+    "basis": "CAD sampled conservative operating box. Actual manufacturer tilt limit unknown; not a 5 degree cone.",
+    "maximum_geometric_combined_tilt_deg": 7.066574389261594,
+    "bar_side_1_354deg_is_hard_stop": false,
+    "coupling": "pose-dependent closed loop, no constant mimic angle ratio"
+  },
+  "physics": {
+    "hz": 120,
+    "position_iterations": 64,
+    "velocity_iterations": 16,
+    "allowed_loop_error_m": 0.001,
+    "stabilization": true
+  },
+  "remaining_measured_parameters": [
+    "tire stiffness/damping/friction",
+    "rod-end manufacturer identity/tilt",
+    "bearing drag",
+    "AK hardware version/peak duration",
+    "lens intrinsics/distortion",
+    "sensor zero/bias/noise and bus timing",
+    "external arm gearbox efficiency/backlash/rotating inertia"
+  ]
+}

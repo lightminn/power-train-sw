@@ -1,3 +1,11 @@
 # Unified diff context uses a literal space for an unchanged empty source line.
 # Preserve the pinned patch bytes; ordinary source files keep default checks.
 firmware/mks_odrive/reliability.patch whitespace=-blank-at-eol
+
+# Verified JETIN Isaac snapshot: large binary assets use Git LFS.
+simulation/jetin_rover_description/**/*.usdc filter=lfs diff=lfs merge=lfs -text
+simulation/jetin_rover_description/**/*.stl filter=lfs diff=lfs merge=lfs -text
+simulation/jetin_rover_description/**/*.mp4 filter=lfs diff=lfs merge=lfs -text
+simulation/jetin_rover_description/validation/integrated_20261010/vision_20261010_report.json filter=lfs diff=lfs merge=lfs -text
+simulation/jetin_rover_description/** -text
+simulation/jetin_rover_description/** whitespace=cr-at-eol

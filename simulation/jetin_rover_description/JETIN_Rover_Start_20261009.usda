@@ -1,0 +1,64 @@
+#usda 1.0
+(
+    defaultPrim = "JETIN"
+    endTimeCode = 14400
+    metersPerUnit = 1
+    startTimeCode = 0
+    subLayers = [
+        @JETIN_Rover_Final_20261009.usdc@
+    ]
+    timeCodesPerSecond = 120
+    upAxis = "Z"
+)
+
+over "JETIN"
+{
+    custom string jetin:runtimeRequired = "Run tools/install_manufacturer_models.py before Play for full dynamics and feedback"
+    double3 xformOp:translate:starterPlacement = (0, 0, 0.44113)
+    uniform token[] xformOpOrder = ["xformOp:translate:starterPlacement"]
+}
+
+def "Environment"
+{
+    def Cube "Ground" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "MaterialBindingAPI"]
+    )
+    {
+        custom rel material:binding:physics = </Environment/GroundMaterial>
+        color3f[] primvars:displayColor = [(0.23, 0.27, 0.31)]
+        double size = 1
+        float3 xformOp:scale = (20, 20, 0.1)
+        double3 xformOp:translate = (0, 0, -0.05)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def Material "GroundMaterial" (
+        prepend apiSchemas = ["PhysicsMaterialAPI"]
+    )
+    {
+        float physics:dynamicFriction = 0.7
+        float physics:restitution = 0
+        float physics:staticFriction = 0.8
+    }
+
+    def DistantLight "Sun"
+    {
+        float inputs:intensity = 1800
+        float3 xformOp:rotateXYZ = (20, -30, -30)
+        uniform token[] xformOpOrder = ["xformOp:rotateXYZ"]
+    }
+
+    def DomeLight "Ambient"
+    {
+        float inputs:intensity = 450
+    }
+
+    def Camera "Overview"
+    {
+        float2 clippingRange = (0.01, 100)
+        float focalLength = 35
+        matrix4d xformOp:transform = ( (0.7507135169227555, 0.6606278948920246, 0, 0), (-0.19865514833435555, 0.2257444867435859, 0.9537167078043303, -0), (0.6300518610001268, -0.7159680238637806, 0.30070657002278783, 0), (2.3000000000000003, -2.5, 1.6, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+    }
+}
+

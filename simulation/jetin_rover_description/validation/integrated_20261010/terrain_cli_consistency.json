@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "default_geometry_identical": true,
+  "scene_sha256": "b780d46c6ab303799a0a0ccc6dea6863c9952012e749bcdfbc3df61c0d0fe779",
+  "generation": {
+    "start_x_m": 0.6,
+    "end_x_m": 2.4,
+    "height_m": 0.12,
+    "wavelength_m": 0.9,
+    "left_right_phase_rad": 1.5707963267948966
+  },
+  "change": "Optional wavelength now honored;tested0.9m default geometry unchanged"
+}

@@ -1,0 +1,237 @@
+{
+  "passed": true,
+  "status": "completed",
+  "job": 2055,
+  "package": "/home/polo171717/jetin_rover_test/input/portable_integrated_20261010/jetin_rover_description",
+  "independent_dependencies": 2,
+  "no_external_geometry": true,
+  "automatic_wheel_command": false,
+  "sensor_streams": [
+    "ov5640_rgb",
+    "d435i_rgb",
+    "d435i_depth",
+    "l515_rgb",
+    "l515_depth"
+  ],
+  "point_counts": {
+    "d435i_depth": 180224,
+    "l515_depth": 603457
+  },
+  "stop_play_passed": true,
+  "controls_created": true,
+  "eight_servo_feedback_channels": 8,
+  "static_audit": {
+    "passed_static": true,
+    "hardware_equivalence_verified": false,
+    "revision": "integrated_vision_ready_20261010",
+    "asset_sha256": "f063792baba3b37a48455d06f71525d1f6ef6c9b176fe0e9e435ef6748d23056",
+    "body_count": 47,
+    "joint_count": 48,
+    "collider_count": 125,
+    "total_mass_kg": 80.83573546400294,
+    "all_positive_mass_and_inertia": true,
+    "self_collision_enabled": true,
+    "collision_approximations": {
+      "sdf": 125
+    },
+    "collision_filters": {
+      "/JETIN/ml_pin_PSFGR12_33": [
+        "/JETIN/ml_rod_end_M10_A_housing"
+      ],
+      "/JETIN/ml_bar_differential_side": [
+        "/JETIN/ml_rod_end_M10_A_housing",
+        "/JETIN/mr_rod_end_M10_A_housing"
+      ],
+      "/JETIN/mr_pin_PSFGR12_33": [
+        "/JETIN/mr_rod_end_M10_A_housing"
+      ],
+      "/JETIN/arm_link1/Colliders/b_00": [
+        "/JETIN/base_link/Collision"
+      ],
+      "/JETIN/arm_link2/Colliders/b_00": [
+        "/JETIN/arm_link1/Colliders/b_06"
+      ],
+      "/JETIN/arm_link2/Colliders/b_04": [
+        "/JETIN/arm_link1/Colliders/b_03"
+      ],
+      "/JETIN/arm_link2/Colliders/b_08": [
+        "/JETIN/arm_link1/Colliders/b_06"
+      ],
+      "/JETIN/tool_link/Colliders/b_36": [
+        "/JETIN/arm_link3/Colliders/b_07"
+      ],
+      "/JETIN/pinion_A/Colliders/b_00": [
+        "/JETIN/finger_lower/Colliders/b_00",
+        "/JETIN/finger_upper/Colliders/b_00"
+      ],
+      "/JETIN/pinion_B/Colliders/b_00": [
+        "/JETIN/finger_lower/Colliders/b_00",
+        "/JETIN/finger_upper/Colliders/b_00"
+      ],
+      "/JETIN/arm_link3/Colliders/b_03": [
+        "/JETIN/arm_link2/Colliders/b_05"
+      ],
+      "/JETIN/arm_link3/Colliders/b_10": [
+        "/JETIN/arm_link2/Colliders/b_09"
+      ],
+      "/JETIN/arm_link3/Colliders/b_11": [
+        "/JETIN/arm_link2/Colliders/b_09"
+      ],
+      "/JETIN/toolchanger_lock_rotor": [
+        "/JETIN/toolchanger_ball_1",
+        "/JETIN/toolchanger_ball_2",
+        "/JETIN/toolchanger_ball_3",
+        "/JETIN/toolchanger_ball_4",
+        "/JETIN/toolchanger_ball_5",
+        "/JETIN/toolchanger_ball_6",
+        "/JETIN/toolchanger_ball_7",
+        "/JETIN/toolchanger_ball_8"
+      ]
+    },
+    "eight_drives": {
+      "arm_J1_yaw": {
+        "torque_cap_Nm": 5.0,
+        "speed_cap_deg_s": 180.0
+      },
+      "axis5_rotation": {
+        "torque_cap_Nm": 0.30000001192092896,
+        "speed_cap_deg_s": 342.0
+      },
+      "toolchanger_lock_wheel": {
+        "torque_cap_Nm": 0.30000001192092896,
+        "speed_cap_deg_s": 342.0
+      },
+      "pinion_A_rotation": {
+        "torque_cap_Nm": 0.30000001192092896,
+        "speed_cap_deg_s": 342.0
+      },
+      "pinion_B_rotation": {
+        "torque_cap_Nm": 0.30000001192092896,
+        "speed_cap_deg_s": 342.0
+      },
+      "arm_J2_shoulder": {
+        "torque_cap_Nm": 30.0,
+        "speed_cap_deg_s": 18.0
+      },
+      "arm_J3_elbow": {
+        "torque_cap_Nm": 30.0,
+        "speed_cap_deg_s": 18.0
+      },
+      "arm4_rotation": {
+        "torque_cap_Nm": 5.0,
+        "speed_cap_deg_s": 180.0
+      }
+    },
+    "dependencies": {
+      "JETIN_Rover_Start_20261009.usda": [
+        "JETIN_Rover_Start_20261009.usda",
+        "JETIN_Rover_Final_20261009.usdc"
+      ],
+      "scenes/JETIN_WaveTerrain_20261010.usda": [
+        "scenes/JETIN_WaveTerrain_20261010.usda",
+        "JETIN_Rover_Final_20261009.usdc",
+        "JETIN_Rover_Start_20261009.usda"
+      ],
+      "scenes/JETIN_FrontObstacles_20261010.usda": [
+        "scenes/JETIN_FrontObstacles_20261010.usda",
+        "JETIN_Rover_Final_20261009.usdc",
+        "JETIN_Rover_Start_20261009.usda"
+      ],
+      "scenes/JETIN_VisionPick_20261010.usda": [
+        "scenes/JETIN_VisionPick_20261010.usda",
+        "JETIN_Rover_Final_20261009.usdc",
+        "JETIN_Rover_Start_20261009.usda"
+      ]
+    },
+    "URDF": "jetin_rover_isaac.urdf",
+    "URDF_meshes": [
+      "meshes/arm_link1.stl",
+      "meshes/arm_link1_collision_v2.stl",
+      "meshes/arm_link2.stl",
+      "meshes/arm_link2_collision_v2.stl",
+      "meshes/arm_link3_revision3_collision.stl",
+      "meshes/arm_link3_revision3_visual.stl",
+      "meshes/arm_link4_revision3_collision.stl",
+      "meshes/arm_link4_revision3_visual.stl",
+      "meshes/arm_link5_revision3_collision.stl",
+      "meshes/arm_link5_revision3_visual.stl",
+      "meshes/base_link.stl",
+      "meshes/base_link_collision_v2.stl",
+      "meshes/bl_bogie_pivot_out_hub_L60_slot.stl",
+      "meshes/bl_bogie_pivot_out_hub_L60_slot_collision_v2.stl",
+      "meshes/br_bogie_pivot_out_hub_L60_slot.stl",
+      "meshes/br_bogie_pivot_out_hub_L60_slot_collision_v2.stl",
+      "meshes/cl_bl70200s.stl",
+      "meshes/cl_bl70200s_collision_v2.stl",
+      "meshes/cr_bl70200s.stl",
+      "meshes/cr_bl70200s_collision_v2.stl",
+      "meshes/finger_lower_revision2_collision.stl",
+      "meshes/finger_lower_revision2_visual.stl",
+      "meshes/finger_upper_revision2_collision.stl",
+      "meshes/finger_upper_revision2_visual.stl",
+      "meshes/fl_bl70200s.stl",
+      "meshes/fl_bl70200s_collision_v2.stl",
+      "meshes/fl_kingpin_flange.stl",
+      "meshes/fl_kingpin_flange_collision_v2.stl",
+      "meshes/fr_bl70200s.stl",
+      "meshes/fr_bl70200s_collision_v2.stl",
+      "meshes/fr_kingpin_flange.stl",
+      "meshes/fr_kingpin_flange_collision_v2.stl",
+      "meshes/ml_bar_differential_side_ball3R.stl",
+      "meshes/ml_bar_differential_side_collision_ball3R.stl",
+      "meshes/ml_new_chassis_pivot.stl",
+      "meshes/ml_new_chassis_pivot_collision_v2.stl",
+      "meshes/ml_pin_PSFGR12-33_ball3R.stl",
+      "meshes/ml_pin_PSFGR12-33_collision_ball3R.stl",
+      "meshes/ml_rod_end_M10_A_housing.stl",
+      "meshes/ml_rod_end_M10_A_housing_collision_v2.stl",
+      "meshes/mr_new_chassis_pivot.stl",
+      "meshes/mr_new_chassis_pivot_collision_v2.stl",
+      "meshes/mr_pin_PSFGR12-33_ball3R.stl",
+      "meshes/mr_pin_PSFGR12-33_collision_ball3R.stl",
+      "meshes/mr_rod_end_M10_A_housing.stl",
+      "meshes/mr_rod_end_M10_A_housing_collision_v2.stl",
+      "meshes/pinion_A_revision2_collision.stl",
+      "meshes/pinion_A_revision2_visual.stl",
+      "meshes/pinion_B_revision2_collision.stl",
+      "meshes/pinion_B_revision2_visual.stl",
+      "meshes/rl_bl70200s.stl",
+      "meshes/rl_bl70200s_collision_v2.stl",
+      "meshes/rl_kingpin_flange.stl",
+      "meshes/rl_kingpin_flange_collision_v2.stl",
+      "meshes/rr_bl70200s.stl",
+      "meshes/rr_bl70200s_collision_v2.stl",
+      "meshes/rr_kingpin_flange.stl",
+      "meshes/rr_kingpin_flange_collision_v2.stl",
+      "meshes/tool_link_revision2_collision.stl",
+      "meshes/tool_link_revision2_visual.stl",
+      "meshes/toolchanger_ball_1_revision3_collision.stl",
+      "meshes/toolchanger_ball_1_revision3_visual.stl",
+      "meshes/toolchanger_ball_2_revision3_collision.stl",
+      "meshes/toolchanger_ball_2_revision3_visual.stl",
+      "meshes/toolchanger_ball_3_revision3_collision.stl",
+      "meshes/toolchanger_ball_3_revision3_visual.stl",
+      "meshes/toolchanger_ball_4_revision3_collision.stl",
+      "meshes/toolchanger_ball_4_revision3_visual.stl",
+      "meshes/toolchanger_ball_5_revision3_collision.stl",
+      "meshes/toolchanger_ball_5_revision3_visual.stl",
+      "meshes/toolchanger_ball_6_revision3_collision.stl",
+      "meshes/toolchanger_ball_6_revision3_visual.stl",
+      "meshes/toolchanger_ball_7_revision3_collision.stl",
+      "meshes/toolchanger_ball_7_revision3_visual.stl",
+      "meshes/toolchanger_ball_8_revision3_collision.stl",
+      "meshes/toolchanger_ball_8_revision3_visual.stl",
+      "meshes/toolchanger_lock_rotor_revision3_collision.stl",
+      "meshes/toolchanger_lock_rotor_revision3_visual.stl"
+    ],
+    "collision_scope": "Detailed CAD SDF approximation256,1mm contact offsets; shaft fits,analytical gear/cam pairs filtered. Swept CAD clearance of every possible joint combination not certified.",
+    "real_world_gaps": [
+      "Actual gearbox vendor/efficiency/backlash/inertia unconfirmed",
+      "Motor thermal/current control/firmware communication not reproduced",
+      "Camera lens calibration/rolling shutter/stereo matching not reproduced",
+      "Rigid CAD/SDF contact is not elastic structural FEA",
+      "Passive ball 3R limit box is not measured rod-end cone"
+    ]
+  },
+  "asset_sha256": "f063792baba3b37a48455d06f71525d1f6ef6c9b176fe0e9e435ef6748d23056"
+}

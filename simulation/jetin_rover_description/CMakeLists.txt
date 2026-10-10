@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.8)
+project(jetin_rover_description)
+find_package(ament_cmake REQUIRED)
+install(DIRECTORY launch urdf config meshes tools licenses scenes DESTINATION share/${PROJECT_NAME})
+install(FILES README.md jetin_rover_isaac.urdf JETIN_Rover_Final_20261009.usdc JETIN_Rover_Start_20261009.usda JETIN_통합패키지_사용법_20261010.md JETIN_현실성_검토_20261010.md DESTINATION share/${PROJECT_NAME})
+ament_package()

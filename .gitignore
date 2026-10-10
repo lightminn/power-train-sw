@@ -58,3 +58,7 @@ urdf/
 # 에이전트 작업 부스러기
 scratchpad/
 .playwright-mcp/
+
+# Keep the verified URDF snapshot despite the legacy generic urdf/ ignore.
+!simulation/jetin_rover_description/urdf/
+!simulation/jetin_rover_description/urdf/**

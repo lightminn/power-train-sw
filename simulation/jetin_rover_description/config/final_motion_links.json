@@ -1,0 +1,188 @@
+[
+  {
+    "document": "JETIN_URDF_ball3R_20261006",
+    "motion_links": [
+      {
+        "name": "pinions_sync",
+        "reference": "pinion_A_rotation",
+        "dependent": "pinion_B_rotation",
+        "reversed": false,
+        "reference_expression": "6.2831853 rad",
+        "dependent_expression": "6.2831853 rad"
+      },
+      {
+        "name": "rack_lower",
+        "reference": "pinion_A_rotation",
+        "dependent": "finger_lower_slide",
+        "reversed": true,
+        "reference_expression": "6.2831853 rad",
+        "dependent_expression": "11.30973 cm"
+      },
+      {
+        "name": "rack_upper",
+        "reference": "pinion_A_rotation",
+        "dependent": "finger_upper_slide",
+        "reversed": false,
+        "reference_expression": "6.2831853 rad",
+        "dependent_expression": "11.30973 cm"
+      },
+      {
+        "name": "wheel_to_ball_1",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_1",
+        "reversed": false,
+        "reference_expression": "22.5 deg",
+        "dependent_expression": "2.59 mm"
+      },
+      {
+        "name": "wheel_to_ball_2",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_2",
+        "reversed": false,
+        "reference_expression": "22.5 deg",
+        "dependent_expression": "2.59 mm"
+      },
+      {
+        "name": "wheel_to_ball_3",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_3",
+        "reversed": false,
+        "reference_expression": "22.5 deg",
+        "dependent_expression": "2.59 mm"
+      },
+      {
+        "name": "wheel_to_ball_4",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_4",
+        "reversed": false,
+        "reference_expression": "22.5 deg",
+        "dependent_expression": "2.59 mm"
+      },
+      {
+        "name": "wheel_to_ball_5",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_5",
+        "reversed": false,
+        "reference_expression": "22.5 deg",
+        "dependent_expression": "2.59 mm"
+      },
+      {
+        "name": "wheel_to_ball_6",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_6",
+        "reversed": false,
+        "reference_expression": "22.5 deg",
+        "dependent_expression": "2.59 mm"
+      },
+      {
+        "name": "wheel_to_ball_7",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_7",
+        "reversed": false,
+        "reference_expression": "22.5 deg",
+        "dependent_expression": "2.59 mm"
+      },
+      {
+        "name": "wheel_to_ball_8",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_8",
+        "reversed": false,
+        "reference_expression": "22.5 deg",
+        "dependent_expression": "2.59 mm"
+      }
+    ]
+  },
+  {
+    "document": "rover_assembly",
+    "motion_links": [
+      {
+        "name": "pinions_sync",
+        "reference": "pinion_A_rotation",
+        "dependent": "pinion_B_rotation",
+        "reversed": false,
+        "reference_expression": null,
+        "dependent_expression": null
+      },
+      {
+        "name": "rack_lower",
+        "reference": "pinion_A_rotation",
+        "dependent": "finger_lower_slide",
+        "reversed": true,
+        "reference_expression": null,
+        "dependent_expression": null
+      },
+      {
+        "name": "rack_upper",
+        "reference": "pinion_A_rotation",
+        "dependent": "finger_upper_slide",
+        "reversed": false,
+        "reference_expression": null,
+        "dependent_expression": null
+      },
+      {
+        "name": "wheel_to_ball_1",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_1",
+        "reversed": false,
+        "reference_expression": null,
+        "dependent_expression": null
+      },
+      {
+        "name": "wheel_to_ball_2",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_2",
+        "reversed": false,
+        "reference_expression": null,
+        "dependent_expression": null
+      },
+      {
+        "name": "wheel_to_ball_3",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_3",
+        "reversed": false,
+        "reference_expression": null,
+        "dependent_expression": null
+      },
+      {
+        "name": "wheel_to_ball_4",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_4",
+        "reversed": false,
+        "reference_expression": null,
+        "dependent_expression": null
+      },
+      {
+        "name": "wheel_to_ball_5",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_5",
+        "reversed": false,
+        "reference_expression": null,
+        "dependent_expression": null
+      },
+      {
+        "name": "wheel_to_ball_6",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_6",
+        "reversed": false,
+        "reference_expression": null,
+        "dependent_expression": null
+      },
+      {
+        "name": "wheel_to_ball_7",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_7",
+        "reversed": false,
+        "reference_expression": null,
+        "dependent_expression": null
+      },
+      {
+        "name": "wheel_to_ball_8",
+        "reference": "toolchanger_lock_wheel",
+        "dependent": "lock_ball_8",
+        "reversed": false,
+        "reference_expression": null,
+        "dependent_expression": null
+      }
+    ]
+  }
+]

@@ -1,0 +1,327 @@
+{
+  "method": "Exact temporary BRep intersection in nominal CAD pose; 0.001 mm3 volume threshold, 0.02 deg binary boundary resolution. First connected collision-free interval only. No design mutations.",
+  "mounts": [
+    {
+      "tag": "ml_rod_end_A",
+      "center_world_m": [
+        -0.05050000000000001,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "zero_pose_intersections": [],
+      "axis_bounds": [
+        {
+          "axis": "X",
+          "sign": -1,
+          "clear_to_deg": -10.6875,
+          "collision_from_deg": -10.703125,
+          "hit": [
+            {
+              "part": "ml_suspension_conector_bearing:1",
+              "volume_mm3": 0.0017820871563724826
+            }
+          ]
+        },
+        {
+          "axis": "X",
+          "sign": 1,
+          "clear_to_deg": 10.6875,
+          "collision_from_deg": 10.703125,
+          "hit": [
+            {
+              "part": "ml_suspension_conector_bearing:1",
+              "volume_mm3": 0.0017820871563503649
+            }
+          ]
+        },
+        {
+          "axis": "Y",
+          "sign": -1,
+          "clear_to_deg": -8.65625,
+          "collision_from_deg": -8.671875,
+          "hit": [
+            {
+              "part": "ml_suspension_conector_bearing:1",
+              "volume_mm3": 0.001674168051975304
+            }
+          ]
+        },
+        {
+          "axis": "Y",
+          "sign": 1,
+          "clear_to_deg": 8.65625,
+          "collision_from_deg": 8.671875,
+          "hit": [
+            {
+              "part": "ml_suspension_conector_bearing:1",
+              "volume_mm3": 0.001674168051970926
+            }
+          ]
+        },
+        {
+          "axis": "Z",
+          "sign": -1,
+          "clear_to_deg": -124.984375,
+          "collision_from_deg": -125.0,
+          "hit": [
+            {
+              "part": "ml_suspension_conector_bearing:1",
+              "volume_mm3": 0.0012099562552462572
+            }
+          ]
+        },
+        {
+          "axis": "Z",
+          "sign": 1,
+          "clear_to_deg": 125.40625,
+          "collision_from_deg": 125.421875,
+          "hit": [
+            {
+              "part": "ml_suspension_conector_bearing:1",
+              "volume_mm3": 0.0011147026556625672
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "ml_rod_end_B",
+      "center_world_m": [
+        -0.16649999999999998,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "zero_pose_intersections": [],
+      "axis_bounds": [
+        {
+          "axis": "X",
+          "sign": -1,
+          "clear_to_deg": -10.6875,
+          "collision_from_deg": -10.703125,
+          "hit": [
+            {
+              "part": "ml_bar_differential_side:1",
+              "volume_mm3": 0.0017820871563872277
+            }
+          ]
+        },
+        {
+          "axis": "X",
+          "sign": 1,
+          "clear_to_deg": 10.6875,
+          "collision_from_deg": 10.703125,
+          "hit": [
+            {
+              "part": "ml_bar_differential_side:1",
+              "volume_mm3": 0.0017820871562749044
+            }
+          ]
+        },
+        {
+          "axis": "Y",
+          "sign": -1,
+          "clear_to_deg": -8.921875,
+          "collision_from_deg": -8.9375,
+          "hit": [
+            {
+              "part": "ml_bar_differential_side:1",
+              "volume_mm3": 0.0012725152884197125
+            }
+          ]
+        },
+        {
+          "axis": "Y",
+          "sign": 1,
+          "clear_to_deg": 8.921875,
+          "collision_from_deg": 8.9375,
+          "hit": [
+            {
+              "part": "ml_bar_differential_side:1",
+              "volume_mm3": 0.0012725150907869636
+            }
+          ]
+        },
+        {
+          "axis": "Z",
+          "sign": -1,
+          "clear_to_deg": -36.703125,
+          "collision_from_deg": -36.71875,
+          "hit": [
+            {
+              "part": "ml_bar_differential_side:1",
+              "volume_mm3": 0.00109357520269859
+            }
+          ]
+        },
+        {
+          "axis": "Z",
+          "sign": 1,
+          "clear_to_deg": 180,
+          "collision_from_deg": null,
+          "hit": []
+        }
+      ]
+    },
+    {
+      "tag": "mr_rod_end_A",
+      "center_world_m": [
+        -0.050499999999993,
+        -0.20550000004399935,
+        0.1479504925534161
+      ],
+      "zero_pose_intersections": [],
+      "axis_bounds": [
+        {
+          "axis": "X",
+          "sign": -1,
+          "clear_to_deg": -10.6875,
+          "collision_from_deg": -10.703125,
+          "hit": [
+            {
+              "part": "mr_suspension_conector_bearing:1",
+              "volume_mm3": 0.001782087156400455
+            }
+          ]
+        },
+        {
+          "axis": "X",
+          "sign": 1,
+          "clear_to_deg": 10.6875,
+          "collision_from_deg": 10.703125,
+          "hit": [
+            {
+              "part": "mr_suspension_conector_bearing:1",
+              "volume_mm3": 0.0017820871565802157
+            }
+          ]
+        },
+        {
+          "axis": "Y",
+          "sign": -1,
+          "clear_to_deg": -8.65625,
+          "collision_from_deg": -8.671875,
+          "hit": [
+            {
+              "part": "mr_suspension_conector_bearing:1",
+              "volume_mm3": 0.0016741680532223844
+            }
+          ]
+        },
+        {
+          "axis": "Y",
+          "sign": 1,
+          "clear_to_deg": 8.65625,
+          "collision_from_deg": 8.671875,
+          "hit": [
+            {
+              "part": "mr_suspension_conector_bearing:1",
+              "volume_mm3": 0.0016741680522161986
+            }
+          ]
+        },
+        {
+          "axis": "Z",
+          "sign": -1,
+          "clear_to_deg": -124.984375,
+          "collision_from_deg": -125.0,
+          "hit": [
+            {
+              "part": "mr_suspension_conector_bearing:1",
+              "volume_mm3": 0.001210154504308898
+            }
+          ]
+        },
+        {
+          "axis": "Z",
+          "sign": 1,
+          "clear_to_deg": 125.40625,
+          "collision_from_deg": 125.421875,
+          "hit": [
+            {
+              "part": "mr_suspension_conector_bearing:1",
+              "volume_mm3": 0.001114701645942383
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "mr_rod_end_B",
+      "center_world_m": [
+        -0.16649999999999998,
+        -0.20550000000000002,
+        0.1479504925534066
+      ],
+      "zero_pose_intersections": [],
+      "axis_bounds": [
+        {
+          "axis": "X",
+          "sign": -1,
+          "clear_to_deg": -10.6875,
+          "collision_from_deg": -10.703125,
+          "hit": [
+            {
+              "part": "mr_bar_differential_side:1",
+              "volume_mm3": 0.001782087156325645
+            }
+          ]
+        },
+        {
+          "axis": "X",
+          "sign": 1,
+          "clear_to_deg": 10.6875,
+          "collision_from_deg": 10.703125,
+          "hit": [
+            {
+              "part": "mr_bar_differential_side:1",
+              "volume_mm3": 0.0017820871563408239
+            }
+          ]
+        },
+        {
+          "axis": "Y",
+          "sign": -1,
+          "clear_to_deg": -8.921875,
+          "collision_from_deg": -8.9375,
+          "hit": [
+            {
+              "part": "mr_bar_differential_side:1",
+              "volume_mm3": 0.001272514889943626
+            }
+          ]
+        },
+        {
+          "axis": "Y",
+          "sign": 1,
+          "clear_to_deg": 8.921875,
+          "collision_from_deg": 8.9375,
+          "hit": [
+            {
+              "part": "mr_bar_differential_side:1",
+              "volume_mm3": 0.0012725154907689265
+            }
+          ]
+        },
+        {
+          "axis": "Z",
+          "sign": -1,
+          "clear_to_deg": -180,
+          "collision_from_deg": null,
+          "hit": []
+        },
+        {
+          "axis": "Z",
+          "sign": 1,
+          "clear_to_deg": 35.40625,
+          "collision_from_deg": 35.421875,
+          "hit": [
+            {
+              "part": "mr_bar_differential_side:1",
+              "volume_mm3": 0.0011181560180329858
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

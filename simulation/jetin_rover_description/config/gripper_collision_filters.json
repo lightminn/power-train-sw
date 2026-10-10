@@ -1,0 +1,12 @@
+[
+  {
+    "body_one": "pinion_A",
+    "body_two": "finger_lower",
+    "reason": "Supplied rack-and-pinion motion link is represented by a mimic constraint; no duplicate tooth contact constraint."
+  },
+  {
+    "body_one": "pinion_B",
+    "body_two": "finger_upper",
+    "reason": "Supplied rack-and-pinion motion link is represented by a mimic constraint; no duplicate tooth contact constraint."
+  }
+]

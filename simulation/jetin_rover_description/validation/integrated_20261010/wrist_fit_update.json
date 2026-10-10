@@ -1,0 +1,19 @@
+{
+  "pair": {
+    "collider_one": "/JETIN/tool_link/Colliders/b_36",
+    "collider_two": "/JETIN/arm_link3/Colliders/b_07",
+    "source_one": [
+      "tool_link",
+      "arm_link4_wingB:1/wingB"
+    ],
+    "source_two": [
+      "arm_link3",
+      "motor4"
+    ],
+    "reason": "Nominal wing/servo-side mating interface. Actual contact reports show coincident/positive separation with up to240N artificial friction. Exact native CAD arm_link3/tool_link interference is0 at native zero. Revolute supplies bearing constraint; only this named pair excluded,all outer/object/table contacts retained.",
+    "basis": "ideal bearing interface;actual clearance/drag unmeasured",
+    "diagnostic_job": 2045
+  },
+  "sha256": "f063792baba3b37a48455d06f71525d1f6ef6c9b176fe0e9e435ef6748d23056",
+  "validation_pending": true
+}

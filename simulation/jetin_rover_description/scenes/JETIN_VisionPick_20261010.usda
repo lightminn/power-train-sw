@@ -1,0 +1,84 @@
+#usda 1.0
+(
+    defaultPrim = "JETIN"
+    metersPerUnit = 1
+    subLayers = [
+        @../JETIN_Rover_Start_20261009.usda@
+    ]
+    upAxis = "Z"
+)
+
+def "Task"
+{
+    def Cube "Pedestal" (
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
+    )
+    {
+        color3f[] primvars:displayColor = [(0.23, 0.28, 0.33)]
+        double size = 1
+        float xformOp:rotateZ = 0
+        float3 xformOp:scale = (0.06, 0.06, 0.58213663)
+        double3 xformOp:translate = (0.7201967778329392, 0.037130767738011314, 0.2910683255914557)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ", "xformOp:scale"]
+    }
+
+    def Cube "Table" (
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
+    )
+    {
+        color3f[] primvars:displayColor = [(0.45, 0.49, 0.54)]
+        double size = 1
+        float xformOp:rotateZ = 0
+        float3 xformOp:scale = (0.12, 0.12, 0.025)
+        double3 xformOp:translate = (0.7201967778329392, 0.037130767738011314, 0.5946366511829114)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ", "xformOp:scale"]
+    }
+
+    def Cube "Object" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsRigidBodyAPI", "PhysicsMassAPI", "MaterialBindingAPI"]
+        customData = {
+            dictionary jetin = {
+                bool generatedTestObject = 1
+                string materialAssumption = "80g generic plastic test object,friction .6/.5"
+                int seed = 20261010
+            }
+        }
+    )
+    {
+        rel material:binding:physics = </Task/ObjectContact>
+        bool physics:kinematicEnabled = 0
+        float physics:mass = 0.08
+        color3f[] primvars:displayColor = [(1, 0.22, 0.02)]
+        double size = 1
+        float xformOp:rotateZ = -2.9615502
+        float3 xformOp:scale = (0.041105315, 0.029153839, 0.0754441)
+        double3 xformOp:translate = (0.7201967778329392, 0.037130767738011314, 0.6448587009996226)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ", "xformOp:scale"]
+    }
+
+    def Material "ObjectContact" (
+        prepend apiSchemas = ["PhysicsMaterialAPI"]
+    )
+    {
+        float physics:dynamicFriction = 0.5
+        float physics:restitution = 0
+        float physics:staticFriction = 0.6
+    }
+
+    def Camera "Wide"
+    {
+        float2 clippingRange = (0.01, 100)
+        float focalLength = 30
+        matrix4d xformOp:transform = ( (-0.805304123080221, 0.5928619311020032, 2.7755575615628926e-17, 0), (-0.1937724222806433, -0.2632075402645405, 0.9450788533828185, 0), (0.5603012740602046, 0.7610758972651113, 0.32684240986845275, -0), (1.6500000000000001, 1.6500000000000001, 1.3500000000000003, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+    }
+
+    def Camera "Detail"
+    {
+        float2 clippingRange = (0.01, 100)
+        float focalLength = 30
+        matrix4d xformOp:transform = ( (-0.8738871745503353, 0.486128795851914, -2.7755575615628926e-17, 0), (-0.19392770278910126, -0.34861323522383897, 0.9169846554428873, 0), (0.44577264636513303, 0.8013411296509975, 0.3989224757798057, -0), (1.05, 0.6299999999999999, 0.9400000000000001, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+    }
+}
+
