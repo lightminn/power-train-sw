@@ -1,0 +1,356 @@
+{
+  "revision": "integrated_vision_ready_20261010",
+  "units": "SI except explicit deg/rpm/eRPM",
+  "hardware_calibrated": false,
+  "ak45": {
+    "model": "AK45-36 KV80",
+    "source": "https://www.cubemars.com/product/ak45-36-v3-0-kv80-robotic-actuator.html",
+    "legacy_source": "https://www.cubemars.com/product/AK45-36.html",
+    "revision": "hardware_version_unconfirmed; common legacy/V3 mechanical specifications",
+    "mass_kg": 0.349,
+    "mass_basis": "preserve existing CAD 349g; V3=349g, legacy=340g",
+    "rated_voltage_V": 24.0,
+    "rated_torque_Nm": 8.0,
+    "peak_torque_Nm": 24.0,
+    "rated_speed_rpm": 40.0,
+    "no_load_speed_rpm": 52.0,
+    "gear_ratio": 36.0,
+    "pole_pairs": 14,
+    "rotor_inertia_kg_m2": 1.819e-05,
+    "reflected_output_armature_kg_m2": 0.02357424,
+    "backlash_deg": 0.2,
+    "backdrive_torque_Nm": 0.8,
+    "torque_constant_motor_Nm_A": 0.11,
+    "back_EMF_V_krpm": 12.5,
+    "resistance_ohm": 1.8,
+    "inductance_H": 0.0011,
+    "rated_current_A": 2.0,
+    "peak_current_A": 6.5,
+    "operating_temperature_C": [
+      -20,
+      50
+    ],
+    "structural_dynamic_load_N": 2810.0,
+    "structural_static_load_N": 2760.0,
+    "encoder_variants": {
+      "legacy": {
+        "input_bits": 14,
+        "output_bits": null
+      },
+      "V3": {
+        "input_bits": 16,
+        "output_bits": 16,
+        "model": "MT6835"
+      }
+    },
+    "curve_rpm": [
+      0,
+      13,
+      18,
+      23,
+      27,
+      31,
+      35,
+      38,
+      40,
+      43,
+      48,
+      52
+    ],
+    "curve_torque_Nm": [
+      24,
+      24,
+      24,
+      21,
+      18,
+      15,
+      12,
+      9,
+      8,
+      6,
+      3,
+      0
+    ],
+    "curve_basis": "Approximate digitization of manufacturer 24V graph; rated point 8Nm/40rpm retained. No extrapolation above 24Nm.",
+    "active_continuous_torque_Nm": 8.0,
+    "peak_enabled": false,
+    "peak_duration_s": null,
+    "position_kp_Nm_rad": 80.0,
+    "velocity_kd_Nm_s_rad": 4.0,
+    "gains_basis": "editable simulation tuning; not manufacturer firmware gains",
+    "command_velocity_limit_deg_s": 53.57142857142857,
+    "command_acceleration_deg_s2": 238.0952380952381,
+    "command_basis": "project SERVO eRPM/(14*36), deg/s=eRPM/84; SPD4500 ACC20000; not MIT protocol limits",
+    "feedback_position_step_deg": 0.1,
+    "feedback_speed_step_erpm": 10,
+    "feedback_current_step_A": 0.01,
+    "feedback_hz": 50.0,
+    "friction_model": "smooth output Coulomb approximation of 0.8Nm backdrive specification; exact seal/static drag not measured",
+    "backlash_model": "position-servo deadband +/-0.1deg approximation; no separate gear teeth DOFs",
+    "unmodeled": [
+      "thermal transient/peak duration",
+      "electrical phase current loop",
+      "actual CAN arbitration/errors",
+      "hardware encoder version",
+      "load-dependent gearbox efficiency"
+    ]
+  },
+  "xm540": {
+    "model": "XM540-W270-T",
+    "source": "https://emanual.robotis.com/docs/en/dxl/x/xm540-w270/",
+    "mass_kg": 0.165,
+    "gear_ratio": 272.5,
+    "position_counts": 4096,
+    "voltage_speed_torque": [
+      [
+        11.1,
+        28,
+        10
+      ],
+      [
+        12,
+        30,
+        10.6
+      ],
+      [
+        14.8,
+        37,
+        12.9
+      ]
+    ],
+    "operating_voltage_V": [
+      10,
+      14.8
+    ],
+    "operating_temperature_C": [
+      -5,
+      80
+    ],
+    "feedback_velocity_step_rpm": 0.229,
+    "feedback_current_step_A": 0.00269,
+    "backlash_deg": 0.25,
+    "voltage_V": 12.0,
+    "stall_torque_Nm": 10.6,
+    "no_load_speed_rpm": 30.0,
+    "continuous_rating_Nm": null,
+    "envelope_basis": "linear DC envelope approximation from stall/no-load endpoints, NOT continuous torque rating",
+    "active_torque_cap_Nm": 5.0,
+    "cap_basis": "provisional simulation cap; not manufacturer continuous specification",
+    "unmapped_axes": [],
+    "identity_basis": "User confirmed J1/J2/J3/J4 XM540-W270-T on 2026-10-10; native motor1..4 already165g in both designs."
+  },
+  "xl430": {
+    "model": "XL430-W250-T",
+    "source": "https://emanual.robotis.com/docs/en/dxl/x/xl430-w250/",
+    "manufacturer_mass_kg": 0.0572,
+    "applied_mass_kg": 0.057,
+    "mass_basis": "user explicitly specified 57g; retain user mass over rounded manufacturer 57.2g",
+    "gear_ratio": 258.5,
+    "position_counts": 4096,
+    "voltage_speed_torque": [
+      [
+        9,
+        47,
+        1.0
+      ],
+      [
+        11.1,
+        57,
+        1.4
+      ],
+      [
+        12,
+        61,
+        1.5
+      ]
+    ],
+    "voltage_V": 11.1,
+    "stall_torque_Nm": 1.4,
+    "no_load_speed_rpm": 57.0,
+    "continuous_rating_Nm": null,
+    "operating_voltage_V": [
+      6.5,
+      12
+    ],
+    "operating_temperature_C": [
+      -5,
+      72
+    ],
+    "feedback_velocity_step_rpm": 0.229,
+    "feedback_load_step_percent": 0.1,
+    "load_is_estimated": true,
+    "feedback_current_sensor": false,
+    "active_torque_cap_Nm": 0.3,
+    "cap_basis": "retain verified gripper test cap, not manufacturer continuous rating",
+    "envelope_basis": "linear DC envelope approximation; firmware PWM dynamics and gearbox compliance unmodeled",
+    "paired_gripper_actuation": "Two confirmed XL430 motors drive pinionA/B; coupled angle targets,individual .3Nm provisional caps. Rack mimic is an ideal transmission substitute,teeth collision filtered; all pad/object contacts retained."
+  },
+  "l515_imu": {
+    "device": "L515/BMI085",
+    "sample_hz": 100.0,
+    "accel_range_g": 4.0,
+    "gyro_range_deg_s": 1000.0,
+    "accel_lsb_m_s2": 0.001197100830078125,
+    "gyro_lsb_rad_s": 0.0005326322180158477,
+    "accel_noise_density_g_sqrtHz": [
+      0.000105,
+      0.000105,
+      0.000135
+    ],
+    "gyro_noise_density_deg_s_sqrtHz": 0.014,
+    "accel_bandwidth_hz": 25.0,
+    "gyro_bandwidth_hz": 47.0,
+    "bandwidth_basis": "gyro47Hz datasheet noise condition; accel25Hz editable simulation assumption",
+    "accel_noise_condition": "density specified at +/-2g,25C; provisionally used at L515 +/-4g; not measured",
+    "accel_bias_bound_g": 0.02,
+    "gyro_bias_bound_deg_s": 1.0,
+    "bias_distribution": "seeded uniform within typical bounds, fixed per run; distribution is assumption",
+    "accel_temp_bias_g_K": 0.0002,
+    "gyro_temp_bias_deg_s_K": 0.015,
+    "temperature_C": 25.0,
+    "temperature_basis": "constant configured temperature; no heat solver",
+    "seed": 20261009,
+    "source": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmi085-ds001.pdf",
+    "output": "float32 specific acceleration including gravity and angular velocity",
+    "hardware_calibrated": false
+  },
+  "l515_depth": {
+    "enabled": true,
+    "device": "L515",
+    "profile": "1024x768@30fps",
+    "source": "https://realsenseai.com/wp-content/uploads/2025/06/Intel_RealSense_LiDAR_L515_Datasheet_Rev003.pdf",
+    "reflectivity_percent": 95.0,
+    "valid_range_m": [
+      0.25,
+      6.5
+    ],
+    "low_reflectivity_range_m": [
+      0.25,
+      2.6
+    ],
+    "sigma_anchor_distance_m": [
+      1.0,
+      9.0
+    ],
+    "sigma_anchor_m": [
+      0.0025,
+      0.0155
+    ],
+    "mean_error_bounds_m": [
+      0.005,
+      0.014
+    ],
+    "noise_condition": "VGA/95% reflectivity values; provisional XGA noise transfer, not a calibrated XGA noise model",
+    "reflectivity_basis": "uniform selected test assumption; rendered color is not optical reflectivity",
+    "mean_bias_m": 0.0,
+    "seed": 5640515,
+    "unmodeled": [
+      "MEMS scan pattern",
+      "per-pixel measured reflectivity",
+      "ambient-light dropouts",
+      "multipath",
+      "hardware lens/extrinsics calibration"
+    ]
+  },
+  "steering_joints": [
+    "fl_steer_joint",
+    "fr_steer_joint",
+    "rl_steer_joint",
+    "rr_steer_joint"
+  ],
+  "confirmed_servo_joints": {
+    "arm_J1_yaw": "XM540",
+    "axis5_rotation": "XL430",
+    "toolchanger_lock_wheel": "XL430",
+    "pinion_A_rotation": "XL430",
+    "pinion_B_rotation": "XL430",
+    "arm_J2_shoulder": "XM540",
+    "arm_J3_elbow": "XM540",
+    "arm4_rotation": "XM540"
+  },
+  "unresolved_arm_models": [],
+  "unknown_policy": "retain CAD/user joint configuration; do not assign an unconfirmed motor model",
+  "controller_commands": "AK servo targets in radians; six-wheel speed m/s; gripper/arm existing drives capped per current velocity; no auto-motion at install",
+  "servo_transmissions": {
+    "arm_J1_yaw": {
+      "external_ratio": 1.0,
+      "ratio_basis": "User confirmed J2=10:1,J3=10:1,all other arm axes no external gearbox,2026-10-10",
+      "efficiency": 1.0,
+      "efficiency_basis": "no additional gearbox loss",
+      "output_torque_cap_Nm": 5.0,
+      "output_cap_basis": "provisional motor cap5Nm,NOT continuous rating",
+      "position_kp_Nm_rad": 60.0,
+      "velocity_kd_Nm_s_rad": 5.0,
+      "gains_basis": "editable output-side simulation gains,not manufacturer firmware",
+      "gearbox_variant_confirmed": null,
+      "gearbox_backlash_deg": null,
+      "additional_rotating_inertia_kg_m2": null,
+      "spec_reference": "https://emanual.robotis.com/docs/en/dxl/x/xm540-w270/"
+    },
+    "arm_J2_shoulder": {
+      "external_ratio": 10.0,
+      "ratio_basis": "User confirmed J2=10:1,J3=10:1,all other arm axes no external gearbox,2026-10-10",
+      "efficiency": 0.9,
+      "efficiency_basis": "editable theoretical assumption,not measured",
+      "output_torque_cap_Nm": 30.0,
+      "output_cap_basis": "provisional simulation limit; prior project PLG060 J2 10:1 planning value30Nm; NOT confirmed continuous hardware rating",
+      "position_kp_Nm_rad": 1200.0,
+      "velocity_kd_Nm_s_rad": 60.0,
+      "gains_basis": "editable output-side simulation gains,not manufacturer firmware",
+      "gearbox_variant_confirmed": false,
+      "gearbox_backlash_deg": null,
+      "additional_rotating_inertia_kg_m2": null,
+      "spec_reference": "https://www.steppermotor.fr/goods-1446-R%C3%A9ducteur-plan%C3%A9taire-h%C3%A9lico%C3%AFdal-s%C3%A9rie-PLG060-arbre-dentr%C3%A9e-63581114-mm-pour-moteur-pas-%C3%A0-pas-Nema23Sveromoteur-Nema-24.html"
+    },
+    "arm_J3_elbow": {
+      "external_ratio": 10.0,
+      "ratio_basis": "User confirmed J2=10:1,J3=10:1,all other arm axes no external gearbox,2026-10-10",
+      "efficiency": 0.9,
+      "efficiency_basis": "editable theoretical assumption,not measured",
+      "output_torque_cap_Nm": 30.0,
+      "output_cap_basis": "provisional simulation limit; prior project PLG060 J2 10:1 planning value30Nm; NOT confirmed continuous hardware rating",
+      "position_kp_Nm_rad": 1200.0,
+      "velocity_kd_Nm_s_rad": 60.0,
+      "gains_basis": "editable output-side simulation gains,not manufacturer firmware",
+      "gearbox_variant_confirmed": false,
+      "gearbox_backlash_deg": null,
+      "additional_rotating_inertia_kg_m2": null,
+      "spec_reference": "https://www.steppermotor.fr/goods-1446-R%C3%A9ducteur-plan%C3%A9taire-h%C3%A9lico%C3%AFdal-s%C3%A9rie-PLG060-arbre-dentr%C3%A9e-63581114-mm-pour-moteur-pas-%C3%A0-pas-Nema23Sveromoteur-Nema-24.html"
+    },
+    "arm4_rotation": {
+      "external_ratio": 1.0,
+      "ratio_basis": "User confirmed J2=10:1,J3=10:1,all other arm axes no external gearbox,2026-10-10",
+      "efficiency": 1.0,
+      "efficiency_basis": "no additional gearbox loss",
+      "output_torque_cap_Nm": 5.0,
+      "output_cap_basis": "provisional motor cap5Nm,NOT continuous rating",
+      "position_kp_Nm_rad": 360.0,
+      "velocity_kd_Nm_s_rad": 15.0,
+      "gains_basis": "editable output-side simulation gains,not manufacturer firmware",
+      "gearbox_variant_confirmed": null,
+      "gearbox_backlash_deg": null,
+      "additional_rotating_inertia_kg_m2": null,
+      "spec_reference": "https://emanual.robotis.com/docs/en/dxl/x/xm540-w270/"
+    }
+  },
+  "servo_transmission_note": "XM540 manufacturer torque/speed are at its built-in272.5:1 gearbox output. Multiply/divide ONLY the additional confirmed10:1. Public PLG060 catalog is a family reference; exact supplier/efficiency/backlash/inertia remain unconfirmed. All XL430 axes have no external gearbox per user.",
+  "dependent_servo_targets": {
+    "pinion_B_rotation": "pinion_A_rotation"
+  },
+  "fidelity_limits": [
+    "Actual gearbox vendor/efficiency/backlash/inertia unconfirmed",
+    "Motor thermal/current control/firmware communication not reproduced",
+    "Camera lens calibration/rolling shutter/stereo matching not reproduced",
+    "Rigid CAD/SDF contact is not elastic structural FEA",
+    "Passive ball 3R limit box is not measured rod-end cone"
+  ],
+  "toolchanger_motion_model": {
+    "type": "hard analytical CAD motion link",
+    "ball_count": 8,
+    "stroke_m": 0.00259,
+    "rotor_angle_deg": 22.5,
+    "natural_frequency_Hz": 0.0,
+    "damping_ratio": 0.0,
+    "caveat": "Ideal cam transmission; rotor/ball contact replaced by mimic, housing/object contacts retained. Cam elasticity/friction not measured."
+  }
+}

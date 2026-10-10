@@ -1,0 +1,170 @@
+{
+  "revision": "motion_feedback_20261009",
+  "robot_path": "/JETIN",
+  "joints": [
+    {
+      "name": "fl",
+      "joint": "fl_wheel_joint",
+      "kind": "wheel",
+      "sample_hz": 50.0,
+      "latency_s": 0.0,
+      "stale_after_s": 0.1,
+      "joint_sign": 1,
+      "zero_offset_deg": 0.0,
+      "hardware_calibrated": false,
+      "wheel_radius_m": 0.10375,
+      "gear_ratio_motor_to_wheel": 5,
+      "model": "hall_pll"
+    },
+    {
+      "name": "fr",
+      "joint": "fr_wheel_joint",
+      "kind": "wheel",
+      "sample_hz": 50.0,
+      "latency_s": 0.0,
+      "stale_after_s": 0.1,
+      "joint_sign": 1,
+      "zero_offset_deg": 0.0,
+      "hardware_calibrated": false,
+      "wheel_radius_m": 0.10375,
+      "gear_ratio_motor_to_wheel": 5,
+      "model": "hall_pll"
+    },
+    {
+      "name": "cl",
+      "joint": "cl_wheel_joint",
+      "kind": "wheel",
+      "sample_hz": 50.0,
+      "latency_s": 0.0,
+      "stale_after_s": 0.1,
+      "joint_sign": 1,
+      "zero_offset_deg": 0.0,
+      "hardware_calibrated": false,
+      "wheel_radius_m": 0.10375,
+      "gear_ratio_motor_to_wheel": 5,
+      "model": "hall_pll"
+    },
+    {
+      "name": "cr",
+      "joint": "cr_wheel_joint",
+      "kind": "wheel",
+      "sample_hz": 50.0,
+      "latency_s": 0.0,
+      "stale_after_s": 0.1,
+      "joint_sign": 1,
+      "zero_offset_deg": 0.0,
+      "hardware_calibrated": false,
+      "wheel_radius_m": 0.10375,
+      "gear_ratio_motor_to_wheel": 5,
+      "model": "hall_pll"
+    },
+    {
+      "name": "rl",
+      "joint": "rl_wheel_joint",
+      "kind": "wheel",
+      "sample_hz": 50.0,
+      "latency_s": 0.0,
+      "stale_after_s": 0.1,
+      "joint_sign": 1,
+      "zero_offset_deg": 0.0,
+      "hardware_calibrated": false,
+      "wheel_radius_m": 0.10375,
+      "gear_ratio_motor_to_wheel": 5,
+      "model": "hall_pll"
+    },
+    {
+      "name": "rr",
+      "joint": "rr_wheel_joint",
+      "kind": "wheel",
+      "sample_hz": 50.0,
+      "latency_s": 0.0,
+      "stale_after_s": 0.1,
+      "joint_sign": 1,
+      "zero_offset_deg": 0.0,
+      "hardware_calibrated": false,
+      "wheel_radius_m": 0.10375,
+      "gear_ratio_motor_to_wheel": 5,
+      "model": "hall_pll"
+    },
+    {
+      "name": "fl",
+      "joint": "fl_steer_joint",
+      "kind": "steering",
+      "sample_hz": 50.0,
+      "latency_s": 0.0,
+      "stale_after_s": 0.1,
+      "joint_sign": 1,
+      "zero_offset_deg": 0.0,
+      "hardware_calibrated": false,
+      "model": "ak_servo_packet"
+    },
+    {
+      "name": "fr",
+      "joint": "fr_steer_joint",
+      "kind": "steering",
+      "sample_hz": 50.0,
+      "latency_s": 0.0,
+      "stale_after_s": 0.1,
+      "joint_sign": 1,
+      "zero_offset_deg": 0.0,
+      "hardware_calibrated": false,
+      "model": "ak_servo_packet"
+    },
+    {
+      "name": "rl",
+      "joint": "rl_steer_joint",
+      "kind": "steering",
+      "sample_hz": 50.0,
+      "latency_s": 0.0,
+      "stale_after_s": 0.1,
+      "joint_sign": 1,
+      "zero_offset_deg": 0.0,
+      "hardware_calibrated": false,
+      "model": "ak_servo_packet"
+    },
+    {
+      "name": "rr",
+      "joint": "rr_steer_joint",
+      "kind": "steering",
+      "sample_hz": 50.0,
+      "latency_s": 0.0,
+      "stale_after_s": 0.1,
+      "joint_sign": 1,
+      "zero_offset_deg": 0.0,
+      "hardware_calibrated": false,
+      "model": "ak_servo_packet"
+    }
+  ],
+  "imu": {
+    "device": "L515",
+    "sample_hz": 100.0,
+    "prim_path": "/JETIN/base_link/l515_bottom_screw_frame/l515_link/l515_color_frame/l515_accel_frame/l515_accel_optical_frame/ImuSensor",
+    "frame_path": "/JETIN/base_link/l515_bottom_screw_frame/l515_link/l515_color_frame/l515_accel_frame/l515_accel_optical_frame",
+    "accel_frame_id": "l515_accel_optical_frame",
+    "gyro_frame_id": "l515_gyro_optical_frame",
+    "includes_gravity": true,
+    "linear_acceleration_filter_width": 1,
+    "angular_velocity_filter_width": 1,
+    "orientation_filter_width": 1,
+    "hardware_calibrated": false,
+    "pose_basis": "Existing nominal RealSense IMU extrinsics plus actual CAD L515 mount, 20deg down",
+    "error_model": "manufacturer_models.json:l515_imu"
+  },
+  "units": {
+    "angle": "rad (deg helper)",
+    "angular_velocity": "rad/s",
+    "acceleration": "m/s^2",
+    "timestamp": "simulation seconds",
+    "motor_velocity": "motor turns/s, fixed nominal gear ratio"
+  },
+  "rate_basis": "L515100Hz is supported; AK50Hz is project STATUS_1 setting; wheel50Hz publication is simulation setting",
+  "measurement_model": "L515 BMI085 specification approximation; wheel Hall/PLL and AK SERVO packet quantization",
+  "limitations": [
+    "no measured hardware calibration",
+    "no CAN electrical bus/arbitration",
+    "no measured bearing/tire/thermal model"
+  ],
+  "sources": [
+    "https://docs.isaacsim.omniverse.nvidia.com/5.1.0/sensors/isaacsim_sensors_physics_imu.html"
+  ]
+}

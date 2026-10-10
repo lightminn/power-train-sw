@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "job_source": 2048,
+  "frames": 1840,
+  "duration_s": 92,
+  "decoded_all_frames": true,
+  "sha256": "0e06c03ad7618bb380f157db52206553d204425c1246e8455fda059838559fb3",
+  "input_sha256": {
+    "wide.mp4": "d186a0a332bf5d93a33f7bfb3f4790e7c6f344cd5ace63835e979296423b9d61",
+    "ov5640.mp4": "59b92b6e67abdc7851e86a6fc868913769cd80ae318f8ba3218a8b79a901ad6e",
+    "d435i_rgb.mp4": "2afe8681549796098ceddd468c6416bb31e5e2f8e95f37adea2ca48a458afe24",
+    "d435i_depth.mp4": "25be691af5ca58706cb5619a9c4c5945cbefb70a0854f44796a9cb640c4b4e95"
+  }
+}

@@ -1,0 +1,62 @@
+[
+  {
+    "name": "ml_rod_end_B_rz",
+    "parent": "ml_rod_end_B_dummy_2",
+    "child": "ml_rod_end_M10_A_housing",
+    "axis_world": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "origin_world_m": [
+      -0.16649999999999998,
+      0.20550000000000002,
+      0.1479504925534066
+    ],
+    "type_for_export": "revolute",
+    "limits": {
+      "minimum_enabled": true,
+      "minimum_rad": -0.4363323129985824,
+      "maximum_enabled": true,
+      "maximum_rad": 0.4363323129985824
+    },
+    "effort": null,
+    "velocity": null,
+    "passive": true,
+    "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+    "rotation_sign": 1,
+    "excluded_from_articulation": true,
+    "cut_in_urdf": true,
+    "reason": "One closing revolute edge per differential loop; standard URDF is a tree"
+  },
+  {
+    "name": "mr_rod_end_B_rz",
+    "parent": "mr_rod_end_B_dummy_2",
+    "child": "mr_rod_end_M10_A_housing",
+    "axis_world": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "origin_world_m": [
+      -0.16649999999999998,
+      -0.20550000000000002,
+      0.1479504925534066
+    ],
+    "type_for_export": "revolute",
+    "limits": {
+      "minimum_enabled": true,
+      "minimum_rad": -0.4363323129985824,
+      "maximum_enabled": true,
+      "maximum_rad": 0.4363323129985824
+    },
+    "effort": null,
+    "velocity": null,
+    "passive": true,
+    "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+    "rotation_sign": 1,
+    "excluded_from_articulation": true,
+    "cut_in_urdf": true,
+    "reason": "One closing revolute edge per differential loop; standard URDF is a tree"
+  }
+]

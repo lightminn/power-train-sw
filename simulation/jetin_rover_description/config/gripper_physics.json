@@ -1,0 +1,13 @@
+{
+  "rack_pitch_radius_m": 0.017999994345347013,
+  "mimic_natural_frequency_hz": 0.0,
+  "mimic_damping_ratio": 0.0,
+  "motor_max_torque_Nm": 0.3,
+  "motor_stiffness_Nm_deg": 2.0,
+  "motor_damping_Nm_s_deg": 0.05,
+  "pad_static_friction": 1.0,
+  "pad_dynamic_friction": 0.8,
+  "pad_contact_stiffness_N_m": 20000.0,
+  "pad_contact_damping_N_s_m": 50.0,
+  "hardware_calibrated": false
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="jetin_rover" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:arg name="prefix" default=""/>
+  <xacro:include filename="jetin_rover_macro.urdf.xacro"/>
+  <xacro:jetin_rover prefix="$(arg prefix)" load_meta="false"/>
+</robot>

@@ -1,0 +1,519 @@
+{
+  "frames": [
+    {
+      "name": "d435i_bottom_screw_frame",
+      "parent": "base_link",
+      "xyz_m": [
+        0.33517742480400387,
+        0.0,
+        0.1037258772177234
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": false,
+      "basis": "CAD 3 mm-radius mounting-hole axis intersected with the CAD underside plane"
+    },
+    {
+      "name": "d435i_link",
+      "parent": "d435i_bottom_screw_frame",
+      "xyz_m": [
+        0.0106,
+        0.0175,
+        0.0125
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": false,
+      "basis": "official RealSense D435 mechanical mount to depth-zero nominal offset; CAD front-glass discrepancy 2.377 mm along X, confirm physical sensor/calibration"
+    },
+    {
+      "name": "d435i_depth_frame",
+      "parent": "d435i_link",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": true,
+      "basis": "official RealSense nominal extrinsics"
+    },
+    {
+      "name": "d435i_depth_optical_frame",
+      "parent": "d435i_depth_frame",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+      ],
+      "nominal_extrinsics": true,
+      "basis": "optical +Z forward, +X right, +Y down"
+    },
+    {
+      "name": "d435i_infra1_frame",
+      "parent": "d435i_link",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": true,
+      "basis": "official RealSense nominal extrinsics"
+    },
+    {
+      "name": "d435i_infra1_optical_frame",
+      "parent": "d435i_infra1_frame",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+      ],
+      "nominal_extrinsics": true,
+      "basis": "optical +Z forward, +X right, +Y down"
+    },
+    {
+      "name": "d435i_infra2_frame",
+      "parent": "d435i_link",
+      "xyz_m": [
+        0.0,
+        -0.05,
+        0.0
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": true,
+      "basis": "official RealSense nominal extrinsics"
+    },
+    {
+      "name": "d435i_infra2_optical_frame",
+      "parent": "d435i_infra2_frame",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+      ],
+      "nominal_extrinsics": true,
+      "basis": "optical +Z forward, +X right, +Y down"
+    },
+    {
+      "name": "d435i_color_frame",
+      "parent": "d435i_link",
+      "xyz_m": [
+        0.0,
+        0.015,
+        0.0
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": true,
+      "basis": "official RealSense nominal extrinsics"
+    },
+    {
+      "name": "d435i_color_optical_frame",
+      "parent": "d435i_color_frame",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+      ],
+      "nominal_extrinsics": true,
+      "basis": "optical +Z forward, +X right, +Y down"
+    },
+    {
+      "name": "d435i_accel_frame",
+      "parent": "d435i_link",
+      "xyz_m": [
+        -0.01174,
+        -0.00552,
+        0.0051
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": true,
+      "basis": "official RealSense nominal extrinsics"
+    },
+    {
+      "name": "d435i_accel_optical_frame",
+      "parent": "d435i_accel_frame",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+      ],
+      "nominal_extrinsics": true,
+      "basis": "optical +Z forward, +X right, +Y down"
+    },
+    {
+      "name": "d435i_gyro_frame",
+      "parent": "d435i_link",
+      "xyz_m": [
+        -0.01174,
+        -0.00552,
+        0.0051
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": true,
+      "basis": "official RealSense nominal extrinsics"
+    },
+    {
+      "name": "d435i_gyro_optical_frame",
+      "parent": "d435i_gyro_frame",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+      ],
+      "nominal_extrinsics": true,
+      "basis": "optical +Z forward, +X right, +Y down"
+    },
+    {
+      "name": "l515_bottom_screw_frame",
+      "parent": "base_link",
+      "xyz_m": [
+        0.33339772083357927,
+        -3.5099205323110284e-05,
+        0.011891315326631516
+      ],
+      "rpy_rad": [
+        0.0,
+        0.3490658503988659,
+        0.0
+      ],
+      "nominal_extrinsics": false,
+      "basis": "CAD mounting-cylinder axis at 12 mm behind front plate intersected with native bottom plane at local Z=-30.15 mm; measured 20 degree downward optical direction"
+    },
+    {
+      "name": "l515_link",
+      "parent": "l515_bottom_screw_frame",
+      "xyz_m": [
+        0.0075,
+        0.0,
+        0.02115
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": false,
+      "basis": "official RealSense L515 bottom mount to depth-zero nominal offset"
+    },
+    {
+      "name": "l515_depth_frame",
+      "parent": "l515_link",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": true,
+      "basis": "official RealSense nominal extrinsics"
+    },
+    {
+      "name": "l515_depth_optical_frame",
+      "parent": "l515_depth_frame",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+      ],
+      "nominal_extrinsics": true,
+      "basis": "optical frame convention"
+    },
+    {
+      "name": "l515_infra_frame",
+      "parent": "l515_link",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": true,
+      "basis": "official RealSense nominal extrinsics"
+    },
+    {
+      "name": "l515_infra_optical_frame",
+      "parent": "l515_infra_frame",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+      ],
+      "nominal_extrinsics": true,
+      "basis": "optical frame convention"
+    },
+    {
+      "name": "l515_color_frame",
+      "parent": "l515_link",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.024
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": true,
+      "basis": "official RealSense nominal extrinsics"
+    },
+    {
+      "name": "l515_color_optical_frame",
+      "parent": "l515_color_frame",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+      ],
+      "nominal_extrinsics": true,
+      "basis": "optical frame convention"
+    },
+    {
+      "name": "l515_accel_frame",
+      "parent": "l515_color_frame",
+      "xyz_m": [
+        -0.00410137791186571,
+        -0.0129784867167473,
+        0.00256138201802969
+      ],
+      "rpy_rad": [
+        -0.006161012,
+        0.020193459,
+        0.016301375
+      ],
+      "nominal_extrinsics": true,
+      "basis": "official L515 approximate IMU extrinsics"
+    },
+    {
+      "name": "l515_accel_optical_frame",
+      "parent": "l515_accel_frame",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+      ],
+      "nominal_extrinsics": true,
+      "basis": "optical frame convention"
+    },
+    {
+      "name": "l515_gyro_frame",
+      "parent": "l515_color_frame",
+      "xyz_m": [
+        -0.00410137791186571,
+        -0.0129784867167473,
+        0.00256138201802969
+      ],
+      "rpy_rad": [
+        -0.006161012,
+        0.020193459,
+        0.016301375
+      ],
+      "nominal_extrinsics": true,
+      "basis": "official L515 approximate IMU extrinsics"
+    },
+    {
+      "name": "l515_gyro_optical_frame",
+      "parent": "l515_gyro_frame",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+      ],
+      "nominal_extrinsics": true,
+      "basis": "optical frame convention"
+    },
+    {
+      "name": "rocker_left_encoder_frame",
+      "parent": "base_link",
+      "xyz_m": [
+        0.0,
+        0.12190000000000002,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": false,
+      "basis": "CAD TSSOP14 package center; +Z is outward board normal. Magnetic die offset and electrical zero/sign must be calibrated; +X measured from CAD mount pad 1_0 toward 0_0"
+    },
+    {
+      "name": "rocker_right_encoder_frame",
+      "parent": "base_link",
+      "xyz_m": [
+        0.0,
+        -0.12190000000000002,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        -3.141592653589793
+      ],
+      "nominal_extrinsics": false,
+      "basis": "CAD TSSOP14 package center; +Z is outward board normal. Magnetic die offset and electrical zero/sign must be calibrated; +X measured from CAD mount pad 1_0 toward 0_0"
+    },
+    {
+      "name": "bogie_left_encoder_frame",
+      "parent": "ml_new_chassis_pivot",
+      "xyz_m": [
+        0.2387207690210569,
+        0.05114999768599729,
+        -0.0993112989238809
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        -0.7853981633974496,
+        0.0
+      ],
+      "nominal_extrinsics": false,
+      "basis": "CAD TSSOP14 package center; +Z is outward board normal. Magnetic die offset and electrical zero/sign must be calibrated; +X measured from CAD mount pad 1_0 toward 0_0"
+    },
+    {
+      "name": "bogie_right_encoder_frame",
+      "parent": "mr_new_chassis_pivot",
+      "xyz_m": [
+        0.2387207690210569,
+        -0.05115000231307196,
+        -0.09931129892388008
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.7853981633974492,
+        -3.141592653589793
+      ],
+      "nominal_extrinsics": false,
+      "basis": "CAD TSSOP14 package center; +Z is outward board normal. Magnetic die offset and electrical zero/sign must be calibrated; +X measured from CAD mount pad 1_0 toward 0_0"
+    },
+    {
+      "name": "ov5640_link",
+      "parent": "arm_link5",
+      "xyz_m": [
+        0.12159000000000006,
+        8.881784197001253e-18,
+        0.04320999999969672
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "nominal_extrinsics": false,
+      "basis": "CAD dummy_lens geometric center; physical optical center calibration pending"
+    },
+    {
+      "name": "ov5640_optical_frame",
+      "parent": "ov5640_link",
+      "xyz_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rpy_rad": [
+        -1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+      ],
+      "nominal_extrinsics": true,
+      "basis": "ROS optical axes; lens center and intrinsics physical calibration pending"
+    }
+  ],
+  "internal_extrinsics_are_nominal": true,
+  "hardware_calibration_performed": false,
+  "driver_note": "Use use_nominal_sensor_extrinsics:=false when RealSense publishes calibrated TF, and use camera_name d435i / l515 to avoid duplicate TF authorities."
+}

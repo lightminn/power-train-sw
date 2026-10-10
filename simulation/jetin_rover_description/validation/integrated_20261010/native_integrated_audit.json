@@ -1,0 +1,2046 @@
+[
+  {
+    "document": "rover_assembly",
+    "modified": true,
+    "joints": [
+      {
+        "name": "ml_fix_bearings_6205",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "ml_rocker_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -33,
+        "upper_deg": 30.7
+      },
+      {
+        "name": "ml_fix_rocker_pivot",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "ml_fix_shoulder_bolt",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "ml_fix_nut_M20",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "ml_fix_spacers",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "ml_fix_fasteners_M6",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "ml_fix_bearings_6201",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "ml_fix_STWS12",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "vfl_fix_weld",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_branch",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_insert",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_cover",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_servo",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_retainer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_bearing",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_steer_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -90,
+        "upper_deg": 90
+      },
+      {
+        "name": "rl_fix_key5",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_coupling",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_key6",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_kingpin",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_snapring",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_spacer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_bracket",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_washer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_nut",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_wheel_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "rl_fix_fasteners_base",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rl_fix_fasteners_steer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "bl_fix_in_arm",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "bl_fix_in_insert",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "bl_fix_bearings",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "bl_fix_fasteners_in",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "bl_bogie_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -45,
+        "upper_deg": 45
+      },
+      {
+        "name": "bl_fix_out_arm1",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "bl_fix_out_arm2",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "bl_fix_out_insert",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "bl_fix_shaft",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "bl_fix_rings",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "bl_fix_shim",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "bl_fix_fasteners_out",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_branch",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_insert",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_cover",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_servo",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_retainer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_bearing",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_steer_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -90,
+        "upper_deg": 90
+      },
+      {
+        "name": "fl_fix_key5",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_coupling",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_key6",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_kingpin",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_snapring",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_spacer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_bracket",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_washer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_nut",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_wheel_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "fl_fix_fasteners_base",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fl_fix_fasteners_steer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "cl_fix_cover",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "cl_fix_washer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "cl_fix_nut",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "cl_wheel_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "cl_fix_fasteners_base",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_inner_J1",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_vfl_rocker_vertex_front_pipe1_L50",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_bolts_J1A",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_bolts_J1B",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_cover_J1",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_inner_J2",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_vrl_rocker_vertex_rear_pipe2_L70",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_vrl_rocker_vertex_rear_pipe1_L57.3",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_bolts_J2A",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_bolts_J2B",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_cover_J2",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_inner_J3",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_bolts_J3A",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_link_J3",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_inner_J4",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_rl_rear_wheel_module_vertical",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_bolts_J4A",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_bolts_J4B",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_bolts_J3B",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_inner_J5",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_link_J5",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_fl_front_wheel_module_vertical",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_bolts_J5A",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_bolts_J5B",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_inner_J6",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_link_J6",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_cl_new_center_wheel_module",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_bolts_J6A",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kl_bolts_J6B",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_bl_bogie_pivot_in_hub_L60_slot",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "ml_fix_connector_pin",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "ml_fix_rod_end_A_ball",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "ml_fix_bearing_connector",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "ml_fix_rod_end_B_housing",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "ml_fix_bar_differential_side",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "mr_fix_bearings_6205",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "mr_rocker_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -33,
+        "upper_deg": 30.7
+      },
+      {
+        "name": "mr_fix_rocker_pivot",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "mr_fix_shoulder_bolt",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "mr_fix_nut_M20",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "mr_fix_spacers",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "mr_fix_fasteners_M6",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "mr_fix_bearings_6201",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "mr_fix_STWS12",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "vfr_fix_weld",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_branch",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_insert",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_cover",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_servo",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_retainer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_bearing",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_steer_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -90,
+        "upper_deg": 90
+      },
+      {
+        "name": "rr_fix_key5",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_coupling",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_key6",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_kingpin",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_snapring",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_spacer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_bracket",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_washer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_nut",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_wheel_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "rr_fix_fasteners_base",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "rr_fix_fasteners_steer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "br_fix_in_arm",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "br_fix_in_insert",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "br_fix_bearings",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "br_fix_fasteners_in",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "br_bogie_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -45,
+        "upper_deg": 45
+      },
+      {
+        "name": "br_fix_out_arm1",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "br_fix_out_arm2",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "br_fix_out_insert",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "br_fix_shaft",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "br_fix_rings",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "br_fix_shim",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "br_fix_fasteners_out",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_branch",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_insert",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_cover",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_servo",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_retainer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_bearing",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_steer_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -90,
+        "upper_deg": 90
+      },
+      {
+        "name": "fr_fix_key5",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_coupling",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_key6",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_kingpin",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_snapring",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_spacer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_bracket",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_washer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_nut",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_wheel_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "fr_fix_fasteners_base",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fr_fix_fasteners_steer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "cr_fix_cover",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "cr_fix_washer",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "cr_fix_nut",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "cr_wheel_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "cr_fix_fasteners_base",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_inner_J1",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_vfr_rocker_vertex_front_pipe1_L50",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_bolts_J1A",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_bolts_J1B",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_cover_J1",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_inner_J2",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_vrr_rocker_vertex_rear_pipe2_L70",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_vrr_rocker_vertex_rear_pipe1_L57.3",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_bolts_J2A",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_bolts_J2B",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_cover_J2",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_inner_J3",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_bolts_J3A",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_link_J3",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_inner_J4",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_rr_rear_wheel_module_vertical",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_bolts_J4A",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_bolts_J4B",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_bolts_J3B",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_inner_J5",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_link_J5",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_fr_front_wheel_module_vertical",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_bolts_J5A",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_bolts_J5B",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_inner_J6",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_link_J6",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_cr_new_center_wheel_module",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_bolts_J6A",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_kr_bolts_J6B",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_br_bogie_pivot_in_hub_L60_slot",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "mr_fix_connector_pin",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "mr_fix_rod_end_A_ball",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "mr_fix_bearing_connector",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "mr_fix_rod_end_B_housing",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "mr_fix_bar_differential_side",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "loop_side_bar_l",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "loop_side_bar_r",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "diff_bar_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -29.999999999999996,
+        "upper_deg": 29.999999999999996
+      },
+      {
+        "name": "ml_connector_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -119.99999999999999,
+        "upper_deg": 29.500000000000004
+      },
+      {
+        "name": "mr_connector_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -119.99999999999999,
+        "upper_deg": 29.500000000000004
+      },
+      {
+        "name": "fix_diffbar_pivot_bearings_6900ZZ",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_diffbar_pivot_rotating",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_side_panel_R",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_side_panel_L",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_rear_panel",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_bottom_plate",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_side_panel_FR",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_side_panel_FL",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_front_panel",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_battery",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_battery_shelf",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_PDIST80B",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_SZH-CP001",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_SZH-CP003",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_pcb_shelf",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_PCB_18V",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_jetson_orin_nano",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_CAN_isolator_DB9",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_arm_support",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_arm_axis1_column",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_arm_top_plate",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_arm_disc_retainers",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_arm_axis1_motor",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "arm_J1_yaw",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "arm_J2_shoulder",
+        "type": 1,
+        "error": "",
+        "lower_deg": -180,
+        "upper_deg": 0
+      },
+      {
+        "name": "arm_J3_elbow",
+        "type": 1,
+        "error": "",
+        "lower_deg": -180,
+        "upper_deg": 0
+      },
+      {
+        "name": "fix_PHB_U2D2",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_PHB_2",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_odrive_posts",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_encoder_L",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_mag_L",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_encoder_R",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_mag_R",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "urdf_fix_router_stand",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "urdf_fix_odrive_1",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "urdf_fix_odrive_2",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "urdf_fix_odrive_3",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "urdf_fix_pcb_shelf_3F",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_bogie_enc_L",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_bogie_mag_L",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_bogie_enc_R",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "fix_bogie_mag_R",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "ml_rod_end_A_rx",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "ml_rod_end_A_ry",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "ml_rod_end_A_rz",
+        "type": 1,
+        "error": "",
+        "lower_deg": -25,
+        "upper_deg": 25
+      },
+      {
+        "name": "mr_rod_end_A_rx",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "mr_rod_end_A_ry",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "mr_rod_end_A_rz",
+        "type": 1,
+        "error": "",
+        "lower_deg": -25,
+        "upper_deg": 25
+      },
+      {
+        "name": "ml_rod_end_B_rx",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "ml_rod_end_B_ry",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "ml_rod_end_B_rz",
+        "type": 1,
+        "error": "",
+        "lower_deg": -25,
+        "upper_deg": 25
+      },
+      {
+        "name": "mr_rod_end_B_rx",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "mr_rod_end_B_ry",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "mr_rod_end_B_rz",
+        "type": 1,
+        "error": "",
+        "lower_deg": -25,
+        "upper_deg": 25
+      },
+      {
+        "name": "pinion_A_rotation",
+        "type": 1,
+        "error": "",
+        "lower_deg": -96.2,
+        "upper_deg": 144.0662236789
+      },
+      {
+        "name": "pinion_B_rotation",
+        "type": 1,
+        "error": "",
+        "lower_deg": -96.2,
+        "upper_deg": 144.0662236789
+      },
+      {
+        "name": "finger_lower_slide",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "finger_upper_slide",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "axis5_rotation",
+        "type": 1,
+        "error": "",
+        "lower_deg": -180,
+        "upper_deg": 180
+      },
+      {
+        "name": "toolchanger_lock_wheel",
+        "type": 1,
+        "error": "",
+        "lower_deg": 0,
+        "upper_deg": 22.5
+      },
+      {
+        "name": "lock_ball_1",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_2",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_3",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_4",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_5",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_6",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_7",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_8",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "arm4_rotation",
+        "type": 1,
+        "error": "",
+        "lower_deg": -100,
+        "upper_deg": 100
+      },
+      {
+        "name": "arm_tool_fixed",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "urdf_fix_frame_brackets",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "urdf_fix_cam_D435i_case",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "urdf_fix_cam_D435i",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "urdf_fix_lidar_L515_case",
+        "type": 0,
+        "error": ""
+      },
+      {
+        "name": "urdf_fix_lidar_L515",
+        "type": 0,
+        "error": ""
+      }
+    ],
+    "motion_links": [
+      {
+        "name": "pinions_sync",
+        "suppressed": false,
+        "joint1": "pinion_A_rotation",
+        "joint2": "pinion_B_rotation",
+        "value1": null,
+        "value2": null,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "rack_lower",
+        "suppressed": false,
+        "joint1": "pinion_A_rotation",
+        "joint2": "finger_lower_slide",
+        "value1": null,
+        "value2": null,
+        "reversed": true,
+        "error": ""
+      },
+      {
+        "name": "rack_upper",
+        "suppressed": false,
+        "joint1": "pinion_A_rotation",
+        "joint2": "finger_upper_slide",
+        "value1": null,
+        "value2": null,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_1",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_1",
+        "value1": null,
+        "value2": null,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_2",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_2",
+        "value1": null,
+        "value2": null,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_3",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_3",
+        "value1": null,
+        "value2": null,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_4",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_4",
+        "value1": null,
+        "value2": null,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_5",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_5",
+        "value1": null,
+        "value2": null,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_6",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_6",
+        "value1": null,
+        "value2": null,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_7",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_7",
+        "value1": null,
+        "value2": null,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_8",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_8",
+        "value1": null,
+        "value2": null,
+        "reversed": false,
+        "error": ""
+      }
+    ]
+  },
+  {
+    "document": "JETIN_URDF_ball3R_20261006",
+    "modified": true,
+    "joints": [
+      {
+        "name": "ml_rod_end_A_original_ball_suppressed",
+        "type": 6,
+        "error": ""
+      },
+      {
+        "name": "ml_rod_end_B_original_ball_suppressed",
+        "type": 6,
+        "error": ""
+      },
+      {
+        "name": "mr_rod_end_A_original_ball_suppressed",
+        "type": 6,
+        "error": ""
+      },
+      {
+        "name": "mr_rod_end_B_original_ball_suppressed",
+        "type": 6,
+        "error": ""
+      },
+      {
+        "name": "ml_rod_end_A_rx",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "ml_rod_end_A_ry",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "ml_rod_end_A_rz",
+        "type": 1,
+        "error": "",
+        "lower_deg": -25,
+        "upper_deg": 25
+      },
+      {
+        "name": "mr_rod_end_A_rx",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "mr_rod_end_A_ry",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "mr_rod_end_A_rz",
+        "type": 1,
+        "error": "",
+        "lower_deg": -25,
+        "upper_deg": 25
+      },
+      {
+        "name": "ml_rod_end_B_rx",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "ml_rod_end_B_ry",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "ml_rod_end_B_rz",
+        "type": 1,
+        "error": "",
+        "lower_deg": -25,
+        "upper_deg": 25
+      },
+      {
+        "name": "mr_rod_end_B_rx",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "mr_rod_end_B_ry",
+        "type": 1,
+        "error": "",
+        "lower_deg": -5,
+        "upper_deg": 5
+      },
+      {
+        "name": "mr_rod_end_B_rz",
+        "type": 1,
+        "error": "",
+        "lower_deg": -25,
+        "upper_deg": 25
+      },
+      {
+        "name": "ml_rocker_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -33,
+        "upper_deg": 30.7
+      },
+      {
+        "name": "mr_rocker_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -33,
+        "upper_deg": 30.7
+      },
+      {
+        "name": "diff_bar_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -29.999999999999996,
+        "upper_deg": 29.999999999999996
+      },
+      {
+        "name": "arm_J1_yaw",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "rl_steer_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -90,
+        "upper_deg": 90
+      },
+      {
+        "name": "bl_bogie_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -45,
+        "upper_deg": 45
+      },
+      {
+        "name": "ml_connector_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -29.500000000000004,
+        "upper_deg": 119.99999999999999
+      },
+      {
+        "name": "rr_steer_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -90,
+        "upper_deg": 90
+      },
+      {
+        "name": "br_bogie_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -45,
+        "upper_deg": 45
+      },
+      {
+        "name": "mr_connector_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -29.500000000000004,
+        "upper_deg": 119.99999999999999
+      },
+      {
+        "name": "arm_J2_shoulder",
+        "type": 1,
+        "error": "",
+        "lower_deg": 0,
+        "upper_deg": 180
+      },
+      {
+        "name": "rl_wheel_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "fl_steer_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -90,
+        "upper_deg": 90
+      },
+      {
+        "name": "cl_wheel_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "rr_wheel_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "fr_steer_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": -90,
+        "upper_deg": 90
+      },
+      {
+        "name": "cr_wheel_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "arm_J3_elbow",
+        "type": 1,
+        "error": "",
+        "lower_deg": -180,
+        "upper_deg": 0
+      },
+      {
+        "name": "fl_wheel_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "fr_wheel_joint",
+        "type": 1,
+        "error": "",
+        "lower_deg": null,
+        "upper_deg": null
+      },
+      {
+        "name": "pinion_A_rotation",
+        "type": 1,
+        "error": "",
+        "lower_deg": -96.2,
+        "upper_deg": 144.0662236789
+      },
+      {
+        "name": "pinion_B_rotation",
+        "type": 1,
+        "error": "",
+        "lower_deg": -96.2,
+        "upper_deg": 144.0662236789
+      },
+      {
+        "name": "finger_lower_slide",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "finger_upper_slide",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "axis5_rotation",
+        "type": 1,
+        "error": "",
+        "lower_deg": -180,
+        "upper_deg": 180
+      },
+      {
+        "name": "toolchanger_lock_wheel",
+        "type": 1,
+        "error": "",
+        "lower_deg": 0,
+        "upper_deg": 22.5
+      },
+      {
+        "name": "lock_ball_1",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_2",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_3",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_4",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_5",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_6",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_7",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "lock_ball_8",
+        "type": 2,
+        "error": ""
+      },
+      {
+        "name": "arm4_rotation",
+        "type": 1,
+        "error": "",
+        "lower_deg": -100,
+        "upper_deg": 100
+      },
+      {
+        "name": "arm_tool_fixed",
+        "type": 0,
+        "error": ""
+      }
+    ],
+    "motion_links": [
+      {
+        "name": "pinions_sync",
+        "suppressed": false,
+        "joint1": "pinion_A_rotation",
+        "joint2": "pinion_B_rotation",
+        "value1": 6.2831852999999995,
+        "value2": 6.2831852999999995,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "rack_lower",
+        "suppressed": false,
+        "joint1": "pinion_A_rotation",
+        "joint2": "finger_lower_slide",
+        "value1": 6.2831852999999995,
+        "value2": 11.30973,
+        "reversed": true,
+        "error": ""
+      },
+      {
+        "name": "rack_upper",
+        "suppressed": false,
+        "joint1": "pinion_A_rotation",
+        "joint2": "finger_upper_slide",
+        "value1": 6.2831852999999995,
+        "value2": 11.30973,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_1",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_1",
+        "value1": 0.39269908169872414,
+        "value2": 0.259,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_2",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_2",
+        "value1": 0.39269908169872414,
+        "value2": 0.259,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_3",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_3",
+        "value1": 0.39269908169872414,
+        "value2": 0.259,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_4",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_4",
+        "value1": 0.39269908169872414,
+        "value2": 0.259,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_5",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_5",
+        "value1": 0.39269908169872414,
+        "value2": 0.259,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_6",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_6",
+        "value1": 0.39269908169872414,
+        "value2": 0.259,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_7",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_7",
+        "value1": 0.39269908169872414,
+        "value2": 0.259,
+        "reversed": false,
+        "error": ""
+      },
+      {
+        "name": "wheel_to_ball_8",
+        "suppressed": false,
+        "joint1": "toolchanger_lock_wheel",
+        "joint2": "lock_ball_8",
+        "value1": 0.39269908169872414,
+        "value2": 0.259,
+        "reversed": false,
+        "error": ""
+      }
+    ]
+  }
+]

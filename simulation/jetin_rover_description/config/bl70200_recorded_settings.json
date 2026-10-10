@@ -1,0 +1,43 @@
+{
+  "model": "BL70200 / ODrive v3.6 fw 0.5.1",
+  "sources": [
+    "https://app.notion.com/p/3882d27b08d381fcbe3cd0c829687c3a",
+    "https://app.notion.com/p/3892d27b08d38184bdbec82277c9963e"
+  ],
+  "gear_ratio_motor_to_wheel": 5,
+  "torque_constant_motor_Nm_per_A": 0.353,
+  "motor_current_limit_A": 9,
+  "motor_velocity_gain_Nm_per_turn_s": 0.12,
+  "motor_velocity_integrator_gain_Nm_per_turn": 0.2,
+  "motor_position_gain_per_s": 2.0,
+  "motor_velocity_ramp_turn_s2": 2.0,
+  "motor_velocity_limit_turn_s": 50.0,
+  "encoder_pole_pairs": 10,
+  "encoder_hall_cpr_motor": 60,
+  "encoder_bandwidth_recorded": 30.0,
+  "nominal_bus_V": 48.0,
+  "gearbox_efficiency_used": 0.9,
+  "gearbox_efficiency_measured": false,
+  "wheel_radius_command_conversion_m": 0.10375,
+  "wheel_radius_recorded_v2_m": 0.10356,
+  "geometry_and_inertia_changed": false,
+  "wheel_torque_limit_ideal_Nm": 15.884999999999998,
+  "wheel_velocity_P_gain_Nm_per_deg_s": 0.007500000000000001,
+  "wheel_velocity_I_gain_Nm_per_deg": 0.0125,
+  "wheel_acceleration_limit_deg_s2": 144.0,
+  "wheel_velocity_limit_deg_s": 3600.0,
+  "controller_model": "PI at physics timestep with ramp, torque saturation and conditional anti-windup; not bit-exact ODrive firmware",
+  "encoder_model": "60 motorCPR Hall quantization, ratio5, ODrive fw-v0.5.1 PLL bandwidth30; physical angle interpolation at nominal8kHz",
+  "unknowns": [
+    "gearbox losses",
+    "motor rotor inertia and gearbox compliance",
+    "voltage-dependent torque-speed envelope",
+    "tire stiffness and damping",
+    "loaded operating gain validation"
+  ],
+  "usd_only_mode": "Proportional velocity drive with recorded gain and torque cap. Integral action requires the bundled PI runner or Script Editor installer.",
+  "wheel_torque_limit_with_efficiency_Nm": 14.296499999999998,
+  "gearbox_efficiency_basis": "theoretical 0.90 initial value; editable, unmeasured",
+  "encoder_source": "https://raw.githubusercontent.com/odriverobotics/ODrive/fw-v0.5.1/Firmware/MotorControl/encoder.cpp",
+  "bus_voltage_conflict": "supplier24/36V catalog vs project48V; project configuration retained; exact winding variant unresolved"
+}

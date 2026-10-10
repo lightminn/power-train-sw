@@ -23,6 +23,11 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
 
 ## 2. 현재 상태 (2026-09-10 Jetson 검증 반영)
 
+### 2026-10-11 사용자 지정 Isaac 전달본 보관 예외
+
+사용자가 이 저장소를 지정하여 `simulation/jetin_rover_description/`에 2026-10-10 검증 완료 전달본을 보관한다. 이는 별도 Isaac 저장소 정책의 제한된 보관 예외이며, 기존 실차 제어 코드·50kg 기하 기준·폐기된 `powertrain_sim/`은 변경하지 않는다. 이 전달본의 CAD 질량은 80.8357kg이며 실차 설정의 대체 정본이 아니다. 사용법과 검증 범위는 `simulation/README.md` 및 `docs/reports/2026-10-11-jetin-isaac-archive.md`를 따른다.
+
+
 이 섹션이 **유일한 현재 상태 선언**이다. 예전 문서·보고서에 남아 있는 날짜별
 "CURRENT STATE OVERRIDE" 문구는 전부 **역사적 기록**이지 현재 권위가 아니다.
 

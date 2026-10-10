@@ -1,0 +1,4174 @@
+{
+  "robot_name": "jetin_rover",
+  "package_name": "jetin_rover_description",
+  "source_document": "rover_assembly",
+  "source_commit": "5c44448ebf823cf05e76fdde798f1fbec9cc6888",
+  "coordinate_policy": "Every link frame has reference world axes; child frame origin is its upstream joint center",
+  "links": [
+    {
+      "link": "base_link",
+      "members": [
+        "base_link:1+frame_brackets:1",
+        "base_link:1",
+        "ml_bearing_6205-2RS:1",
+        "mr_bearing_6205-2RS:1",
+        "diffbar_pivot_bearings_6900ZZ:1",
+        "side_panel_R:1",
+        "side_panel_L:1",
+        "rear_panel:1",
+        "bottom_plate:1",
+        "side_panel_FR:1",
+        "side_panel_FL:1",
+        "front_panel:1+cam_D435i_case:1",
+        "front_panel:1+cam_D435i:1",
+        "front_panel:1+lidar_L515_case:1",
+        "front_panel:1+lidar_L515:1",
+        "front_panel:1",
+        "battery:1",
+        "battery_shelf:1",
+        "PDIST80B:1",
+        "SZH-CP001:1",
+        "SZH-CP003:1",
+        "pcb_shelf:1",
+        "PCB_18V:1",
+        "jetson_orin_nano:1",
+        "CAN_isolator_DB9:1",
+        "arm_support:1",
+        "arm_axis1_column:1",
+        "arm_top_plate:1",
+        "arm_disc_retainers:1",
+        "arm_axis1_motor:1",
+        "PHB_U2D2:1",
+        "PHB_2:1",
+        "odrive_frame:1",
+        "router_opal:1",
+        "router_stand:1",
+        "odrive_1:1",
+        "odrive_2:1",
+        "odrive_3:1",
+        "pcb_shelf_3F:1",
+        "encoder_L:1",
+        "encoder_R:1"
+      ],
+      "mass_kg": 28.225927481921723,
+      "origin_world_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "center_of_mass_world_m": [
+        -0.027254931489560274,
+        0.00011809498689026672,
+        0.01077939233149617
+      ],
+      "center_of_mass_local_m": [
+        -0.027286499303116274,
+        0.00011845318856468714,
+        0.010653715342041643
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.5845722649773282,
+          0.00013050857257958476,
+          -0.01913912435508958
+        ],
+        [
+          0.00013050857257958478,
+          0.9468725053026378,
+          -0.0005825222648587484
+        ],
+        [
+          -0.01913912435508958,
+          -0.000582522264858748,
+          1.1234295636218248
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.5838933040929952,
+        0.9468705958363106,
+        1.1241104339724854
+      ],
+      "inertial_policy": "current native CAD including upper hardware removal"
+    },
+    {
+      "link": "ml_new_chassis_pivot",
+      "members": [
+        "ml_new_chassis_pivot:1",
+        "ml_new_rocker_pivot:1",
+        "ml_shoulder_bolt_SBHH-ST-M25-70:1",
+        "ml_nut_M20_LBNR20:1",
+        "ml_spacer_25x30x1:1",
+        "ml_fasteners_M6:1",
+        "ml_bearing_6201DDU:1",
+        "vfl_rocker_vertex_front_pipe1_L50:1",
+        "vfl_rocker_vertex_front_pipe2_L50:1",
+        "vrl_rocker_vertex_rear_pipe1_L57.3:1",
+        "vrl_rocker_vertex_rear_pipe2_L70:1",
+        "rl_servo_mount_cover:1",
+        "rl_rear_wheel_module_insert_PLA:1",
+        "rl_rear_wheel_module_vertical:1",
+        "rl_rear_wheel_module_branch:1",
+        "rl_Bearing_5204:1",
+        "rl_retainer_plate:1",
+        "rl_AK45-36-KV80:1",
+        "rl_fasteners_base:1",
+        "bl_bogie_pivot_in_hub_L60_slot:1",
+        "bl_bogie_pivot_in_arm1_tab:1",
+        "bl_bogie_pivot_in_insert_PLA:1",
+        "bl_bearing_6200DDU:1",
+        "bl_fasteners_in:1",
+        "kl_cover_J1:1",
+        "kl_cover_J2:1",
+        "kl_inner_J1:1",
+        "kl_inner_J2:1",
+        "kl_inner_J3:1",
+        "kl_inner_J4:1",
+        "kl_link_J3:1",
+        "kl_bolts_J1A:1",
+        "kl_bolts_J1B:1",
+        "kl_bolts_J2A:1",
+        "kl_bolts_J2B:1",
+        "kl_bolts_J3A:1",
+        "kl_bolts_J4A:1",
+        "kl_bolts_J4B:1",
+        "kl_bolts_J3B:1",
+        "mag_L:1",
+        "bogie_enc_L:1"
+      ],
+      "mass_kg": 4.403364795843224,
+      "origin_world_m": [
+        0.0,
+        0.188,
+        0.0
+      ],
+      "center_of_mass_world_m": [
+        -0.08156301210628683,
+        0.258848760236222,
+        -0.030642879737106866
+      ],
+      "center_of_mass_local_m": [
+        -0.08156301210628683,
+        0.070848760236222,
+        -0.030642879737106866
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.021389568971329986,
+          0.006705296779269787,
+          -0.013239915409606976
+        ],
+        [
+          0.006705296779269787,
+          0.194341919013497,
+          0.0034376991068296725
+        ],
+        [
+          -0.013239915409606976,
+          0.0034376991068296725,
+          0.18656285155676233
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.02005722889790601,
+        0.18657739907363688,
+        0.19565971157004636
+      ]
+    },
+    {
+      "link": "ml_pin_PSFGR12-33",
+      "members": [
+        "ml_pin_PSFGR12-33:1",
+        "ml_STWS12:1",
+        "ml_suspension_conector_bearing:1",
+        "ml_rod_end_M10_A_ball:1",
+        "ml_rod_end_A_bolt_GMSB10_20:1",
+        "ml_rod_end_A_nut_M8:1"
+      ],
+      "mass_kg": 0.14655873007229167,
+      "origin_world_m": [
+        -4.4108743051229015e-18,
+        0.20549999999999993,
+        0.1479504925534062
+      ],
+      "center_of_mass_world_m": [
+        -0.02798097860335397,
+        0.20550000000021482,
+        0.14802130103798464
+      ],
+      "center_of_mass_local_m": [
+        -0.027980978603353968,
+        2.1488366641619905e-13,
+        7.080848457843847e-05
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          2.8147521130323858e-05,
+          7.088513803710228e-16,
+          1.9052936020829293e-07
+        ],
+        [
+          7.088513803710228e-16,
+          9.334559355308157e-05,
+          2.6020852139652106e-18
+        ],
+        [
+          1.9052936020829293e-07,
+          2.6020852139652106e-18,
+          8.74000365597722e-05
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        2.8146908480185748e-05,
+        8.740064920991034e-05,
+        9.334559355308163e-05
+      ]
+    },
+    {
+      "link": "rl_kingpin_flange",
+      "members": [
+        "rl_kingpin_flange:1",
+        "rl_STWS20:1",
+        "rl_coupling:1",
+        "rl_new_motor_bracket:1",
+        "rl_C-KEG5-22:1",
+        "rl_C-KEG6-25:1",
+        "rl_AK45-36_flange:1",
+        "rl_snapring_spacer_PLA:1",
+        "rl_double_d_washer:1",
+        "rl_flange_nut_M14:1",
+        "rl_fasteners_steer:1"
+      ],
+      "mass_kg": 0.9302493628312025,
+      "origin_world_m": [
+        -0.35172000000000003,
+        0.27649999999999997,
+        -0.1639010583946805
+      ],
+      "center_of_mass_world_m": [
+        -0.35172545193955984,
+        0.2579159697271559,
+        -0.17635732433914186
+      ],
+      "center_of_mass_local_m": [
+        -5.451939559808494e-06,
+        -0.018584030272844054,
+        -0.012456265944461364
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.0058295956425449685,
+          8.028810875027048e-07,
+          4.530979427826154e-06
+        ],
+        [
+          8.028810875027048e-07,
+          0.005015819379516201,
+          -0.0014568540087463375
+        ],
+        [
+          4.530979427826154e-06,
+          -0.0014568540087463375,
+          0.001424767162036461
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.0009080742139973953,
+        0.005532506208765576,
+        0.005829601761334658
+      ]
+    },
+    {
+      "link": "rl_bl70200s",
+      "members": [
+        "rl_bl70200s:1"
+      ],
+      "mass_kg": 4.499998984631591,
+      "origin_world_m": [
+        -0.35172000000000014,
+        0.2735,
+        -0.32737845839468127
+      ],
+      "center_of_mass_world_m": [
+        -0.35171999357852557,
+        0.27335697881918125,
+        -0.3273784474806534
+      ],
+      "center_of_mass_local_m": [
+        6.421474574302977e-09,
+        -0.0001430211808187698,
+        1.0914027848141217e-08
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.012835123366213841,
+          2.2881347927494744e-09,
+          -3.0128444183930014e-09
+        ],
+        [
+          2.2881347927494744e-09,
+          0.02158391468545906,
+          -3.714982210745177e-10
+        ],
+        [
+          -3.0128444183930014e-09,
+          -3.714982210745177e-10,
+          0.012835086219095349
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.012835085976322998,
+        0.012835123608985576,
+        0.021583914685459678
+      ]
+    },
+    {
+      "link": "bl_bogie_pivot_out_hub_L60_slot",
+      "members": [
+        "bl_bogie_pivot_out_hub_L60_slot:1",
+        "bl_bogie_pivot_out_arm1_tab:1",
+        "bl_bogie_pivot_out_arm2_tab:1",
+        "bl_bogie_pivot_out_insert_PLA:1",
+        "bl_shim_10x14x0.5:1",
+        "bl_shaft_PSFGR10-120:1",
+        "bl_STWS10:1",
+        "bl_fasteners_out:1",
+        "fl_servo_mount_cover:1",
+        "fl_front_wheel_module_insert_PLA:1",
+        "fl_front_wheel_module_vertical:1",
+        "fl_front_wheel_module_branch:1",
+        "fl_Bearing_5204:1",
+        "fl_retainer_plate:1",
+        "fl_AK45-36-KV80:1",
+        "fl_fasteners_base:1",
+        "cl_new_center_wheel_module:1",
+        "cl_new_center_wheel_module_cover:1",
+        "cl_double_d_washer:1",
+        "cl_flange_nut_M14:1",
+        "cl_fasteners_base:1",
+        "kl_inner_J5:1",
+        "kl_inner_J6:1",
+        "kl_link_J5:1",
+        "kl_link_J6:1",
+        "kl_bolts_J5A:1",
+        "kl_bolts_J5B:1",
+        "kl_bolts_J6A:1",
+        "kl_bolts_J6B:1",
+        "bogie_mag_L:1"
+      ],
+      "mass_kg": 2.8479020769224337,
+      "origin_world_m": [
+        0.2387207696376092,
+        0.3067499999999826,
+        -0.09931129892388085
+      ],
+      "center_of_mass_world_m": [
+        0.34409034266359045,
+        0.33645893017746276,
+        -0.12597446267619378
+      ],
+      "center_of_mass_local_m": [
+        0.10536957302598127,
+        0.029708930177480164,
+        -0.026663163752312924
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.019243480869018836,
+          5.5905120600607816e-05,
+          -0.028818069575347494
+        ],
+        [
+          5.5905120600607816e-05,
+          0.10223221812987315,
+          0.0002744395782542375
+        ],
+        [
+          -0.028818069575347494,
+          0.0002744395782542375,
+          0.08524317236708767
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.008431323448981924,
+        0.09604599060790198,
+        0.10224155730909573
+      ]
+    },
+    {
+      "link": "fl_kingpin_flange",
+      "members": [
+        "fl_kingpin_flange:1",
+        "fl_STWS20:1",
+        "fl_coupling:1",
+        "fl_new_motor_bracket:1",
+        "fl_C-KEG5-22:1",
+        "fl_C-KEG6-25:1",
+        "fl_AK45-36_flange:1",
+        "fl_snapring_spacer_PLA:1",
+        "fl_double_d_washer:1",
+        "fl_flange_nut_M14:1",
+        "fl_fasteners_steer:1"
+      ],
+      "mass_kg": 0.9302493628312022,
+      "origin_world_m": [
+        0.52377,
+        0.3369999999999652,
+        -0.1639010583946805
+      ],
+      "center_of_mass_world_m": [
+        0.5237645480604397,
+        0.3184159697271209,
+        -0.17635732433914228
+      ],
+      "center_of_mass_local_m": [
+        -5.451939560252583e-06,
+        -0.018584030272844332,
+        -0.01245626594446178
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.005829595642545052,
+          8.028810873361714e-07,
+          4.530979427888604e-06
+        ],
+        [
+          8.028810873361714e-07,
+          0.005015819379516562,
+          -0.0014568540087463097
+        ],
+        [
+          4.530979427888604e-06,
+          -0.0014568540087463097,
+          0.0014247671620368219
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.0009080742139977746,
+        0.005532506208765919,
+        0.005829601761334742
+      ]
+    },
+    {
+      "link": "fl_bl70200s",
+      "members": [
+        "fl_bl70200s:1"
+      ],
+      "mass_kg": 4.499998984631597,
+      "origin_world_m": [
+        0.52377,
+        0.33399999999996527,
+        -0.3273784583946805
+      ],
+      "center_of_mass_world_m": [
+        0.5237700023992641,
+        0.33385697854119506,
+        -0.3273784474806535
+      ],
+      "center_of_mass_local_m": [
+        2.399264120711564e-09,
+        -0.00014302145877020944,
+        1.0914027015473948e-08
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.012835124125705644,
+          -3.314732377468488e-09,
+          2.9126865364048626e-09
+        ],
+        [
+          -3.314732377468488e-09,
+          0.02158391779955493,
+          3.7980341094367986e-11
+        ],
+        [
+          2.9126865364048626e-09,
+          3.7980341094367986e-11,
+          0.0128350900926828
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.012835089845202671,
+        0.012835124373184516,
+        0.02158391779955619
+      ]
+    },
+    {
+      "link": "cl_bl70200s",
+      "members": [
+        "cl_bl70200s:1"
+      ],
+      "mass_kg": 4.4999989846315875,
+      "origin_world_m": [
+        0.0253,
+        0.4219999999988304,
+        -0.3273784551689725
+      ],
+      "center_of_mass_world_m": [
+        0.025300004689354578,
+        0.42185697813576717,
+        -0.32737844748065364
+      ],
+      "center_of_mass_local_m": [
+        4.6893545782578094e-09,
+        -0.00014302186306325293,
+        7.68831887043575e-09
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.012835125500589406,
+          7.976978799728585e-11,
+          -4.6108065976380175e-10
+        ],
+        [
+          7.976978799728585e-11,
+          0.02158391214116595,
+          6.335859614736705e-10
+        ],
+        [
+          -4.6108065976380175e-10,
+          6.335859614736705e-10,
+          0.012835085809178581
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.012835085803823056,
+        0.01283512550594489,
+        0.021583912141166006
+      ]
+    },
+    {
+      "link": "ml_rod_end_M10_A_housing",
+      "members": [
+        "ml_rod_end_M10_A_housing:1",
+        "ml_bearing_connector:1",
+        "ml_rod_end_M10_B_housing:1"
+      ],
+      "mass_kg": 0.09860864530743589,
+      "origin_world_m": [
+        -0.050499999999987236,
+        0.20550000000000013,
+        0.14795049255339396
+      ],
+      "center_of_mass_world_m": [
+        -0.10850000000000368,
+        0.20550000000022586,
+        0.14795205946937137
+      ],
+      "center_of_mass_local_m": [
+        -0.05800000000001644,
+        2.2573609648190995e-13,
+        1.56691597741343e-06
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          4.033564185216415e-06,
+          6.13247306668202e-10,
+          2.168404344971009e-19
+        ],
+        [
+          6.13247306668202e-10,
+          0.00017459273129571268,
+          -1.3010426069826053e-18
+        ],
+        [
+          2.168404344971009e-19,
+          -1.3010426069826053e-18,
+          0.0001769376325188891
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        4.033564183011478e-06,
+        0.00017459273129791762,
+        0.0001769376325188891
+      ]
+    },
+    {
+      "link": "ml_bar_differential_side",
+      "members": [
+        "ml_bar_differential_side:1",
+        "ml_rod_end_M10_B_ball:1",
+        "mr_bar_differential_side:1",
+        "mr_rod_end_M10_B_ball:1",
+        "diff_bar:1",
+        "diffbar_pivot_rotating:1",
+        "ml_rod_end_B_bolt_GMSB10_20:1",
+        "ml_rod_end_B_nut_M8:1",
+        "mr_rod_end_B_bolt_GMSB10_20:1",
+        "mr_rod_end_B_nut_M8:1"
+      ],
+      "mass_kg": 0.8208044810971364,
+      "origin_world_m": [
+        -0.16650000000000412,
+        -3.22590985262034e-16,
+        0.13799999999999998
+      ],
+      "center_of_mass_world_m": [
+        -0.16650000000537016,
+        -9.072244629019204e-14,
+        0.14646152839070675
+      ],
+      "center_of_mass_local_m": [
+        -5.366040944920769e-12,
+        -9.039985530493001e-14,
+        0.008461528390706768
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.012499515586724054,
+          -9.362776392197281e-16,
+          7.768091725424142e-15
+        ],
+        [
+          -9.362776392197281e-16,
+          0.00013753596563317178,
+          2.0109241394869438e-16
+        ],
+        [
+          7.768091725424142e-15,
+          2.0109241394869438e-16,
+          0.012485474819964145
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.00013753596563317248,
+        0.012485474819964149,
+        0.012499515586724054
+      ]
+    },
+    {
+      "link": "mr_new_chassis_pivot",
+      "members": [
+        "mr_new_chassis_pivot:1",
+        "mr_new_rocker_pivot:1",
+        "mr_shoulder_bolt_SBHH-ST-M25-70:1",
+        "mr_nut_M20_LBNR20:1",
+        "mr_spacer_25x30x1:1",
+        "mr_fasteners_M6:1",
+        "mr_bearing_6201DDU:1",
+        "vfr_rocker_vertex_front_pipe1_L50:1",
+        "vfr_rocker_vertex_front_pipe2_L50:1",
+        "vrr_rocker_vertex_rear_pipe1_L57.3:1",
+        "vrr_rocker_vertex_rear_pipe2_L70:1",
+        "rr_servo_mount_cover:1",
+        "rr_rear_wheel_module_insert_PLA:1",
+        "rr_rear_wheel_module_vertical:1",
+        "rr_rear_wheel_module_branch:1",
+        "rr_Bearing_5204:1",
+        "rr_retainer_plate:1",
+        "rr_AK45-36-KV80:1",
+        "rr_fasteners_base:1",
+        "br_bogie_pivot_in_hub_L60_slot:1",
+        "br_bogie_pivot_in_arm1_tab:1",
+        "br_bogie_pivot_in_insert_PLA:1",
+        "br_bearing_6200DDU:1",
+        "br_fasteners_in:1",
+        "kr_cover_J1:1",
+        "kr_cover_J2:1",
+        "kr_inner_J1:1",
+        "kr_inner_J2:1",
+        "kr_inner_J3:1",
+        "kr_inner_J4:1",
+        "kr_link_J3:1",
+        "kr_bolts_J1A:1",
+        "kr_bolts_J1B:1",
+        "kr_bolts_J2A:1",
+        "kr_bolts_J2B:1",
+        "kr_bolts_J3A:1",
+        "kr_bolts_J4A:1",
+        "kr_bolts_J4B:1",
+        "kr_bolts_J3B:1",
+        "mag_R:1",
+        "bogie_enc_R:1"
+      ],
+      "mass_kg": 4.403364879586608,
+      "origin_world_m": [
+        0.0,
+        -0.188,
+        0.0
+      ],
+      "center_of_mass_world_m": [
+        -0.08176042676831642,
+        -0.25884878576181575,
+        -0.029700554407343427
+      ],
+      "center_of_mass_local_m": [
+        -0.08176042676831642,
+        -0.07084878576181575,
+        -0.029700554407343427
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.021639877813187935,
+          -0.006686350561212584,
+          -0.013541904417789508
+        ],
+        [
+          -0.006686350561212584,
+          0.1944505464382511,
+          -0.0037202237498806523
+        ],
+        [
+          -0.013541904417789508,
+          -0.0037202237498806523,
+          0.1864211780411103
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.02025567228724608,
+        0.18633600716186066,
+        0.1959199228434427
+      ]
+    },
+    {
+      "link": "mr_pin_PSFGR12-33",
+      "members": [
+        "mr_pin_PSFGR12-33:1",
+        "mr_STWS12:1",
+        "mr_suspension_conector_bearing:1",
+        "mr_rod_end_M10_A_ball:1",
+        "mr_rod_end_A_bolt_GMSB10_20:1",
+        "mr_rod_end_A_nut_M8:1"
+      ],
+      "mass_kg": 0.1465587300722918,
+      "origin_world_m": [
+        2.3811046472652565e-17,
+        -0.2055,
+        0.14795049255340714
+      ],
+      "center_of_mass_world_m": [
+        -0.0279939565435324,
+        -0.20550000002429833,
+        0.14802130103799005
+      ],
+      "center_of_mass_local_m": [
+        -0.027993956543532424,
+        -2.4298341116946176e-11,
+        7.080848458290712e-05
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          2.8147521130323858e-05,
+          -1.1260306922999952e-14,
+          1.8066962771310334e-07
+        ],
+        [
+          -1.1260306922999952e-14,
+          9.32391275229958e-05,
+          2.0816681711721685e-16
+        ],
+        [
+          1.8066962771310334e-07,
+          2.0816681711721685e-16,
+          8.72935705296847e-05
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        2.8146969255597757e-05,
+        8.729412240441086e-05,
+        9.323912752299587e-05
+      ]
+    },
+    {
+      "link": "rr_kingpin_flange",
+      "members": [
+        "rr_kingpin_flange:1",
+        "rr_STWS20:1",
+        "rr_coupling:1",
+        "rr_new_motor_bracket:1",
+        "rr_C-KEG5-22:1",
+        "rr_C-KEG6-25:1",
+        "rr_AK45-36_flange:1",
+        "rr_snapring_spacer_PLA:1",
+        "rr_double_d_washer:1",
+        "rr_flange_nut_M14:1",
+        "rr_fasteners_steer:1"
+      ],
+      "mass_kg": 0.9302699674701217,
+      "origin_world_m": [
+        -0.35172000000000003,
+        -0.27649999999999997,
+        -0.1639010583946805
+      ],
+      "center_of_mass_world_m": [
+        -0.35171432117187257,
+        -0.2579164324517202,
+        -0.17635608719860899
+      ],
+      "center_of_mass_local_m": [
+        5.6788281274644525e-06,
+        0.018583567548279778,
+        -0.012455028803928486
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.005829683250990689,
+          8.037862648802019e-07,
+          -4.531079381982217e-06
+        ],
+        [
+          8.037862648802019e-07,
+          0.00501590817233491,
+          0.0014568823745446102
+        ],
+        [
+          -4.531079381982217e-06,
+          0.0014568823745446102,
+          0.0014247980688087691
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.0009080937153180757,
+        0.005532606410441955,
+        0.005829689366374338
+      ]
+    },
+    {
+      "link": "rr_bl70200s",
+      "members": [
+        "rr_bl70200s:1"
+      ],
+      "mass_kg": 4.500000717967318,
+      "origin_world_m": [
+        -0.35172000000000003,
+        -0.2735,
+        -0.3273784583946805
+      ],
+      "center_of_mass_world_m": [
+        -0.35171999224712963,
+        -0.2733569791455554,
+        -0.3273784548882289
+      ],
+      "center_of_mass_local_m": [
+        7.752870401223078e-09,
+        0.00014302085444461987,
+        3.5064515735427904e-09
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.012835133070797422,
+          -1.6969361471552702e-09,
+          -1.6184136253372117e-09
+        ],
+        [
+          -1.6969361471552702e-09,
+          0.021583932680125928,
+          5.006577374899734e-10
+        ],
+        [
+          -1.6184136253372117e-09,
+          5.006577374899734e-10,
+          0.012835096056205475
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.012835095985577244,
+        0.012835133141425294,
+        0.021583932680126285
+      ]
+    },
+    {
+      "link": "br_bogie_pivot_out_hub_L60_slot",
+      "members": [
+        "br_bogie_pivot_out_hub_L60_slot:1",
+        "br_bogie_pivot_out_arm1_tab:1",
+        "br_bogie_pivot_out_arm2_tab:1",
+        "br_bogie_pivot_out_insert_PLA:1",
+        "br_shim_10x14x0.5:1",
+        "br_shaft_PSFGR10-120:1",
+        "br_STWS10:1",
+        "br_fasteners_out:1",
+        "fr_servo_mount_cover:1",
+        "fr_front_wheel_module_insert_PLA:1",
+        "fr_front_wheel_module_vertical:1",
+        "fr_front_wheel_module_branch:1",
+        "fr_Bearing_5204:1",
+        "fr_retainer_plate:1",
+        "fr_AK45-36-KV80:1",
+        "fr_fasteners_base:1",
+        "cr_new_center_wheel_module:1",
+        "cr_new_center_wheel_module_cover:1",
+        "cr_double_d_washer:1",
+        "cr_flange_nut_M14:1",
+        "cr_fasteners_base:1",
+        "kr_inner_J5:1",
+        "kr_inner_J6:1",
+        "kr_link_J5:1",
+        "kr_link_J6:1",
+        "kr_bolts_J5A:1",
+        "kr_bolts_J5B:1",
+        "kr_bolts_J6A:1",
+        "kr_bolts_J6B:1",
+        "bogie_mag_R:1"
+      ],
+      "mass_kg": 2.847907077397591,
+      "origin_world_m": [
+        0.2387207696376092,
+        -0.3067499999999826,
+        -0.09931129892388085
+      ],
+      "center_of_mass_world_m": [
+        0.3440899567073212,
+        -0.3364589152989334,
+        -0.12597406309756626
+      ],
+      "center_of_mass_local_m": [
+        0.10536918706971199,
+        -0.02970891529895081,
+        -0.026662764173685405
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.01924263423162803,
+          -5.5995316128931716e-05,
+          -0.02881739854493065
+        ],
+        [
+          -5.5995316128931716e-05,
+          0.10223150678289661,
+          -0.0002743586722366437
+        ],
+        [
+          -0.02881739854493065,
+          -0.0002743586722366437,
+          0.0852433100461727
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.008431039471206764,
+        0.09604557315628004,
+        0.10224083843321054
+      ]
+    },
+    {
+      "link": "fr_kingpin_flange",
+      "members": [
+        "fr_kingpin_flange:1",
+        "fr_STWS20:1",
+        "fr_coupling:1",
+        "fr_new_motor_bracket:1",
+        "fr_C-KEG5-22:1",
+        "fr_C-KEG6-25:1",
+        "fr_AK45-36_flange:1",
+        "fr_snapring_spacer_PLA:1",
+        "fr_double_d_washer:1",
+        "fr_flange_nut_M14:1",
+        "fr_fasteners_steer:1"
+      ],
+      "mass_kg": 0.9302699674701225,
+      "origin_world_m": [
+        0.52377,
+        -0.3369999999999652,
+        -0.1639010583946805
+      ],
+      "center_of_mass_world_m": [
+        0.5237756788281273,
+        -0.3184164324516855,
+        -0.17635608719860899
+      ],
+      "center_of_mass_local_m": [
+        5.678828127297919e-06,
+        0.018583567548279722,
+        -0.012455028803928486
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.005829683250990647,
+          8.03786264935713e-07,
+          -4.5310793819614e-06
+        ],
+        [
+          8.03786264935713e-07,
+          0.0050159081723349375,
+          0.001456882374544624
+        ],
+        [
+          -4.5310793819614e-06,
+          0.001456882374544624,
+          0.0014247980688087414
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.0009080937153180447,
+        0.005532606410441985,
+        0.005829689366374297
+      ]
+    },
+    {
+      "link": "fr_bl70200s",
+      "members": [
+        "fr_bl70200s:1"
+      ],
+      "mass_kg": 4.50000071796732,
+      "origin_world_m": [
+        0.52377,
+        -0.33399999999996527,
+        -0.3273784583946805
+      ],
+      "center_of_mass_world_m": [
+        0.5237700037306615,
+        -0.3338569788675691,
+        -0.3273784548882291
+      ],
+      "center_of_mass_local_m": [
+        3.7306615574550506e-09,
+        0.00014302113239617054,
+        3.5064514070093367e-09
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.012835133830290224,
+          3.905931467151902e-09,
+          4.307117773549862e-09
+        ],
+        [
+          3.905931467151902e-09,
+          0.021583935794222242,
+          9.117845367612176e-11
+        ],
+        [
+          4.307117773549862e-09,
+          9.117845367612176e-11,
+          0.012835099929793703
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.012835099391126039,
+        0.012835134368956143,
+        0.021583935794223987
+      ]
+    },
+    {
+      "link": "cr_bl70200s",
+      "members": [
+        "cr_bl70200s:1"
+      ],
+      "mass_kg": 4.500000677938026,
+      "origin_world_m": [
+        0.025300000000000003,
+        -0.4219999999988304,
+        -0.32736851880736006
+      ],
+      "center_of_mass_world_m": [
+        0.025299998394346372,
+        -0.421856978363017,
+        -0.3273685238294328
+      ],
+      "center_of_mass_local_m": [
+        -1.6056536308872715e-09,
+        0.00014302163581342286,
+        -5.022072757654428e-09
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.012835098100656861,
+          2.542334648358846e-09,
+          -2.974460587557015e-09
+        ],
+        [
+          2.542334648358846e-09,
+          0.0215839297196726,
+          -3.0019881025467043e-09
+        ],
+        [
+          -2.974460587557015e-09,
+          -3.0019881025467043e-09,
+          0.012835132309207076
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.012835097843950911,
+        0.012835132565911256,
+        0.021583929719674374
+      ]
+    },
+    {
+      "link": "mr_rod_end_M10_A_housing",
+      "members": [
+        "mr_rod_end_M10_A_housing:1",
+        "mr_bearing_connector:1",
+        "mr_rod_end_M10_B_housing:1"
+      ],
+      "mass_kg": 0.09860864530743585,
+      "origin_world_m": [
+        -0.05050000000001286,
+        -0.20550000000000002,
+        0.14795049255340273
+      ],
+      "center_of_mass_world_m": [
+        -0.10849999999999904,
+        -0.2054999999997799,
+        0.14795205946937445
+      ],
+      "center_of_mass_local_m": [
+        -0.05799999999998618,
+        2.2012947020755291e-13,
+        1.566915971723537e-06
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          4.033564185219017e-06,
+          6.132472867188821e-10,
+          -7.806255641895632e-18
+        ],
+        [
+          6.132472867188821e-10,
+          0.0001745927312957027,
+          0.0
+        ],
+        [
+          -7.806255641895632e-18,
+          0.0,
+          0.00017693763251888216
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        4.03356418301408e-06,
+        0.00017459273129790764,
+        0.00017693763251888216
+      ]
+    },
+    {
+      "link": "arm_link1",
+      "members": [
+        "arm_link1:1"
+      ],
+      "mass_kg": 1.5812340066248771,
+      "origin_world_m": [
+        0.1565,
+        0.0,
+        0.1321
+      ],
+      "center_of_mass_world_m": [
+        0.16410856515395308,
+        -0.013550345309631591,
+        0.19004469841856025
+      ],
+      "center_of_mass_local_m": [
+        0.007608565153953084,
+        -0.013550345309631591,
+        0.05794469841856026
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.004051876148821167,
+          5.612230878689539e-05,
+          -0.0001231805045625728
+        ],
+        [
+          5.612230878689539e-05,
+          0.0023403441105876582,
+          0.00031417170867843215
+        ],
+        [
+          -0.0001231805045625728,
+          0.00031417170867843215,
+          0.003611124628712062
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.002263075919565191,
+        0.003655901526386644,
+        0.00408436744216905
+      ]
+    },
+    {
+      "link": "arm_link2",
+      "members": [
+        "arm_link2:1"
+      ],
+      "mass_kg": 1.8743422671527235,
+      "origin_world_m": [
+        0.16671,
+        0.0,
+        0.2
+      ],
+      "center_of_mass_world_m": [
+        -0.0698176072492307,
+        -0.022956074374751195,
+        0.24141269772200602
+      ],
+      "center_of_mass_local_m": [
+        -0.2365276072492307,
+        -0.022956074374751195,
+        0.04141269772200601
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.008106590457609905,
+          -0.0013693537999269097,
+          0.004214088007145178
+        ],
+        [
+          -0.0013693537999269097,
+          0.02102796950405822,
+          0.000638450463909682
+        ],
+        [
+          0.004214088007145178,
+          0.000638450463909682,
+          0.024755493883027026
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.006945088247988088,
+        0.021163780499911078,
+        0.025781185096795993
+      ]
+    },
+    {
+      "link": "ml_rod_end_A_dummy_1",
+      "members": [],
+      "origin_world_m": [
+        -0.05050000000000001,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "mass_kg": 0.001,
+      "center_of_mass_world_m": [
+        -0.05050000000000001,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "center_of_mass_local_m": [
+        0,
+        0,
+        0
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          4.166666666666667e-09,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          4.166666666666667e-09,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          4.166666666666667e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        4.166666666666667e-09,
+        4.166666666666667e-09,
+        4.166666666666667e-09
+      ],
+      "virtual": true,
+      "native_helper_cube_mm": 5,
+      "inertial_policy": "1 g numerical surrogate; not a measured robot part; tune on target physics runtime"
+    },
+    {
+      "link": "ml_rod_end_A_dummy_2",
+      "members": [],
+      "origin_world_m": [
+        -0.05050000000000001,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "mass_kg": 0.001,
+      "center_of_mass_world_m": [
+        -0.05050000000000001,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "center_of_mass_local_m": [
+        0,
+        0,
+        0
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          4.166666666666667e-09,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          4.166666666666667e-09,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          4.166666666666667e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        4.166666666666667e-09,
+        4.166666666666667e-09,
+        4.166666666666667e-09
+      ],
+      "virtual": true,
+      "native_helper_cube_mm": 5,
+      "inertial_policy": "1 g numerical surrogate; not a measured robot part; tune on target physics runtime"
+    },
+    {
+      "link": "ml_rod_end_B_dummy_1",
+      "members": [],
+      "origin_world_m": [
+        -0.16649999999999998,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "mass_kg": 0.001,
+      "center_of_mass_world_m": [
+        -0.16649999999999998,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "center_of_mass_local_m": [
+        0,
+        0,
+        0
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          4.166666666666667e-09,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          4.166666666666667e-09,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          4.166666666666667e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        4.166666666666667e-09,
+        4.166666666666667e-09,
+        4.166666666666667e-09
+      ],
+      "virtual": true,
+      "native_helper_cube_mm": 5,
+      "inertial_policy": "1 g numerical surrogate; not a measured robot part; tune on target physics runtime"
+    },
+    {
+      "link": "ml_rod_end_B_dummy_2",
+      "members": [],
+      "origin_world_m": [
+        -0.16649999999999998,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "mass_kg": 0.001,
+      "center_of_mass_world_m": [
+        -0.16649999999999998,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "center_of_mass_local_m": [
+        0,
+        0,
+        0
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          4.166666666666667e-09,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          4.166666666666667e-09,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          4.166666666666667e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        4.166666666666667e-09,
+        4.166666666666667e-09,
+        4.166666666666667e-09
+      ],
+      "virtual": true,
+      "native_helper_cube_mm": 5,
+      "inertial_policy": "1 g numerical surrogate; not a measured robot part; tune on target physics runtime"
+    },
+    {
+      "link": "mr_rod_end_A_dummy_1",
+      "members": [],
+      "origin_world_m": [
+        -0.050499999999993,
+        -0.20550000004399935,
+        0.1479504925534161
+      ],
+      "mass_kg": 0.001,
+      "center_of_mass_world_m": [
+        -0.050499999999993,
+        -0.20550000004399935,
+        0.1479504925534161
+      ],
+      "center_of_mass_local_m": [
+        0,
+        0,
+        0
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          4.166666666666667e-09,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          4.166666666666667e-09,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          4.166666666666667e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        4.166666666666667e-09,
+        4.166666666666667e-09,
+        4.166666666666667e-09
+      ],
+      "virtual": true,
+      "native_helper_cube_mm": 5,
+      "inertial_policy": "1 g numerical surrogate; not a measured robot part; tune on target physics runtime"
+    },
+    {
+      "link": "mr_rod_end_A_dummy_2",
+      "members": [],
+      "origin_world_m": [
+        -0.050499999999993,
+        -0.20550000004399935,
+        0.1479504925534161
+      ],
+      "mass_kg": 0.001,
+      "center_of_mass_world_m": [
+        -0.050499999999993,
+        -0.20550000004399935,
+        0.1479504925534161
+      ],
+      "center_of_mass_local_m": [
+        0,
+        0,
+        0
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          4.166666666666667e-09,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          4.166666666666667e-09,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          4.166666666666667e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        4.166666666666667e-09,
+        4.166666666666667e-09,
+        4.166666666666667e-09
+      ],
+      "virtual": true,
+      "native_helper_cube_mm": 5,
+      "inertial_policy": "1 g numerical surrogate; not a measured robot part; tune on target physics runtime"
+    },
+    {
+      "link": "mr_rod_end_B_dummy_1",
+      "members": [],
+      "origin_world_m": [
+        -0.16649999999999998,
+        -0.20550000000000002,
+        0.1479504925534066
+      ],
+      "mass_kg": 0.001,
+      "center_of_mass_world_m": [
+        -0.16649999999999998,
+        -0.20550000000000002,
+        0.1479504925534066
+      ],
+      "center_of_mass_local_m": [
+        0,
+        0,
+        0
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          4.166666666666667e-09,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          4.166666666666667e-09,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          4.166666666666667e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        4.166666666666667e-09,
+        4.166666666666667e-09,
+        4.166666666666667e-09
+      ],
+      "virtual": true,
+      "native_helper_cube_mm": 5,
+      "inertial_policy": "1 g numerical surrogate; not a measured robot part; tune on target physics runtime"
+    },
+    {
+      "link": "mr_rod_end_B_dummy_2",
+      "members": [],
+      "origin_world_m": [
+        -0.16649999999999998,
+        -0.20550000000000002,
+        0.1479504925534066
+      ],
+      "mass_kg": 0.001,
+      "center_of_mass_world_m": [
+        -0.16649999999999998,
+        -0.20550000000000002,
+        0.1479504925534066
+      ],
+      "center_of_mass_local_m": [
+        0,
+        0,
+        0
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          4.166666666666667e-09,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          4.166666666666667e-09,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          4.166666666666667e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        4.166666666666667e-09,
+        4.166666666666667e-09,
+        4.166666666666667e-09
+      ],
+      "virtual": true,
+      "native_helper_cube_mm": 5,
+      "inertial_policy": "1 g numerical surrogate; not a measured robot part; tune on target physics runtime"
+    },
+    {
+      "link": "tool_link",
+      "members": [
+        "tool_link:1"
+      ],
+      "origin_world_m": [
+        0.13171205613152961,
+        0.0002500000000000124,
+        0.3200642840751583
+      ],
+      "mass_kg": 0.3770881443665961,
+      "center_of_mass_local_m": [
+        0.06540773143038173,
+        -0.0005566644564208425,
+        7.142304520145277e-05
+      ],
+      "center_of_mass_world_m": [
+        0.19711978756191134,
+        -0.0003066644564208301,
+        0.32013570712035977
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.0003853594995451372,
+          -1.2172058131179393e-05,
+          7.346118252302746e-08
+        ],
+        [
+          -1.2172058131179393e-05,
+          0.0005638275599672939,
+          -4.303638182270035e-08
+        ],
+        [
+          7.346118252302745e-08,
+          -4.3036381822700326e-08,
+          0.0006792685939668358
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.00038453313794178874,
+        0.0005646538847362089,
+        0.0006792686308012694
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "pinion_A",
+      "members": [
+        "pinion_A:1"
+      ],
+      "origin_world_m": [
+        0.34725999999999957,
+        0.02025011367151781,
+        0.32006903895576844
+      ],
+      "mass_kg": 0.011264328436833141,
+      "center_of_mass_local_m": [
+        0.004932649050917843,
+        6.664055834210834e-10,
+        4.402777903724334e-08
+      ],
+      "center_of_mass_world_m": [
+        0.3521926490509174,
+        0.020250114337923394,
+        0.32006908298354747
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          1.9940125646376537e-06,
+          -6.63609891884429e-18,
+          -3.3352937030675367e-14
+        ],
+        [
+          -6.63609891884429e-18,
+          1.1010589756364536e-06,
+          -4.0725890431640716e-12
+        ],
+        [
+          -3.3352937030675367e-14,
+          -4.07258904316409e-12,
+          1.080590202914354e-06
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        1.994012564637655e-06,
+        1.10105897644676e-06,
+        1.080590202104046e-06
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "pinion_B",
+      "members": [
+        "pinion_B:1"
+      ],
+      "origin_world_m": [
+        0.34725999999999957,
+        -0.0197499999999999,
+        0.32006856815031626
+      ],
+      "mass_kg": 0.011264328436833036,
+      "center_of_mass_local_m": [
+        0.0049326490509177005,
+        6.664053644107517e-10,
+        4.4027778266796675e-08
+      ],
+      "center_of_mass_world_m": [
+        0.3521926490509173,
+        -0.019749999333594535,
+        0.3200686121780945
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          1.9940125646376114e-06,
+          -6.63609862650212e-18,
+          -3.335293534490597e-14
+        ],
+        [
+          -6.63609862650212e-18,
+          1.1010589756364348e-06,
+          -4.072589069596393e-12
+        ],
+        [
+          -3.335293534490597e-14,
+          -4.072589069596388e-12,
+          1.0805902029143298e-06
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        1.9940125646376127e-06,
+        1.101058976446741e-06,
+        1.0805902021040217e-06
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "finger_lower",
+      "members": [
+        "finger_lower:1"
+      ],
+      "origin_world_m": [
+        0.3472599999999994,
+        0.09489311367151794,
+        0.3373150973448641
+      ],
+      "mass_kg": 0.12497906211599866,
+      "center_of_mass_local_m": [
+        0.03524036147596884,
+        -0.1255165479178466,
+        -0.012667874221630269
+      ],
+      "center_of_mass_world_m": [
+        0.3825003614759682,
+        -0.03062343424632867,
+        0.3246472231232338
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.00017590194862186558,
+          4.229317343435631e-05,
+          1.768312578710725e-05
+        ],
+        [
+          4.22931734343563e-05,
+          0.0001256706045377105,
+          -2.981710496318021e-05
+        ],
+        [
+          1.768312578710725e-05,
+          -2.9817104963180213e-05,
+          0.00017946076816676232
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.00020002056293910288,
+        8.840367624816843e-05,
+        0.00019260908213906709
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "finger_upper",
+      "members": [
+        "finger_upper:1"
+      ],
+      "origin_world_m": [
+        0.3472599999999994,
+        -0.09432688632848216,
+        0.30282203895576837
+      ],
+      "mass_kg": 0.12499539250160592,
+      "center_of_mass_local_m": [
+        0.03524150446846664,
+        0.1255164493987507,
+        0.012674056440878186
+      ],
+      "center_of_mass_world_m": [
+        0.38250150446846604,
+        0.031189563070268544,
+        0.3154960953966466
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.0001759156877742481,
+          -4.229302612632022e-05,
+          -1.7689893255760855e-05
+        ],
+        [
+          -4.229302612632023e-05,
+          0.00012569154171970456,
+          -2.981863773634597e-05
+        ],
+        [
+          -1.7689893255760855e-05,
+          -2.981863773634597e-05,
+          0.00017946586353350587
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.00020003650037453844,
+        8.841804954555676e-05,
+        0.00019261854310736318
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "arm_link3",
+      "members": [
+        "arm_link3:1"
+      ],
+      "origin_world_m": [
+        -0.12629,
+        0.0,
+        0.26006
+      ],
+      "mass_kg": 1.0551309544077714,
+      "center_of_mass_local_m": [
+        0.14658847964245048,
+        -0.003973737642978022,
+        0.04806448658783136
+      ],
+      "center_of_mass_world_m": [
+        0.020298479642450462,
+        -0.003973737642978022,
+        0.30812448658783137
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.006971524821043759,
+          -0.0005393506183583469,
+          -0.0011644961701822746
+        ],
+        [
+          -0.0005393506183583469,
+          0.011174484186855238,
+          -0.00018646934340713113
+        ],
+        [
+          -0.0011644961701822746,
+          -0.00018646934340713113,
+          0.015342562589545982
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.006741876440218527,
+        0.01124224743939926,
+        0.015504447717827195
+      ],
+      "inertial_policy": "Native CAD material and total mass preserved while moving bodies to their kinematic links; motor4 housing remains 165g, new XL430 motors remain 57g each."
+    },
+    {
+      "link": "arm_link5",
+      "members": [
+        "arm_link5:1"
+      ],
+      "origin_world_m": [
+        0.23570999999999956,
+        0.0002500000000000036,
+        0.32006856815031626
+      ],
+      "mass_kg": 0.883872297063686,
+      "center_of_mass_local_m": [
+        0.07060915154547086,
+        -0.00023559462587603903,
+        0.0001875352313403084
+      ],
+      "center_of_mass_world_m": [
+        0.3063191515454704,
+        1.440537412396455e-05,
+        0.32025610338165655
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          0.0015589022591794997,
+          -1.3444044194201464e-05,
+          -2.3172521065605625e-05
+        ],
+        [
+          -1.3444044194201557e-05,
+          0.001530537954445259,
+          2.4583148834512963e-06
+        ],
+        [
+          -2.3172521065605632e-05,
+          2.4583148834512955e-06,
+          0.0022092490086612995
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        0.0015634835327294114,
+        0.0015251193853843374,
+        0.0022100863041723084
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "toolchanger_lock_rotor",
+      "members": [
+        "toolchanger_lock_rotor:1"
+      ],
+      "origin_world_m": [
+        0.2967626406871189,
+        0.00025000000000034993,
+        0.32006592746319656
+      ],
+      "mass_kg": 0.010211676067949933,
+      "center_of_mass_local_m": [
+        -0.004143167219784206,
+        1.4090502315149119e-05,
+        -3.9869512014942563e-07
+      ],
+      "center_of_mass_world_m": [
+        0.2926194734673347,
+        0.00026409050231549907,
+        0.3200655287680764
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          1.593581602413196e-06,
+          -6.604158501190711e-10,
+          6.288717860303724e-12
+        ],
+        [
+          -6.604158501190711e-10,
+          8.83855394013491e-07,
+          -1.1944832415035364e-11
+        ],
+        [
+          6.288717860303723e-12,
+          -1.1944832415035533e-11,
+          8.819415418685619e-07
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        1.5935822169999105e-06,
+        8.83854853981176e-07,
+        8.819414673141622e-07
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "toolchanger_ball_1",
+      "members": [
+        "toolchanger_ball_1:1"
+      ],
+      "origin_world_m": [
+        0.29151264068711885,
+        0.02284314575050793,
+        0.32006592746319645
+      ],
+      "mass_kg": 0.000332422390651848,
+      "center_of_mass_local_m": [
+        8.230927642459295e-17,
+        -3.3286078453467467e-16,
+        6.574388745863713e-16
+      ],
+      "center_of_mass_world_m": [
+        0.2915126406871189,
+        0.022843145750507596,
+        0.3200659274631971
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          2.1275033001718267e-09,
+          1.195600381317898e-24,
+          -3.6010779983195095e-25
+        ],
+        [
+          1.069392590359726e-24,
+          2.127503300171826e-09,
+          5.283070705508234e-25
+        ],
+        [
+          -3.155063569089495e-25,
+          5.111958923541279e-25,
+          2.127503300171828e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        2.127503300171828e-09,
+        2.127503300171825e-09,
+        2.127503300171828e-09
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "toolchanger_ball_2",
+      "members": [
+        "toolchanger_ball_2:1"
+      ],
+      "origin_world_m": [
+        0.29151264068711885,
+        0.01622576656852035,
+        0.3360416940317165
+      ],
+      "mass_kg": 0.000332422390651848,
+      "center_of_mass_local_m": [
+        7.765026077791788e-17,
+        -3.2406042164651064e-16,
+        7.107587203205417e-16
+      ],
+      "center_of_mass_world_m": [
+        0.2915126406871189,
+        0.01622576656852003,
+        0.33604169403171724
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          2.1275033001718267e-09,
+          0.0,
+          -9.853311697730672e-25
+        ],
+        [
+          0.0,
+          2.1275033001718296e-09,
+          0.0
+        ],
+        [
+          -9.853311697730672e-25,
+          0.0,
+          2.1275033001718267e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        2.1275033001718263e-09,
+        2.1275033001718296e-09,
+        2.1275033001718283e-09
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "toolchanger_ball_3",
+      "members": [
+        "toolchanger_ball_3:1"
+      ],
+      "origin_world_m": [
+        0.29151264068711885,
+        0.0002500000000003677,
+        0.34265907321370415
+      ],
+      "mass_kg": 0.000332422390651848,
+      "center_of_mass_local_m": [
+        8.023860280384848e-17,
+        -3.77897935785867e-16,
+        6.294847807063209e-16
+      ],
+      "center_of_mass_world_m": [
+        0.2915126406871189,
+        0.0002499999999999898,
+        0.34265907321370476
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          2.1275033001718254e-09,
+          1.1049646960838485e-24,
+          1.2827313774996209e-24
+        ],
+        [
+          1.0669722110428608e-24,
+          2.1275033001718254e-09,
+          1.6768717814991393e-24
+        ],
+        [
+          1.2908513358934383e-24,
+          1.5529475807002637e-24,
+          2.1275033001718263e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        2.127503300171829e-09,
+        2.1275033001718246e-09,
+        2.127503300171825e-09
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "toolchanger_ball_4",
+      "members": [
+        "toolchanger_ball_4:1"
+      ],
+      "origin_world_m": [
+        0.29151264068711885,
+        -0.015725766568519664,
+        0.3360416940317169
+      ],
+      "mass_kg": 0.000332422390651848,
+      "center_of_mass_local_m": [
+        8.023860280384848e-17,
+        -3.9964000880368408e-16,
+        2.707405759123404e-16
+      ],
+      "center_of_mass_world_m": [
+        0.2915126406871189,
+        -0.015725766568520063,
+        0.3360416940317172
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          2.127503300171828e-09,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          2.127503300171826e-09,
+          8.305581249901283e-25
+        ],
+        [
+          0.0,
+          8.372522663421589e-25,
+          2.1275033001718275e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        2.127503300171828e-09,
+        2.1275033001718254e-09,
+        2.127503300171828e-09
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "toolchanger_ball_5",
+      "members": [
+        "toolchanger_ball_5:1"
+      ],
+      "origin_world_m": [
+        0.29151264068711885,
+        -0.022343145750507207,
+        0.32006592746319656
+      ],
+      "mass_kg": 0.000332422390651848,
+      "center_of_mass_local_m": [
+        8.230927642459295e-17,
+        -3.9498099315700895e-16,
+        6.129193917403652e-16
+      ],
+      "center_of_mass_world_m": [
+        0.2915126406871189,
+        -0.022343145750507602,
+        0.3200659274631972
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          2.12750330017183e-09,
+          9.931432586157539e-25,
+          0.0
+        ],
+        [
+          9.631474842890746e-25,
+          2.127503300171828e-09,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          2.127503300171828e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        2.12750330017183e-09,
+        2.127503300171827e-09,
+        2.127503300171828e-09
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "toolchanger_ball_6",
+      "members": [
+        "toolchanger_ball_6:1"
+      ],
+      "origin_world_m": [
+        0.29151264068711885,
+        -0.015725766568519605,
+        0.3040901608946766
+      ],
+      "mass_kg": 0.000332422390651848,
+      "center_of_mass_local_m": [
+        8.90389656920125e-17,
+        -3.5977954160435285e-16,
+        4.974793373838605e-16
+      ],
+      "center_of_mass_world_m": [
+        0.29151264068711896,
+        -0.015725766568519966,
+        0.3040901608946771
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          2.12750330017183e-09,
+          -2.745598449093713e-24,
+          -1.1712097384419105e-24
+        ],
+        [
+          -2.7846707367649786e-24,
+          2.1275033001718296e-09,
+          -4.798164427564897e-25
+        ],
+        [
+          -1.1292668490803263e-24,
+          -5.322273275754503e-25,
+          2.127503300171832e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        2.1275033001718296e-09,
+        2.1275033001718263e-09,
+        2.1275033001718312e-09
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "toolchanger_ball_7",
+      "members": [
+        "toolchanger_ball_7:1"
+      ],
+      "origin_world_m": [
+        0.29151264068711885,
+        0.0002500000000003677,
+        0.29747278171268904
+      ],
+      "mass_kg": 0.000332422390651848,
+      "center_of_mass_local_m": [
+        8.437995004533743e-17,
+        -3.696152413028891e-16,
+        6.393204804048572e-16
+      ],
+      "center_of_mass_world_m": [
+        0.29151264068711896,
+        0.0002499999999999981,
+        0.2974727817126897
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          2.127503300171829e-09,
+          0.0,
+          8.146722917470933e-25
+        ],
+        [
+          0.0,
+          2.127503300171827e-09,
+          0.0
+        ],
+        [
+          7.021048608284595e-25,
+          0.0,
+          2.1275033001718283e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        2.1275033001718287e-09,
+        2.127503300171827e-09,
+        2.127503300171827e-09
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "toolchanger_ball_8",
+      "members": [
+        "toolchanger_ball_8:1"
+      ],
+      "origin_world_m": [
+        0.29151264068711885,
+        0.01622576656852036,
+        0.3040901608946766
+      ],
+      "mass_kg": 0.000332422390651848,
+      "center_of_mass_local_m": [
+        1.2216974362392414e-16,
+        -3.131893851376021e-16,
+        4.6176021742601835e-16
+      ],
+      "center_of_mass_world_m": [
+        0.29151264068711896,
+        0.016225766568520046,
+        0.30409016089467705
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          2.127503300171828e-09,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          2.1275033001718263e-09,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          2.127503300171828e-09
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        2.127503300171828e-09,
+        2.1275033001718263e-09,
+        2.127503300171828e-09
+      ],
+      "inertial_policy": "Updated native geometry: PLA 1240 kg/m3, silicone CAD density, XL430 motors 57g each; OV5640 dummy native CAD mass placeholder pending measurement"
+    },
+    {
+      "link": "arm_link4",
+      "members": [
+        "arm_link4:1"
+      ],
+      "origin_world_m": [
+        0.13171205613152961,
+        0.021875000000000124,
+        0.3200642840751583
+      ],
+      "mass_kg": 0.010050507575702007,
+      "center_of_mass_local_m": [
+        3.0972481008641982e-06,
+        0.007069801586623896,
+        0.0006172337523261284
+      ],
+      "center_of_mass_world_m": [
+        0.13171515337963047,
+        0.02894480158662402,
+        0.32068151782748444
+      ],
+      "inertia_about_com_kgm2": [
+        [
+          1.0957042531937237e-06,
+          3.7945897703562566e-11,
+          -2.5447398518383843e-10
+        ],
+        [
+          3.7945897703562566e-11,
+          1.8641542561953634e-06,
+          4.648088302692478e-08
+        ],
+        [
+          -2.5447398518383843e-10,
+          4.648088302692478e-08,
+          1.2336323744011665e-06
+        ]
+      ],
+      "principal_inertia_kgm2": [
+        1.0957037633698823e-06,
+        1.2302248018478382e-06,
+        1.8675623185725318e-06
+      ],
+      "inertial_policy": "Native CAD material and total mass preserved while moving bodies to their kinematic links; motor4 housing remains 165g, new XL430 motors remain 57g each."
+    }
+  ],
+  "tree_joints": [
+    {
+      "name": "ml_rocker_joint",
+      "one": "ml_new_chassis_pivot:1",
+      "two": "base_link:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {},
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.5759586531581288,
+        "maximum_enabled": true,
+        "maximum_rad": 0.5358160803622591
+      },
+      "origin_cm": [
+        0.0,
+        18.8,
+        0.0
+      ],
+      "link_one": "ml_new_chassis_pivot",
+      "link_two": "base_link",
+      "parent": "base_link",
+      "child": "ml_new_chassis_pivot",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        0.0,
+        0.188,
+        0.0
+      ],
+      "type_for_export": "revolute",
+      "effort": null,
+      "velocity": null,
+      "limits_status": "CAD values, operating limits not confirmed"
+    },
+    {
+      "name": "mr_rocker_joint",
+      "one": "mr_new_chassis_pivot:1",
+      "two": "base_link:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {},
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.5759586531581288,
+        "maximum_enabled": true,
+        "maximum_rad": 0.5358160803622591
+      },
+      "origin_cm": [
+        0.0,
+        -18.8,
+        0.0
+      ],
+      "link_one": "mr_new_chassis_pivot",
+      "link_two": "base_link",
+      "parent": "base_link",
+      "child": "mr_new_chassis_pivot",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        0.0,
+        -0.188,
+        0.0
+      ],
+      "type_for_export": "revolute",
+      "effort": null,
+      "velocity": null,
+      "limits_status": "CAD values, operating limits not confirmed"
+    },
+    {
+      "name": "diff_bar_joint",
+      "one": "diff_bar:1",
+      "two": "base_link:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {},
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "angle_rad": 6.283185307179586,
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.5235987755982988,
+        "maximum_enabled": true,
+        "maximum_rad": 0.5235987755982988
+      },
+      "origin_cm": [
+        -16.65000000000041,
+        -3.22590985262034e-14,
+        13.799999999999999
+      ],
+      "link_one": "ml_bar_differential_side",
+      "link_two": "base_link",
+      "parent": "base_link",
+      "child": "ml_bar_differential_side",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "origin_world_m": [
+        -0.16650000000000412,
+        -3.22590985262034e-16,
+        0.13799999999999998
+      ],
+      "type_for_export": "revolute",
+      "effort": null,
+      "velocity": null,
+      "limits_status": "CAD values, operating limits not confirmed"
+    },
+    {
+      "name": "arm_J1_yaw",
+      "one": "arm_link1:1",
+      "two": "arm_axis1_motor:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {
+        "actuator_model": "ROBOTIS XM540-W270-T",
+        "rotation_cable": "none_per_user",
+        "limit_status": "user_adjusted_20261007"
+      },
+      "axis": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "angle_rad": 0.0,
+      "limits": null,
+      "origin_cm": [
+        15.65,
+        0.0,
+        13.209999999999999
+      ],
+      "link_one": "arm_link1",
+      "link_two": "base_link",
+      "parent": "base_link",
+      "child": "arm_link1",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "origin_world_m": [
+        0.1565,
+        0.0,
+        0.1321
+      ],
+      "type_for_export": "continuous",
+      "effort": 5.0,
+      "velocity": 3.1415926535897927,
+      "limits_status": "User-adjusted actual arm rotation range from rover_assembly v168; synchronized to prepared Fusion design and package; not independently interference-tested this revision.",
+      "angular_limit_policy": "User disabled both angle limits in Fusion; exported continuous.",
+      "actuator_limit_policy": "Current public-spec envelope with explicit provisional active cap; see manufacturer_models.json",
+      "model": "XM540-W270-T",
+      "external_ratio": 1.0
+    },
+    {
+      "name": "rl_steer_joint",
+      "one": "rl_AK45-36_flange:1",
+      "two": "rl_AK45-36-KV80:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {},
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -1.5707963267948966,
+        "maximum_enabled": true,
+        "maximum_rad": 1.5707963267948966
+      },
+      "origin_cm": [
+        -35.172000000000004,
+        27.65,
+        -16.39010583946805
+      ],
+      "link_one": "rl_kingpin_flange",
+      "link_two": "ml_new_chassis_pivot",
+      "parent": "ml_new_chassis_pivot",
+      "child": "rl_kingpin_flange",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "origin_world_m": [
+        -0.35172000000000003,
+        0.27649999999999997,
+        -0.1639010583946805
+      ],
+      "type_for_export": "revolute",
+      "effort": 8.0,
+      "velocity": 5.445427266222309,
+      "limits_status": "CAD values, operating limits not confirmed",
+      "actuator_limit_policy": "AK45 manufacturer8Nm active with speed/torque envelope; peak disabled"
+    },
+    {
+      "name": "bl_bogie_joint",
+      "one": "bl_bogie_pivot_out_hub_L60_slot:1",
+      "two": "bl_bogie_pivot_in_hub_L60_slot:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {},
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.7853981633974483,
+        "maximum_enabled": true,
+        "maximum_rad": 0.7853981633974483
+      },
+      "origin_cm": [
+        23.872076963760918,
+        30.67499999999826,
+        -9.931129892388086
+      ],
+      "link_one": "bl_bogie_pivot_out_hub_L60_slot",
+      "link_two": "ml_new_chassis_pivot",
+      "parent": "ml_new_chassis_pivot",
+      "child": "bl_bogie_pivot_out_hub_L60_slot",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        0.2387207696376092,
+        0.3067499999999826,
+        -0.09931129892388085
+      ],
+      "type_for_export": "revolute",
+      "effort": null,
+      "velocity": null,
+      "limits_status": "CAD values, operating limits not confirmed"
+    },
+    {
+      "name": "ml_connector_joint",
+      "one": "ml_new_chassis_pivot:1",
+      "two": "ml_suspension_conector_bearing:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {},
+      "axis": [
+        3.5638159090467424e-14,
+        1.0,
+        0.0
+      ],
+      "angle_rad": 6.283185307179586,
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -2.0943951023931953,
+        "maximum_enabled": true,
+        "maximum_rad": 0.5148721293383273
+      },
+      "origin_cm": [
+        -4.410874305122901e-16,
+        20.549999999999994,
+        14.795049255340619
+      ],
+      "link_one": "ml_new_chassis_pivot",
+      "link_two": "ml_pin_PSFGR12-33",
+      "parent": "ml_new_chassis_pivot",
+      "child": "ml_pin_PSFGR12-33",
+      "rotation_sign": 1,
+      "axis_world": [
+        -3.5638159090467424e-14,
+        -1.0,
+        -0.0
+      ],
+      "origin_world_m": [
+        -4.4108743051229015e-18,
+        0.20549999999999993,
+        0.1479504925534062
+      ],
+      "type_for_export": "revolute",
+      "effort": null,
+      "velocity": null,
+      "limits_status": "Source CAD range retained; sign verified by actual relative link transforms; passive bearing shaft with snap rings.",
+      "source_native_to_usd_sign": 1,
+      "prepared_native_to_usd_sign": -1
+    },
+    {
+      "name": "rr_steer_joint",
+      "one": "rr_AK45-36_flange:1",
+      "two": "rr_AK45-36-KV80:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {},
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -1.5707963267948966,
+        "maximum_enabled": true,
+        "maximum_rad": 1.5707963267948966
+      },
+      "origin_cm": [
+        -35.172000000000004,
+        -27.65,
+        -16.39010583946805
+      ],
+      "link_one": "rr_kingpin_flange",
+      "link_two": "mr_new_chassis_pivot",
+      "parent": "mr_new_chassis_pivot",
+      "child": "rr_kingpin_flange",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "origin_world_m": [
+        -0.35172000000000003,
+        -0.27649999999999997,
+        -0.1639010583946805
+      ],
+      "type_for_export": "revolute",
+      "effort": 8.0,
+      "velocity": 5.445427266222309,
+      "limits_status": "CAD values, operating limits not confirmed",
+      "actuator_limit_policy": "AK45 manufacturer8Nm active with speed/torque envelope; peak disabled"
+    },
+    {
+      "name": "br_bogie_joint",
+      "one": "br_bogie_pivot_out_hub_L60_slot:1",
+      "two": "br_bogie_pivot_in_hub_L60_slot:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {},
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.7853981633974483,
+        "maximum_enabled": true,
+        "maximum_rad": 0.7853981633974483
+      },
+      "origin_cm": [
+        23.872076963760918,
+        -30.67499999999826,
+        -9.931129892388086
+      ],
+      "link_one": "br_bogie_pivot_out_hub_L60_slot",
+      "link_two": "mr_new_chassis_pivot",
+      "parent": "mr_new_chassis_pivot",
+      "child": "br_bogie_pivot_out_hub_L60_slot",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        0.2387207696376092,
+        -0.3067499999999826,
+        -0.09931129892388085
+      ],
+      "type_for_export": "revolute",
+      "effort": null,
+      "velocity": null,
+      "limits_status": "CAD values, operating limits not confirmed"
+    },
+    {
+      "name": "mr_connector_joint",
+      "one": "mr_new_chassis_pivot:1",
+      "two": "mr_suspension_conector_bearing:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {},
+      "axis": [
+        -8.567524338859944e-17,
+        1.0000000000000078,
+        -3.0376198236262483e-17
+      ],
+      "angle_rad": 6.283185307179586,
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -2.0943951023931953,
+        "maximum_enabled": true,
+        "maximum_rad": 0.5148721293383273
+      },
+      "origin_cm": [
+        2.3811046472652566e-15,
+        -20.549999999999997,
+        14.795049255340713
+      ],
+      "link_one": "mr_new_chassis_pivot",
+      "link_two": "mr_pin_PSFGR12-33",
+      "parent": "mr_new_chassis_pivot",
+      "child": "mr_pin_PSFGR12-33",
+      "rotation_sign": 1,
+      "axis_world": [
+        8.567524338859944e-17,
+        -1.0000000000000078,
+        3.0376198236262483e-17
+      ],
+      "origin_world_m": [
+        2.3811046472652565e-17,
+        -0.2055,
+        0.14795049255340714
+      ],
+      "type_for_export": "revolute",
+      "effort": null,
+      "velocity": null,
+      "limits_status": "Source CAD range retained; sign verified by actual relative link transforms; passive bearing shaft with snap rings.",
+      "source_native_to_usd_sign": 1,
+      "prepared_native_to_usd_sign": -1
+    },
+    {
+      "name": "arm_J2_shoulder",
+      "one": "arm_link2:1",
+      "two": "arm_link1:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {
+        "limit_status": "user_adjusted_20261007"
+      },
+      "axis": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_rad": -3.141592653589793,
+        "maximum_rad": 0.0
+      },
+      "origin_cm": [
+        16.671,
+        0.0,
+        20.0
+      ],
+      "link_one": "arm_link2",
+      "link_two": "arm_link1",
+      "parent": "arm_link1",
+      "child": "arm_link2",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        0.16671,
+        0.0,
+        0.2
+      ],
+      "type_for_export": "revolute",
+      "effort": 30.0,
+      "velocity": 0.3141592653589793,
+      "limits_status": "User-adjusted actual arm rotation range from rover_assembly v168; synchronized to prepared Fusion design and package; not independently interference-tested this revision.",
+      "angular_limit_policy": "User-defined native Fusion limits",
+      "actuator_limit_policy": "Current public-spec envelope with explicit provisional active cap; see manufacturer_models.json",
+      "model": "XM540-W270-T",
+      "external_ratio": 10.0
+    },
+    {
+      "name": "rl_wheel_joint",
+      "one": "rl_bl70200s:1",
+      "two": "rl_new_motor_bracket:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {
+        "type": "continuous",
+        "effort_status": "pending_user_input",
+        "velocity_status": "pending_user_input"
+      },
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": false,
+        "minimum_rad": 0.0,
+        "maximum_enabled": false,
+        "maximum_rad": 0.0
+      },
+      "origin_cm": [
+        -35.17200000000001,
+        27.35,
+        -32.73784583946813
+      ],
+      "link_one": "rl_bl70200s",
+      "link_two": "rl_kingpin_flange",
+      "parent": "rl_kingpin_flange",
+      "child": "rl_bl70200s",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        -0.35172000000000014,
+        0.2735,
+        -0.32737845839468127
+      ],
+      "type_for_export": "continuous",
+      "effort": 14.2965,
+      "velocity": null,
+      "limits_status": "CAD values, operating limits not confirmed",
+      "actuator_limit_policy": "Project ODrive48V9A Kt.353 external5 efficiency.9 provisional"
+    },
+    {
+      "name": "fl_steer_joint",
+      "one": "fl_AK45-36_flange:1",
+      "two": "fl_AK45-36-KV80:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {},
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -1.5707963267948966,
+        "maximum_enabled": true,
+        "maximum_rad": 1.5707963267948966
+      },
+      "origin_cm": [
+        52.376999999999995,
+        33.69999999999652,
+        -16.39010583946805
+      ],
+      "link_one": "fl_kingpin_flange",
+      "link_two": "bl_bogie_pivot_out_hub_L60_slot",
+      "parent": "bl_bogie_pivot_out_hub_L60_slot",
+      "child": "fl_kingpin_flange",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "origin_world_m": [
+        0.52377,
+        0.3369999999999652,
+        -0.1639010583946805
+      ],
+      "type_for_export": "revolute",
+      "effort": 8.0,
+      "velocity": 5.445427266222309,
+      "limits_status": "CAD values, operating limits not confirmed",
+      "actuator_limit_policy": "AK45 manufacturer8Nm active with speed/torque envelope; peak disabled"
+    },
+    {
+      "name": "cl_wheel_joint",
+      "one": "cl_bl70200s:1",
+      "two": "cl_new_center_wheel_module:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {
+        "type": "continuous",
+        "effort_status": "pending_user_input",
+        "velocity_status": "pending_user_input"
+      },
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": false,
+        "minimum_rad": 0.0,
+        "maximum_enabled": false,
+        "maximum_rad": 0.0
+      },
+      "origin_cm": [
+        2.53,
+        42.19999999988304,
+        -32.73784551689725
+      ],
+      "link_one": "cl_bl70200s",
+      "link_two": "bl_bogie_pivot_out_hub_L60_slot",
+      "parent": "bl_bogie_pivot_out_hub_L60_slot",
+      "child": "cl_bl70200s",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        0.0253,
+        0.4219999999988304,
+        -0.3273784551689725
+      ],
+      "type_for_export": "continuous",
+      "effort": 14.2965,
+      "velocity": null,
+      "limits_status": "CAD values, operating limits not confirmed",
+      "actuator_limit_policy": "Project ODrive48V9A Kt.353 external5 efficiency.9 provisional"
+    },
+    {
+      "name": "rr_wheel_joint",
+      "one": "rr_bl70200s:1",
+      "two": "rr_new_motor_bracket:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {
+        "type": "continuous",
+        "effort_status": "pending_user_input",
+        "velocity_status": "pending_user_input"
+      },
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": false,
+        "minimum_rad": 0.0,
+        "maximum_enabled": false,
+        "maximum_rad": 0.0
+      },
+      "origin_cm": [
+        -35.172000000000004,
+        -27.35,
+        -32.73784583946805
+      ],
+      "link_one": "rr_bl70200s",
+      "link_two": "rr_kingpin_flange",
+      "parent": "rr_kingpin_flange",
+      "child": "rr_bl70200s",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        -0.35172000000000003,
+        -0.2735,
+        -0.3273784583946805
+      ],
+      "type_for_export": "continuous",
+      "effort": 14.2965,
+      "velocity": null,
+      "limits_status": "CAD values, operating limits not confirmed",
+      "actuator_limit_policy": "Project ODrive48V9A Kt.353 external5 efficiency.9 provisional"
+    },
+    {
+      "name": "fr_steer_joint",
+      "one": "fr_AK45-36_flange:1",
+      "two": "fr_AK45-36-KV80:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {},
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -1.5707963267948966,
+        "maximum_enabled": true,
+        "maximum_rad": 1.5707963267948966
+      },
+      "origin_cm": [
+        52.376999999999995,
+        -33.69999999999652,
+        -16.39010583946805
+      ],
+      "link_one": "fr_kingpin_flange",
+      "link_two": "br_bogie_pivot_out_hub_L60_slot",
+      "parent": "br_bogie_pivot_out_hub_L60_slot",
+      "child": "fr_kingpin_flange",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "origin_world_m": [
+        0.52377,
+        -0.3369999999999652,
+        -0.1639010583946805
+      ],
+      "type_for_export": "revolute",
+      "effort": 8.0,
+      "velocity": 5.445427266222309,
+      "limits_status": "CAD values, operating limits not confirmed",
+      "actuator_limit_policy": "AK45 manufacturer8Nm active with speed/torque envelope; peak disabled"
+    },
+    {
+      "name": "cr_wheel_joint",
+      "one": "cr_bl70200s:1",
+      "two": "cr_new_center_wheel_module:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {
+        "type": "continuous",
+        "effort_status": "pending_user_input",
+        "velocity_status": "pending_user_input"
+      },
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": false,
+        "minimum_rad": 0.0,
+        "maximum_enabled": false,
+        "maximum_rad": 0.0
+      },
+      "origin_cm": [
+        2.5300000000000002,
+        -42.19999999988304,
+        -32.736851880736005
+      ],
+      "link_one": "cr_bl70200s",
+      "link_two": "br_bogie_pivot_out_hub_L60_slot",
+      "parent": "br_bogie_pivot_out_hub_L60_slot",
+      "child": "cr_bl70200s",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        0.025300000000000003,
+        -0.4219999999988304,
+        -0.32736851880736006
+      ],
+      "type_for_export": "continuous",
+      "effort": 14.2965,
+      "velocity": null,
+      "limits_status": "CAD values, operating limits not confirmed",
+      "actuator_limit_policy": "Project ODrive48V9A Kt.353 external5 efficiency.9 provisional"
+    },
+    {
+      "name": "arm_J3_elbow",
+      "one": "arm_link3:1",
+      "two": "arm_link2:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {
+        "limit_status": "user_adjusted_20261007"
+      },
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_rad": -3.141592653589793,
+        "maximum_rad": 0.0
+      },
+      "origin_cm": [
+        -12.629000000000001,
+        0.0,
+        26.006
+      ],
+      "link_one": "arm_link3",
+      "link_two": "arm_link2",
+      "parent": "arm_link2",
+      "child": "arm_link3",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        -0.12629,
+        0.0,
+        0.26006
+      ],
+      "type_for_export": "revolute",
+      "effort": 30.0,
+      "velocity": 0.3141592653589793,
+      "limits_status": "User-adjusted actual arm rotation range from rover_assembly v168; synchronized to prepared Fusion design and package; not independently interference-tested this revision.",
+      "angular_limit_policy": "User-defined native Fusion limits",
+      "actuator_limit_policy": "Current public-spec envelope with explicit provisional active cap; see manufacturer_models.json",
+      "model": "XM540-W270-T",
+      "external_ratio": 10.0
+    },
+    {
+      "name": "fl_wheel_joint",
+      "one": "fl_bl70200s:1",
+      "two": "fl_new_motor_bracket:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {
+        "type": "continuous",
+        "effort_status": "pending_user_input",
+        "velocity_status": "pending_user_input"
+      },
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": false,
+        "minimum_rad": 0.0,
+        "maximum_enabled": false,
+        "maximum_rad": 0.0
+      },
+      "origin_cm": [
+        52.376999999999995,
+        33.399999999996524,
+        -32.73784583946805
+      ],
+      "link_one": "fl_bl70200s",
+      "link_two": "fl_kingpin_flange",
+      "parent": "fl_kingpin_flange",
+      "child": "fl_bl70200s",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        0.52377,
+        0.33399999999996527,
+        -0.3273784583946805
+      ],
+      "type_for_export": "continuous",
+      "effort": 14.2965,
+      "velocity": null,
+      "limits_status": "CAD values, operating limits not confirmed",
+      "actuator_limit_policy": "Project ODrive48V9A Kt.353 external5 efficiency.9 provisional"
+    },
+    {
+      "name": "fr_wheel_joint",
+      "one": "fr_bl70200s:1",
+      "two": "fr_new_motor_bracket:1",
+      "type": 1,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {
+        "type": "continuous",
+        "effort_status": "pending_user_input",
+        "velocity_status": "pending_user_input"
+      },
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "angle_rad": 0.0,
+      "limits": {
+        "minimum_enabled": false,
+        "minimum_rad": 0.0,
+        "maximum_enabled": false,
+        "maximum_rad": 0.0
+      },
+      "origin_cm": [
+        52.376999999999995,
+        -33.399999999996524,
+        -32.73784583946805
+      ],
+      "link_one": "fr_bl70200s",
+      "link_two": "fr_kingpin_flange",
+      "parent": "fr_kingpin_flange",
+      "child": "fr_bl70200s",
+      "rotation_sign": 1,
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        0.52377,
+        -0.33399999999996527,
+        -0.3273784583946805
+      ],
+      "type_for_export": "continuous",
+      "effort": 14.2965,
+      "velocity": null,
+      "limits_status": "CAD values, operating limits not confirmed",
+      "actuator_limit_policy": "Project ODrive48V9A Kt.353 external5 efficiency.9 provisional"
+    },
+    {
+      "name": "ml_rod_end_A_rx",
+      "parent": "ml_pin_PSFGR12-33",
+      "child": "ml_rod_end_A_dummy_1",
+      "axis_world": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "origin_world_m": [
+        -0.05050000000000001,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.08726646259971647,
+        "maximum_enabled": true,
+        "maximum_rad": 0.08726646259971647
+      },
+      "effort": null,
+      "velocity": null,
+      "passive": true,
+      "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+      "rotation_sign": 1
+    },
+    {
+      "name": "ml_rod_end_A_ry",
+      "parent": "ml_rod_end_A_dummy_1",
+      "child": "ml_rod_end_A_dummy_2",
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        -0.05050000000000001,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.08726646259971647,
+        "maximum_enabled": true,
+        "maximum_rad": 0.08726646259971647
+      },
+      "effort": null,
+      "velocity": null,
+      "passive": true,
+      "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+      "rotation_sign": 1
+    },
+    {
+      "name": "ml_rod_end_A_rz",
+      "parent": "ml_rod_end_A_dummy_2",
+      "child": "ml_rod_end_M10_A_housing",
+      "axis_world": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "origin_world_m": [
+        -0.05050000000000001,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.4363323129985824,
+        "maximum_enabled": true,
+        "maximum_rad": 0.4363323129985824
+      },
+      "effort": null,
+      "velocity": null,
+      "passive": true,
+      "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+      "rotation_sign": 1
+    },
+    {
+      "name": "ml_rod_end_B_rx",
+      "parent": "ml_bar_differential_side",
+      "child": "ml_rod_end_B_dummy_1",
+      "axis_world": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "origin_world_m": [
+        -0.16649999999999998,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.08726646259971647,
+        "maximum_enabled": true,
+        "maximum_rad": 0.08726646259971647
+      },
+      "effort": null,
+      "velocity": null,
+      "passive": true,
+      "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+      "rotation_sign": 1
+    },
+    {
+      "name": "ml_rod_end_B_ry",
+      "parent": "ml_rod_end_B_dummy_1",
+      "child": "ml_rod_end_B_dummy_2",
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        -0.16649999999999998,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.08726646259971647,
+        "maximum_enabled": true,
+        "maximum_rad": 0.08726646259971647
+      },
+      "effort": null,
+      "velocity": null,
+      "passive": true,
+      "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+      "rotation_sign": 1
+    },
+    {
+      "name": "mr_rod_end_A_rx",
+      "parent": "mr_pin_PSFGR12-33",
+      "child": "mr_rod_end_A_dummy_1",
+      "axis_world": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "origin_world_m": [
+        -0.050499999999993,
+        -0.20550000004399935,
+        0.1479504925534161
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.08726646259971647,
+        "maximum_enabled": true,
+        "maximum_rad": 0.08726646259971647
+      },
+      "effort": null,
+      "velocity": null,
+      "passive": true,
+      "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+      "rotation_sign": 1
+    },
+    {
+      "name": "mr_rod_end_A_ry",
+      "parent": "mr_rod_end_A_dummy_1",
+      "child": "mr_rod_end_A_dummy_2",
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        -0.050499999999993,
+        -0.20550000004399935,
+        0.1479504925534161
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.08726646259971647,
+        "maximum_enabled": true,
+        "maximum_rad": 0.08726646259971647
+      },
+      "effort": null,
+      "velocity": null,
+      "passive": true,
+      "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+      "rotation_sign": 1
+    },
+    {
+      "name": "mr_rod_end_A_rz",
+      "parent": "mr_rod_end_A_dummy_2",
+      "child": "mr_rod_end_M10_A_housing",
+      "axis_world": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "origin_world_m": [
+        -0.050499999999993,
+        -0.20550000004399935,
+        0.1479504925534161
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.4363323129985824,
+        "maximum_enabled": true,
+        "maximum_rad": 0.4363323129985824
+      },
+      "effort": null,
+      "velocity": null,
+      "passive": true,
+      "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+      "rotation_sign": 1
+    },
+    {
+      "name": "mr_rod_end_B_rx",
+      "parent": "ml_bar_differential_side",
+      "child": "mr_rod_end_B_dummy_1",
+      "axis_world": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "origin_world_m": [
+        -0.16649999999999998,
+        -0.20550000000000002,
+        0.1479504925534066
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.08726646259971647,
+        "maximum_enabled": true,
+        "maximum_rad": 0.08726646259971647
+      },
+      "effort": null,
+      "velocity": null,
+      "passive": true,
+      "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+      "rotation_sign": 1
+    },
+    {
+      "name": "mr_rod_end_B_ry",
+      "parent": "mr_rod_end_B_dummy_1",
+      "child": "mr_rod_end_B_dummy_2",
+      "axis_world": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "origin_world_m": [
+        -0.16649999999999998,
+        -0.20550000000000002,
+        0.1479504925534066
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.08726646259971647,
+        "maximum_enabled": true,
+        "maximum_rad": 0.08726646259971647
+      },
+      "effort": null,
+      "velocity": null,
+      "passive": true,
+      "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+      "rotation_sign": 1
+    },
+    {
+      "name": "arm_tool_fixed",
+      "parent": "arm_link4",
+      "child": "tool_link",
+      "origin_world_m": [
+        0.13171205613152961,
+        0.0002500000000000124,
+        0.3200642840751583
+      ],
+      "type_for_export": "fixed",
+      "limits": null,
+      "effort": null,
+      "velocity": null
+    },
+    {
+      "name": "pinion_A_rotation",
+      "parent": "arm_link5",
+      "child": "pinion_A",
+      "origin_world_m": [
+        0.34725999999999957,
+        0.02025011367151781,
+        0.32006903895576844
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_rad": -1.6790067404185451,
+        "maximum_rad": 2.514429944111423
+      },
+      "effort": 0.3,
+      "velocity": 5.969026041820607,
+      "axis_world": [
+        1,
+        0,
+        0
+      ],
+      "actuator_limit_policy": "Current public-spec envelope with explicit provisional active cap; see manufacturer_models.json",
+      "model": "XL430-W250-T",
+      "external_ratio": 1.0
+    },
+    {
+      "name": "pinion_B_rotation",
+      "parent": "arm_link5",
+      "child": "pinion_B",
+      "origin_world_m": [
+        0.34725999999999957,
+        -0.0197499999999999,
+        0.32006856815031626
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_rad": -1.6790067404185451,
+        "maximum_rad": 2.514429944111423
+      },
+      "effort": 0.3,
+      "velocity": 5.969026041820607,
+      "axis_world": [
+        1,
+        0,
+        0
+      ],
+      "actuator_limit_policy": "Current public-spec envelope with explicit provisional active cap; see manufacturer_models.json",
+      "mimic": {
+        "joint": "pinion_A_rotation",
+        "multiplier": 1.0,
+        "offset": 0.0
+      },
+      "model": "XL430-W250-T",
+      "external_ratio": 1.0
+    },
+    {
+      "name": "finger_lower_slide",
+      "parent": "arm_link5",
+      "child": "finger_lower",
+      "origin_world_m": [
+        0.3472599999999994,
+        0.09489311367151794,
+        0.3373150973448641
+      ],
+      "type_for_export": "prismatic",
+      "limits": {
+        "minimum_m": -0.045259724775776826,
+        "maximum_m": 0.030222111833333336
+      },
+      "effort": 1.0,
+      "velocity": 1.0,
+      "axis_world": [
+        0,
+        1,
+        0
+      ],
+      "actuator_limit_policy": "URDF required fields are placeholders; actual motor effort/speed pending user input.",
+      "mimic": {
+        "joint": "pinion_A_rotation",
+        "multiplier": -0.017999994345347013,
+        "offset": 0.0
+      }
+    },
+    {
+      "name": "finger_upper_slide",
+      "parent": "arm_link5",
+      "child": "finger_upper",
+      "origin_world_m": [
+        0.3472599999999994,
+        -0.09432688632848216,
+        0.30282203895576837
+      ],
+      "type_for_export": "prismatic",
+      "limits": {
+        "minimum_m": -0.030222111833333336,
+        "maximum_m": 0.045259724775776826
+      },
+      "effort": 1.0,
+      "velocity": 1.0,
+      "axis_world": [
+        0,
+        1,
+        0
+      ],
+      "actuator_limit_policy": "URDF required fields are placeholders; actual motor effort/speed pending user input.",
+      "mimic": {
+        "joint": "pinion_A_rotation",
+        "multiplier": 0.017999994345347013,
+        "offset": 0.0
+      }
+    },
+    {
+      "name": "axis5_rotation",
+      "parent": "tool_link",
+      "child": "arm_link5",
+      "origin_world_m": [
+        0.23570999999999956,
+        0.0002500000000000036,
+        0.32006856815031626
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_rad": -3.141592653589793,
+        "maximum_rad": 3.141592653589793
+      },
+      "effort": 0.3,
+      "velocity": 5.969026041820607,
+      "axis_world": [
+        1,
+        0,
+        0
+      ],
+      "actuator_limit_policy": "Current public-spec envelope with explicit provisional active cap; see manufacturer_models.json",
+      "limits_status": "User-adjusted actual arm rotation range from rover_assembly v168; synchronized to prepared Fusion design and package; not independently interference-tested this revision.",
+      "angular_limit_policy": "User-defined native Fusion limits",
+      "model": "XL430-W250-T",
+      "external_ratio": 1.0
+    },
+    {
+      "name": "toolchanger_lock_wheel",
+      "parent": "arm_link5",
+      "child": "toolchanger_lock_rotor",
+      "origin_world_m": [
+        0.2967626406871189,
+        0.00025000000000034993,
+        0.32006592746319656
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_rad": 0.0,
+        "maximum_rad": 0.39269908169872414
+      },
+      "effort": 0.3,
+      "velocity": 5.969026041820607,
+      "axis_world": [
+        1.0,
+        3.027410937995733e-32,
+        2.22044604925031e-16
+      ],
+      "actuator_limit_policy": "Current public-spec envelope with explicit provisional active cap; see manufacturer_models.json",
+      "model": "XL430-W250-T",
+      "external_ratio": 1.0
+    },
+    {
+      "name": "lock_ball_1",
+      "parent": "arm_link5",
+      "child": "toolchanger_ball_1",
+      "origin_world_m": [
+        0.29151264068711885,
+        0.02284314575050793,
+        0.32006592746319656
+      ],
+      "type_for_export": "prismatic",
+      "limits": {
+        "minimum_m": 0.0,
+        "maximum_m": 0.0025900000000000003
+      },
+      "effort": 1.0,
+      "velocity": 1.0,
+      "axis_world": [
+        0.0,
+        -0.9999999999999996,
+        3.0412728472047195e-08
+      ],
+      "actuator_limit_policy": "Actual effort and speed pending user input; URDF required fields of 1 are placeholders.",
+      "mimic": {
+        "joint": "toolchanger_lock_wheel",
+        "multiplier": 0.0065953808417281426,
+        "offset": 0.0
+      }
+    },
+    {
+      "name": "lock_ball_2",
+      "parent": "arm_link5",
+      "child": "toolchanger_ball_2",
+      "origin_world_m": [
+        0.29151264068711885,
+        0.016225766568520355,
+        0.3360416940317165
+      ],
+      "type_for_export": "prismatic",
+      "limits": {
+        "minimum_m": 0.0,
+        "maximum_m": 0.0025900000000000003
+      },
+      "effort": 1.0,
+      "velocity": 1.0,
+      "axis_world": [
+        0.0,
+        -0.7071067963929152,
+        -0.7071067659801795
+      ],
+      "actuator_limit_policy": "Actual effort and speed pending user input; URDF required fields of 1 are placeholders.",
+      "mimic": {
+        "joint": "toolchanger_lock_wheel",
+        "multiplier": 0.0065953808417281426,
+        "offset": 0.0
+      }
+    },
+    {
+      "name": "lock_ball_3",
+      "parent": "arm_link5",
+      "child": "toolchanger_ball_3",
+      "origin_world_m": [
+        0.29151264068711885,
+        0.0002500000000003677,
+        0.34265907321370415
+      ],
+      "type_for_export": "prismatic",
+      "limits": {
+        "minimum_m": 0.0,
+        "maximum_m": 0.0025900000000000003
+      },
+      "effort": 1.0,
+      "velocity": 1.0,
+      "axis_world": [
+        0.0,
+        -1.3634246772254963e-16,
+        -1.0
+      ],
+      "actuator_limit_policy": "Actual effort and speed pending user input; URDF required fields of 1 are placeholders.",
+      "mimic": {
+        "joint": "toolchanger_lock_wheel",
+        "multiplier": 0.0065953808417281426,
+        "offset": 0.0
+      }
+    },
+    {
+      "name": "lock_ball_4",
+      "parent": "arm_link5",
+      "child": "toolchanger_ball_4",
+      "origin_world_m": [
+        0.29151264068711885,
+        -0.015725766568519612,
+        0.3360416940317169
+      ],
+      "type_for_export": "prismatic",
+      "limits": {
+        "minimum_m": 0.0,
+        "maximum_m": 0.0025900000000000003
+      },
+      "effort": 1.0,
+      "velocity": 1.0,
+      "axis_world": [
+        0.0,
+        0.707106796392915,
+        -0.7071067659801797
+      ],
+      "actuator_limit_policy": "Actual effort and speed pending user input; URDF required fields of 1 are placeholders.",
+      "mimic": {
+        "joint": "toolchanger_lock_wheel",
+        "multiplier": 0.0065953808417281426,
+        "offset": 0.0
+      }
+    },
+    {
+      "name": "lock_ball_5",
+      "parent": "arm_link5",
+      "child": "toolchanger_ball_5",
+      "origin_world_m": [
+        0.29151264068711885,
+        -0.022343145750507207,
+        0.32006592746319656
+      ],
+      "type_for_export": "prismatic",
+      "limits": {
+        "minimum_m": 0.0,
+        "maximum_m": 0.0025900000000000003
+      },
+      "effort": 1.0,
+      "velocity": 1.0,
+      "axis_world": [
+        0.0,
+        0.9999999999999996,
+        3.041272819936229e-08
+      ],
+      "actuator_limit_policy": "Actual effort and speed pending user input; URDF required fields of 1 are placeholders.",
+      "mimic": {
+        "joint": "toolchanger_lock_wheel",
+        "multiplier": 0.0065953808417281426,
+        "offset": 0.0
+      }
+    },
+    {
+      "name": "lock_ball_6",
+      "parent": "arm_link5",
+      "child": "toolchanger_ball_6",
+      "origin_world_m": [
+        0.29151264068711885,
+        -0.01572576656851962,
+        0.3040901608946766
+      ],
+      "type_for_export": "prismatic",
+      "limits": {
+        "minimum_m": 0.0,
+        "maximum_m": 0.0025900000000000003
+      },
+      "effort": 1.0,
+      "velocity": 1.0,
+      "axis_world": [
+        0.0,
+        0.7071067659801816,
+        0.7071067963929133
+      ],
+      "actuator_limit_policy": "Actual effort and speed pending user input; URDF required fields of 1 are placeholders.",
+      "mimic": {
+        "joint": "toolchanger_lock_wheel",
+        "multiplier": 0.0065953808417281426,
+        "offset": 0.0
+      }
+    },
+    {
+      "name": "lock_ball_7",
+      "parent": "arm_link5",
+      "child": "toolchanger_ball_7",
+      "origin_world_m": [
+        0.29151264068711885,
+        0.0002500000000003677,
+        0.29747278171268904
+      ],
+      "type_for_export": "prismatic",
+      "limits": {
+        "minimum_m": 0.0,
+        "maximum_m": 0.0025900000000000003
+      },
+      "effort": 1.0,
+      "velocity": 1.0,
+      "axis_world": [
+        0.0,
+        1.3634246772254963e-16,
+        1.0
+      ],
+      "actuator_limit_policy": "Actual effort and speed pending user input; URDF required fields of 1 are placeholders.",
+      "mimic": {
+        "joint": "toolchanger_lock_wheel",
+        "multiplier": 0.0065953808417281426,
+        "offset": 0.0
+      }
+    },
+    {
+      "name": "lock_ball_8",
+      "parent": "arm_link5",
+      "child": "toolchanger_ball_8",
+      "origin_world_m": [
+        0.29151264068711885,
+        0.016225766568520355,
+        0.3040901608946766
+      ],
+      "type_for_export": "prismatic",
+      "limits": {
+        "minimum_m": 0.0,
+        "maximum_m": 0.0025900000000000003
+      },
+      "effort": 1.0,
+      "velocity": 1.0,
+      "axis_world": [
+        0.0,
+        -0.7071067659801814,
+        0.7071067963929135
+      ],
+      "actuator_limit_policy": "Actual effort and speed pending user input; URDF required fields of 1 are placeholders.",
+      "mimic": {
+        "joint": "toolchanger_lock_wheel",
+        "multiplier": 0.0065953808417281426,
+        "offset": 0.0
+      }
+    },
+    {
+      "name": "arm4_rotation",
+      "parent": "arm_link3",
+      "child": "arm_link4",
+      "origin_world_m": [
+        0.13171205613152961,
+        0.021875000000000124,
+        0.3200642840751583
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_rad": -1.7453292519943295,
+        "maximum_rad": 1.7453292519943295
+      },
+      "effort": 5.0,
+      "velocity": 3.1415926535897927,
+      "axis_world": [
+        0,
+        1,
+        0
+      ],
+      "actuator_limit_policy": "Current public-spec envelope with explicit provisional active cap; see manufacturer_models.json",
+      "angular_limit_policy": "User-defined native Fusion limits",
+      "limits_status": "User-adjusted actual arm rotation range from rover_assembly v168; synchronized to prepared Fusion design and package; not independently interference-tested this revision.",
+      "model": "XM540-W270-T",
+      "external_ratio": 1.0
+    }
+  ],
+  "loop_closures": [
+    {
+      "name": "ml_rod_end_B_rz",
+      "parent": "ml_rod_end_B_dummy_2",
+      "child": "ml_rod_end_M10_A_housing",
+      "axis_world": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "origin_world_m": [
+        -0.16649999999999998,
+        0.20550000000000002,
+        0.1479504925534066
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.4363323129985824,
+        "maximum_enabled": true,
+        "maximum_rad": 0.4363323129985824
+      },
+      "effort": null,
+      "velocity": null,
+      "passive": true,
+      "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+      "rotation_sign": 1,
+      "excluded_from_articulation": true,
+      "cut_in_urdf": true,
+      "reason": "One closing revolute edge per differential loop; standard URDF is a tree"
+    },
+    {
+      "name": "mr_rod_end_B_rz",
+      "parent": "mr_rod_end_B_dummy_2",
+      "child": "mr_rod_end_M10_A_housing",
+      "axis_world": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "origin_world_m": [
+        -0.16649999999999998,
+        -0.20550000000000002,
+        0.1479504925534066
+      ],
+      "type_for_export": "revolute",
+      "limits": {
+        "minimum_enabled": true,
+        "minimum_rad": -0.4363323129985824,
+        "maximum_enabled": true,
+        "maximum_rad": 0.4363323129985824
+      },
+      "effort": null,
+      "velocity": null,
+      "passive": true,
+      "limits_status": "CAD sampled conservative operating box, not manufacturer-certified limits",
+      "rotation_sign": 1,
+      "excluded_from_articulation": true,
+      "cut_in_urdf": true,
+      "reason": "One closing revolute edge per differential loop; standard URDF is a tree"
+    }
+  ],
+  "source_occurrences": 259,
+  "total_mass_kg": 80.83361221854541,
+  "limits_status": "arm initial operational limits CAD tested at reference suspension; torque and speed pending",
+  "source_pose_angles_rad": {
+    "ml_rocker_joint": 0.0,
+    "mr_rocker_joint": 0.0,
+    "diff_bar_joint": 6.283185307179586,
+    "arm_J1_yaw": 0.0,
+    "rl_steer_joint": 0.0,
+    "bl_bogie_joint": 0.0,
+    "ml_connector_joint": 6.283185307179586,
+    "rr_steer_joint": 0.0,
+    "br_bogie_joint": 0.0,
+    "mr_connector_joint": 6.283185307179586,
+    "arm_J2_shoulder": 0.0,
+    "rl_wheel_joint": 0.0,
+    "fl_steer_joint": 0.0,
+    "cl_wheel_joint": 0.0,
+    "ml_rod_end_A_joint": 6.283185307179586,
+    "rr_wheel_joint": 0.0,
+    "fr_steer_joint": 0.0,
+    "cr_wheel_joint": 0.0,
+    "mr_rod_end_A_joint": 6.283185307179586,
+    "arm_J3_elbow": 0.0,
+    "fl_wheel_joint": 0.0,
+    "fr_wheel_joint": 0.0
+  },
+  "original_spherical_closures": [
+    {
+      "name": "ml_rod_end_B_joint",
+      "one": "ml_rod_end_M10_B_ball:1",
+      "two": "ml_rod_end_M10_B_housing:1",
+      "type": 6,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {},
+      "origin_cm": [
+        -16.65000000000075,
+        20.55000000000057,
+        14.795049255340196
+      ],
+      "link_one": "ml_bar_differential_side",
+      "link_two": "ml_rod_end_M10_A_housing"
+    },
+    {
+      "name": "mr_rod_end_B_joint",
+      "one": "mr_rod_end_M10_B_ball:1",
+      "two": "mr_rod_end_M10_B_housing:1",
+      "type": 6,
+      "suppressed": false,
+      "health": 5,
+      "error": "",
+      "attributes": {},
+      "origin_cm": [
+        -16.650000000000084,
+        -20.550000000000026,
+        14.795049255340198
+      ],
+      "link_one": "ml_bar_differential_side",
+      "link_two": "mr_rod_end_M10_A_housing"
+    }
+  ],
+  "revision": "end_effector_revision4_20261007",
+  "ball_joint_axis_limits": {
+    "x_deg": [
+      -5,
+      5
+    ],
+    "y_deg": [
+      -5,
+      5
+    ],
+    "z_deg": [
+      -25,
+      25
+    ]
+  },
+  "actual_robot_mass_excluding_virtual_kg": 80.82561221854542,
+  "prepared_document": "JETIN_URDF_ball3R_20261006",
+  "adapter_preserved": true,
+  "end_effector_source": "C:\\Users\\legion5\\Documents\\JETIN_end_effector_revision2_20261007\\end_effector_revised.step",
+  "end_effector_joint_source": "C:\\Users\\legion5\\Documents\\JETIN_end_effector_revision2_20261007\\end_effector_joints.f3z",
+  "source_sync_documents": [
+    "rover_assembly",
+    "JETIN_URDF_ball3R_20261006"
+  ],
+  "new_toolchanger_actuation_defined": true,
+  "motor4_output_actuation_defined": true,
+  "angular_limits_source": {
+    "document": "rover_assembly",
+    "version": 168,
+    "user_adjusted": true,
+    "independent_interference_tested": false
+  },
+  "previous_revision": "end_effector_revision3_20261007",
+  "asset_revision": "OV5640_20261009",
+  "source_archive": "C:/Users/legion5/Documents/카카오톡 받은 파일/수정(6).f3z",
+  "actuator_metadata_revision": "integrated_vision_ready_20261010"
+}

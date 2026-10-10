@@ -1,0 +1,1369 @@
+<?xml version='1.0' encoding='utf8'?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="jetin_rover">
+  <xacro:macro name="jetin_rover" params="prefix:='' load_meta:=false">
+    <material name="jetin_rover_silver">
+      <color rgba="0.700 0.700 0.700 1.000" />
+    </material>
+    <link name="${prefix}base_link">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/base_link.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/base_link_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-0.027286499303116274 0.00011845318856468714 0.010653715342041643" rpy="0 0 0" />
+        <mass value="28.225927481921723" />
+        <inertia ixx="0.5845722649773282" iyy="0.9468725053026378" izz="1.1234295636218248" ixy="0.00013050857257958476" ixz="-0.01913912435508958" iyz="-0.0005825222648587484" />
+      </inertial>
+    </link>
+    <link name="${prefix}ml_new_chassis_pivot">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/ml_new_chassis_pivot.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/ml_new_chassis_pivot_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-0.08156301210628683 0.070848760236222 -0.030642879737106866" rpy="0 0 0" />
+        <mass value="4.403364795843224" />
+        <inertia ixx="0.021389568971329986" iyy="0.194341919013497" izz="0.18656285155676233" ixy="0.006705296779269787" ixz="-0.013239915409606976" iyz="0.0034376991068296725" />
+      </inertial>
+    </link>
+    <link name="${prefix}ml_pin_PSFGR12-33">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/ml_pin_PSFGR12-33_ball3R.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/ml_pin_PSFGR12-33_collision_ball3R.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-0.027980978603353968 2.1488366641619905e-13 7.080848457843847e-05" rpy="0 0 0" />
+        <mass value="0.14655873007229167" />
+        <inertia ixx="2.8147521130323858e-05" iyy="9.334559355308157e-05" izz="8.74000365597722e-05" ixy="7.088513803710228e-16" ixz="1.9052936020829293e-07" iyz="2.6020852139652106e-18" />
+      </inertial>
+    </link>
+    <link name="${prefix}rl_kingpin_flange">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/rl_kingpin_flange.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/rl_kingpin_flange_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-5.451939559808494e-06 -0.018584030272844054 -0.012456265944461364" rpy="0 0 0" />
+        <mass value="0.9302493628312025" />
+        <inertia ixx="0.0058295956425449685" iyy="0.005015819379516201" izz="0.001424767162036461" ixy="8.028810875027048e-07" ixz="4.530979427826154e-06" iyz="-0.0014568540087463375" />
+      </inertial>
+    </link>
+    <link name="${prefix}rl_bl70200s">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/rl_bl70200s.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/rl_bl70200s_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="6.421474574302977e-09 -0.0001430211808187698 1.0914027848141217e-08" rpy="0 0 0" />
+        <mass value="4.499998984631591" />
+        <inertia ixx="0.012835123366213841" iyy="0.02158391468545906" izz="0.012835086219095349" ixy="2.2881347927494744e-09" ixz="-3.0128444183930014e-09" iyz="-3.714982210745177e-10" />
+      </inertial>
+    </link>
+    <link name="${prefix}bl_bogie_pivot_out_hub_L60_slot">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/bl_bogie_pivot_out_hub_L60_slot.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/bl_bogie_pivot_out_hub_L60_slot_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0.10536957302598127 0.029708930177480164 -0.026663163752312924" rpy="0 0 0" />
+        <mass value="2.8479020769224337" />
+        <inertia ixx="0.019243480869018836" iyy="0.10223221812987315" izz="0.08524317236708767" ixy="5.5905120600607816e-05" ixz="-0.028818069575347494" iyz="0.0002744395782542375" />
+      </inertial>
+    </link>
+    <link name="${prefix}fl_kingpin_flange">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/fl_kingpin_flange.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/fl_kingpin_flange_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-5.451939560252583e-06 -0.018584030272844332 -0.01245626594446178" rpy="0 0 0" />
+        <mass value="0.9302493628312022" />
+        <inertia ixx="0.005829595642545052" iyy="0.005015819379516562" izz="0.0014247671620368219" ixy="8.028810873361714e-07" ixz="4.530979427888604e-06" iyz="-0.0014568540087463097" />
+      </inertial>
+    </link>
+    <link name="${prefix}fl_bl70200s">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/fl_bl70200s.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/fl_bl70200s_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="2.399264120711564e-09 -0.00014302145877020944 1.0914027015473948e-08" rpy="0 0 0" />
+        <mass value="4.499998984631597" />
+        <inertia ixx="0.012835124125705644" iyy="0.02158391779955493" izz="0.0128350900926828" ixy="-3.314732377468488e-09" ixz="2.9126865364048626e-09" iyz="3.7980341094367986e-11" />
+      </inertial>
+    </link>
+    <link name="${prefix}cl_bl70200s">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/cl_bl70200s.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/cl_bl70200s_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="4.6893545782578094e-09 -0.00014302186306325293 7.68831887043575e-09" rpy="0 0 0" />
+        <mass value="4.4999989846315875" />
+        <inertia ixx="0.012835125500589406" iyy="0.02158391214116595" izz="0.012835085809178581" ixy="7.976978799728585e-11" ixz="-4.6108065976380175e-10" iyz="6.335859614736705e-10" />
+      </inertial>
+    </link>
+    <link name="${prefix}ml_rod_end_M10_A_housing">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/ml_rod_end_M10_A_housing.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/ml_rod_end_M10_A_housing_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-0.05800000000001644 2.2573609648190995e-13 1.56691597741343e-06" rpy="0 0 0" />
+        <mass value="0.09860864530743589" />
+        <inertia ixx="4.033564185216415e-06" iyy="0.00017459273129571268" izz="0.0001769376325188891" ixy="6.13247306668202e-10" ixz="2.168404344971009e-19" iyz="-1.3010426069826053e-18" />
+      </inertial>
+    </link>
+    <link name="${prefix}ml_bar_differential_side">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/ml_bar_differential_side_ball3R.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/ml_bar_differential_side_collision_ball3R.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-5.366040944920769e-12 -9.039985530493001e-14 0.008461528390706768" rpy="0 0 0" />
+        <mass value="0.8208044810971364" />
+        <inertia ixx="0.012499515586724054" iyy="0.00013753596563317178" izz="0.012485474819964145" ixy="-9.362776392197281e-16" ixz="7.768091725424142e-15" iyz="2.0109241394869438e-16" />
+      </inertial>
+    </link>
+    <link name="${prefix}mr_new_chassis_pivot">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/mr_new_chassis_pivot.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/mr_new_chassis_pivot_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-0.08176042676831642 -0.07084878576181575 -0.029700554407343427" rpy="0 0 0" />
+        <mass value="4.403364879586608" />
+        <inertia ixx="0.021639877813187935" iyy="0.1944505464382511" izz="0.1864211780411103" ixy="-0.006686350561212584" ixz="-0.013541904417789508" iyz="-0.0037202237498806523" />
+      </inertial>
+    </link>
+    <link name="${prefix}mr_pin_PSFGR12-33">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/mr_pin_PSFGR12-33_ball3R.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/mr_pin_PSFGR12-33_collision_ball3R.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-0.027993956543532424 -2.4298341116946176e-11 7.080848458290712e-05" rpy="0 0 0" />
+        <mass value="0.1465587300722918" />
+        <inertia ixx="2.8147521130323858e-05" iyy="9.32391275229958e-05" izz="8.72935705296847e-05" ixy="-1.1260306922999952e-14" ixz="1.8066962771310334e-07" iyz="2.0816681711721685e-16" />
+      </inertial>
+    </link>
+    <link name="${prefix}rr_kingpin_flange">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/rr_kingpin_flange.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/rr_kingpin_flange_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="5.6788281274644525e-06 0.018583567548279778 -0.012455028803928486" rpy="0 0 0" />
+        <mass value="0.9302699674701217" />
+        <inertia ixx="0.005829683250990689" iyy="0.00501590817233491" izz="0.0014247980688087691" ixy="8.037862648802019e-07" ixz="-4.531079381982217e-06" iyz="0.0014568823745446102" />
+      </inertial>
+    </link>
+    <link name="${prefix}rr_bl70200s">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/rr_bl70200s.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/rr_bl70200s_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="7.752870401223078e-09 0.00014302085444461987 3.5064515735427904e-09" rpy="0 0 0" />
+        <mass value="4.500000717967318" />
+        <inertia ixx="0.012835133070797422" iyy="0.021583932680125928" izz="0.012835096056205475" ixy="-1.6969361471552702e-09" ixz="-1.6184136253372117e-09" iyz="5.006577374899734e-10" />
+      </inertial>
+    </link>
+    <link name="${prefix}br_bogie_pivot_out_hub_L60_slot">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/br_bogie_pivot_out_hub_L60_slot.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/br_bogie_pivot_out_hub_L60_slot_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0.10536918706971199 -0.02970891529895081 -0.026662764173685405" rpy="0 0 0" />
+        <mass value="2.847907077397591" />
+        <inertia ixx="0.01924263423162803" iyy="0.10223150678289661" izz="0.0852433100461727" ixy="-5.5995316128931716e-05" ixz="-0.02881739854493065" iyz="-0.0002743586722366437" />
+      </inertial>
+    </link>
+    <link name="${prefix}fr_kingpin_flange">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/fr_kingpin_flange.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/fr_kingpin_flange_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="5.678828127297919e-06 0.018583567548279722 -0.012455028803928486" rpy="0 0 0" />
+        <mass value="0.9302699674701225" />
+        <inertia ixx="0.005829683250990647" iyy="0.0050159081723349375" izz="0.0014247980688087414" ixy="8.03786264935713e-07" ixz="-4.5310793819614e-06" iyz="0.001456882374544624" />
+      </inertial>
+    </link>
+    <link name="${prefix}fr_bl70200s">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/fr_bl70200s.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/fr_bl70200s_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="3.7306615574550506e-09 0.00014302113239617054 3.5064514070093367e-09" rpy="0 0 0" />
+        <mass value="4.50000071796732" />
+        <inertia ixx="0.012835133830290224" iyy="0.021583935794222242" izz="0.012835099929793703" ixy="3.905931467151902e-09" ixz="4.307117773549862e-09" iyz="9.117845367612176e-11" />
+      </inertial>
+    </link>
+    <link name="${prefix}cr_bl70200s">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/cr_bl70200s.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/cr_bl70200s_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-1.6056536308872715e-09 0.00014302163581342286 -5.022072757654428e-09" rpy="0 0 0" />
+        <mass value="4.500000677938026" />
+        <inertia ixx="0.012835098100656861" iyy="0.0215839297196726" izz="0.012835132309207076" ixy="2.542334648358846e-09" ixz="-2.974460587557015e-09" iyz="-3.0019881025467043e-09" />
+      </inertial>
+    </link>
+    <link name="${prefix}mr_rod_end_M10_A_housing">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/mr_rod_end_M10_A_housing.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/mr_rod_end_M10_A_housing_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-0.05799999999998618 2.2012947020755291e-13 1.566915971723537e-06" rpy="0 0 0" />
+        <mass value="0.09860864530743585" />
+        <inertia ixx="4.033564185219017e-06" iyy="0.0001745927312957027" izz="0.00017693763251888216" ixy="6.132472867188821e-10" ixz="-7.806255641895632e-18" iyz="0.0" />
+      </inertial>
+    </link>
+    <link name="${prefix}arm_link1">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/arm_link1.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/arm_link1_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0.007608565153953084 -0.013550345309631591 0.05794469841856026" rpy="0 0 0" />
+        <mass value="1.5812340066248771" />
+        <inertia ixx="0.004051876148821167" iyy="0.0023403441105876582" izz="0.003611124628712062" ixy="5.612230878689539e-05" ixz="-0.0001231805045625728" iyz="0.00031417170867843215" />
+      </inertial>
+    </link>
+    <link name="${prefix}arm_link2">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/arm_link2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/arm_link2_collision_v2.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-0.2365276072492307 -0.022956074374751195 0.04141269772200601" rpy="0 0 0" />
+        <mass value="1.8743422671527235" />
+        <inertia ixx="0.008106590457609905" iyy="0.02102796950405822" izz="0.024755493883027026" ixy="-0.0013693537999269097" ixz="0.004214088007145178" iyz="0.000638450463909682" />
+      </inertial>
+    </link>
+    <joint name="${prefix}ml_rocker_joint" type="revolute">
+      <origin rpy="0 0 0" xyz="0.0 0.188 0.0" />
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}ml_new_chassis_pivot" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit effort="0" lower="-0.5759586531581288" upper="0.5358160803622591" velocity="0" />
+    </joint>
+    <joint name="${prefix}mr_rocker_joint" type="revolute">
+      <origin rpy="0 0 0" xyz="0.0 -0.188 0.0" />
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}mr_new_chassis_pivot" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit effort="0" lower="-0.5759586531581288" upper="0.5358160803622591" velocity="0" />
+    </joint>
+    <joint name="${prefix}diff_bar_joint" type="revolute">
+      <origin rpy="0 0 0" xyz="-0.16650000000000412 -3.22590985262034e-16 0.13799999999999998" />
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}ml_bar_differential_side" />
+      <axis xyz="0.0 0.0 1.0" />
+      <limit effort="0" lower="-0.5235987755982988" upper="0.5235987755982988" velocity="0" />
+    </joint>
+    <joint name="${prefix}arm_J1_yaw" type="continuous">
+      <origin rpy="0 0 0" xyz="0.1565 0.0 0.1321" />
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}arm_link1" />
+      <axis xyz="0.0 0.0 -1.0" />
+      <limit effort="5.0" velocity="3.1415926535897927" />
+    </joint>
+    <joint name="${prefix}rl_steer_joint" type="revolute">
+      <origin rpy="0 0 0" xyz="-0.35172000000000003 0.08849999999999997 -0.1639010583946805" />
+      <parent link="${prefix}ml_new_chassis_pivot" />
+      <child link="${prefix}rl_kingpin_flange" />
+      <axis xyz="0.0 0.0 1.0" />
+      <limit effort="8" lower="-1.5707963267948966" upper="1.5707963267948966" velocity="5.445427266222309" />
+    </joint>
+    <joint name="${prefix}bl_bogie_joint" type="revolute">
+      <origin rpy="0 0 0" xyz="0.2387207696376092 0.11874999999998259 -0.09931129892388085" />
+      <parent link="${prefix}ml_new_chassis_pivot" />
+      <child link="${prefix}bl_bogie_pivot_out_hub_L60_slot" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit effort="0" lower="-0.7853981633974483" upper="0.7853981633974483" velocity="0" />
+    </joint>
+    <joint name="${prefix}ml_connector_joint" type="revolute">
+      <origin rpy="0 0 0" xyz="-4.4108743051229015e-18 0.017499999999999932 0.1479504925534062" />
+      <parent link="${prefix}ml_new_chassis_pivot" />
+      <child link="${prefix}ml_pin_PSFGR12-33" />
+      <axis xyz="-3.5638159090467424e-14 -1.0 -0.0" />
+      <limit effort="0" lower="-2.0943951023931953" upper="0.5148721293383273" velocity="0" />
+    </joint>
+    <joint name="${prefix}rr_steer_joint" type="revolute">
+      <origin rpy="0 0 0" xyz="-0.35172000000000003 -0.08849999999999997 -0.1639010583946805" />
+      <parent link="${prefix}mr_new_chassis_pivot" />
+      <child link="${prefix}rr_kingpin_flange" />
+      <axis xyz="0.0 0.0 1.0" />
+      <limit effort="8" lower="-1.5707963267948966" upper="1.5707963267948966" velocity="5.445427266222309" />
+    </joint>
+    <joint name="${prefix}br_bogie_joint" type="revolute">
+      <origin rpy="0 0 0" xyz="0.2387207696376092 -0.11874999999998259 -0.09931129892388085" />
+      <parent link="${prefix}mr_new_chassis_pivot" />
+      <child link="${prefix}br_bogie_pivot_out_hub_L60_slot" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit effort="0" lower="-0.7853981633974483" upper="0.7853981633974483" velocity="0" />
+    </joint>
+    <joint name="${prefix}mr_connector_joint" type="revolute">
+      <origin rpy="0 0 0" xyz="2.3811046472652565e-17 -0.017499999999999988 0.14795049255340714" />
+      <parent link="${prefix}mr_new_chassis_pivot" />
+      <child link="${prefix}mr_pin_PSFGR12-33" />
+      <axis xyz="8.567524338859944e-17 -1.0000000000000078 3.0376198236262483e-17" />
+      <limit effort="0" lower="-2.0943951023931953" upper="0.5148721293383273" velocity="0" />
+    </joint>
+    <joint name="${prefix}arm_J2_shoulder" type="revolute">
+      <origin rpy="0 0 0" xyz="0.010209999999999997 0.0 0.06790000000000002" />
+      <parent link="${prefix}arm_link1" />
+      <child link="${prefix}arm_link2" />
+      <axis xyz="0.0 -1.0 0.0" />
+      <limit effort="30.0" lower="-3.141592653589793" upper="0.0" velocity="0.3141592653589793" />
+    </joint>
+    <joint name="${prefix}rl_wheel_joint" type="continuous">
+      <origin rpy="0 0 0" xyz="-1.1102230246251565e-16 -0.002999999999999947 -0.16347740000000077" />
+      <parent link="${prefix}rl_kingpin_flange" />
+      <child link="${prefix}rl_bl70200s" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit effort="14.2965" velocity="62.83185307179586" />
+    </joint>
+    <joint name="${prefix}fl_steer_joint" type="revolute">
+      <origin rpy="0 0 0" xyz="0.28504923036239077 0.030249999999982624 -0.06458975947079965" />
+      <parent link="${prefix}bl_bogie_pivot_out_hub_L60_slot" />
+      <child link="${prefix}fl_kingpin_flange" />
+      <axis xyz="0.0 0.0 1.0" />
+      <limit effort="8" lower="-1.5707963267948966" upper="1.5707963267948966" velocity="5.445427266222309" />
+    </joint>
+    <joint name="${prefix}cl_wheel_joint" type="continuous">
+      <origin rpy="0 0 0" xyz="-0.2134207696376092 0.11524999999884783 -0.22806715624509166" />
+      <parent link="${prefix}bl_bogie_pivot_out_hub_L60_slot" />
+      <child link="${prefix}cl_bl70200s" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit effort="14.2965" velocity="62.83185307179586" />
+    </joint>
+    <joint name="${prefix}rr_wheel_joint" type="continuous">
+      <origin rpy="0 0 0" xyz="0.0 0.002999999999999947 -0.1634774" />
+      <parent link="${prefix}rr_kingpin_flange" />
+      <child link="${prefix}rr_bl70200s" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit effort="14.2965" velocity="62.83185307179586" />
+    </joint>
+    <joint name="${prefix}fr_steer_joint" type="revolute">
+      <origin rpy="0 0 0" xyz="0.28504923036239077 -0.030249999999982624 -0.06458975947079965" />
+      <parent link="${prefix}br_bogie_pivot_out_hub_L60_slot" />
+      <child link="${prefix}fr_kingpin_flange" />
+      <axis xyz="0.0 0.0 1.0" />
+      <limit effort="8" lower="-1.5707963267948966" upper="1.5707963267948966" velocity="5.445427266222309" />
+    </joint>
+    <joint name="${prefix}cr_wheel_joint" type="continuous">
+      <origin rpy="0 0 0" xyz="-0.2134207696376092 -0.11524999999884783 -0.2280572198834792" />
+      <parent link="${prefix}br_bogie_pivot_out_hub_L60_slot" />
+      <child link="${prefix}cr_bl70200s" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit effort="14.2965" velocity="62.83185307179586" />
+    </joint>
+    <joint name="${prefix}arm_J3_elbow" type="revolute">
+      <origin rpy="0 0 0" xyz="-0.29300000000000004 0.0 0.06006" />
+      <parent link="${prefix}arm_link2" />
+      <child link="${prefix}arm_link3" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit effort="30.0" lower="-3.141592653589793" upper="0.0" velocity="0.3141592653589793" />
+    </joint>
+    <joint name="${prefix}fl_wheel_joint" type="continuous">
+      <origin rpy="0 0 0" xyz="0.0 -0.002999999999999947 -0.1634774" />
+      <parent link="${prefix}fl_kingpin_flange" />
+      <child link="${prefix}fl_bl70200s" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit effort="14.2965" velocity="62.83185307179586" />
+    </joint>
+    <joint name="${prefix}fr_wheel_joint" type="continuous">
+      <origin rpy="0 0 0" xyz="0.0 0.002999999999999947 -0.1634774" />
+      <parent link="${prefix}fr_kingpin_flange" />
+      <child link="${prefix}fr_bl70200s" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit effort="14.2965" velocity="62.83185307179586" />
+    </joint>
+    <link name="${prefix}d435i_bottom_screw_frame" />
+    <joint name="${prefix}d435i_bottom_screw_frame_fixed" type="fixed">
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}d435i_bottom_screw_frame" />
+      <origin rpy="0 0 0" xyz="0.335177424804 0 0.103725877218" />
+    </joint>
+    <link name="${prefix}d435i_link" />
+    <joint name="${prefix}d435i_link_fixed" type="fixed">
+      <parent link="${prefix}d435i_bottom_screw_frame" />
+      <child link="${prefix}d435i_link" />
+      <origin rpy="0 0 0" xyz="0.0106 0.0175 0.0125" />
+    </joint>
+    <link name="${prefix}d435i_depth_frame" />
+    <joint name="${prefix}d435i_depth_frame_fixed" type="fixed">
+      <parent link="${prefix}d435i_link" />
+      <child link="${prefix}d435i_depth_frame" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}d435i_depth_optical_frame" />
+    <joint name="${prefix}d435i_depth_optical_frame_fixed" type="fixed">
+      <parent link="${prefix}d435i_depth_frame" />
+      <child link="${prefix}d435i_depth_optical_frame" />
+      <origin rpy="-1.57079632679 0 -1.57079632679" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}d435i_infra1_frame" />
+    <joint name="${prefix}d435i_infra1_frame_fixed" type="fixed">
+      <parent link="${prefix}d435i_link" />
+      <child link="${prefix}d435i_infra1_frame" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}d435i_infra1_optical_frame" />
+    <joint name="${prefix}d435i_infra1_optical_frame_fixed" type="fixed">
+      <parent link="${prefix}d435i_infra1_frame" />
+      <child link="${prefix}d435i_infra1_optical_frame" />
+      <origin rpy="-1.57079632679 0 -1.57079632679" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}d435i_infra2_frame" />
+    <joint name="${prefix}d435i_infra2_frame_fixed" type="fixed">
+      <parent link="${prefix}d435i_link" />
+      <child link="${prefix}d435i_infra2_frame" />
+      <origin rpy="0 0 0" xyz="0 -0.05 0" />
+    </joint>
+    <link name="${prefix}d435i_infra2_optical_frame" />
+    <joint name="${prefix}d435i_infra2_optical_frame_fixed" type="fixed">
+      <parent link="${prefix}d435i_infra2_frame" />
+      <child link="${prefix}d435i_infra2_optical_frame" />
+      <origin rpy="-1.57079632679 0 -1.57079632679" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}d435i_color_frame" />
+    <joint name="${prefix}d435i_color_frame_fixed" type="fixed">
+      <parent link="${prefix}d435i_link" />
+      <child link="${prefix}d435i_color_frame" />
+      <origin rpy="0 0 0" xyz="0 0.015 0" />
+    </joint>
+    <link name="${prefix}d435i_color_optical_frame" />
+    <joint name="${prefix}d435i_color_optical_frame_fixed" type="fixed">
+      <parent link="${prefix}d435i_color_frame" />
+      <child link="${prefix}d435i_color_optical_frame" />
+      <origin rpy="-1.57079632679 0 -1.57079632679" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}d435i_accel_frame" />
+    <joint name="${prefix}d435i_accel_frame_fixed" type="fixed">
+      <parent link="${prefix}d435i_link" />
+      <child link="${prefix}d435i_accel_frame" />
+      <origin rpy="0 0 0" xyz="-0.01174 -0.00552 0.0051" />
+    </joint>
+    <link name="${prefix}d435i_accel_optical_frame" />
+    <joint name="${prefix}d435i_accel_optical_frame_fixed" type="fixed">
+      <parent link="${prefix}d435i_accel_frame" />
+      <child link="${prefix}d435i_accel_optical_frame" />
+      <origin rpy="-1.57079632679 0 -1.57079632679" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}d435i_gyro_frame" />
+    <joint name="${prefix}d435i_gyro_frame_fixed" type="fixed">
+      <parent link="${prefix}d435i_link" />
+      <child link="${prefix}d435i_gyro_frame" />
+      <origin rpy="0 0 0" xyz="-0.01174 -0.00552 0.0051" />
+    </joint>
+    <link name="${prefix}d435i_gyro_optical_frame" />
+    <joint name="${prefix}d435i_gyro_optical_frame_fixed" type="fixed">
+      <parent link="${prefix}d435i_gyro_frame" />
+      <child link="${prefix}d435i_gyro_optical_frame" />
+      <origin rpy="-1.57079632679 0 -1.57079632679" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}l515_bottom_screw_frame" />
+    <joint name="${prefix}l515_bottom_screw_frame_fixed" type="fixed">
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}l515_bottom_screw_frame" />
+      <origin rpy="0 0.349065850399 0" xyz="0.333397720834 -3.50992053231e-05 0.0118913153266" />
+    </joint>
+    <link name="${prefix}l515_link" />
+    <joint name="${prefix}l515_link_fixed" type="fixed">
+      <parent link="${prefix}l515_bottom_screw_frame" />
+      <child link="${prefix}l515_link" />
+      <origin rpy="0 0 0" xyz="0.0075 0 0.02115" />
+    </joint>
+    <link name="${prefix}l515_depth_frame" />
+    <joint name="${prefix}l515_depth_frame_fixed" type="fixed">
+      <parent link="${prefix}l515_link" />
+      <child link="${prefix}l515_depth_frame" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}l515_depth_optical_frame" />
+    <joint name="${prefix}l515_depth_optical_frame_fixed" type="fixed">
+      <parent link="${prefix}l515_depth_frame" />
+      <child link="${prefix}l515_depth_optical_frame" />
+      <origin rpy="-1.57079632679 0 -1.57079632679" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}l515_infra_frame" />
+    <joint name="${prefix}l515_infra_frame_fixed" type="fixed">
+      <parent link="${prefix}l515_link" />
+      <child link="${prefix}l515_infra_frame" />
+      <origin rpy="0 0 0" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}l515_infra_optical_frame" />
+    <joint name="${prefix}l515_infra_optical_frame_fixed" type="fixed">
+      <parent link="${prefix}l515_infra_frame" />
+      <child link="${prefix}l515_infra_optical_frame" />
+      <origin rpy="-1.57079632679 0 -1.57079632679" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}l515_color_frame" />
+    <joint name="${prefix}l515_color_frame_fixed" type="fixed">
+      <parent link="${prefix}l515_link" />
+      <child link="${prefix}l515_color_frame" />
+      <origin rpy="0 0 0" xyz="0 0 0.024" />
+    </joint>
+    <link name="${prefix}l515_color_optical_frame" />
+    <joint name="${prefix}l515_color_optical_frame_fixed" type="fixed">
+      <parent link="${prefix}l515_color_frame" />
+      <child link="${prefix}l515_color_optical_frame" />
+      <origin rpy="-1.57079632679 0 -1.57079632679" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}l515_accel_frame" />
+    <joint name="${prefix}l515_accel_frame_fixed" type="fixed">
+      <parent link="${prefix}l515_color_frame" />
+      <child link="${prefix}l515_accel_frame" />
+      <origin rpy="-0.006161012 0.020193459 0.016301375" xyz="-0.00410137791187 -0.0129784867167 0.00256138201803" />
+    </joint>
+    <link name="${prefix}l515_accel_optical_frame" />
+    <joint name="${prefix}l515_accel_optical_frame_fixed" type="fixed">
+      <parent link="${prefix}l515_accel_frame" />
+      <child link="${prefix}l515_accel_optical_frame" />
+      <origin rpy="-1.57079632679 0 -1.57079632679" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}l515_gyro_frame" />
+    <joint name="${prefix}l515_gyro_frame_fixed" type="fixed">
+      <parent link="${prefix}l515_color_frame" />
+      <child link="${prefix}l515_gyro_frame" />
+      <origin rpy="-0.006161012 0.020193459 0.016301375" xyz="-0.00410137791187 -0.0129784867167 0.00256138201803" />
+    </joint>
+    <link name="${prefix}l515_gyro_optical_frame" />
+    <joint name="${prefix}l515_gyro_optical_frame_fixed" type="fixed">
+      <parent link="${prefix}l515_gyro_frame" />
+      <child link="${prefix}l515_gyro_optical_frame" />
+      <origin rpy="-1.57079632679 0 -1.57079632679" xyz="0 0 0" />
+    </joint>
+    <link name="${prefix}rocker_left_encoder_frame" />
+    <joint name="${prefix}rocker_left_encoder_frame_fixed" type="fixed">
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}rocker_left_encoder_frame" />
+      <origin rpy="-1.57079632679 0 0" xyz="0 0.1219 0" />
+    </joint>
+    <link name="${prefix}rocker_right_encoder_frame" />
+    <joint name="${prefix}rocker_right_encoder_frame_fixed" type="fixed">
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}rocker_right_encoder_frame" />
+      <origin rpy="-1.57079632679 0 -3.14159265359" xyz="0 -0.1219 0" />
+    </joint>
+    <link name="${prefix}bogie_left_encoder_frame" />
+    <joint name="${prefix}bogie_left_encoder_frame_fixed" type="fixed">
+      <parent link="${prefix}ml_new_chassis_pivot" />
+      <child link="${prefix}bogie_left_encoder_frame" />
+      <origin rpy="-1.57079632679 -0.785398163397 0" xyz="0.238720769021 0.051149997686 -0.0993112989239" />
+    </joint>
+    <link name="${prefix}bogie_right_encoder_frame" />
+    <joint name="${prefix}bogie_right_encoder_frame_fixed" type="fixed">
+      <parent link="${prefix}mr_new_chassis_pivot" />
+      <child link="${prefix}bogie_right_encoder_frame" />
+      <origin rpy="-1.57079632679 0.785398163397 -3.14159265359" xyz="0.238720769021 -0.0511500023131 -0.0993112989239" />
+    </joint>
+    <link name="${prefix}ml_rod_end_A_dummy_1">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.001" />
+        <inertia ixx="4.166666666666667e-09" iyy="4.166666666666667e-09" izz="4.166666666666667e-09" ixy="0.0" ixz="0.0" iyz="0.0" />
+      </inertial>
+    </link>
+    <link name="${prefix}ml_rod_end_A_dummy_2">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.001" />
+        <inertia ixx="4.166666666666667e-09" iyy="4.166666666666667e-09" izz="4.166666666666667e-09" ixy="0.0" ixz="0.0" iyz="0.0" />
+      </inertial>
+    </link>
+    <link name="${prefix}ml_rod_end_B_dummy_1">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.001" />
+        <inertia ixx="4.166666666666667e-09" iyy="4.166666666666667e-09" izz="4.166666666666667e-09" ixy="0.0" ixz="0.0" iyz="0.0" />
+      </inertial>
+    </link>
+    <link name="${prefix}ml_rod_end_B_dummy_2">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.001" />
+        <inertia ixx="4.166666666666667e-09" iyy="4.166666666666667e-09" izz="4.166666666666667e-09" ixy="0.0" ixz="0.0" iyz="0.0" />
+      </inertial>
+    </link>
+    <link name="${prefix}mr_rod_end_A_dummy_1">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.001" />
+        <inertia ixx="4.166666666666667e-09" iyy="4.166666666666667e-09" izz="4.166666666666667e-09" ixy="0.0" ixz="0.0" iyz="0.0" />
+      </inertial>
+    </link>
+    <link name="${prefix}mr_rod_end_A_dummy_2">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.001" />
+        <inertia ixx="4.166666666666667e-09" iyy="4.166666666666667e-09" izz="4.166666666666667e-09" ixy="0.0" ixz="0.0" iyz="0.0" />
+      </inertial>
+    </link>
+    <link name="${prefix}mr_rod_end_B_dummy_1">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.001" />
+        <inertia ixx="4.166666666666667e-09" iyy="4.166666666666667e-09" izz="4.166666666666667e-09" ixy="0.0" ixz="0.0" iyz="0.0" />
+      </inertial>
+    </link>
+    <link name="${prefix}mr_rod_end_B_dummy_2">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.001" />
+        <inertia ixx="4.166666666666667e-09" iyy="4.166666666666667e-09" izz="4.166666666666667e-09" ixy="0.0" ixz="0.0" iyz="0.0" />
+      </inertial>
+    </link>
+    <joint name="${prefix}ml_rod_end_A_rx" type="revolute">
+      <parent link="${prefix}ml_pin_PSFGR12-33" />
+      <child link="${prefix}ml_rod_end_A_dummy_1" />
+      <origin xyz="-0.0505 8.326672684688674e-17 3.885780586188048e-16" rpy="0 0 0" />
+      <axis xyz="1.0 0.0 0.0" />
+      <limit lower="-0.08726646259971647" upper="0.08726646259971647" effort="0" velocity="0" />
+    </joint>
+    <joint name="${prefix}ml_rod_end_A_ry" type="revolute">
+      <parent link="${prefix}ml_rod_end_A_dummy_1" />
+      <child link="${prefix}ml_rod_end_A_dummy_2" />
+      <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit lower="-0.08726646259971647" upper="0.08726646259971647" effort="0" velocity="0" />
+    </joint>
+    <joint name="${prefix}ml_rod_end_A_rz" type="revolute">
+      <parent link="${prefix}ml_rod_end_A_dummy_2" />
+      <child link="${prefix}ml_rod_end_M10_A_housing" />
+      <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+      <axis xyz="0.0 0.0 1.0" />
+      <limit lower="-0.4363323129985824" upper="0.4363323129985824" effort="0" velocity="0" />
+    </joint>
+    <joint name="${prefix}ml_rod_end_B_rx" type="revolute">
+      <parent link="${prefix}ml_bar_differential_side" />
+      <child link="${prefix}ml_rod_end_B_dummy_1" />
+      <origin xyz="4.135580766728708e-15 0.20550000000000035 0.009950492553406604" rpy="0 0 0" />
+      <axis xyz="1.0 0.0 0.0" />
+      <limit lower="-0.08726646259971647" upper="0.08726646259971647" effort="0" velocity="0" />
+    </joint>
+    <joint name="${prefix}ml_rod_end_B_ry" type="revolute">
+      <parent link="${prefix}ml_rod_end_B_dummy_1" />
+      <child link="${prefix}ml_rod_end_B_dummy_2" />
+      <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit lower="-0.08726646259971647" upper="0.08726646259971647" effort="0" velocity="0" />
+    </joint>
+    <joint name="${prefix}mr_rod_end_A_rx" type="revolute">
+      <parent link="${prefix}mr_pin_PSFGR12-33" />
+      <child link="${prefix}mr_rod_end_A_dummy_1" />
+      <origin xyz="-0.05049999999999302 -4.399935971122204e-11 8.965050923848139e-15" rpy="0 0 0" />
+      <axis xyz="1.0 0.0 0.0" />
+      <limit lower="-0.08726646259971647" upper="0.08726646259971647" effort="0" velocity="0" />
+    </joint>
+    <joint name="${prefix}mr_rod_end_A_ry" type="revolute">
+      <parent link="${prefix}mr_rod_end_A_dummy_1" />
+      <child link="${prefix}mr_rod_end_A_dummy_2" />
+      <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit lower="-0.08726646259971647" upper="0.08726646259971647" effort="0" velocity="0" />
+    </joint>
+    <joint name="${prefix}mr_rod_end_A_rz" type="revolute">
+      <parent link="${prefix}mr_rod_end_A_dummy_2" />
+      <child link="${prefix}mr_rod_end_M10_A_housing" />
+      <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+      <axis xyz="0.0 0.0 1.0" />
+      <limit lower="-0.4363323129985824" upper="0.4363323129985824" effort="0" velocity="0" />
+    </joint>
+    <joint name="${prefix}mr_rod_end_B_rx" type="revolute">
+      <parent link="${prefix}ml_bar_differential_side" />
+      <child link="${prefix}mr_rod_end_B_dummy_1" />
+      <origin xyz="4.135580766728708e-15 -0.20549999999999968 0.009950492553406604" rpy="0 0 0" />
+      <axis xyz="1.0 0.0 0.0" />
+      <limit lower="-0.08726646259971647" upper="0.08726646259971647" effort="0" velocity="0" />
+    </joint>
+    <joint name="${prefix}mr_rod_end_B_ry" type="revolute">
+      <parent link="${prefix}mr_rod_end_B_dummy_1" />
+      <child link="${prefix}mr_rod_end_B_dummy_2" />
+      <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+      <axis xyz="0.0 1.0 0.0" />
+      <limit lower="-0.08726646259971647" upper="0.08726646259971647" effort="0" velocity="0" />
+    </joint>
+    <link name="${prefix}tool_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/tool_link_revision2_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/tool_link_revision2_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0.0654077314303817 -0.000556664456420843 7.14230452014528e-05" rpy="0 0 0" />
+        <mass value="0.377088144366596" />
+        <inertia ixx="0.000385359499545137" iyy="0.000563827559967294" izz="0.000679268593966836" ixy="-1.21720581311794e-05" ixz="7.34611825230275e-08" iyz="-4.30363818227004e-08" />
+      </inertial>
+    </link>
+    <link name="${prefix}pinion_A">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/pinion_A_revision2_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/pinion_A_revision2_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0.00493264905091784 6.66405583421083e-10 4.40277790372433e-08" rpy="0 0 0" />
+        <mass value="0.0112643284368331" />
+        <inertia ixx="1.99401256463765e-06" iyy="1.10105897563645e-06" izz="1.08059020291435e-06" ixy="-6.63609891884429e-18" ixz="-3.33529370306754e-14" iyz="-4.07258904316407e-12" />
+      </inertial>
+    </link>
+    <link name="${prefix}pinion_B">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/pinion_B_revision2_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/pinion_B_revision2_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0.0049326490509177 6.66405364410752e-10 4.40277782667967e-08" rpy="0 0 0" />
+        <mass value="0.011264328436833" />
+        <inertia ixx="1.99401256463761e-06" iyy="1.10105897563643e-06" izz="1.08059020291433e-06" ixy="-6.63609862650212e-18" ixz="-3.3352935344906e-14" iyz="-4.07258906959639e-12" />
+      </inertial>
+    </link>
+    <link name="${prefix}finger_lower">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/finger_lower_revision2_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/finger_lower_revision2_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0.0352403614759688 -0.125516547917847 -0.0126678742216303" rpy="0 0 0" />
+        <mass value="0.124979062115999" />
+        <inertia ixx="0.000175901948621866" iyy="0.000125670604537711" izz="0.000179460768166762" ixy="4.22931734343563e-05" ixz="1.76831257871072e-05" iyz="-2.98171049631802e-05" />
+      </inertial>
+    </link>
+    <link name="${prefix}finger_upper">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/finger_upper_revision2_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/finger_upper_revision2_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0.0352415044684666 0.125516449398751 0.0126740564408782" rpy="0 0 0" />
+        <mass value="0.124995392501606" />
+        <inertia ixx="0.000175915687774248" iyy="0.000125691541719705" izz="0.000179465863533506" ixy="-4.22930261263202e-05" ixz="-1.76898932557609e-05" iyz="-2.9818637736346e-05" />
+      </inertial>
+    </link>
+    <joint name="${prefix}pinion_A_rotation" type="revolute">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}pinion_A" />
+      <origin xyz="0.11155000000000001 0.020000113671517807 4.7080545217959013e-07" rpy="0 0 0" />
+      <axis xyz="1 0 0" />
+      <limit lower="-1.6790067404185451" upper="2.514429944111423" effort="0.3" velocity="5.969026041820607" />
+    </joint>
+    <joint name="${prefix}pinion_B_rotation" type="revolute">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}pinion_B" />
+      <origin xyz="0.11155000000000001 -0.019999999999999903 0" rpy="0 0 0" />
+      <axis xyz="1 0 0" />
+      <limit lower="-1.6790067404185451" upper="2.514429944111423" effort="0.3" velocity="5.969026041820607" />
+      <mimic joint="${prefix}pinion_A_rotation" multiplier="1.0" offset="0" />
+    </joint>
+    <joint name="${prefix}finger_lower_slide" type="prismatic">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}finger_lower" />
+      <origin xyz="0.11154999999999984 0.094643113671517939 0.017246529194547833" rpy="0 0 0" />
+      <axis xyz="0 1 0" />
+      <limit lower="-0.045259724775776826" upper="0.030222111833333336" effort="1" velocity="1" />
+      <mimic joint="${prefix}pinion_A_rotation" multiplier="-0.017999994345347013" offset="0" />
+    </joint>
+    <joint name="${prefix}finger_upper_slide" type="prismatic">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}finger_upper" />
+      <origin xyz="0.11154999999999984 -0.094576886328482157 -0.017246529194547888" rpy="0 0 0" />
+      <axis xyz="0 1 0" />
+      <limit lower="-0.030222111833333336" upper="0.045259724775776826" effort="1" velocity="1" />
+      <mimic joint="${prefix}pinion_A_rotation" multiplier="0.017999994345347013" offset="0" />
+    </joint>
+    <joint name="${prefix}axis5_rotation" type="revolute">
+      <parent link="${prefix}tool_link" />
+      <child link="${prefix}arm_link5" />
+      <origin xyz="0.10399794386846994 -8.8362477057568611e-18 4.2840751579564795e-06" rpy="0 0 0" />
+      <axis xyz="1 0 0" />
+      <limit lower="-3.141592653589793" upper="3.141592653589793" effort="0.3" velocity="5.969026041820607" />
+    </joint>
+    <link name="${prefix}arm_link3">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/arm_link3_revision3_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/arm_link3_revision3_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0.14658847964245048 -0.0039737376429780221 0.048064486587831363" rpy="0 0 0" />
+        <mass value="1.0551309544077714" />
+        <inertia ixx="0.006971524821043759" iyy="0.011174484186855238" izz="0.015342562589545982" ixy="-0.0005393506183583469" ixz="-0.0011644961701822746" iyz="-0.00018646934340713113" />
+      </inertial>
+    </link>
+    <link name="${prefix}arm_link5">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/arm_link5_revision3_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/arm_link5_revision3_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0.0706091515454709 -0.000235594625876039 0.000187535231340308" rpy="0 0 0" />
+        <mass value="0.883872297063686" />
+        <inertia ixx="0.0015589022591795" iyy="0.00153053795444526" izz="0.0022092490086613" ixy="-1.34440441942015e-05" ixz="-2.31725210656056e-05" iyz="2.4583148834513e-06" />
+      </inertial>
+    </link>
+    <link name="${prefix}toolchanger_lock_rotor">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_lock_rotor_revision3_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_lock_rotor_revision3_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-0.00414316721978421 1.40905023151491e-05 -3.98695120149426e-07" rpy="0 0 0" />
+        <mass value="0.0102116760679499" />
+        <inertia ixx="1.5935816024132e-06" iyy="8.83855394013491e-07" izz="8.81941541868562e-07" ixy="-6.60415850119071e-10" ixz="6.28871786030372e-12" iyz="-1.19448324150354e-11" />
+      </inertial>
+    </link>
+    <link name="${prefix}toolchanger_ball_1">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_1_revision3_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_1_revision3_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="8.23092764245929e-17 -3.32860784534675e-16 6.57438874586371e-16" rpy="0 0 0" />
+        <mass value="0.000332422390651848" />
+        <inertia ixx="2.12750330017183e-09" iyy="2.12750330017183e-09" izz="2.12750330017183e-09" ixy="1.1956003813179e-24" ixz="-3.60107799831951e-25" iyz="5.28307070550823e-25" />
+      </inertial>
+    </link>
+    <link name="${prefix}toolchanger_ball_2">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_2_revision3_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_2_revision3_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="7.76502607779179e-17 -3.24060421646511e-16 7.10758720320542e-16" rpy="0 0 0" />
+        <mass value="0.000332422390651848" />
+        <inertia ixx="2.12750330017183e-09" iyy="2.12750330017183e-09" izz="2.12750330017183e-09" ixy="0" ixz="-9.85331169773067e-25" iyz="0" />
+      </inertial>
+    </link>
+    <link name="${prefix}toolchanger_ball_3">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_3_revision3_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_3_revision3_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="8.02386028038485e-17 -3.77897935785867e-16 6.29484780706321e-16" rpy="0 0 0" />
+        <mass value="0.000332422390651848" />
+        <inertia ixx="2.12750330017183e-09" iyy="2.12750330017183e-09" izz="2.12750330017183e-09" ixy="1.10496469608385e-24" ixz="1.28273137749962e-24" iyz="1.67687178149914e-24" />
+      </inertial>
+    </link>
+    <link name="${prefix}toolchanger_ball_4">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_4_revision3_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_4_revision3_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="8.02386028038485e-17 -3.99640008803684e-16 2.7074057591234e-16" rpy="0 0 0" />
+        <mass value="0.000332422390651848" />
+        <inertia ixx="2.12750330017183e-09" iyy="2.12750330017183e-09" izz="2.12750330017183e-09" ixy="0" ixz="0" iyz="8.30558124990128e-25" />
+      </inertial>
+    </link>
+    <link name="${prefix}toolchanger_ball_5">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_5_revision3_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_5_revision3_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="8.23092764245929e-17 -3.94980993157009e-16 6.12919391740365e-16" rpy="0 0 0" />
+        <mass value="0.000332422390651848" />
+        <inertia ixx="2.12750330017183e-09" iyy="2.12750330017183e-09" izz="2.12750330017183e-09" ixy="9.93143258615754e-25" ixz="0" iyz="0" />
+      </inertial>
+    </link>
+    <link name="${prefix}toolchanger_ball_6">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_6_revision3_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_6_revision3_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="8.90389656920125e-17 -3.59779541604353e-16 4.97479337383861e-16" rpy="0 0 0" />
+        <mass value="0.000332422390651848" />
+        <inertia ixx="2.12750330017183e-09" iyy="2.12750330017183e-09" izz="2.12750330017183e-09" ixy="-2.74559844909371e-24" ixz="-1.17120973844191e-24" iyz="-4.7981644275649e-25" />
+      </inertial>
+    </link>
+    <link name="${prefix}toolchanger_ball_7">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_7_revision3_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_7_revision3_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="8.43799500453374e-17 -3.69615241302889e-16 6.39320480404857e-16" rpy="0 0 0" />
+        <mass value="0.000332422390651848" />
+        <inertia ixx="2.12750330017183e-09" iyy="2.12750330017183e-09" izz="2.12750330017183e-09" ixy="0" ixz="8.14672291747093e-25" iyz="0" />
+      </inertial>
+    </link>
+    <link name="${prefix}toolchanger_ball_8">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_8_revision3_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_rover_silver" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/toolchanger_ball_8_revision3_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="1.22169743623924e-16 -3.13189385137602e-16 4.61760217426018e-16" rpy="0 0 0" />
+        <mass value="0.000332422390651848" />
+        <inertia ixx="2.12750330017183e-09" iyy="2.12750330017183e-09" izz="2.12750330017183e-09" ixy="0" ixz="0" iyz="0" />
+      </inertial>
+    </link>
+    <link name="${prefix}arm_link4">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/arm_link4_revision3_visual.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="jetin_adapter_red">
+          <color rgba="0.65 0.13 0.1 1" />
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://jetin_rover_description/meshes/arm_link4_revision3_collision.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="3.0972481008641982e-06 0.0070698015866238959 0.00061723375232612839" rpy="0 0 0" />
+        <mass value="0.010050507575702007" />
+        <inertia ixx="1.0957042531937237e-06" iyy="1.8641542561953634e-06" izz="1.2336323744011665e-06" ixy="3.7945897703562566e-11" ixz="-2.5447398518383843e-10" iyz="4.648088302692478e-08" />
+      </inertial>
+    </link>
+    <joint name="${prefix}arm_tool_fixed" type="fixed">
+      <parent link="${prefix}arm_link4" />
+      <child link="${prefix}tool_link" />
+      <origin xyz="0 -0.021625000000000109 0" rpy="0 0 0" />
+    </joint>
+    <joint name="${prefix}toolchanger_lock_wheel" type="revolute">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}toolchanger_lock_rotor" />
+      <origin xyz="0.061052640687119325 3.4634838400049439e-16 -2.6406871196926751e-06" rpy="0 0 0" />
+      <axis xyz="1 3.0274109379957327e-32 2.2204460492503101e-16" />
+      <limit effort="0.3" velocity="5.969026041820607" lower="0.0" upper="0.39269908169872414" />
+    </joint>
+    <joint name="${prefix}lock_ball_1" type="prismatic">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}toolchanger_ball_1" />
+      <origin xyz="0.055802640687119293 0.022593145750507925 -2.6406871196926751e-06" rpy="0 0 0" />
+      <axis xyz="0 -0.99999999999999956 3.0412728472047195e-08" />
+      <limit effort="1" velocity="1" lower="0.0" upper="0.0025900000000000003" />
+      <mimic joint="${prefix}toolchanger_lock_wheel" multiplier="0.0065953808417281426" offset="0" />
+    </joint>
+    <joint name="${prefix}lock_ball_2" type="prismatic">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}toolchanger_ball_2" />
+      <origin xyz="0.055802640687119293 0.015975766568520351 0.015973125881400263" rpy="0 0 0" />
+      <axis xyz="0 -0.70710679639291518 -0.70710676598017952" />
+      <limit effort="1" velocity="1" lower="0.0" upper="0.0025900000000000003" />
+      <mimic joint="${prefix}toolchanger_lock_wheel" multiplier="0.0065953808417281426" offset="0" />
+    </joint>
+    <joint name="${prefix}lock_ball_3" type="prismatic">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}toolchanger_ball_3" />
+      <origin xyz="0.055802640687119293 3.6412929962925666e-16 0.022590505063387889" rpy="0 0 0" />
+      <axis xyz="0 -1.3634246772254963e-16 -1" />
+      <limit effort="1" velocity="1" lower="0.0" upper="0.0025900000000000003" />
+      <mimic joint="${prefix}toolchanger_lock_wheel" multiplier="0.0065953808417281426" offset="0" />
+    </joint>
+    <joint name="${prefix}lock_ball_4" type="prismatic">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}toolchanger_ball_4" />
+      <origin xyz="0.055802640687119293 -0.015975766568519616 0.015973125881400652" rpy="0 0 0" />
+      <axis xyz="0 0.70710679639291496 -0.70710676598017974" />
+      <limit effort="1" velocity="1" lower="0.0" upper="0.0025900000000000003" />
+      <mimic joint="${prefix}toolchanger_lock_wheel" multiplier="0.0065953808417281426" offset="0" />
+    </joint>
+    <joint name="${prefix}lock_ball_5" type="prismatic">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}toolchanger_ball_5" />
+      <origin xyz="0.055802640687119293 -0.02259314575050721 -2.6406871196926751e-06" rpy="0 0 0" />
+      <axis xyz="0 0.99999999999999956 3.0412728199362289e-08" />
+      <limit effort="1" velocity="1" lower="0.0" upper="0.0025900000000000003" />
+      <mimic joint="${prefix}toolchanger_lock_wheel" multiplier="0.0065953808417281426" offset="0" />
+    </joint>
+    <joint name="${prefix}lock_ball_6" type="prismatic">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}toolchanger_ball_6" />
+      <origin xyz="0.055802640687119293 -0.015975766568519623 -0.015978407255639648" rpy="0 0 0" />
+      <axis xyz="0 0.70710676598018163 0.70710679639291329" />
+      <limit effort="1" velocity="1" lower="0.0" upper="0.0025900000000000003" />
+      <mimic joint="${prefix}toolchanger_lock_wheel" multiplier="0.0065953808417281426" offset="0" />
+    </joint>
+    <joint name="${prefix}lock_ball_7" type="prismatic">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}toolchanger_ball_7" />
+      <origin xyz="0.055802640687119293 3.6412929962925666e-16 -0.022595786437627219" rpy="0 0 0" />
+      <axis xyz="0 1.3634246772254963e-16 1" />
+      <limit effort="1" velocity="1" lower="0.0" upper="0.0025900000000000003" />
+      <mimic joint="${prefix}toolchanger_lock_wheel" multiplier="0.0065953808417281426" offset="0" />
+    </joint>
+    <joint name="${prefix}lock_ball_8" type="prismatic">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}toolchanger_ball_8" />
+      <origin xyz="0.055802640687119293 0.015975766568520351 -0.015978407255639648" rpy="0 0 0" />
+      <axis xyz="0 -0.70710676598018141 0.70710679639291352" />
+      <limit effort="1" velocity="1" lower="0.0" upper="0.0025900000000000003" />
+      <mimic joint="${prefix}toolchanger_lock_wheel" multiplier="0.0065953808417281426" offset="0" />
+    </joint>
+    <joint name="${prefix}arm4_rotation" type="revolute">
+      <parent link="${prefix}arm_link3" />
+      <child link="${prefix}arm_link4" />
+      <origin xyz="0.2580020561315296 0.021875000000000124 0.060004284075158287" rpy="0 0 0" />
+      <axis xyz="0 1 0" />
+      <limit effort="5.0" velocity="3.1415926535897927" lower="-1.7453292519943295" upper="1.7453292519943295" />
+    </joint>
+    <link name="${prefix}ov5640_link" />
+    <joint name="${prefix}ov5640_link_fixed" type="fixed">
+      <parent link="${prefix}arm_link5" />
+      <child link="${prefix}ov5640_link" />
+      <origin xyz="0.12159 8.88178419700125e-18 0.0432099999996967" rpy="0 0 0" />
+    </joint>
+    <link name="${prefix}ov5640_optical_frame" />
+    <joint name="${prefix}ov5640_optical_frame_fixed" type="fixed">
+      <parent link="${prefix}ov5640_link" />
+      <child link="${prefix}ov5640_optical_frame" />
+      <origin xyz="0 0 0" rpy="-1.5707963267949 0 -1.5707963267949" />
+    </joint>
+  </xacro:macro>
+</robot>

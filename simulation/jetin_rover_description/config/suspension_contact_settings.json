@@ -1,0 +1,41 @@
+{
+  "revision": "suspension_contact_correction_20261007",
+  "applied_pairs": [
+    [
+      "/JETIN/ml_pin_PSFGR12_33",
+      "/JETIN/ml_rod_end_M10_A_housing"
+    ],
+    [
+      "/JETIN/mr_pin_PSFGR12_33",
+      "/JETIN/mr_rod_end_M10_A_housing"
+    ],
+    [
+      "/JETIN/ml_bar_differential_side",
+      "/JETIN/ml_rod_end_M10_A_housing"
+    ],
+    [
+      "/JETIN/ml_bar_differential_side",
+      "/JETIN/mr_rod_end_M10_A_housing"
+    ]
+  ],
+  "reason": "A physical ball joint is represented by 3R and virtual links. Suppress collider contacts between the actual mating ball carrier and rod-end housing; the 3R joints already constrain this interface.",
+  "physics_hz": 120,
+  "solver_position_iterations": 64,
+  "solver_velocity_iterations": 16,
+  "obstacle_demo_speed_m_s": 0.02,
+  "wheel_target_degrees_s": 11.04497,
+  "test_settle_s": 2,
+  "test_acceleration_ramp_s": 1,
+  "demo_launch_note": "The USD demo has constant slow target velocity. Controlled comparison scripts additionally settle for 2s and ramp for 1s.",
+  "hardware_ball_cone_limit_validated": false,
+  "real_motor_parameters_validated": false,
+  "geometry_or_joint_limits_modified": false,
+  "original_usd_sha256": "c05a6b53fe6a6bccbb9298cf861c77b01ebe2b012ee3284591d54db88ccc1d08",
+  "source_global_self_collision_enabled": true,
+  "dummy_armature": 1e-05,
+  "mimic_natural_frequency": 15,
+  "mimic_damping_ratio": 1,
+  "maximum_joint_velocity": 180,
+  "stabilization_enabled": true,
+  "validated_runtime_settings_persisted": true
+}

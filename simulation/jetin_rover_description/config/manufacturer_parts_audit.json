@@ -1,0 +1,2551 @@
+{
+  "revision": "integrated_vision_ready_20261010",
+  "cad_occurrences": 288,
+  "coverage": [
+    {
+      "cad_occurrence": "base_link:1+frame_brackets:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 90,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "base_link:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 42,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_bearing_6205-2RS:1",
+      "family": "6205_2RS",
+      "body_count": 2,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "ml_new_chassis_pivot:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_new_rocker_pivot:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_shoulder_bolt_SBHH-ST-M25-70:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_nut_M20_LBNR20:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_spacer_25x30x1:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_fasteners_M6:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_bearing_6201DDU:1",
+      "family": "6201DDU",
+      "body_count": 2,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "ml_pin_PSFGR12-33:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_STWS12:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "vfl_rocker_vertex_front_pipe1_L50:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "vfl_rocker_vertex_front_pipe2_L50:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "vrl_rocker_vertex_rear_pipe1_L57.3:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "vrl_rocker_vertex_rear_pipe2_L70:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_servo_mount_cover:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_kingpin_flange:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_rear_wheel_module_insert_PLA:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_rear_wheel_module_vertical:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_rear_wheel_module_branch:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_STWS20:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_Bearing_5204:1",
+      "family": "5204",
+      "body_count": 22,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "rl_coupling:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_new_motor_bracket:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_C-KEG5-22:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_C-KEG6-25:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_retainer_plate:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_AK45-36-KV80:1",
+      "family": "AK45",
+      "body_count": 35,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "rl_AK45-36_flange:1",
+      "family": "AK45",
+      "body_count": 1,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "rl_snapring_spacer_PLA:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_double_d_washer:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_bl70200s:1",
+      "family": "BL70200",
+      "body_count": 27,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "rl_flange_nut_M14:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_fasteners_base:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 12,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rl_fasteners_steer:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 10,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bl_bogie_pivot_in_hub_L60_slot:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bl_bogie_pivot_in_arm1_tab:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bl_bogie_pivot_in_insert_PLA:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bl_bogie_pivot_out_hub_L60_slot:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bl_bogie_pivot_out_arm1_tab:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bl_bogie_pivot_out_arm2_tab:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bl_bogie_pivot_out_insert_PLA:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bl_bearing_6200DDU:1",
+      "family": "6200DDU",
+      "body_count": 2,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "bl_shim_10x14x0.5:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bl_shaft_PSFGR10-120:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bl_STWS10:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bl_fasteners_in:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bl_fasteners_out:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_servo_mount_cover:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_kingpin_flange:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_front_wheel_module_insert_PLA:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_front_wheel_module_vertical:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_front_wheel_module_branch:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_STWS20:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_Bearing_5204:1",
+      "family": "5204",
+      "body_count": 22,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "fl_coupling:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_new_motor_bracket:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_C-KEG5-22:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_C-KEG6-25:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_retainer_plate:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_AK45-36-KV80:1",
+      "family": "AK45",
+      "body_count": 35,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "fl_AK45-36_flange:1",
+      "family": "AK45",
+      "body_count": 1,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "fl_snapring_spacer_PLA:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_double_d_washer:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_bl70200s:1",
+      "family": "BL70200",
+      "body_count": 27,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "fl_flange_nut_M14:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_fasteners_base:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 12,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fl_fasteners_steer:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 10,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "cl_new_center_wheel_module:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "cl_new_center_wheel_module_cover:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "cl_double_d_washer:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "cl_flange_nut_M14:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "cl_bl70200s:1",
+      "family": "BL70200",
+      "body_count": 27,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "cl_fasteners_base:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 7,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_cover_J1:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_cover_J2:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_inner_J1:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_inner_J2:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_inner_J3:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_inner_J4:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_inner_J5:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_inner_J6:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_link_J3:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_link_J5:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_link_J6:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_bolts_J1A:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_bolts_J1B:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_bolts_J2A:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_bolts_J2B:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_bolts_J3A:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_bolts_J4A:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_bolts_J4B:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_bolts_J3B:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_bolts_J5A:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_bolts_J5B:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_bolts_J6A:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kl_bolts_J6B:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_suspension_conector_bearing:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_rod_end_M10_A_housing:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_bearing_connector:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_rod_end_M10_B_housing:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_bar_differential_side:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_rod_end_M10_A_ball:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_rod_end_M10_B_ball:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_bearing_6205-2RS:1",
+      "family": "6205_2RS",
+      "body_count": 2,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "mr_new_chassis_pivot:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_new_rocker_pivot:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_shoulder_bolt_SBHH-ST-M25-70:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_nut_M20_LBNR20:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_spacer_25x30x1:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_fasteners_M6:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_bearing_6201DDU:1",
+      "family": "6201DDU",
+      "body_count": 2,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "mr_pin_PSFGR12-33:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_STWS12:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "vfr_rocker_vertex_front_pipe1_L50:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "vfr_rocker_vertex_front_pipe2_L50:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "vrr_rocker_vertex_rear_pipe1_L57.3:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "vrr_rocker_vertex_rear_pipe2_L70:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_servo_mount_cover:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_kingpin_flange:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_rear_wheel_module_insert_PLA:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_rear_wheel_module_vertical:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_rear_wheel_module_branch:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_STWS20:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_Bearing_5204:1",
+      "family": "5204",
+      "body_count": 22,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "rr_coupling:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_new_motor_bracket:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_C-KEG5-22:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_C-KEG6-25:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_retainer_plate:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_AK45-36-KV80:1",
+      "family": "AK45",
+      "body_count": 35,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "rr_AK45-36_flange:1",
+      "family": "AK45",
+      "body_count": 1,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "rr_snapring_spacer_PLA:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_double_d_washer:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_bl70200s:1",
+      "family": "BL70200",
+      "body_count": 27,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "rr_flange_nut_M14:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_fasteners_base:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 12,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rr_fasteners_steer:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 10,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "br_bogie_pivot_in_hub_L60_slot:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "br_bogie_pivot_in_arm1_tab:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "br_bogie_pivot_in_insert_PLA:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "br_bogie_pivot_out_hub_L60_slot:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "br_bogie_pivot_out_arm1_tab:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "br_bogie_pivot_out_arm2_tab:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "br_bogie_pivot_out_insert_PLA:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "br_bearing_6200DDU:1",
+      "family": "6200DDU",
+      "body_count": 2,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "br_shim_10x14x0.5:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "br_shaft_PSFGR10-120:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "br_STWS10:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "br_fasteners_in:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "br_fasteners_out:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_servo_mount_cover:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_kingpin_flange:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_front_wheel_module_insert_PLA:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_front_wheel_module_vertical:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_front_wheel_module_branch:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_STWS20:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_Bearing_5204:1",
+      "family": "5204",
+      "body_count": 22,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "fr_coupling:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_new_motor_bracket:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_C-KEG5-22:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_C-KEG6-25:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_retainer_plate:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_AK45-36-KV80:1",
+      "family": "AK45",
+      "body_count": 35,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "fr_AK45-36_flange:1",
+      "family": "AK45",
+      "body_count": 1,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "fr_snapring_spacer_PLA:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_double_d_washer:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_bl70200s:1",
+      "family": "BL70200",
+      "body_count": 27,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "fr_flange_nut_M14:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_fasteners_base:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 12,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "fr_fasteners_steer:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 10,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "cr_new_center_wheel_module:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "cr_new_center_wheel_module_cover:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "cr_double_d_washer:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "cr_flange_nut_M14:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "cr_bl70200s:1",
+      "family": "BL70200",
+      "body_count": 27,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "cr_fasteners_base:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 7,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_cover_J1:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_cover_J2:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_inner_J1:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_inner_J2:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_inner_J3:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_inner_J4:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_inner_J5:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_inner_J6:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_link_J3:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_link_J5:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_link_J6:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_bolts_J1A:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_bolts_J1B:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_bolts_J2A:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_bolts_J2B:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_bolts_J3A:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_bolts_J4A:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_bolts_J4B:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_bolts_J3B:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_bolts_J5A:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_bolts_J5B:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_bolts_J6A:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "kr_bolts_J6B:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_suspension_conector_bearing:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_rod_end_M10_A_housing:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_bearing_connector:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_rod_end_M10_B_housing:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_bar_differential_side:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_rod_end_M10_A_ball:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_rod_end_M10_B_ball:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "diff_bar:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "diffbar_pivot_bearings_6900ZZ:1",
+      "family": "6900ZZ",
+      "body_count": 2,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "diffbar_pivot_rotating:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 5,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "side_panel_R:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 10,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "side_panel_L:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 10,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "rear_panel:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 9,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bottom_plate:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 3,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "side_panel_FR:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 9,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "side_panel_FL:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 9,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "front_panel:1+cam_D435i_case:1",
+      "family": "D435i",
+      "body_count": 1,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "front_panel:1+cam_D435i:1",
+      "family": "D435i",
+      "body_count": 7,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "front_panel:1+lidar_L515_case:1",
+      "family": "L515",
+      "body_count": 1,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "front_panel:1+lidar_L515:1",
+      "family": "L515",
+      "body_count": 7,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "front_panel:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 9,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "battery:1",
+      "family": "battery_unidentified",
+      "body_count": 1,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "battery_shelf:1",
+      "family": "battery_unidentified",
+      "body_count": 1,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "PDIST80B:1",
+      "family": "PDIST80B",
+      "body_count": 71,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "SZH-CP001:1",
+      "family": "SZH-CP001",
+      "body_count": 25,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "SZH-CP003:1",
+      "family": "SZH-CP003",
+      "body_count": 33,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "pcb_shelf:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "PCB_18V:1",
+      "family": "custom_18V_PCB",
+      "body_count": 399,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "jetson_orin_nano:1",
+      "family": "Jetson_Orin_Nano",
+      "body_count": 1921,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "CAN_isolator_DB9:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 51,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "arm_support:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "arm_axis1_column:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "arm_top_plate:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 34,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "arm_disc_retainers:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 4,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "arm_axis1_motor:1",
+      "family": "XM540",
+      "body_count": 1,
+      "disposition": "user-confirmed manufacturer model"
+    },
+    {
+      "cad_occurrence": "arm_link1:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 7,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "arm_link2:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 10,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "arm_link3:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 11,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "PHB_U2D2:1",
+      "family": "U2D2_power_hub",
+      "body_count": 14,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "PHB_2:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 8,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "odrive_frame:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "router_opal:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 3,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "router_stand:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "odrive_1:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 25,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "odrive_2:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 25,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "odrive_3:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 25,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "pcb_shelf_3F:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mag_L:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "encoder_L:1",
+      "family": "AS5048B_board_or_holder",
+      "body_count": 31,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "mag_R:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "encoder_R:1",
+      "family": "AS5048B_board_or_holder",
+      "body_count": 31,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "bogie_enc_L:1",
+      "family": "AS5048B_board_or_holder",
+      "body_count": 31,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "bogie_mag_L:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "bogie_enc_R:1",
+      "family": "AS5048B_board_or_holder",
+      "body_count": 31,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "bogie_mag_R:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_rod_end_A_bolt_GMSB10_20:1",
+      "family": "GMSB10-20",
+      "body_count": 1,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "ml_rod_end_A_nut_M8:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_rod_end_B_bolt_GMSB10_20:1",
+      "family": "GMSB10-20",
+      "body_count": 1,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "ml_rod_end_B_nut_M8:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_rod_end_A_bolt_GMSB10_20:1",
+      "family": "GMSB10-20",
+      "body_count": 1,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "mr_rod_end_A_nut_M8:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_rod_end_B_bolt_GMSB10_20:1",
+      "family": "GMSB10-20",
+      "body_count": 1,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "mr_rod_end_B_nut_M8:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_rod_end_A_dummy_1:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_rod_end_A_dummy_2:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_rod_end_B_dummy_1:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "ml_rod_end_B_dummy_2:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_rod_end_A_dummy_1:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_rod_end_A_dummy_2:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_rod_end_B_dummy_1:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "mr_rod_end_B_dummy_2:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "tool_link:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 26,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "arm_link5:1",
+      "family": "XL430",
+      "body_count": 34,
+      "disposition": "public specification review tracked in family registry"
+    },
+    {
+      "cad_occurrence": "pinion_A:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "pinion_B:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "finger_lower:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "finger_upper:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "toolchanger_lock_rotor:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 2,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "toolchanger_ball_1:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "toolchanger_ball_2:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "toolchanger_ball_3:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "toolchanger_ball_4:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "toolchanger_ball_5:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "toolchanger_ball_6:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "toolchanger_ball_7:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "toolchanger_ball_8:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    },
+    {
+      "cad_occurrence": "arm_link4:1",
+      "family": "custom_CAD_or_generic_fastener",
+      "body_count": 1,
+      "disposition": "CAD geometry/material/mass retained; no identified manufacturer datasheet"
+    }
+  ],
+  "counts": {
+    "custom_CAD_or_generic_fastener": 241,
+    "6205_2RS": 2,
+    "6201DDU": 2,
+    "5204": 4,
+    "AK45": 8,
+    "BL70200": 6,
+    "6200DDU": 2,
+    "6900ZZ": 1,
+    "D435i": 2,
+    "L515": 2,
+    "battery_unidentified": 2,
+    "PDIST80B": 1,
+    "SZH-CP001": 1,
+    "SZH-CP003": 1,
+    "custom_18V_PCB": 1,
+    "Jetson_Orin_Nano": 1,
+    "U2D2_power_hub": 1,
+    "AS5048B_board_or_holder": 4,
+    "GMSB10-20": 4,
+    "XL430": 1,
+    "XM540": 1
+  },
+  "families": {
+    "AK45": {
+      "model": "AK45-36 KV80",
+      "source": "https://www.cubemars.com/product/ak45-36-v3-0-kv80-robotic-actuator.html",
+      "legacy_source": "https://www.cubemars.com/product/AK45-36.html",
+      "revision": "hardware_version_unconfirmed; common legacy/V3 mechanical specifications",
+      "mass_kg": 0.349,
+      "mass_basis": "preserve existing CAD 349g; V3=349g, legacy=340g",
+      "rated_voltage_V": 24.0,
+      "rated_torque_Nm": 8.0,
+      "peak_torque_Nm": 24.0,
+      "rated_speed_rpm": 40.0,
+      "no_load_speed_rpm": 52.0,
+      "gear_ratio": 36.0,
+      "pole_pairs": 14,
+      "rotor_inertia_kg_m2": 1.819e-05,
+      "reflected_output_armature_kg_m2": 0.02357424,
+      "backlash_deg": 0.2,
+      "backdrive_torque_Nm": 0.8,
+      "torque_constant_motor_Nm_A": 0.11,
+      "back_EMF_V_krpm": 12.5,
+      "resistance_ohm": 1.8,
+      "inductance_H": 0.0011,
+      "rated_current_A": 2.0,
+      "peak_current_A": 6.5,
+      "operating_temperature_C": [
+        -20,
+        50
+      ],
+      "structural_dynamic_load_N": 2810.0,
+      "structural_static_load_N": 2760.0,
+      "encoder_variants": {
+        "legacy": {
+          "input_bits": 14,
+          "output_bits": null
+        },
+        "V3": {
+          "input_bits": 16,
+          "output_bits": 16,
+          "model": "MT6835"
+        }
+      },
+      "curve_rpm": [
+        0,
+        13,
+        18,
+        23,
+        27,
+        31,
+        35,
+        38,
+        40,
+        43,
+        48,
+        52
+      ],
+      "curve_torque_Nm": [
+        24,
+        24,
+        24,
+        21,
+        18,
+        15,
+        12,
+        9,
+        8,
+        6,
+        3,
+        0
+      ],
+      "curve_basis": "Approximate digitization of manufacturer 24V graph; rated point 8Nm/40rpm retained. No extrapolation above 24Nm.",
+      "active_continuous_torque_Nm": 8.0,
+      "peak_enabled": false,
+      "peak_duration_s": null,
+      "position_kp_Nm_rad": 80.0,
+      "velocity_kd_Nm_s_rad": 4.0,
+      "gains_basis": "editable simulation tuning; not manufacturer firmware gains",
+      "command_velocity_limit_deg_s": 53.57142857142857,
+      "command_acceleration_deg_s2": 238.0952380952381,
+      "command_basis": "project SERVO eRPM/(14*36), deg/s=eRPM/84; SPD4500 ACC20000; not MIT protocol limits",
+      "feedback_position_step_deg": 0.1,
+      "feedback_speed_step_erpm": 10,
+      "feedback_current_step_A": 0.01,
+      "feedback_hz": 50.0,
+      "friction_model": "smooth output Coulomb approximation of 0.8Nm backdrive specification; exact seal/static drag not measured",
+      "backlash_model": "position-servo deadband +/-0.1deg approximation; no separate gear teeth DOFs",
+      "unmodeled": [
+        "thermal transient/peak duration",
+        "electrical phase current loop",
+        "actual CAN arbitration/errors",
+        "hardware encoder version",
+        "load-dependent gearbox efficiency"
+      ]
+    },
+    "XL430": {
+      "model": "XL430-W250-T",
+      "source": "https://emanual.robotis.com/docs/en/dxl/x/xl430-w250/",
+      "manufacturer_mass_kg": 0.0572,
+      "applied_mass_kg": 0.057,
+      "mass_basis": "user explicitly specified 57g; retain user mass over rounded manufacturer 57.2g",
+      "gear_ratio": 258.5,
+      "position_counts": 4096,
+      "voltage_speed_torque": [
+        [
+          9,
+          47,
+          1.0
+        ],
+        [
+          11.1,
+          57,
+          1.4
+        ],
+        [
+          12,
+          61,
+          1.5
+        ]
+      ],
+      "voltage_V": 11.1,
+      "stall_torque_Nm": 1.4,
+      "no_load_speed_rpm": 57.0,
+      "continuous_rating_Nm": null,
+      "operating_voltage_V": [
+        6.5,
+        12
+      ],
+      "operating_temperature_C": [
+        -5,
+        72
+      ],
+      "feedback_velocity_step_rpm": 0.229,
+      "feedback_load_step_percent": 0.1,
+      "load_is_estimated": true,
+      "feedback_current_sensor": false,
+      "active_torque_cap_Nm": 0.3,
+      "cap_basis": "retain verified gripper test cap, not manufacturer continuous rating",
+      "envelope_basis": "linear DC envelope approximation; firmware PWM dynamics and gearbox compliance unmodeled",
+      "paired_gripper_actuation": "Two confirmed XL430 motors drive pinionA/B; coupled angle targets,individual .3Nm provisional caps. Rack mimic is an ideal transmission substitute,teeth collision filtered; all pad/object contacts retained."
+    },
+    "L515_IMU": {
+      "device": "L515/BMI085",
+      "sample_hz": 100.0,
+      "accel_range_g": 4.0,
+      "gyro_range_deg_s": 1000.0,
+      "accel_lsb_m_s2": 0.001197100830078125,
+      "gyro_lsb_rad_s": 0.0005326322180158477,
+      "accel_noise_density_g_sqrtHz": [
+        0.000105,
+        0.000105,
+        0.000135
+      ],
+      "gyro_noise_density_deg_s_sqrtHz": 0.014,
+      "accel_bandwidth_hz": 25.0,
+      "gyro_bandwidth_hz": 47.0,
+      "bandwidth_basis": "gyro47Hz datasheet noise condition; accel25Hz editable simulation assumption",
+      "accel_noise_condition": "density specified at +/-2g,25C; provisionally used at L515 +/-4g; not measured",
+      "accel_bias_bound_g": 0.02,
+      "gyro_bias_bound_deg_s": 1.0,
+      "bias_distribution": "seeded uniform within typical bounds, fixed per run; distribution is assumption",
+      "accel_temp_bias_g_K": 0.0002,
+      "gyro_temp_bias_deg_s_K": 0.015,
+      "temperature_C": 25.0,
+      "temperature_basis": "constant configured temperature; no heat solver",
+      "seed": 20261009,
+      "source": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmi085-ds001.pdf",
+      "output": "float32 specific acceleration including gravity and angular velocity",
+      "hardware_calibrated": false
+    },
+    "L515_depth": {
+      "enabled": true,
+      "device": "L515",
+      "profile": "1024x768@30fps",
+      "source": "https://realsenseai.com/wp-content/uploads/2025/06/Intel_RealSense_LiDAR_L515_Datasheet_Rev003.pdf",
+      "reflectivity_percent": 95.0,
+      "valid_range_m": [
+        0.25,
+        6.5
+      ],
+      "low_reflectivity_range_m": [
+        0.25,
+        2.6
+      ],
+      "sigma_anchor_distance_m": [
+        1.0,
+        9.0
+      ],
+      "sigma_anchor_m": [
+        0.0025,
+        0.0155
+      ],
+      "mean_error_bounds_m": [
+        0.005,
+        0.014
+      ],
+      "noise_condition": "VGA/95% reflectivity values; provisional XGA noise transfer, not a calibrated XGA noise model",
+      "reflectivity_basis": "uniform selected test assumption; rendered color is not optical reflectivity",
+      "mean_bias_m": 0.0,
+      "seed": 5640515,
+      "unmodeled": [
+        "MEMS scan pattern",
+        "per-pixel measured reflectivity",
+        "ambient-light dropouts",
+        "multipath",
+        "hardware lens/extrinsics calibration"
+      ]
+    },
+    "BL70200": {
+      "source": "https://www.motorbank.kr/goods/goods_view.php?goodsNo=1000034001",
+      "table_image": "https://motorbank.godohosting.com/gd5replace/motorbtr5196/data/editor/goods/230619/BL70200_190828.jpg",
+      "listed_voltage_V": [
+        24,
+        36
+      ],
+      "listed_power_W": [
+        250,
+        320
+      ],
+      "listed_torque_Nm": 22,
+      "listed_peak_torque_Nm": 39,
+      "listed_mass_kg": 4.5,
+      "listed_speed_rpm": [
+        125,
+        185
+      ],
+      "rated_current_A": 9,
+      "no_load_current_A_less_than": 0.9,
+      "gear_ratio": 5,
+      "pole_pairs": 10,
+      "protection": "IP44",
+      "application": "recorded actual ODrive48V/9A/Kt0.353/ratio5 retained; mass4.5kg existingCAD; output torque14.2965Nm project limit",
+      "conflict": "24/36V supplier variant vs project48V; no unverified voltage extrapolation/derating",
+      "resistance_ohm": 0.2914176285,
+      "inductance_H": 0.00036949577,
+      "calibration_basis": "Notion recorded calibration from one ODrive; not manufacturer constants for every unit",
+      "exact_model_source": "https://www.motorbank.kr/goods/goods_view.php?goodsNo=1000034865",
+      "cad_model": "BL70200S",
+      "source_note": "S model official page independently confirms24/36V250/320W22Nm4.5kg; detailed table is BL70200 family reference. BLC bundled controller is not actual project ODrive."
+    },
+    "AS5048B": {
+      "model": "AS5048B",
+      "interface": "I2C",
+      "angle_resolution_deg": 0.02197265625,
+      "absolute_range_deg": [
+        0,
+        360
+      ],
+      "single_turn": true,
+      "sample_hz_basis": "60Hz simulation readout assumption, not measured firmware/bus rate.",
+      "hardware_calibrated": false,
+      "protocol_emulated": false,
+      "datasheet": "https://look.ams-osram.com/m/287d7ad97d1ca22e/original/AS5048-DS000298%20Datasheet",
+      "calibration_remaining": [
+        "electrical zero and polarity",
+        "actual sample period and latency",
+        "magnet eccentricity/nonlinearity/noise",
+        "I2C bus and four-device addresses"
+      ],
+      "scope": "Passive rocker and bogie sensing only; wheel Hall feedback and all joint forces/constraints unchanged.",
+      "error_model": "14bit + 0.06deg RMS noise + configurable bounded periodic INL + 100us propagation",
+      "internal_sample_hz": 11250.0,
+      "inl_optimum_max_deg": 0.8,
+      "inl_full_temperature_max_deg": 1.0,
+      "inl_displaced_max_deg": 1.2,
+      "startup_time_s": 0.01,
+      "magnetic_input_mT": [
+        30,
+        50,
+        70
+      ],
+      "inl_distribution": "second harmonic with seeded phase is assumption; actual eccentricity unknown",
+      "manufacturer_document_mirror": "https://datasheet.lcsc.com/datasheet/pdf/50d7c988a6a95fdf35ee899478caa08e.pdf?productCode=C176792"
+    },
+    "D435i": {
+      "source": "https://dev.realsenseai.com/download/42003/",
+      "mass_kg": 0.072,
+      "depth_fov_deg": [
+        87,
+        58
+      ],
+      "baseline_m": 0.05,
+      "accuracy_bound": "less than2% at2m under published conditions, not Gaussian sigma",
+      "rgb_fov_deg": [
+        69,
+        42
+      ],
+      "imu_revision": "BMI055 or BMI085 by unit revision, unconfirmed",
+      "imu_activation": "not enabled; optional unit-specific configuration required",
+      "application": "actual CAD mount/camera RGB/ideal stereo depth; published bound metadata, stereo processing/noise unmeasured"
+    },
+    "OV5640": {
+      "source": "https://files.waveshare.com/upload/d/da/OV5640_DataSheet.pdf",
+      "chip_source": "https://www.ovt.com/press-releases/omnivision-launches-optimized-quarter-inch-5-megapixel/",
+      "pixel_pitch_um": 1.4,
+      "chip_array": [
+        2592,
+        1944
+      ],
+      "modes": [
+        [
+          2592,
+          1944,
+          15
+        ],
+        [
+          1920,
+          1080,
+          30
+        ],
+        [
+          1280,
+          720,
+          60
+        ],
+        [
+          640,
+          480,
+          90
+        ]
+      ],
+      "shutter": "rolling",
+      "application": "existing nominal lens/mount RGB at configured mode; actual module lens/rolling readout calibration unknown"
+    },
+    "6200DDU": {
+      "source": "https://www.nsk.com/engineering/products/bearings/ball-bearings/deep-groove-ball-bearings/single-row-deep-groove-ball-bearings/6200ddu-dgbb-sr.html",
+      "dimensions_mm": [
+        10,
+        30,
+        9
+      ],
+      "mass_kg": 0.032,
+      "Cr_N": 5600,
+      "C0r_N": 2390,
+      "speed_rpm": 18000,
+      "application": "CAD mass32g matches; strength/speed catalog metadata, no failure/drag model"
+    },
+    "6201DDU": {
+      "source": "https://www.nsk.com/eu-en/engineering/6201ddu-dgbb-sr.html",
+      "dimensions_mm": [
+        12,
+        32,
+        10
+      ],
+      "mass_kg": 0.037,
+      "Cr_N": 7500,
+      "C0r_N": 3050,
+      "speed_rpm": 17000,
+      "application": "CAD mass37g matches; load rating is not Coulomb joint friction"
+    },
+    "GMSB10-20": {
+      "source": "https://sg.misumi-ec.com/pdf/fa/2010/p2_0209.pdf",
+      "shoulder_diameter_mm": 10,
+      "shoulder_length_mm": 20,
+      "diameter_g6_mm": [
+        9.986,
+        9.995
+      ],
+      "application": "actual STEP geometry rigid model; thread/fit/strength metadata, no FEA"
+    },
+    "Jetson_Orin_Nano": {
+      "source": "https://developer.nvidia.com/blog/nvidia-jetson-orin-nano-developer-kit-gets-a-super-boost/",
+      "variant_unconfirmed": true,
+      "module_8GB_reference": {
+        "memory_GB": 8,
+        "CUDA_cores": 1024,
+        "Tensor_cores": 32,
+        "CPU": "6-core Cortex A78AE",
+        "power_modes_W": [
+          7,
+          15,
+          25
+        ]
+      },
+      "application": "CAD mount/mass only; compute latency/heat/power needs workload and unit profile; metadata only"
+    },
+    "PDIST80B": {
+      "source": "https://www.mdrobot.co.kr/acc-power-management-etc/?idx=331",
+      "input_voltage_V": [
+        24,
+        48
+      ],
+      "maximum_current_A": 80,
+      "application": "CAD mass/mount; electrical rating metadata; no source impedance/heat/fuse transient specification"
+    },
+    "SZH-CP001": {
+      "source": "https://www.devicemart.co.kr/goods/view_contents?no=12498800&setMode=pc&zoom=1",
+      "source_kind": "SZH brand distributor specification table",
+      "per_circuit_current_A": 30,
+      "voltage_V": 600,
+      "pins": [
+        2,
+        4
+      ],
+      "dimensions_mm": [
+        80,
+        45,
+        33
+      ],
+      "insulation_resistance_Mohm_min": 40,
+      "dielectric_V_per_min": 3000,
+      "application": "existing CAD dimensions/mass; electrical insulation metadata"
+    },
+    "SZH-CP003": {
+      "source": "https://www.devicemart.co.kr/goods/view_contents?no=12498800&setMode=pc&zoom=1",
+      "source_kind": "SZH brand distributor specification table",
+      "per_circuit_current_A": 30,
+      "voltage_V": 600,
+      "pins": [
+        2,
+        8
+      ],
+      "dimensions_mm": [
+        100,
+        45,
+        33
+      ],
+      "insulation_resistance_Mohm_min": 40,
+      "dielectric_V_per_min": 3000,
+      "application": "existing CAD dimensions/mass; no resistive heating model"
+    },
+    "U2D2_power_hub": {
+      "source": "https://emanual.robotis.com/docs/en/parts/interface/u2d2_power_hub/",
+      "application": "CAD mount/mass retained; public power/pinout metadata, no serial electrical timing or heat solver",
+      "operating_voltage_V": [
+        3.5,
+        24
+      ],
+      "maximum_current_A": 10,
+      "power_interfaces": [
+        "TTL3pin",
+        "RS4854pin"
+      ]
+    },
+    "6900ZZ_reference": {
+      "source": "https://www.nsk.com/engineering/6900zz-dgbb-sr.html",
+      "actual_brand_unconfirmed": true,
+      "dimensions_mm": [
+        10,
+        22,
+        6
+      ],
+      "mass_kg": 0.009,
+      "Cr_N": 2970,
+      "C0r_N": 1270,
+      "speed_rpm": 32000,
+      "application": "reference standard dimensions; no brand-specific mass replacement"
+    },
+    "5204_reference": {
+      "source": "https://koyo.jtekt.co.jp/en/products/detail/print.php?pno=5204",
+      "actual_brand_unconfirmed": true,
+      "application": "CAD bearing geometry/mass retained; strength metadata reference, not inferred friction",
+      "dimensions_mm": [
+        20,
+        47,
+        20.6
+      ],
+      "reference_mass_kg": 0.158,
+      "Cr_N": 24600,
+      "C0r_N": 12500,
+      "Cu_N": 640,
+      "grease_limit_rpm": 8800,
+      "oil_limit_rpm": 12000,
+      "load_center_spread_mm": 23.5
+    },
+    "6205_reference": {
+      "source": "https://www.nsk.com/engineering/6205ddu-dgbb-sr.html",
+      "actual_brand_unconfirmed": true,
+      "dimensions_mm": [
+        25,
+        52,
+        15
+      ],
+      "application": "standard dimensions; 2RS supplier seal drag/load ratings unconfirmed",
+      "reference_mass_kg": 0.129,
+      "reference_Cr_N": 15400,
+      "reference_C0r_N": 7850,
+      "reference_grease_limit_rpm": 9000,
+      "reference_variant": "NSK6205DDU; actual2RS manufacturer unidentified; no CAD mass replacement"
+    },
+    "generic_parts": {
+      "items": [
+        "M10 rod ends",
+        "tires",
+        "battery",
+        "PLA prints",
+        "aluminum profiles",
+        "custom18V PCB"
+      ],
+      "application": "actual CAD dimensions/material/inertial model retained; precise manufacturer/variant or custom material test absent",
+      "blocked_specifications": [
+        "seal friction",
+        "rod-end tilt limits",
+        "tire stress-strain/friction",
+        "battery chemistry/capacity/internal resistance",
+        "converter curve",
+        "PLA print anisotropy"
+      ]
+    },
+    "XM540": {
+      "model": "XM540-W270-T",
+      "source": "https://emanual.robotis.com/docs/en/dxl/x/xm540-w270/",
+      "mass_kg": 0.165,
+      "gear_ratio": 272.5,
+      "position_counts": 4096,
+      "voltage_speed_torque": [
+        [
+          11.1,
+          28,
+          10
+        ],
+        [
+          12,
+          30,
+          10.6
+        ],
+        [
+          14.8,
+          37,
+          12.9
+        ]
+      ],
+      "operating_voltage_V": [
+        10,
+        14.8
+      ],
+      "operating_temperature_C": [
+        -5,
+        80
+      ],
+      "feedback_velocity_step_rpm": 0.229,
+      "feedback_current_step_A": 0.00269,
+      "backlash_deg": 0.25,
+      "voltage_V": 12.0,
+      "stall_torque_Nm": 10.6,
+      "no_load_speed_rpm": 30.0,
+      "continuous_rating_Nm": null,
+      "envelope_basis": "linear DC envelope approximation from stall/no-load endpoints, NOT continuous torque rating",
+      "active_torque_cap_Nm": 5.0,
+      "cap_basis": "provisional simulation cap; not manufacturer continuous specification",
+      "unmapped_axes": [],
+      "identity_basis": "User confirmed J1/J2/J3/J4 XM540-W270-T on 2026-10-10; native motor1..4 already165g in both designs.",
+      "joints": [
+        "arm_J1_yaw",
+        "arm_J2_shoulder",
+        "arm_J3_elbow",
+        "arm4_rotation"
+      ],
+      "transmissions": {
+        "arm_J1_yaw": {
+          "external_ratio": 1.0,
+          "ratio_basis": "User confirmed J2=10:1,J3=10:1,all other arm axes no external gearbox,2026-10-10",
+          "efficiency": 1.0,
+          "efficiency_basis": "no additional gearbox loss",
+          "output_torque_cap_Nm": 5.0,
+          "output_cap_basis": "provisional motor cap5Nm,NOT continuous rating",
+          "position_kp_Nm_rad": 60.0,
+          "velocity_kd_Nm_s_rad": 5.0,
+          "gains_basis": "editable output-side simulation gains,not manufacturer firmware",
+          "gearbox_variant_confirmed": null,
+          "gearbox_backlash_deg": null,
+          "additional_rotating_inertia_kg_m2": null,
+          "spec_reference": "https://emanual.robotis.com/docs/en/dxl/x/xm540-w270/"
+        },
+        "arm_J2_shoulder": {
+          "external_ratio": 10.0,
+          "ratio_basis": "User confirmed J2=10:1,J3=10:1,all other arm axes no external gearbox,2026-10-10",
+          "efficiency": 0.9,
+          "efficiency_basis": "editable theoretical assumption,not measured",
+          "output_torque_cap_Nm": 30.0,
+          "output_cap_basis": "provisional simulation limit; prior project PLG060 J2 10:1 planning value30Nm; NOT confirmed continuous hardware rating",
+          "position_kp_Nm_rad": 1200.0,
+          "velocity_kd_Nm_s_rad": 60.0,
+          "gains_basis": "editable output-side simulation gains,not manufacturer firmware",
+          "gearbox_variant_confirmed": false,
+          "gearbox_backlash_deg": null,
+          "additional_rotating_inertia_kg_m2": null,
+          "spec_reference": "https://www.steppermotor.fr/goods-1446-R%C3%A9ducteur-plan%C3%A9taire-h%C3%A9lico%C3%AFdal-s%C3%A9rie-PLG060-arbre-dentr%C3%A9e-63581114-mm-pour-moteur-pas-%C3%A0-pas-Nema23Sveromoteur-Nema-24.html"
+        },
+        "arm_J3_elbow": {
+          "external_ratio": 10.0,
+          "ratio_basis": "User confirmed J2=10:1,J3=10:1,all other arm axes no external gearbox,2026-10-10",
+          "efficiency": 0.9,
+          "efficiency_basis": "editable theoretical assumption,not measured",
+          "output_torque_cap_Nm": 30.0,
+          "output_cap_basis": "provisional simulation limit; prior project PLG060 J2 10:1 planning value30Nm; NOT confirmed continuous hardware rating",
+          "position_kp_Nm_rad": 1200.0,
+          "velocity_kd_Nm_s_rad": 60.0,
+          "gains_basis": "editable output-side simulation gains,not manufacturer firmware",
+          "gearbox_variant_confirmed": false,
+          "gearbox_backlash_deg": null,
+          "additional_rotating_inertia_kg_m2": null,
+          "spec_reference": "https://www.steppermotor.fr/goods-1446-R%C3%A9ducteur-plan%C3%A9taire-h%C3%A9lico%C3%AFdal-s%C3%A9rie-PLG060-arbre-dentr%C3%A9e-63581114-mm-pour-moteur-pas-%C3%A0-pas-Nema23Sveromoteur-Nema-24.html"
+        },
+        "arm4_rotation": {
+          "external_ratio": 1.0,
+          "ratio_basis": "User confirmed J2=10:1,J3=10:1,all other arm axes no external gearbox,2026-10-10",
+          "efficiency": 1.0,
+          "efficiency_basis": "no additional gearbox loss",
+          "output_torque_cap_Nm": 5.0,
+          "output_cap_basis": "provisional motor cap5Nm,NOT continuous rating",
+          "position_kp_Nm_rad": 360.0,
+          "velocity_kd_Nm_s_rad": 15.0,
+          "gains_basis": "editable output-side simulation gains,not manufacturer firmware",
+          "gearbox_variant_confirmed": null,
+          "gearbox_backlash_deg": null,
+          "additional_rotating_inertia_kg_m2": null,
+          "spec_reference": "https://emanual.robotis.com/docs/en/dxl/x/xm540-w270/"
+        }
+      }
+    }
+  },
+  "source_manifest": [
+    {
+      "name": "L515.pdf",
+      "url": "https://realsenseai.com/wp-content/uploads/2025/06/Intel_RealSense_LiDAR_L515_Datasheet_Rev003.pdf",
+      "bytes": 944298,
+      "sha256": "95a06aad98ca2182b106a8e65955af817e25a3e07892b06b06b5172f5c5a1677",
+      "downloaded": true
+    },
+    {
+      "name": "BMI085.pdf",
+      "url": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmi085-ds001.pdf",
+      "bytes": 1437723,
+      "sha256": "415b081d17c116ddaf33e58a775a46f1ab9136b3baca338d8806a3e2def99f3a",
+      "downloaded": true
+    },
+    {
+      "name": "D400.pdf",
+      "url": "https://dev.realsenseai.com/download/42003/",
+      "bytes": 5536987,
+      "sha256": "d0156b43a82da64e809c6ae45a5b5d41f34d8697363534ed81f2e4407f38eaa4",
+      "downloaded": true
+    },
+    {
+      "name": "AK_driver.pdf",
+      "url": "https://www.cubemars.com/images/file/20250522/1747899365958473.pdf",
+      "bytes": 1965343,
+      "sha256": "bc3294bbfd8d6b1c905db3469d2540469fd100ba092592acfe950e25ca022f68",
+      "downloaded": true
+    },
+    {
+      "name": "GMSB.pdf",
+      "url": "https://sg.misumi-ec.com/pdf/fa/2010/p2_0209.pdf",
+      "bytes": 261893,
+      "sha256": "27b96a8732b32d1fbf9ae4981529274d1eba80c95999355559f70bd84e62ff11",
+      "downloaded": true
+    },
+    {
+      "name": "AK45_analysis.jpg",
+      "url": "https://www.cubemars.com/images/20250424/1745462527782172.jpg",
+      "bytes": 72137,
+      "sha256": "c6761f84b853b58f19f0907a52809a0398c4c3df50392cb7f4efb311fb6fcd3e",
+      "downloaded": true
+    },
+    {
+      "name": "AK45.html",
+      "url": "https://www.cubemars.com/product/AK45-36.html",
+      "bytes": 168653,
+      "sha256": "ef1c3df5224e63cdbf4960d10c15a8946c8097f5ffac99e566f992a2cfc48398",
+      "downloaded": true
+    },
+    {
+      "name": "XM540.html",
+      "url": "https://emanual.robotis.com/docs/en/dxl/x/xm540-w270/",
+      "bytes": 393765,
+      "sha256": "175d7cf17e96735ee95fecf9833ec141a73fab74fe448d3fdc2739feacb512e2",
+      "downloaded": true
+    },
+    {
+      "name": "XL430.html",
+      "url": "https://emanual.robotis.com/docs/en/dxl/x/xl430-w250/",
+      "bytes": 373711,
+      "sha256": "49fed82a3b39539c8c65ee8be23013f06541a209adbeda28612cf269a6d4d52a",
+      "downloaded": true
+    },
+    {
+      "name": "AK45_V3.html",
+      "url": "https://www.cubemars.com/product/ak45-36-v3-0-kv80-robotic-actuator.html",
+      "downloaded": true,
+      "bytes": 193189,
+      "sha256": "43d76e50b9c0d0c566330a0950cb8249684874c944b6f39b360af56adcf7d152"
+    },
+    {
+      "name": "AK45_V3_curve.jpg",
+      "url": "https://www.cubemars.com/images/202607/AK45-36-v3-line-en.jpg",
+      "downloaded": true,
+      "bytes": 101909,
+      "sha256": "83ad78b004bb983c9e0afa1b5e87797dd8f94588b755a9402d36d81dfd2a5c4f"
+    },
+    {
+      "name": "OV5640.pdf",
+      "url": "https://files.waveshare.com/upload/d/da/OV5640_DataSheet.pdf",
+      "downloaded": true,
+      "bytes": 1684807,
+      "sha256": "c314bd8cbae376e1ea215b20501dcbe9ba86777d359ef7f1f2f9c807b41bf4d1"
+    },
+    {
+      "name": "BL70200.html",
+      "url": "https://www.motorbank.kr/goods/goods_view.php?goodsNo=1000034001",
+      "downloaded": true,
+      "bytes": 172132,
+      "sha256": "e4bf26f9611a317a40e70443c0e899e4a1467d64bd34f5e848503877a9b85004"
+    },
+    {
+      "name": "ODrive_encoder.cpp",
+      "url": "https://raw.githubusercontent.com/odriverobotics/ODrive/fw-v0.5.1/Firmware/MotorControl/encoder.cpp",
+      "downloaded": true,
+      "bytes": 20405,
+      "sha256": "2c11a08befdd70d3e8c1dbb48b5ddf894e50bb69527fce19fc9465931efe156d"
+    },
+    {
+      "name": "AS5048.pdf",
+      "url": "https://datasheet.lcsc.com/datasheet/pdf/50d7c988a6a95fdf35ee899478caa08e.pdf?productCode=C176792",
+      "canonical_url": "https://look.ams-osram.com/m/287d7ad97d1ca22e/original/AS5048-DS000298.pdf",
+      "publisher": "ams OSRAM / ams AG",
+      "mirror": "LCSC",
+      "canonical_download_error": "404",
+      "downloaded": true,
+      "bytes": 1248018,
+      "sha256": "10416ff93368ebf3fd7a493e008241a238e951625e2752455d4e79bce6e03995",
+      "specification_table": "v1-11,2018-Jan-29,p8"
+    }
+  ],
+  "metadata_only": [
+    "connector pinouts",
+    "electrical interfaces/baudrate",
+    "temperature/load ratings without thermal/failure solver",
+    "silicon MCU/ISP architecture"
+  ],
+  "remaining": "Identified arm motors and ratios are user-confirmed. Gearbox exact variant/loss/backlash/rotating inertia and other unidentified custom parts remain uncalibrated.",
+  "source_project_records": [
+    "https://app.notion.com/p/3882d27b08d381efa56bd5fe310e3198",
+    "https://app.notion.com/p/3882d27b08d381fcbe3cd0c829687c3a",
+    "https://app.notion.com/p/94b2d27b08d3833887238167dc1a3748",
+    "https://app.notion.com/p/35c2d27b08d3806a9f81cbdaf9d49328"
+  ],
+  "coverage_note": "Occurrence counts include brackets, cases and holders. AK8 CAD occurrences are4 motors plus4 brackets; not8 actuators. XL group contains4 new end motors. XM540 count1 is a separately named CAD occurrence; motor2..4 inside mixed arm components are listed separately in confirmed_arm_motor_members,not misclassified whole-link masses.",
+  "arm_identity_conflicting_records": [
+    {
+      "source": "https://app.notion.com/p/3582d27b08d3803b8112cb301577e652",
+      "record": "May plan:XM540 axes1-3,XC430 wrist/gripper"
+    },
+    {
+      "source": "https://app.notion.com/p/3942d27b08d38136bdeccede6418cc27",
+      "record": "July bus scan:IDs0-4 XL430,ID5 XM540; contradicts confirmed present J1 and newer gripper"
+    },
+    {
+      "source": "user_in_this_chat",
+      "record": "J1 XM540-W270-T; new wrist/toolchanger/gripper motors XL430-W250-T57g confirmed"
+    },
+    {
+      "source": "user_in_this_chat_20261010",
+      "record": "Supersedes older planning/bus scan: all J1..J4 XM540-W270-T,J2=10:1,J3=10:1,other axes no external gearbox"
+    }
+  ],
+  "unidentified_arm_links": [],
+  "confirmed_arm_motor_members": [
+    {
+      "joint": "arm_J1_yaw",
+      "cad_parent": "arm_axis1_motor",
+      "body": "motor1",
+      "mass_kg": 0.165,
+      "model": "XM540-W270-T",
+      "external_ratio": 1.0,
+      "basis": "user confirmation+native body mass audit"
+    },
+    {
+      "joint": "arm_J2_shoulder",
+      "cad_parent": "arm_link1",
+      "body": "motor2",
+      "mass_kg": 0.165,
+      "model": "XM540-W270-T",
+      "external_ratio": 10.0,
+      "basis": "user confirmation+native body mass audit"
+    },
+    {
+      "joint": "arm_J3_elbow",
+      "cad_parent": "arm_link2",
+      "body": "motor3",
+      "mass_kg": 0.165,
+      "model": "XM540-W270-T",
+      "external_ratio": 10.0,
+      "basis": "user confirmation+native body mass audit"
+    },
+    {
+      "joint": "arm4_rotation",
+      "cad_parent": "arm_link3",
+      "body": "motor4",
+      "mass_kg": 0.165,
+      "model": "XM540-W270-T",
+      "external_ratio": 1.0,
+      "basis": "user confirmation+native body mass audit"
+    }
+  ]
+}

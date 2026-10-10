@@ -1,0 +1,112 @@
+{
+  "pairs": [
+    {
+      "collider_one": "/JETIN/arm_link1/Colliders/b_00",
+      "collider_two": "/JETIN/base_link/Collision",
+      "source_one": [
+        "arm_link1",
+        "1축원통"
+      ],
+      "source_two": [
+        "base_link",
+        "CAD stationary support union"
+      ],
+      "reason": "named designed shaft/gearbox or reference mounting interface; arm parent-child collisions remain enabled elsewhere"
+    },
+    {
+      "collider_one": "/JETIN/arm_link2/Colliders/b_04",
+      "collider_two": "/JETIN/arm_link1/Colliders/b_03",
+      "source_one": [
+        "arm_link2",
+        "링크2"
+      ],
+      "source_two": [
+        "arm_link1",
+        "어댑터b"
+      ],
+      "reason": "named designed shaft/gearbox or reference mounting interface; arm parent-child collisions remain enabled elsewhere"
+    },
+    {
+      "collider_one": "/JETIN/arm_link2/Colliders/b_00",
+      "collider_two": "/JETIN/arm_link1/Colliders/b_06",
+      "source_one": [
+        "arm_link2",
+        "마개"
+      ],
+      "source_two": [
+        "arm_link1",
+        "기어박스1"
+      ],
+      "reason": "named designed shaft/gearbox or reference mounting interface; arm parent-child collisions remain enabled elsewhere"
+    },
+    {
+      "collider_one": "/JETIN/arm_link2/Colliders/b_08",
+      "collider_two": "/JETIN/arm_link1/Colliders/b_06",
+      "source_one": [
+        "arm_link2",
+        "GB1_output_shaft"
+      ],
+      "source_two": [
+        "arm_link1",
+        "기어박스1"
+      ],
+      "reason": "named designed shaft/gearbox or reference mounting interface; arm parent-child collisions remain enabled elsewhere"
+    },
+    {
+      "collider_one": "/JETIN/arm_link3/Colliders/b_03",
+      "collider_two": "/JETIN/arm_link2/Colliders/b_05",
+      "source_one": [
+        "arm_link3",
+        "링크3-1"
+      ],
+      "source_two": [
+        "arm_link2",
+        "어댑터b (1)"
+      ],
+      "reason": "named designed shaft/gearbox or reference mounting interface; arm parent-child collisions remain enabled elsewhere"
+    },
+    {
+      "collider_one": "/JETIN/arm_link3/Colliders/b_10",
+      "collider_two": "/JETIN/arm_link2/Colliders/b_09",
+      "source_one": [
+        "arm_link3",
+        "마개2"
+      ],
+      "source_two": [
+        "arm_link2",
+        "기어박스1 (1)"
+      ],
+      "reason": "named designed shaft/gearbox or reference mounting interface; arm parent-child collisions remain enabled elsewhere"
+    },
+    {
+      "collider_one": "/JETIN/arm_link3/Colliders/b_11",
+      "collider_two": "/JETIN/arm_link2/Colliders/b_09",
+      "source_one": [
+        "arm_link3",
+        "GB2_output_shaft"
+      ],
+      "source_two": [
+        "arm_link2",
+        "기어박스1 (1)"
+      ],
+      "reason": "named designed shaft/gearbox or reference mounting interface; arm parent-child collisions remain enabled elsewhere"
+    },
+    {
+      "collider_one": "/JETIN/tool_link/Colliders/b_36",
+      "collider_two": "/JETIN/arm_link3/Colliders/b_07",
+      "source_one": [
+        "tool_link",
+        "arm_link4_wingB:1/wingB"
+      ],
+      "source_two": [
+        "arm_link3",
+        "motor4"
+      ],
+      "reason": "Nominal wing/servo-side mating interface. Actual contact reports show coincident/positive separation with up to240N artificial friction. Exact native CAD arm_link3/tool_link interference is0 at native zero. Revolute supplies bearing constraint; only this named pair excluded,all outer/object/table contacts retained.",
+      "basis": "ideal bearing interface;actual clearance/drag unmeasured",
+      "diagnostic_job": 2045
+    }
+  ],
+  "nonarm_connected_joint_collisions": false,
+  "arm_connected_joint_collisions": true
+}

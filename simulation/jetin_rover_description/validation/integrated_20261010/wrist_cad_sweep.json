@@ -1,0 +1,73 @@
+{
+  "pair": [
+    "wingB",
+    "motor4"
+  ],
+  "joint_center_cm": [
+    13.171205613152962,
+    2.1875000000000124,
+    32.00642840751583
+  ],
+  "axis": [
+    0,
+    1,
+    0
+  ],
+  "sampled_only": true,
+  "results": [
+    {
+      "angle_deg": 0,
+      "boolean_success": true,
+      "result_valid": true,
+      "intersection_mm3": 0
+    },
+    {
+      "angle_deg": -25,
+      "boolean_success": true,
+      "result_valid": true,
+      "intersection_mm3": 0
+    },
+    {
+      "angle_deg": -50,
+      "boolean_success": true,
+      "result_valid": true,
+      "intersection_mm3": 0
+    },
+    {
+      "angle_deg": -75,
+      "boolean_success": true,
+      "result_valid": true,
+      "intersection_mm3": 0
+    },
+    {
+      "angle_deg": -100,
+      "boolean_success": true,
+      "result_valid": true,
+      "intersection_mm3": 0
+    },
+    {
+      "angle_deg": 25,
+      "boolean_success": true,
+      "result_valid": true,
+      "intersection_mm3": 0
+    },
+    {
+      "angle_deg": 50,
+      "boolean_success": true,
+      "result_valid": true,
+      "intersection_mm3": 0
+    },
+    {
+      "angle_deg": 75,
+      "boolean_success": true,
+      "result_valid": true,
+      "intersection_mm3": 0
+    },
+    {
+      "angle_deg": 100,
+      "boolean_success": true,
+      "result_valid": true,
+      "intersection_mm3": 0
+    }
+  ]
+}
