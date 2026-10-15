@@ -503,7 +503,7 @@
      Error error_ = ERROR_NONE;
  
 +    // RAM-only diagnostics: Config_t (and therefore NVM layout) is unchanged.
-+    const uint32_t reliability_patch_ = 3;
++    const uint32_t reliability_patch_ = 4;
 +    // Bus/FIFO events the protocol already handles: counted, never a stop (patch4 D1).
 +    static constexpr uint32_t kInformationalHalErrors = 0x000007FFu;  // EWG..RX_FOV1
 +    static constexpr uint32_t kLecHalErrors = 0x000001F8u;            // STF..CRC
@@ -1052,7 +1052,7 @@
      cpu_exit_critical(mask);
 --- a/Firmware/odrive-interface.yaml
 +++ b/Firmware/odrive-interface.yaml
-@@ -200,6 +200,17 @@
+@@ -200,6 +200,22 @@
    ODrive.Can:
      c_is_class: True
      attributes:
@@ -1067,10 +1067,15 @@
 +      rx_discard_count: readonly uint32
 +      reinitializing: readonly bool
 +      reinit_requested: readonly bool
++      lec_error_count: readonly uint32
++      rx_overrun_count: readonly uint32
++      bus_off_count: readonly uint32
++      error_passive_count: readonly uint32
++      error_warning_count: readonly uint32
        error:
          nullflag: None
          flags: {DuplicateCanIds: }
-@@ -221,6 +232,10 @@
+@@ -221,6 +237,11 @@
    ODrive.Axis:
      c_is_class: True
      attributes:
@@ -1078,10 +1083,11 @@
 +      can_recovery_in_progress: readonly bool
 +      can_recovery_auto_resume_eligible: readonly bool
 +      can_recovery_generation: readonly uint8
++      control_deadline_count: readonly uint32
        error:
          nullflag: 'None'
          flags:
-@@ -1037,4 +1052,4 @@
+@@ -1037,4 +1058,4 @@
        HighCurrent:
        #LowCurrent: # not implemented
        Gimbal: {value: 2}
@@ -1102,7 +1108,7 @@
 --- /dev/null
 +++ b/tools/odrive/mks_reliability_version.py
 @@ -0,0 +1,12 @@
-+"""Pinned MKS 0.5.1 source with ZETIN CAN reliability patch 3, never a release."""
++"""Pinned MKS 0.5.1 source with ZETIN CAN reliability patch 4, never a release."""
 +import argparse
 +from pathlib import Path
 +
@@ -1113,4 +1119,4 @@
 +                       'const unsigned char fw_version_minor_ = 5;\n'
 +                       'const unsigned char fw_version_revision_ = 1;\n'
 +                       'const unsigned char fw_version_unreleased_ = 1;\n')
-+print('Firmware version 0.5.1-dev (MKS pinned source, ZETIN can.reliability_patch=3)')
++print('Firmware version 0.5.1-dev (MKS pinned source, ZETIN can.reliability_patch=4)')

@@ -113,7 +113,7 @@ int main(int argc,char** argv){try{
    a0.error_=0x12345678;expect_recovery_frame(a0,0,0);
   }else if(name=="resume_patch_identity"){
 #if PATCHED
-   require(can.reliability_patch_==3,"patch3 identity missing");
+   require(can.reliability_patch_==4,"patch4 identity missing");
 #else
    require(false,"patch3 identity missing");
 #endif
