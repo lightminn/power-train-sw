@@ -69,7 +69,7 @@ def main():
         '#define RECOVERY_METADATA ' + str(int('can_recovery_auto_resume_eligible_' in axis_header)), prelude,
         stripped(root / 'communication/can_helpers.hpp'),
         stripped(interface).replace('private:', 'public:'),
-        stripped(root / 'communication/can_simple.hpp'), hal,
+        stripped(root / 'communication/can_simple.hpp').replace('private:', 'public:'), hal,
         function((root / 'MotorControl/axis.cpp').read_text(), 'void Axis::watchdog_feed()'),
         function((root / 'MotorControl/axis.cpp').read_text(), 'bool Axis::watchdog_check()'),
         function((root / 'MotorControl/axis.cpp').read_text(), 'bool Axis::run_closed_loop_control_loop() {'),
@@ -97,6 +97,13 @@ def main():
               'resume_patch_identity']
     cases += ['guard_resume_success', 'guard_resume_generation', 'guard_resume_new_axis_error', 'guard_resume_estop', 'guard_resume_manual_reinit', 'guard_resume_pending_hal', 'guard_resume_hal_error', 'guard_resume_reinitializing', 'guard_resume_progress', 'guard_resume_nonidle', 'guard_resume_pending_arm', 'guard_resume_motor_error', 'guard_resume_encoder_error', 'guard_resume_controller_error', 'guard_resume_sensorless_error', 'guard_resume_not_latched', 'guard_resume_ineligible', 'guard_resume_external_clear', 'guard_resume_wrong_magic', 'guard_resume_reserved', 'guard_resume_wrong_state', 'guard_resume_invalid_frame', 'guard_resume_pending_idle', 'guard_resume_atomic', 'guard_resume_replay_after_fault', 'guard_resume_late_fault', 'guard_manual_zero', 'guard_manual_empty', 'guard_clear_nonzero', 'guard_clear_old_cas']
     cases += ['harness_irq_model', 'harness_state_machine', 'harness_estop_exit', 'harness_irq_masked']
+    cases += ['info_lec_no_latch', 'info_overrun_no_latch', 'info_status_no_latch', 'info_mixed_param',
+              'info_state_not_listening', 'info_success_then_burst', 'info_storm',
+              'info_atomic_take', 'info_repeat_recovery_yields',
+              'info_repeat_alternating_yields']
+    cases += ['filter_own_nodes', 'filter_ext_node', 'filter_out_of_range', 'filter_can_node_change',
+              'filter_usb_node_change', 'filter_config_failure',
+              'txid_std_range', 'txid_ext_range', 'txid_write_limit']
     cases += ['guard_resume_reserved_eligible', 'guard_resume_new_generation', 'guard_resume_no_can', 'guard_manual_state4', 'guard_manual_state8']
     with tempfile.TemporaryDirectory(prefix='mks-source-tests-') as temp:
         cpp, exe = Path(temp) / 'source.cpp', Path(temp) / 'source-tests'

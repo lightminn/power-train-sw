@@ -48,7 +48,11 @@ bool reinit_active=false, fail_stop=false;
 std::function<void()> deferred_preemption, inject_free, during_reinit, inject_register_fault, on_irq_enable;
 uint32_t cpu_enter_critical(){uint32_t old=irq_mask;irq_mask=1;return old;}
 void cpu_exit_critical(uint32_t old){irq_mask=old;if(!irq_mask && deferred_preemption){auto f=deferred_preemption;deferred_preemption=nullptr;f();}if(!irq_mask && on_irq_enable){auto f=on_irq_enable;f();}}
-uint32_t HAL_CAN_GetError(CAN_HandleTypeDef* h){if(++error_reads>100)throw std::runtime_error("busy spin: more than 100 HAL error polls without a bounded wait");return h->ErrorCode;}
+std::function<void()> on_error_read, after_start;  // ISR right after an ErrorCode read; event after HAL Start
+uint32_t HAL_CAN_GetError(CAN_HandleTypeDef* h){if(++error_reads>100)throw std::runtime_error("busy spin: more than 100 HAL error polls without a bounded wait");
+ const uint32_t value=h->ErrorCode;
+ if(on_error_read){auto f=on_error_read;on_error_read=nullptr;if(irq_mask)deferred_preemption=f;else f();}
+ return value;}
 uint32_t HAL_CAN_GetTxMailboxesFreeLevel(CAN_HandleTypeDef* h){
  require(!reinit_active,"TX HAL reached during reinit");
  uint32_t value=__builtin_popcount(h->Instance->TSR&(CAN_TSR_TME0|CAN_TSR_TME1|CAN_TSR_TME2));
@@ -75,9 +79,13 @@ void rcc_force_reset(){require(!irq_mask,"RCC reset masks motor IRQs");require(c
 #define __HAL_RCC_CAN1_RELEASE_RESET() ((void)0)
 #define __DSB() ((void)0)
 HAL_StatusTypeDef HAL_CAN_Init(CAN_HandleTypeDef* h){require(!irq_mask,"HAL Init masks motor IRQs");++init_calls;can_clock_enabled=true;if(h->State==HAL_CAN_STATE_RESET)can_irqs_disabled=0;/* MspInit re-enables NVIC only from RESET */if(fail_inits){--fail_inits;h->ErrorCode|=HAL_CAN_ERROR_TIMEOUT;return HAL_ERROR;}h->State=HAL_CAN_STATE_READY;h->ErrorCode=0;return HAL_OK;}
-HAL_StatusTypeDef HAL_CAN_Start(CAN_HandleTypeDef* h){require(!irq_mask,"HAL Start masks motor IRQs");h->State=HAL_CAN_STATE_LISTENING;reinit_active=false;return HAL_OK;}
+HAL_StatusTypeDef HAL_CAN_Start(CAN_HandleTypeDef* h){require(!irq_mask,"HAL Start masks motor IRQs");h->State=HAL_CAN_STATE_LISTENING;reinit_active=false;if(after_start){auto f=after_start;f();}return HAL_OK;}
 HAL_StatusTypeDef HAL_CAN_AbortTxRequest(CAN_HandleTypeDef*,uint32_t){regs.TSR=CAN_TSR_TME0|CAN_TSR_TME1|CAN_TSR_TME2;return HAL_OK;}
-HAL_StatusTypeDef HAL_CAN_ActivateNotification(CAN_HandleTypeDef* hc,uint32_t it){hc->Instance->IER|=it;return HAL_OK;}
+std::function<void()> after_activation;
+int activations_before_failure=-1;  // >=0: that many activations succeed, then one fails
+HAL_StatusTypeDef HAL_CAN_ActivateNotification(CAN_HandleTypeDef* hc,uint32_t it){
+ if(activations_before_failure==0){activations_before_failure=-1;hc->ErrorCode|=HAL_CAN_ERROR_NOT_INITIALIZED;return HAL_ERROR;}
+ if(activations_before_failure>0)--activations_before_failure;hc->Instance->IER|=it;if(after_activation){auto f=after_activation;f();}return HAL_OK;}
 HAL_StatusTypeDef HAL_CAN_DeactivateNotification(CAN_HandleTypeDef* hc,uint32_t it){hc->Instance->IER&=~it;return HAL_OK;}
 CAN_FilterTypeDef filters[28];
 uint32_t filter_slave_start=14,blocked_can_irqs=0;
@@ -103,9 +111,11 @@ HAL_StatusTypeDef HAL_CAN_ResetError(CAN_HandleTypeDef* h){h->ErrorCode=0;++rese
 using osThreadId=void*;using StackType_t=uint32_t;
 constexpr int sem_can=1,osPriorityNormal=0;
 uint32_t osKernelSysTick(){return virtual_tick;}
-int osSemaphoreRelease(int){++sem_releases;return 0;}
+// sem_can is a binary semaphore: a pending release makes the next wait return without blocking.
+int sem_tokens=0;uint32_t sem_immediate=0;
+int osSemaphoreRelease(int){++sem_releases;sem_tokens=1;return 0;}
 void boundary_wait(){require(!irq_mask,"RTOS wait with motor IRQs masked");error_reads=0;if(on_wait){auto f=on_wait;f();}if(++waits>=uint32_t(wait_budget))throw StopLoop{};}
-int osSemaphoreWait(int,int timeout){require(timeout>0,"unbounded wait");boundary_wait();return 0;}
+int osSemaphoreWait(int,int timeout){require(timeout>0,"unbounded wait");if(sem_tokens){sem_tokens=0;++sem_immediate;return 0;}boundary_wait();return 0;}
 void osDelay(int delay){require(delay>0 && delay<=100,"missing or excessive backoff");++delay_count;boundary_wait();}
 #define osThreadDef(name,func,priority,n,stack) int name=0
 #define osThread(x) (&x)

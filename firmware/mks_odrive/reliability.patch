@@ -1,6 +1,6 @@
 --- a/Firmware/communication/interface_can.cpp
 +++ b/Firmware/communication/interface_can.cpp
-@@ -1,50 +1,75 @@
+@@ -1,51 +1,128 @@
  #include "interface_can.hpp"
  
 -#include "fibre/crc.hpp"
@@ -17,27 +17,62 @@
 -// Safer context handling via maps instead of arrays
 -// #include <unordered_map>
 -// std::unordered_map<CAN_HandleTypeDef *, ODriveCAN *> ctxMap;
--
--// Constructor is called by communication.cpp and the handle is assigned appropriately
 +namespace {
 +constexpr uint32_t notifications = CAN_IT_RX_FIFO0_MSG_PENDING | CAN_IT_ERROR |
 +    CAN_IT_BUSOFF | CAN_IT_LAST_ERROR_CODE | CAN_IT_ERROR_WARNING |
 +    CAN_IT_ERROR_PASSIVE | CAN_IT_RX_FIFO0_OVERRUN | CAN_IT_RX_FIFO1_OVERRUN;
 +constexpr uint32_t all_mailboxes = CAN_TX_MAILBOX0 | CAN_TX_MAILBOX1 | CAN_TX_MAILBOX2;
 +}
-+
+ 
+-// Constructor is called by communication.cpp and the handle is assigned appropriately
  ODriveCAN::ODriveCAN(ODriveCAN::Config_t &config, CAN_HandleTypeDef *handle)
 -    : config_{config},
 -      handle_{handle} {
 -    // ctxMap[handle_] = this;
 +    : config_{config}, handle_{handle}, pending_baud_rate_{config.baud_rate} {}
 +
-+void ODriveCAN::record_hal_error(uint32_t error, bool request_reinit) {
++void ODriveCAN::record_hal_error(uint32_t error, bool request) {
 +    if (!error) return;
 +    uint32_t mask = cpu_enter_critical();
 +    last_hal_error_ = error;
 +    hal_error_history_ |= error;
-+    if (request_reinit) reinit_requested_ = true;
++    cpu_exit_critical(mask);
++    if (request) request_reinit(false);
++}
++
++uint32_t ODriveCAN::take_informational_errors() {
++    // Read, count and clear only the informational bits in one critical
++    // section so an IRQ cannot OR a new bit between the read and the clear.
++    uint32_t mask = cpu_enter_critical();
++    const uint32_t observed = HAL_CAN_GetError(handle_);
++    if (observed) {
++        last_hal_error_ = observed;
++        hal_error_history_ |= observed;
++    }
++    const uint32_t info = observed & kInformationalHalErrors;
++    if (info) {
++        if (info & kLecHalErrors) ++lec_error_count_;
++        if (info & kRxOverrunHalErrors) ++rx_overrun_count_;
++        if (info & HAL_CAN_ERROR_BOF) ++bus_off_count_;
++        if (info & HAL_CAN_ERROR_EPV) ++error_passive_count_;
++        if (info & HAL_CAN_ERROR_EWG) ++error_warning_count_;
++        handle_->ErrorCode = observed & ~info;
++    }
++    cpu_exit_critical(mask);
++    return observed & ~info;
++}
++
++void ODriveCAN::request_reinit(bool manual) {
++    uint32_t mask = cpu_enter_critical();
++    reinit_requested_ = true;
++    if (manual) manual_reinit_requested_ = true;
++    cpu_exit_critical(mask);
++    osSemaphoreRelease(sem_can);  // never under PRIMASK
++}
++
++void ODriveCAN::count_tx_drop() {
++    uint32_t mask = cpu_enter_critical();
++    ++tx_drop_count_;
 +    cpu_exit_critical(mask);
 +}
 +
@@ -46,41 +81,15 @@
  }
  
  void ODriveCAN::can_server_thread() {
++    // A pending semaphore release makes the next wait return at once, so loop
++    // iterations are not proof of a yield. A recovery within 10 ms of the last
++    // completed one blocks first, or repeated faults could starve idle/USB.
++    bool recovered_before = false;
++    uint32_t last_recovery_tick = 0;
      for (;;) {
 -        uint32_t status = HAL_CAN_GetError(handle_);
 -        if (status == HAL_CAN_ERROR_NONE) {
-+        record_hal_error(HAL_CAN_GetError(handle_));
-+        if (reinit_requested_ || reinitializing_) {
-+            uint32_t mask = cpu_enter_critical();
-+            reinitializing_ = true; // All TX/RX entry points reject until complete.
-+            reinit_requested_ = false;
-+            const uint32_t baud = pending_baud_rate_;
-+            const bool automatic = !manual_reinit_requested_;
-+            manual_reinit_requested_ = false;
-+            // Capture provenance and disarm atomically with the queued origin.
-+            // A concurrent manual request either wins here or revokes the
-+            // granted eligibility before scheduling the next attempt.
-+            for (auto axis : axes) axis->latch_can_fault(automatic);
-+            cpu_exit_critical(mask);
-+            // No blocking HAL call is made under PRIMASK. Both motors are stopped.
-+            ++recovery_count_;
-+            bool ok = apply_can_config(baud, true);
-+            mask = cpu_enter_critical();
-+            if (ok && !reinit_requested_) {
-+                reinitializing_ = false;
-+                for (auto axis : axes) axis->can_recovery_in_progress_ = false;
-+            }
-+            if (!ok) ++recovery_failure_count_;
-+            cpu_exit_critical(mask);
-+            // Also yield on success: persistent faults must never starve idle/USB.
-+            osDelay(10);
-+            continue;
-+        }
-+
-+        osSemaphoreWait(sem_can, 10);
-+        // A saturated bus cannot create an unbounded RX loop.
-+        for (unsigned int n = 0; n < 16; ++n) {
-             can_Message_t rxmsg;
+-            can_Message_t rxmsg;
 -
 -            osSemaphoreWait(sem_can, 10);  // Poll every 10ms regardless of sempahore status
 -            while (available()) {
@@ -90,7 +99,31 @@
 -                        CANSimple::handle_can_message(rxmsg);
 -                        break;
 -                }
--            }
++        // Informational events never stop motors. Only API-class errors or an
++        // unexpected HAL state request a reinitialization (patch4 D1).
++        if (take_informational_errors() != HAL_CAN_ERROR_NONE ||
++            (!reinit_requested_ && !reinitializing_ && handle_->State != HAL_CAN_STATE_LISTENING))
++            request_reinit(false);
++        if (reinit_requested_ || reinitializing_) {
++            if (recovered_before && uint32_t(osKernelSysTick() - last_recovery_tick) < 10)
++                osDelay(10);  // a repeat recovery waits; the first still services RX at once
++            uint32_t mask = cpu_enter_critical();
++            reinitializing_ = true; // All TX/RX entry points reject until complete.
++            reinit_requested_ = false;
++            const uint32_t baud = pending_baud_rate_;
++            const bool automatic = !manual_reinit_requested_;
++            manual_reinit_requested_ = false;
++            // Capture provenance and disarm atomically with the queued origin.
++            for (auto axis : axes) axis->latch_can_fault(automatic);
++            cpu_exit_critical(mask);
++            // No blocking HAL call is made under PRIMASK. Both motors are stopped.
++            ++recovery_count_;
++            bool ok = apply_can_config(baud, true);
++            mask = cpu_enter_critical();
++            if (ok && !reinit_requested_) {
++                reinitializing_ = false;
++                for (auto axis : axes) axis->can_recovery_in_progress_ = false;
+             }
 -            HAL_CAN_ActivateNotification(handle_, CAN_IT_RX_FIFO0_MSG_PENDING);
 -        } else {
 -            if (status == HAL_CAN_ERROR_TIMEOUT) {
@@ -98,19 +131,37 @@
 -                status = HAL_CAN_Start(handle_);
 -                if (status == HAL_OK)
 -                    status = HAL_CAN_ActivateNotification(handle_, CAN_IT_RX_FIFO0_MSG_PENDING);
--            }
++            if (!ok) ++recovery_failure_count_;
++            cpu_exit_critical(mask);
++            if (!ok) {
++                // Persistent faults must never starve idle/USB.
++                osDelay(10);
++                continue;
++            }
++            // Success returns to RX service at once (patch4 D3): no unattended
++            // window in which a burst can overrun the three-deep FIFO.
++            recovered_before = true;
++            last_recovery_tick = osKernelSysTick();
++        }
++
++        update_rx_filters_if_needed();
++        osSemaphoreWait(sem_can, 10);
++        // A saturated bus cannot create an unbounded RX loop.
++        for (unsigned int n = 0; n < 16; ++n) {
++            can_Message_t rxmsg;
 +            if (!read(rxmsg)) break;
 +            switch (config_.protocol) {
 +                case PROTOCOL_SIMPLE: CANSimple::handle_can_message(rxmsg); break;
-+            }
-+        }
+             }
+         }
 +        if (!reinit_requested_ && !reinitializing_) {
 +            if (HAL_CAN_ActivateNotification(handle_, notifications) != HAL_OK)
 +                record_hal_error(HAL_CAN_GetError(handle_));
-         }
++        }
      }
  }
-@@ -55,137 +80,161 @@
+ 
+@@ -55,137 +132,206 @@
  }
  
  bool ODriveCAN::start_can_server() {
@@ -121,17 +172,53 @@
 -    status = HAL_CAN_Init(handle_);
 -
 -    CAN_FilterTypeDef filter;
+-    filter.FilterActivation = ENABLE;
+-    filter.FilterBank = 0;
+-    filter.FilterFIFOAssignment = CAN_RX_FIFO0;
+-    filter.FilterIdHigh = 0x0000;
+-    filter.FilterIdLow = 0x0000;
+-    filter.FilterMaskIdHigh = 0x0000;
+-    filter.FilterMaskIdLow = 0x0000;
+-    filter.FilterMode = CAN_FILTERMODE_IDMASK;
+-    filter.FilterScale = CAN_FILTERSCALE_32BIT;
+-
+-    status = HAL_CAN_ConfigFilter(handle_, &filter);
+-
+-    status = HAL_CAN_Start(handle_);
+-    if (status == HAL_OK)
+-        status = HAL_CAN_ActivateNotification(handle_, CAN_IT_RX_FIFO0_MSG_PENDING);
+-
 +    // Initial bring-up must not be mistaken for a runtime CAN fault.
 +    reinitializing_ = true;
 +    bool ok = apply_can_config(config_.baud_rate, false);
 +    reinitializing_ = !ok;
-+    osThreadDef(can_server_thread_def, can_server_thread_wrapper, osPriorityNormal, 0, stack_size_ / sizeof(StackType_t));
-+    thread_id_ = osThreadCreate(osThread(can_server_thread_def), this);
+     osThreadDef(can_server_thread_def, can_server_thread_wrapper, osPriorityNormal, 0, stack_size_ / sizeof(StackType_t));
+     thread_id_ = osThreadCreate(osThread(can_server_thread_def), this);
+-    thread_id_valid_ = true;
+-
+-    return status;
 +    thread_id_valid_ = thread_id_ != nullptr;
 +    return ok && thread_id_valid_;
-+}
-+
-+uint32_t ODriveCAN::write(can_Message_t &txmsg) {
+ }
+ 
+-// Send a CAN message on the bus
+ uint32_t ODriveCAN::write(can_Message_t &txmsg) {
+-    if (HAL_CAN_GetError(handle_) == HAL_CAN_ERROR_NONE) {
+-        CAN_TxHeaderTypeDef header;
+-        header.StdId = txmsg.id;
+-        header.ExtId = txmsg.id;
+-        header.IDE = txmsg.isExt ? CAN_ID_EXT : CAN_ID_STD;
+-        header.RTR = CAN_RTR_DATA;
+-        header.DLC = txmsg.len;
+-        header.TransmitGlobalTime = FunctionalState::DISABLE;
+-
+-        uint32_t retTxMailbox = 0;
+-        if (HAL_CAN_GetTxMailboxesFreeLevel(handle_) > 0)
+-            HAL_CAN_AddTxMessage(handle_, &header, txmsg.buf, &retTxMailbox);
+-
+-        return retTxMailbox;
+-    } else {
+-        return -1;
 +    CAN_TxHeaderTypeDef header = {};
 +    header.StdId = txmsg.id;
 +    header.ExtId = txmsg.id;
@@ -140,80 +227,144 @@
 +    header.DLC = txmsg.len;
 +    header.TransmitGlobalTime = DISABLE;
 +    uint32_t mailbox = 0;
++    bool request = false;
++    uint32_t observed = 0;
 +    // Only finite, nonblocking register operations are protected. This excludes
 +    // axis heartbeat preemption between the slot check and HAL registration.
++    const uint32_t id_limit = txmsg.isExt ? 0x1FFFFFFFu : 0x7FFu;
 +    uint32_t mask = cpu_enter_critical();
-+    if (reinitializing_ || reinit_requested_ || txmsg.len > 8) {
++    if (reinitializing_ || reinit_requested_ || txmsg.len > 8 || txmsg.id > id_limit) {
 +        ++tx_drop_count_;
-+    } else if (HAL_CAN_GetError(handle_) != HAL_CAN_ERROR_NONE) {
-+        record_hal_error(HAL_CAN_GetError(handle_));
++    } else if (HAL_CAN_GetError(handle_) & ~kInformationalHalErrors) {
 +        ++tx_error_count_;
++        request = true;
++        observed = HAL_CAN_GetError(handle_);
 +    } else if (!HAL_CAN_GetTxMailboxesFreeLevel(handle_)) {
 +        ++tx_drop_count_;
 +    } else if (HAL_CAN_AddTxMessage(handle_, &header, txmsg.buf, &mailbox) != HAL_OK) {
 +        mailbox = 0;
 +        ++tx_error_count_;
-+        record_hal_error(HAL_CAN_GetError(handle_));
-+        reinit_requested_ = true; // Even a HAL failure without an error flag.
-+    }
++        request = true;  // Even a HAL failure without an error flag.
++        observed = HAL_CAN_GetError(handle_);
+     }
 +    cpu_exit_critical(mask);
++    if (request) {
++        record_hal_error(observed, false);
++        request_reinit(false);
++    }
 +    return mailbox;
-+}
-+
-+uint32_t ODriveCAN::available() {
+ }
+ 
+ uint32_t ODriveCAN::available() {
+-    return (HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO0) + HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO1));
 +    uint32_t mask = cpu_enter_critical();
 +    uint32_t count = (reinitializing_ || reinit_requested_) ? 0 :
 +        HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO0) + HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO1);
 +    cpu_exit_critical(mask);
 +    return count;
-+}
-+
-+bool ODriveCAN::read(can_Message_t &rxmsg) {
+ }
+ 
+ bool ODriveCAN::read(can_Message_t &rxmsg) {
+-    CAN_RxHeaderTypeDef header;
+-    bool validRead = false;
+-    if (HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO0) > 0) {
+-        HAL_CAN_GetRxMessage(handle_, CAN_RX_FIFO0, &header, rxmsg.buf);
+-        validRead = true;
+-    } else if (HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO1) > 0) {
+-        HAL_CAN_GetRxMessage(handle_, CAN_RX_FIFO1, &header, rxmsg.buf);
+-        validRead = true;
 +    CAN_RxHeaderTypeDef header = {};
++    bool valid = false, request = false;
++    uint32_t observed = 0;
 +    uint32_t mask = cpu_enter_critical();
-+    bool valid = false;
 +    if (!reinitializing_ && !reinit_requested_) {
-+        if (HAL_CAN_GetError(handle_) != HAL_CAN_ERROR_NONE) {
-+            record_hal_error(HAL_CAN_GetError(handle_));
++        if (HAL_CAN_GetError(handle_) & ~kInformationalHalErrors) {
++            request = true;
++            observed = HAL_CAN_GetError(handle_);
 +        } else {
 +            uint32_t fifo = HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO0) ? CAN_RX_FIFO0 : CAN_RX_FIFO1;
 +            if (HAL_CAN_GetRxFifoFillLevel(handle_, fifo)) {
 +                valid = HAL_CAN_GetRxMessage(handle_, fifo, &header, rxmsg.buf) == HAL_OK;
 +                if (!valid) {
-+                    record_hal_error(HAL_CAN_GetError(handle_));
-+                    reinit_requested_ = true;
++                    request = true;
++                    observed = HAL_CAN_GetError(handle_);
 +                }
 +            }
 +        }
-+    }
+     }
+-
+-    rxmsg.isExt = header.IDE;
+-    rxmsg.id = rxmsg.isExt ? header.ExtId : header.StdId;  // If it's an extended message, pass the extended ID
 +    cpu_exit_critical(mask);
++    if (request) {
++        record_hal_error(observed, false);
++        request_reinit(false);
++    }
 +    if (!valid) return false;
 +    rxmsg.isExt = header.IDE == CAN_ID_EXT;
 +    rxmsg.id = rxmsg.isExt ? header.ExtId : header.StdId;
-+    rxmsg.len = header.DLC;
+     rxmsg.len = header.DLC;
+-    rxmsg.rtr = header.RTR;
+-
+-    return validRead;
 +    rxmsg.rtr = header.RTR != CAN_RTR_DATA;
 +    return true;
-+}
-+
-+void ODriveCAN::set_baud_rate(uint32_t baudRate) {
+ }
+ 
+-// Set one of only a few common baud rates.  CAN doesn't do arbitrary baud rates well due to the time-quanta issue.
+-// 21 TQ allows for easy sampling at exactly 80% (recommended by Vector Informatik GmbH for high reliability systems)
+-// Conveniently, the CAN peripheral's 42MHz clock lets us easily create 21TQs for all common baud rates
+ void ODriveCAN::set_baud_rate(uint32_t baudRate) {
+-    switch (baudRate) {
+-        case CAN_BAUD_125K:
+-            handle_->Init.Prescaler = 16;  // 21 TQ's
+-            config_.baud_rate = baudRate;
+-            reinit_can();
+-            break;
+-
+-        case CAN_BAUD_250K:
+-            handle_->Init.Prescaler = 8;  // 21 TQ's
+-            config_.baud_rate = baudRate;
+-            reinit_can();
+-            break;
+-
+-        case CAN_BAUD_500K:
+-            handle_->Init.Prescaler = 4;  // 21 TQ's
+-            config_.baud_rate = baudRate;
+-            reinit_can();
+-            break;
+-
+-        case CAN_BAUD_1000K:
+-            handle_->Init.Prescaler = 2;  // 21 TQ's
+-            config_.baud_rate = baudRate;
+-            reinit_can();
+-            break;
+-
+-        default:
+-            // baudRate is invalid, so don't accept it.
+-            break;
+-    }
 +    if (baudRate != CAN_BAUD_125K && baudRate != CAN_BAUD_250K &&
 +        baudRate != CAN_BAUD_500K && baudRate != CAN_BAUD_1000K) return;
 +    // Fibre/USB callers only enqueue. The server owns every runtime HAL reset.
 +    // Multiple requests coalesce to the most recently requested valid baud.
 +    uint32_t mask = cpu_enter_critical();
 +    pending_baud_rate_ = baudRate;
-+    reinit_requested_ = true;
-+    manual_reinit_requested_ = true;
 +    for (auto axis : axes) axis->can_recovery_auto_resume_eligible_ = false;
 +    cpu_exit_critical(mask);
-+}
-+
-+void ODriveCAN::reinit_can() {
++    request_reinit(true);
+ }
+ 
+ void ODriveCAN::reinit_can() {
+-    HAL_CAN_Stop(handle_);
+-    HAL_CAN_Init(handle_);
+-    auto status = HAL_CAN_Start(handle_);
+-    if (status == HAL_OK)
+-        status = HAL_CAN_ActivateNotification(handle_, CAN_IT_RX_FIFO0_MSG_PENDING);
 +    uint32_t mask = cpu_enter_critical();
-+    reinit_requested_ = true;
-+    manual_reinit_requested_ = true;
 +    for (auto axis : axes) axis->can_recovery_auto_resume_eligible_ = false;
 +    cpu_exit_critical(mask);
++    request_reinit(true);
 +}
 +
 +bool ODriveCAN::apply_can_config(uint32_t baud, bool recovery) {
@@ -249,134 +400,60 @@
 +    }
 +    handle_->Init.Prescaler = CAN_CLK_HZ / (21 * baud);
 +    if (HAL_CAN_Init(handle_) != HAL_OK) {
-+        record_hal_error(HAL_CAN_GetError(handle_));
++        record_hal_error(HAL_CAN_GetError(handle_), false);
 +        return false;
 +    }
-+    CAN_FilterTypeDef filter = {};
-     filter.FilterActivation = ENABLE;
--    filter.FilterBank = 0;
-     filter.FilterFIFOAssignment = CAN_RX_FIFO0;
--    filter.FilterIdHigh = 0x0000;
--    filter.FilterIdLow = 0x0000;
--    filter.FilterMaskIdHigh = 0x0000;
--    filter.FilterMaskIdLow = 0x0000;
-     filter.FilterMode = CAN_FILTERMODE_IDMASK;
-     filter.FilterScale = CAN_FILTERSCALE_32BIT;
--
--    status = HAL_CAN_ConfigFilter(handle_, &filter);
--
--    status = HAL_CAN_Start(handle_);
--    if (status == HAL_OK)
--        status = HAL_CAN_ActivateNotification(handle_, CAN_IT_RX_FIFO0_MSG_PENDING);
--
--    osThreadDef(can_server_thread_def, can_server_thread_wrapper, osPriorityNormal, 0, stack_size_ / sizeof(StackType_t));
--    thread_id_ = osThreadCreate(osThread(can_server_thread_def), this);
--    thread_id_valid_ = true;
--
--    return status;
--}
--
--// Send a CAN message on the bus
--uint32_t ODriveCAN::write(can_Message_t &txmsg) {
--    if (HAL_CAN_GetError(handle_) == HAL_CAN_ERROR_NONE) {
--        CAN_TxHeaderTypeDef header;
--        header.StdId = txmsg.id;
--        header.ExtId = txmsg.id;
--        header.IDE = txmsg.isExt ? CAN_ID_EXT : CAN_ID_STD;
--        header.RTR = CAN_RTR_DATA;
--        header.DLC = txmsg.len;
--        header.TransmitGlobalTime = FunctionalState::DISABLE;
--
--        uint32_t retTxMailbox = 0;
--        if (HAL_CAN_GetTxMailboxesFreeLevel(handle_) > 0)
--            HAL_CAN_AddTxMessage(handle_, &header, txmsg.buf, &retTxMailbox);
--
--        return retTxMailbox;
--    } else {
--        return -1;
--    }
--}
--
--uint32_t ODriveCAN::available() {
--    return (HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO0) + HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO1));
--}
--
--bool ODriveCAN::read(can_Message_t &rxmsg) {
--    CAN_RxHeaderTypeDef header;
--    bool validRead = false;
--    if (HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO0) > 0) {
--        HAL_CAN_GetRxMessage(handle_, CAN_RX_FIFO0, &header, rxmsg.buf);
--        validRead = true;
--    } else if (HAL_CAN_GetRxFifoFillLevel(handle_, CAN_RX_FIFO1) > 0) {
--        HAL_CAN_GetRxMessage(handle_, CAN_RX_FIFO1, &header, rxmsg.buf);
--        validRead = true;
--    }
--
--    rxmsg.isExt = header.IDE;
--    rxmsg.id = rxmsg.isExt ? header.ExtId : header.StdId;  // If it's an extended message, pass the extended ID
--    rxmsg.len = header.DLC;
--    rxmsg.rtr = header.RTR;
--
--    return validRead;
--}
--
--// Set one of only a few common baud rates.  CAN doesn't do arbitrary baud rates well due to the time-quanta issue.
--// 21 TQ allows for easy sampling at exactly 80% (recommended by Vector Informatik GmbH for high reliability systems)
--// Conveniently, the CAN peripheral's 42MHz clock lets us easily create 21TQs for all common baud rates
--void ODriveCAN::set_baud_rate(uint32_t baudRate) {
--    switch (baudRate) {
--        case CAN_BAUD_125K:
--            handle_->Init.Prescaler = 16;  // 21 TQ's
--            config_.baud_rate = baudRate;
--            reinit_can();
--            break;
--
--        case CAN_BAUD_250K:
--            handle_->Init.Prescaler = 8;  // 21 TQ's
--            config_.baud_rate = baudRate;
--            reinit_can();
--            break;
--
--        case CAN_BAUD_500K:
--            handle_->Init.Prescaler = 4;  // 21 TQ's
--            config_.baud_rate = baudRate;
--            reinit_can();
--            break;
--
--        case CAN_BAUD_1000K:
--            handle_->Init.Prescaler = 2;  // 21 TQ's
--            config_.baud_rate = baudRate;
--            reinit_can();
--            break;
--
--        default:
--            // baudRate is invalid, so don't accept it.
--            break;
--    }
--}
--
--void ODriveCAN::reinit_can() {
--    HAL_CAN_Stop(handle_);
--    HAL_CAN_Init(handle_);
--    auto status = HAL_CAN_Start(handle_);
--    if (status == HAL_OK)
--        status = HAL_CAN_ActivateNotification(handle_, CAN_IT_RX_FIFO0_MSG_PENDING);
--}
--
--void ODriveCAN::set_error(Error error) {
--    error_ |= error;
--}
--// This function is called by each axis.
--// It provides an abstraction from the specific CAN protocol in use
-+    filter.SlaveStartFilterBank = 14;
-+    if (HAL_CAN_ConfigFilter(handle_, &filter) != HAL_OK ||
++    if (!program_rx_filters() ||
 +        HAL_CAN_Start(handle_) != HAL_OK ||
 +        HAL_CAN_ActivateNotification(handle_, notifications) != HAL_OK) {
-+        record_hal_error(HAL_CAN_GetError(handle_));
++        record_hal_error(HAL_CAN_GetError(handle_), false);
 +        return false;
 +    }
 +    config_.baud_rate = baud; // Applied value, not merely the queued request.
 +    return true;
+ }
+ 
+-void ODriveCAN::set_error(Error error) {
+-    error_ |= error;
++bool ODriveCAN::program_rx_filters() {
++    // Hardware accepts only this board's two nodes (patch4 D2). RTR is
++    // don't-care (queries), IDE is compared, the 5 command bits are ignored.
++    for (size_t i = 0; i < AXIS_COUNT; ++i) {
++        const uint32_t node = axes[i]->config_.can_node_id;
++        const bool ext = axes[i]->config_.can_node_id_extended;
++        const bool in_range = node <= (ext ? 0xFFFFFFu : 0x3Fu);
++        const uint32_t id = !in_range ? 0u : ext ? ((node << 8) | 4u) : (node << 26);
++        const uint32_t id_mask = ext ? 0xFFFFFF04u : 0xFC000004u;
++        CAN_FilterTypeDef filter = {};
++        filter.FilterBank = i;
++        filter.FilterActivation = in_range ? ENABLE : DISABLE;  // out of range: no bank
++        filter.FilterFIFOAssignment = CAN_RX_FIFO0;
++        filter.FilterMode = CAN_FILTERMODE_IDMASK;
++        filter.FilterScale = CAN_FILTERSCALE_32BIT;
++        filter.FilterIdHigh = id >> 16;
++        filter.FilterIdLow = id & 0xFFFFu;
++        filter.FilterMaskIdHigh = id_mask >> 16;
++        filter.FilterMaskIdLow = id_mask & 0xFFFFu;
++        filter.SlaveStartFilterBank = 14;
++        if (HAL_CAN_ConfigFilter(handle_, &filter) != HAL_OK) return false;
++        filter_node_[i] = node;
++        filter_ext_[i] = ext;
++    }
++    filters_programmed_ = true;
++    return true;
+ }
+-// This function is called by each axis.
+-// It provides an abstraction from the specific CAN protocol in use
++
++void ODriveCAN::update_rx_filters_if_needed() {
++    bool changed = !filters_programmed_;
++    for (size_t i = 0; i < AXIS_COUNT; ++i)
++        changed |= filter_node_[i] != axes[i]->config_.can_node_id ||
++                   filter_ext_[i] != axes[i]->config_.can_node_id_extended;
++    if (changed && !program_rx_filters()) {
++        record_hal_error(HAL_CAN_GetError(handle_), false);
++        request_reinit(false);
++    }
 +}
 +
 +void ODriveCAN::set_error(Error error) { error_ |= error; }
@@ -394,7 +471,7 @@
              }
              axis->last_heartbeat_ = now;
          }
-@@ -202,13 +251,15 @@
+@@ -202,13 +348,15 @@
      HAL_CAN_DeactivateNotification(hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
      osSemaphoreRelease(sem_can);
  }
@@ -408,21 +485,24 @@
  void HAL_CAN_WakeUpFromRxMsgCallback(CAN_HandleTypeDef *hcan) {}
  void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan) {
 -    HAL_CAN_ResetError(hcan);
--}
-+    // Preserve IRQ-only errors before the server clears anything. No HAL reset in
-+    // interrupt context; API-only errors are also detected by write/read/server.
-+    if (odCAN) odCAN->record_hal_error(HAL_CAN_GetError(hcan));
++    // Informational bus/FIFO events are counted and cleared here. API-class
++    // errors stay in ErrorCode for the server; IRQ context never reinitializes.
++    if (odCAN) odCAN->take_informational_errors();
 +    HAL_CAN_DeactivateNotification(hcan, notifications & ~CAN_IT_RX_FIFO0_MSG_PENDING);
 +    osSemaphoreRelease(sem_can);
-+}
+ }
 --- a/Firmware/communication/interface_can.hpp
 +++ b/Firmware/communication/interface_can.hpp
-@@ -33,6 +33,20 @@
+@@ -33,6 +33,32 @@
      const uint32_t stack_size_ = 1024; // Bytes
      Error error_ = ERROR_NONE;
  
 +    // RAM-only diagnostics: Config_t (and therefore NVM layout) is unchanged.
 +    const uint32_t reliability_patch_ = 3;
++    // Bus/FIFO events the protocol already handles: counted, never a stop (patch4 D1).
++    static constexpr uint32_t kInformationalHalErrors = 0x000007FFu;  // EWG..RX_FOV1
++    static constexpr uint32_t kLecHalErrors = 0x000001F8u;            // STF..CRC
++    static constexpr uint32_t kRxOverrunHalErrors = 0x00000600u;      // RX_FOV0|RX_FOV1
 +    uint32_t last_hal_error_ = 0;
 +    uint32_t hal_error_history_ = 0;
 +    uint32_t tx_drop_count_ = 0;
@@ -430,27 +510,40 @@
 +    uint32_t recovery_count_ = 0;
 +    uint32_t recovery_failure_count_ = 0;
 +    uint32_t rx_discard_count_ = 0;
++    uint32_t lec_error_count_ = 0;
++    uint32_t rx_overrun_count_ = 0;
++    uint32_t bus_off_count_ = 0;
++    uint32_t error_passive_count_ = 0;
++    uint32_t error_warning_count_ = 0;
 +    bool reinitializing_ = false;
 +    bool reinit_requested_ = false;
 +    uint32_t get_hal_error();
 +    void record_hal_error(uint32_t error, bool request_reinit = true);
++    uint32_t take_informational_errors();
++    void request_reinit(bool manual);
++    void count_tx_drop();
 +
      volatile bool thread_id_valid_ = false;
      bool start_can_server();
      void can_server_thread();
-@@ -52,6 +66,9 @@
+@@ -52,6 +78,14 @@
      CAN_HandleTypeDef *handle_ = nullptr;
  
      void set_baud_rate(uint32_t baudRate);
 +    bool apply_can_config(uint32_t baud, bool recovery);
 +    uint32_t pending_baud_rate_;
 +    bool manual_reinit_requested_ = false;
++    bool program_rx_filters();
++    void update_rx_filters_if_needed();
++    uint32_t filter_node_[AXIS_COUNT] = {};
++    bool filter_ext_[AXIS_COUNT] = {};
++    bool filters_programmed_ = false;
  };
  
  #endif  // __INTERFACE_CAN_HPP
 --- a/Firmware/communication/can_simple.cpp
 +++ b/Firmware/communication/can_simple.cpp
-@@ -3,6 +3,7 @@
+@@ -3,9 +3,23 @@
  #include <odrive_main.h>
  
  #include <cstring>
@@ -458,7 +551,23 @@
  
  static constexpr uint8_t NUM_NODE_ID_BITS = 6;
  static constexpr uint8_t NUM_CMD_ID_BITS = 11 - NUM_NODE_ID_BITS;
-@@ -40,7 +41,68 @@
++// Never let a wide node value wrap into another node's 11/29-bit identifier
++// (patch4 D2): check the node before shifting, at every TX construction site.
++static bool make_tx_id(Axis* axis, uint32_t cmd, can_Message_t& txmsg) {
++    const uint32_t node = axis->config_.can_node_id;
++    const bool ext = axis->config_.can_node_id_extended;
++    if (node > (ext ? 0xFFFFFFu : 0x3Fu)) {
++        if (odCAN) odCAN->count_tx_drop();
++        return false;
++    }
++    txmsg.id = (node << NUM_CMD_ID_BITS) + cmd;
++    txmsg.isExt = ext;
++    return true;
++}
+ 
+ void CANSimple::handle_can_message(can_Message_t& msg) {
+     // This functional way of handling the messages is neat and is much cleaner from
+@@ -40,7 +54,68 @@
      }
  
      if (validAxis) {
@@ -528,7 +637,7 @@
          switch (cmd) {
              case MSG_CO_NMT_CTRL:
                  break;
-@@ -121,6 +183,7 @@
+@@ -121,6 +196,7 @@
              default:
                  break;
          }
@@ -536,7 +645,7 @@
      }
  }
  
-@@ -129,7 +192,10 @@
+@@ -129,15 +205,16 @@
  }
  
  void CANSimple::estop_callback(Axis* axis, can_Message_t& msg) {
@@ -547,7 +656,38 @@
  }
  
  void CANSimple::get_motor_error_callback(Axis* axis, can_Message_t& msg) {
-@@ -188,7 +254,33 @@
+     if (msg.rtr) {
+         can_Message_t txmsg;
+-        txmsg.id = axis->config_.can_node_id << NUM_CMD_ID_BITS;
+-        txmsg.id += MSG_GET_MOTOR_ERROR;  // heartbeat ID
+-        txmsg.isExt = axis->config_.can_node_id_extended;
++        if (!make_tx_id(axis, MSG_GET_MOTOR_ERROR, txmsg)) return;
+         txmsg.len = 8;
+ 
+         txmsg.buf[0] = axis->motor_.error_;
+@@ -152,9 +229,7 @@
+ void CANSimple::get_encoder_error_callback(Axis* axis, can_Message_t& msg) {
+     if (msg.rtr) {
+         can_Message_t txmsg;
+-        txmsg.id = axis->config_.can_node_id << NUM_CMD_ID_BITS;
+-        txmsg.id += MSG_GET_ENCODER_ERROR;  // heartbeat ID
+-        txmsg.isExt = axis->config_.can_node_id_extended;
++        if (!make_tx_id(axis, MSG_GET_ENCODER_ERROR, txmsg)) return;
+         txmsg.len = 8;
+ 
+         txmsg.buf[0] = axis->encoder_.error_;
+@@ -169,9 +244,7 @@
+ void CANSimple::get_sensorless_error_callback(Axis* axis, can_Message_t& msg) {
+     if (msg.rtr) {
+         can_Message_t txmsg;
+-        txmsg.id = axis->config_.can_node_id << NUM_CMD_ID_BITS;
+-        txmsg.id += MSG_GET_SENSORLESS_ERROR;  // heartbeat ID
+-        txmsg.isExt = axis->config_.can_node_id_extended;
++        if (!make_tx_id(axis, MSG_GET_SENSORLESS_ERROR, txmsg)) return;
+         txmsg.len = 8;
+ 
+         txmsg.buf[0] = axis->sensorless_estimator_.error_;
+@@ -188,7 +261,33 @@
  }
  
  void CANSimple::set_axis_requested_state_callback(Axis* axis, can_Message_t& msg) {
@@ -582,7 +722,62 @@
  }
  void CANSimple::set_axis_startup_config_callback(Axis* axis, can_Message_t& msg) {
      // Not Implemented
-@@ -379,6 +471,11 @@
+@@ -197,9 +296,7 @@
+ void CANSimple::get_encoder_estimates_callback(Axis* axis, can_Message_t& msg) {
+     if (msg.rtr) {
+         can_Message_t txmsg;
+-        txmsg.id = axis->config_.can_node_id << NUM_CMD_ID_BITS;
+-        txmsg.id += MSG_GET_ENCODER_ESTIMATES;  // heartbeat ID
+-        txmsg.isExt = axis->config_.can_node_id_extended;
++        if (!make_tx_id(axis, MSG_GET_ENCODER_ESTIMATES, txmsg)) return;
+         txmsg.len = 8;
+ 
+         // Undefined behaviour!
+@@ -228,9 +325,7 @@
+ void CANSimple::get_sensorless_estimates_callback(Axis* axis, can_Message_t& msg) {
+     if (msg.rtr) {
+         can_Message_t txmsg;
+-        txmsg.id = axis->config_.can_node_id << NUM_CMD_ID_BITS;
+-        txmsg.id += MSG_GET_SENSORLESS_ESTIMATES;  // heartbeat ID
+-        txmsg.isExt = axis->config_.can_node_id_extended;
++        if (!make_tx_id(axis, MSG_GET_SENSORLESS_ESTIMATES, txmsg)) return;
+         txmsg.len = 8;
+ 
+         // Undefined behaviour!
+@@ -259,9 +354,7 @@
+ void CANSimple::get_encoder_count_callback(Axis* axis, can_Message_t& msg) {
+     if (msg.rtr) {
+         can_Message_t txmsg;
+-        txmsg.id = axis->config_.can_node_id << NUM_CMD_ID_BITS;
+-        txmsg.id += MSG_GET_ENCODER_COUNT;
+-        txmsg.isExt = axis->config_.can_node_id_extended;
++        if (!make_tx_id(axis, MSG_GET_ENCODER_COUNT, txmsg)) return;
+         txmsg.len = 8;
+ 
+         txmsg.buf[0] = axis->encoder_.shadow_count_;
+@@ -323,9 +416,7 @@
+ void CANSimple::get_iq_callback(Axis* axis, can_Message_t& msg) {
+     if (msg.rtr) {
+         can_Message_t txmsg;
+-        txmsg.id = axis->config_.can_node_id << NUM_CMD_ID_BITS;
+-        txmsg.id += MSG_GET_IQ;
+-        txmsg.isExt = axis->config_.can_node_id_extended;
++        if (!make_tx_id(axis, MSG_GET_IQ, txmsg)) return;
+         txmsg.len = 8;
+ 
+         uint32_t floatBytes;
+@@ -352,9 +443,7 @@
+     if (msg.rtr) {
+         can_Message_t txmsg;
+ 
+-        txmsg.id = axis->config_.can_node_id << NUM_CMD_ID_BITS;
+-        txmsg.id += MSG_GET_VBUS_VOLTAGE;
+-        txmsg.isExt = axis->config_.can_node_id_extended;
++        if (!make_tx_id(axis, MSG_GET_VBUS_VOLTAGE, txmsg)) return;
+         txmsg.len = 8;
+ 
+         uint32_t floatBytes;
+@@ -379,27 +468,36 @@
  }
  
  void CANSimple::clear_errors_callback(Axis* axis, can_Message_t& msg) {
@@ -594,8 +789,12 @@
      axis->clear_errors();
  }
  
-@@ -389,17 +486,23 @@
-     txmsg.isExt = axis->config_.can_node_id_extended;
+ void CANSimple::send_heartbeat(Axis* axis) {
+     can_Message_t txmsg;
+-    txmsg.id = axis->config_.can_node_id << NUM_CMD_ID_BITS;
+-    txmsg.id += MSG_ODRIVE_HEARTBEAT;  // heartbeat ID
+-    txmsg.isExt = axis->config_.can_node_id_extended;
++    if (!make_tx_id(axis, MSG_ODRIVE_HEARTBEAT, txmsg)) return;
      txmsg.len = 8;
  
 +    // Snapshot the standard five-byte prefix and recovery provenance together.
@@ -622,7 +821,7 @@
      odCAN->write(txmsg);
  }
  
-@@ -409,4 +512,4 @@
+@@ -409,4 +507,4 @@
  
  uint8_t CANSimple::get_cmd_id(uint32_t msgID) {
      return (msgID & 0x01F);  // Bottom 5 bits
