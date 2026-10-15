@@ -1,3 +1,5 @@
+// Real Axis::do_updates() ends with check_for_errors() and a CAN heartbeat (axis.cpp).
+bool Axis::do_updates(){bool ret=check_for_errors();if(odCAN)odCAN->send_heartbeat(this);return ret;}
 void run_server(ODriveCAN& can){try{can.can_server_thread();}catch(const StopLoop&){};}
 can_Message_t msg(uint32_t command,bool rtr=false,uint8_t len=8,float first=1,float second=0){can_Message_t m;m.id=(13<<5)|command;m.rtr=rtr;m.len=len;std::memcpy(m.buf,&first,4);std::memcpy(m.buf+4,&second,4);return m;}
 void expect_recovery_frame(Axis& axis,uint8_t flags,uint8_t generation){
@@ -14,7 +16,7 @@ can_Message_t guarded_resume(uint8_t generation){auto m=msg(7);std::memset(m.buf
 int main(int argc,char** argv){try{
  require(argc==2,"case required");std::string name=argv[1];
  CAN_HandleTypeDef h;ODriveCAN::Config_t cfg;ODriveCAN can(cfg,&h);odCAN=&can;a1.config_.can_node_id=14;can.thread_id_valid_=true;
- for(auto axis:axes){axis->motor_.axis_=axis;axis->motor_.hw_config_.timer=&axis->motor_;}
+ for(auto axis:axes){axis->motor_.axis_=axis;axis->motor_.hw_config_.timer=&axis->motor_;axis->controller_.pos_estimate_linear_src_=&axis->encoder_.pos_estimate_;}
  can_Message_t reply;
  if(name.rfind("guard_",0)==0){
 #if RECOVERY_METADATA
@@ -251,6 +253,39 @@ int main(int argc,char** argv){try{
 #else
   require(false,"no retained Stop error diagnostic");
 #endif
+ }else if(name=="harness_irq_model"){
+  irq_handle=&h;can.thread_id_valid_=false;can.start_can_server();
+  regs.IER|=CAN_IT_RX_FIFO0_OVERRUN|CAN_IT_ERROR|CAN_IT_LAST_ERROR_CODE;
+  for(int n=0;n<4;++n)deliver((13<<5)|9,false,true);
+  require(fifo[0]==3 && (regs.RF0R&CAN_RF0R_FOVR0),"FIFO model did not overrun at depth 3");
+  fire_can_irq();
+  require(!(regs.RF0R&CAN_RF0R_FOVR0),"real IRQ handler did not clear FOVR0");
+  regs.IER|=CAN_IT_ERROR|CAN_IT_LAST_ERROR_CODE;inject_esr(1u<<CAN_ESR_LEC_Pos);fire_can_irq();
+  require(!(regs.ESR&CAN_ESR_LEC) && !(regs.MSR&CAN_MSR_ERRI),"real IRQ handler did not consume LEC/ERRI");
+ }else if(name=="harness_state_machine"){
+  a0.config_.enable_watchdog=false;uint32_t entered=0,left=0;
+  meas_hook=[&](){
+   if(virtual_tick==1010){auto m=msg(7,false,4);std::memset(m.buf,0,8);uint32_t s=8;std::memcpy(m.buf,&s,4);CANSimple::handle_can_message(m);}
+   if(!entered && a0.current_state_==Axis::AXIS_STATE_CLOSED_LOOP_CONTROL)entered=virtual_tick;
+   if(virtual_tick==1100)a0.requested_state_=Axis::AXIS_STATE_IDLE;
+   if(entered && !left && a0.current_state_==Axis::AXIS_STATE_IDLE)left=virtual_tick;
+   if(virtual_tick>=1200)throw StopLoop{};};
+  virtual_tick=1000;try{a0.run_state_machine_loop();}catch(const StopLoop&){}meas_hook=nullptr;
+  require(entered>1010 && left>1100 && a0.motor_.armed_state_==Motor::ARMED_STATE_DISARMED,"real dispatcher did not enter and leave CLOSED_LOOP with disarm");
+ }else if(name=="harness_estop_exit"){
+  a0.config_.enable_watchdog=false;bool left=false;
+  meas_hook=[&](){
+   if(virtual_tick==1010){auto m=msg(7,false,4);std::memset(m.buf,0,8);uint32_t s=8;std::memcpy(m.buf,&s,4);CANSimple::handle_can_message(m);}
+   if(virtual_tick==1050){auto stop=msg(2,false,0);CANSimple::handle_can_message(stop);}
+   if(virtual_tick>1050 && a0.current_state_==Axis::AXIS_STATE_IDLE)left=true;
+   if(virtual_tick>=1200)throw StopLoop{};};
+  virtual_tick=1000;try{a0.run_state_machine_loop();}catch(const StopLoop&){}meas_hook=nullptr;
+  require(left && (a0.error_&Axis::ERROR_ESTOP_REQUESTED) && a0.motor_.armed_state_==Motor::ARMED_STATE_DISARMED,"axis error did not end CLOSED_LOOP through the real loop");
+ }else if(name=="harness_irq_masked"){
+  irq_handle=&h;can.thread_id_valid_=false;can.start_can_server();regs.IER|=CAN_IT_ERROR|CAN_IT_LAST_ERROR_CODE;
+  can_irqs_disabled=15;inject_esr(1u<<CAN_ESR_LEC_Pos);fire_can_irq();
+  require(blocked_can_irqs==1 && (regs.ESR&CAN_ESR_LEC),"NVIC-disabled CAN IRQ ran");
+  can_irqs_disabled=0;fire_can_irq();require(!(regs.ESR&CAN_ESR_LEC),"re-enabled CAN IRQ did not run");
  }else throw std::runtime_error("unknown scenario");
  require(irq_mask==0,"critical section leaked");std::cout<<"ok\n";return 0;
  }catch(const std::exception& e){std::cerr<<e.what()<<"\n";return 1;}}
