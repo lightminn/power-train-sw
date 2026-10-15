@@ -1,0 +1,155 @@
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+{
+  "passed": true,
+  "checks": [
+    {
+      "layout_1100x680": {
+        "page": 569.0,
+        "content": 569.0
+      }
+    },
+    {
+      "live": {
+        "triangles": 5871120,
+        "selected": "front_left",
+        "live": true,
+        "wheels": [
+          "rear_left",
+          "front_left",
+          "mid_left",
+          "rear_right",
+          "front_right",
+          "mid_right"
+        ],
+        "joints": {
+          "ml_rocker_joint": [
+            0,
+            0.09983341664682815,
+            0,
+            0.9950041652780258
+          ],
+          "mr_rocker_joint": [
+            0,
+            -0.04997916927067833,
+            0,
+            0.9987502603949663
+          ],
+          "bl_bogie_joint": [
+            0,
+            -0.07492970727274234,
+            0,
+            0.9971888181122075
+          ],
+          "br_bogie_joint": [
+            0,
+            0.04997916927067833,
+            0,
+            0.9987502603949663
+          ]
+        },
+        "frontLeft": [
+          0.47632702933468457,
+          0.3650657849432272,
+          -0.3733060675657245
+        ],
+        "popup": "수신 / 모터 상태정상구동 전류 Iq3.50 AHall 기반 속도0.20 rev/s제어 목표0.20 rev/s조향각12.0°조향 전류0.40 A구동 오류0x0조향 오류0"
+      }
+    },
+    {
+      "second_pose": {
+        "triangles": 5871120,
+        "selected": "front_left",
+        "live": true,
+        "wheels": [
+          "rear_left",
+          "front_left",
+          "mid_left",
+          "rear_right",
+          "front_right",
+          "mid_right"
+        ],
+        "joints": {
+          "ml_rocker_joint": [
+            0,
+            -0.09983341664682815,
+            0,
+            0.9950041652780258
+          ],
+          "mr_rocker_joint": [
+            0,
+            0.07492970727274234,
+            0,
+            0.9971888181122075
+          ],
+          "bl_bogie_joint": [
+            0,
+            0.09983341664682815,
+            0,
+            0.9950041652780258
+          ],
+          "br_bogie_joint": [
+            0,
+            -0.07492970727274234,
+            0,
+            0.9971888181122075
+          ]
+        },
+        "frontLeft": [
+          0.5307847066540735,
+          0.3564940995183596,
+          -0.26638867561908935
+        ],
+        "popup": "수신 / 모터 상태정상구동 전류 Iq3.50 AHall 기반 속도0.20 rev/s제어 목표0.20 rev/s조향각12.0°조향 전류0.40 A구동 오류0x0조향 오류0"
+      },
+      "wheel_displacement_m": 0.12029314656586208
+    },
+    {
+      "stale": {
+        "triangles": 5871120,
+        "selected": "front_left",
+        "live": false,
+        "wheels": [
+          "rear_left",
+          "front_left",
+          "mid_left",
+          "rear_right",
+          "front_right",
+          "mid_right"
+        ],
+        "joints": {
+          "ml_rocker_joint": [
+            0,
+            -0.09983341664682815,
+            0,
+            0.9950041652780258
+          ],
+          "mr_rocker_joint": [
+            0,
+            0.07492970727274234,
+            0,
+            0.9971888181122075
+          ],
+          "bl_bogie_joint": [
+            0,
+            0.09983341664682815,
+            0,
+            0.9950041652780258
+          ],
+          "br_bogie_joint": [
+            0,
+            -0.07492970727274234,
+            0,
+            0.9971888181122075
+          ]
+        },
+        "frontLeft": [
+          0.5307847066540735,
+          0.3564940995183596,
+          -0.26638867561908935
+        ],
+        "popup": "수신 / 모터 상태미연결구동 전류 Iq미연결Hall 기반 속도미연결제어 목표미연결조향각미연결조향 전류미연결구동 오류미연결조향 오류미연결"
+      }
+    }
+  ]
+}

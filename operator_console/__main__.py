@@ -13,6 +13,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', default='~/.config/powertrain/operator.json')
     parser.add_argument('--smoke-probe-file', default=None)
+    parser.add_argument('--page', choices=('mission', 'mobility', 'systems'), default='mission')
     args = parser.parse_args(argv)
     runtime = None
     try:
@@ -40,6 +41,8 @@ def main(argv=None):
                 ops_token_file=config['token_file'], operation_runtime=runtime,
                 smoke_probe_file=args.smoke_probe_file)
             console.show_all()
+            if args.page != 'mission':
+                console._stack.set_visible_child_name(args.page)
 
             def quit_window(*_args):
                 console.destroy()

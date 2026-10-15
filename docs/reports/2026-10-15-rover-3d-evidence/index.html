@@ -1,0 +1,64 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>JETIN 3D 표시 검토</title>
+<style>
+body{margin:0;background:#111827;color:#e5e7eb;font:14px sans-serif;overflow:hidden}canvas{display:block}
+#title{position:absolute;left:24px;top:20px;pointer-events:none}h2{margin:0 0 9px;font-size:22px}.note{color:#fbbf24;font-size:13px}
+#popup{position:absolute;right:22px;top:100px;padding:20px;background:#1f2937ee;border:1px solid #60a5fa;border-radius:12px;min-width:220px;display:none;line-height:1.9}
+#footer{position:absolute;left:24px;bottom:20px;color:#9ca3af;pointer-events:none}
+</style>
+<div id="title"><h2>JETIN · 차체 3D 표시 검토</h2><div class="note">검토용 합성 자세 · 실제 센서/모터 미연결</div></div>
+<div id="popup"></div><div id="footer">원본 URDF + STL · 드래그: 시점 회전 · 휠: 확대 · 바퀴 클릭: 상태</div>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from './vendor/STLLoader.js';
+import { OrbitControls } from './vendor/OrbitControls.js';
+const send = x => window.webkit?.messageHandlers?.probe?.postMessage(JSON.stringify(x));
+window.addEventListener('error', e => send({type:'error',message:e.message}));
+window.addEventListener('unhandledrejection', e => send({type:'error',message:String(e.reason)}));
+try {
+const renderer = new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(1);renderer.setSize(innerWidth,innerHeight);renderer.setClearColor(0x111827);
+document.body.append(renderer.domElement);
+const scene=new THREE.Scene();const robot=new THREE.Group();scene.add(robot);
+const camera=new THREE.PerspectiveCamera(38,innerWidth/innerHeight,0.01,100);camera.up.set(0,0,1);
+camera.position.set(1.6,1.8,1.2);
+const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,0,-0.08);controls.update();
+scene.add(new THREE.HemisphereLight(0xffffff,0x334155,2.0));
+const key=new THREE.DirectionalLight(0xffffff,2.5);key.position.set(3,2,5);scene.add(key);
+const grid=new THREE.GridHelper(3,30,0x536178,0x293448);grid.rotation.x=Math.PI/2;grid.position.z=-0.454;scene.add(grid);
+const model=await(await fetch('./model.json')).json();
+const links={};const joints={};const wheelMeshes=[];
+const wheelNames={fl_bl70200s:'front_left',fr_bl70200s:'front_right',cl_bl70200s:'mid_left',cr_bl70200s:'mid_right',rl_bl70200s:'rear_left',rr_bl70200s:'rear_right'};
+const labels={front_left:'앞 왼쪽',front_right:'앞 오른쪽',mid_left:'가운데 왼쪽',mid_right:'가운데 오른쪽',rear_left:'뒤 왼쪽',rear_right:'뒤 오른쪽'};
+const rotate=(obj,rpy)=>obj.quaternion.setFromEuler(new THREE.Euler(...rpy,'ZYX'));
+for(const l of model.links){const g=new THREE.Group();g.name=l.name;links[l.name]=g;}
+const childLinks=new Set(model.joints.map(j=>j.child));
+for(const j of model.joints){const origin=new THREE.Group();origin.position.fromArray(j.xyz);rotate(origin,j.rpy);const motion=new THREE.Group();origin.add(motion);motion.add(links[j.child]);links[j.parent].add(origin);joints[j.name]={node:motion,axis:new THREE.Vector3(...j.axis).normalize(),type:j.type};}
+for(const [n,g] of Object.entries(links))if(!childLinks.has(n))robot.add(g);
+const stl=new STLLoader();let triangles=0;
+for(const l of model.links){for(const v of l.visuals){
+ const geometry=await stl.loadAsync('./meshes/'+v.mesh);triangles+=geometry.attributes.position.count/3;
+ const material=new THREE.MeshStandardMaterial({color:new THREE.Color(...v.color.slice(0,3)),roughness:.65,metalness:.25,side:THREE.DoubleSide});
+ const mesh=new THREE.Mesh(geometry,material);mesh.position.fromArray(v.xyz);rotate(mesh,v.rpy);mesh.scale.fromArray(v.scale);mesh.userData.wheel=wheelNames[l.name];links[l.name].add(mesh);
+ if(mesh.userData.wheel)wheelMeshes.push(mesh);
+}}
+function setJoint(name,value){const j=joints[name];if(j.type==='prismatic')j.node.position.copy(j.axis).multiplyScalar(value);else j.node.quaternion.setFromAxisAngle(j.axis,value);}
+function popup(wheel){const p=document.getElementById('popup');p.style.display='block';p.innerHTML='<b>'+labels[wheel]+' 바퀴</b><br>구동 전류 Iq: 미연결<br>Hall 기반 회전속도: 미연결<br>조향각: 미연결<br>모터 오류/수신 상태: 미연결<br><span class="note">클릭 기능 검토 · 실물 값 아님</span>';send({type:'wheel-selected',wheel});}
+const ray=new THREE.Raycaster();let down=null;
+renderer.domElement.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY];});
+renderer.domElement.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;ray.setFromCamera(new THREE.Vector2(e.clientX/innerWidth*2-1,1-e.clientY/innerHeight*2),camera);const hit=ray.intersectObject(robot,true)[0];if(hit?.object.userData.wheel)popup(hit.object.userData.wheel);});
+const draw=()=>{controls.update();renderer.render(scene,camera);};
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);draw();});
+controls.addEventListener('change',draw);
+window.review={
+ click(wheel){const mesh=wheelMeshes.find(m=>m.userData.wheel===wheel);const point=new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3()).project(camera);const clientX=(point.x+1)/2*innerWidth,clientY=(1-point.y)/2*innerHeight;const wasEnabled=controls.enabled;controls.enabled=false;renderer.domElement.dispatchEvent(new PointerEvent('pointerdown',{clientX,clientY}));renderer.domElement.dispatchEvent(new PointerEvent('pointerup',{clientX,clientY}));controls.enabled=wasEnabled;return {wheel,clientX,clientY,popupVisible:document.getElementById('popup').style.display==='block'};},
+ pose(changed){const before=new THREE.Vector3();links.fl_bl70200s.getWorldPosition(before);setJoint('ml_rocker_joint',changed?Math.PI/15:0);setJoint('bl_bogie_joint',changed?-Math.PI/12:0);setJoint('fl_steer_joint',changed?Math.PI/9:0);robot.updateMatrixWorld(true);const after=new THREE.Vector3();links.fl_bl70200s.getWorldPosition(after);draw();return {before:before.toArray(),after:after.toArray(),distance:before.distanceTo(after)};},
+ pickAll(){robot.updateMatrixWorld(true);return wheelMeshes.map(mesh=>{const box=new THREE.Box3().setFromObject(mesh),center=box.getCenter(new THREE.Vector3());const start=center.clone().add(new THREE.Vector3(0,mesh.userData.wheel.endsWith('left')?.5:-.5,0));ray.set(start,center.clone().sub(start).normalize());const hits=ray.intersectObject(mesh,false);return {wheel:mesh.userData.wheel,hit:hits.length>0};});},
+ popup,
+ pixelProof(){const gl=renderer.getContext();const width=gl.drawingBufferWidth,height=gl.drawingBufferHeight;const pixels=new Uint8Array(width*height*4);gl.readPixels(0,0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,pixels);let changed=0;for(let i=0;i<pixels.length;i+=4)if(Math.abs(pixels[i]-17)+Math.abs(pixels[i+1]-24)+Math.abs(pixels[i+2]-39)>45)changed++;return {width,height,nonBackgroundPixels:changed};}
+};
+draw();send({type:'ready',three:THREE.REVISION,links:model.links.length,joints:model.joints.length,meshes:39,triangles,webgl2:renderer.getContext() instanceof WebGL2RenderingContext,pixelProof:window.review.pixelProof(),picks:window.review.pickAll()});
+}catch(e){send({type:'error',message:e.stack||String(e)});}
+</script>

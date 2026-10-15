@@ -1,0 +1,17 @@
+window, window label, window button, window entry, window combobox, window expander {
+  font-family: "Noto Sans CJK KR", sans-serif;
+  font-size: 14px;
+}
+window .brand { font-family: "Noto Sans CJK KR", sans-serif; font-size: 22px; font-weight: 700; }
+window .eyebrow, window .estop-subtitle { font-size: 11px; }
+window .brand-mark { font-size: 28px; }
+window .nav button, window .nav button label { font-size: 14px; }
+window .mobility-title, window .system-status-title, window .arm-page-title { font-size: 23px; font-weight: 600; }
+window .mobility-panel-title, window .system-section-title, window .arm-card-title { font-size: 16px; font-weight: 600; }
+window .mobility-story-title, window .mobility-primary-value, window .system-metric-value, window .rail-data-value { font-size: 16px; }
+window .mobility-stage-title, window .mobility-value { font-size: 14px; }
+window .mobility-control-button, window .mobility-control-button label { font-size: 13px; }
+window .top-warning, window .status-chip { font-size: 13px; }
+window .status-dot { font-size: 1px; }
+window .mission-heading { font-size: 25px; }
+window .power-soc-value { font-size: 32px; }

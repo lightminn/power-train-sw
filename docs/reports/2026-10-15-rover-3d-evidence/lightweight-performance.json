@@ -1,0 +1,25 @@
+{
+  "performance": {
+    "triangles": 1368,
+    "drawCalls": 46,
+    "median_ms": 2,
+    "p95_ms": 10,
+    "pixelRatio": 1,
+    "cadMeshRequests": 0
+  },
+  "interaction": {
+    "zoomBefore": 2.0790992660988414,
+    "zoomAfter": 2.0790992660988414,
+    "halfTurnDistance": 3.6011055628623576,
+    "fixedElevation": true
+  },
+  "layout": {
+    "viewport": 559.0,
+    "content": 559.0
+  },
+  "font": {
+    "family": "Noto Sans CJK KR,sans-serif",
+    "size_pt": 10.5,
+    "size_px": 14.0
+  }
+}

@@ -1472,6 +1472,33 @@ window.end-effector-popup, .end-effector-popup-shell, .system-status-dashboard {
 .mobility-kicker {{ color: #70C7F2; font-size: 9px; font-weight: 900; letter-spacing: 1.5px; }}
 .mobility-title {{ color: #F1F6FB; font-size: 25px; font-weight: 900; }}
 .mobility-subtitle {{ color: #94A9BC; font-size: 11px; }}
+.mobility-story {{
+  background-color: #0E1D2C;
+  background-image: linear-gradient(120deg, rgba(75,139,234,0.18), rgba(85,201,149,0.06));
+  border: 1px solid #31506D;
+  border-left: 4px solid #55B9DE;
+  border-radius: 11px;
+  padding: 16px 18px;
+}}
+.mobility-story-kicker {{ color: #70C7F2; font-size: 9px; font-weight: 900; letter-spacing: 1px; }}
+.mobility-story-title {{ color: #F3F7FB; font-size: 22px; font-weight: 900; }}
+.mobility-story-title.status-live {{ color: #A0E8C3; }}
+.mobility-story-title.status-warn {{ color: #FFE09A; }}
+.mobility-story-title.status-bad {{ color: #FFABB4; }}
+.mobility-story-title.status-muted {{ color: #C4D0DC; }}
+.mobility-story-detail {{ color: #AFC0D0; font-size: 11px; }}
+.mobility-story-action {{
+  color: #DCE9F5;
+  background: #142A40;
+  border: 1px solid #31506D;
+  border-radius: 9px;
+  padding: 13px 16px;
+  font-size: 13px;
+  font-weight: 900;
+}}
+.mobility-story-action.status-live {{ color: #A0E8C3; background: #123D2D; border-color: #277A59; }}
+.mobility-story-action.status-warn {{ color: #FFE09A; background: #493514; border-color: #936A21; }}
+.mobility-story-action.status-bad {{ color: #FFABB4; background: #4A1823; border-color: #913342; }}
 .mobility-live-pill {{
   color: #A8B6C4;
   background: #263442;
@@ -1516,6 +1543,9 @@ window.end-effector-popup, .end-effector-popup-shell, .system-status-dashboard {
 .mobility-evidence-metrics {{ color: #8EA4B8; font-size: 10px; }}
 .mobility-evidence-rule {{ color: #72CDB2; font-size: 9px; font-weight: 900; }}
 .mobility-panel-title {{ color: #F0F5FA; font-size: 15px; font-weight: 900; }}
+.mobility-coordination-summary {{ color: #EAF2F8; font-size: 19px; font-weight: 900; }}
+.mobility-coordination-detail {{ color: #9CB0C2; font-size: 11px; }}
+.mobility-technical-expander {{ color: #8FA4B8; font-size: 10px; border-top: 1px solid #22364D; padding-top: 5px; }}
 .mobility-source-chip {{
   color: #76B7F6;
   background: #173353;
@@ -1579,6 +1609,12 @@ def _install_console_css() -> None:
     if screen is not None:
         Gtk.StyleContext.add_provider_for_screen(
             screen, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
+
+        readability = Gtk.CssProvider()
+        readability.load_from_path(str(Path(__file__).parent / "assets" / "readability.css"))
+        Gtk.StyleContext.add_provider_for_screen(
+            screen, readability, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 3,
         )
 
 
@@ -3900,7 +3936,7 @@ class OperatorConsole(Gtk.Window):
             self._operation_source_id = GLib.timeout_add(100, self._refresh_operation)
         self._refresh_estop_availability()
         _style(self._ops_panel, "danger-card", "ops-settings-panel")
-        self._mobility = MobilityDashboard(self._open_mobility_action)
+        self._mobility = MobilityDashboard(self._open_mobility_action, input_source=input_source)
 
         mission_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         _style(mission_page, "page", "mission-page")
@@ -5051,10 +5087,8 @@ class OperatorConsole(Gtk.Window):
             "mission": "실시간" if compact else "실시간 화면",
             "mobility": "협조구동",
             "systems": "시스템" if compact else "시스템 상태",
-            ARM_MANUAL_TAB_NAME: "로봇팔 조작" if compact else ARM_MANUAL_TAB_TITLE,
-            ARM_CALIBRATION_TAB_NAME: (
-                "도구 보정" if compact else ARM_CALIBRATION_TAB_TITLE
-            ),
+            ARM_MANUAL_TAB_NAME: "로봇팔 조작",
+            ARM_CALIBRATION_TAB_NAME: "도구 보정",
         }
         for name, title in titles.items():
             child = self._stack.get_child_by_name(name)
@@ -5646,6 +5680,7 @@ def main() -> None:
         help="local bench mode: bypass arm grant/capability UI gates; keep FSM safety/stop",
     )
     parser.add_argument("--latency-ms", type=int, default=60)
+    parser.add_argument("--page", choices=("mission", "mobility", "systems"), default="mission")
     parser.add_argument(
         "--smoke-probe-file",
         default=None,
@@ -5672,6 +5707,7 @@ def main() -> None:
                               input_source=args.input_source,
                               arm_developer_mode=args.arm_developer_mode)
     console.show_all()
+    console._stack.set_visible_child_name(args.page)
     console.maximize()
 
     def _quit_on_signal(*_args: object) -> bool:

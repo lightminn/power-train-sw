@@ -1,0 +1,3 @@
+CONSOLE-RUNTIME-SMOKE: FAIL
+arm tabs did not render live tool in safe disabled state
+Xlib:  extension "DRI2" missing on display ":101".

@@ -1,5 +1,39 @@
 # Operator Console
 
+The **협조구동 → 6륜 제어 상태** card shows display LOD meshes derived from the
+supplied CAD, with the original URDF joint frames, using bundled offline
+Three.js in WebKitGTK 4.1. Chassis panels/frame, rocker and bogie housings,
+steering brackets and wheels retain their CAD shapes; arm/tool visuals are omitted.
+The 20 display assets total about 4 MB and 237,036 triangles; motor status rings
+bring the scene to 238,476 triangles. Heavy reference meshes are kept but not
+loaded. The offline builder is `scripts/build_rover_display_lod.py` (numpy,
+scipy and fast-simplification); these dependencies are not needed by the GUI.
+Small standalone details below 6 mm are omitted, and normals smooth tessellation
+seams below 45° while retaining larger edges. Drag to rotate 360°; zoom and pan
+are disabled, with camera distance fixed and canvas wheel defaults blocked. Camera-relative lighting keeps
+opposite views readable. Click a wheel to see motor status, current (A),
+Hall-based speed (rpm) and steering angle. The view redraws on changes and caps
+animated updates at 20 fps. The console uses larger Noto Sans CJK KR text and
+hides redundant technical details from the mobility page.
+Open the page with `/usr/bin/python3 -m operator_console --page mobility`.
+There is no separate CAD page. To watch continuously changing dummy encoder
+values in that same card, run `/usr/bin/python3 -m operator_console.rover_3d_demo`.
+This rehearsal is visibly labelled TEST/dummy and uses isolated UDP ports with
+no ops token, robot session, device or controller connection.
+It opens no USB/CAN device and sends no robot commands. Missing data is marked
+unconnected; stale speeds stop the wheel animation and stale values are hidden.
+
+Optional chassis JSON fields `suspension_joints_rad` (a mapping of
+`ml_rocker_joint`, `mr_rocker_joint`, `bl_bogie_joint`, `br_bogie_joint` to calibrated
+angles in radians) and `suspension_age_ms` (source sample age when sending) can
+drive the passive suspension. Missing age or total sample age above one second
+leaves the last/reference pose visibly unmeasured. The current hardware sender
+does not supply these fields; wheel Hall readings are not suspension angles.
+Run `GDK_BACKEND=x11 WAYLAND_DISPLAY= xvfb-run -a /usr/bin/python3 -m
+operator_console.rover_3d_smoke` to exercise the actual isolated GUI UDP path,
+CAD articulation, wheel popup and stale transition without hardware.
+See [placement and encoder-change validation](../docs/reports/2026-10-15-mobility-encoder-demo.md).
+
 Integrated entrypoint: `python -m operator_console` uses the prepared paired-robot
 config, reconnects automatically, supervises a separate gamepad process and offers
 a held manual-start action. See [the integrated operation runbook](../docs/integrated-operation.md)

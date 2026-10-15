@@ -1,0 +1,25 @@
+{
+  "performance": {
+    "triangles": 238476,
+    "drawCalls": 26,
+    "median_ms": 2,
+    "p95_ms": 2,
+    "pixelRatio": 1,
+    "cadMeshRequests": 0,
+    "displayMeshRequests": 20
+  },
+  "interaction": {
+    "zoomBefore": 2.175665768060937,
+    "zoomAfter": 2.175665768060937,
+    "zoomOutAfter": 2.175665768060937,
+    "ctrlWheelAfter": 2.175665768060937,
+    "fixedDistance": true,
+    "twoFingerDisabled": true,
+    "halfTurnDistance": 3.7683636505699076,
+    "fixedElevation": true
+  },
+  "layout": {
+    "viewport": 779.0,
+    "content": 779.0
+  }
+}

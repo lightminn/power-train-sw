@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import time
+from pathlib import Path
 from collections.abc import Callable, Mapping
 
 import gi
@@ -12,6 +13,7 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, Gtk, Pango  # noqa: E402
 
 from .telemetry import TelemetrySnapshot, WheelStatus
+from .rover_3d import Rover3DView
 
 
 def _style(widget: Gtk.Widget, *classes: str) -> Gtk.Widget:
@@ -41,17 +43,32 @@ def active_faults(snapshot: TelemetrySnapshot | None) -> tuple[str, ...]:
         faults.append(f"CAN · {can_state or '정보 없음'}")
     if snapshot.safety_estop_required is True or "ESTOP" in snapshot.drive_state.upper():
         faults.append("비상정지 · " + (snapshot.safety_detail or snapshot.safety_status))
+    wheel_names = {
+        "front_left": "좌측 전륜", "front_right": "우측 전륜",
+        "mid_left": "좌측 중륜", "mid_right": "우측 중륜",
+        "rear_left": "좌측 후륜", "rear_right": "우측 후륜",
+    }
     for wheel in snapshot.wheel_statuses:
         details = []
         if wheel.stale:
             details.append("통신 지연")
         if wheel.drive_axis_error:
-            details.append(f"축 오류 0x{wheel.drive_axis_error:X}")
+            details.append("구동축 오류")
         if wheel.steer_fault:
-            details.append(f"조향 오류 0x{wheel.steer_fault:X}")
+            details.append("조향 오류")
         if details:
-            faults.append(f"{wheel.name} · " + " · ".join(details))
-    faults.extend(f"지형 · {reason}" for reason in snapshot.terrain_reject_reasons)
+            faults.append(
+                f"{wheel_names.get(wheel.name, wheel.name)} · " + " · ".join(details)
+            )
+    reason_names = {
+        "low_confidence": "지형 판단 신뢰도 부족",
+        "forward obstacle": "전방 장애물",
+        "no_path": "통과 경로 없음",
+    }
+    faults.extend(
+        reason_names.get(reason, f"지형 판단 보류 · {reason}")
+        for reason in snapshot.terrain_reject_reasons
+    )
     if snapshot.stuck_candidate is True:
         faults.append("구동 · 끼임 후보")
     elif snapshot.slip_candidate is True:
@@ -132,6 +149,105 @@ def mission_mobility_values(
         "attitude": attitude,
         "motors": motors,
     }
+
+
+def mobility_story_values(
+    snapshot: TelemetrySnapshot | None,
+) -> dict[str, str]:
+    """Translate telemetry into one bounded situation → response narrative."""
+    if snapshot is None:
+        return {
+            "title": "주행 판단 대기",
+            "detail": "지형 · 접지 · 구동 상태 수신 중",
+            "action": "대응  |  협조구동 대기",
+            "tone": "status-muted",
+            "terrain": "지형 정보 수신 대기",
+            "judgement": "접지 상태 판단 대기",
+            "control": "제어 대응 대기",
+            "result": "주행 결과 확인 대기",
+        }
+
+    wheels = snapshot.wheel_statuses
+    healthy_wheels = sum(wheel_health_text(wheel) == "정상" for wheel in wheels)
+    wheel_count = len(wheels)
+    scale = snapshot.degradation_speed_scale
+    scale_text = ""
+    if scale is not None:
+        scale_text = f" · 기준 속도의 {scale * 100:.0f}%"
+    confidence = snapshot.terrain_confidence
+    confidence_text = "" if confidence is None else f" · 신뢰도 {confidence * 100:.0f}%"
+    maximum_tilt = _maximum_abs((snapshot.roll_rad, snapshot.pitch_rad))
+    tilt_text = "기울기 정보 없음" if maximum_tilt is None else (
+        f"최대 기울기 {_degrees(maximum_tilt)}"
+    )
+
+    terrain = (
+        "통과 가능한 경로" + confidence_text
+        if snapshot.terrain_path_available is True else
+        "전방 경로가 차단됨" + confidence_text
+        if snapshot.terrain_path_available is False else
+        "경로 판단 대기"
+    )
+    wheel_health = (
+        "바퀴 정보 없음" if not wheel_count
+        else f"바퀴 {healthy_wheels}/{wheel_count} 정상"
+    )
+
+    if snapshot.stuck_candidate is True or snapshot.terrain_path_available is False:
+        return {
+            "title": "전방 경로 차단 · 안전 정지",
+            "detail": "원인  |  장애물 · 끼임 · 과부하 후보",
+            "action": "대응  |  출력 차단 · 후진 대기",
+            "tone": "status-bad",
+            "terrain": terrain,
+            "judgement": "끼임·과부하 가능성",
+            "control": "출력 차단 · 안전 정지",
+            "result": "로봇 보호 상태 유지",
+        }
+    if snapshot.slip_candidate is True:
+        return {
+            "title": "바퀴 슬립 감지 · 접지력 보강",
+            "detail": "판단  |  공회전 출력 감소 · 접지 바퀴 활용",
+            "action": "대응  |  6륜 출력 재분배" + scale_text,
+            "tone": "status-warn",
+            "terrain": terrain,
+            "judgement": "슬립·접지 저하 후보",
+            "control": "6륜 출력 재분배" + scale_text,
+            "result": "저속 통과 시도 중",
+        }
+    if scale is not None and scale < 0.999:
+        return {
+            "title": "험지 접근 · 선제 감속",
+            "detail": f"판단  |  경사 구간 · {tilt_text}",
+            "action": "대응  |  속도 제한" + scale_text,
+            "tone": "status-warn",
+            "terrain": terrain,
+            "judgement": f"험지 접근 · {tilt_text}",
+            "control": "선제 감속" + scale_text,
+            "result": "안정 자세로 접근 중",
+        }
+    if wheel_count and healthy_wheels < wheel_count:
+        return {
+            "title": f"바퀴 {wheel_count - healthy_wheels}개 점검 필요",
+            "detail": "원인  |  통신 지연 또는 구동 오류",
+            "action": "대응  |  저속 유지 · 안전 확인",
+            "tone": "status-warn",
+            "terrain": terrain,
+            "judgement": wheel_health,
+            "control": "주행 제한 · 점검 요청",
+            "result": "조건부 주행 가능",
+        }
+    return {
+        "title": "경로 확보 · 접지 안정",
+        "detail": "판단  |  6륜 피드백 정상",
+        "action": "대응  |  경로 추종 · 균형 구동" + scale_text,
+        "tone": "status-live",
+        "terrain": terrain,
+        "judgement": "접지 이상 없음",
+        "control": "6륜 균형 구동",
+        "result": "주행 지속 가능",
+    }
+
 
 
 class RoverCoordinationGraphic(Gtk.DrawingArea):
@@ -440,11 +556,16 @@ class RoverCoordinationGraphic(Gtk.DrawingArea):
 class MobilityDashboard(Gtk.Box):
     """Read-only live surface plus shortcuts into the existing safe ops flow."""
 
-    def __init__(self, action_sink: Callable[[str], None]) -> None:
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+    def __init__(self, action_sink: Callable[[str], None], *, input_source="LIVE") -> None:
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.set_border_width(18)
         _style(self, "mobility-dashboard")
         self._action_sink = action_sink
+        self._input_source = input_source
+        provider = Gtk.CssProvider()
+        provider.load_from_path(str(Path(__file__).parent / "assets" / "mobility-fit.css"))
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 2)
 
         heading_row = Gtk.Box(spacing=16)
         _style(heading_row, "mobility-header")
@@ -452,43 +573,84 @@ class MobilityDashboard(Gtk.Box):
         kicker = Gtk.Label(label="E2FESTA · MIXED-TERRAIN MOBILITY")
         kicker.set_xalign(0.0)
         _style(kicker, "mobility-kicker")
+        kicker.set_no_show_all(True)
         title = Gtk.Label(label="6륜 협조구동")
         title.set_xalign(0.0)
         _style(title, "mobility-title")
         subtitle = Gtk.Label(
-            label=("붕괴 건축물·산업 재난 접근로에서 접지력을 활용하고, "
-                   "공회전은 줄이며 과부하 바퀴는 보호합니다.")
+            label="재난 현장 선행 탐사  |  지형 예측 · 접지 판단 · 바퀴별 협조제어"
         )
         subtitle.set_xalign(0.0)
         subtitle.set_line_wrap(True)
         _style(subtitle, "mobility-subtitle")
+        subtitle.set_no_show_all(True)
         title_box.pack_start(kicker, False, False, 0)
         title_box.pack_start(title, False, False, 0)
         title_box.pack_start(subtitle, False, False, 0)
         heading_row.pack_start(title_box, True, True, 0)
         self._live = Gtk.Label(label="수신 대기")
+        self._live.set_valign(Gtk.Align.CENTER)
         _style(self._live, "mobility-live-pill", "status-muted")
         heading_row.pack_end(self._live, False, False, 0)
         self.pack_start(heading_row, False, False, 0)
 
+        story = Gtk.Box(spacing=18)
+        _style(story, "mobility-story")
+        story_copy = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        story_kicker = Gtk.Label(label="현재 로봇 판단")
+        story_kicker.set_xalign(0.0)
+        _style(story_kicker, "mobility-story-kicker")
+        story_kicker.set_no_show_all(True)
+        self._story_title = Gtk.Label(label="주행 판단 대기")
+        self._story_title.set_xalign(0.0)
+        self._story_title.set_line_wrap(True)
+        _style(self._story_title, "mobility-story-title", "status-muted")
+        self._story_detail = Gtk.Label(
+            label="지형 · 접지 · 구동 상태 수신 중"
+        )
+        self._story_detail.set_xalign(0.0)
+        self._story_detail.set_line_wrap(True)
+        _style(self._story_detail, "mobility-story-detail")
+        self._story_detail.set_no_show_all(True)
+        story_copy.pack_start(story_kicker, False, False, 0)
+        story_copy.pack_start(self._story_title, False, False, 0)
+        story_copy.pack_start(self._story_detail, False, False, 0)
+        self._story_action = Gtk.Label(label="대응  |  협조구동 대기")
+        self._story_action.set_xalign(0.5)
+        self._story_action.set_line_wrap(True)
+        self._story_action.set_size_request(310, -1)
+        _style(self._story_action, "mobility-story-action", "status-muted")
+        story.pack_start(story_copy, True, True, 0)
+        story.pack_end(self._story_action, False, False, 0)
+        self.pack_start(story, False, False, 0)
+
         summary = Gtk.Grid(column_spacing=10, row_spacing=10)
         summary.set_column_homogeneous(True)
         self._terrain = self._metric_card(
-            "01 · 전방 지형인지", ("path", "confidence", "geometry", "quality"),
+            "01 · 앞의 지형", ("path", "confidence", "geometry", "quality"),
             "mobility-terrain-card",
         )
         self._attitude = self._metric_card(
-            "02 · 차체 안정성", ("roll", "pitch", "yaw", "pose"),
+            "02 · 주행 위험 판단", ("roll", "pitch", "yaw", "pose"),
             "mobility-attitude-card",
         )
         self._traction = self._metric_card(
-            "03 · 접지·상대부하", ("contact", "slip", "load", "feedback"),
+            "03 · 바퀴 제어 대응", ("contact", "slip", "load", "feedback"),
             "mobility-traction-card",
         )
         self._fsm = self._metric_card(
-            "04 · 협조구동 판단", ("controller", "drive", "section", "mission"),
+            "04 · 현재 주행 결과", ("controller", "drive", "section", "mission"),
             "mobility-control-stage-card",
         )
+        for group, hidden_keys in (
+            (self._terrain[1], ("geometry", "quality")),
+            (self._attitude[1], ("yaw", "pose")),
+            (self._traction[1], ("load", "feedback")),
+            (self._fsm[1], ("section", "mission")),
+        ):
+            for key in hidden_keys:
+                group[key].set_no_show_all(True)
+                group[key].hide()
         summary.attach(self._terrain[0], 0, 0, 1, 1)
         summary.attach(self._attitude[0], 1, 0, 1, 1)
         summary.attach(self._traction[0], 2, 0, 1, 1)
@@ -503,21 +665,21 @@ class MobilityDashboard(Gtk.Box):
         evidence = Gtk.Box(spacing=14)
         _style(evidence, "mobility-evidence-bar")
         evidence_title = Gtk.Label(
-            label="균일구동 ↔ 협조구동 시험 설계 · 결과 연동 전"
+            label="정량 검증 · 결과 데이터 연결 전"
         )
         evidence_title.set_xalign(0.0)
         _style(evidence_title, "mobility-evidence-title")
         evidence.pack_start(evidence_title, False, False, 0)
         evidence_metrics = Gtk.Label(
-            label="통과 성공률 · 통과 시간 · 슬립 지속 · 최대 Roll/Pitch · 바퀴별 Iq"
+            label="비교 기준  |  장애물 통과율 · 슬립 지속시간 · 조건별 5회 이상"
         )
         evidence_metrics.set_xalign(0.0)
         _style(evidence_metrics, "mobility-evidence-metrics")
         evidence.pack_start(evidence_metrics, True, True, 0)
-        evidence_rule = Gtk.Label(label="동일 조건 · 조건별 5회 이상 · 로그 기반")
-        _style(evidence_rule, "mobility-evidence-rule")
-        evidence.pack_end(evidence_rule, False, False, 0)
-        self.pack_start(evidence, False, False, 0)
+        evidence_expander = Gtk.Expander(label="정량 검증 · 결과 데이터 연결 전")
+        evidence_expander.set_no_show_all(True)
+        evidence_expander.add(evidence)
+        self.pack_start(evidence_expander, False, False, 0)
 
         lower = Gtk.Grid(column_spacing=12, row_spacing=12)
         lower.set_column_homogeneous(True)
@@ -537,7 +699,7 @@ class MobilityDashboard(Gtk.Box):
         self, _widget: Gtk.Widget, allocation: Gdk.Rectangle,
     ) -> None:
         """Reflow cards instead of squeezing their labels at narrow scales."""
-        compact = allocation.width < 1120
+        compact = allocation.width < 920
         if compact == self._compact_layout:
             return
         self._compact_layout = compact
@@ -568,7 +730,7 @@ class MobilityDashboard(Gtk.Box):
     def _metric_card(
         title: str, keys: tuple[str, ...], accent_class: str,
     ) -> tuple[Gtk.Box, dict[str, Gtk.Label]]:
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
         _style(card, "system-card", "mobility-card", "mobility-stage-card", accent_class)
         heading = Gtk.Label(label=title)
         heading.set_xalign(0.0)
@@ -590,17 +752,47 @@ class MobilityDashboard(Gtk.Box):
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         _style(card, "system-card", "mobility-card")
         heading_row = Gtk.Box(spacing=8)
-        heading = Gtk.Label(label="6륜 협조 출력")
+        heading = Gtk.Label(label="6륜 제어 상태")
         heading.set_xalign(0.0)
         _style(heading, "mobility-panel-title")
         heading_row.pack_start(heading, True, True, 0)
-        source = Gtk.Label(label="Hall 실측 · ODrive Iq")
+        source = Gtk.Label(label="센서 → 판단 → 제어")
+        source.set_no_show_all(True)
         _style(source, "mobility-source-chip")
         heading_row.pack_end(source, False, False, 0)
         card.pack_start(heading_row, False, False, 0)
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        story = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        story.set_hexpand(True)
+        story.set_no_show_all(True)
+        self._coordination_summary = Gtk.Label(label="제어 대기")
+        self._coordination_summary.set_xalign(0.0)
+        self._coordination_summary.set_line_wrap(True)
+        _style(self._coordination_summary, "mobility-coordination-summary")
+        self._coordination_detail = Gtk.Label(
+            label="입력  |  휠 속도 · Iq · 접지 상태"
+        )
+        self._coordination_detail.set_xalign(0.0)
+        self._coordination_detail.set_line_wrap(True)
+        self._coordination_detail.set_no_show_all(True)
+        _style(self._coordination_detail, "mobility-coordination-detail")
+        story.pack_start(self._coordination_summary, False, False, 0)
+        story.pack_start(self._coordination_detail, False, False, 0)
+        self._rover_graphic = Rover3DView(input_source=self._input_source)
+        self._motor_card = card
+        content.pack_start(story, False, False, 0)
+        content.pack_end(self._rover_graphic, True, True, 0)
+        card.pack_start(content, True, True, 0)
+
+        technical = Gtk.Expander(label="바퀴별 기술 데이터 보기")
+        technical.set_no_show_all(True)
+        technical.set_expanded(False)
+        technical_body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        technical_body.set_border_width(8)
         grid = Gtk.Grid(column_spacing=12, row_spacing=5)
         _style(grid, "mobility-wheel-grid")
-        headers = ("바퀴", "Hall 실측", "협조 지령", "Iq 상대부하", "조향", "상태")
+        headers = ("위치", "실제 회전", "제어 목표", "상대부하", "조향", "진단")
         for column, text in enumerate(headers):
             label = Gtk.Label(label=text)
             label.set_xalign(0.0)
@@ -614,20 +806,19 @@ class MobilityDashboard(Gtk.Box):
                 _style(label, "mobility-wheel-value")
                 grid.attach(label, column, row + 1, 1, 1)
             self._wheel_rows.append(labels)
-        content = Gtk.Box(spacing=14)
         grid.set_hexpand(True)
-        content.pack_start(grid, True, True, 0)
-        self._rover_graphic = RoverCoordinationGraphic()
-        content.pack_end(self._rover_graphic, True, True, 0)
-        card.pack_start(content, True, True, 0)
+        technical_body.pack_start(grid, False, False, 0)
         self._motor_note = Gtk.Label(
-            label=("Iq는 접지·끼임 판단을 위한 상대 부하 지표입니다. "
+            label=("상대부하는 ODrive Iq를 이용한 접지·끼임 판단 보조지표입니다. "
                    "절대 하중이나 소비에너지로 해석하지 않습니다.")
         )
         self._motor_note.set_xalign(0.0)
         self._motor_note.set_line_wrap(True)
         _style(self._motor_note, "muted")
-        card.pack_end(self._motor_note, False, False, 0)
+        technical_body.pack_end(self._motor_note, False, False, 0)
+        technical.add(technical_body)
+        _style(technical, "mobility-technical-expander")
+        card.pack_end(technical, False, False, 0)
         return card
 
     def _build_fault_card(self) -> Gtk.Box:
@@ -640,7 +831,7 @@ class MobilityDashboard(Gtk.Box):
         self._fault_summary.set_xalign(0.0)
         _style(self._fault_summary, "mobility-decision", "status-muted")
         self._recovery_hint = Gtk.Label(
-            label="지속 슬립·과부하 시 정지 → 후진 → 수동 복귀"
+            label="이상이 있으면 정지하고 연결 상태를 확인하세요"
         )
         self._recovery_hint.set_xalign(0.0)
         self._recovery_hint.set_line_wrap(True)
@@ -658,7 +849,7 @@ class MobilityDashboard(Gtk.Box):
         return card
 
     def _build_control_card(self) -> Gtk.Box:
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         _style(card, "system-card", "mobility-card", "mobility-control-card")
         top = Gtk.Box(spacing=10)
         title = Gtk.Label(label="시연 조작")
@@ -684,7 +875,7 @@ class MobilityDashboard(Gtk.Box):
             )
             _style(button, "mobility-control-button")
             buttons.pack_start(button, True, True, 0)
-        card.pack_start(buttons, False, False, 0)
+        card.pack_start(buttons, True, True, 0)
         note = Gtk.Label(
             label=("속도·방향은 승인된 DualSense 경로만 사용합니다. "
                    "모든 모드 전환은 토큰 인증·상태 재검증·확인을 거칩니다.")
@@ -692,7 +883,7 @@ class MobilityDashboard(Gtk.Box):
         note.set_xalign(0.0)
         note.set_line_wrap(True)
         _style(note, "muted")
-        card.pack_start(note, False, False, 0)
+        card.set_tooltip_text(note.get_text())
         return card
 
     @staticmethod
@@ -701,6 +892,19 @@ class MobilityDashboard(Gtk.Box):
         for candidate in ("status-live", "status-warn", "status-bad", "status-muted"):
             context.remove_class(candidate)
         context.add_class(tone)
+
+    def _show_story(self, snapshot: TelemetrySnapshot | None) -> dict[str, str]:
+        story = mobility_story_values(snapshot)
+        self._story_title.set_text(story["title"])
+        self._story_detail.set_text(story["detail"])
+        self._story_action.set_text(story["action"])
+        self._set_tone(self._story_title, story["tone"])
+        self._set_tone(self._story_action, story["tone"])
+        self._coordination_summary.set_text(story["control"])
+        self._coordination_detail.set_text(
+            "입력  |  휠 속도 · Iq · 접지 상태"
+        )
+        return story
 
     def update(
         self,
@@ -714,6 +918,7 @@ class MobilityDashboard(Gtk.Box):
         self._live.set_text("실시간" if fresh else "갱신 지연" if snapshot else "수신 대기")
         self._set_tone(self._live, "status-live" if fresh else "status-warn" if snapshot else "status-muted")
         if not fresh or snapshot is None:
+            self._show_story(None)
             for labels in (
                 self._terrain[1], self._attitude[1], self._traction[1], self._fsm[1],
             ):
@@ -733,12 +938,9 @@ class MobilityDashboard(Gtk.Box):
             self._update_authority(ops_state)
             return
 
+        story = self._show_story(snapshot)
         terrain = self._terrain[1]
-        path_text = (
-            "주행 경로 확보" if snapshot.terrain_path_available is True else
-            "경로 차단" if snapshot.terrain_path_available is False else "정보 없음"
-        )
-        terrain["path"].set_text("경로 · " + path_text)
+        terrain["path"].set_text(story["terrain"])
         self._set_tone(
             terrain["path"],
             "status-live" if snapshot.terrain_path_available is True
@@ -747,7 +949,8 @@ class MobilityDashboard(Gtk.Box):
         )
         confidence = snapshot.terrain_confidence
         terrain["confidence"].set_text(
-            "신뢰도 · " + ("정보 없음" if confidence is None else f"{confidence * 100:.0f}%")
+            f"L515  |  단차 · 경사 · 장애물  |  신뢰도 {confidence * 100:.0f}%"
+            if confidence is not None else "L515 장애물 결과 수신 대기"
         )
         terrain["geometry"].set_text(
             "오프셋 {} · 방향 {}".format(
@@ -764,8 +967,11 @@ class MobilityDashboard(Gtk.Box):
         )
 
         attitude = self._attitude[1]
-        attitude["roll"].set_text("Roll · " + _degrees(snapshot.roll_rad))
-        attitude["pitch"].set_text("Pitch · " + _degrees(snapshot.pitch_rad))
+        attitude["roll"].set_text(story["judgement"])
+        attitude["pitch"].set_text(
+            "차체 최대 기울기 · "
+            + _degrees(_maximum_abs((snapshot.roll_rad, snapshot.pitch_rad)))
+        )
         attitude["yaw"].set_text("Yaw · " + _degrees(snapshot.yaw_rad))
         attitude["pose"].set_text(
             "위치 · x {} · y {}".format(
@@ -784,15 +990,9 @@ class MobilityDashboard(Gtk.Box):
         maximum_current = _maximum_abs(tuple(
             wheel.drive_current_a for wheel in snapshot.wheel_statuses
         ))
-        if snapshot.stuck_candidate is True:
-            contact_text = "끼임 후보"
-        else:
-            contact_text = _candidate_text(
-                snapshot.slip_candidate, detected="슬립 후보",
-            )
-        traction["contact"].set_text("접지 판단 · " + contact_text)
+        traction["contact"].set_text(story["control"])
         traction["slip"].set_text(
-            "슬립 · " + _candidate_text(snapshot.slip_candidate, detected="후보 감지")
+            f"6륜 상태 피드백 · {feedback_text}"
         )
         traction["load"].set_text(
             "최대 |Iq| · " + _number(maximum_current, " A", 1)
@@ -807,11 +1007,15 @@ class MobilityDashboard(Gtk.Box):
         )
 
         fsm = self._fsm[1]
-        fsm["drive"].set_text("차대 · " + snapshot.drive_state)
-        controller_reasons = ", ".join(snapshot.controller_fsm_reasons)
-        fsm["controller"].set_text(
-            "자율 · " + snapshot.controller_fsm_state
-            + (f" · {controller_reasons}" if controller_reasons else "")
+        fsm["controller"].set_text(story["result"])
+        fsm["drive"].set_text(
+            "실시간 상태 · " + (
+                "안전 정지" if snapshot.stuck_candidate is True else
+                "저속 통과 중" if snapshot.slip_candidate is True or (
+                    snapshot.degradation_speed_scale is not None
+                    and snapshot.degradation_speed_scale < 0.999
+                ) else "주행 유지"
+            )
         )
         fsm["mission"].set_text(
             "임무 · " + snapshot.mission_fsm_state

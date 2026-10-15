@@ -1,0 +1,41 @@
+visible solids 551
+base_link 2659203 -> 58273 bounds mm 1.89
+visible solids 123
+ml_new_chassis_pivot 712328 -> 40510 bounds mm 0.146
+visible solids 6
+ml_pin_PSFGR12-33 12000 -> 759 bounds mm 0.335
+visible solids 11
+rl_kingpin_flange 100356 -> 4084 bounds mm 0.365
+visible solids 26
+rl_bl70200s 14000 -> 4474 bounds mm 0.515
+visible solids 84
+bl_bogie_pivot_out_hub_L60_slot 486460 -> 25956 bounds mm 3.619
+visible solids 11
+fl_kingpin_flange 100358 -> 4086 bounds mm 0.359
+visible solids 26
+fl_bl70200s 14000 -> 4474 bounds mm 0.515
+visible solids 26
+cl_bl70200s 14000 -> 4481 bounds mm 1.672
+visible solids 3
+ml_rod_end_M10_A_housing 12000 -> 748 bounds mm 0.82
+visible solids 8
+ml_bar_differential_side 172168 -> 1512 bounds mm 0.484
+visible solids 123
+mr_new_chassis_pivot 712127 -> 41437 bounds mm 0.091
+visible solids 6
+mr_pin_PSFGR12-33 12000 -> 758 bounds mm 0.574
+visible solids 11
+rr_kingpin_flange 100356 -> 4087 bounds mm 0.286
+visible solids 26
+rr_bl70200s 14000 -> 4475 bounds mm 0.181
+visible solids 84
+br_bogie_pivot_out_hub_L60_slot 486458 -> 25794 bounds mm 0.807
+visible solids 11
+fr_kingpin_flange 100358 -> 4084 bounds mm 0.776
+visible solids 26
+fr_bl70200s 14000 -> 4475 bounds mm 0.181
+visible solids 26
+cr_bl70200s 14000 -> 4435 bounds mm 1.527
+visible solids 3
+mr_rod_end_M10_A_housing 12000 -> 748 bounds mm 1.399
+TOTAL 239650 4148356

@@ -1,0 +1,22 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_overlay_controls_stay_visible_while_laptop_telemetry_scrolls _______
+
+console = (<app.OperatorConsole object at 0x7232a0558180 (operator_console+app+OperatorConsole at 0x33afdd0)>, <operator_console...time.Session object at 0x723291af1130>, <operator_console.tests.test_operation_runtime.Child object at 0x723291af1d90>)
+
+    def test_overlay_controls_stay_visible_while_laptop_telemetry_scrolls(console):
+        window, _, _, _ = console
+        window.resize(1100, 680)
+        pump(.3)
+        for control in (window._show_objects, window._show_distance):
+>           assert control.get_mapped()
+E           assert False
+E            +  where False = gi.FunctionInfo(get_mapped, bound=<Gtk.CheckButton object at 0x7232919f2f80 (GtkCheckButton at 0x35fc840)>)()
+E            +    where gi.FunctionInfo(get_mapped, bound=<Gtk.CheckButton object at 0x7232919f2f80 (GtkCheckButton at 0x35fc840)>) = <Gtk.CheckButton object at 0x7232919f2f80 (GtkCheckButton at 0x35fc840)>.get_mapped
+
+/home/kimseon/power-train-sw/operator_console/tests/test_integrated_app.py:75: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+Xlib:  extension "DRI2" missing on display ":100".
+=========================== short test summary info ============================
+FAILED ../../../home/kimseon/power-train-sw/operator_console/tests/test_integrated_app.py::test_overlay_controls_stay_visible_while_laptop_telemetry_scrolls
+1 failed in 2.11s

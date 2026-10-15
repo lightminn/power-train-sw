@@ -1,0 +1,20 @@
+{
+  "performance": {
+    "triangles": 6440,
+    "drawCalls": 83,
+    "median_ms": 2,
+    "p95_ms": 3,
+    "pixelRatio": 1,
+    "cadMeshRequests": 0
+  },
+  "interaction": {
+    "zoomBefore": 2.135920597443902,
+    "zoomAfter": 2.135920597443902,
+    "halfTurnDistance": 3.699522995705708,
+    "fixedElevation": true
+  },
+  "layout": {
+    "viewport": 779.0,
+    "content": 779.0
+  }
+}

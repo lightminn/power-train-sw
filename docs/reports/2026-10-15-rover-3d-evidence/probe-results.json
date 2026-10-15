@@ -1,0 +1,86 @@
+[
+  {
+    "type": "ready",
+    "three": "186",
+    "links": 77,
+    "joints": 76,
+    "meshes": 39,
+    "triangles": 6793332,
+    "webgl2": true,
+    "pixelProof": {
+      "width": 1100,
+      "height": 760,
+      "nonBackgroundPixels": 119953
+    },
+    "picks": [
+      {
+        "wheel": "rear_left",
+        "hit": true
+      },
+      {
+        "wheel": "front_left",
+        "hit": true
+      },
+      {
+        "wheel": "mid_left",
+        "hit": true
+      },
+      {
+        "wheel": "rear_right",
+        "hit": true
+      },
+      {
+        "wheel": "front_right",
+        "hit": true
+      },
+      {
+        "wheel": "mid_right",
+        "hit": true
+      }
+    ],
+    "elapsed_s": 5.41
+  },
+  {
+    "type": "snapshot",
+    "path": "/dev/shm/powertrain-3d-feasibility-20261015/neutral.png",
+    "elapsed_s": 6.319
+  },
+  {
+    "type": "motion",
+    "before": [
+      0.52377,
+      0.33399999999996527,
+      -0.3273784583946805
+    ],
+    "after": [
+      0.5104755154170608,
+      0.33418092213760753,
+      -0.359556525070849
+    ],
+    "distance": 0.03481672052565896,
+    "pixelProof": {
+      "width": 1100,
+      "height": 760,
+      "nonBackgroundPixels": 119060
+    },
+    "elapsed_s": 6.352
+  },
+  {
+    "type": "wheel-selected",
+    "wheel": "front_left",
+    "elapsed_s": 6.389
+  },
+  {
+    "type": "click-test",
+    "wheel": "front_left",
+    "clientX": 466.86324750932414,
+    "clientY": 624.0132751762997,
+    "popupVisible": true,
+    "elapsed_s": 6.389
+  },
+  {
+    "type": "snapshot",
+    "path": "/dev/shm/powertrain-3d-feasibility-20261015/articulated.png",
+    "elapsed_s": 7.242
+  }
+]
