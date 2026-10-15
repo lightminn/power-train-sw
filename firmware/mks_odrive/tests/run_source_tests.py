@@ -48,10 +48,18 @@ def main():
     patched = 'reliability_patch_' in interface.read_text()
     axis_header = (root / 'MotorControl/axis.hpp').read_text()
     axis_methods = 'template<typename T>\n' + function(axis_header, 'void run_control_loop(const T& update_handler) {') + '\n' + function(axis_header, 'void clear_errors()') + '\n' + function(axis_header, 'bool inline check_for_errors()')
+    for signature in ('void can_control_request(', 'void can_control_feed()',
+                      'void can_control_closed_loop_entry()', 'void can_control_idle_entry()',
+                      'bool can_control_check()'):
+        if signature in axis_header:
+            axis_methods += '\n' + function(axis_header, signature)
     if 'void latch_can_fault(' in axis_header:
         axis_methods += '\n' + function(axis_header, 'void latch_can_fault(')
     prelude = ((local / 'hal_boundary.hpp').read_text().replace('/* REAL_CAN_DEFINES */', real_can_defines(root)).replace('/* ACTUAL_AXIS_METHODS */', axis_methods))
-    fields = '\n'.join(re.findall(r'^\s*(?:bool|uint8_t) can_recovery_\w+_ = [^;]+;', axis_header, re.M))
+    fields = '\n'.join(re.findall(
+        r'^\s*(?:static constexpr (?:uint8_t|uint32_t) kCan\w+ = [^;]+;'
+        r'|(?:bool|uint8_t|uint32_t) (?:can_\w+_|control_deadline_count_) = [^;]+;)',
+        axis_header, re.M))
     prelude = prelude.replace('/* ACTUAL_CAN_AXIS_FIELDS */', fields or
                             'bool can_recovery_latched_=false, can_recovery_in_progress_=false;')
     hal = function((root / 'Board/v3/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_can.c').read_text(), 'HAL_StatusTypeDef HAL_CAN_AddTxMessage(')
@@ -66,6 +74,8 @@ def main():
     source = '\n'.join([
         '#define PATCHED ' + str(int(patched)),
         '#define PATCH4 ' + str(int('take_informational_errors' in interface.read_text())),
+        '#define HAS_ATTEMPTS ' + str(int('can_recovery_attempts_' in axis_header)),
+        '#define HAS_D0 ' + str(int('can_control_check' in axis_header)),
         '#define RECOVERY_METADATA ' + str(int('can_recovery_auto_resume_eligible_' in axis_header)), prelude,
         stripped(root / 'communication/can_helpers.hpp'),
         stripped(interface).replace('private:', 'public:'),
@@ -104,6 +114,12 @@ def main():
     cases += ['filter_own_nodes', 'filter_ext_node', 'filter_out_of_range', 'filter_can_node_change',
               'filter_usb_node_change', 'filter_config_failure',
               'txid_std_range', 'txid_ext_range', 'txid_write_limit']
+    cases += ['pend_clear_before_latch', 'pend_arm_rejected', 'pend_request_wakes_server']
+    cases += ['k_attempt_limit', 'k_wrap_revoked', 'k_other_axis_clear', 'k_new_episode']
+    cases += ['d0_cmd_timeout', 'd0_grace', 'd0_reentry_can', 'd0_reentry_usb', 'd0_usb_only',
+              'd0_usb_then_can_motion', 'd0_precheck_failure', 'd0_startup_state2', 'd0_calibration_only',
+              'd0_can_idle_request', 'd0_query_only', 'd0_tick_wrap', 'd0_guarded_resume_session',
+              'd0_idle_concurrent_request', 'd0_per_axis', 'd0_idle_feed_ignored', 'd0_reboot_defaults']
     cases += ['guard_resume_reserved_eligible', 'guard_resume_new_generation', 'guard_resume_no_can', 'guard_manual_state4', 'guard_manual_state8']
     with tempfile.TemporaryDirectory(prefix='mks-source-tests-') as temp:
         cpp, exe = Path(temp) / 'source.cpp', Path(temp) / 'source-tests'

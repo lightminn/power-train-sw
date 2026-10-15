@@ -1,6 +1,6 @@
 --- a/Firmware/communication/interface_can.cpp
 +++ b/Firmware/communication/interface_can.cpp
-@@ -1,51 +1,128 @@
+@@ -1,50 +1,137 @@
  #include "interface_can.hpp"
  
 -#include "fibre/crc.hpp"
@@ -63,9 +63,19 @@
 +}
 +
 +void ODriveCAN::request_reinit(bool manual) {
++    // Mark every axis in progress at enqueue time (patch4 D5): clear and PWM
++    // arm are refused from here on. The latch itself stays in the server
++    // thread, which cannot preempt the higher-priority axis loop mid-check.
 +    uint32_t mask = cpu_enter_critical();
 +    reinit_requested_ = true;
 +    if (manual) manual_reinit_requested_ = true;
++    for (auto axis : axes) {
++        axis->can_recovery_in_progress_ = true;
++        if (manual) {
++            axis->can_recovery_auto_resume_eligible_ = false;
++            axis->can_recovery_episode_revoked_ = true;
++        }
++    }
 +    cpu_exit_critical(mask);
 +    osSemaphoreRelease(sem_can);  // never under PRIMASK
 +}
@@ -137,7 +147,7 @@
 +                // Persistent faults must never starve idle/USB.
 +                osDelay(10);
 +                continue;
-+            }
+             }
 +            // Success returns to RX service at once (patch4 D3): no unattended
 +            // window in which a burst can overrun the three-deep FIFO.
 +            recovered_before = true;
@@ -152,16 +162,15 @@
 +            if (!read(rxmsg)) break;
 +            switch (config_.protocol) {
 +                case PROTOCOL_SIMPLE: CANSimple::handle_can_message(rxmsg); break;
-             }
-         }
++            }
++        }
 +        if (!reinit_requested_ && !reinitializing_) {
 +            if (HAL_CAN_ActivateNotification(handle_, notifications) != HAL_OK)
 +                record_hal_error(HAL_CAN_GetError(handle_));
-+        }
+         }
      }
  }
- 
-@@ -55,137 +132,206 @@
+@@ -55,137 +142,202 @@
  }
  
  bool ODriveCAN::start_can_server() {
@@ -246,12 +255,12 @@
 +        ++tx_error_count_;
 +        request = true;  // Even a HAL failure without an error flag.
 +        observed = HAL_CAN_GetError(handle_);
-     }
++    }
 +    cpu_exit_critical(mask);
 +    if (request) {
 +        record_hal_error(observed, false);
 +        request_reinit(false);
-+    }
+     }
 +    return mailbox;
  }
  
@@ -350,9 +359,8 @@
 +    // Multiple requests coalesce to the most recently requested valid baud.
 +    uint32_t mask = cpu_enter_critical();
 +    pending_baud_rate_ = baudRate;
-+    for (auto axis : axes) axis->can_recovery_auto_resume_eligible_ = false;
 +    cpu_exit_critical(mask);
-+    request_reinit(true);
++    request_reinit(true);  // revokes eligibility atomically with the request
  }
  
  void ODriveCAN::reinit_can() {
@@ -361,12 +369,11 @@
 -    auto status = HAL_CAN_Start(handle_);
 -    if (status == HAL_OK)
 -        status = HAL_CAN_ActivateNotification(handle_, CAN_IT_RX_FIFO0_MSG_PENDING);
-+    uint32_t mask = cpu_enter_critical();
-+    for (auto axis : axes) axis->can_recovery_auto_resume_eligible_ = false;
-+    cpu_exit_critical(mask);
 +    request_reinit(true);
-+}
-+
+ }
+ 
+-void ODriveCAN::set_error(Error error) {
+-    error_ |= error;
 +bool ODriveCAN::apply_can_config(uint32_t baud, bool recovery) {
 +    if (recovery) {
 +        HAL_CAN_DeactivateNotification(handle_, notifications);
@@ -411,10 +418,8 @@
 +    }
 +    config_.baud_rate = baud; // Applied value, not merely the queued request.
 +    return true;
- }
- 
--void ODriveCAN::set_error(Error error) {
--    error_ |= error;
++}
++
 +bool ODriveCAN::program_rx_filters() {
 +    // Hardware accepts only this board's two nodes (patch4 D2). RTR is
 +    // don't-care (queries), IDE is compared, the 5 command bits are ignored.
@@ -441,9 +446,7 @@
 +    }
 +    filters_programmed_ = true;
 +    return true;
- }
--// This function is called by each axis.
--// It provides an abstraction from the specific CAN protocol in use
++}
 +
 +void ODriveCAN::update_rx_filters_if_needed() {
 +    bool changed = !filters_programmed_;
@@ -454,7 +457,9 @@
 +        record_hal_error(HAL_CAN_GetError(handle_), false);
 +        request_reinit(false);
 +    }
-+}
+ }
+-// This function is called by each axis.
+-// It provides an abstraction from the specific CAN protocol in use
 +
 +void ODriveCAN::set_error(Error error) { error_ |= error; }
 +
@@ -471,7 +476,7 @@
              }
              axis->last_heartbeat_ = now;
          }
-@@ -202,13 +348,15 @@
+@@ -202,13 +354,15 @@
      HAL_CAN_DeactivateNotification(hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
      osSemaphoreRelease(sem_can);
  }
@@ -637,15 +642,18 @@
          switch (cmd) {
              case MSG_CO_NMT_CTRL:
                  break;
-@@ -121,6 +196,7 @@
+@@ -121,6 +196,10 @@
              default:
                  break;
          }
-+        if (control_input) axis->watchdog_feed();
++        if (control_input) {
++            axis->watchdog_feed();
++            axis->can_control_feed();
++        }
      }
  }
  
-@@ -129,15 +205,16 @@
+@@ -129,15 +208,16 @@
  }
  
  void CANSimple::estop_callback(Axis* axis, can_Message_t& msg) {
@@ -665,7 +673,7 @@
          txmsg.len = 8;
  
          txmsg.buf[0] = axis->motor_.error_;
-@@ -152,9 +229,7 @@
+@@ -152,9 +232,7 @@
  void CANSimple::get_encoder_error_callback(Axis* axis, can_Message_t& msg) {
      if (msg.rtr) {
          can_Message_t txmsg;
@@ -676,7 +684,7 @@
          txmsg.len = 8;
  
          txmsg.buf[0] = axis->encoder_.error_;
-@@ -169,9 +244,7 @@
+@@ -169,9 +247,7 @@
  void CANSimple::get_sensorless_error_callback(Axis* axis, can_Message_t& msg) {
      if (msg.rtr) {
          can_Message_t txmsg;
@@ -687,7 +695,7 @@
          txmsg.len = 8;
  
          txmsg.buf[0] = axis->sensorless_estimator_.error_;
-@@ -188,7 +261,33 @@
+@@ -188,7 +264,38 @@
  }
  
  void CANSimple::set_axis_requested_state_callback(Axis* axis, can_Message_t& msg) {
@@ -714,15 +722,20 @@
 +            // current position. The normal Axis state machine owns actual arm.
 +            axis->clear_errors();
 +            axis->requested_state_ = Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;
++            axis->can_control_request(Axis::AXIS_STATE_CLOSED_LOOP_CONTROL);
 +        }
 +        cpu_exit_critical(mask);
 +        return;
 +    }
-+    axis->requested_state_ = static_cast<Axis::AxisState>(can_getSignal<int32_t>(msg, 0, 32, true));
++    const auto state = static_cast<Axis::AxisState>(can_getSignal<int32_t>(msg, 0, 32, true));
++    uint32_t mask = cpu_enter_critical();
++    axis->requested_state_ = state;
++    axis->can_control_request(state);  // same critical section as the request
++    cpu_exit_critical(mask);
  }
  void CANSimple::set_axis_startup_config_callback(Axis* axis, can_Message_t& msg) {
      // Not Implemented
-@@ -197,9 +296,7 @@
+@@ -197,9 +304,7 @@
  void CANSimple::get_encoder_estimates_callback(Axis* axis, can_Message_t& msg) {
      if (msg.rtr) {
          can_Message_t txmsg;
@@ -733,7 +746,7 @@
          txmsg.len = 8;
  
          // Undefined behaviour!
-@@ -228,9 +325,7 @@
+@@ -228,9 +333,7 @@
  void CANSimple::get_sensorless_estimates_callback(Axis* axis, can_Message_t& msg) {
      if (msg.rtr) {
          can_Message_t txmsg;
@@ -744,7 +757,7 @@
          txmsg.len = 8;
  
          // Undefined behaviour!
-@@ -259,9 +354,7 @@
+@@ -259,9 +362,7 @@
  void CANSimple::get_encoder_count_callback(Axis* axis, can_Message_t& msg) {
      if (msg.rtr) {
          can_Message_t txmsg;
@@ -755,7 +768,7 @@
          txmsg.len = 8;
  
          txmsg.buf[0] = axis->encoder_.shadow_count_;
-@@ -323,9 +416,7 @@
+@@ -323,9 +424,7 @@
  void CANSimple::get_iq_callback(Axis* axis, can_Message_t& msg) {
      if (msg.rtr) {
          can_Message_t txmsg;
@@ -766,7 +779,7 @@
          txmsg.len = 8;
  
          uint32_t floatBytes;
-@@ -352,9 +443,7 @@
+@@ -352,9 +451,7 @@
      if (msg.rtr) {
          can_Message_t txmsg;
  
@@ -777,7 +790,7 @@
          txmsg.len = 8;
  
          uint32_t floatBytes;
-@@ -379,27 +468,36 @@
+@@ -379,27 +476,36 @@
  }
  
  void CANSimple::clear_errors_callback(Axis* axis, can_Message_t& msg) {
@@ -821,7 +834,7 @@
      odCAN->write(txmsg);
  }
  
-@@ -409,4 +507,4 @@
+@@ -409,4 +515,4 @@
  
  uint8_t CANSimple::get_cmd_id(uint32_t msgID) {
      return (msgID & 0x01F);  // Bottom 5 bits
@@ -830,7 +843,7 @@
 +}
 --- a/Firmware/MotorControl/axis.hpp
 +++ b/Firmware/MotorControl/axis.hpp
-@@ -105,7 +105,57 @@
+@@ -105,7 +105,152 @@
      void watchdog_feed();
      bool watchdog_check();
  
@@ -840,10 +853,24 @@
 +    bool can_recovery_in_progress_ = false;
 +    bool can_recovery_auto_resume_eligible_ = false;
 +    uint8_t can_recovery_generation_ = 0;
++    bool can_recovery_episode_revoked_ = false;
++    static constexpr uint8_t kCanRecoveryAttemptLimit = 16;
++    uint8_t can_recovery_attempts_ = 0;  // per-axis latch episode, saturating
++    // patch4 D0: CAN control session (RAM only, outside Config_t/NVM).
++    static constexpr uint32_t kCanCmdTimeoutMs = 300;
++    static constexpr uint32_t kCanGraceMs = 500;
++    bool can_owner_ = false;
++    bool can_feed_valid_ = false;
++    bool can_entry_recorded_ = false;
++    uint32_t can_last_feed_tick_ = 0;
++    uint32_t can_entry_tick_ = 0;
++    uint32_t control_deadline_count_ = 0;
 +
 +    void latch_can_fault(bool automatic = false) {
 +        uint32_t mask = cpu_enter_critical();
-+        if (!automatic) {
++        if (!can_recovery_latched_) can_recovery_attempts_ = 0;  // new episode
++        if (can_recovery_attempts_ < 255) ++can_recovery_attempts_;
++        if (!automatic || can_recovery_episode_revoked_) {
 +            can_recovery_auto_resume_eligible_ = false;
 +        } else if (!can_recovery_latched_) {
 +            // Only a healthy active axis interrupted by automatic HAL recovery
@@ -856,6 +883,10 @@
 +                controller_.error_ == Controller::ERROR_NONE &&
 +                sensorless_estimator_.error_ == SensorlessEstimator::ERROR_NONE;
 +        }
++        // From the 17th attempt of one episode, eligibility never returns until
++        // the episode ends, so a live eligible episode cannot wrap the generation.
++        if (can_recovery_attempts_ > kCanRecoveryAttemptLimit)
++            can_recovery_auto_resume_eligible_ = false;
 +        ++can_recovery_generation_; // Each bounded attempt; uint8 wrap is intentional.
 +        can_recovery_latched_ = true;
 +        can_recovery_in_progress_ = true;
@@ -868,27 +899,104 @@
 +        cpu_exit_critical(mask);
 +    }
 +
++    // Any non-IDLE CAN state request starts (or keeps) a CAN control session.
++    // Idempotent: a repeated request never refreshes the timers.
++    void can_control_request(AxisState state) {
++        if (state == AXIS_STATE_IDLE) return;
++        uint32_t mask = cpu_enter_critical();
++        if (!can_owner_) {
++            can_owner_ = true;
++            can_feed_valid_ = false;
++            can_entry_recorded_ = false;
++        }
++        cpu_exit_critical(mask);
++    }
++
++    // A validated CAN motion setpoint in CLOSED_LOOP feeds (and if needed
++    // claims) the session, also for an axis that USB armed.
++    void can_control_feed() {
++        uint32_t mask = cpu_enter_critical();
++        if (current_state_ == AXIS_STATE_CLOSED_LOOP_CONTROL) {
++            const uint32_t now = osKernelSysTick();
++            if (!can_owner_) {
++                can_owner_ = true;
++                can_entry_recorded_ = true;
++                can_entry_tick_ = now;
++            }
++            can_feed_valid_ = true;
++            can_last_feed_tick_ = now;
++        }
++        cpu_exit_critical(mask);
++    }
++
++    // The grace period starts at the session's first CLOSED_LOOP entry only.
++    void can_control_closed_loop_entry() {
++        uint32_t mask = cpu_enter_critical();
++        if (can_owner_ && !can_entry_recorded_) {
++            can_entry_recorded_ = true;
++            can_entry_tick_ = osKernelSysTick();
++        }
++        cpu_exit_critical(mask);
++    }
++
++    // The only session end: actually running IDLE with no request pending.
++    void can_control_idle_entry() {
++        uint32_t mask = cpu_enter_critical();
++        if (requested_state_ == AXIS_STATE_UNDEFINED) {
++            can_owner_ = false;
++            can_feed_valid_ = false;
++            can_entry_recorded_ = false;
++        }
++        cpu_exit_critical(mask);
++    }
++
++    // Deadline relative to the board's last accepted CAN setpoint, independent
++    // of enable_watchdog. Unsigned tick differences survive the 49.7 day wrap.
++    bool can_control_check() {
++        if (current_state_ != AXIS_STATE_CLOSED_LOOP_CONTROL) return true;
++        uint32_t mask = cpu_enter_critical();
++        const uint32_t now = osKernelSysTick();
++        const uint32_t cmd_ticks = kCanCmdTimeoutMs * osKernelSysTickFrequency / 1000u;
++        const uint32_t grace_ticks = kCanGraceMs * osKernelSysTickFrequency / 1000u;
++        const bool expired = can_owner_ &&
++            (can_feed_valid_ ? uint32_t(now - can_last_feed_tick_) > cmd_ticks
++                             : can_entry_recorded_ && uint32_t(now - can_entry_tick_) > grace_ticks);
++        if (expired) {
++            error_ |= ERROR_WATCHDOG_TIMER_EXPIRED;
++            ++control_deadline_count_;
++        }
++        cpu_exit_critical(mask);
++        return !expired;
++    }
++
      void clear_errors() {
 +        uint32_t mask = cpu_enter_critical();
-+        // Even a rejected early clear revokes automatic-resume provenance.
++        // Even a rejected early clear revokes automatic-resume provenance for the
++        // pending or current episode; the server cannot grant it back (patch4 D5).
 +        can_recovery_auto_resume_eligible_ = false;
++        can_recovery_episode_revoked_ = true;
++        // USB and CAN share this gate. A pending reinit, an early clear before
++        // IDLE, or a queued arm cannot escape the stop latch.
++        if (can_recovery_in_progress_ ||
++            (can_recovery_latched_ &&
++             (current_state_ != AXIS_STATE_IDLE ||
++              (requested_state_ != AXIS_STATE_UNDEFINED && requested_state_ != AXIS_STATE_IDLE)))) {
++            cpu_exit_critical(mask);
++            return;
++        }
 +        if (can_recovery_latched_) {
-+            // USB and CAN share this gate. An early clear cannot race IDLE entry
-+            // or a HAL restart, and a queued arm cannot escape the stop latch.
-+            if (can_recovery_in_progress_ || current_state_ != AXIS_STATE_IDLE ||
-+                (requested_state_ != AXIS_STATE_UNDEFINED && requested_state_ != AXIS_STATE_IDLE)) {
-+                cpu_exit_critical(mask);
-+                return;
-+            }
 +            controller_.input_vel_ = 0.0f;
 +            controller_.input_torque_ = 0.0f;
 +            controller_.input_pos_ = encoder_.pos_estimate_;
 +            can_recovery_latched_ = false;
 +        }
++        // An accepted clear ends any latch episode; the next one starts fresh.
++        can_recovery_episode_revoked_ = false;
++        can_recovery_attempts_ = 0;
          motor_.error_ = Motor::ERROR_NONE;
          controller_.error_ = Controller::ERROR_NONE;
          sensorless_estimator_.error_ = SensorlessEstimator::ERROR_NONE;
-@@ -113,10 +163,13 @@
+@@ -113,10 +258,13 @@
          encoder_.spi_error_rate_ = 0.0f;
  
          error_ = ERROR_NONE;
@@ -904,25 +1012,41 @@
  
 --- a/Firmware/MotorControl/axis.cpp
 +++ b/Firmware/MotorControl/axis.cpp
-@@ -216,7 +216,9 @@
+@@ -216,7 +216,11 @@
  
  // @brief Check the watchdog timer for expiration. Also sets the watchdog error bit if expired.
  bool Axis::watchdog_check() {
 -    if (!config_.enable_watchdog) return true;
++    // patch4 D0: the CAN control deadline is independent of enable_watchdog.
++    if (!can_control_check()) return false;
 +    // IDLE has no live motion command to supervise. Do not create a new timeout
 +    // while waiting for explicit clear/neutral/arm; retain any previous error.
 +    if (!config_.enable_watchdog || current_state_ == AXIS_STATE_IDLE) return true;
  
      // explicit check here to ensure that we don't underflow back to UINT32_MAX
      if (watchdog_current_value_ > 0) {
+@@ -566,10 +570,12 @@
+                 if (!encoder_.is_ready_)
+                     goto invalid_state_label;
+                 watchdog_feed();
++                can_control_closed_loop_entry();
+                 status = run_closed_loop_control_loop();
+             } break;
+ 
+             case AXIS_STATE_IDLE: {
++                can_control_idle_entry();
+                 run_idle_loop();
+                 status = motor_.arm(); // done with idling - try to arm the motor
+             } break;
 --- a/Firmware/MotorControl/low_level.cpp
 +++ b/Firmware/MotorControl/low_level.cpp
-@@ -99,7 +99,7 @@
+@@ -99,7 +99,8 @@
  // from user input.
  void safety_critical_arm_motor_pwm(Motor& motor) {
      uint32_t mask = cpu_enter_critical();
 -    if (brake_resistor_armed) {
-+    if (brake_resistor_armed && !motor.axis_->can_recovery_latched_) {
++    if (brake_resistor_armed && !motor.axis_->can_recovery_latched_ &&
++        !motor.axis_->can_recovery_in_progress_) {
          motor.armed_state_ = Motor::ARMED_STATE_WAITING_FOR_TIMINGS;
      }
      cpu_exit_critical(mask);

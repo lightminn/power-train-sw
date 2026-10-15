@@ -85,7 +85,7 @@ std::function<void()> after_activation;
 int activations_before_failure=-1;  // >=0: that many activations succeed, then one fails
 HAL_StatusTypeDef HAL_CAN_ActivateNotification(CAN_HandleTypeDef* hc,uint32_t it){
  if(activations_before_failure==0){activations_before_failure=-1;hc->ErrorCode|=HAL_CAN_ERROR_NOT_INITIALIZED;return HAL_ERROR;}
- if(activations_before_failure>0)--activations_before_failure;hc->Instance->IER|=it;if(after_activation){auto f=after_activation;f();}return HAL_OK;}
+ if(activations_before_failure>0){--activations_before_failure;}hc->Instance->IER|=it;if(after_activation){auto f=after_activation;f();}return HAL_OK;}
 HAL_StatusTypeDef HAL_CAN_DeactivateNotification(CAN_HandleTypeDef* hc,uint32_t it){hc->Instance->IER&=~it;return HAL_OK;}
 CAN_FilterTypeDef filters[28];
 uint32_t filter_slave_start=14,blocked_can_irqs=0;
