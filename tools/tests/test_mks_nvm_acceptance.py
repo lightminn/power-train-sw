@@ -59,5 +59,14 @@ class NvmAcceptanceTest(unittest.TestCase):
         self.assertIn('B axis0 can_heartbeat_rate_ms=0', found)
 
 
+    def test_summary_records_watchdog_and_nodes(self):
+        boards = self.boards()
+        boards['B']['axis1']['config']['enable_watchdog'] = True
+        summary = nvm.summarize(boards)
+        self.assertIs(summary['B']['axis1']['enable_watchdog'], True)
+        self.assertIs(summary['A']['axis0']['enable_watchdog'], False)
+        self.assertEqual(summary['C']['axis0']['can_node_id'], 15)
+        self.assertEqual(summary['A']['can_baud_rate'], 500000)
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -2112,7 +2112,7 @@ git commit -m "feat(tools): patch4 실물 인수용 NVM 점검과 CAN 송신 순
 
 - [ ] **Step 0: NVM 인수(읽기 전용)** — 세 보드를 USB로 연결해 기존 증거 스크립트 방식(`docs/reports/2026-09-10-can-auto-resume-evidence/board-*/backup_current.py`의 설정 덤프)으로 설정 JSON을 저장하고 `tools/mks_nvm_acceptance.py --expect <13/14 serial 336A33523235> --expect <15/16 serial 337733643235> --expect <node11/12 serial> ...`로 세 보드를 한꺼번에 점검한다(node11/12 serial은 이 단계에서 USB로 처음 식별해 기록한다). `--json-out nvm-acceptance.json`으로 결과를 저장한다(Step 6의 송신 도구가 이 PASS 보고서를 요구한다). node11/12 보드는 읽기만 한다. 위반이 있으면 해당 보드는 중단하고 보고한다.
 - [ ] **Step 1: 13/14 보드 플래시** — 정확한 serial `336A33523235`, 1 MiB 2회 백업 대조, `tools/mks_dfu.py`의 application 전용 guarded 경로로 `$WORK/build-p4/ODriveFirmware.bin` 기록, NVM·설정·캘리 읽기 대조, `can.reliability_patch == 4` 확인, 부팅 후 Step 0 재점검.
-- [ ] **Step 2: 실트래픽 10분(바퀴 들고)** — 10모터 운용 트래픽에서 `recovery_count` 증가 0, 래치 0, 정보성 계수 기록.
+- [ ] **Step 2: 실트래픽 10분(바퀴 들고)** — 트래픽 발생원은 운용 경로(ChassisManager, 무장 중 50 Hz setpoint)다. motor_gui `odrive_can` 트랙이나 `can_drive_test.py`는 setpoint를 300 ms 넘게 끊어 D0로 만료되므로 이 시험의 발생원으로 쓰지 않는다. 10모터 운용 트래픽에서 `recovery_count` 증가 0, 래치 0, 정보성 계수 기록.
 - [ ] **Step 3: Jetson 가지만 분리, 다른 노드 ACK 유지, 0속도 CLOSED_LOOP** — D0 만료 정지와 시간, `control_deadline_count` 증가를 기록한다.
 - [ ] **Step 4: 보드 단독 고립과 수동 재초기화** — 기대 결과를 명시한다. 수동 재초기화(`reinit_can()`·`set_baud_rate()`)는 자격을 취소하므로 **guarded RESUME은 거절돼야 한다**(heartbeat flags: 래치 1·자격 0). 이어 IDLE 확인 → 수동 clear → 0속도 → 명시 arm의 수동 재시작 경로가 동작함을 기록한다. 자동 HAL 복구 뒤 guarded RESUME의 **수락** 경로는 patch4에서 API 실패·HAL 상태 이상으로만 생겨 안전하게 유발할 수 없으므로, 소스 하네스(`guard_*`, `d0_guarded_resume_session`)가 근거이며 실물에서는 미검증으로 보고한다. 같은 단계에서 **요청→래치 지연(D5)**을 잰다: USB로 `reinit_can()` 호출 직전 시각부터 `axisN.can_recovery_latched == True`, `can.reinitializing == False`를 USB로 최대한 빠르게 폴링해 각 시각을 기록한다(USB 폴링 주기가 분해능 하한이며 그 값도 함께 적는다).
 - [ ] **Step 5: USB 스키드 경로 무영향** — USB로만 arm·구동해 만료가 나지 않음을 기록한다.
@@ -2164,4 +2164,13 @@ git commit -m "feat(tools): patch4 실물 인수용 NVM 점검과 CAN 송신 순
 
 ## 구현 검증 로그
 
-(Task 8 Step 3에서 채운다.)
+2026-10-15 브랜치 `feat/mks-can-patch4`에서 Native 실행. 판단 기록 전체는 실행 원장(작업공간 `progress.md`)에 있고, 계획과 달라진 점은 다음과 같다.
+
+- **하네스 충실도(Task 1, Codex P2×3).** 필터 모드·CAN1 bank 소유권, `do_checks`/`do_updates`의 오류 종료, NVIC 차단 중 CAN IRQ 미실행을 모형화하고 자체 시험 2개를 더했다. 이후 모든 개수가 +2.
+- **Task 2·3(Codex 3라운드).** 이진 세마포어 모형과 "ErrorCode 읽기 직후 IRQ" 주입을 더하고, 반복 복구가 차단 없이 도는 경로를 막는 **시간 기반 백오프**(마지막 성공 복구 10 ms 안의 재복구는 `osDelay(10)`)를 추가했다. 시험 `info_atomic_take`·`info_repeat_recovery_yields`·`info_repeat_alternating_yields`. 필터 IDE 비교 변이를 잡도록 EXT `13<<23` 별칭 단언을 보강했다.
+- **Task 4.** `pend_request_wakes_server`는 Task 2에서 이미 충족돼 처음부터 통과(가드로 유지).
+- **Task 6.** Codex 1라운드 수렴, 시험 주석 정정(메서드 정책 시험).
+- **순서.** Task 9를 Task 8보다 먼저 실행해 브랜치 전체 검토가 도구까지 다루게 했다.
+- **최종 검토(서브에이전트 + Codex).** 수정 패스: D0 만료 시 입력 0(`d0_expiry_clears_input`); 측정 도구를 표준 라이브러리 raw CAN 소켓으로 재작성(STD `0x7E1` node 63 heartbeat 고정, `--cmd` 제거, `MSG_CONFIRM`+실행별 nonce로 자기 echo 판별, 버스 확인된 RTR 조회 뒤 ≥0.5 s 청취, 송신 중 node 63 등장·수신 종료 시 중단, 부분 실행 불합격, 인자 유한성 검사); NVM 점검 JSON에 보드 요약(`enable_watchdog` 포함); 기존 CAN 도구(motor_gui `odrive_can`, `can_drive_test.py`)의 D0 만료를 설계 §4-9·README·Task 10에 명시. Codex 같은 스레드 5라운드 뒤 수렴. 측정 도구는 로컬 vcan에서 정상·응답기·송신 중 등장·deadline 네 시나리오를 실제 실행했다.
+- **최종 수치.** 하네스 개발본 `134/0`, patch3 음성 대조 `88/46`, 원본 `8/126`; `tools/tests` 통과; Cortex-M4 빌드 BIN 251,868 B(SHA256 `15462f7f…b3fc`), ELF 1,103,132 B, 변경 파일 경고 0.
+- **남은 것.** Task 10 실물 인수(사용자 단계별 승인)와 최종 검토의 Minor 7건(원장 `Final: minor (deferred)`).

@@ -843,7 +843,7 @@
 +}
 --- a/Firmware/MotorControl/axis.hpp
 +++ b/Firmware/MotorControl/axis.hpp
-@@ -105,7 +105,152 @@
+@@ -105,7 +105,156 @@
      void watchdog_feed();
      bool watchdog_check();
  
@@ -964,6 +964,10 @@
 +        if (expired) {
 +            error_ |= ERROR_WATCHDOG_TIMER_EXPIRED;
 +            ++control_deadline_count_;
++            // Drop the stale command so no later (USB or CAN) re-arm can replay it.
++            controller_.input_vel_ = 0.0f;
++            controller_.input_torque_ = 0.0f;
++            controller_.input_pos_ = encoder_.pos_estimate_;
 +        }
 +        cpu_exit_critical(mask);
 +        return !expired;
@@ -996,7 +1000,7 @@
          motor_.error_ = Motor::ERROR_NONE;
          controller_.error_ = Controller::ERROR_NONE;
          sensorless_estimator_.error_ = SensorlessEstimator::ERROR_NONE;
-@@ -113,10 +258,13 @@
+@@ -113,10 +262,13 @@
          encoder_.spi_error_rate_ = 0.0f;
  
          error_ = ERROR_NONE;

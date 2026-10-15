@@ -15,19 +15,19 @@ patch4의 설계와 검토 기록은 [patch4 설계](../../docs/specs/2026-10-15
 python firmware/mks_odrive/prepare_source.py \
   --zip /path/to/mks-v36-fw051.zip --dest /tmp/mks-original --unpatched
 python firmware/mks_odrive/tests/run_source_tests.py /tmp/mks-original
-# 기대: 8 passed, 125 failed (수정 계약에 대한 원본의 RED)
+# 기대: 8 passed, 126 failed (수정 계약에 대한 원본의 RED)
 
 python firmware/mks_odrive/prepare_source.py \
   --zip /path/to/mks-v36-fw051.zip --dest /tmp/mks-patched
 python firmware/mks_odrive/tests/run_source_tests.py /tmp/mks-patched
-# 기대: 133 passed, 0 failed
+# 기대: 134 passed, 0 failed
 python firmware/mks_odrive/tests/test_prepare.py --zip /path/to/mks-v36-fw051.zip
-# 기대: 준비 도구 3개 통과 + 새 추출/패치 소스에서 133개 통과
+# 기대: 준비 도구 3개 통과 + 새 추출/패치 소스에서 134개 통과
 python firmware/mks_odrive/tests/test_regen_patch.py   # MKS_VENDOR_ZIP 필요
 # 기대: 2개 통과 (regen_patch.py가 작업 트리를 정확히 재현)
 ```
 
-patch4의 계약은 patch3 소스(음성 대조)에서 **88 passed, 45 failed**를 확인했다. 계약마다
+patch4의 계약은 patch3 소스(음성 대조)에서 **88 passed, 46 failed**를 확인했다. 계약마다
 구현 전 RED를 보고 구현했으며, 다음 변이가 지정 시험에서 실패한다: 정보성 mask에서 RX_FOV 제외,
 복구 성공 뒤 대기 복원, 반복 복구 백오프 제거, `take_informational_errors`의 critical 제거,
 이동 전 node 검사 제거, STD 필터의 IDE 비교 제거, 래치 자격에서 `episode_revoked` 무시,
@@ -77,7 +77,7 @@ python firmware/mks_odrive/build_firmware.py \
 출력을 성공으로 취급하지 않는다. **이전 patch1의 비교 기준**은 ELF 1,102,364 bytes
 (`fd75b613…22d2`), BIN 247,880 bytes (`75678094…c710`),
 text/data/bss/dec = 246244/1580/136064/383888이다.
-patch4는 코드가 달라 이 값과 일치하지 않는다(2026-10-15 patch4 빌드: ELF 1,103,132 bytes, BIN 251,852 bytes). 빌드 매니페스트는 현재 패치 ID와
+patch4는 코드가 달라 이 값과 일치하지 않는다(2026-10-15 patch4 빌드: ELF 1,103,132 bytes, BIN 251,868 bytes). 빌드 매니페스트는 현재 패치 ID와
 `reference_reliability_patch=1`을 구분하며, 현재 산출물의 크기·SHA256을 별도로 기록한다.
 
 이미지가 없는 머신은 다음 Dockerfile로 대체 이미지를 만들고 `--image`로 지정할 수 있다.
@@ -134,7 +134,10 @@ patch4가 더한 계약(설계 D0~D5)을 먼저 적고, patch3에서 이어지�
   시작하고, 상태머신이 실제 IDLE을 요청 없이 실행할 때만 끝난다. state8 재진입은 타이머를
   갱신하지 않는다. USB로만 운전하는 축은 대상이 아니다. 기준 시각은 보드의 마지막 수락
   시각이며 호스트 송신 큐 지연만큼 늦어질 수 있다. 부팅 자동 시작은 CAN 세션이 아니므로
-  **모든 `startup_*`=false가 D0의 필수 전제**다.
+  **모든 `startup_*`=false가 D0의 필수 전제**다. 만료하면 입력(vel/torque 0, pos=현재 위치)도
+  지워 이후 재무장이 이전 지령을 재생하지 않는다. CAN으로 arm하고 setpoint를 300 ms보다 길게
+  끊는 기존 도구(motor_gui `odrive_can` 트랙, `motor_control/drive/bl70200/can_drive_test.py`)는
+  patch4 보드에서 0x800으로 멈춘다 — 오진하지 말 것. 운용 경로(ChassisManager)는 50 Hz로 보낸다.
 
 - `write()`는 짧은 PRIMASK 구간에서 TX 허용 여부·빈 슬롯·HAL 등록을 함께 처리한다.
   세 슬롯이 모두 차면 `0`을 반환하고 drop을 센다. 재시도·blocking mutex는 없다.

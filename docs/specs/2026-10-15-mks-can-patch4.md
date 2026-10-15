@@ -194,6 +194,13 @@ generation, cmd `0x07` `<IBBBB>` guarded RESUME, cmd `0x18` clear)과 Config_t/N
    제동거리를 보장하지 않는다.
 7. D0 보호는 patch4가 적용된 보드에만 있다. node11/12가 패치되기 전에는 로버 전체의 수신 만료
    정지를 주장하지 않는다.
+9. **CAN으로 arm하고 setpoint를 300 ms보다 길게 끊는 기존 도구는 patch4 보드에서 만료된다**
+   (`ERROR_WATCHDOG_TIMER_EXPIRED`, 0x800). 2026-10-15 확인: motor_gui `odrive_can` 트랙은
+   사용자 조작 때만 setpoint를 보내고(`motor_gui/backend/transport/odrive_can_device.py`),
+   `motor_control/drive/bl70200/can_drive_test.py`는 arm 뒤 한 번 보내고 2 s씩 대기한다.
+   이 오류를 `enable_watchdog`이나 하드웨어 문제로 오진하지 않는다. 두 도구의 주기 재송신은
+   후속 작업이며, CAN 캘리브레이션(`can_calibrate_all.py`, CLOSED_LOOP 미진입)은 영향이 없다.
+   운용 경로(ChassisManager)는 무장 중 50 Hz로 setpoint를 보낸다.
 8. 필터는 소프트웨어 수신 부하만 줄인다. 버스 점유·물리 오류는 남으며, 그로 인한 자기 제어 손실은
    D0 정지, 피드백 200 ms 초과 공백은 기존 호스트 정지로 이어진다.
 

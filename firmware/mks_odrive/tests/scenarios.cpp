@@ -485,6 +485,11 @@ int main(int argc,char** argv){try{
    require(r.first_exit==1322,"CAN command deadline not at last feed + 301 ms");
    require(watchdog_bit() && a0.control_deadline_count_==1,"deadline error/count missing");
    require(a0.motor_.armed_state_==Motor::ARMED_STATE_DISARMED,"expiry did not disarm PWM through the real IDLE path");
+  }else if(name=="d0_expiry_clears_input"){
+   // A D0 stop must not leave the old command armed for a later (e.g. USB) re-arm.
+   auto r=run_axis(a0,2000,[&](uint32_t t){if(t==1010)can_state(13,8);if(t==1020)can_vel(13);});
+   require(r.first_exit==1322 && a0.controller_.input_vel_==0 && a0.controller_.input_torque_==0 &&
+           a0.controller_.input_pos_==a0.encoder_.pos_estimate_,"D0 expiry left the previous setpoint in place");
   }else if(name=="d0_grace"){
    auto r=run_axis(a0,2000,[&](uint32_t t){if(t==1010)can_state(13,8);});
    require(r.first_exit==1512 && watchdog_bit(),"grace not CLOSED_LOOP entry + 501 ms");

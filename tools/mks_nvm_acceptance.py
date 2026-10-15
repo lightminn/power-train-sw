@@ -39,6 +39,21 @@ def check(configs, expected):
     return violations
 
 
+def summarize(configs):
+    """Values the spec asks to record per board (5절 0번), including enable_watchdog."""
+    summary = {}
+    for serial, cfg in sorted(configs.items()):
+        entry = {'can_baud_rate': cfg['can']['config']['baud_rate'],
+                 'can_protocol': cfg['can']['config']['protocol']}
+        for axis in ('axis0', 'axis1'):
+            ac = cfg[axis]['config']
+            entry[axis] = {key: ac.get(key) for key in
+                           ('can_node_id', 'can_node_id_extended', 'can_heartbeat_rate_ms',
+                            'enable_watchdog', *STARTUP)}
+        summary[serial] = entry
+    return summary
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--expect', action='append', required=True, help='serial that must be present (repeat)')
@@ -54,7 +69,8 @@ def main():
     found = check(configs, set(args.expect))
     if args.json_out:
         Path(args.json_out).write_text(json.dumps(
-            {'pass': not found, 'expected': sorted(set(args.expect)), 'violations': found}, indent=2) + '\n')
+            {'pass': not found, 'expected': sorted(set(args.expect)), 'violations': found,
+             'boards': summarize(configs)}, indent=2) + '\n')
     for line in found:
         print('FAIL', line)
     print('PASS' if not found else f'{len(found)} violation(s)')

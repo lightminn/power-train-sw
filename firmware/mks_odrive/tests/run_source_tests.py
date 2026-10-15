@@ -119,7 +119,8 @@ def main():
     cases += ['d0_cmd_timeout', 'd0_grace', 'd0_reentry_can', 'd0_reentry_usb', 'd0_usb_only',
               'd0_usb_then_can_motion', 'd0_precheck_failure', 'd0_startup_state2', 'd0_calibration_only',
               'd0_can_idle_request', 'd0_query_only', 'd0_tick_wrap', 'd0_guarded_resume_session',
-              'd0_idle_concurrent_request', 'd0_per_axis', 'd0_idle_feed_ignored', 'd0_reboot_defaults']
+              'd0_idle_concurrent_request', 'd0_per_axis', 'd0_idle_feed_ignored', 'd0_reboot_defaults',
+              'd0_expiry_clears_input']
     cases += ['guard_resume_reserved_eligible', 'guard_resume_new_generation', 'guard_resume_no_can', 'guard_manual_state4', 'guard_manual_state8']
     with tempfile.TemporaryDirectory(prefix='mks-source-tests-') as temp:
         cpp, exe = Path(temp) / 'source.cpp', Path(temp) / 'source-tests'
