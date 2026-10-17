@@ -262,3 +262,111 @@ def test_stale_wheels_break_the_stationary_window():
     o = odo()
     feed(o, events)
     assert not o.bias_ready
+
+
+# --- Codex Task 4 review ---------------------------------------------------------
+def test_reordering_inside_the_margin_changes_nothing():
+    """A gyro neighbour beyond the watermark must not decide a gap (Codex T4 P2-1)."""
+    # Gyro 1.53-1.55 never exist (true gap 1.52 -> 1.56 = 40 ms); 1.56-1.59 arrive 45 ms late, after 1.60.
+    events, _ = simulate(stop_then(Command("skid", v=0.3, omega=0.3)), 2.5,
+                         drop_gyro=lambda t: 1.525 < t < 1.555)
+    held = []
+    for rx, s in events:
+        if isinstance(s, O.GyroSample) and START + 1.555 < s.stamp_s < START + 1.595:
+            rx = rx + 0.045
+            s = s._replace(rx_s=rx)
+        held.append((rx, s))
+    held.sort(key=lambda e: (e[0], 0 if isinstance(e[1], O.WheelSample) else 1))
+    a, b = odo(), odo()
+    base = [(s.stamp_s, s.x, s.y, s.yaw, s.valid, s.epoch) for s in feed(a, events)]
+    late = [(s.stamp_s, s.x, s.y, s.yaw, s.valid, s.epoch) for s in feed(b, held)]
+    assert b.epoch == 0 and b.late_dropped == 0
+    assert late == base[:len(late)] and len(base) - len(late) <= 3
+
+
+@pytest.mark.parametrize("after_stall", [False, True])
+def test_one_stream_alone_keeps_the_queue_bounded(after_stall):
+    """Codex T4 P2-2: a stream that never arrives must not let the other queue grow."""
+    o = odo()
+    t0 = START
+    if after_stall:
+        events, _ = simulate(stop_then(Command("stop")), 1.0)
+        feed(o, events)
+        t0 = START + 1.0
+    for i in range(1, 2001):                                 # 20 s of gyro only
+        t = t0 + i * 0.01
+        o.add_gyro(O.GyroSample(t, t, 0.0))
+        o.poll(t)
+        assert o.queue_span_s() <= CFG.max_stream_skew_s + 0.05
+    assert len(o._gyro) <= 60
+
+
+def test_non_finite_inputs_never_reach_the_bias_or_the_pose():
+    """Codex T4 P2-3: one NaN gyro sample during the stationary window."""
+    events, truth = simulate(stop_then(Command("skid", v=0.3)), 2.5, gyro_bias=0.02)
+    poisoned = []
+    for rx, s in events:
+        if isinstance(s, O.GyroSample) and abs(s.stamp_s - (START + 0.5)) < 1e-9:
+            s = s._replace(wz=float("nan"))
+        if isinstance(s, O.WheelSample) and abs(s.stamp_s - (START + 2.0)) < 1e-9:
+            s = s._replace(wheels=(s.wheels[0]._replace(speed_m_s=float("inf")),) + s.wheels[1:])
+        poisoned.append((rx, s))
+    o = odo()
+    out = feed(o, poisoned)
+    assert o.bias_ready and o.bias == pytest.approx(0.02, abs=1e-9)
+    assert all(math.isfinite(v) for s in out for v in (s.x, s.y, s.yaw))
+    pos, yaw = error_at(last_valid(out), truth)
+    assert pos < 0.02 and yaw < 0.5
+    assert O.PlanarOdometry(CFG, LAYOUT).add_gyro(O.GyroSample(float("nan"), START, 0.0)) == []
+
+
+# --- decisions record / follow (spec §4.4 equivalence scope) -------------------
+def live_with_arrival_trouble():
+    """Turning run; some wheel messages arrive too late and a 0.45 s wheel burst stalls the stream."""
+    events, _ = simulate(stop_then(Command("skid", v=0.4, omega=0.4)), 4.0)
+    rng = np.random.default_rng(7)
+    live = []
+    for rx, s in events:
+        if isinstance(s, O.WheelSample):
+            t = s.stamp_s - START
+            if 2.0 < t < 2.2 and rng.random() < 0.3:
+                rx += 0.12                                    # behind the watermark: dropped as late
+            elif 2.5 <= t <= 2.9:
+                rx = START + 2.95                             # burst after a silent stretch: stall epoch
+            s = s._replace(rx_s=rx)
+        live.append((rx, s))
+    live.sort(key=lambda e: (e[0], 0 if isinstance(e[1], O.WheelSample) else 1))
+    return events, live
+
+
+def key(samples):
+    return [(s.stamp_s, s.x, s.y, s.yaw, s.valid, s.reason, s.epoch) for s in samples]
+
+
+def test_followed_decisions_reproduce_the_live_pose_samples():
+    events, live = live_with_arrival_trouble()
+    records = []
+    o = O.PlanarOdometry(CFG, LAYOUT, record=records.append)
+    live_out = feed(o, live)
+    assert o.late_dropped > 0 and o.epoch >= 1                # the scenario really exercises both
+    assert any(r["k"] == "epoch" and r["cause"] == "stall" for r in records)
+    plan = O.follow_plan(json_round_trip(records))
+    f = O.PlanarOdometry(CFG, LAYOUT, follow=plan)
+    by_stamp = sorted(events, key=lambda e: (e[1].stamp_s, 0 if isinstance(e[1], O.WheelSample) else 1))
+    follow_out = feed(f, [(s.stamp_s, s) for _, s in by_stamp]) + f.drain()
+    assert key(follow_out[:len(live_out)]) == key(live_out)
+    assert f.epoch == o.epoch
+
+
+def test_without_the_decisions_a_stamp_ordered_replay_differs():
+    events, live = live_with_arrival_trouble()
+    live_out = feed(odo(), live)
+    plain = odo()
+    by_stamp = sorted(events, key=lambda e: (e[1].stamp_s, 0 if isinstance(e[1], O.WheelSample) else 1))
+    replay_out = feed(plain, [(s.stamp_s, s) for _, s in by_stamp])
+    assert key(replay_out[:len(live_out)]) != key(live_out)
+
+
+def json_round_trip(records):
+    import json
+    return [json.loads(json.dumps(r)) for r in records]
