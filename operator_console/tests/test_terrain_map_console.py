@@ -312,3 +312,22 @@ def test_render_cache_tells_sender_sessions_apart():
 def test_integer_display_fields_reject_other_types(bad):
     with pytest.raises(ValueError):
         DisplayConfig(**bad)
+
+
+def test_display_defaults_and_ranges_follow_the_spec_table():
+    """Spec §4.1 console row: 4·315·40·6·30·2,000,000 and ranges 1–8·0–360·5–85·1–20·5–60."""
+    d = DisplayConfig()
+    assert (d.display_upsample, d.hillshade_azimuth_deg, d.hillshade_altitude_deg, d.z_exaggeration,
+            d.stale_display_s, d.max_render_pixels) == (4, 315.0, 40.0, 6.0, 30.0, 2_000_000)
+    for bad in (dict(hillshade_altitude_deg=86.0), dict(z_exaggeration=0.9)):
+        with pytest.raises(ValueError):
+            DisplayConfig(**bad)
+
+
+def test_the_readme_json_example_starts_the_console_config():
+    import json
+    import re
+    from pathlib import Path
+    text = (Path(__file__).resolve().parents[2] / "terrain_map/README.md").read_text()
+    block = re.search(r"```json\n(.*?)```", text, re.S).group(1)
+    DisplayConfig(**json.loads(block)["terrain_map_display"])

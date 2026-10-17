@@ -257,3 +257,12 @@ def test_a_gyro_sample_live_rejects_does_not_take_an_identity():
     records = RP.identify([RP.Record(F.GYRO_TOPIC, 100.0, 0, nan), RP.Record(F.GYRO_TOPIC, 100.0, 1, ok)], CFG)
     have = {(RP.SOURCES[r.topic], r.seg, r.stamp_s, r.copy) for r in records if r.seg >= 0}
     assert have == O.follow_plan(logged).received
+
+
+def test_a_rejected_gyro_does_not_shadow_its_valid_twin_in_the_plain_replay():
+    """Codex T10 P2: NaN then a valid gyro with the same stamp — the default replay keeps the valid one."""
+    nan, ok = F.gyro_message(100.0, 0.0), F.gyro_message(100.0, 0.0)
+    nan.angular_velocity.x = float("nan")
+    records = RP.identify([RP.Record(F.GYRO_TOPIC, 100.0, 0, nan), RP.Record(F.GYRO_TOPIC, 100.0, 1, ok)], CFG)
+    fed = [r for seg in RP.segments(records, CFG.stamp_regression_epoch_s, drop_small_regressions=True) for r in seg]
+    assert [r.message for r in fed] == [ok]

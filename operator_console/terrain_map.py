@@ -211,18 +211,18 @@ class LatestMapReceiver:
 class DisplayConfig:
     """Display-only numbers (spec §4.10). All changeable; ranges are enforced."""
     display_upsample: int = 4
-    max_render_pixels: int = 1_000_000
+    max_render_pixels: int = 2_000_000
     stale_display_s: float = 30.0
     hillshade_azimuth_deg: float = 315.0
-    hillshade_altitude_deg: float = 45.0
-    z_exaggeration: float = 3.0
+    hillshade_altitude_deg: float = 40.0
+    z_exaggeration: float = 6.0                 # spec §4.1 "hillshade_exaggeration"
     height_range_m: float = 0.3
 
     def __post_init__(self) -> None:
         checks = {
             "display_upsample": (1, 8), "max_render_pixels": (10_000, 4_000_000),
             "stale_display_s": STALE_DISPLAY_RANGE_S, "hillshade_azimuth_deg": (0.0, 360.0),
-            "hillshade_altitude_deg": (5.0, 90.0), "z_exaggeration": (0.5, 20.0), "height_range_m": (0.05, 1.0),
+            "hillshade_altitude_deg": (5.0, 85.0), "z_exaggeration": (1.0, 20.0), "height_range_m": (0.05, 1.0),
         }
         for name, (low, high) in checks.items():
             value = getattr(self, name)

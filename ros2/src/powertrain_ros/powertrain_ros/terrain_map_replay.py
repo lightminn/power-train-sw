@@ -88,8 +88,8 @@ def identify(records: list[Record], cfg: MapConfig) -> list[Record]:
         if r.topic == GYRO_TOPIC and r.message is not None:
             v = r.message.angular_velocity
             if not math.isfinite(gyro_body_rate(rotation, (v.x, v.y, v.z))):
-                out.append(r)
-                continue
+                continue                        # rejected live too: it must not shadow a valid twin
+
         if r.topic in SOURCES:
             seg, copy = ids.assign(SOURCES[r.topic], r.stamp_s)
             r = r._replace(seg=seg, copy=copy)

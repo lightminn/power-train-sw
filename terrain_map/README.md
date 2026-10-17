@@ -97,9 +97,23 @@ Gateway depth·CameraInfo·gyro + chassis /wheel_states
 - 노드 파라미터와 콘솔 CLI로 바꾼다. 범위 밖이거나 서로 맞지 않으면(패킷 > 1200 B, pending 용량 부족 등. 나이 표현 범위는 두 쪽 범위가 계약으로 묶여 있어(`31·2.0 = 62 ≥ 60`) 각자 범위 검증만 한다) 기동 실패(조용한 클램프 없음).
 - 분류 경계는 Jetson에서만 쓴다. 콘솔은 받은 분류 코드를 그대로 그린다.
 
-콘솔 표시 수치(`DisplayConfig`)는 콘솔 쪽에서 바꾼다: `--map-display-upsample`(1–8)·`--map-hillshade-azimuth`(0–360°)·
-`--map-hillshade-altitude`(5–90°)·`--map-hillshade-exaggeration`(0.5–20)·`--map-stale-s`(5–60 s, 넘으면 흐림)·
-`--map-max-render-pixels`, 통합 콘솔은 `~/.config/powertrain/operator.json`의 `terrain_map_display` 객체.
+콘솔 표시 수치(`DisplayConfig`, 위 표의 "콘솔" 행)는 콘솔 쪽에서 바꾼다. 이름이 경로마다 다르니 주의한다.
+
+| 표 이름 | 콘솔 CLI | 통합 설정 `terrain_map_display` 키 | 기본·범위 |
+|---|---|---|---|
+| `display_upsample` | `--map-display-upsample` | `display_upsample`(정수) | 4 · 1–8 |
+| `hillshade_azimuth_deg` | `--map-hillshade-azimuth` | `hillshade_azimuth_deg` | 315 · 0–360 |
+| `hillshade_altitude_deg` | `--map-hillshade-altitude` | `hillshade_altitude_deg` | 40 · 5–85 |
+| `hillshade_exaggeration` | `--map-hillshade-exaggeration` | **`z_exaggeration`** | 6 · 1–20 |
+| `stale_display_s` | `--map-stale-s` | `stale_display_s` | 30 · 5–60 |
+| `max_render_pixels` | `--map-max-render-pixels` | `max_render_pixels`(정수) | 2,000,000 · 10,000–4,000,000 |
+| (높이 색 범위) | — | `height_range_m` | 0.3 · 0.05–1.0 |
+
+`~/.config/powertrain/operator.json` 예시(모르는 키·범위 밖·비정수는 콘솔 기동을 거부한다):
+
+```json
+{"terrain_map_port": 5010, "terrain_map_display": {"z_exaggeration": 6, "stale_display_s": 30}}
+```
 
 ## 켜는 법 (Jetson)
 

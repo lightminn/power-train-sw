@@ -13,6 +13,7 @@ the /terrain_map node really is running in the second snapshot.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import sys
 import time
@@ -33,7 +34,8 @@ def snapshot(path: str, settle_s: float) -> dict:
             for info in node.get_publishers_info_by_topic(topic):
                 if info.node_name == SNAPSHOT_NODE:
                     continue
-                publishers.append([topic, ",".join(types), f"{info.node_namespace.rstrip('/')}/{info.node_name}"])
+                gid = "".join(f"{b:02x}" for b in info.endpoint_gid)       # one entry per endpoint, not per name
+                publishers.append([topic, ",".join(types), f"{info.node_namespace.rstrip('/')}/{info.node_name}", gid])
         nodes = sorted(f"{ns.rstrip('/')}/{name}" for name, ns in node.get_node_names_and_namespaces()
                        if name != SNAPSHOT_NODE)
         result = {"publishers": sorted(publishers), "nodes": nodes}
@@ -46,8 +48,10 @@ def snapshot(path: str, settle_s: float) -> dict:
 
 
 def compare(before: dict, after: dict) -> tuple[bool, dict]:
-    added = [p for p in after["publishers"] if p not in before["publishers"] and p[0] not in INFRA_TOPICS]
-    removed = [p for p in before["publishers"] if p not in after["publishers"] and p[0] not in INFRA_TOPICS]
+    old = Counter(tuple(p) for p in before["publishers"] if p[0] not in INFRA_TOPICS)
+    new = Counter(tuple(p) for p in after["publishers"] if p[0] not in INFRA_TOPICS)
+    added = [list(p) for p in sorted((new - old).elements())]
+    removed = [list(p) for p in sorted((old - new).elements())]
     tf = [p for p in added if p[0] in ("/tf", "/tf_static")]
     map_running = "/terrain_map" in after["nodes"]
     evidence = {"map_node_running": map_running, "added_publishers": added, "removed_publishers": removed,
