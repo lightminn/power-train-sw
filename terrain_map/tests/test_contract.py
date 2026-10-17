@@ -199,3 +199,25 @@ def test_inconsistent_config_is_refused(changes):
 def test_measured_support_height_config_is_accepted():
     cfg = MapConfig(support_base_height_m=0.47, support_base_variation_m=0.03, support_height_tol_m=0.04)
     assert cfg.support_height_check_enabled
+
+
+# --- Codex Task 1 review ---------------------------------------------------
+@pytest.mark.parametrize("field", ["distance_m", "proc_ms", "refresh_cycle_s", "cell_m"])
+def test_huge_integers_are_value_errors(field):
+    raw = mutate(status(), **{field: 0}).replace(f'"{field}":0'.encode(), f'"{field}":{10**309}'.encode())
+    assert len(raw) <= C.MAX_PACKET_BYTES
+    with pytest.raises(ValueError):
+        C.parse_packet(raw)
+
+
+@pytest.mark.parametrize("cell_m", [0.020049, 0.05000001])
+def test_cell_size_must_survive_the_wire_exactly(cell_m):
+    with pytest.raises(ValueError):
+        MapConfig(cell_m=cell_m)
+
+
+@pytest.mark.parametrize("cell_m, age_step_s", [(0.02, 2.0), (0.05, 2.5), (0.125, 7.25)])
+def test_allowed_wire_values_round_trip_unchanged(cell_m, age_step_s):
+    cfg = MapConfig(cell_m=cell_m, age_step_s=age_step_s, tile_cells=8)
+    parsed = C.parse_packet(C.encode(status(cell_m=cfg.cell_m, age_step_s=cfg.age_step_s, tile_cells=8)))
+    assert (parsed.cell_m, parsed.age_step_s) == (cfg.cell_m, cfg.age_step_s)

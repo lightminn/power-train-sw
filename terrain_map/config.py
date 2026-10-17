@@ -172,6 +172,12 @@ class MapConfig:
         self._check_relations()
 
     def _check_relations(self) -> None:
+        # Values the console reads off the wire must survive the 4-decimal encoding
+        # exactly, or sender and receiver disagree on the grid (Codex Task 1 review).
+        for name in ("cell_m", "age_step_s"):
+            value = getattr(self, name)
+            if round(value, 4) != value:
+                raise ValueError(f"{name}={value} is not exact at 4 decimals (0.0001 steps)")
         if self.range_min_m >= self.range_max_m:
             raise ValueError("range_min_m must be below range_max_m")
         if self.range_min_m + self.support_band_m > self.range_max_m:

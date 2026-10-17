@@ -233,7 +233,10 @@ def _int(value: Any, name: str, low: int, high: int) -> int:
 def _num(value: Any, name: str, low: float, high: float) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{name}: number required")
-    number = float(value)
+    try:
+        number = float(value)
+    except OverflowError:
+        raise ValueError(f"{name}: number out of range") from None
     if not math.isfinite(number) or not low <= number <= high:
         raise ValueError(f"{name}: finite number in [{low}, {high}] required")
     return number
