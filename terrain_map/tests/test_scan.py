@@ -72,6 +72,13 @@ def test_decimation_keeps_the_plane():
     assert (cam.width, cam.height, cam.fx, cam.cx) == (320, 240, 230.0, 160.0)
 
 
+@pytest.mark.parametrize("stride", [1, 2])
+@pytest.mark.parametrize("shape", [(768, 1024), (480,), (480, 640, 1)])
+def test_decimation_rejects_depth_that_does_not_match_camera_info(stride, shape):
+    with pytest.raises(ValueError):
+        S.decimate(np.zeros(shape, np.uint16), FULL, stride)
+
+
 # --- support check ----------------------------------------------------------
 def test_flat_floor_is_support():
     *_, support, _ = run(flat(), cfg=HEIGHT_CFG)

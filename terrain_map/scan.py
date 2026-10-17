@@ -53,6 +53,9 @@ class LocalScan:
 
 def decimate(depth: np.ndarray, camera: CameraModel, stride: int) -> tuple[np.ndarray, CameraModel]:
     """Keep every ``stride``-th pixel; intrinsics scale by 1/stride (pixel u' = u / s)."""
+    if depth.shape != (camera.height, camera.width):
+        # Checked before decimating: the small array would otherwise define the camera size.
+        raise ValueError(f"depth shape {depth.shape} does not match camera info")
     if stride == 1:
         return depth, camera
     small = np.ascontiguousarray(depth[::stride, ::stride])
