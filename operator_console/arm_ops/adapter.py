@@ -16,6 +16,7 @@ command that can never be built.
 """
 from __future__ import annotations
 
+import os
 from typing import Any, Callable
 
 from ..arm_ui.contracts import (
@@ -137,12 +138,14 @@ class ArmOpsCallbackAdapter:
         """
         session = self._session
         return ArmUiCallbacks(
+            coupling_lock_command=self._wrap(session.coupling_lock_command),
             request_tool_change=self._wrap(session.request_tool_change),
             request_control_mode=self._wrap(session.request_mode),
             release_control_mode=self._wrap(session.release_mode),
             # Axis selection is a console-side view change: it moves no joint
             # and therefore has no ops action.  Left unbound on purpose.
-            select_axis=None,
+            select_axis=((lambda _axis: None)
+                         if os.environ.get('ARM_LOCAL_ALL_AXES') == '1' else None),
             jog_start=self._wrap(
                 lambda axis, direction: session.press_axis_jog(axis, direction)
             ),
@@ -152,11 +155,14 @@ class ArmOpsCallbackAdapter:
             # there is nothing honest to send.  See BACKEND_REQUIREMENTS.
             change_speed=None,
             stop_motion=self._wrap(session.stop_motion),
+            set_bench_flag=lambda key, on: K.BENCH_JOG_FLAGS.__setitem__(key, bool(on)),
             resume_hold=self._wrap(session.resume_hold),
             go_home=self._wrap(session.go_home),
             save_pose=self._wrap(session.save_pose),
             move_to_pose=self._wrap(session.move_to_pose),
             delete_pose=self._wrap(session.delete_pose),
+            freedrive=self._wrap(session.freedrive),
+            freedrive_release=self._wrap(session.freedrive_release),
             restart_bridge=(self._wrap(session.revalidate_active_tool)
                             if self._restart_bridge is None
                             else self._restart_bridge),

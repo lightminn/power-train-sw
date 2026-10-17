@@ -401,6 +401,14 @@ ConfirmFlow 2단 확인 패널 + 송신표면 계약 테스트로 봉인돼 있�
 컴포넌트 4종(drive/steer/us100/robot_arm) 토글은 무영속(재시작 = 전부 ON)이고,
 OFF = 미장착 모드(estop/hold 비체결, 모터는 IDLE 한정), us100 OFF 시 SAFETY DISABLED 배너.
 
+- **로봇팔 수동조작 기능은 이미 쌓은 것 위에서만 개발한다.** 콘솔이 갱신돼도 키보드 텔레옵(1~5축·
+  숫자패드·↑↓), 관절 제한/전류 트립 토글, 자세 저장·이동·자유 지정, 볼락 2점 결합/해제가 그대로
+  동작해야 한다. 기능 명세·스위치·Jetson 기동 절차·회귀 점검표의 정본은
+  `docs/specs/2026-10-17-local-arm-console.md`이며, 콘솔을 바꿀 때마다 그 §3 점검표를 통과시킨다.
+  새 ops 액션은 `arm_ops/contract.py`·`ops_contract.ACTIONS`·`app.py`의 `registered_actions`
+  세 곳을 함께 고친다. 고빈도 명령(조그 갱신 등)을 이벤트 기록에 넣지 않는다 — 기록은 항목마다
+  전체를 다시 그려 GUI를 멈춘다.
+
 ---
 
 ## 8. 함정 (footgun) 모음
@@ -468,3 +476,7 @@ OFF = 미장착 모드(estop/hold 비체결, 모터는 IDLE 한정), us100 OFF �
 노션을 수정할 땐 세 문서의 범위·의존 순서·acceptance를 함께 동기화하고 **쓰기 뒤 반드시
 재조회**한다. DualSense 물리 키매핑은 확정값이 아니라 HIL·운전자 피드백 뒤 변경 가능한
 versioned 초기 후보로 표기한다.
+
+### 사용자 GUI 지칭 규칙
+
+사용자가 별도 이름 없이 GUI라고 하면 PR #12의 통합 운용 콘솔(`operator_console`)을 의미한다. `robot_manual_gui` Qt 창은 사용자가 명시적으로 요청할 때만 연다.

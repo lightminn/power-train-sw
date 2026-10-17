@@ -1,0 +1,29 @@
+# Jetson bench session for PR #12 console arm teleop (axes 1-5, poses, two-point lock).
+# Copied to the session dir as session.yaml; /session is that dir inside the container.
+# Spec: docs/specs/2026-10-17-local-arm-console.md
+/**:
+  ros__parameters:
+    mock_mode: false
+    read_only: false
+    control_scope: FULL_ROBOT
+    manual_coupling_lock: true
+    tool_type: spur_1motor_gripper
+    toolchanger_enabled: true
+    toolchanger_position_tolerance_ticks: 4
+    toolchanger_zero_tick: 3560
+    toolchanger_zero_state: LOCKED
+    centers: ["arm_joint_5:2669"]
+    arm_profile_velocity: 50
+    profile_acceleration: 25
+    gripper_auto_recover: false
+    auto_tool_detection: false
+    keyboard_shortcuts_enabled: false
+    local_wrist_lock_gate: false
+    local_jog_all_axes: true
+    local_poses_file: /session/arm_poses.json
+    local_jog_step_rad: 0.14
+    toolchanger_two_point: true
+    toolchanger_points_file: /session/lock_points.json
+    toolchanger_state_tolerance_ticks: 20
+    local_pose_joint_speeds_deg_s: [10.0, 30.0, 15.0, 15.0]
+    local_pose_joint_delays_s: [0.0, 0.0, 0.0, 1.0]
