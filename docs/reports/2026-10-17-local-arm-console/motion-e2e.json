@@ -1,0 +1,530 @@
+[
+  {
+    "held": false,
+    "active": true,
+    "key_axis": null,
+    "submitted": [
+      [
+        "robot_arm_mode_request",
+        {
+          "mode": "MANUAL"
+        }
+      ]
+    ],
+    "audits": [],
+    "step": "PR12 GUI MANUAL button clicked",
+    "joint5_deg": 6.15234375,
+    "lock": {
+      "enabled": true,
+      "mechanically_confirmed": false,
+      "zero_tick": 3051,
+      "position": 3049,
+      "torque": 1,
+      "coupling_peak_load": null,
+      "state": "LOCKED",
+      "zero_state": "LOCKED",
+      "sequence_state": "IDLE",
+      "coupling_proxy": "UNKNOWN",
+      "error": "",
+      "sequence_error": "",
+      "command_error": null
+    },
+    "capabilities": [
+      "bridge_restart",
+      "control_mode",
+      "coupling_lock",
+      "teleop_jog",
+      "tool_calibration",
+      "tool_change"
+    ]
+  },
+  {
+    "held": false,
+    "active": true,
+    "key_axis": null,
+    "submitted": [
+      [
+        "robot_arm_mode_request",
+        {
+          "mode": "MANUAL"
+        }
+      ]
+    ],
+    "audits": [],
+    "step": "PR12 GUI lock already enabled",
+    "joint5_deg": 6.15234375,
+    "lock": {
+      "enabled": true,
+      "mechanically_confirmed": false,
+      "zero_tick": 3051,
+      "position": 3049,
+      "torque": 1,
+      "coupling_peak_load": null,
+      "state": "LOCKED",
+      "zero_state": "LOCKED",
+      "sequence_state": "IDLE",
+      "coupling_proxy": "UNKNOWN",
+      "error": "",
+      "sequence_error": "",
+      "command_error": null
+    },
+    "capabilities": [
+      "bridge_restart",
+      "control_mode",
+      "coupling_lock",
+      "teleop_jog",
+      "tool_calibration",
+      "tool_change"
+    ]
+  },
+  {
+    "held": true,
+    "active": true,
+    "key_axis": 5,
+    "submitted": [
+      [
+        "robot_arm_mode_request",
+        {
+          "mode": "MANUAL"
+        }
+      ]
+    ],
+    "audits": [],
+    "step": "PR12 GUI joint5 - hold pressed",
+    "joint5_deg": 6.15234375,
+    "lock": {
+      "enabled": true,
+      "mechanically_confirmed": false,
+      "zero_tick": 3051,
+      "position": 3049,
+      "torque": 1,
+      "coupling_peak_load": null,
+      "state": "LOCKED",
+      "zero_state": "LOCKED",
+      "sequence_state": "IDLE",
+      "coupling_proxy": "UNKNOWN",
+      "error": "",
+      "sequence_error": "",
+      "command_error": null
+    },
+    "capabilities": [
+      "bridge_restart",
+      "control_mode",
+      "coupling_lock",
+      "teleop_jog",
+      "tool_calibration",
+      "tool_change"
+    ]
+  },
+  {
+    "held": false,
+    "active": true,
+    "key_axis": null,
+    "submitted": [
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4250.770305779,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4251.0209983350005,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4251.271543033,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4251.521907186,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4251.771489656,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4252.0220507,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4252.272557407,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4252.524229586001,
+          "sequence": 4248544477
+        }
+      ]
+    ],
+    "audits": [],
+    "step": "PR12 GUI joint5 hold released",
+    "joint5_deg": 4.04296875,
+    "lock": {
+      "enabled": true,
+      "mechanically_confirmed": false,
+      "zero_tick": 3051,
+      "position": 3049,
+      "torque": 1,
+      "coupling_peak_load": null,
+      "state": "LOCKED",
+      "zero_state": "LOCKED",
+      "sequence_state": "IDLE",
+      "coupling_proxy": "UNKNOWN",
+      "error": "",
+      "sequence_error": "",
+      "command_error": null
+    },
+    "capabilities": [
+      "bridge_restart",
+      "control_mode",
+      "coupling_lock",
+      "teleop_jog",
+      "tool_calibration",
+      "tool_change"
+    ]
+  },
+  {
+    "held": false,
+    "active": true,
+    "key_axis": null,
+    "submitted": [
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4251.271543033,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4251.521907186,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4251.771489656,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4252.0220507,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4252.272557407,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4252.524229586001,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog_stop",
+        {
+          "axis": 5,
+          "reason": "explicit",
+          "sequence": 4248544478
+        }
+      ],
+      [
+        "robot_arm_lock_command",
+        {
+          "command": "CHANGE",
+          "to": "UNLOCKED",
+          "direction": -1
+        }
+      ]
+    ],
+    "audits": [],
+    "step": "PR12 GUI lock UNLOCK -22.5 clicked",
+    "joint5_deg": 4.04296875,
+    "lock": {
+      "enabled": true,
+      "mechanically_confirmed": false,
+      "zero_tick": 3051,
+      "position": 3049,
+      "torque": 1,
+      "coupling_peak_load": null,
+      "state": "LOCKED",
+      "zero_state": "LOCKED",
+      "sequence_state": "IDLE",
+      "coupling_proxy": "UNKNOWN",
+      "error": "",
+      "sequence_error": "",
+      "command_error": null
+    },
+    "capabilities": [
+      "bridge_restart",
+      "control_mode",
+      "coupling_lock",
+      "teleop_jog",
+      "tool_calibration",
+      "tool_change"
+    ]
+  },
+  {
+    "held": false,
+    "active": true,
+    "key_axis": null,
+    "submitted": [
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4251.521907186,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4251.771489656,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4252.0220507,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4252.272557407,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4252.524229586001,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog_stop",
+        {
+          "axis": 5,
+          "reason": "explicit",
+          "sequence": 4248544478
+        }
+      ],
+      [
+        "robot_arm_lock_command",
+        {
+          "command": "CHANGE",
+          "to": "UNLOCKED",
+          "direction": -1
+        }
+      ],
+      [
+        "robot_arm_lock_command",
+        {
+          "command": "CHANGE",
+          "to": "LOCKED",
+          "direction": 1
+        }
+      ]
+    ],
+    "audits": [],
+    "step": "PR12 GUI unlock reached; LOCK +22.5 clicked",
+    "joint5_deg": 4.04296875,
+    "lock": {
+      "enabled": true,
+      "mechanically_confirmed": false,
+      "zero_tick": 3051,
+      "position": 2799,
+      "torque": 1,
+      "coupling_peak_load": 54,
+      "state": "UNLOCKED",
+      "zero_state": "LOCKED",
+      "sequence_state": "CONFIRMED",
+      "coupling_proxy": "DISABLED",
+      "error": "",
+      "sequence_error": "",
+      "command_error": null
+    },
+    "capabilities": [
+      "bridge_restart",
+      "control_mode",
+      "coupling_lock",
+      "tool_calibration",
+      "tool_change"
+    ]
+  },
+  {
+    "held": false,
+    "active": true,
+    "key_axis": null,
+    "submitted": [
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4251.521907186,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4251.771489656,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4252.0220507,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4252.272557407,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog",
+        {
+          "axis": 5,
+          "direction": -1,
+          "expires_at_s": 4252.524229586001,
+          "sequence": 4248544477
+        }
+      ],
+      [
+        "robot_arm_jog_stop",
+        {
+          "axis": 5,
+          "reason": "explicit",
+          "sequence": 4248544478
+        }
+      ],
+      [
+        "robot_arm_lock_command",
+        {
+          "command": "CHANGE",
+          "to": "UNLOCKED",
+          "direction": -1
+        }
+      ],
+      [
+        "robot_arm_lock_command",
+        {
+          "command": "CHANGE",
+          "to": "LOCKED",
+          "direction": 1
+        }
+      ]
+    ],
+    "audits": [],
+    "step": "PASS: PR12 GUI real motor commands and feedback",
+    "joint5_deg": 4.04296875,
+    "lock": {
+      "enabled": true,
+      "mechanically_confirmed": false,
+      "zero_tick": 3051,
+      "position": 3048,
+      "torque": 1,
+      "coupling_peak_load": 54,
+      "state": "LOCKED",
+      "zero_state": "LOCKED",
+      "sequence_state": "CONFIRMED",
+      "coupling_proxy": "DISABLED",
+      "error": "",
+      "sequence_error": "",
+      "command_error": null
+    },
+    "capabilities": [
+      "bridge_restart",
+      "control_mode",
+      "coupling_lock",
+      "teleop_jog",
+      "tool_calibration",
+      "tool_change"
+    ]
+  }
+]

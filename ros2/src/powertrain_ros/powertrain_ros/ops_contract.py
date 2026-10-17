@@ -117,6 +117,24 @@ ACTIONS = {
     ),
     # Existing arm-stack FSM ingress only.  These do not expose register,
     # torque, calibration, or raw joint-position control through ops.
+    "robot_arm_stop": ActionSpec(
+        _CONSOLE, "publish_local_wrist_disable", ("/arm/local_wrist_jog",),
+    ),
+    "robot_arm_resume_hold": ActionSpec(
+        _CONSOLE, "publish_local_wrist_enable", ("/arm/local_wrist_jog",),
+    ),
+    "robot_arm_jog": ActionSpec(
+        _CONSOLE, "publish_local_wrist_jog", ("/arm/local_wrist_jog",),
+    ),
+    "robot_arm_jog_stop": ActionSpec(
+        _CONSOLE, "publish_local_wrist_stop", ("/arm/local_wrist_jog",),
+    ),
+    "robot_arm_lock_command": ActionSpec(
+        _CONSOLE, "publish_lock_command", ("/toolchanger/command",),
+    ),
+    "robot_arm_lock_stop": ActionSpec(
+        _CONSOLE, "publish_lock_stop", ("/toolchanger/command",),
+    ),
     "robot_arm_mode_request": ActionSpec(
         _CONSOLE, "publish_arm_mode", ("/control/mode",),
     ),

@@ -468,3 +468,7 @@ OFF = 미장착 모드(estop/hold 비체결, 모터는 IDLE 한정), us100 OFF �
 노션을 수정할 땐 세 문서의 범위·의존 순서·acceptance를 함께 동기화하고 **쓰기 뒤 반드시
 재조회**한다. DualSense 물리 키매핑은 확정값이 아니라 HIL·운전자 피드백 뒤 변경 가능한
 versioned 초기 후보로 표기한다.
+
+### 사용자 GUI 지칭 규칙
+
+사용자가 별도 이름 없이 GUI라고 하면 PR #12의 통합 운용 콘솔(`operator_console`)을 의미한다. `robot_manual_gui` Qt 창은 사용자가 명시적으로 요청할 때만 연다.

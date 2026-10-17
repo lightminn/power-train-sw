@@ -46,15 +46,48 @@ def _assert_tree(path):
     return root
 
 
-def test_dual_motor_model_is_a_complete_tree_with_camera():
+def test_dual_motor_model_is_a_complete_tree_with_ball_lock():
     root = _assert_tree(URDF_DIR / 'robot_arm.urdf')
     joint_names = [joint.get('name') for joint in root.findall('joint')]
     for index in range(1, 6):
         assert joint_names.count(f'arm_joint_{index}') == 1
-    assert root.find("link[@name='wrist_camera_link']") is not None
+    assert root.find("link[@name='toolchanger_lock_rotor']") is not None
     assert root.find("joint[@name='gripper_left_pinion_joint']") is not None
 
 
 def test_single_motor_model_is_a_complete_tree():
     root = _assert_tree(URDF_DIR / 'robot_arm.single_motor_gripper.urdf')
     assert root.find("joint[@name='gripper_drive_joint']") is not None
+
+
+def test_ball_lock_has_separate_wrist_and_lock_joints():
+    root = _assert_tree(URDF_DIR / 'robot_arm.urdf')
+    wrist = root.find("joint[@name='arm_joint_5']")
+    lock = root.find("joint[@name='toolchanger_lock_wheel']")
+    assert wrist.find('child').get('link') == 'arm_link5'
+    assert lock.find('parent').get('link') == 'arm_link5'
+    assert lock.find('child').get('link') == 'toolchanger_lock_rotor'
+    assert lock.get('type') == 'continuous'
+    assert lock.find('limit').get('lower') is None
+    assert lock.find('limit').get('upper') is None
+    for index in range(1, 9):
+        ball = root.find(f"joint[@name='lock_ball_{index}']")
+        assert ball.get('type') == 'prismatic'
+        assert float(ball.find('limit').get('upper')) == 0.00259
+        assert ball.find('mimic') is None
+
+
+def test_ball_lock_meshes_and_moveit_links_exist():
+    root = _assert_tree(URDF_DIR / 'robot_arm.urdf')
+    package = URDF_DIR.parent
+    for mesh in root.findall('.//mesh'):
+        relative = mesh.get('filename').removeprefix(
+            'package://robot_arm_description/')
+        assert (package / relative).is_file(), relative
+    srdf = ET.parse(package.parent / 'robot_arm_moveit_config' /
+                    'config' / 'robot_arm.srdf').getroot()
+    links = {link.get('name') for link in root.findall('link')}
+    for pair in srdf.findall('disable_collisions'):
+        assert pair.get('link1') in links
+        assert pair.get('link2') in links
+        assert pair.get('reason') == 'Adjacent'

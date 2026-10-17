@@ -59,6 +59,7 @@ class ManualMainWindow(QMainWindow):
         self.profile = profile
         self.mock_mode = mock_mode
         self.tool_status = {}
+        self.toolchanger_status = {}
         # Injectable so a test can drive the request deadline without sleeping.
         self._clock = time.monotonic
         self.pending_tool_change = None
@@ -181,6 +182,7 @@ class ManualMainWindow(QMainWindow):
         left.addWidget(self._arm_group())
         self.tool_control_box = self._tool_control_group()
         right.addWidget(self.tool_control_box)
+        right.addWidget(self._toolchanger_group())
         left.addWidget(self.tool_details_box)
 
         self.diag = QTableWidget(0, 5)
@@ -299,6 +301,113 @@ class ManualMainWindow(QMainWindow):
             else:
                 text = str(value)
             self.status_labels[key].setText(ko(text))
+
+    def _toolchanger_group(self):
+        """모터1 결합 잠금 패널. 조작은 /toolchanger/command 한 경로만 쓴다."""
+        box = QGroupBox(ko('Toolchanger lock'))
+        layout = QVBoxLayout(box)
+        form = QFormLayout()
+        self.toolchanger_labels = {}
+        for key, title in (
+                ('state', 'Lock state'), ('zero', 'Zero reference'),
+                ('position', 'Lock motor position'),
+                ('sequence', 'Change sequence'),
+                ('coupling', 'Coupling proxy'), ('error', 'Lock error')):
+            label = QLabel(ko('UNKNOWN'))
+            label.setWordWrap(True)
+            label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+            self.toolchanger_labels[key] = label
+            form.addRow(QLabel(ko(title)), label)
+        layout.addLayout(form)
+
+        # 이 문구는 상태 추정과 결합 센서 확인을 혼동하지 않게 상시 노출한다.
+        warning = QLabel(ko('Estimated from the zero reference, not a coupling sensor'))
+        warning.setWordWrap(True)
+        warning.setStyleSheet(FALSE_STYLE)
+        layout.addWidget(warning)
+
+        direction_row = QHBoxLayout()
+        direction_row.addWidget(QLabel(ko('Rotation direction')))
+        self.lock_direction = QComboBox()
+        self.lock_direction.addItem(ko('FORWARD 22.5 deg'), 1)
+        self.lock_direction.addItem(ko('REVERSE 22.5 deg'), -1)
+        direction_row.addWidget(self.lock_direction)
+        layout.addLayout(direction_row)
+
+        grid = QGridLayout()
+        self.lock_zero_locked = QPushButton(ko('SET ZERO AS LOCKED'))
+        self.lock_zero_locked.clicked.connect(
+            lambda: self._command_toolchanger('SET_ZERO', state='LOCKED'))
+        self.lock_zero_unlocked = QPushButton(ko('SET ZERO AS UNLOCKED'))
+        self.lock_zero_unlocked.clicked.connect(
+            lambda: self._command_toolchanger('SET_ZERO', state='UNLOCKED'))
+        self.lock_enable = QPushButton(ko('LOCK MOTOR ENABLE'))
+        self.lock_enable.clicked.connect(
+            lambda: self._command_toolchanger('ENABLE'))
+        self.lock_attach = QPushButton(ko('COUPLE TOOL'))
+        self.lock_attach.clicked.connect(
+            lambda: self._command_toolchanger('CHANGE', to='LOCKED'))
+        self.lock_detach = QPushButton(ko('RELEASE TOOL'))
+        self.lock_detach.clicked.connect(
+            lambda: self._command_toolchanger('CHANGE', to='UNLOCKED'))
+        self.lock_stop = QPushButton(ko('LOCK MOTOR STOP'))
+        self.lock_stop.clicked.connect(
+            lambda: self._command_toolchanger('STOP'))
+        for column, button in enumerate(
+                (self.lock_zero_locked, self.lock_zero_unlocked)):
+            grid.addWidget(button, 0, column)
+        grid.addWidget(self.lock_enable, 1, 0)
+        grid.addWidget(self.lock_stop, 1, 1)
+        grid.addWidget(self.lock_attach, 2, 0)
+        grid.addWidget(self.lock_detach, 2, 1)
+        layout.addLayout(grid)
+        self._update_toolchanger({})
+        return box
+
+    def _command_toolchanger(self, command, **values):
+        if command == 'CHANGE':
+            values['direction'] = self.lock_direction.currentData()
+        if self.node.command_toolchanger(command, **values):
+            self._append_log(ko('Toolchanger command requested: ') + command)
+
+    def _update_toolchanger(self, status):
+        """표시 전용. 여기서 모터 명령을 내리지 않는다."""
+        self.toolchanger_status = dict(status)
+        labels = self.toolchanger_labels
+        zero = status.get('zero_tick')
+        labels['state'].setText(ko(str(status.get('state', 'UNKNOWN'))))
+        labels['zero'].setText(
+            ko('UNSET') if zero is None
+            else f"{zero} / {ko(str(status.get('zero_state', 'UNKNOWN')))}")
+        labels['position'].setText(
+            ko('UNKNOWN') if status.get('position') is None
+            else str(status['position']))
+        labels['sequence'].setText(ko(str(status.get('sequence_state', 'UNKNOWN'))))
+        peak = status.get('coupling_peak_load')
+        labels['coupling'].setText(
+            ko(str(status.get('coupling_proxy', 'UNKNOWN')))
+            + ('' if peak is None else f' ({peak})'))
+        error = status.get('command_error') or status.get('sequence_error') \
+            or status.get('error') or ''
+        labels['error'].setText(ko(error) if error else ko('None'))
+        labels['error'].setStyleSheet(FALSE_STYLE if error else TRUE_STYLE)
+        self._refresh_toolchanger_buttons()
+
+    def _refresh_toolchanger_buttons(self):
+        status = self.toolchanger_status
+        present = bool(status.get('enabled'))
+        bench = (not self.node.read_only and self.control_mode == 'MANUAL'
+                 and self.node.control_scope == 'END_EFFECTOR_ONLY')
+        parked = status.get('torque') == 0
+        held = status.get('torque') == 1
+        indexed = status.get('state') in ('LOCKED', 'UNLOCKED')
+        self.lock_zero_locked.setEnabled(present and bench and parked)
+        self.lock_zero_unlocked.setEnabled(present and bench and parked)
+        self.lock_enable.setEnabled(
+            present and bench and parked and status.get('zero_tick') is not None)
+        self.lock_attach.setEnabled(present and bench and held and indexed)
+        self.lock_detach.setEnabled(present and bench and held and indexed)
+        self.lock_stop.setEnabled(present and not self.node.read_only)
 
     def _arm_group(self):
         box = QGroupBox(ko('Arm Manual Control'))
@@ -1130,6 +1239,7 @@ class ManualMainWindow(QMainWindow):
             lambda value: self.status_labels['arm_status'].setText(ko(value)))
         self.signals.contact_status.connect(
             lambda value: self._set_bool(self.status_labels['contact'], value))
+        self.signals.toolchanger_status.connect(self._update_toolchanger)
         self.signals.log.connect(self._append_log)
         self.signals.gripper_state.connect(self._update_gripper_state)
 
@@ -1507,6 +1617,7 @@ class ManualMainWindow(QMainWindow):
         self.control_mode = mode
         self.status_labels['mode'].setText(ko(mode))
         self._refresh_buttons()
+        self._refresh_toolchanger_buttons()
 
     def _refresh_buttons(self):
         self._refresh_tool_change_labels()

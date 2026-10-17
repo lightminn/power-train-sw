@@ -160,9 +160,10 @@ def test_every_action_fits_the_params_budget_at_maximum_length(action):
     becomes unbuildable — the kind of inconsistency that only shows up with a
     long Korean tool id in the field.
     """
-    params = {
-        spec.name: _widest_value(spec) for spec in K.ACTION_PARAMS[action]
-    }
+    params = (dict(command="CHANGE", to="UNLOCKED", direction=-1)
+              if action == K.ACTION_LOCK_COMMAND else {
+                  spec.name: _widest_value(spec) for spec in K.ACTION_PARAMS[action]
+              })
     validated = K.validate_params(action, params)
 
     encoded = json.dumps(validated, allow_nan=False, separators=(",", ":"))
