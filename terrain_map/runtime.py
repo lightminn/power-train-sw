@@ -352,7 +352,8 @@ class MapRuntime:
                     self._epoch.not_support += 1
             if self._record is not None:
                 self._record({"k": "result", "seg": frame.seg, "t": frame.stamp_s, "d": frame.digest, "seq": frame.copy,
-                              "epoch": epoch, "r": outcome, "cam": camera_digest(camera)})
+                              "epoch": epoch, "r": outcome, "cam": camera_digest(camera),
+                              "ms": round(elapsed * 1000.0, 2)})        # measured on this machine (field check)
             elif self._following:
                 self.followed_results.append((frame.ident, (outcome, camera_digest(camera))))
 

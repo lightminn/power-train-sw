@@ -10,8 +10,9 @@
 | # | 할 일 | 왜 | 상태 |
 |---|---|---|---|
 | 0-1 | 브랜치 push 여부 결정 → Jetson으로 옮기는 방법 정하기(push 후 `git fetch` 또는 scp) | 아직 로컬 커밋만 있다 | ☐ |
-| 0-2 | **현장 분석 스크립트 준비**: bag 하나를 받아 ① 자이로·바퀴 메시지 간격 분포 ② 평면 기준 base 원점 높이 `n·o+d` 프레임별 값(중앙값·퍼짐) ③ FRESH·`NOT_SUPPORT` 비율 ④ 처리시간 분포를 뽑는 오프라인 도구 | 스펙 §7.3-1·2·3 수치 중 지금 바로 뽑을 도구가 없는 것 | ☐ (미작성) |
-| 0-3 | 콘솔 쪽 상태 패킷 기록 도구(:5010 상태 패킷의 `proc_ms`·`pose_gaps`·`not_support`를 파일로) — 또는 0-2를 결정 로그로 대체 | `proc_ms` p95 계산 | ☐ (미작성) |
+| 0-2 | 현장 분석 도구 `python3 -m powertrain_ros.terrain_map_field_report` — bag(흘려 읽음): 자이로·바퀴·depth 간격 분포(60/300 ms 초과 수, 도착 순서 뒤바뀜), 차체 50 Hz tick p99, 프레임별 `n·o+d`와 `support_base_*` 제안값·켤 수 있는지, FRESH·`NOT_SUPPORT` 비율 / 결정 기록: 손실률·로봇에서 잰 처리시간 p95·epoch 원인 | 스펙 §7.3-1·2·3 수치 | ✅ 2026-10-18 작성 |
+| 0-3 | 처리시간은 노드 결정 기록(`processed_log_path`)의 프레임별 `ms`로 잰다(UDP 기록기 불필요) | `proc_ms` p95가 노트북이 아닌 Jetson 값이어야 함 | ✅ 2026-10-18 작성 |
+| 0-6 | 노트북 결정적 재생은 bag 전체를 메모리에 올린다(≈ 370 MB/분, `--send`면 검증·송신 두 번 재생). 재생용 녹화는 **3분 이하**로 끊는다 | 노트북 RAM 15 GB | ☐ |
 | 0-4 | 줄자·수평계(경사계 앱 가능)·상자(높이 10–20 cm)·단차/패임 장소, 주행 거리 5 m 표시(테이프) | §7.3-1·2 | ☐ |
 | 0-5 | Jetson 디스크 여유 ≥ 4 GB 확인 계획(녹화 ≈ 369 MB/분) | §6 | ☐ |
 
@@ -55,8 +56,15 @@ python3 /workspace/ros2/src/powertrain_ros/test/terrain_map_isolation_gate.py co
 | # | 할 일 | 기록할 값 | 합격·판단 |
 |---|---|---|---|
 | 3-1 | L515 depth 원점 위치(base_link 기준 x·y·z)와 하향각·롤·요를 줄자·수평계로 측정 | `camera_x_m`·`camera_y_m`·`camera_z_m`·`camera_pitch_down_deg`·`camera_roll_deg`·`camera_yaw_deg` | CAD 기본(0.348, 0, 0.029, 20°)과 차이 기록 → 노드 파라미터로 교체 |
-| 3-2 | 평지 정지 30 s 녹화(§6 녹화 스크립트) → 0-2 도구로 `n·o+d` 중앙값 | base_link 높이(측정) vs `n·o+d` 중앙값 | 둘 차이 기록 → `support_base_height_m` 값 |
-| 3-3 | 험지 위 정지 자세 3–5곳에서 같은 측정 | `n·o+d` 퍼짐 | `support_base_variation_m` ≤ `support_height_tol_m` < 8 cm − var 이면 켬, 아니면 끈 채 둠(§4.2) |
+| 3-2 | 평지 정지 30 s 녹화(§6 녹화 스크립트) → 아래 명령으로 `n·o+d` 중앙값 | base_link 높이(측정) vs `n·o+d` 중앙값 | 둘 차이 기록 → `support_base_height_m` 값 |
+| 3-3 | 험지 위 정지 자세 3–5곳에서 같은 측정(자세마다 녹화하거나 `--window`로 구간 지정) | `n·o+d` 퍼짐 | 도구의 `can enable`이 True면 켬(`support_base_variation_m` ≤ tol < 8 cm − var), 아니면 끈 채 둠(§4.2) |
+
+```bash
+# ROS 셸(Jetson 컨테이너 또는 노트북 ROS 이미지). --param에는 노드가 실제로 쓴 장착값을 그대로 준다.
+python3 -m powertrain_ros.terrain_map_field_report --bag ~/terrain_bags/still1 --window 0:30 \
+  --param camera_x_m=<실측> --param camera_z_m=<실측> --param camera_pitch_down_deg=<실측> --out still1.json
+```
+✅ 출력 예: `support_base_height_m 0.47 · support_base_variation_m 0.012 · can enable: True (n=150)`
 | 3-4 | 정지 상태로 상자·단차·도랑(패임) 앞 → 콘솔 지도 | 지도상 위치 vs 줄자 거리, 분류 색 | 위치 오차 ≲ 1칸(5 cm), 돌출=빨강·도랑=파랑 |
 
 - 시작 직후 콘솔에 "로버를 1초 정지하세요"가 뜨면 정지해 둔다(자이로 바이어스 학습).
@@ -75,17 +83,23 @@ scripts/record_terrain_map_bag.sh field1
 | 4-2 | 90° 제자리/애커만 회전 | 콘솔 자세 yaw vs 실제 90° | 오차 기록(목표 ≲ 2–3°) |
 | 4-3 | 상자를 지나 왕복 | 같은 상자가 한 덩어리로 쌓이는지 | 두 덩어리로 갈라지면 위치 오차 → B 필요성 근거 |
 | 4-4 | 큰 도랑·바로 앞 단차 장면 | 상태 `NO_GROUND / NOT_SUPPORT` 빈도 | 기록 |
-| 4-5 | 전체 주행 중 | `pose_gaps`, epoch 전환 횟수·원인(결정 기록 `"k":"epoch"`의 `cause`), 자이로 간격 분포(0-2) | 60 ms 공백 epoch가 잦으면 `gyro_gap_epoch_s`·Gateway IMU 주기 조정(§10) |
-| 4-6 | 자세 대기 | 결정 기록 `"k":"frame","r":"lost"` 중 `POSE_EXPIRED` 수 | 기록 |
+| 4-5 | 전체 주행 중 | `pose_gaps`, epoch 전환 횟수·원인, 자이로 간격 분포 | 60 ms 공백 epoch가 잦으면 `gyro_gap_epoch_s`·Gateway IMU 주기 조정(§10) |
+| 4-6 | 자세 대기 | 손실 이유별 수(`POSE_EXPIRED` 등) | 기록 |
+
+```bash
+python3 -m powertrain_ros.terrain_map_field_report --bag ~/terrain_bags/field1 \
+  --decisions /run/powertrain/terrain_map_decisions.jsonl --out field1.json
+```
+✅ `gyro interval … gaps >60 ms: N`, `loss rate … (≤ 0.1: PASS)`, `proc_ms p95 … on the robot (≤ 150.0: PASS)`, `epochs N {원인: 수}` — 세부(손실 이유·처리 결과별 수)는 `field1.json`.
 
 ## 5. 자원 10분 (§7.3-3) — 두 SRT + 오버레이 노드 + 지도 서비스 동시
 
 | 항목 | 합격 기준 | 어디서 |
 |---|---|---|
-| `proc_ms` p95 | ≤ 150 ms | 상태 패킷(0-3) 또는 0-2 |
-| 처리 손실률 = lost / (processed + lost) | ≤ 10 % | 노드 종료 로그 `terrain map: processed …, lost …` (`docker logs powertrain_terrain_map`) |
-| FRESH 비율 | 기록(stride·`ground_min_points` 결정 근거) | 0-2 |
-| 차체 50 Hz tick 간격 p99 | 서비스 끄기 전 대비 +2 ms 이내 | bag의 `/wheel_states` header stamp 간격(0-2) — 지도 끈 상태 1분 녹화도 같이 |
+| `proc_ms` p95 | ≤ 150 ms | `terrain_map_field_report --decisions` (로봇에서 잰 값) |
+| 처리 손실률 = lost / (processed + lost) | ≤ 10 % | 같은 도구, 또는 노드 종료 로그 `terrain map: processed …, lost …` |
+| FRESH 비율 | 기록(stride·`ground_min_points` 결정 근거) | `--bag` (자원 시험 중 1–2분만 녹화해 분석) |
+| 차체 50 Hz tick 간격 p99 | 서비스 끄기 전 대비 +2 ms 이내 | `--bag`의 `wheel (chassis tick) interval p99` — 지도 끈 상태 1분 녹화와 비교 |
 | 워치독 이벤트 | 0 | 기존 운용 로그 |
 | Jetson RAM 여유 | ≥ 1 GB | `free -h` |
 
