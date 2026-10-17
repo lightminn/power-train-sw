@@ -143,7 +143,7 @@ python -m operator_console.demo_source
   --host 127.0.0.1 --d435-port 15002 --l515-port 15000 \
   --metadata-port 15003 --telemetry-port 15004 \
   --chassis-telemetry-port 15005 --arm-telemetry-port 15007 \
-  --environment-telemetry-port 15008 --input-source TEST \
+  --environment-telemetry-port 15008 --terrain-port 15009 --input-source TEST \
   --ops-token-file /tmp/operator-console-no-token
 ```
 
@@ -168,8 +168,10 @@ continues normally.
 
 For the integrated `python -m operator_console` entrypoint, the validated
 `~/.config/powertrain/operator.json` keys include
-`environment_telemetry_port` (default `5008`). Overrides must be integer ports
-from 1 through 65535 and must match the robot-side sender configuration.
+`environment_telemetry_port` (default `5008`), `terrain_port` (default `5009`)
+and `terrain_display_delay_ms` (0–400, default 0). Port overrides must be
+integer ports from 1 through 65535 and must match the robot-side sender
+configuration. The L515 terrain outlines are an operator visual aid only.
 
 Observation remains caller/receiver-only: it never opens D435i/L515 or writes
 CAN. Commands are possible only through the authenticated ops client and every

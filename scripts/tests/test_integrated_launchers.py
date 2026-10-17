@@ -14,8 +14,25 @@ CONSOLE_INSTALLER = ROOT / "scripts/install_integrated_console.sh"
 def test_observers_do_not_inherit_image_camera_healthcheck():
     import yaml
     services = yaml.safe_load((ROOT / "docker/docker-compose.integrated.yml").read_text())["services"]
-    for name in ("powertrain_chassis_telemetry", "powertrain_pdist80b_telemetry", "powertrain_arm_console_bridge"):
+    for name in ("powertrain_chassis_telemetry", "powertrain_pdist80b_telemetry",
+                 "powertrain_arm_console_bridge", "powertrain_terrain_overlay"):
         assert services[name].get("healthcheck", {}).get("disable") is True, name
+
+
+def test_terrain_overlay_service_is_opt_in_and_bounded():
+    import yaml
+    services = yaml.safe_load((ROOT / "docker/docker-compose.integrated.yml").read_text())["services"]
+    service = services["powertrain_terrain_overlay"]
+    assert service["profiles"] == ["terrain-overlay"]
+    assert (service["cpus"], service["mem_limit"]) == (1.0, "512m")
+    environment = service["environment"]
+    assert "OMP_NUM_THREADS=1" in environment and "OPENBLAS_NUM_THREADS=1" in environment
+    assert "POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json" in environment
+    command = "\n".join(service["command"])
+    assert "ros2 run powertrain_ros terrain_overlay" in command
+    assert "operator_port:=5009" in command
+    # Default bring-up excludes it until the two-encoder load check passes.
+    assert "powertrain_terrain_overlay" not in (ROOT / "scripts/robot-start").read_text()
 
 
 def test_ros_setup_optional_environment_is_allowed_by_daily_shell(tmp_path):

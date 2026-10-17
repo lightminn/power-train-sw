@@ -38,8 +38,10 @@ STARTUP_TIMEOUT_S = 40.0
 # 이 패널들은 주입 중 LIVE 에 도달하고, 주입을 끊으면 STALE 로 전이해야 한다.
 # 하나라도 못 하면 그 채널은 실제로는 죽어 있는 것이다.
 REQUIRED_PANELS = frozenset({
-    "telemetry", "chassis", "metadata", "arm", "environment",
+    "telemetry", "chassis", "metadata", "arm", "environment", "terrain",
 })
+# One terrain sender session per smoke run (spec §4.6 session gate).
+TERRAIN_SMOKE_SESSION = ("5" * 32, time.monotonic_ns(), "5" * 16)
 
 
 def smoke_child_env(
@@ -88,6 +90,14 @@ def _probe_main_video(probe_file: Path) -> str | None:
         return None
     value = states.get("main_video")
     return str(value) if value is not None else None
+
+
+def _probe_terrain_badge(probe_file: Path) -> str | None:
+    try:
+        states = json.loads(probe_file.read_text(encoding="utf-8"))
+        return str(states["terrain_badge"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 def _probe_rover_widths(probe_file: Path) -> tuple[int, int] | None:
@@ -330,6 +340,35 @@ def _metadata_payload(sequence: int) -> dict:
     }
 
 
+def _terrain_payload(sequence: int, *, status: str = "OK") -> dict:
+    boot_id, start_ns, instance = TERRAIN_SMOKE_SESSION
+    payload = {
+        "schema_version": 1, "type": "l515_terrain",
+        "sender_boot_id": boot_id, "sender_start_mono_ns": start_ns,
+        "sender_instance": instance, "sequence": sequence,
+        "sent_unix_ns": time.time_ns(), "depth_stamp_ns": sequence * 10**8,
+        "depth_age_ms": 30.0, "status": "OK", "reason": None,
+        "frame_size": [1280, 720], "distance_origin": "l515_depth_optical",
+        "alignment_verified": False,
+        "ground": {"state": "FRESH", "age_ms": 30.0,
+                   "camera_height_m": 0.5, "camera_tilt_deg": 20.0},
+        "path_half_width_m": 0.4445,
+        "zones": {"left": None, "center": 1.2, "right": 2.1},
+        "obstacles": [
+            {"dist_m": 1.2, "in_path": True,
+             "poly": [[560, 300], [720, 300], [720, 420], [560, 420]]},
+            {"dist_m": 2.1, "in_path": False,
+             "poly": [[900, 280], [980, 280], [940, 340]]},
+        ],
+        "proc_ms": 25.0,
+    }
+    if status != "OK":
+        payload.update(status=status, reason="DEPTH_STALE", ground=None,
+                       zones={"left": None, "center": None, "right": None},
+                       obstacles=[], proc_ms=None)
+    return payload
+
+
 def _arm_payload(sequence: int) -> dict:
     return {
         "schema_version": 1, "sequence": sequence, "stamp_s": time.time(),
@@ -405,7 +444,7 @@ def run_smoke(
     ports = {
         "metadata": _free_udp_port(), "telemetry": _free_udp_port(),
         "chassis": _free_udp_port(), "arm": _free_udp_port(),
-        "environment": _free_udp_port(),
+        "environment": _free_udp_port(), "terrain": _free_udp_port(),
     }
     ops_fixture = _OpsStateFixture()
     ops_fixture.start()
@@ -430,6 +469,7 @@ def run_smoke(
                 "--chassis-telemetry-port", str(ports["chassis"]),
                 "--arm-telemetry-port", str(ports["arm"]),
                 "--environment-telemetry-port", str(ports["environment"]),
+                "--terrain-port", str(ports["terrain"]),
                 "--ops-token-file", token_file,
                 "--ops-port", str(ops_fixture.port),
                 "--smoke-probe-file", str(probe_file),
@@ -448,13 +488,14 @@ def run_smoke(
     builders = {
         "telemetry": _telemetry_payload, "chassis": _chassis_payload,
         "metadata": _metadata_payload, "arm": _arm_payload,
-        "environment": _environment_payload,
+        "environment": _environment_payload, "terrain": _terrain_payload,
     }
     live_seen: set[str] = set()
     stale_seen: set[str] = set()
     unexpected_auto_swap_seen = False
     role_sized_rovers_seen = False
     environment_values_seen = False
+    terrain_ok_seen = False
     invalid_steering_held_seen = False
     arm_tabs_seen = False
     try:
@@ -494,6 +535,7 @@ def run_smoke(
                 _probe_main_video(probe_file) == "작업 카메라"
             )
             role_sized_rovers_seen |= _probe_rover_widths(probe_file) == (290, 90)
+            terrain_ok_seen |= (_probe_terrain_badge(probe_file) or "").startswith("지형 OK")
             environment_values = _probe_environment_values(probe_file)
             if environment_values is not None:
                 climate, air, hazard = environment_values
@@ -532,6 +574,7 @@ def run_smoke(
                 "schema_version": 1, "sequence": sequence,
                 "sensor_ok": False, "errors": ["fixture sparse packet"],
             },
+            "terrain": _terrain_payload(sequence, status="SENSOR_ERROR"),
         }
         for channel, payload in sparse.items():
             if channel == omit_channel_for_test:
@@ -605,6 +648,8 @@ def run_smoke(
             f"panels never went STALE after injection stopped: "
             f"{', '.join(missing_stale)}\n{text}"
         )
+    if not terrain_ok_seen:
+        return False, "terrain badge never showed 지형 OK while injecting\n" + text
     if unexpected_auto_swap_seen:
         return False, "D435i became MAIN without an operator click\n" + text
     if not role_sized_rovers_seen:
@@ -618,7 +663,7 @@ def run_smoke(
     if not arm_tabs_seen:
         return False, "arm tabs did not render live tool in safe disabled state\n" + text
     return True, (
-        f"PASS · {sequence} ticks on 5 channels · "
+        f"PASS · {sequence} ticks on 6 channels · "
         f"LIVE+STALE observed on {', '.join(sorted(REQUIRED_PANELS))} · "
         "invalid steering mode held disabled · "
         "arm tabs observed safely disabled · "
