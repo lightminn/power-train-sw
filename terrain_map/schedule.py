@@ -46,9 +46,13 @@ class FrameScheduler:
         return len(self._pending)
 
     def clear(self) -> None:
-        """Epoch change: frames before it can never get a pose in the new epoch."""
+        """Epoch change: frames before it can never get a pose in the new epoch.
+
+        The last attempt goes too: after a clock restart the new stamps are smaller (Codex T6 P2-1).
+        """
         self._pending.clear()
         self._target = None
+        self._last_attempt = None
 
     def push(self, frame: DepthFrame) -> None:
         if self._last_attempt is not None and frame.stamp_s <= self._last_attempt:

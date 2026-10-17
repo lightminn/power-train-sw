@@ -163,6 +163,7 @@ def test_epoch_from_poll_alone_clears_everything_in_that_tick():
     out = rt.send_tick()
     s = statuses(out)[0]
     assert s.map_epoch == rt.epoch and s.tile_count == 0 and s.distance_m == 0.0 and s.sequence > before.sequence
+    assert before.status == "OK" and (s.status, s.reason, s.pose) == ("NO_POSE", "POSE_GAP", None)  # not OK on a wiped map
 
 
 # --- sending --------------------------------------------------------------------
@@ -250,9 +251,15 @@ def replay(events, depth, follow=None):
     return rt
 
 
-def same_map(a, b, now=START + 10.0):
+def map_content(rt, tx, ty):
+    """Version, heights and codes — not the age bits, which follow the receive clock."""
+    heights, codes, _ = C.unpack_cells(rt.map.encode_tile(tx, ty, START)["cells"], CFG.tile_cells)
+    return rt.map.version_of(tx, ty), heights, codes
+
+
+def same_map(a, b):
     return (a.epoch == b.epoch and sorted(a.map.tiles()) == sorted(b.map.tiles())
-            and all(a.map.encode_tile(tx, ty, now) == b.map.encode_tile(tx, ty, now) for tx, ty in a.map.tiles()))
+            and all(map_content(a, *k) == map_content(b, *k) for k in a.map.tiles()))
 
 
 def test_recorded_decisions_make_the_replay_map_identical():
@@ -275,3 +282,57 @@ def test_recorded_decisions_make_the_replay_map_identical():
     followed = replay(numbered, depth, follow=plan)
     assert same_map(followed, live) and followed.scheduler.processed == live.scheduler.processed
     assert not same_map(replay(numbered, depth), live)      # negative control: without the decisions
+
+
+# --- Codex Task 6 review ---------------------------------------------------------------
+def test_map_rebuilds_after_a_clock_restart():
+    """Codex T6 P2-1: the scheduler's last attempt must not outlive the epoch."""
+    events, depth = scenario()
+    clock = Clock()
+    rt = runtime(clock)
+    rt.on_camera_info(CAM)
+    drive(rt, clock, events, depth)
+    processed = rt.scheduler.processed
+    shift = -90.0                                              # sensor clock restarts at ~10 s
+    later = [(rx + 5.0, s._replace(stamp_s=s.stamp_s + shift, rx_s=s.rx_s + 5.0)) for rx, s in events]
+    moved = [(st + shift, a) for st, a in depth]
+    inputs = sorted([(rx, 0, s) for rx, s in later] + [(st - shift + 5.0 + 0.02, 1, (st, a)) for st, a in moved],
+                    key=lambda e: e[:2])
+    i = 0
+    for now in np.arange(START + 5.0, inputs[-1][0] + 0.1, 0.1):
+        while i < len(inputs) and inputs[i][0] <= now:
+            rx, kind, item = inputs[i]
+            deliver(rt, "depth" if kind else "odo", item, rx)
+            i += 1
+        clock.now = now
+        rt.process_tick()
+    assert rt.epoch >= 1 and rt.scheduler.processed > processed and rt.map.tiles()
+
+
+def test_tile_age_uses_the_receive_clock_not_the_header_stamp():
+    """Codex T6 P2-2: Unix header stamps, monotonic receive clock."""
+    events, depth = scenario()
+    unix = 1_700_000_000.0 - START
+    shifted = [(rx, s._replace(stamp_s=s.stamp_s + unix)) for rx, s in events]
+    frames = [(st + unix, a) for st, a in depth]
+    clock = Clock()
+    rt = runtime(clock)
+    rt.on_camera_info(CAM)
+    inputs = sorted([(rx, 0, s) for rx, s in shifted] + [(st - unix + 0.02, 1, (st, a)) for st, a in frames],
+                    key=lambda e: e[:2])
+    i = 0
+    for now in np.arange(START, inputs[-1][0] + 0.1, 0.1):
+        while i < len(inputs) and inputs[i][0] <= now:
+            rx, kind, item = inputs[i]
+            deliver(rt, "depth" if kind else "odo", item, rx)
+            i += 1
+        clock.now = now
+        rt.process_tick()
+    assert rt.map.tiles()
+    last_frame_rx = depth[-1][0] + 0.02
+    clock.now = last_frame_rx + 9.7
+    ages = []
+    for tx, ty in rt.map.tiles():
+        _, codes, age = C.unpack_cells(rt.map.encode_tile(tx, ty, clock.now)["cells"], CFG.tile_cells)
+        ages += [a for c, a in zip(codes, age) if c != C.INSUFFICIENT]
+    assert ages and min(ages) == 4                              # floor(9.7 / 2.0) for the newest cells

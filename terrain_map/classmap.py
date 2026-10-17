@@ -63,8 +63,13 @@ class ClassMap:
         return evicted
 
     # --- fusion -------------------------------------------------------------
-    def fuse(self, scan: LocalScan, pose: Pose2D, stamp_s: float) -> set[tuple[int, int]]:
-        """Vote one frame into the map; return the tiles whose version changed."""
+    def fuse(self, scan: LocalScan, pose: Pose2D, stamp_s: float, seen_s: float | None = None) -> set[tuple[int, int]]:
+        """Vote one frame into the map; return the tiles whose version changed.
+
+        ``stamp_s`` (sensor clock) orders and expires votes; ``seen_s`` is when the frame was
+        received on the clock ``encode_tile`` is later given, for the age bits (Codex T6 P2-2).
+        """
+        seen_s = stamp_s if seen_s is None else seen_s
         if len(scan.h_m) == 0:
             return set()
         cell, n = self.cfg.cell_m, self.cfg.tile_cells
@@ -85,7 +90,7 @@ class ClassMap:
             sel = tile_key == k
             t = (int(tx[sel][0]), int(ty[sel][0]))
             idx = (gy[sel] - t[1] * n) * n + (gx[sel] - t[0] * n)
-            if self._update_tile(t, idx, h[sel], code[sel], float(stamp_s)):
+            if self._update_tile(t, idx, h[sel], code[sel], float(stamp_s), float(seen_s)):
                 changed.add(t)
         return changed
 
@@ -101,7 +106,7 @@ class ClassMap:
             last_seen_s=-math.inf,
         )
 
-    def _update_tile(self, key, idx, h, code, stamp_s) -> bool:
+    def _update_tile(self, key, idx, h, code, stamp_s, seen_s) -> bool:
         tile = self._tiles.get(key)
         created = tile is None
         if created:
@@ -122,8 +127,8 @@ class ClassMap:
         tile.hist_t[idx], tile.hist_code[idx], tile.code[idx] = hist_t, hist_code, majority
         tile.display_h[idx] = h
         tile.observations[idx] = np.minimum(tile.observations[idx].astype(np.int64) + 1, _MAX_OBS)
-        tile.last_seen[idx] = stamp_s
-        tile.last_seen_s = max(tile.last_seen_s, stamp_s)
+        tile.last_seen[idx] = seen_s
+        tile.last_seen_s = max(tile.last_seen_s, seen_s)
 
         heights, codes = self._transmitted(tile)
         signature = heights.tobytes() + codes.tobytes()

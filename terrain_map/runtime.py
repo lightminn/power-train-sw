@@ -176,6 +176,9 @@ class MapRuntime:
         self.tile_seq = 0
         self._epoch = _Epoch(late_base=self.odometry.late_dropped)
         self._last_pose_sample = None
+        # The map was just wiped: not OK again until a frame of the new epoch is processed.
+        self._pose_ok_at = self._ground_ok_at = None
+        self._pose_reason = "POSE_GAP"
 
     # --- processing tick (2 x process_hz) ------------------------------------------
     def process_tick(self) -> None:
@@ -239,7 +242,7 @@ class MapRuntime:
                 self._correction = correction
                 if correction.applied:
                     self.delta = update_delta(correction.pose, odom)
-                for key in self.map.fuse(scan, correction.pose, frame.stamp_s):
+                for key in self.map.fuse(scan, correction.pose, frame.stamp_s, frame.rx_s):
                     self._changed[key] = self.map.version_of(*key)
                 for key in self.map.evict_if_needed():
                     self._changed.pop(key, None)
