@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 젯슨 — L515 지형 지도 입력 녹화 (스펙 docs/specs/2026-10-17-l515-terrain-map-design.md §6).
 #
-# 지도 노드가 쓰는 원 입력 5개 토픽만 녹화한다. 자세는 재생 때 같은 평면 추측 항법으로
+# 지도 노드가 쓰는 원 입력 6개 토픽만 녹화한다(accel은 기준면 기울기 표시용). 자세는 재생 때 같은 평면 추측 항법으로
 # 다시 계산하므로 /odom 등은 넣지 않는다. 압축 없음(CPU 절약).
 #   depth 640×480×2 B × 10 Hz ≈ 6.1 MB/s ≈ 369 MB/분.
 #
@@ -16,6 +16,7 @@ TOPICS=(
   /l515/depth/camera_info
   /l515/color/camera_info
   /l515/gyro/sample
+  /l515/accel/sample
   /wheel_states
 )
 

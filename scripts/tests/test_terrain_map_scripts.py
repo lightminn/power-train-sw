@@ -61,7 +61,7 @@ def test_record_checks_name_existing_dir_and_free_space(tmp_path):
     result, calls = run(RECORD, "run1", str(bags), env={"TERRAIN_BAG_MIN_FREE_MB": "1"}, tmp_path=tmp_path)
     assert result.returncode == 0, result.stderr
     assert calls.strip().endswith(f"bag record -o {bags}/run1 /l515/depth/image_rect_raw /l515/depth/camera_info "
-                                  "/l515/color/camera_info /l515/gyro/sample /wheel_states")
+                                  "/l515/color/camera_info /l515/gyro/sample /l515/accel/sample /wheel_states")
     (bags / "run1").mkdir()
     result, _ = run(RECORD, "run1", str(bags), env={"TERRAIN_BAG_MIN_FREE_MB": "1"}, tmp_path=tmp_path)
     assert result.returncode == 2 and "exists" in result.stderr

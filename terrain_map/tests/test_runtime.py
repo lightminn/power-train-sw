@@ -362,3 +362,85 @@ def test_the_decisions_log_carries_the_live_config_and_wheel_geometry():
     assert header["layout"]["radius"] == LAYOUT.wheel_radius_m and set(header["layout"]["positions"]) == set(LAYOUT.positions)
     plan = load_decisions(json.loads(json.dumps(r)) for r in records)
     assert plan.config == asdict(CFG) and plan.layout == json.loads(json.dumps(header["layout"]))
+
+
+# --- ground-plane tilt (r11) ---------------------------------------------------------
+@lru_cache(maxsize=None)
+def still_then_drive():
+    """Parked until 2.5 s, then driving; depth from 1.1 s; accelerometer = gravity in the optical frame."""
+    schedule = lambda t: Command("stop") if t < 2.5 else Command("skid", v=0.3)   # noqa: E731
+    events, truth = simulate(schedule, 3.6)
+    depth = []
+    for k in range(11, 36):
+        x, y, yaw = truth(START + k / 10)
+        depth.append((START + k / 10, render_depth(CAM, BasePose(x=x, y=y, yaw_deg=math.degrees(yaw)), Mount(), SURFACE)))
+    up_opt = R @ np.array([0.0, 0.0, 9.80665])
+    accel = [(START + k / 100, tuple(up_opt)) for k in range(0, 361)]
+    return tuple(events), tuple(depth), tuple(accel)
+
+
+def drive_with_accel(rt, clock, events, depth, accel, until=None):
+    inputs = sorted([(rx, 0, s) for rx, s in events] + [(st + 0.02, 1, (st, a)) for st, a in depth]
+                    + [(st, 2, (st, a)) for st, a in accel], key=lambda e: e[:2])
+    end = until if until is not None else inputs[-1][0] + 0.1
+    packets, results, i, k = [], [], 0, 0
+    for now in np.arange(START, end, 0.1):
+        while i < len(inputs) and inputs[i][0] <= now:
+            rx, kind, item = inputs[i]
+            if kind == 2:
+                rt.on_accel(item[0], rx, item[1])
+            else:
+                deliver(rt, "depth" if kind else "odo", item, rx)
+            i += 1
+        clock.now = now
+        rt.process_tick()
+        if k % 2 == 0:
+            packets += rt.send_tick()
+        k += 1
+    return packets
+
+
+def test_tilt_from_still_frames_and_none_while_driving():
+    events, depth, accel = still_then_drive()
+    records = []
+    clock = Clock()
+    rt = runtime(clock, decisions=records.append)
+    rt.on_camera_info(CAM)
+    packets = drive_with_accel(rt, clock, events, depth, accel)
+    results = [r for r in records if r.get("k") == "result" and r["r"] == "processed"]
+    still = [r for r in results if r["t"] < START + 2.45]
+    moving = [r for r in results if r["t"] > START + 2.55]
+    assert still and moving
+    assert all(r["gravity"] is not None for r in still if r["t"] >= START + 1.6)    # a full still window
+    assert all(r["gravity"] is None for r in moving)
+    for r in still:
+        assert abs(r["plane_tilt"][0]) < 1.0 and abs(r["plane_tilt"][1]) < 1.0       # flat floor, body level
+        if r["gravity"] is not None:
+            assert abs(r["gravity"]["slope"][2]) < 1.0 and abs(r["gravity"]["body_tilt"][0]) < 0.5
+    s = [p for p in statuses(packets) if p.plane_tilt is not None]
+    assert s and any(p.gravity is not None for p in s) and s[-1].gravity is None    # last frames were moving
+
+
+def test_tilt_expires_and_never_crosses_an_epoch():
+    events, depth, accel = still_then_drive()
+    clock = Clock()
+    rt = runtime(clock)
+    rt.on_camera_info(CAM)
+    drive_with_accel(rt, clock, events, [d for d in depth if d[0] < START + 2.4], accel, until=START + 2.45)
+    fresh = statuses(rt.send_tick())[0]
+    assert fresh.plane_tilt is not None and fresh.gravity is not None
+    clock.now += CFG.slope_max_age_s + 0.1
+    assert statuses(rt.send_tick())[0].plane_tilt is None                          # expired
+    rt.process_tick()                                                              # the silence is a stall epoch
+    assert rt.epoch >= 1 and rt._still.up_at(START + 2.4) is None
+
+
+def test_accel_does_not_touch_the_map():
+    events, depth, accel = still_then_drive()
+    a, b = Clock(), Clock()
+    with_accel, without = runtime(a), runtime(b)
+    for rt in (with_accel, without):
+        rt.on_camera_info(CAM)
+    drive_with_accel(with_accel, a, events, depth, accel)
+    drive_with_accel(without, b, events, depth, ())
+    assert same_map(with_accel, without) and with_accel.scheduler.processed == without.scheduler.processed

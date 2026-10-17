@@ -35,11 +35,13 @@ from terrain_overlay.camera import CameraModel
 from terrain_overlay.runtime import SenderSession
 
 from powertrain_ros.terrain_map_node import (
-    DEPTH_INFO_TOPIC, DEPTH_TOPIC, GYRO_TOPIC, WHEEL_TOPIC, depth_array, stamp_s, wheel_layout, wheel_readings,
+    ACCEL_TOPIC, DEPTH_INFO_TOPIC, DEPTH_TOPIC, GYRO_TOPIC, WHEEL_TOPIC, depth_array, stamp_s, wheel_layout,
+    wheel_readings,
 )
 
-TOPICS = (DEPTH_TOPIC, DEPTH_INFO_TOPIC, GYRO_TOPIC, WHEEL_TOPIC)
-_ORDER = {DEPTH_INFO_TOPIC: 0, WHEEL_TOPIC: 1, GYRO_TOPIC: 2, DEPTH_TOPIC: 3}   # same stamp: wheels before gyro
+MAP_TOPICS = (DEPTH_TOPIC, DEPTH_INFO_TOPIC, GYRO_TOPIC, WHEEL_TOPIC)
+TOPICS = MAP_TOPICS + (ACCEL_TOPIC,)
+_ORDER = {DEPTH_INFO_TOPIC: 0, WHEEL_TOPIC: 1, GYRO_TOPIC: 2, DEPTH_TOPIC: 3, ACCEL_TOPIC: 4}  # same stamp: wheels first
 
 
 class Record(NamedTuple):
@@ -50,6 +52,7 @@ class Record(NamedTuple):
     seg: int = -1       # identity: clock segment, fixed in record order by ``identify``
     copy: int = -1      # identity: earlier copies with this stamp and content in the segment
     digest: int = 0     # identity: content fingerprint (same functions as live)
+    order: int = -1     # position in the whole bag's record order
 
 
 SOURCES = {GYRO_TOPIC: "gyro", WHEEL_TOPIC: "wheel"}
@@ -72,9 +75,25 @@ def read_bag(path: str) -> list[Record]:
         if topic not in types:
             continue
         message = deserialize_message(data, types[topic])
-        records.append(Record(topic, stamp_s(message), counts[topic], message))
+        records.append(Record(topic, stamp_s(message), counts[topic], message, order=len(records)))
         counts[topic] += 1
     return records
+
+
+def with_accel(map_segments: list[list[Record]], accel: list[Record]) -> list[list[Record]]:
+    """Give each map segment the accelerometer records **recorded while it was** (by record order),
+    merged by stamp after same-stamp map records.  Segment boundaries are each segment's first record
+    in record order (min ``order`` — its sorted head may be a late low-stamp message); an
+    accelerometer sample is never matched to another clock segment by stamp (r11 design review)."""
+    import bisect
+    starts = [min(r.order for r in seg) for seg in map_segments]
+    assigned: list[list[Record]] = [[] for _ in map_segments]
+    for r in accel:
+        k = bisect.bisect_right(starts, r.order) - 1
+        if k >= 0:
+            assigned[k].append(r)
+    return [sorted(seg + extra, key=lambda r: (r.stamp_s, _ORDER[r.topic], r.order))
+            for seg, extra in zip(map_segments, assigned)]
 
 
 def identify(records: list[Record], cfg: MapConfig) -> list[Record]:
@@ -151,8 +170,12 @@ def segments(records: Iterable[Record], regression_s: float, *, drop_small_regre
 
 
 def feed(runtime: MapRuntime, clock, record: Record, radius_m: float) -> None:
-    clock.now = record.stamp_s
     m = record.message
+    if record.topic == ACCEL_TOPIC:                 # display only: never moves the clock
+        a = m.linear_acceleration
+        runtime.on_accel(record.stamp_s, record.stamp_s, (a.x, a.y, a.z))
+        return
+    clock.now = record.stamp_s
     if record.topic == DEPTH_INFO_TOPIC:
         runtime.on_camera_info(CameraModel.from_k(m.k, m.width, m.height))
     elif record.topic == DEPTH_TOPIC:
@@ -183,9 +206,16 @@ def replay(records: list[Record], cfg: MapConfig, *, decisions=None, send=None, 
     runtime = MapRuntime(cfg, session, wheel_layout(), clock=clock, follow=decisions,
                          unix_ns=lambda: int(clock.now * 1e9), log_error=log, log_overrun=lambda _m: None)
     next_send, wall0, stamp0 = None, time.monotonic(), None
-    for seg in segments(records, cfg.stamp_regression_epoch_s, drop_small_regressions=decisions is None):
+    # Segments, identities, order and the clock come from the map topics only; the accelerometer
+    # rides along without changing any of them (r11).
+    map_records = [r for r in records if r.topic != ACCEL_TOPIC]
+    accel = [r for r in records if r.topic == ACCEL_TOPIC]
+    parts = segments(map_records, cfg.stamp_regression_epoch_s, drop_small_regressions=decisions is None)
+    for seg in with_accel(parts, accel):
         for record in seg:
             feed(runtime, clock, record, cfg.wheel_radius_m)
+            if record.topic == ACCEL_TOPIC:
+                continue
             runtime.process_tick()
             if send is not None:
                 stamp0 = record.stamp_s if stamp0 is None else stamp0

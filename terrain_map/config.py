@@ -57,6 +57,11 @@ _RANGES: dict[str, tuple[float, float]] = {
     "bias_max_std_rad_s": (0.001, 0.05),
     "bias_alpha": (0.01, 1.0),
     "stamp_regression_epoch_s": (0.1, 10.0),
+    "still_window_s": (0.2, 2.0),
+    "still_max_gyro_rad_s": (0.005, 0.5),
+    "still_max_accel_std": (0.01, 1.0),
+    "gravity_tolerance": (0.02, 0.3),
+    "slope_max_age_s": (0.2, 5.0),
     "camera_x_m": (-2.0, 2.0),
     "camera_y_m": (-2.0, 2.0),
     "camera_z_m": (-1.0, 2.0),
@@ -131,6 +136,12 @@ class MapConfig:
     bias_max_std_rad_s: float = 0.01
     bias_alpha: float = 0.2
     stamp_regression_epoch_s: float = 1.0
+    # ground-plane tilt display (slope.py): gravity reference only inside a still window
+    still_window_s: float = 0.5
+    still_max_gyro_rad_s: float = 0.05
+    still_max_accel_std: float = 0.1
+    gravity_tolerance: float = 0.1
+    slope_max_age_s: float = 1.0
     camera_x_m: float = 0.348
     camera_y_m: float = 0.0
     camera_z_m: float = 0.029

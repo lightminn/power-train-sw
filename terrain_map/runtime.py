@@ -26,7 +26,8 @@ from .config import MapConfig
 from .correction import Correction, apply_delta, make_corrector, update_delta
 from .geometry import IDENTITY, Pose2D, base_to_optical
 from .odometry import (FollowPlan, GyroSample, PlanarOdometry, PoseSample, SampleIds, WheelLayout, WheelSample,
-                       follow_plan)
+                       follow_plan, is_stationary)
+from .slope import StillGravity, body_tilt, plane_tilt
 from .pose import PoseTrack
 from .schedule import POSE_EXPIRED, DepthFrame, FrameScheduler
 from .scan import build_local_scan, decimate, make_frame, support_check
@@ -170,6 +171,9 @@ class MapRuntime:
         self._following = follow is not None
         self.followed_results: list[tuple[tuple, tuple[str, int]]] = []
         self._depth_ids = SampleIds(cfg.stamp_regression_epoch_s)
+        self._still = StillGravity(cfg)
+        self._mount_rotation = default_gyro_rotation(cfg)          # base -> depth optical (plane normals)
+        self._tilt: tuple | None = None                            # (frame rx, plane (pitch, roll), gravity | None)
         self.odometry = PlanarOdometry(cfg, layout, record=self._record,
                                        follow=None if follow is None else follow.odometry)
         self.track = PoseTrack(cfg)
@@ -234,10 +238,18 @@ class MapRuntime:
         """
         wz = gyro_body_rate(self._gyro_rotation, omega_optical)
         with self._lock:
+            self._still.add_gyro(float(stamp_s), float(np.linalg.norm(np.asarray(omega_optical, float))))
             self._take(self.odometry.add_gyro(GyroSample(float(stamp_s), float(rx_s), wz, seq, seg)))
+
+    def on_accel(self, stamp_s: float, rx_s: float, accel_optical) -> None:
+        """Accelerometer (optical frame, specific force: +g up at rest) — display only (r11)."""
+        a_b = self._gyro_rotation.T @ np.asarray(accel_optical, float)
+        with self._lock:
+            self._still.add_accel(float(stamp_s), a_b)
 
     def on_wheels(self, stamp_s: float, rx_s: float, wheels: tuple, seq: int = -1, seg: int = -1) -> None:
         with self._lock:
+            self._still.add_wheels(float(stamp_s), is_stationary(tuple(wheels), self.cfg))
             self._take(self.odometry.add_wheels(WheelSample(float(stamp_s), float(rx_s), tuple(wheels), seq, seg)))
 
     def _take(self, samples: list[PoseSample]) -> None:
@@ -269,6 +281,8 @@ class MapRuntime:
             self.track.clear()
             self.track.epoch = self.epoch
         self.scheduler.clear()
+        self._still.clear()                    # still-window samples never cross a continuity break
+        self._tilt = None
         self.delta = IDENTITY
         self._changed.clear()
         self._refresh_cursor = 0
@@ -313,7 +327,7 @@ class MapRuntime:
 
     def _process(self, frame: DepthFrame, odom: Pose2D, seed: Pose2D, epoch: int, detector, camera, now: float) -> None:
         started = self._clock()
-        outcome, scan, correction = "processed", None, None
+        outcome, scan, correction, normal = "processed", None, None, None
         try:
             small, _ = decimate(frame.array, camera, self.cfg.pixel_stride)
             result = detector.process(small, frame.rx_s)
@@ -325,6 +339,7 @@ class MapRuntime:
                     outcome = "NOT_SUPPORT"
                 else:
                     scan = build_local_scan(result, geometry, frame.stamp_s, self.cfg)
+                    normal = geometry.normal
         except Exception as exc:  # noqa: BLE001 — any core failure becomes a status
             outcome = "PROCESSING_ERROR"
             self._log_error(f"terrain map processing failed: {type(exc).__name__}: {exc}")
@@ -346,6 +361,8 @@ class MapRuntime:
                 for key in self.map.evict_if_needed():
                     self._changed.pop(key, None)
                 self._ground_ok_at = now
+                tilt = self._frame_tilt(normal, frame.stamp_s)
+                self._tilt = (frame.rx_s,) + tilt
             elif outcome in ("GROUND_NOT_FOUND", "NOT_SUPPORT"):
                 self._ground_reason = outcome
                 if outcome == "NOT_SUPPORT":
@@ -355,9 +372,31 @@ class MapRuntime:
                               "epoch": epoch, "r": outcome, "cam": camera_digest(camera),
                               # whole frame on this machine — detection, correction, fusion, lock waits
                               "total_ms": round((self._clock() - started) * 1000.0, 2),
-                              "detect_ms": round(elapsed * 1000.0, 2)})
+                              "detect_ms": round(elapsed * 1000.0, 2),
+                              **self._tilt_record(outcome)})
             elif self._following:
                 self.followed_results.append((frame.ident, (outcome, camera_digest(camera))))
+
+    def _frame_tilt(self, normal, stamp_s: float):
+        """Plane tilt against the body, and — from a still window ending at this depth stamp — the
+        plane's slope and the body's tilt against gravity (r11).  Display only."""
+        n_b = self._mount_rotation.T @ np.asarray(normal, float)
+        against_body = plane_tilt(n_b, np.array([0.0, 0.0, 1.0]))
+        up = self._still.up_at(stamp_s)
+        gravity = None
+        if up is not None:
+            slope = plane_tilt(n_b, up)
+            if slope is not None:
+                gravity = (slope, body_tilt(up))
+        return (None if against_body is None else against_body[:2]), gravity
+
+    def _tilt_record(self, outcome: str) -> dict:
+        if outcome != "processed" or self._tilt is None:
+            return {"plane_tilt": None, "gravity": None}
+        _, plane, gravity = self._tilt
+        rounded = lambda v: [round(x, 3) for x in v]  # noqa: E731
+        return {"plane_tilt": None if plane is None else rounded(plane),
+                "gravity": None if gravity is None else {"slope": rounded(gravity[0]), "body_tilt": rounded(gravity[1])}}
 
     def _record_time(self, elapsed_s: float) -> None:
         self.max_processing_s = max(self.max_processing_s, elapsed_s)
@@ -452,7 +491,22 @@ class MapRuntime:
             thresholds=C.Thresholds(cfg.obstacle_height_m, cfg.ditch_depth_m, cfg.min_observations),
             corrector=C.CorrectorInfo(self.corrector.name, corr.applied, corr.score, corr.reason),
             proc_ms=self.proc_ms,
+            **self._tilt_fields(now),
         )
+
+    def _tilt_fields(self, now: float) -> dict:
+        """Tilt of the last processed frame while it is younger than slope_max_age_s (r11)."""
+        if self._tilt is None:
+            return {}
+        rx, plane, gravity = self._tilt
+        age = now - rx
+        if age > self.cfg.slope_max_age_s or plane is None:
+            return {}
+        fields = {"plane_tilt": C.PlaneTilt(plane[0], plane[1], round(max(0.0, age) * 1000.0, 1))}
+        if gravity is not None:
+            (sp, sr, st), (bp, br) = gravity
+            fields["gravity"] = C.GravityTilt(sp, sr, st, bp, br)
+        return fields
 
     def _encode(self, packet) -> bytes | None:
         try:

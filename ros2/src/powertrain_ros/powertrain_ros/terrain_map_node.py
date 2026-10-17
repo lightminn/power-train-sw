@@ -39,6 +39,7 @@ from chassis.kinematics import default_geometry  # noqa: E402
 DEPTH_TOPIC = "/l515/depth/image_rect_raw"
 DEPTH_INFO_TOPIC = "/l515/depth/camera_info"
 GYRO_TOPIC = "/l515/gyro/sample"
+ACCEL_TOPIC = "/l515/accel/sample"          # display only: still-window gravity for the plane tilt (r11)
 WHEEL_TOPIC = "/wheel_states"
 # Gateway-compatible (best effort, volatile); a few frames so the scheduler can choose by stamp.
 DEPTH_QOS = QoSProfile(
@@ -121,6 +122,7 @@ class TerrainMapNode(Node):
         self.create_subscription(CameraInfo, DEPTH_INFO_TOPIC, self._on_info, qos_profile_sensor_data,
                                  callback_group=input_group)
         self.create_subscription(Imu, GYRO_TOPIC, self._on_gyro, qos_profile_sensor_data, callback_group=input_group)
+        self.create_subscription(Imu, ACCEL_TOPIC, self._on_accel, qos_profile_sensor_data, callback_group=input_group)
         self.create_subscription(WheelStates, WHEEL_TOPIC, self._on_wheels, 10, callback_group=input_group)
         self.create_timer(1.0 / (2.0 * self.config.process_hz), self._runtime.process_tick, callback_group=tick_group)
         self.create_timer(1.0 / self.config.status_hz, self._send, callback_group=tick_group)
@@ -164,6 +166,10 @@ class TerrainMapNode(Node):
     def _on_gyro(self, message: Imu) -> None:
         v = message.angular_velocity
         self._runtime.on_gyro(stamp_s(message), time.monotonic(), (v.x, v.y, v.z))
+
+    def _on_accel(self, message: Imu) -> None:
+        a = message.linear_acceleration
+        self._runtime.on_accel(stamp_s(message), time.monotonic(), (a.x, a.y, a.z))
 
     def _on_wheels(self, message: WheelStates) -> None:
         self._runtime.on_wheels(stamp_s(message), time.monotonic(),

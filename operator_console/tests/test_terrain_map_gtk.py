@@ -156,3 +156,28 @@ def test_zooming_out_never_silently_drops_the_map(window):
     rx = panel.receiver.snapshot(time.monotonic()).last_rx_s
     draw(panel, rx + 0.05, 800, 600)
     assert panel.last_meta["drawn"]
+
+
+# --- ground-plane tilt (r11) -----------------------------------------------------------
+def test_tilt_lines_show_while_fresh_and_hide_when_old(window):
+    panel = window._map_panel
+    send(window, status(1, pose=(0.4, 0.4, 0.0), plane_tilt=C.PlaneTilt(4.0, -1.0, 200.0),
+                        gravity=C.GravityTilt(6.5, -1.0, 6.6, 2.5, 0.0)))
+    assert pump_until(lambda: received(panel, 0))
+    rx = panel.receiver.snapshot(time.monotonic()).last_rx_s
+    _, texts = draw(panel, rx + 0.05)
+    tilt = [t for t in texts if "기준면" in t]
+    assert any("차체 기준" in t and "+4.0°" in t for t in tilt)
+    assert any("정지 구간 측정" in t and "+6.5°" in t and "앞 들림 +2.5°" in t for t in tilt)
+    assert panel.unknown_glyphs == 0
+    _, texts = draw(panel, rx + 0.85)                           # 0.2 s old at send + 0.85 s since → expired
+    assert not any("기준면" in t for t in texts)
+
+
+def test_no_gravity_line_without_gravity(window):
+    panel = window._map_panel
+    send(window, status(1, pose=(0.4, 0.4, 0.0), plane_tilt=C.PlaneTilt(0.5, 0.0, 10.0)))
+    assert pump_until(lambda: received(panel, 0))
+    rx = panel.receiver.snapshot(time.monotonic()).last_rx_s
+    _, texts = draw(panel, rx + 0.05)
+    assert any("차체 기준" in t for t in texts) and not any("정지 구간 측정" in t for t in texts)

@@ -106,6 +106,11 @@ def solve_body_velocity(readings, layout: WheelLayout, omega: float, cfg: MapCon
     return BodyVelocity(vx, vy, True, None)
 
 
+def is_stationary(readings, cfg: MapConfig) -> bool:
+    """Every valid wheel commanded and measured at rest (and enough valid wheels) — no bias state."""
+    return _stationary(tuple(_finite_reading(r) for r in readings), cfg)
+
+
 def _stationary(readings, cfg: MapConfig) -> bool:
     valid = [r for r in readings if r.valid]
     if len(valid) < cfg.min_valid_wheels:

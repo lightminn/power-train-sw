@@ -47,7 +47,7 @@ _INSTANCE = re.compile(r"[0-9a-f]{16}")
 _FLOAT_DIGITS = 4
 
 __all__ = [
-    "Pose", "Thresholds", "CorrectorInfo", "StatusPacket", "TilePacket", "replace",
+    "Pose", "Thresholds", "CorrectorInfo", "PlaneTilt", "GravityTilt", "StatusPacket", "TilePacket", "replace",
     "encode", "parse_packet", "pack_cells", "unpack_cells",
 ]
 
@@ -72,6 +72,25 @@ class CorrectorInfo:
     applied: bool
     score: float | None
     reason: str
+
+
+@dataclass(frozen=True)
+class PlaneTilt:
+    """The detector's chosen plane against the body axes (r11): + = rising ahead / left side higher."""
+    pitch_deg: float
+    roll_deg: float
+    age_ms: float          # since that depth frame was received
+
+
+@dataclass(frozen=True)
+class GravityTilt:
+    """Measured in a still window ending at the frame (r11): the plane's slope and the body's tilt
+    against gravity.  Absent while moving."""
+    slope_pitch_deg: float
+    slope_roll_deg: float
+    slope_total_deg: float
+    body_pitch_deg: float
+    body_roll_deg: float
 
 
 @dataclass(frozen=True)
@@ -106,6 +125,8 @@ class StatusPacket(_Common):
     corrector: CorrectorInfo
     proc_ms: float | None
     received_s: float | None = None
+    plane_tilt: PlaneTilt | None = None
+    gravity: GravityTilt | None = None
 
 
 @dataclass(frozen=True)
@@ -207,6 +228,17 @@ def _to_dict(packet: StatusPacket | TilePacket) -> dict[str, Any]:
             "score": _round(packet.corrector.score), "reason": packet.corrector.reason,
         },
         proc_ms=_round(packet.proc_ms),
+        plane_tilt=None if packet.plane_tilt is None else {
+            "pitch_deg": _round(packet.plane_tilt.pitch_deg), "roll_deg": _round(packet.plane_tilt.roll_deg),
+            "age_ms": _round(packet.plane_tilt.age_ms),
+        },
+        gravity=None if packet.gravity is None else {
+            "slope": {"pitch_deg": _round(packet.gravity.slope_pitch_deg),
+                      "roll_deg": _round(packet.gravity.slope_roll_deg),
+                      "total_deg": _round(packet.gravity.slope_total_deg)},
+            "body_tilt": {"pitch_deg": _round(packet.gravity.body_pitch_deg),
+                          "roll_deg": _round(packet.gravity.body_roll_deg)},
+        },
     )
     return payload
 
@@ -318,6 +350,34 @@ def _parse_status(payload: dict[str, Any], received_s: float | None) -> StatusPa
                                 _opt_num(corr["score"], "corrector.score", 0.0, 1e3), corr["reason"]),
         proc_ms=_opt_num(payload.get("proc_ms"), "proc_ms", 0.0, 1e6),
         received_s=received_s,
+        plane_tilt=_parse_plane_tilt(payload.get("plane_tilt")),
+        gravity=_parse_gravity(payload.get("gravity")),
+    )
+
+
+def _angle(obj: dict, key: str, name: str, low: float = -90.0, high: float = 90.0) -> float:
+    return _num(obj[key], f"{name}.{key}", low, high)
+
+
+def _parse_plane_tilt(raw: Any) -> PlaneTilt | None:
+    """Optional (r11): absent or null means no recent plane."""
+    if raw is None:
+        return None
+    raw = _obj(raw, "plane_tilt", ("pitch_deg", "roll_deg", "age_ms"))
+    return PlaneTilt(_angle(raw, "pitch_deg", "plane_tilt"), _angle(raw, "roll_deg", "plane_tilt"),
+                     _num(raw["age_ms"], "plane_tilt.age_ms", 0.0, 1e6))
+
+
+def _parse_gravity(raw: Any) -> GravityTilt | None:
+    if raw is None:
+        return None
+    raw = _obj(raw, "gravity", ("slope", "body_tilt"))
+    slope = _obj(raw["slope"], "gravity.slope", ("pitch_deg", "roll_deg", "total_deg"))
+    body = _obj(raw["body_tilt"], "gravity.body_tilt", ("pitch_deg", "roll_deg"))
+    return GravityTilt(
+        _angle(slope, "pitch_deg", "gravity.slope"), _angle(slope, "roll_deg", "gravity.slope"),
+        _angle(slope, "total_deg", "gravity.slope", 0.0, 90.0),
+        _angle(body, "pitch_deg", "gravity.body_tilt"), _angle(body, "roll_deg", "gravity.body_tilt"),
     )
 
 

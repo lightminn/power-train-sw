@@ -110,8 +110,40 @@ def test_worst_case_status_fits():
         thresholds=C.Thresholds(0.5, 0.5, 10),
         corrector=C.CorrectorInfo("height_match", True, 999.9999, "no_overlap"),
         proc_ms=999999.9999,
+        plane_tilt=C.PlaneTilt(-89.9999, -89.9999, 999999.9999),
+        gravity=C.GravityTilt(-89.9999, -89.9999, 89.9999, -89.9999, -89.9999),
     )
     assert len(C.encode(worst)) <= C.MAX_PACKET_BYTES
+
+
+# --- ground-plane tilt (r11, optional fields) --------------------------------
+def test_tilt_fields_round_trip_and_default_to_none():
+    plain = C.parse_packet(C.encode(status()))
+    assert plain.plane_tilt is None and plain.gravity is None
+    full = status(plane_tilt=C.PlaneTilt(5.25, -1.5, 120.0), gravity=C.GravityTilt(10.0, -1.0, 10.05, 4.75, 0.5))
+    back = C.parse_packet(C.encode(full))
+    assert back.plane_tilt == full.plane_tilt and back.gravity == full.gravity
+
+
+def test_packets_without_tilt_keys_still_parse():
+    payload = raw_dict(status())
+    payload.pop("plane_tilt", None)
+    payload.pop("gravity", None)
+    assert C.parse_packet(json.dumps(payload).encode()).plane_tilt is None
+
+
+@pytest.mark.parametrize("changes", [
+    {"plane_tilt": {"pitch_deg": 91.0, "roll_deg": 0.0, "age_ms": 0.0}},
+    {"plane_tilt": {"pitch_deg": 0.0, "roll_deg": 0.0}},
+    {"plane_tilt": {"pitch_deg": 0.0, "roll_deg": 0.0, "age_ms": -1.0}},
+    {"gravity": {"slope": {"pitch_deg": 0.0, "roll_deg": 0.0, "total_deg": -1.0},
+                 "body_tilt": {"pitch_deg": 0.0, "roll_deg": 0.0}}},
+    {"gravity": {"slope": {"pitch_deg": 0.0, "roll_deg": 0.0, "total_deg": 0.0}}},
+    {"gravity": "flat"},
+])
+def test_bad_tilt_fields_reject_the_packet(changes):
+    with pytest.raises(ValueError):
+        C.parse_packet(mutate(status(), **changes))
 
 
 def test_32_cell_tiles_are_refused_by_config():

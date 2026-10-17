@@ -376,3 +376,75 @@ def test_a_log_without_config_or_geometry_is_refused(tmp_path, capsys):
     out = tmp_path / "old.npz"
     code = RP.main([str(tmp_path / "bag"), "--decisions-from", str(tmp_path / "old.jsonl"), "--out", str(out)])
     assert code == 2 and "configuration" in capsys.readouterr().err and not out.exists()
+
+
+# --- ground-plane tilt (r11): the accelerometer never shapes the map replay ------------------
+TYPES[F.ACCEL_TOPIC] = "sensor_msgs/msg/Imu"
+
+
+def pitched(deg):
+    import math
+    a = math.radians(deg)
+    return (math.sin(a), 0.0, math.cos(a))
+
+
+def parked_events(accel_up, depth_from_s=1.1):
+    events, _ = F.scenario(lambda t: Command("stop"), 3.0, depth_from_s=depth_from_s, accel_up=accel_up)
+    return events
+
+
+def replayed_tilt(path):
+    rt = RP.replay(RP.identify(RP.read_bag(str(path)), CFG), CFG)
+    return rt, rt._tilt
+
+
+def test_a_repeated_clock_without_accel_shows_no_gravity(tmp_path):
+    a = parked_events((0.0, 0.0, 1.0))
+    b = [e for e in parked_events(None)]                          # same stamps again, no accelerometer
+    items = [(e.stamp_s, e.topic, e.message) for e in a] + [(e.stamp_s + 10.0, e.topic, e.message) for e in b]
+    write_bag(tmp_path / "ab", items)
+    rt, tilt = replayed_tilt(tmp_path / "ab")
+    assert rt.epoch >= 1 and tilt is not None and tilt[1] is not None and tilt[2] is None
+
+
+def test_each_clock_segment_uses_its_own_accel(tmp_path):
+    a = parked_events((0.0, 0.0, 1.0))
+    b = parked_events(pitched(10.0))                              # B: body nose up 10° (accelerometer)
+    items = [(e.stamp_s, e.topic, e.message) for e in a] + [(e.stamp_s + 10.0, e.topic, e.message) for e in b]
+    write_bag(tmp_path / "ab2", items)
+    _, tilt = replayed_tilt(tmp_path / "ab2")
+    assert tilt[2] is not None and abs(tilt[2][1][0] - 10.0) < 0.5
+
+
+def map_of(rt):
+    return content(rt), rt.scheduler.processed
+
+
+def test_accel_variants_leave_the_map_unchanged(tmp_path):
+    base, _ = F.scenario(F.drive_then(Command("skid", v=0.3, omega=0.1)), 3.5, accel_up=(0, 0, 1))
+    plain = [(e.stamp_s, e.topic, e.message) for e in base if e.topic != F.ACCEL_TOPIC]
+    accel = [(e.stamp_s, e.topic, e.message) for e in base if e.topic == F.ACCEL_TOPIC]
+    variants = {
+        "none": plain,
+        "with": sorted(plain + accel, key=lambda r: r[0]),
+        "duplicated": sorted(plain + accel + accel, key=lambda r: r[0]),
+        "regressed": sorted(plain + accel, key=lambda r: r[0]) + [(F.START + 4.0, F.ACCEL_TOPIC,
+                                                                  F.accel_message(F.START - 50.0))],
+    }
+    results = {}
+    for name, items in variants.items():
+        write_bag(tmp_path / name, items)
+        rt = RP.replay(RP.identify(RP.read_bag(str(tmp_path / name)), CFG), CFG)
+        results[name] = map_of(rt)
+    assert all(r == results["none"] for r in results.values())
+
+
+def test_accel_segments_follow_record_order_not_the_sorted_head():
+    """A late low-stamp CameraInfo must not move the boundary (r11 design review)."""
+    rec = lambda topic, stamp, order: RP.Record(topic, stamp, order, None, order=order)  # noqa: E731
+    seg_a = [rec(F.GYRO_TOPIC, 100.0 + k * 0.01, k) for k in range(7)]
+    seg_b = [rec(F.GYRO_TOPIC, 10.0 + k * 0.01, 7 + k) for k in range(0, 60, 59)] + [rec(F.INFO_TOPIC, 9.5, 60)]
+    accel_b = [rec(F.ACCEL_TOPIC, 10.0 + k * 0.01, 8 + k) for k in range(51)]
+    merged = RP.with_accel([seg_a, sorted(seg_b, key=lambda r: r.stamp_s)], accel_b)
+    assert sum(r.topic == F.ACCEL_TOPIC for r in merged[0]) == 0
+    assert sum(r.topic == F.ACCEL_TOPIC for r in merged[1]) == 51

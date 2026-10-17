@@ -20,6 +20,7 @@ from gi.repository import Gdk, GLib, Gtk, Pango, PangoCairo  # noqa: E402
 from .terrain_map import DisplayConfig, LatestMapReceiver, MapRenderer, MapSnapshot, MapView  # noqa: E402
 
 LINK_LOST_S = 0.5
+TILT_MAX_AGE_S = 1.0          # same as the producer's slope_max_age_s default
 REDRAW_MS = 200
 DEFAULT_M_PER_PX = 0.01
 ZOOM_RANGE = (0.002, 0.08)
@@ -320,6 +321,7 @@ class MapPanel(Gtk.Box):
         cr.set_source_rgba(0.95, 0.96, 0.98, 1.0)
         cr.move_to(12, 6)
         PangoCairo.show_layout(cr, layout)
+        h += self._tilt_lines(cr, s, snap, width, h, now_s)
         if s is not None and s.reason == "BIAS_PENDING":
             hint = self._text(cr, "로버를 1초 정지하세요", "Sans Bold 22")
             w, _ = hint.get_pixel_size()
@@ -357,6 +359,30 @@ class MapPanel(Gtk.Box):
         cr.set_source_rgba(0.85, 0.88, 0.92, 1.0)
         cr.move_to(12, top + 24)
         PangoCairo.show_layout(cr, note)
+
+    def _tilt_lines(self, cr, s, snap, width, top, now_s) -> float:
+        """Plane tilt (r11) under the status line while the observation is younger than 1 s
+        (its age at send + time since the packet arrived).  Returns the height used."""
+        if s is None or s.plane_tilt is None or s.received_s is None:
+            return 0.0
+        if s.plane_tilt.age_ms / 1000.0 + (now_s - s.received_s) > TILT_MAX_AGE_S:
+            return 0.0
+        lines = [f"기준면 기울기(차체 기준) 앞 {s.plane_tilt.pitch_deg:+.1f}° 옆 {s.plane_tilt.roll_deg:+.1f}° "
+                 f"· 기준면 = 판정기가 고른 가까운 바닥"]
+        g = s.gravity
+        if g is not None:
+            lines.append(f"정지 구간 측정 · 기준면 경사(중력 기준) 앞 {g.slope_pitch_deg:+.1f}° 옆 {g.slope_roll_deg:+.1f}° "
+                         f"(전체 {g.slope_total_deg:.1f}°) · 차체 앞 들림 {g.body_pitch_deg:+.1f}° "
+                         f"왼쪽 들림 {g.body_roll_deg:+.1f}°")
+        layout = self._text(cr, "\n".join(lines), "Sans 10", width - 24)
+        _, h = layout.get_pixel_size()
+        cr.set_source_rgba(0.0, 0.0, 0.0, 0.55)
+        cr.rectangle(0, top + 12, width, h + 8)
+        cr.fill()
+        cr.set_source_rgba(0.80, 0.90, 1.0, 1.0)
+        cr.move_to(12, top + 16)
+        PangoCairo.show_layout(cr, layout)
+        return h + 8
 
     def _on_draw(self, widget, cr) -> bool:
         a = widget.get_allocation()

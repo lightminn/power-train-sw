@@ -27,6 +27,8 @@ START = 1000.0
 DEPTH_TOPIC = "/l515/depth/image_rect_raw"
 INFO_TOPIC = "/l515/depth/camera_info"
 GYRO_TOPIC = "/l515/gyro/sample"
+ACCEL_TOPIC = "/l515/accel/sample"
+G = 9.80665
 WHEEL_TOPIC = "/wheel_states"
 NODE_PARAMS = {"pixel_stride": 1}            # the fixture renders 160x120 depth
 
@@ -75,6 +77,15 @@ def gyro_message(stamp_s, wz_body, mount=(20.0, 0.0, 0.0)):
     return set_stamp(message, stamp_s)
 
 
+def accel_message(stamp_s, up_body=(0.0, 0.0, 1.0), mount=(20.0, 0.0, 0.0)):
+    """Specific force at rest: +g along 'up', expressed in the optical frame (independent axes)."""
+    up = np.asarray(up_body, float) / np.linalg.norm(up_body)
+    a = optical_axes_in_base(*mount) @ (G * up)
+    message = Imu()
+    message.linear_acceleration.x, message.linear_acceleration.y, message.linear_acceleration.z = (float(v) for v in a)
+    return set_stamp(message, stamp_s)
+
+
 def wheel_message(sample: O.WheelSample, stale=False):
     message = WheelStates()
     message.chassis_mode = "ackermann"
@@ -95,7 +106,7 @@ def drive_then(motion, stop_s=1.5):
 
 
 def scenario(schedule, duration_s, *, surface=BOX, mount=(20.0, 0.0, 0.0), depth_from_s=1.6,
-             stale_wheels_after_s=None, gyro_rate=None) -> tuple[list[Event], object]:
+             stale_wheels_after_s=None, gyro_rate=None, accel_up=None) -> tuple[list[Event], object]:
     """All messages in stamp order, plus truth(stamp) -> (x, y, yaw)."""
     events, truth = simulate(schedule, duration_s, start_s=START, gyro_rate=gyro_rate)
     out = []
@@ -114,7 +125,10 @@ def scenario(schedule, duration_s, *, surface=BOX, mount=(20.0, 0.0, 0.0), depth
                                  Mount(pitch_down_deg=pitch, roll_deg=roll, yaw_deg=yaw), surface)
             out.append(Event(t, INFO_TOPIC, info_message(CAM, t)))
             out.append(Event(t, DEPTH_TOPIC, depth_message(array, t)))
-    order = {INFO_TOPIC: 0, WHEEL_TOPIC: 1, GYRO_TOPIC: 2, DEPTH_TOPIC: 3}
+    if accel_up is not None:
+        for k in range(int(duration_s * 100) + 1):
+            out.append(Event(START + k / 100, ACCEL_TOPIC, accel_message(START + k / 100, accel_up, mount)))
+    order = {INFO_TOPIC: 0, WHEEL_TOPIC: 1, GYRO_TOPIC: 2, DEPTH_TOPIC: 3, ACCEL_TOPIC: 4}
     out.sort(key=lambda e: (e.stamp_s, order[e.topic]))
     return [e._replace(message=on_the_wire(e.message)) for e in out], truth
 
