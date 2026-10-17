@@ -38,6 +38,9 @@ class DetectorConfig:
     ground_hold_s: float = 0.5
     path_half_width_m: float = 0.4445
     front_offset_m: float = 0.0
+    # Minimum floor candidates and voxels for a plane.  The terrain map runs on
+    # decimated depth and lowers it (terrain_map spec §4.2); the overlay keeps 200.
+    min_ground_points: int = MIN_GROUND_POINTS
 
 
 @dataclass
@@ -58,6 +61,12 @@ class TerrainResult:
     obstacle_lat: np.ndarray = field(default_factory=lambda: np.zeros(0, np.float32))
     floor_mask: np.ndarray | None = None
     obstacle_mask: np.ndarray | None = None
+    # For the terrain map (None unless status is OK): the camera-optical points
+    # (H, W, 3), their valid mask and the plane (normal, offset) with
+    # normal·p + offset = height above the plane (camera side positive).
+    points: np.ndarray | None = None
+    valid: np.ndarray | None = None
+    ground_plane: tuple[np.ndarray, float] | None = None
 
 
 def tilt_deg(normal: np.ndarray) -> float:
@@ -123,13 +132,13 @@ class TerrainDetector:
         return self._classify(points, valid, state)
 
     def _fit_ground(self, candidates: np.ndarray) -> tuple[np.ndarray, float] | None:
-        if len(candidates) < MIN_GROUND_POINTS:
+        if len(candidates) < self.config.min_ground_points:
             return None
         keys = np.floor(candidates / VOXEL_M).astype(np.int64) + (1 << 20)
         packed = (keys[:, 0] << 42) | (keys[:, 1] << 21) | keys[:, 2]
         _, first = np.unique(packed, return_index=True)
         voxels = candidates[np.sort(first)].astype(np.float64)
-        if len(voxels) < MIN_GROUND_POINTS:
+        if len(voxels) < self.config.min_ground_points:
             return None
         rng = np.random.default_rng(RANSAC_SEED)
         if len(voxels) > RANSAC_SAMPLE_MAX:
@@ -213,4 +222,7 @@ class TerrainDetector:
             obstacle_lat=obstacle_lat,
             floor_mask=floor,
             obstacle_mask=obstacle,
+            points=points,
+            valid=valid,
+            ground_plane=(self._normal.copy(), float(self._offset)),
         )
