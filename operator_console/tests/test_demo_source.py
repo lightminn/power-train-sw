@@ -12,6 +12,7 @@ from operator_console.demo_source import (
 from operator_console.environment_telemetry import parse_environment_telemetry
 from operator_console.metadata import parse_metadata
 from operator_console.telemetry import parse_telemetry
+from terrain_overlay.contract import MAX_PACKET_BYTES, parse_packet
 
 
 def _raw(payload: dict) -> bytes:
@@ -48,11 +49,17 @@ def test_every_demo_channel_uses_the_production_decoder_and_is_bounded():
     assert parse_metadata(encoded["metadata"], 10.0).detections[0].depth_m == 1.28
     assert parse_arm_telemetry(encoded["arm"], 10.0).end_effector_type == "dual_gripper"
     assert parse_environment_telemetry(encoded["environment"], 10.0).sensor_ok is True
+    assert len(encoded["terrain"]) <= MAX_PACKET_BYTES
+    assert parse_packet(encoded["terrain"]).obstacles[0].in_path is False
+    blocked = parse_packet(_raw(build_payloads(12, 19.0)["terrain"]))
+    assert blocked.obstacles[0].in_path is True and blocked.zones["center"] == 0.62
 
 
 def test_demo_source_rejects_live_or_colliding_ports():
     validate_ports(dict(DEFAULT_TEST_PORTS))
     with pytest.raises(ValueError, match="live UDP ports"):
         validate_ports(dict(DEFAULT_TEST_PORTS, chassis=5005))
+    with pytest.raises(ValueError, match="live UDP ports"):
+        validate_ports(dict(DEFAULT_TEST_PORTS, terrain=5009))
     with pytest.raises(ValueError, match="distinct"):
         validate_ports(dict(DEFAULT_TEST_PORTS, chassis=15004))
