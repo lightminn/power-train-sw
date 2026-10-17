@@ -29,7 +29,7 @@ import numpy as np
 from terrain_map import contract as C
 from terrain_map.config import MapConfig
 from terrain_map.odometry import SampleIds
-from terrain_map.runtime import MapRuntime, load_decisions
+from terrain_map.runtime import MapRuntime, default_gyro_rotation, gyro_body_rate, load_decisions
 from terrain_overlay.camera import CameraModel
 from terrain_overlay.runtime import SenderSession
 
@@ -75,12 +75,21 @@ def read_bag(path: str) -> list[Record]:
     return records
 
 
-def identify(records: list[Record], regression_s: float) -> list[Record]:
+def identify(records: list[Record], cfg: MapConfig) -> list[Record]:
     """Give gyro/wheel records their identity in record order — the order the live node received
-    them — before any sorting, with the odometry's own ``SampleIds`` rule (Codex re-review)."""
-    ids = SampleIds(regression_s)
+    them — before any sorting, with the odometry's own ``SampleIds`` rule (Codex re-review).
+
+    A gyro sample the odometry rejects (non-finite body rate) takes no identity, as live.
+    """
+    ids = SampleIds(cfg.stamp_regression_epoch_s)
+    rotation = default_gyro_rotation(cfg)
     out = []
     for r in records:
+        if r.topic == GYRO_TOPIC and r.message is not None:
+            v = r.message.angular_velocity
+            if not math.isfinite(gyro_body_rate(rotation, (v.x, v.y, v.z))):
+                out.append(r)
+                continue
         if r.topic in SOURCES:
             seg, copy = ids.assign(SOURCES[r.topic], r.stamp_s)
             r = r._replace(seg=seg, copy=copy)
@@ -245,7 +254,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.rate <= 0 or not math.isfinite(args.rate):
             raise SystemExit("--rate must be > 0")
         send = (socket.socket(socket.AF_INET, socket.SOCK_DGRAM), (host, int(port)))
-    records = identify(read_bag(args.bag), cfg.stamp_regression_epoch_s)
+    records = identify(read_bag(args.bag), cfg)
     if decisions is not None:
         problems = missing_from_bag(records, decisions, cfg.stamp_regression_epoch_s)
         if problems:

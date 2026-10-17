@@ -305,3 +305,10 @@ def test_render_cache_tells_sender_sessions_apart():
         assert (box[..., 0] > box[..., 2]).mean() > 0.5                   # now drawn red
     finally:
         r.close()
+
+
+@pytest.mark.parametrize("bad", [dict(display_upsample=1.5), dict(display_upsample=True),
+                                 dict(max_render_pixels=500_000.5)])
+def test_integer_display_fields_reject_other_types(bad):
+    with pytest.raises(ValueError):
+        DisplayConfig(**bad)

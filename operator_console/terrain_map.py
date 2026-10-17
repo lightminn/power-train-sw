@@ -226,7 +226,11 @@ class DisplayConfig:
         }
         for name, (low, high) in checks.items():
             value = getattr(self, name)
-            if not (isinstance(value, (int, float)) and math.isfinite(value) and low <= value <= high):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{name} must be a number")
+            if isinstance(low, int) and not isinstance(value, int):
+                raise ValueError(f"{name} must be an integer")
+            if not (math.isfinite(value) and low <= value <= high):
                 raise ValueError(f"{name} must be within {low}-{high}")
 
 

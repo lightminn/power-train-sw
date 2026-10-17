@@ -237,7 +237,23 @@ def test_identities_are_fixed_in_record_order_before_sorting():
             o.add_wheels(O.WheelSample(t, t, readings))
     records = [RP.Record(F.GYRO_TOPIC if src == "gyro" else F.WHEEL_TOPIC, t, k, None)
                for k, (src, t) in enumerate(order)]
-    records = RP.identify(records, CFG.stamp_regression_epoch_s)
+    records = RP.identify(records, CFG)
     decisions = Decisions(O.follow_plan(logged), frozenset())
     assert RP.missing_from_bag(records, decisions, CFG.stamp_regression_epoch_s) == []
     assert {(RP.SOURCES[r.topic], r.seg, r.stamp_s, r.copy) for r in records} == decisions.odometry.received
+
+
+def test_a_gyro_sample_live_rejects_does_not_take_an_identity():
+    """Codex T9 P2: NaN then a valid gyro with the same stamp."""
+    from terrain_map import odometry as O
+    from terrain_map.runtime import MapRuntime
+    nan, ok = F.gyro_message(100.0, 0.0), F.gyro_message(100.0, 0.0)
+    nan.angular_velocity.x = float("nan")
+    logged = []
+    rt = MapRuntime(CFG, SESSION, N.wheel_layout(), decisions=logged.append)
+    for m in (nan, ok):
+        v = m.angular_velocity
+        rt.on_gyro(100.0, 100.0, (v.x, v.y, v.z))
+    records = RP.identify([RP.Record(F.GYRO_TOPIC, 100.0, 0, nan), RP.Record(F.GYRO_TOPIC, 100.0, 1, ok)], CFG)
+    have = {(RP.SOURCES[r.topic], r.seg, r.stamp_s, r.copy) for r in records if r.seg >= 0}
+    assert have == O.follow_plan(logged).received

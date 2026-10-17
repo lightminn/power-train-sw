@@ -93,15 +93,18 @@ class MapPanel(Gtk.Box):
         self.connect("destroy", self._on_destroy)
 
     # --- state for the probe / status line ----------------------------------------
+    @staticmethod
+    def status_age(snap: MapSnapshot, now_s: float) -> float | None:
+        """Age of the last status packet — tiles alone never make a pose current (Codex T9 P2)."""
+        if snap.status is None or snap.status.received_s is None:
+            return None
+        return now_s - snap.status.received_s
+
     def probe(self, now_s: float | None = None) -> dict:
         now_s = time.monotonic() if now_s is None else now_s
         snap = self.receiver.snapshot(now_s)
-        if snap.status is None or snap.last_rx_s is None:
-            state = "WAITING"
-        elif now_s - snap.last_rx_s > LINK_LOST_S:
-            state = "STALE"
-        else:
-            state = "LIVE"
+        age = self.status_age(snap, now_s)
+        state = "WAITING" if age is None else ("STALE" if age > LINK_LOST_S else "LIVE")
         return {"terrain_map": state, "terrain_map_tiles": len(snap.tiles)}
 
     def _packet_rate(self, snap: MapSnapshot, now_s: float) -> float:
@@ -116,6 +119,8 @@ class MapPanel(Gtk.Box):
 
     # --- interaction -------------------------------------------------------------------
     def _on_follow(self, button: Gtk.ToggleButton) -> None:
+        if not button.get_active():
+            self._center = self._view_center()          # stay where the operator was looking
         self._follow = button.get_active()
         self.area.queue_draw()
 
@@ -192,10 +197,16 @@ class MapPanel(Gtk.Box):
         cr.set_source_rgb(*BACKGROUND)
         cr.paint()
         pose = self._pose(snap)
+        age = self.status_age(snap, now_s)
+        current = age is not None and age <= LINK_LOST_S
         if self._follow and pose is not None:
             cx, cy, phi = pose[0], pose[1], pose[2] - math.pi / 2.0
         else:
             (cx, cy), phi = self._center, 0.0
+        # Never zoom out past what the render budget can draw (Codex T9 P2).
+        cell = snap.status.cell_m if snap.status is not None else 0.05
+        limit = 0.98 * cell * math.sqrt(self.display.max_render_pixels) / math.hypot(width, height)
+        self._m_per_px = min(self._m_per_px, limit)
         mpp = self._m_per_px
         reach = math.hypot(width, height) / 2.0 * mpp
         view = MapView(cx - reach, cy - reach, 2 * reach, 2 * reach, int(math.hypot(width, height)) + 1,
@@ -220,8 +231,13 @@ class MapPanel(Gtk.Box):
         self._grid(cr, cx, cy, reach, mpp)
         self._trajectory(cr, snap, cx, cy, mpp)
         if pose is not None:
-            self._rover(cr, pose, cx, cy, mpp)
+            self._rover(cr, pose, cx, cy, mpp, current)
         cr.restore()
+        if snap.status is not None and not meta.get("drawn"):
+            note = self._text(cr, f"지도 표시 불가: {meta.get('reason', '-')}", "Sans Bold 14")
+            cr.set_source_rgba(1.0, 0.8, 0.2, 1.0)
+            cr.move_to(16, height / 2.0)
+            PangoCairo.show_layout(cr, note)
         self._scale_bar(cr, width, height, mpp)
         self._overlay_text(cr, snap, width, height, now_s)
 
@@ -247,7 +263,7 @@ class MapPanel(Gtk.Box):
             cr.line_to((x - cx) / mpp, (cy - y) / mpp)
         cr.stroke()
 
-    def _rover(self, cr, pose, cx, cy, mpp) -> None:
+    def _rover(self, cr, pose, cx, cy, mpp, current: bool = True) -> None:
         x, y, yaw = (pose[0] - cx) / mpp, (cy - pose[1]) / mpp, pose[2]
         cr.save()
         cr.translate(x, y)
@@ -256,11 +272,17 @@ class MapPanel(Gtk.Box):
         cr.line_to(-10, -9)
         cr.line_to(-10, 9)
         cr.close_path()
-        cr.set_source_rgba(1.0, 1.0, 1.0, 0.95)
+        cr.set_source_rgba(*((1.0, 1.0, 1.0, 0.95) if current else (0.55, 0.55, 0.55, 0.6)))
         cr.fill_preserve()
         cr.set_source_rgba(0.0, 0.0, 0.0, 0.9)
         cr.set_line_width(1.5)
         cr.stroke()
+        if not current:
+            cr.rotate(yaw)
+            label = self._text(cr, "마지막 자세", "Sans 10")
+            cr.set_source_rgba(0.8, 0.8, 0.8, 0.9)
+            cr.move_to(12, 10)
+            PangoCairo.show_layout(cr, label)
         cr.restore()
 
     def _scale_bar(self, cr, width, height, mpp) -> None:
@@ -285,7 +307,7 @@ class MapPanel(Gtk.Box):
         else:
             reason = REASON_TEXT.get(s.reason, s.reason or "")
             corrector = s.corrector.name + (" 적용" if s.corrector.applied else "")
-            age = "-" if snap.last_rx_s is None else f"{now_s - snap.last_rx_s:.1f}s"
+            age = "-" if s.received_s is None else f"{now_s - s.received_s:.1f}s"
             line = (f"{s.status}{(' · ' + reason) if reason else ''} · epoch {s.map_epoch} · 거리 {s.distance_m:.1f} m"
                     f" · 자세 끊김 {s.pose_gaps} · 타일 {len(snap.tiles)}/{s.tile_count} · 수신 {age} 전"
                     f" · {rate:.0f} pkt/s · {address} · 보정 {corrector}"
@@ -304,7 +326,9 @@ class MapPanel(Gtk.Box):
             cr.set_source_rgba(1.0, 0.8, 0.2, 1.0)
             cr.move_to((width - w) / 2.0, h + 24)
             PangoCairo.show_layout(cr, hint)
-        if snap.last_rx_s is not None and now_s - snap.last_rx_s > LINK_LOST_S:
+        status_age = self.status_age(snap, now_s)
+        if (snap.last_rx_s is not None and now_s - snap.last_rx_s > LINK_LOST_S) or (
+                status_age is not None and status_age > LINK_LOST_S):
             lost = self._text(cr, "수신 끊김", "Sans Bold 32")
             w, lh = lost.get_pixel_size()
             cr.set_source_rgba(0.0, 0.0, 0.0, 0.6)

@@ -32,6 +32,19 @@ DEPTH_STALE_S = 0.5
 RECENT_S = 1.0          # NO_POSE / NO_GROUND look back this far (spec §4.8)
 
 
+def gyro_body_rate(rotation: np.ndarray, omega_optical) -> float:
+    """Body z yaw rate from an optical-frame angular velocity (v_base = Rᵀ v_opt, spec §4.8).
+
+    A non-finite result is rejected by the odometry before it takes an identity; a replay
+    applies the same test before numbering samples (Codex T9 P2).
+    """
+    return float((rotation.T @ np.asarray(omega_optical, float))[2])
+
+
+def default_gyro_rotation(cfg: MapConfig) -> np.ndarray:
+    return base_to_optical(cfg.camera_pitch_down_deg, cfg.camera_roll_deg, cfg.camera_yaw_deg)
+
+
 class Decisions(NamedTuple):
     odometry: FollowPlan
     frames: frozenset    # depth stamps processed live
@@ -101,8 +114,8 @@ class MapRuntime:
             self._record({"k": "session", "boot": session.boot_id, "start": session.start_mono_ns,
                           "instance": session.instance})
         # v_opt = R v_base for the camera mount; the gyro shares the depth optical frame unless told otherwise.
-        self._gyro_rotation = (base_to_optical(cfg.camera_pitch_down_deg, cfg.camera_roll_deg, cfg.camera_yaw_deg)
-                               if gyro_rotation is None else np.asarray(gyro_rotation, float))
+        self._gyro_rotation = (default_gyro_rotation(cfg) if gyro_rotation is None
+                               else np.asarray(gyro_rotation, float))
         self._lock = threading.RLock()
         self._following = follow is not None
         self.odometry = PlanarOdometry(cfg, layout, record=self._record,
@@ -162,7 +175,7 @@ class MapRuntime:
 
         ``seq``/``seg`` (sample identity) are given only by a replay; live they are assigned on arrival.
         """
-        wz = float((self._gyro_rotation.T @ np.asarray(omega_optical, float))[2])
+        wz = gyro_body_rate(self._gyro_rotation, omega_optical)
         with self._lock:
             self._take(self.odometry.add_gyro(GyroSample(float(stamp_s), float(rx_s), wz, seq, seg)))
 

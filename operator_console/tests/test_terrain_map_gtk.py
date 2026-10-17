@@ -121,3 +121,38 @@ def test_cli_display_numbers_reach_the_config_and_bad_ones_are_usage_errors():
             cfg.hillshade_altitude_deg, cfg.z_exaggeration) == (2, 500_000, 20.0, 200.0, 30.0, 5.0)
     with pytest.raises(SystemExit):
         map_display_from_args(parser, argparse.Namespace(**{**vars(ok), "map_stale_s": 61.0}))
+
+
+# --- Codex Task 9 review ---------------------------------------------------------
+def test_tiles_alone_do_not_keep_an_old_pose_live(window):
+    panel = window._map_panel
+    send(window, status(1, pose=(0.4, 0.4, 0.0)))
+    assert pump_until(lambda: received(panel, 0))
+    status_rx = panel.receiver.snapshot(time.monotonic()).status.received_s
+    time.sleep(0.7)
+    send(window, tile(0, 0, 1, 1, payload=C.pack_cells(*split_fill(), [0] * 256)))   # tiles keep flowing
+    assert pump_until(lambda: received(panel, 1))
+    now = panel.receiver.snapshot(time.monotonic()).last_rx_s + 0.01
+    assert now - status_rx > 0.5
+    _, texts = draw(panel, now)
+    assert any("수신 끊김" in t for t in texts) and panel.probe(now)["terrain_map"] == "STALE"
+
+
+def test_turning_follow_off_keeps_the_view_where_it_was(window):
+    panel = window._map_panel
+    send(window, status(1, pose=(10.0, 5.0, 0.3)))
+    assert pump_until(lambda: received(panel, 0))
+    assert panel._view_center() == (10.0, 5.0)
+    panel.follow_button.set_active(False)
+    assert panel._view_center() == (10.0, 5.0)
+
+
+def test_zooming_out_never_silently_drops_the_map(window):
+    from operator_console.terrain_map_panel import ZOOM_RANGE
+    panel = window._map_panel
+    send(window, status(1, pose=(0.4, 0.4, 0.0)), tile(0, 0, 1, 1, payload=C.pack_cells(*split_fill(), [0] * 256)))
+    assert pump_until(lambda: received(panel, 1))
+    panel._m_per_px = ZOOM_RANGE[1]
+    rx = panel.receiver.snapshot(time.monotonic()).last_rx_s
+    draw(panel, rx + 0.05, 800, 600)
+    assert panel.last_meta["drawn"]
