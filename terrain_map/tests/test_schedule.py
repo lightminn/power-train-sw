@@ -127,7 +127,8 @@ def test_follow_processes_exactly_the_recorded_frames():
     frames = [frame(START + k * 0.1, START + k * 0.1 + 0.03) for k in range(20)]
     done, _ = run_ticks(live, FakeTrack(), frames, tick_times(START, START + 2.2, phase=0.061),
                         ready=lambda now: now - 0.1)
-    follow = FrameScheduler(CFG, follow=frozenset((r["seg"], r["t"], r["seq"]) for r in records if r["r"] == "processed"))
+    follow = FrameScheduler(CFG, follow=frozenset((r["seg"], r["t"], r["d"], r["seq"]) for r in records
+                                                  if r["r"] == "processed"))
     picked = []
     for f in frames:
         follow.push(f._replace(rx_s=f.stamp_s))

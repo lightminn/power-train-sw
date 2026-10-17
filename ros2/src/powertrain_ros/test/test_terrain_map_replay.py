@@ -223,24 +223,28 @@ def test_a_clock_restart_that_repeats_old_stamps_replays_the_same_map(tmp_path):
 def test_identities_are_fixed_in_record_order_before_sorting():
     """Codex re-review: gyro100 → wheel100 → wheel98.8 → gyro99.5 → gyro99.5 → gyro98.9."""
     from terrain_map import odometry as O
-    from terrain_map.runtime import Decisions
+    from terrain_map.runtime import Decisions, default_gyro_rotation, gyro_body_rate
     from terrain_map.tests.odometry_sim import wheels_for
     rows, *_ = wheels_for(Command("stop"))
     readings = tuple(O.WheelReading(n, s, d, c, m, True) for n, s, d, c, m in rows)
     order = [("gyro", 100.0), ("wheel", 100.0), ("wheel", 98.8), ("gyro", 99.5), ("gyro", 99.5), ("gyro", 98.9)]
+    messages = [F.on_the_wire(F.gyro_message(t, 0.0) if src == "gyro" else F.wheel_message(O.WheelSample(t, t, readings)))
+                for src, t in order]
+    rotation = default_gyro_rotation(CFG)
     logged = []
     o = O.PlanarOdometry(CFG, N.wheel_layout(), record=logged.append)
-    for src, t in order:                                       # live: arrival order
+    for (src, t), m in zip(order, messages):                   # live: arrival order, the node's conversions
         if src == "gyro":
-            o.add_gyro(O.GyroSample(t, t, 0.0))
+            v = m.angular_velocity
+            o.add_gyro(O.GyroSample(t, t, gyro_body_rate(rotation, (v.x, v.y, v.z))))
         else:
-            o.add_wheels(O.WheelSample(t, t, readings))
-    records = [RP.Record(F.GYRO_TOPIC if src == "gyro" else F.WHEEL_TOPIC, t, k, None)
-               for k, (src, t) in enumerate(order)]
+            o.add_wheels(O.WheelSample(t, t, N.wheel_readings(m, CFG.wheel_radius_m)))
+    records = [RP.Record(F.GYRO_TOPIC if src == "gyro" else F.WHEEL_TOPIC, t, k, m)
+               for k, ((src, t), m) in enumerate(zip(order, messages))]
     records = RP.identify(records, CFG)
     decisions = Decisions(O.follow_plan(logged), frozenset())
     assert RP.missing_from_bag(records, decisions, CFG.stamp_regression_epoch_s) == []
-    assert {(RP.SOURCES[r.topic], r.seg, r.stamp_s, r.copy) for r in records} == decisions.odometry.received
+    assert {(RP.SOURCES[r.topic], r.seg, r.stamp_s, r.digest, r.copy) for r in records} == decisions.odometry.received
 
 
 def test_a_gyro_sample_live_rejects_does_not_take_an_identity():
@@ -249,13 +253,14 @@ def test_a_gyro_sample_live_rejects_does_not_take_an_identity():
     from terrain_map.runtime import MapRuntime
     nan, ok = F.gyro_message(100.0, 0.0), F.gyro_message(100.0, 0.0)
     nan.angular_velocity.x = float("nan")
+    nan, ok = F.on_the_wire(nan), F.on_the_wire(ok)
     logged = []
     rt = MapRuntime(CFG, SESSION, N.wheel_layout(), decisions=logged.append)
     for m in (nan, ok):
         v = m.angular_velocity
         rt.on_gyro(100.0, 100.0, (v.x, v.y, v.z))
     records = RP.identify([RP.Record(F.GYRO_TOPIC, 100.0, 0, nan), RP.Record(F.GYRO_TOPIC, 100.0, 1, ok)], CFG)
-    have = {(RP.SOURCES[r.topic], r.seg, r.stamp_s, r.copy) for r in records if r.seg >= 0}
+    have = {(RP.SOURCES[r.topic], r.seg, r.stamp_s, r.digest, r.copy) for r in records if r.seg >= 0}
     assert have == O.follow_plan(logged).received
 
 
@@ -283,3 +288,33 @@ def test_depth_decisions_tell_clock_segments_apart(tmp_path):
     write_bag(tmp_path / "bag", seg1 + seg2)                   # the recorder got it
     write_log(tmp_path / "e.jsonl", records)
     assert run_cli(tmp_path / "bag", tmp_path / "f.npz", "--decisions-from", str(tmp_path / "e.jsonl")) == content(rt)
+
+
+def test_a_different_same_stamp_copy_only_the_recorder_got_is_not_mistaken(tmp_path):
+    """Branch re-review P2-1: depth A and B share a stamp; only the recorder got A."""
+    events, _ = F.scenario(F.drive_then(Command("skid", v=0.3, omega=0.1)), 4.0)
+    received = receipt(events)
+    records = []
+    rt = live(received, records.append)
+    stamp = next(r["t"] for r in records if r.get("k") == "frame" and r.get("r") == "processed")
+    i = next(k for k, r in enumerate(received) if r[1] == F.DEPTH_TOPIC and N.stamp_s(r[2]) == stamp)
+    shadow = F.on_the_wire(F.depth_message(np.zeros((F.CAM.height, F.CAM.width), np.uint16) + 4000, stamp))
+    write_bag(tmp_path / "bag", received[:i] + [(received[i][0] - 0.001, F.DEPTH_TOPIC, shadow)] + received[i:])
+    write_log(tmp_path / "g.jsonl", records)
+    assert run_cli(tmp_path / "bag", tmp_path / "g.npz", "--decisions-from", str(tmp_path / "g.jsonl")) == content(rt)
+
+
+def test_a_replay_that_cannot_process_the_recorded_frames_refuses(tmp_path, capsys):
+    """Branch re-review P2-2: the bag lost the first CameraInfo messages."""
+    events, _ = F.scenario(F.drive_then(Command("skid", v=0.3, omega=0.1)), 4.0)
+    received = receipt(events)
+    records = []
+    live(received, records.append)
+    infos = [k for k, r in enumerate(received) if r[1] == F.INFO_TOPIC]
+    lossy = [r for k, r in enumerate(received) if k not in infos[:4]]
+    write_bag(tmp_path / "bag", lossy)
+    write_log(tmp_path / "h.jsonl", records)
+    out = tmp_path / "h.npz"
+    code = RP.main([str(tmp_path / "bag"), "--param", "pixel_stride=1", "--decisions-from", str(tmp_path / "h.jsonl"),
+                    "--out", str(out)])
+    assert code == 2 and "did not reproduce" in capsys.readouterr().err and not out.exists()

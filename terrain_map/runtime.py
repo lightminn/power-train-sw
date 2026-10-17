@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import math
 import threading
 import time
+import zlib
 from typing import Callable, Iterable, NamedTuple
 
 import numpy as np
@@ -48,7 +49,37 @@ def default_gyro_rotation(cfg: MapConfig) -> np.ndarray:
 
 class Decisions(NamedTuple):
     odometry: FollowPlan
-    frames: frozenset    # depth stamps processed live
+    frames: frozenset    # depth identities processed live
+    results: tuple = ()  # ((frame identity), outcome) of the live processing, for the replay to verify
+
+
+def _frame_ident(r: dict) -> tuple:
+    return (int(r["seg"]), float(r["t"]), int(r["d"]), int(r["seq"]))
+
+
+def depth_array_digest(array: np.ndarray) -> int:
+    """Content fingerprint of a depth frame (same function live and in a replay)."""
+    return zlib.crc32(np.ascontiguousarray(array).tobytes())
+
+
+def unreproduced(decisions: Decisions, replayed) -> list[str]:
+    """Differences between the live processing results and a replay's (empty: reproduced).
+
+    A live ``epoch_changed`` (the epoch moved while that frame was processing) is a timing
+    artefact: the frame's cells were wiped either way, so it matches any replay outcome.
+    """
+    live = {ident: outcome for ident, outcome in decisions.results}
+    got = dict(replayed)
+    problems = []
+    for ident, outcome in sorted(live.items()):
+        if outcome == "epoch_changed":
+            continue
+        if got.get(ident) != outcome:
+            problems.append(f"frame {ident}: live {outcome}, replay {got.get(ident, 'not processed')}")
+    extra = sorted(set(got) - set(live))
+    if extra:
+        problems.append(f"{len(extra)} frames processed only by the replay (first {extra[0]})")
+    return problems
 
 
 def decision_sessions(records: Iterable[dict]) -> dict[str | None, list[dict]]:
@@ -76,9 +107,9 @@ def load_decisions(records: Iterable[dict], session: str | None = None) -> Decis
         chosen = next(iter(runs.values()))
     else:
         raise ValueError(f"decisions log holds {len(runs)} runs {sorted(map(str, runs))}; choose one session")
-    frames = frozenset((int(r["seg"]), float(r["t"]), int(r["seq"])) for r in chosen
-                       if r.get("k") == "frame" and r.get("r") == "processed")
-    return Decisions(follow_plan(chosen), frames)
+    frames = frozenset(_frame_ident(r) for r in chosen if r.get("k") == "frame" and r.get("r") == "processed")
+    results = tuple((_frame_ident(r), r["r"]) for r in chosen if r.get("k") == "result")
+    return Decisions(follow_plan(chosen), frames, results)
 
 
 @dataclass
@@ -120,6 +151,7 @@ class MapRuntime:
                                else np.asarray(gyro_rotation, float))
         self._lock = threading.RLock()
         self._following = follow is not None
+        self.followed_results: list[tuple[tuple, str]] = []
         self._depth_ids = SampleIds(cfg.stamp_regression_epoch_s)
         self.odometry = PlanarOdometry(cfg, layout, record=self._record,
                                        follow=None if follow is None else follow.odometry)
@@ -165,12 +197,13 @@ class MapRuntime:
         """``seq``/``seg``: depth identity (clock segment, copy) — given by a replay, assigned live
         on arrival with the same ``SampleIds`` rule, so recorded decisions name the frame (branch review)."""
         with self._lock:
+            digest = depth_array_digest(array)
             if seq < 0 or seg < 0:
-                seg, seq = self._depth_ids.assign("depth", float(stamp_s))
+                seg, seq = self._depth_ids.assign("depth", float(stamp_s), digest)
             self._latest_depth = (float(stamp_s), float(rx_s), tuple(array.shape))
             camera = self._camera
             if camera is not None and tuple(array.shape) == (camera.height, camera.width):
-                self.scheduler.push(DepthFrame(float(stamp_s), float(rx_s), array, seg, seq))
+                self.scheduler.push(DepthFrame(float(stamp_s), float(rx_s), array, seg, seq, digest))
 
     def on_bad_depth(self, rx_s: float) -> None:
         """A depth message failed the encoding/step check and was dropped."""
@@ -301,7 +334,10 @@ class MapRuntime:
                 if outcome == "NOT_SUPPORT":
                     self._epoch.not_support += 1
             if self._record is not None:
-                self._record({"k": "result", "t": frame.stamp_s, "epoch": epoch, "r": outcome})
+                self._record({"k": "result", "seg": frame.seg, "t": frame.stamp_s, "d": frame.digest, "seq": frame.copy,
+                              "epoch": epoch, "r": outcome})
+            elif self._following:
+                self.followed_results.append((frame.ident, outcome))
 
     def _record_time(self, elapsed_s: float) -> None:
         self.max_processing_s = max(self.max_processing_s, elapsed_s)

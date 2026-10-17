@@ -21,12 +21,13 @@ class DepthFrame(NamedTuple):
     stamp_s: float
     rx_s: float
     array: Any
-    seg: int = 0              # identity (clock segment, copy) — see terrain_map.odometry.SampleIds
+    seg: int = 0              # identity (clock segment, content digest, copy) — see odometry.SampleIds
     copy: int = 0
+    digest: int = 0
 
     @property
-    def ident(self) -> tuple[int, float, int]:
-        return (self.seg, self.stamp_s, self.copy)
+    def ident(self) -> tuple[int, float, int, int]:
+        return (self.seg, self.stamp_s, self.digest, self.copy)
 
 
 class Selected(NamedTuple):
@@ -111,5 +112,5 @@ class FrameScheduler:
         self._target = None
         self._last_attempt = target.stamp_s
         if self._record is not None and self._follow is None:
-            self._record({"k": "frame", "seg": target.seg, "t": target.stamp_s, "seq": target.copy,
+            self._record({"k": "frame", "seg": target.seg, "t": target.stamp_s, "d": target.digest, "seq": target.copy,
                           "r": result, "why": reason})

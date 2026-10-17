@@ -116,4 +116,10 @@ def scenario(schedule, duration_s, *, surface=BOX, mount=(20.0, 0.0, 0.0), depth
             out.append(Event(t, DEPTH_TOPIC, depth_message(array, t)))
     order = {INFO_TOPIC: 0, WHEEL_TOPIC: 1, GYRO_TOPIC: 2, DEPTH_TOPIC: 3}
     out.sort(key=lambda e: (e.stamp_s, order[e.topic]))
-    return out, truth
+    return [e._replace(message=on_the_wire(e.message)) for e in out], truth
+
+
+def on_the_wire(message):
+    """What a subscriber receives: serialized and back (float32 fields rounded), like DDS and a bag."""
+    from rclpy.serialization import deserialize_message, serialize_message
+    return deserialize_message(serialize_message(message), type(message))

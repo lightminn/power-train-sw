@@ -14,6 +14,7 @@ import bisect
 from dataclasses import dataclass
 import math
 from typing import NamedTuple
+import zlib
 
 from .config import MapConfig
 
@@ -28,6 +29,7 @@ class GyroSample(NamedTuple):
     wz: float                 # body z yaw rate, rad/s (raw, bias not removed)
     seq: int = -1             # n-th copy of this stamp in its clock segment (normally 0); -1 = assign on intake
     seg: int = -1             # clock segment of this stream (+1 when its stamps run back); -1 = assign
+    digest: int = -1          # content fingerprint (sample_digest), set on intake
 
 
 class WheelReading(NamedTuple):
@@ -45,6 +47,7 @@ class WheelSample(NamedTuple):
     wheels: tuple
     seq: int = -1             # n-th copy of this stamp in its clock segment (normally 0); -1 = assign on intake
     seg: int = -1             # clock segment of this stream (+1 when its stamps run back); -1 = assign
+    digest: int = -1          # content fingerprint (sample_digest), set on intake
 
 
 class PoseSample(NamedTuple):
@@ -127,7 +130,18 @@ class FollowPlan(NamedTuple):
 
 
 def _ident(value):
-    return None if value is None else (value[0], int(value[1]), float(value[2]), int(value[3]))
+    return None if value is None else (value[0], int(value[1]), float(value[2]), int(value[3]), int(value[4]))
+
+
+def sample_digest(sample) -> int:
+    """Content fingerprint of a gyro/wheel sample: copies of one stamp with different content stay
+    distinct even when only one receiver lost one of them (branch review)."""
+    if isinstance(sample, GyroSample):
+        data = repr(float(sample.wz))
+    else:
+        data = repr(tuple((r.name, float(r.speed_m_s), float(r.steer_rad), float(r.cmd_turns_per_s),
+                           float(r.meas_turns_per_s), bool(r.valid)) for r in sample.wheels))
+    return zlib.crc32(data.encode())
 
 
 class SampleIds:
@@ -143,7 +157,8 @@ class SampleIds:
         self._newest: dict[str, float] = {}
         self._copies: dict[str, dict[float, int]] = {}
 
-    def assign(self, src: str, stamp: float) -> tuple[int, int]:
+    def assign(self, src: str, stamp: float, digest: int = 0) -> tuple[int, int]:
+        """(segment, copy) — ``copy`` counts earlier samples with this stamp *and* content."""
         newest = self._newest.get(src)
         if newest is not None and stamp < newest - self.regression_s:
             self._segment[src] = self._segment.get(src, 0) + 1
@@ -151,11 +166,11 @@ class SampleIds:
             newest = None
         self._newest[src] = stamp if newest is None else max(newest, stamp)
         copies = self._copies.setdefault(src, {})
-        k = copies.get(stamp, 0)
-        copies[stamp] = k + 1
+        k = copies.get((stamp, digest), 0)
+        copies[(stamp, digest)] = k + 1
         if len(copies) > 512:
             floor = self._newest[src] - 5.0
-            for old in [t for t in copies if t < floor]:
+            for old in [key for key in copies if key[0] < floor]:
                 del copies[old]
         return self._segment.get(src, 0), k
 
@@ -166,9 +181,9 @@ def follow_plan(records) -> FollowPlan:
     for r in records:
         kind = r.get("k")
         if kind == "rx":
-            received.add((r["src"], int(r["seg"]), float(r["t"]), int(r["seq"])))
+            received.add((r["src"], int(r["seg"]), float(r["t"]), int(r["d"]), int(r["seq"])))
         elif kind == "drop":
-            drops.add((r["src"], int(r["seg"]), float(r["t"]), int(r["seq"])))
+            drops.add((r["src"], int(r["seg"]), float(r["t"]), int(r["d"]), int(r["seq"])))
         elif kind == "epoch":
             if "before" in r:
                 before.setdefault(_ident(r["before"]), []).append(r["mode"])
@@ -248,18 +263,21 @@ class PlanarOdometry:
             self._record(entry)
 
     def _drop(self, src: str, sample, why: str) -> None:
-        self._note({"k": "drop", "src": src, "seg": sample.seg, "t": sample.stamp_s, "seq": sample.seq, "why": why})
+        self._note({"k": "drop", "src": src, "seg": sample.seg, "t": sample.stamp_s, "d": sample.digest,
+                    "seq": sample.seq, "why": why})
 
     def _add(self, sample, src: str) -> list[PoseSample]:
         gyro = src == "gyro"
         if not (math.isfinite(sample.stamp_s) and math.isfinite(sample.rx_s)) or (gyro and not math.isfinite(sample.wz)):
             self.rejected += 1
             return []                                    # no usable stamp: deterministic, nothing to record
+        sample = sample._replace(digest=sample_digest(sample))
         if sample.seq < 0 or sample.seg < 0:
-            seg, seq = self._ids.assign(src, sample.stamp_s)
+            seg, seq = self._ids.assign(src, sample.stamp_s, sample.digest)
             sample = sample._replace(seg=seg, seq=seq)
-        ident = (src, sample.seg, sample.stamp_s, sample.seq)
-        self._note({"k": "rx", "src": src, "seg": sample.seg, "t": sample.stamp_s, "seq": sample.seq})
+        ident = (src, sample.seg, sample.stamp_s, sample.digest, sample.seq)
+        self._note({"k": "rx", "src": src, "seg": sample.seg, "t": sample.stamp_s, "d": sample.digest,
+                    "seq": sample.seq})
         if not gyro:
             sample = sample._replace(wheels=tuple(_finite_reading(r) for r in sample.wheels))
         # The committed floor survives a stall flush, so it also detects a new time base (Codex T4 re-review P2-1).
@@ -331,7 +349,7 @@ class PlanarOdometry:
             else:
                 sample, src = self._gyro.pop(0), "gyro"
             self._committed = sample.stamp_s
-            ident = (src, sample.seg, sample.stamp_s, sample.seq)
+            ident = (src, sample.seg, sample.stamp_s, sample.digest, sample.seq)
             self._followed("before", ident)
             self._processing = ident
             if src == "wheel":

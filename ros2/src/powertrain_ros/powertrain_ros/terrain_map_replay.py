@@ -28,8 +28,9 @@ import numpy as np
 
 from terrain_map import contract as C
 from terrain_map.config import MapConfig
-from terrain_map.odometry import SampleIds
-from terrain_map.runtime import MapRuntime, default_gyro_rotation, gyro_body_rate, load_decisions
+from terrain_map.odometry import GyroSample, SampleIds, WheelSample, sample_digest
+from terrain_map.runtime import (MapRuntime, default_gyro_rotation, depth_array_digest, gyro_body_rate,
+                                 load_decisions, unreproduced)
 from terrain_overlay.camera import CameraModel
 from terrain_overlay.runtime import SenderSession
 
@@ -46,8 +47,9 @@ class Record(NamedTuple):
     stamp_s: float
     seq: int            # record index within the topic (keeps sorting stable)
     message: object
-    seg: int = -1       # identity (gyro/wheel): clock segment, fixed in record order by ``identify``
-    copy: int = -1      # identity: copy of this stamp within the segment
+    seg: int = -1       # identity: clock segment, fixed in record order by ``identify``
+    copy: int = -1      # identity: earlier copies with this stamp and content in the segment
+    digest: int = 0     # identity: content fingerprint (same functions as live)
 
 
 SOURCES = {GYRO_TOPIC: "gyro", WHEEL_TOPIC: "wheel"}
@@ -85,17 +87,26 @@ def identify(records: list[Record], cfg: MapConfig) -> list[Record]:
     rotation = default_gyro_rotation(cfg)
     out = []
     for r in records:
-        if r.topic == GYRO_TOPIC and r.message is not None:
+        if r.topic == GYRO_TOPIC:
             v = r.message.angular_velocity
             if not math.isfinite(gyro_body_rate(rotation, (v.x, v.y, v.z))):
                 continue                        # rejected live too: it must not shadow a valid twin
 
-        if r.topic == DEPTH_TOPIC and r.message is not None and depth_array(r.message) is None:
-            out.append(r)                       # a malformed frame never reaches on_depth live
-            continue
+        digest = 0
+        if r.topic == DEPTH_TOPIC:
+            array = depth_array(r.message)
+            if array is None:
+                out.append(r)                   # a malformed frame never reaches on_depth live
+                continue
+            digest = depth_array_digest(array)
+        elif r.topic == GYRO_TOPIC:
+            v = r.message.angular_velocity
+            digest = sample_digest(GyroSample(r.stamp_s, r.stamp_s, gyro_body_rate(rotation, (v.x, v.y, v.z))))
+        elif r.topic == WHEEL_TOPIC:
+            digest = sample_digest(WheelSample(r.stamp_s, r.stamp_s, wheel_readings(r.message, cfg.wheel_radius_m)))
         if r.topic in SOURCES or r.topic == DEPTH_TOPIC:
-            seg, copy = ids.assign(SOURCES.get(r.topic, "depth"), r.stamp_s)
-            r = r._replace(seg=seg, copy=copy)
+            seg, copy = ids.assign(SOURCES.get(r.topic, "depth"), r.stamp_s, digest)
+            r = r._replace(seg=seg, copy=copy, digest=digest)
         out.append(r)
     return out
 
@@ -108,11 +119,11 @@ def missing_from_bag(records: list[Record], decisions, regression_s: float) -> l
     problems = []
     received = decisions.odometry.received
     if received is not None:
-        have = {(SOURCES[r.topic], r.seg, r.stamp_s, r.copy) for r in records if r.topic in SOURCES}
+        have = {(SOURCES[r.topic], r.seg, r.stamp_s, r.digest, r.copy) for r in records if r.topic in SOURCES}
         lost = sorted(received - have)
         if lost:
             problems.append(f"{len(lost)} gyro/wheel samples the node received are not in the bag (first {lost[0]})")
-    depth = {(r.seg, r.stamp_s, r.copy) for r in records if r.topic == DEPTH_TOPIC}
+    depth = {(r.seg, r.stamp_s, r.digest, r.copy) for r in records if r.topic == DEPTH_TOPIC}
     frames = sorted(decisions.frames - depth)
     if frames:
         problems.append(f"{len(frames)} processed depth frames are not in the bag (first {frames[0]})")
@@ -266,6 +277,12 @@ def main(argv: list[str] | None = None) -> int:
     runtime = replay(records, cfg, decisions=decisions, send=send, rate=args.rate,
                      log=lambda m: print(m, file=sys.stderr))
     end = max((r.stamp_s for r in records), default=0.0)
+    if decisions is not None:
+        problems = unreproduced(decisions, runtime.followed_results)
+        if problems:
+            print("refusing: the replay did not reproduce the live processing — " + "; ".join(problems[:5]),
+                  file=sys.stderr)
+            return 2
     if args.out:
         save_map(runtime, args.out, end)
     s = runtime.scheduler
