@@ -274,14 +274,10 @@ def test_recorded_decisions_make_the_replay_map_identical():
     assert {r["k"] for r in records} >= {"drop", "epoch", "frame", "result"}
     plan = load_decisions(json.loads(json.dumps(r)) for r in records)
 
-    seq, numbered = {"g": 0, "w": 0}, []                   # bag record order = live receive order
-    for rx, s in sorted(live_events, key=lambda e: (e[0], 0 if isinstance(e[1], O.WheelSample) else 1)):
-        k = "w" if isinstance(s, O.WheelSample) else "g"
-        numbered.append(s._replace(seq=seq[k]))
-        seq[k] += 1
-    followed = replay(numbered, depth, follow=plan)
+    samples = [s for _, s in live_events]                  # identity = (stream, stamp, copy): no renumbering
+    followed = replay(samples, depth, follow=plan)
     assert same_map(followed, live) and followed.scheduler.processed == live.scheduler.processed
-    assert not same_map(replay(numbered, depth), live)      # negative control: without the decisions
+    assert not same_map(replay(samples, depth), live)       # negative control: without the decisions
 
 
 # --- Codex Task 6 review ---------------------------------------------------------------

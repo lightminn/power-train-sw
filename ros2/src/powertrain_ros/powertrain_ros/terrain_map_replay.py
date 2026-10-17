@@ -1,6 +1,6 @@
 """Deterministic terrain map replay from a bag (spec §6).
 
-    python3 -m powertrain_ros.terrain_map_replay <bag> [--decisions-from processed.jsonl]
+    python3 -m powertrain_ros.terrain_map_replay <bag> [--decisions-from processed.jsonl [--session INSTANCE]]
         [--corrector identity] [--param name=value ...] [--out map.npz]
         [--send 127.0.0.1:5010 --rate 1.0]
 
@@ -8,9 +8,10 @@ No ROS communication: the bag is read with rosbag2_py and fed, in header-stamp
 order, to the same ``MapRuntime`` the live node uses, with the stamp as the
 clock.  Epoch boundaries come first, from the record order: a message whose
 stamp runs more than ``stamp_regression_epoch_s`` behind its topic starts a new
-time segment, and each segment is sorted on its own.  Each gyro and wheel
-message carries its per-topic record index as ``seq`` — the identity that
-``--decisions-from`` (the live node's ``processed_log_path``) refers to.
+time segment, and each segment is sorted on its own.  A gyro or wheel message is
+identified by ``(topic, header stamp, copy)`` — the identity the live node's
+``processed_log_path`` uses.  With ``--decisions-from`` only the samples the node
+received are fed, and a sample the node received that the bag lacks refuses the replay.
 """
 from __future__ import annotations
 
@@ -42,8 +43,11 @@ _ORDER = {DEPTH_INFO_TOPIC: 0, WHEEL_TOPIC: 1, GYRO_TOPIC: 2, DEPTH_TOPIC: 3}   
 class Record(NamedTuple):
     topic: str
     stamp_s: float
-    seq: int            # per-topic record index
+    seq: int            # copies of this stamp seen before on this topic (normally 0)
     message: object
+
+
+SOURCES = {GYRO_TOPIC: "gyro", WHEEL_TOPIC: "wheel"}
 
 
 def read_bag(path: str) -> list[Record]:
@@ -56,16 +60,34 @@ def read_bag(path: str) -> list[Record]:
     reader.open(rosbag2_py.StorageOptions(uri=path, storage_id=""),
                 rosbag2_py.ConverterOptions(input_serialization_format="cdr", output_serialization_format="cdr"))
     types = {t.name: get_message(t.type) for t in reader.get_all_topics_and_types() if t.name in TOPICS}
-    counts = {topic: 0 for topic in TOPICS}
+    copies: dict[tuple[str, float], int] = {}
     records = []
     while reader.has_next():
         topic, data, _ = reader.read_next()
         if topic not in types:
             continue
         message = deserialize_message(data, types[topic])
-        records.append(Record(topic, stamp_s(message), counts[topic], message))
-        counts[topic] += 1
+        stamp = stamp_s(message)
+        k = copies.get((topic, stamp), 0)
+        copies[(topic, stamp)] = k + 1
+        records.append(Record(topic, stamp, k, message))
     return records
+
+
+def missing_from_bag(records: list[Record], decisions) -> list[str]:
+    """What the live node used that the bag does not hold (the replay cannot reproduce it)."""
+    problems = []
+    received = decisions.odometry.received
+    if received is not None:
+        have = {(SOURCES[r.topic], r.stamp_s, r.seq) for r in records if r.topic in SOURCES}
+        lost = sorted(received - have)
+        if lost:
+            problems.append(f"{len(lost)} gyro/wheel samples the node received are not in the bag (first {lost[0]})")
+    depth = {r.stamp_s for r in records if r.topic == DEPTH_TOPIC}
+    frames = sorted(decisions.frames - depth)
+    if frames:
+        problems.append(f"{len(frames)} processed depth frames are not in the bag (first {frames[0]})")
+    return problems
 
 
 def segments(records: Iterable[Record], regression_s: float, *, drop_small_regressions: bool) -> list[list[Record]]:
@@ -154,8 +176,8 @@ def save_map(runtime: MapRuntime, path: str, now_s: float) -> None:
         epoch=np.int64(runtime.epoch),
         tiles=np.array(keys, np.int64).reshape(-1, 2),
         versions=np.array([runtime.map.version_of(*k) for k in keys], np.int64),
-        heights_cm=np.array([c[0] for c in cells], np.int16).reshape(len(keys), -1),
-        codes=np.array([c[1] for c in cells], np.uint8).reshape(len(keys), -1),
+        heights_cm=np.array([c[0] for c in cells], np.int16).reshape(len(keys), runtime.cfg.tile_cells ** 2),
+        codes=np.array([c[1] for c in cells], np.uint8).reshape(len(keys), runtime.cfg.tile_cells ** 2),
     )
 
 
@@ -182,6 +204,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("bag")
     parser.add_argument("--decisions-from", help="the live node's processed_log_path (JSONL)")
+    parser.add_argument("--session", help="sender instance to follow when the log holds several runs")
     parser.add_argument("--corrector", default=None, choices=C.CORRECTOR_NAMES)
     parser.add_argument("--param", action="append", default=[], metavar="NAME=VALUE",
                         help="MapConfig override (repeatable)")
@@ -194,7 +217,11 @@ def main(argv: list[str] | None = None) -> int:
     decisions = None
     if args.decisions_from:
         with open(args.decisions_from, encoding="utf-8") as fh:
-            decisions = load_decisions(json.loads(line) for line in fh if line.strip())
+            try:
+                decisions = load_decisions((json.loads(line) for line in fh if line.strip()), args.session)
+            except ValueError as exc:
+                print(f"refusing: {exc}", file=sys.stderr)
+                return 2
     send = None
     if args.send:
         host, _, port = args.send.rpartition(":")
@@ -202,6 +229,11 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit("--rate must be > 0")
         send = (socket.socket(socket.AF_INET, socket.SOCK_DGRAM), (host, int(port)))
     records = read_bag(args.bag)
+    if decisions is not None:
+        problems = missing_from_bag(records, decisions)
+        if problems:
+            print("refusing: the bag cannot reproduce this live run — " + "; ".join(problems), file=sys.stderr)
+            return 2
     runtime = replay(records, cfg, decisions=decisions, send=send, rate=args.rate,
                      log=lambda m: print(m, file=sys.stderr))
     end = max((r.stamp_s for r in records), default=0.0)

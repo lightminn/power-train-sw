@@ -26,7 +26,7 @@ class GyroSample(NamedTuple):
     stamp_s: float
     rx_s: float
     wz: float                 # body z yaw rate, rad/s (raw, bias not removed)
-    seq: int = -1             # per-stream receive index (bag record order); -1 = assign on intake
+    seq: int = -1             # n-th copy of this stamp on this stream (normally 0); -1 = assign on intake
 
 
 class WheelReading(NamedTuple):
@@ -42,7 +42,7 @@ class WheelSample(NamedTuple):
     stamp_s: float
     rx_s: float
     wheels: tuple
-    seq: int = -1             # per-stream receive index (bag record order); -1 = assign on intake
+    seq: int = -1             # n-th copy of this stamp on this stream (normally 0); -1 = assign on intake
 
 
 class PoseSample(NamedTuple):
@@ -112,31 +112,36 @@ def _stationary(readings, cfg: MapConfig) -> bool:
 class FollowPlan(NamedTuple):
     """Live decisions replayed instead of the arrival-time rules (spec §4.4 equivalence scope).
 
-    Samples are identified by ``(source, seq)`` — the per-stream receive index,
-    which a bag preserves as record order — so duplicates and repeated stamps
-    after a clock reset stay distinct (Codex T4 re-review P2-3).
+    Samples are identified by ``(source, header stamp, seq)`` where ``seq`` counts copies
+    of the same stamp on that stream — set by the publisher, so a message lost by only
+    the recorder or only the node shifts nothing (Codex T7 P2-1), while a duplicated
+    message stays distinct from its twin (Codex T4 re-review P2-3).
     """
-    drops: frozenset           # {(source, seq)} never committed live
-    before: dict               # (source, seq) -> [mode, ...] applied before that sample is processed
-    after: dict                # (source, seq) | None -> [mode, ...] applied after it (None: before the first)
+    received: frozenset | None # samples the live node got (None: no restriction)
+    drops: frozenset           # samples never committed live
+    before: dict               # ident -> [mode, ...] applied before that sample is processed
+    after: dict                # ident | None -> [mode, ...] applied after it (None: before the first)
 
 
 def _ident(value):
-    return None if value is None else (value[0], int(value[1]))
+    return None if value is None else (value[0], float(value[1]), int(value[2]))
 
 
 def follow_plan(records) -> FollowPlan:
     """Build a FollowPlan from the ``record`` hook's dicts (e.g. read back from JSONL)."""
-    drops, before, after = set(), {}, {}
+    received, drops, before, after = set(), set(), {}, {}
     for r in records:
-        if r.get("k") == "drop":
-            drops.add((r["src"], int(r["seq"])))
-        elif r.get("k") == "epoch":
+        kind = r.get("k")
+        if kind == "rx":
+            received.add((r["src"], float(r["t"]), int(r["seq"])))
+        elif kind == "drop":
+            drops.add((r["src"], float(r["t"]), int(r["seq"])))
+        elif kind == "epoch":
             if "before" in r:
                 before.setdefault(_ident(r["before"]), []).append(r["mode"])
             else:
                 after.setdefault(_ident(r["after"]), []).append(r["mode"])
-    return FollowPlan(frozenset(drops), before, after)
+    return FollowPlan(frozenset(received) if received else None, frozenset(drops), before, after)
 
 
 def _finite_reading(r: WheelReading) -> WheelReading:
@@ -168,9 +173,9 @@ class PlanarOdometry:
         self.processed = 0            # samples committed so far
         self._record = record
         self._follow = follow
-        self._next_seq = {"gyro": 0, "wheel": 0}
-        self._processing = None       # (source, seq) being processed
-        self._last_id = None          # (source, seq) processed last
+        self._copies = {"gyro": {}, "wheel": {}}   # stamp -> copies seen (recent stamps only)
+        self._processing = None       # ident being processed
+        self._last_id = None          # ident processed last
         self._gyro: list[GyroSample] = []
         self._wheels: list[WheelSample] = []
         self._committed = None
@@ -210,16 +215,27 @@ class PlanarOdometry:
             self._record(entry)
 
     def _drop(self, src: str, sample, why: str) -> None:
-        self._note({"k": "drop", "src": src, "seq": sample.seq, "t": sample.stamp_s, "why": why})
+        self._note({"k": "drop", "src": src, "t": sample.stamp_s, "seq": sample.seq, "why": why})
+
+    def _copy_index(self, src: str, stamp: float) -> int:
+        copies = self._copies[src]
+        k = copies.get(stamp, 0)
+        copies[stamp] = k + 1
+        if len(copies) > 512:                            # keep recent stamps only
+            newest = max(copies)
+            for old in [t for t in copies if t < newest - 5.0]:
+                del copies[old]
+        return k
 
     def _add(self, sample, src: str) -> list[PoseSample]:
         gyro = src == "gyro"
-        if sample.seq < 0:
-            sample = sample._replace(seq=self._next_seq[src])
-        self._next_seq[src] = max(self._next_seq[src], sample.seq + 1)
         if not (math.isfinite(sample.stamp_s) and math.isfinite(sample.rx_s)) or (gyro and not math.isfinite(sample.wz)):
             self.rejected += 1
-            return []                                    # never stamped, so nothing to record
+            return []                                    # no usable stamp: deterministic, nothing to record
+        if sample.seq < 0:
+            sample = sample._replace(seq=self._copy_index(src, sample.stamp_s))
+        ident = (src, sample.stamp_s, sample.seq)
+        self._note({"k": "rx", "src": src, "t": sample.stamp_s, "seq": sample.seq})
         if not gyro:
             sample = sample._replace(wheels=tuple(_finite_reading(r) for r in sample.wheels))
         # The committed floor survives a stall flush, so it also detects a new time base (Codex T4 re-review P2-1).
@@ -227,8 +243,9 @@ class PlanarOdometry:
                         if v is not None)
         regressed = sample.stamp_s < reference - self.cfg.stamp_regression_epoch_s
         if self._follow is not None:
-            if (src, sample.seq) in self._follow.drops:
-                return []
+            received = self._follow.received
+            if (received is not None and ident not in received) or ident in self._follow.drops:
+                return []                                # the live node never got it, or dropped it
             if regressed:
                 # Finish the old time segment (and its anchored epochs) before the new one is queued
                 # in front of it (Codex T4 re-review 2).
@@ -290,7 +307,7 @@ class PlanarOdometry:
             else:
                 sample, src = self._gyro.pop(0), "gyro"
             self._committed = sample.stamp_s
-            ident = (src, sample.seq)
+            ident = (src, sample.stamp_s, sample.seq)
             self._followed("before", ident)
             self._processing = ident
             if src == "wheel":

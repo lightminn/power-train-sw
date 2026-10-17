@@ -37,10 +37,33 @@ class Decisions(NamedTuple):
     frames: frozenset    # depth stamps processed live
 
 
-def load_decisions(records: Iterable[dict]) -> Decisions:
-    records = list(records)
-    frames = frozenset(float(r["t"]) for r in records if r.get("k") == "frame" and r.get("r") == "processed")
-    return Decisions(follow_plan(records), frames)
+def decision_sessions(records: Iterable[dict]) -> dict[str | None, list[dict]]:
+    """Split a decisions log into runs by their ``session`` header (None: records before any header)."""
+    runs: dict[str | None, list[dict]] = {}
+    current = None
+    for r in records:
+        if r.get("k") == "session":
+            current = str(r["instance"])
+            runs[current] = []
+            continue
+        runs.setdefault(current, []).append(r)
+    return runs
+
+
+def load_decisions(records: Iterable[dict], session: str | None = None) -> Decisions:
+    """Decisions of one live run.  A log appended across restarts holds several runs;
+    then ``session`` (the sender instance) must name one (Codex T7 P2-2)."""
+    runs = decision_sessions(records)
+    if session is not None:
+        if session not in runs:
+            raise ValueError(f"session {session!r} not in the decisions log (have {sorted(map(str, runs))})")
+        chosen = runs[session]
+    elif len(runs) == 1:
+        chosen = next(iter(runs.values()))
+    else:
+        raise ValueError(f"decisions log holds {len(runs)} runs {sorted(map(str, runs))}; choose one session")
+    frames = frozenset(float(r["t"]) for r in chosen if r.get("k") == "frame" and r.get("r") == "processed")
+    return Decisions(follow_plan(chosen), frames)
 
 
 @dataclass
@@ -74,6 +97,9 @@ class MapRuntime:
         self._log_error = log_error
         self._log_overrun = log_error if log_overrun is None else log_overrun
         self._record = decisions if follow is None else None
+        if self._record is not None:
+            self._record({"k": "session", "boot": session.boot_id, "start": session.start_mono_ns,
+                          "instance": session.instance})
         # v_opt = R v_base for the camera mount; the gyro shares the depth optical frame unless told otherwise.
         self._gyro_rotation = (base_to_optical(cfg.camera_pitch_down_deg, cfg.camera_roll_deg, cfg.camera_yaw_deg)
                                if gyro_rotation is None else np.asarray(gyro_rotation, float))

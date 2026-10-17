@@ -73,9 +73,9 @@ def receipt(events):
     return out
 
 
-def live(received, decisions):
+def live(received, decisions, session=SESSION):
     clock = Clock()
-    rt = MapRuntime(CFG, SESSION, N.wheel_layout(), clock=clock, decisions=decisions)
+    rt = MapRuntime(CFG, session, N.wheel_layout(), clock=clock, decisions=decisions)
     i, now = 0, F.START
     while i < len(received):
         while i < len(received) and received[i][0] <= now:
@@ -145,3 +145,60 @@ def test_record_order_regression_splits_the_epochs():
     small = [RP.Record(F.GYRO_TOPIC, t, k, gyro(t)) for k, t in enumerate([100.0, 100.04, 100.02, 100.06])]
     assert [r.stamp_s for r in RP.segments(small, 1.0, drop_small_regressions=True)[0]] == [100.0, 100.04, 100.06]
     assert len(RP.segments(small, 1.0, drop_small_regressions=False)[0]) == 4
+
+
+# --- Codex Task 7 review -----------------------------------------------------------------
+@pytest.fixture(scope="module")
+def drive(tmp_path_factory):
+    events, _ = F.scenario(F.drive_then(Command("skid", v=0.3, omega=0.1)), 4.0)
+    return receipt(events), tmp_path_factory.mktemp("cases")
+
+
+def write_log(path, *runs):
+    path.write_text("".join(json.dumps(r) + "\n" for run in runs for r in run))
+
+
+def gyro_index(received, k):
+    return [i for i, r in enumerate(received) if r[1] == F.GYRO_TOPIC][k]
+
+
+def test_a_sample_only_the_recorder_lost_refuses_the_replay(drive, capsys):
+    received, root = drive
+    records = []
+    live(received, records.append)
+    lost = gyro_index(received, 50)
+    write_bag(root / "recorder_lost", received[:lost] + received[lost + 1:])
+    write_log(root / "a.jsonl", records)
+    code = RP.main([str(root / "recorder_lost"), "--param", "pixel_stride=1", "--decisions-from", str(root / "a.jsonl")])
+    assert code == 2 and "not in the bag" in capsys.readouterr().err
+
+
+def test_a_sample_only_the_node_lost_is_skipped(drive, tmp_path):
+    received, root = drive
+    lost = gyro_index(received, 50)
+    records = []
+    rt = live(received[:lost] + received[lost + 1:], records.append)       # the node never got it
+    write_bag(root / "node_lost", received)                                  # the recorder did
+    write_log(root / "b.jsonl", records)
+    assert run_cli(root / "node_lost", tmp_path / "f.npz", "--decisions-from", str(root / "b.jsonl")) == content(rt)
+
+
+def test_a_log_appended_across_restarts_needs_a_session(drive, tmp_path, capsys):
+    received, root = drive
+    first, second = [], []
+    rt = live(received, first.append)
+    other = SenderSession(boot_id="0" * 32, start_mono_ns=2, instance="c" * 16)
+    live(received[: len(received) // 2], second.append, session=other)      # a restart appended to the same file
+    write_bag(root / "restart", received)
+    write_log(root / "c.jsonl", first, second)
+    args = [str(root / "restart"), "--param", "pixel_stride=1", "--decisions-from", str(root / "c.jsonl")]
+    assert RP.main(args) == 2 and "choose one session" in capsys.readouterr().err
+    assert run_cli(root / "restart", tmp_path / "s.npz", "--decisions-from", str(root / "c.jsonl"),
+                   "--session", "b" * 16) == content(rt)
+
+
+def test_a_bag_without_a_map_still_exports(tmp_path):
+    events, _ = F.scenario(F.drive_then(Command("skid", v=0.3)), 2.0, surface=None)
+    write_bag(tmp_path / "no_depth", [(e.stamp_s, e.topic, e.message) for e in events])
+    epoch, tiles = run_cli(tmp_path / "no_depth", tmp_path / "empty.npz")
+    assert tiles == {}
