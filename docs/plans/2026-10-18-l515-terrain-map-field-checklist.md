@@ -56,15 +56,22 @@ python3 /workspace/ros2/src/powertrain_ros/test/terrain_map_isolation_gate.py co
 | # | 할 일 | 기록할 값 | 합격·판단 |
 |---|---|---|---|
 | 3-1 | L515 depth 원점 위치(base_link 기준 x·y·z)와 하향각·롤·요를 줄자·수평계로 측정 | `camera_x_m`·`camera_y_m`·`camera_z_m`·`camera_pitch_down_deg`·`camera_roll_deg`·`camera_yaw_deg` | CAD 기본(0.348, 0, 0.029, 20°)과 차이 기록 → 노드 파라미터로 교체 |
-| 3-2 | 평지 정지 30 s 녹화(§6 녹화 스크립트) → 아래 명령으로 `n·o+d` 중앙값 | base_link 높이(측정) vs `n·o+d` 중앙값 | 둘 차이 기록 → `support_base_height_m` 값 |
-| 3-3 | 험지 위 정지 자세 3–5곳에서 같은 측정(자세마다 녹화하거나 `--window`로 구간 지정) | `n·o+d` 퍼짐 | 도구의 `can enable`이 True면 켬(`support_base_variation_m` ≤ tol < 8 cm − var), 아니면 끈 채 둠(§4.2) |
+| 3-2 | 평지 정지 30 s 녹화 → 아래 ①로 기준 높이 H(측정 전용 출력) | base_link 높이(줄자) vs H(`n·o+d` 중앙값) | 둘 차이 기록, H가 `support_base_height_m` 값 |
+| 3-3 | 험지 위 정지 자세 3–5곳을 각각 녹화(또는 한 녹화에서 `--window`로 구간 지정) → ②로 **모든 자세를 H 기준으로 합쳐** 판정 | 합친 `support_base_variation_m`(모든 표본의 H 대비 최대 편차, 잘라내지 않음) | ②의 `can enable: True`일 때만 켬. `--reference-height` 없는 실행은 "measurement only"라 승인으로 쓰지 않는다 |
 
 ```bash
 # ROS 셸(Jetson 컨테이너 또는 노트북 ROS 이미지). --param에는 노드가 실제로 쓴 장착값을 그대로 준다.
-python3 -m powertrain_ros.terrain_map_field_report --bag ~/terrain_bags/still1 --window 0:30 \
-  --param camera_x_m=<실측> --param camera_z_m=<실측> --param camera_pitch_down_deg=<실측> --out still1.json
+M="--param camera_x_m=<실측> --param camera_z_m=<실측> --param camera_pitch_down_deg=<실측>"
+# ① 평지 기준 높이 H (측정 전용)
+python3 -m powertrain_ros.terrain_map_field_report --bag ~/terrain_bags/flat1 --window 0:30 $M --out flat1.json
+# ② 험지 자세 전부를 H 기준으로 합쳐 판정 (자세마다 --bag/--window 한 쌍)
+python3 -m powertrain_ros.terrain_map_field_report --reference-height <H> $M \
+  --bag ~/terrain_bags/rough1 --window 0:15 --bag ~/terrain_bags/rough2 --window 0:15 --bag ~/terrain_bags/rough3 --window 0:15 \
+  --out rough.json
 ```
-✅ 출력 예: `support_base_height_m 0.47 · support_base_variation_m 0.012 · can enable: True (n=150)`
+✅ ①의 끝줄: `support_base_height_m <H> (median of these samples) · … · measurement only (no --reference-height)`
+✅ ②의 끝줄: `support_base_height_m <H> (given) · support_base_variation_m … · can enable: True/False — pooled over 3 recordings`
+- 높이 후보는 근거리 띠 검사를 통과한 평면만 쓴다(도랑 바닥을 바닥으로 잡은 프레임은 `rejected_base_heights`로 따로 보인다).
 | 3-4 | 정지 상태로 상자·단차·도랑(패임) 앞 → 콘솔 지도 | 지도상 위치 vs 줄자 거리, 분류 색 | 위치 오차 ≲ 1칸(5 cm), 돌출=빨강·도랑=파랑 |
 
 - 시작 직후 콘솔에 "로버를 1초 정지하세요"가 뜨면 정지해 둔다(자이로 바이어스 학습).
@@ -91,6 +98,7 @@ python3 -m powertrain_ros.terrain_map_field_report --bag ~/terrain_bags/field1 \
   --decisions /run/powertrain/terrain_map_decisions.jsonl --out field1.json
 ```
 ✅ `gyro interval … gaps >60 ms: N`, `loss rate … (≤ 0.1: PASS)`, `proc_ms p95 … on the robot (≤ 150.0: PASS)`, `epochs N {원인: 수}` — 세부(손실 이유·처리 결과별 수)는 `field1.json`.
+⚠️ `proc_ms: old log …`이 나오면 그 로그는 이 버전 전의 노드(검출 시간만 기록)라 처리시간 판정에 쓰지 않는다 — 노드를 이 브랜치로 갱신한 뒤 다시 잰다.
 
 ## 5. 자원 10분 (§7.3-3) — 두 SRT + 오버레이 노드 + 지도 서비스 동시
 

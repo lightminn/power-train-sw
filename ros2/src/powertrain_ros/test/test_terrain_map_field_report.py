@@ -30,7 +30,8 @@ def test_bag_report_streams_intervals_support_and_freshness(drive_bag):
     depth = report["depth"]
     assert depth["frames"] == depth["ok"] > 15 and depth["fresh_ratio"] > 0.9
     support = report["support"]
-    assert support["support_base_height_m"] == pytest.approx(0.471, abs=0.01) and support["can_enable"]
+    assert support["support_base_height_m"] == pytest.approx(0.471, abs=0.01)
+    assert support["can_enable"] is None                         # one recording, no flat reference: measurement only
 
 
 def test_window_limits_the_analysis(drive_bag):

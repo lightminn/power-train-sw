@@ -70,15 +70,22 @@ def support_suggestion(base_heights: Sequence[float], cfg: MapConfig, reference_
     """
     v = np.asarray([x for x in base_heights if np.isfinite(x)], float)
     if v.size == 0:
-        return {"n": 0, "can_enable": False}
+        return {"n": 0, "can_enable": False, "approval": "no supported FRESH frame"}
     ref = float(np.median(v)) if reference_m is None else float(reference_m)
     variation = float(np.max(np.abs(v - ref))) + margin_m
     variation = float(np.ceil(variation * 1000.0 - 1e-9) / 1000.0)        # round up to the millimetre
     tol = max(variation, cfg.support_height_tol_m)
     limit = min(cfg.obstacle_height_m, cfg.ditch_depth_m) - variation
+    if reference_m is None:
+        # Re-centred on these samples: says nothing about their offset from the flat height.
+        can_enable, approval = None, "measurement only — pool the rough poses with the flat reference (--reference-height)"
+    else:
+        can_enable = bool(tol < limit)
+        approval = "variation ≤ tol < min(obstacle, ditch) − variation" + (" holds" if can_enable else " fails")
     return {"n": int(v.size), "reference": "given" if reference_m is not None else "median of these samples",
             "support_base_height_m": round(ref, 4), "support_base_variation_m": variation,
-            "support_height_tol_m": round(tol, 4), "limit_m": round(limit, 4), "can_enable": bool(tol < limit),
+            "support_height_tol_m": round(tol, 4), "limit_m": round(limit, 4), "can_enable": can_enable,
+            "approval": approval,
             "min": float(v.min()), "max": float(v.max()), "p5": _pct(v, 5), "p95": _pct(v, 95)}
 
 
@@ -111,7 +118,11 @@ def summarize_decisions(records: Iterable[dict], session: str | None = None) -> 
                    "errors": errors, "incomplete": incomplete,
                    "loss_rate": (failed / attempted) if attempted else None},
         "results": dict(Counter(r["r"] for r in results)),
-        "proc_ms": distribution([float(r["ms"]) for r in results if "ms" in r]),
+        # total_ms = the whole frame (detection, correction, fusion). Logs written before it existed
+        # carried "ms" = detection only, which must not pass the load criterion (re-review).
+        "proc_ms": distribution([float(r["total_ms"]) for r in results if "total_ms" in r]),
+        "proc_ms_note": (None if any("total_ms" in r for r in results) or not any("ms" in r for r in results)
+                         else "old log: its ms covered detection only — re-measure with this version"),
         "epochs": {"count": len(epochs), "by_cause": dict(Counter(r.get("cause") for r in epochs))},
         "samples": {"received": sum(1 for r in chosen if r.get("k") == "rx"), "late": drops.get("late", 0),
                     "drops": dict(drops)},

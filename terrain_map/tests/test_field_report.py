@@ -21,12 +21,18 @@ def test_interval_stats_count_gaps_and_percentiles():
 def test_support_suggestion_checks_the_spec_relation():
     rng = np.random.default_rng(0)
     steady = 0.471 + rng.uniform(-0.01, 0.01, 300)
-    s = R.support_suggestion(steady, MapConfig())
-    assert s["support_base_height_m"] == pytest.approx(0.471, abs=0.002)
-    assert s["support_base_variation_m"] == pytest.approx(0.01, abs=0.002) and s["can_enable"]
+    s = R.support_suggestion(steady, MapConfig(), reference_m=0.471)
+    assert s["support_base_height_m"] == 0.471
+    assert s["support_base_variation_m"] == pytest.approx(0.01, abs=0.002) and s["can_enable"] is True
     wild = 0.471 + rng.uniform(-0.05, 0.05, 300)                 # var 5 cm: 8 cm thresholds cannot hold it
-    assert not R.support_suggestion(wild, MapConfig())["can_enable"]
-    assert R.support_suggestion([], MapConfig())["can_enable"] is False
+    assert R.support_suggestion(wild, MapConfig(), reference_m=0.471)["can_enable"] is False
+    assert R.support_suggestion([], MapConfig(), reference_m=0.471)["can_enable"] is False
+
+
+def test_without_a_flat_reference_there_is_no_approval():
+    """Re-review: re-centring on rough-ground samples hides their offset from the flat height."""
+    s = R.support_suggestion([0.411] * 50 + [0.431] * 50, MapConfig())
+    assert s["can_enable"] is None and "reference" in s["approval"]
 
 
 def live_records():
@@ -63,14 +69,14 @@ def test_decisions_summary_needs_a_session_choice_when_runs_are_mixed():
 def test_results_carry_processing_time():
     _, records = live_records()
     results = [r for r in records if r.get("k") == "result"]
-    assert results and all(isinstance(r["ms"], float) and math.isfinite(r["ms"]) for r in results)
+    assert results and all(isinstance(r["total_ms"], float) and math.isfinite(r["total_ms"]) for r in results)
 
 
 # --- Codex field-tool review -------------------------------------------------------------
 def test_variation_covers_every_pose_not_just_the_middle_ninety_percent():
     heights = [0.471] * 96 + [0.411] * 4                     # a few low poses are real variation
     s = R.support_suggestion(heights, MapConfig())
-    assert s["support_base_variation_m"] >= 0.06 and not s["can_enable"]
+    assert s["support_base_variation_m"] >= 0.06 and not s["can_enable"]   # None: no reference → no approval
 
 
 def test_a_fixed_reference_pools_poses_from_separate_recordings():
@@ -114,4 +120,18 @@ def test_processing_time_covers_correction_and_fusion():
     rt.map.fuse = slow_fuse
     T.drive(rt, clock, events, depth)
     fused = [r for r in records if r.get("k") == "result" and r["r"] == "processed"]
-    assert fused and all(r["ms"] >= 200.0 for r in fused)
+    assert fused and all(r["total_ms"] >= 200.0 > r["detect_ms"] for r in fused)
+
+
+def test_an_old_log_with_detection_time_only_is_not_judged():
+    """Re-review: before total_ms the log's ms covered detection only."""
+    _, records = live_records()
+    for r in records:
+        if r.get("k") == "result":
+            r["ms"] = r.pop("detect_ms")
+            r.pop("total_ms")
+    s = R.summarize_decisions(records)
+    assert s["proc_ms"] == {"n": 0} and "detection" in s["proc_ms_note"]
+    _, records = live_records()
+    s = R.summarize_decisions(records)
+    assert s["proc_ms"]["n"] > 0 and s["proc_ms_note"] is None

@@ -162,18 +162,24 @@ def _summary(report: dict) -> list[str]:
             lines.append("  support_base_height_m: no supported FRESH frame in the window")
     pooled = report.get("support_pooled")
     if pooled and pooled.get("n"):
+        verdict = ("measurement only (no --reference-height)" if pooled["can_enable"] is None
+                   else f"can enable: {pooled['can_enable']}")
         lines.append(f"support_base_height_m {pooled['support_base_height_m']} ({pooled['reference']}) · "
-                     f"support_base_variation_m {pooled['support_base_variation_m']} · can enable: "
-                     f"{pooled['can_enable']} — pooled over {len(report.get('bag_reports', []))} recordings "
-                     f"(n={pooled['n']})")
+                     f"support_base_variation_m {pooled['support_base_variation_m']} · {verdict} — pooled over "
+                     f"{len(report.get('bag_reports', []))} recordings (n={pooled['n']})")
     dec = report.get("decisions")
     if dec:
         loss, p95 = dec["frames"]["loss_rate"], dec["proc_ms"].get("p95")
+        if dec.get("proc_ms_note"):
+            lines.append(f"proc_ms: {dec['proc_ms_note']}")
         verdict = lambda ok: "PASS" if ok else "FAIL"  # noqa: E731
         lines.append(f"loss rate {loss if loss is None else round(loss, 4)} "
                      f"(≤ {CRITERIA['loss_rate']}: {verdict(loss is not None and loss <= CRITERIA['loss_rate'])})")
-        lines.append(f"proc_ms p95 {p95} on the robot "
-                     f"(≤ {CRITERIA['proc_ms_p95']}: {verdict(p95 is not None and p95 <= CRITERIA['proc_ms_p95'])})")
+        if dec.get("proc_ms_note"):
+            lines.append("proc_ms p95: not judged")
+        else:
+            lines.append(f"proc_ms p95 {p95} on the robot "
+                         f"(≤ {CRITERIA['proc_ms_p95']}: {verdict(p95 is not None and p95 <= CRITERIA['proc_ms_p95'])})")
         lines.append(f"epochs {dec['epochs']['count']} {dec['epochs']['by_cause']} · late samples {dec['samples']['late']}")
     return lines
 

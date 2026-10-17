@@ -354,7 +354,7 @@ class MapRuntime:
                 self._record({"k": "result", "seg": frame.seg, "t": frame.stamp_s, "d": frame.digest, "seq": frame.copy,
                               "epoch": epoch, "r": outcome, "cam": camera_digest(camera),
                               # whole frame on this machine — detection, correction, fusion, lock waits
-                              "ms": round((self._clock() - started) * 1000.0, 2),
+                              "total_ms": round((self._clock() - started) * 1000.0, 2),
                               "detect_ms": round(elapsed * 1000.0, 2)})
             elif self._following:
                 self.followed_results.append((frame.ident, (outcome, camera_digest(camera))))
