@@ -9,8 +9,8 @@ order, to the same ``MapRuntime`` the live node uses, with the stamp as the
 clock.  Epoch boundaries come first, from the record order: a message whose
 stamp runs more than ``stamp_regression_epoch_s`` behind its topic starts a new
 time segment, and each segment is sorted on its own.  A gyro or wheel message is
-identified by ``(topic, header stamp, copy)`` — the identity the live node's
-``processed_log_path`` uses.  With ``--decisions-from`` only the samples the node
+identified by ``(topic, clock segment, header stamp, copy)``, assigned by the same
+``SampleIds`` rule the live node's odometry applies (``processed_log_path``).  With ``--decisions-from`` only the samples the node
 received are fed, and a sample the node received that the bag lacks refuses the replay.
 """
 from __future__ import annotations
@@ -28,6 +28,7 @@ import numpy as np
 
 from terrain_map import contract as C
 from terrain_map.config import MapConfig
+from terrain_map.odometry import SampleIds
 from terrain_map.runtime import MapRuntime, load_decisions
 from terrain_overlay.camera import CameraModel
 from terrain_overlay.runtime import SenderSession
@@ -43,7 +44,7 @@ _ORDER = {DEPTH_INFO_TOPIC: 0, WHEEL_TOPIC: 1, GYRO_TOPIC: 2, DEPTH_TOPIC: 3}   
 class Record(NamedTuple):
     topic: str
     stamp_s: float
-    seq: int            # copies of this stamp seen before on this topic (normally 0)
+    seq: int            # record index within the topic (keeps sorting stable)
     message: object
 
 
@@ -60,26 +61,34 @@ def read_bag(path: str) -> list[Record]:
     reader.open(rosbag2_py.StorageOptions(uri=path, storage_id=""),
                 rosbag2_py.ConverterOptions(input_serialization_format="cdr", output_serialization_format="cdr"))
     types = {t.name: get_message(t.type) for t in reader.get_all_topics_and_types() if t.name in TOPICS}
-    copies: dict[tuple[str, float], int] = {}
+    counts = {topic: 0 for topic in TOPICS}
     records = []
     while reader.has_next():
         topic, data, _ = reader.read_next()
         if topic not in types:
             continue
         message = deserialize_message(data, types[topic])
-        stamp = stamp_s(message)
-        k = copies.get((topic, stamp), 0)
-        copies[(topic, stamp)] = k + 1
-        records.append(Record(topic, stamp, k, message))
+        records.append(Record(topic, stamp_s(message), counts[topic], message))
+        counts[topic] += 1
     return records
 
 
-def missing_from_bag(records: list[Record], decisions) -> list[str]:
-    """What the live node used that the bag does not hold (the replay cannot reproduce it)."""
+def missing_from_bag(records: list[Record], decisions, regression_s: float) -> list[str]:
+    """What the live node used that the bag does not hold (the replay cannot reproduce it).
+
+    Identities come from the same ``SampleIds`` rule the odometry applies, in feed order.
+    """
     problems = []
     received = decisions.odometry.received
     if received is not None:
-        have = {(SOURCES[r.topic], r.stamp_s, r.seq) for r in records if r.topic in SOURCES}
+        ids = SampleIds(regression_s)
+        have = set()
+        for seg in segments(records, regression_s, drop_small_regressions=False):
+            for r in seg:
+                if r.topic in SOURCES:
+                    src = SOURCES[r.topic]
+                    segment, copy = ids.assign(src, r.stamp_s)
+                    have.add((src, segment, r.stamp_s, copy))
         lost = sorted(received - have)
         if lost:
             problems.append(f"{len(lost)} gyro/wheel samples the node received are not in the bag (first {lost[0]})")
@@ -123,9 +132,9 @@ def feed(runtime: MapRuntime, clock, record: Record, radius_m: float) -> None:
             runtime.on_depth(array, record.stamp_s, record.stamp_s)
     elif record.topic == GYRO_TOPIC:
         v = m.angular_velocity
-        runtime.on_gyro(record.stamp_s, record.stamp_s, (v.x, v.y, v.z), record.seq)
+        runtime.on_gyro(record.stamp_s, record.stamp_s, (v.x, v.y, v.z))      # identity: odometry SampleIds
     else:
-        runtime.on_wheels(record.stamp_s, record.stamp_s, wheel_readings(m, radius_m), record.seq)
+        runtime.on_wheels(record.stamp_s, record.stamp_s, wheel_readings(m, radius_m))
 
 
 class _Clock:
@@ -230,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
         send = (socket.socket(socket.AF_INET, socket.SOCK_DGRAM), (host, int(port)))
     records = read_bag(args.bag)
     if decisions is not None:
-        problems = missing_from_bag(records, decisions)
+        problems = missing_from_bag(records, decisions, cfg.stamp_regression_epoch_s)
         if problems:
             print("refusing: the bag cannot reproduce this live run — " + "; ".join(problems), file=sys.stderr)
             return 2

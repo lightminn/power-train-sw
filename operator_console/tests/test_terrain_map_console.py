@@ -275,3 +275,33 @@ def test_render_speed_with_1024_tiles_on_a_large_view():
         assert time.perf_counter() - started < 0.5
     finally:
         r.close()
+
+
+def test_cells_without_any_tile_are_transparent():
+    """A view larger than the received tiles: the rest is unobserved, not flat ground."""
+    snap = one_tile_snapshot(split_fill())
+    rgba, meta = map_rgba(snap, MapView(0.0, 0.0, 1.6, 1.6, 640, 640), DisplayConfig(display_upsample=4), 0.0)
+    s = meta["pixels_per_cell"]
+    half = 16 * s
+    assert (rgba[:half, :, 3] == 0).all()                      # north half: no tile
+    assert (rgba[half:, half:, 3] == 0).all()                  # east of the tile
+    assert rgba[half:, :half, 3].any()
+
+
+def test_render_cache_tells_sender_sessions_apart():
+    """Codex T8 P2: a restarted sender reuses epoch 0 / version 1 with other content."""
+    r = LatestMapReceiver(0)
+    try:
+        renderer = MapRenderer()
+        r.ingest(status(1), 0.0)
+        r.ingest(tile(0, 0, 1, 1, height_cm=0, code=C.FREE), 0.0)
+        flat, _ = renderer.render(r.snapshot(0.0), VIEW, DisplayConfig(), 0.0)
+        other = dict(SESSION, sender_start_mono_ns=99)
+        r.ingest(C.encode(C.StatusPacket(**{**C.parse_packet(status(1)).__dict__, **other, "received_s": None})), 0.1)
+        r.ingest(C.encode(C.TilePacket(**other, map_epoch=0, sent_unix_ns=1, tx=0, ty=0, version=1, tile_seq=1,
+                                       cells=cells(height_cm=20, code=C.OBSTACLE))), 0.1)
+        box, meta = renderer.render(r.snapshot(0.1), VIEW, DisplayConfig(), 0.1)
+        assert not meta["cache_hit"] and not np.array_equal(flat, box)
+        assert (box[..., 0] > box[..., 2]).mean() > 0.5                   # now drawn red
+    finally:
+        r.close()

@@ -57,6 +57,7 @@ def _decode(packet: C.TilePacket, received_s: float) -> StoredTile:
 class MapSnapshot:
     status: C.StatusPacket | None
     epoch: int | None
+    session: tuple | None
     tiles: tuple[StoredTile, ...]
     last_rx_s: float | None
     trajectory: tuple[tuple[float, float], ...]
@@ -78,6 +79,8 @@ class LatestMapReceiver:
         self._floor_capacity = int(floor_capacity)
         self.invalid_packet_count = 0
         self.rejected_packet_count = 0
+        self.accepted_packet_count = 0
+        self.last_address: str | None = None
         self._reset_session()
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -111,11 +114,12 @@ class LatestMapReceiver:
         self._socket.settimeout(0.2)
         while not self._stopping.is_set():
             try:
-                raw, _address = self._socket.recvfrom(C.MAX_PACKET_BYTES + 1)
+                raw, address = self._socket.recvfrom(C.MAX_PACKET_BYTES + 1)
             except OSError:
                 continue
             try:
-                self.ingest(raw, time.monotonic())
+                if self.ingest(raw, time.monotonic()):
+                    self.last_address = f"{address[0]}:{address[1]}"
             except Exception:  # noqa: BLE001 — never let one datagram kill reception
                 self.invalid_packet_count += 1
 
@@ -127,7 +131,9 @@ class LatestMapReceiver:
             return False
         with self._lock:
             accepted = self._accept(packet, received_s)
-            if not accepted:
+            if accepted:
+                self.accepted_packet_count += 1
+            else:
                 self.rejected_packet_count += 1
             return accepted
 
@@ -190,7 +196,8 @@ class LatestMapReceiver:
                 ttl = tile_ttl_s(self._status.refresh_cycle_s)
                 for key in [k for k, t in self._tiles.items() if now_s - t.received_s > ttl]:
                     del self._tiles[key]
-            return MapSnapshot(self._status, self._epoch, tuple(self._tiles.values()), self._last_rx_s,
+            return MapSnapshot(self._status, self._epoch, self._selector.session, tuple(self._tiles.values()),
+                               self._last_rx_s,
                                tuple(self._trajectory), self.invalid_packet_count, self.rejected_packet_count)
 
     def close(self) -> None:
@@ -277,11 +284,9 @@ def _grid(snapshot: MapSnapshot, view: MapView, display: DisplayConfig) -> _Grid
     return _Grid(gx0, gy1, nx, ny, scale, visible)
 
 
-def _cells(grid: _Grid, n: int, pick) -> np.ndarray:
-    """(ny, nx) array; ``pick(tile) -> (n, n) array`` in tile rows = gy."""
-    sample = pick(grid.tiles[0]) if grid.tiles else np.zeros((n, n), np.float32)
-    fill = np.nan if np.issubdtype(sample.dtype, np.floating) else 0
-    out = np.full((grid.ny, grid.nx), fill, sample.dtype)
+def _cells(grid: _Grid, n: int, pick, fill, dtype) -> np.ndarray:
+    """(ny, nx) array; ``pick(tile) -> (n, n) array`` in tile rows = gy; ``fill`` where no tile is."""
+    out = np.full((grid.ny, grid.nx), fill, dtype)
     for t in grid.tiles:
         block = pick(t)                                          # rows gy = ty*n .. +n-1
         gx_lo, gy_lo = t.tx * n, t.ty * n
@@ -312,6 +317,12 @@ def _fill_holes(h: np.ndarray, passes: int = 2) -> np.ndarray:
     return np.where(np.isfinite(h), h, 0.0)
 
 
+def _box3(a: np.ndarray) -> np.ndarray:
+    padded = np.pad(a, 1, mode="edge")
+    return sum(padded[1 + dy:padded.shape[0] - 1 + dy, 1 + dx:padded.shape[1] - 1 + dx]
+               for dy in (-1, 0, 1) for dx in (-1, 0, 1)) / 9.0
+
+
 def _bilinear(a: np.ndarray, s: int) -> np.ndarray:
     """Upsample by ``s`` between cell centres (convex weights: no overshoot)."""
     def axis(n):
@@ -330,19 +341,20 @@ def _nearest(a: np.ndarray, s: int) -> np.ndarray:
 
 def _static_layers(grid: _Grid, n: int, cell_m: float, display: DisplayConfig) -> _Layers:
     s = grid.scale
-    heights = _cells(grid, n, lambda t: t.heights.reshape(n, n))
-    codes = _cells(grid, n, lambda t: t.codes.reshape(n, n))
-    if not grid.tiles:
-        heights = np.full((grid.ny, grid.nx), C.UNOBSERVED_H, np.int16)
-        codes = np.full((grid.ny, grid.nx), C.INSUFFICIENT, np.uint8)
+    heights = _cells(grid, n, lambda t: t.heights.reshape(n, n), C.UNOBSERVED_H, np.int16)
+    codes = _cells(grid, n, lambda t: t.codes.reshape(n, n), C.INSUFFICIENT, np.uint8)
     observed = heights != C.UNOBSERVED_H
     h = np.where(observed, heights.astype(np.float32) / 100.0, np.nan)
-    up = _bilinear(_fill_holes(h).astype(np.float32), s)
+    filled = _fill_holes(h).astype(np.float32)
+    up = _bilinear(filled, s)
+    # Shade a lightly smoothed surface: heights arrive in whole centimetres, and shading the
+    # raw steps draws contour-like bands across gentle slopes.
+    smooth = _bilinear(_box3(filled), s)
     seen = _nearest(observed, s)
     code_up = _nearest(codes, s)
     # hillshade on the exaggerated surface (north-up raster: row index grows southward)
     pixel = cell_m / s
-    dz_row, dz_col = np.gradient(up * display.z_exaggeration, pixel)
+    dz_row, dz_col = np.gradient(smooth * display.z_exaggeration, pixel)
     slope = np.arctan(np.hypot(dz_col, dz_row))
     aspect = np.arctan2(-dz_row, -dz_col)
     zenith = math.radians(90.0 - display.hillshade_altitude_deg)
@@ -382,7 +394,7 @@ def map_rgba(snapshot: MapSnapshot, view: MapView, display: DisplayConfig, now_s
     if grid is None:
         return np.zeros((1, 1, 4), np.uint8), {"drawn": False, "cache_hit": False, "reason": "view too large"}
     n, cell = status.tile_cells, status.cell_m
-    key = (snapshot.epoch, cell, n, grid.gx0, grid.gy1, grid.nx, grid.ny, grid.scale, display,
+    key = (snapshot.session, snapshot.epoch, cell, n, grid.gx0, grid.gy1, grid.nx, grid.ny, grid.scale, display,
            tuple(sorted((t.tx, t.ty, t.version) for t in grid.tiles)))
     hit = cache is not None and cache.get("key") == key
     if hit:
@@ -394,7 +406,7 @@ def map_rgba(snapshot: MapSnapshot, view: MapView, display: DisplayConfig, now_s
             cache.update(key=key, layers=layers)
     # age, per draw: cell age = age bits x age_step + time since the tile arrived
     age = _cells(grid, n, lambda t: (t.ages.reshape(n, n).astype(np.float32) * status.age_step_s
-                                     + np.float32(now_s - t.received_s))) if grid.tiles else None
+                                     + np.float32(now_s - t.received_s)), np.nan, np.float32) if grid.tiles else None
     rgb = layers.rgb
     stale_cells = 0
     if age is not None:

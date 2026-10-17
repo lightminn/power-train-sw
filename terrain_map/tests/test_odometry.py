@@ -452,3 +452,22 @@ def test_follow_finishes_the_old_time_segment_before_a_regressed_one():
     segments = [stamp_order(s for _, s in numbered[:len(first)]), stamp_order(s for _, s in numbered[len(first):])]
     follow_out = feed(f, [(s.stamp_s, s) for seg in segments for s in seg]) + f.drain()
     assert key(follow_out[:len(live_out)]) == key(live_out) and f.epoch == o.epoch
+
+
+def test_identities_survive_a_clock_restart_that_repeats_old_stamps():
+    """Codex T7 re-review P2-1: >512 stamps, then the sensor clock restarts and repeats them."""
+    first, _ = simulate(stop_then(Command("skid", v=0.3, omega=0.2)), 6.4)
+    again, _ = simulate(stop_then(Command("skid", v=0.3, omega=0.2)), 3.0)          # same stamps from 100.0
+    records = []
+    o = O.PlanarOdometry(CFG, LAYOUT, record=records.append)
+    live_out = []
+    for rx, s in first:
+        live_out += (o.add_wheels(s) if isinstance(s, O.WheelSample) else o.add_gyro(s)) + o.poll(rx)
+    for rx, s in again:
+        s = s._replace(rx_s=rx + 10.0)
+        live_out += (o.add_wheels(s) if isinstance(s, O.WheelSample) else o.add_gyro(s)) + o.poll(s.rx_s)
+    assert o.epoch >= 1 and any(s.valid and s.epoch == o.epoch for s in live_out)
+    f = O.PlanarOdometry(CFG, LAYOUT, follow=O.follow_plan(json_round_trip(records)))
+    feed_order = stamp_order(s for _, s in first) + stamp_order(s for _, s in again)
+    follow_out = feed(f, [(s.stamp_s, s) for s in feed_order]) + f.drain()
+    assert key(follow_out[:len(live_out)]) == key(live_out) and f.epoch == o.epoch

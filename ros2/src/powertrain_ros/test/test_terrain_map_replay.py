@@ -202,3 +202,19 @@ def test_a_bag_without_a_map_still_exports(tmp_path):
     write_bag(tmp_path / "no_depth", [(e.stamp_s, e.topic, e.message) for e in events])
     epoch, tiles = run_cli(tmp_path / "no_depth", tmp_path / "empty.npz")
     assert tiles == {}
+
+
+def test_a_clock_restart_that_repeats_old_stamps_replays_the_same_map(tmp_path):
+    """Codex T7 re-review P2-1: identities must match after >512 stamps and a clock restart."""
+    first, _ = F.scenario(F.drive_then(Command("skid", v=0.3, omega=0.1)), 6.4)
+    again, _ = F.scenario(F.drive_then(Command("skid", v=0.3, omega=0.4), stop_s=0.0), 4.0)  # same stamps, turning
+    received = [(rx, topic, m) for rx, topic, m in receipt(first)]
+    # the restarted run arrives cleanly, so its first seconds (the repeated stamps) stay in the final map
+    received += sorted((e.stamp_s + 20.0 + (0.02 if e.topic in (F.DEPTH_TOPIC, F.INFO_TOPIC) else 0.0), e.topic,
+                        e.message) for e in again)
+    records = []
+    rt = live(received, records.append)
+    assert rt.epoch >= 1 and rt.map.tiles()
+    write_bag(tmp_path / "restart", received)
+    write_log(tmp_path / "d.jsonl", records)
+    assert run_cli(tmp_path / "restart", tmp_path / "r.npz", "--decisions-from", str(tmp_path / "d.jsonl")) == content(rt)
