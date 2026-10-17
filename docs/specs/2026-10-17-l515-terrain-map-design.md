@@ -140,7 +140,7 @@ L515 depth와 바퀴·IMU 위치 추정으로 **주행한 경로를 따라 누�
 | `support_height_tol_m` | 0.03 | 0.01–0.15 | 위 높이 검사 허용폭 |
 | `support_base_variation_m` | 없음 | 0.0–0.1 | 평지·험지 정지 자세에서 실측한 base 높이 변동(±). 높이 검사를 켜려면 필수이며 `variation ≤ tol < min(obstacle_height_m, ditch_depth_m) − variation`이어야 한다(§4.2) |
 | `min_observations` | 2 | 1–10 | 이보다 적게 관측된 칸은 "관측 부족" |
-| `age_step_s` | 2.0 | 0.5–10 | 칸 나이 5비트 단위(31 = `31·step` 이상) |
+| `age_step_s` | 2.0 | 2.0–10 | 칸 나이 5비트 단위(31 = `31·step` 이상). 하한 2.0은 표현 범위 `31·step ≥ 60 s`(콘솔 `stale_display_s` 상한)를 보장한다 |
 | `process_hz` | 5 | 1–10 | 처리 목표 주기(stamp 간격 기준, §4.8) |
 | `status_hz` | 5 | 1–10 | 상태 패킷·송신 틱 주기 |
 | `max_tiles_per_tick` | 12 | 1–64 | 틱당 갱신 타일 송신 상한 |
@@ -167,9 +167,9 @@ L515 depth와 바퀴·IMU 위치 추정으로 **주행한 경로를 따라 누�
 | `camera_pitch_down_deg`·`camera_roll_deg`·`camera_yaw_deg` | 20·0·0 | 0–35·±20·±30 | 장착 회전. pitch 상한 35°는 판정기 평면 기울기 상한 40°(`MAX_TILT_DEG`)에 여유를 둔 값. 같은 세 값으로 IMU 축도 변환한다(§4.4) |
 | `corrector` | `"identity"` | `identity`·`height_match` | §4.7 |
 | `match_*` | §4.7 | — | B 상수 |
-| 콘솔: `display_upsample`·`hillshade_azimuth_deg`·`hillshade_altitude_deg`·`hillshade_exaggeration`·`stale_display_s`·`max_render_pixels` | 4·315·40·6·30·2,000,000 | 1–8·0–360·5–85·1–20·5–600·— | §4.10. 판정에 쓰지 않는다 |
+| 콘솔: `display_upsample`·`hillshade_azimuth_deg`·`hillshade_altitude_deg`·`hillshade_exaggeration`·`stale_display_s`·`max_render_pixels` | 4·315·40·6·30·2,000,000 | 1–8·0–360·5–85·1–20·5–60·— | §4.10. 판정에 쓰지 않는다 |
 
-- 노드 파라미터와 콘솔 CLI로 바꾼다. 범위 밖이거나 서로 맞지 않으면(패킷 > 1200 B, `age_step_s × 31 < stale_display_s`, pending 용량 부족 등) 기동 실패(조용한 클램프 없음).
+- 노드 파라미터와 콘솔 CLI로 바꾼다. 범위 밖이거나 서로 맞지 않으면(패킷 > 1200 B, pending 용량 부족 등. 나이 표현 범위는 두 쪽 범위가 계약으로 묶여 있어(`31·2.0 = 62 ≥ 60`) 각자 범위 검증만 한다) 기동 실패(조용한 클램프 없음).
 - 분류 경계는 Jetson에서만 쓴다. 콘솔은 받은 분류 코드를 그대로 그린다.
 
 ### 4.2 바닥 평면과 점 (`TerrainDetector` 확장·depth 솎기)
@@ -384,6 +384,7 @@ class PoseCorrector(Protocol):
   4. 분류 색 덧칠: 돌출 빨강, 도랑·낙차 파랑 — **원본 칸 경계로 최근접 확대**하고 경계에 윤곽선을 그린다(agy 11).
      관측 부족은 흐리게, 미관측은 배경색(평지·도랑과 다른 색, agy 7).
   5. **칸 나이**: 칸 나이 = 칸별 5비트 나이 × `age_step_s` + (지금 − 타일 `received_s`). `stale_display_s`를 넘은 칸은 채도를 낮춘다(agy 4·6).
+     나이는 시간이 흐르면 바뀌므로, 렌더 캐시는 시간과 무관한 층(보간·음영·분류색)만 담고 나이 흐림은 그릴 때마다 계산한다.
 - 그리기(cairo): RGBA를 `ImageSurface`로 올리고, 로버 위치·방향·지나온 궤적(상태 패킷 자세 이력, 콘솔 보관, epoch마다 비움)·1 m 격자·축척 막대를 덧그린다.
   글자는 PangoCairo.
 - 고정 문구: "지도는 지나온 관측 기록 · 분류는 그 칸을 본 위치 기준 · 오래된 칸은 흐리게 · 실시간 장애물 감지가 아님". 범례 5색.
