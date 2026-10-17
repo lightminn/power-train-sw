@@ -9,7 +9,7 @@
 
 | # | 할 일 | 왜 | 상태 |
 |---|---|---|---|
-| 0-1 | 브랜치 push 여부 결정 → Jetson으로 옮기는 방법 정하기(push 후 `git fetch` 또는 scp) | 아직 로컬 커밋만 있다 | ☐ |
+| 0-1 | Jetson은 같은 내부망에 붙여 **Jetson에서 pull**한다(2026-10-18 결정). GitHub에서 받으려면 그 전에 `feat/l515-terrain-map`을 push, push 없이 하려면 노트북에서 직접 받는다(§1 명령) | 아직 로컬 커밋만 있다 | ☐ |
 | 0-2 | 현장 분석 도구 `python3 -m powertrain_ros.terrain_map_field_report` — bag(흘려 읽음): 자이로·바퀴·depth 간격 분포(60/300 ms 초과 수, 도착 순서 뒤바뀜), 차체 50 Hz tick p99, 프레임별 `n·o+d`와 `support_base_*` 제안값·켤 수 있는지, FRESH·`NOT_SUPPORT` 비율 / 결정 기록: 손실률·로봇에서 잰 처리시간 p95·epoch 원인 | 스펙 §7.3-1·2·3 수치 | ✅ 2026-10-18 작성 |
 | 0-3 | 처리시간은 노드 결정 기록(`processed_log_path`)의 프레임별 `ms`로 잰다(UDP 기록기 불필요) | `proc_ms` p95가 노트북이 아닌 Jetson 값이어야 함 | ✅ 2026-10-18 작성 |
 | 0-6 | 노트북 결정적 재생은 bag 전체를 메모리에 올린다(≈ 370 MB/분, `--send`면 검증·송신 두 번 재생). 재생용 녹화는 **3분 이하**로 끊는다 | 노트북 RAM 15 GB | ☐ |
@@ -21,8 +21,13 @@
 ```bash
 # Jetson 호스트
 cd ~/power-train-sw-integrated
-git fetch --all && git status            # 팀원 미커밋 파일이 있으면 보존(건드리지 않음)
-git checkout feat/l515-terrain-map       # 0-1에서 정한 방법으로 받은 브랜치
+git status                               # 팀원 미커밋 파일이 있으면 보존(건드리지 않음) — 있으면 멈추고 확인
+# (가) GitHub에 push해 둔 경우
+git fetch origin && git checkout -B feat/l515-terrain-map origin/feat/l515-terrain-map
+# (나) push 없이 노트북에서 직접 (노트북 IP·사용자는 현장 값)
+git fetch light@<노트북IP>:ZETIN/robotics/power-train-sw feat/l515-terrain-map:feat/l515-terrain-map
+git checkout feat/l515-terrain-map
+git log --oneline -1                     # 노트북의 브랜치 끝 커밋과 같은지 확인
 docker compose -f docker/docker-compose.jetson.yml -f docker/docker-compose.integrated.yml run --rm \
   --entrypoint /bin/bash powertrain_terrain_map -lc \
   'source /opt/ros/humble/setup.bash && cd /workspace/ros2 && colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros'
