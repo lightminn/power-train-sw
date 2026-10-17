@@ -96,7 +96,7 @@ def support_check(result: TerrainResult, frame: FrameGeometry, cfg: MapConfig) -
     return SupportResult(True, None, count, median, base_h)
 
 
-def _severity(h: np.ndarray, cfg: MapConfig) -> np.ndarray:
+def severity(h: np.ndarray, cfg: MapConfig) -> np.ndarray:
     return np.maximum(h / cfg.obstacle_height_m, -h / cfg.ditch_depth_m)
 
 
@@ -107,7 +107,7 @@ def cell_height(values: np.ndarray, cfg: MapConfig) -> float:
     k = max(1, int(math.floor(cfg.cell_trim_fraction * n)))
     k = min(k, (n - 1) // 2)
     upper, lower = ordered[n - 1 - k], ordered[k]
-    return float(upper if _severity(np.array([upper]), cfg)[0] >= _severity(np.array([lower]), cfg)[0] else lower)
+    return float(upper if severity(np.array([upper]), cfg)[0] >= severity(np.array([lower]), cfg)[0] else lower)
 
 
 def classify(h: np.ndarray, cfg: MapConfig) -> np.ndarray:
@@ -143,7 +143,7 @@ def build_local_scan(result: TerrainResult, frame: FrameGeometry, stamp_s: float
     k = np.minimum(k, (counts - 1) // 2)
     upper = h_sorted[starts + counts - 1 - k]
     lower = h_sorted[starts + k]
-    h_cell = np.where(_severity(upper, cfg) >= _severity(lower, cfg), upper, lower)
+    h_cell = np.where(severity(upper, cfg) >= severity(lower, cfg), upper, lower)
     first = order[starts]
     return LocalScan(
         ix=ix[first].astype(np.int32), iy=iy[first].astype(np.int32),
