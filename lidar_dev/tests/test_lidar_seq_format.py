@@ -28,7 +28,8 @@ def make_seq(folder, n=10, streams=("depth", "ir", "color"), depth=None):
     meta = {"format": sf.FORMAT, "format_version": sf.FORMAT_VERSION, "depth_scale_m": sf.L515_DEPTH_SCALE,
             "depth_intrinsics": K, "color_intrinsics": CK if "color" in streams else None,
             "streams": {s: ({"w": 1} if s in streams else None) for s in sf.STREAMS},
-            "imu": {"available": False}, "stats": {"saved": n}}
+            "device": {"product_line": "L500"}, "imu": {"available": False},
+            "stats": {"saved": n, "error": None, "write_errors": 0}}
     os.makedirs(folder, exist_ok=True)
     sf.write_json_atomic(os.path.join(folder, "meta.json"), meta)
     w = sf.SeqWriter(folder, streams, workers=3, queue_size=n + 2)
@@ -176,5 +177,74 @@ def test_queue_full_drops_without_blocking(tmp_path):
     w = sf.SeqWriter(f, ("depth",), workers=0, queue_size=2)  # 저장 스레드 없음 → 큐가 바로 참
     ok = [w.submit(i, {"depth": floor_depth()}, {"host_mono_s": str(i)}) for i in range(5)]
     assert ok == [True, True, False, False, False] and w.dropped_queue == 3
+    for _ in range(2):  # 저장 스레드가 없으니 큐를 직접 비우고 닫는다(수집 로그 스레드가 다 쓴 뒤 닫힘)
+        w.q.get_nowait()
+        w.q.task_done()
+    w.close()
     log = list(csv.DictReader(open(os.path.join(f, "capture_log.csv"))))
     assert [r["status"] for r in log] == ["queued", "queued", "drop_queue", "drop_queue", "drop_queue"]
+
+
+def _edit_meta(f, fn):
+    m = json.load(open(os.path.join(f, "meta.json")))
+    fn(m)
+    sf.write_json_atomic(os.path.join(f, "meta.json"), m)
+
+
+def test_neg_empty_recording(tmp_path):
+    f = str(tmp_path / "seq")
+    make_seq(f, n=0)
+    E, _, _ = sf.check_sequence(f)
+    assert any("0개" in e for e in E), E
+
+
+def test_neg_error_stats(tmp_path):
+    f = _broken(tmp_path)
+    _edit_meta(f, lambda m: m["stats"].update(error="저장 실패(save_idx 3): disk full", write_errors=1))
+    E, _, _ = sf.check_sequence(f)
+    assert any("기록 중 오류" in e for e in E), E
+
+
+def test_neg_missing_stats(tmp_path):
+    f = _broken(tmp_path)
+    _edit_meta(f, lambda m: m.update(stats=None))
+    E, _, _ = sf.check_sequence(f)
+    assert any("정상 종료되지 않음" in e for e in E), E
+
+
+def test_neg_saved_mismatch(tmp_path):
+    f = _broken(tmp_path)
+    _edit_meta(f, lambda m: m["stats"].update(saved=99))
+    E, _, _ = sf.check_sequence(f)
+    assert any("stats.saved" in e for e in E), E
+
+
+def test_neg_l515_wrong_scale(tmp_path):
+    f = _broken(tmp_path)
+    _edit_meta(f, lambda m: m.update(depth_scale_m=0.001))  # D400 계열 단위로 잘못 기록된 경우
+    E, _, _ = sf.check_sequence(f)
+    assert any("0.00025" in e for e in E), E
+
+
+def test_neg_missing_timestamp(tmp_path):
+    f = _broken(tmp_path)
+    p = os.path.join(f, "frames.csv")
+    rows = list(csv.DictReader(open(p)))
+    rows[2]["ir_ts_ms"] = ""
+    rows[4]["color_fn"] = "nan"
+    with open(p, "w", newline="") as fh:
+        w = csv.DictWriter(fh, sf.FRAME_COLS)
+        w.writeheader()
+        w.writerows(rows)
+    E, _, _ = sf.check_sequence(f)
+    assert any(e.startswith("ir 타임스탬프") for e in E) and any(e.startswith("color 타임스탬프") for e in E), E
+
+
+def test_imu_sorted_numerically(tmp_path):
+    f = str(tmp_path / "seq")
+    w = sf.SeqWriter(f, ("depth",), workers=1, queue_size=2)
+    for t in ("100000.000000", "99999.990000", "99999.995000"):  # 문자열 정렬이면 100000이 먼저 온다
+        w.add_imu({"host_mono_s": t, "kind": "accel", "ts_ms": t, "ts_domain": "global_time", "fn": 1, "x": 0, "y": 0, "z": 9.8})
+    w.close()
+    got = [r["host_mono_s"] for r in csv.DictReader(open(os.path.join(f, "imu.csv")))]
+    assert got == ["99999.990000", "99999.995000", "100000.000000"]

@@ -33,7 +33,7 @@
   depth/000000.png        # uint16 z16 원본, 깊이 optical 좌표, 640×480 기본 — 호환 필수
   infrared/000000.png     # uint8 IR, 깊이와 같은 센서·같은 화소 격자(기본 켬)
   color/000000.jpg        # 컬러(1280×720 기본, JPEG 95)
-  depth_color/000000.png  # --align 일 때만(컬러 필수): 컬러 좌표로 정렬한 깊이(uint16, 컬러 해상도, 컬러 K 사용)
+  # (v1에는 정렬 깊이를 기록하지 않는다 — 컬러 정렬은 meta 외부 파라미터로 후처리하는 후속 기능)
   frames.csv              # 저장 확정된 프레임만, 저장 번호 순
   imu.csv                 # IMU 원래 주기 그대로(영상 저장 간격과 무관)
   capture_log.csv         # 수집 측이 받은 모든 frameset(버림 포함), 수집 순
@@ -44,7 +44,7 @@
 `meta.json`:
 - 형식: `format: "l515-seq"`, `format_version: 1`, `created_wall`(ISO), `label`, `note`, `tool_version`
 - 장치: `device{name, serial, firmware, usb, product_line}`, `sdk_version`
-- 스트림: `streams{depth, infrared, color, accel, gyro}` — 요청값과 **실제 협상 결과**(w·h·fps·format)
+- 스트림: `streams{depth, ir, color, accel, gyro}` — 요청값과 **실제 협상 결과**(w·h·fps·format)
 - 저장 간격: `every`
 - 호환 키: `depth_scale_m`, `depth_intrinsics{width, height, fx, fy, ppx, ppy, model, coeffs}`, `color_intrinsics`(컬러 없으면 null)
 - 호환 표시: `compat{terrain_family: true|false, reason}`

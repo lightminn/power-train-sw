@@ -54,20 +54,34 @@ class SeqWriter:
             os.makedirs(os.path.join(folder, STREAMS[s][0]), exist_ok=True)
         self.params = {".png": [cv2.IMWRITE_PNG_COMPRESSION, png_level], ".jpg": [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality]}
         self.q = queue.Queue(maxsize=queue_size)
-        self.lock = threading.Lock()
+        self.lock = threading.Lock()       # done·error·next_save
+        self.imu_lock = threading.Lock()   # IMU 행(콜백이 자주 붙임) — 저장 완료 처리와 잠금을 나눈다
         self.done, self.imu, self.error = [], [], None
         self.next_save, self.dropped_queue = 0, 0
-        # 줄 단위 버퍼 — 기록 중 죽어도 받은 frameset 목록이 남는다
+        # 수집 로그: 콜백은 메모리 큐에 넣기만 하고, 전용 스레드 하나가 순서대로 줄 단위로 쓴다(도중에 죽어도 남는다)
+        self._cap_q = queue.SimpleQueue()
         self._cap_f = open(os.path.join(folder, "capture_log.csv"), "w", newline="", buffering=1)
         self._cap = csv.DictWriter(self._cap_f, CAPTURE_COLS, extrasaction="ignore")
         self._cap.writeheader()
+        self._cap_t = threading.Thread(target=self._cap_work, daemon=True)
+        self._cap_t.start()
         self.threads = [threading.Thread(target=self._work, daemon=True) for _ in range(workers)]
         for t in self.threads:
             t.start()
 
+    def _cap_work(self):
+        while True:
+            row = self._cap_q.get()
+            if row is None:
+                return
+            try:
+                self._cap.writerow(row)
+            except Exception as e:
+                with self.lock:
+                    self.error = self.error or f"수집 로그 쓰기 실패: {e}"
+
     def log_capture(self, capture_idx, status, row):
-        with self.lock:
-            self._cap.writerow({"capture_idx": capture_idx, "status": status, **row})
+        self._cap_q.put({"capture_idx": capture_idx, "status": status, **row})
 
     def submit(self, capture_idx, images, row):
         """images: {스트림: 독립 numpy 배열}. 반환: 큐에 넣었으면 True."""
@@ -79,14 +93,15 @@ class SeqWriter:
                 self.q.put_nowait((idx, images, {"save_idx": idx, "capture_idx": capture_idx, **row}))
             except queue.Full:
                 self.dropped_queue += 1
-                self._cap.writerow({"capture_idx": capture_idx, "status": "drop_queue", **row})
-                return False
-            self.next_save += 1
-            self._cap.writerow({"capture_idx": capture_idx, "status": "queued", **row})
-            return True
+                status = "drop_queue"
+            else:
+                self.next_save += 1
+                status = "queued"
+        self.log_capture(capture_idx, status, row)
+        return status == "queued"
 
     def add_imu(self, row):
-        with self.lock:
+        with self.imu_lock:
             self.imu.append(row)
 
     def _work(self):
@@ -124,6 +139,8 @@ class SeqWriter:
             self.q.put(None)
         for t in self.threads:
             t.join()
+        self._cap_q.put(None)
+        self._cap_t.join()
         self._cap_f.close()
         done = sorted(self.done, key=lambda x: x[0])
         with open(os.path.join(self.folder, "frames.csv"), "w", newline="") as f:
@@ -131,7 +148,8 @@ class SeqWriter:
             w.writeheader()
             for _, row in done:
                 w.writerow(row)
-        imu = sorted(self.imu, key=lambda r: r["host_mono_s"])
+        with self.imu_lock:
+            imu = sorted(self.imu, key=lambda r: float(r["host_mono_s"]))  # 문자열이 아니라 수치로 정렬
         if imu:
             with open(os.path.join(self.folder, "imu.csv"), "w", newline="") as f:
                 w = csv.DictWriter(f, IMU_COLS, extrasaction="ignore")
@@ -150,14 +168,28 @@ def _read_csv(path):
         return list(csv.DictReader(f))
 
 
+def _num(v):
+    """CSV 값 → float. 비었거나 숫자가 아니거나 유한하지 않으면 None."""
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return None
+    return x if np.isfinite(x) else None
+
+
 def _monotonic_issues(vals):
     """(역행 수, 중복 수)."""
     d = np.diff(np.asarray(vals, float))
     return int((d < 0).sum()), int((d == 0).sum())
 
 
+def _sample_idx(n, sample):
+    return sorted(set(np.linspace(0, n - 1, min(sample, n)).astype(int))) if n else []
+
+
 def check_sequence(folder, sample=5):
-    """기록 폴더 점검. 반환: (errors, warnings, summary)."""
+    """기록 폴더 점검. 정상 완료 기록만 통과한다(빈 기록·오류 통계·저장 수 불일치·잘못된 깊이 단위·빠진/비유한 시각은 오류).
+    반환: (errors, warnings, summary)."""
     E, W, S = [], [], {}
     mp = os.path.join(folder, "meta.json")
     if not os.path.exists(mp):
@@ -167,92 +199,128 @@ def check_sequence(folder, sample=5):
         E.append(f"형식 불일치: {meta.get('format')} v{meta.get('format_version')}")
     di = meta.get("depth_intrinsics") or {}
     for k in ("width", "height", "fx", "fy", "ppx", "ppy"):
-        if k not in di:
-            E.append(f"depth_intrinsics.{k} 없음")
-    scale = meta.get("depth_scale_m")
-    if not isinstance(scale, (int, float)) or not 0 < scale <= 0.01:
-        E.append(f"depth_scale_m 이상: {scale}")
+        if _num(di.get(k)) is None:
+            E.append(f"depth_intrinsics.{k} 없음 또는 비유한")
+    scale = _num(meta.get("depth_scale_m"))
+    product = ((meta.get("device") or {}).get("product_line") or "")
+    if scale is None or not 0 < scale <= 0.01:
+        E.append(f"depth_scale_m 이상: {meta.get('depth_scale_m')}")
+    elif product == "L500" and abs(scale - L515_DEPTH_SCALE) > 1e-9:
+        E.append(f"L515인데 depth_scale_m {scale} ≠ 0.00025")
     elif abs(scale - L515_DEPTH_SCALE) > 1e-9:
-        W.append(f"depth_scale_m {scale} ≠ L515 0.00025")
-    if "stats" not in meta or meta["stats"] is None:
-        W.append("stats 없음 — 기록이 정상 종료되지 않았을 수 있음")
+        W.append(f"depth_scale_m {scale} ≠ L515 0.00025(장치 정보 없음)")
+    st = meta.get("stats")
+    if not st:
+        E.append("stats 없음 — 기록이 정상 종료되지 않음(부분 기록은 복구용으로만)")
+    else:
+        if st.get("error"):
+            E.append(f"기록 중 오류: {st['error']}")
+        if int(st.get("write_errors") or 0):
+            E.append(f"쓰기 오류 {st['write_errors']}건")
     if E:
         return E, W, S
-    streams = [s for s in STREAMS if (meta.get("streams") or {}).get(s)]
+    streams = [s_ for s_ in STREAMS if (meta.get("streams") or {}).get(s_)]
     if "depth" not in streams:
-        E.append("depth 스트림이 꺼져 있음")
-        return E, W, S
+        return E + ["depth 스트림이 꺼져 있음"], W, S
     fp = os.path.join(folder, "frames.csv")
     if not os.path.exists(fp):
         return E + ["frames.csv 없음"], W, S
     rows = _read_csv(fp)
     n = len(rows)
     S["frames"] = n
-    idx = [int(r["save_idx"]) for r in rows]
-    if idx != list(range(n)):
+    if n == 0:
+        E.append("저장된 프레임 0개")
+    if st and st.get("saved") is not None and int(st["saved"]) != n:
+        E.append(f"stats.saved {st['saved']} ≠ frames.csv {n}행")
+    if [r.get("save_idx") for r in rows] != [str(i) for i in range(n)]:
         E.append("frames.csv save_idx가 0부터 연속이 아님")
-    # 파일 집합
-    shape = {"depth": (di["height"], di["width"]), "ir": (di["height"], di["width"])}
+    # 파일 집합·표본 dtype/크기
+    shape = {"depth": (int(di["height"]), int(di["width"])), "ir": (int(di["height"]), int(di["width"]))}
     ci = meta.get("color_intrinsics")
     if ci:
-        shape["color"] = (ci["height"], ci["width"], 3)
-    for s in streams:
-        sub, ext, dt, ch = STREAMS[s]
-        files = sorted(os.path.basename(p) for p in glob.glob(os.path.join(folder, sub, "*" + ext)) if not os.path.basename(p).startswith("."))
+        shape["color"] = (int(ci["height"]), int(ci["width"]), 3)
+    for s_ in streams:
+        sub, ext, dt, ch = STREAMS[s_]
+        files = sorted(os.path.basename(p_) for p_ in glob.glob(os.path.join(folder, sub, "*" + ext))
+                       if not os.path.basename(p_).startswith("."))
         if files != [f"{i:06d}{ext}" for i in range(n)]:
             E.append(f"{sub}/ 파일 {len(files)}개가 frames.csv {n}행과 맞지 않음")
         tmp = glob.glob(os.path.join(folder, sub, ".*.tmp*"))
         if tmp:
             E.append(f"{sub}/ 임시 파일 {len(tmp)}개 남음(쓰다 만 프레임)")
-        for i in sorted(set(np.linspace(0, max(n - 1, 0), min(sample, n)).astype(int))) if n else []:
-            p = os.path.join(folder, sub, f"{i:06d}{ext}")
-            if not os.path.exists(p):
+        for i in _sample_idx(n, sample):
+            p_ = os.path.join(folder, sub, f"{i:06d}{ext}")
+            if not os.path.exists(p_):
                 continue
-            a = cv2.imread(p, cv2.IMREAD_UNCHANGED)
+            a = cv2.imread(p_, cv2.IMREAD_UNCHANGED)
             if a is None:
                 E.append(f"읽기 실패: {sub}/{i:06d}{ext}")
                 continue
             if a.dtype != dt:
                 E.append(f"{sub}/{i:06d}{ext} dtype {a.dtype} ≠ {np.dtype(dt)}")
-            if s in shape and a.shape != tuple(shape[s]):
-                E.append(f"{sub}/{i:06d}{ext} 크기 {a.shape} ≠ meta {tuple(shape[s])}")
-    # 시각·번호
-    for s in streams:
-        ts = [float(r[f"{s}_ts_ms"]) for r in rows if r.get(f"{s}_ts_ms")]
-        fn = [int(r[f"{s}_fn"]) for r in rows if r.get(f"{s}_fn")]
-        back, dup = _monotonic_issues(ts) if len(ts) > 1 else (0, 0)
-        if back or dup:
-            E.append(f"{s} 타임스탬프 역행 {back}·중복 {dup}")
-        fb, fd = _monotonic_issues(fn) if len(fn) > 1 else (0, 0)
-        if fb or fd:
-            E.append(f"{s} 프레임 번호 역행 {fb}·중복 {fd}")
-        if len(ts) > 1:
+            if s_ in shape and a.shape != tuple(shape[s_]):
+                E.append(f"{sub}/{i:06d}{ext} 크기 {a.shape} ≠ meta {tuple(shape[s_])}")
+    # 시각·번호: 모든 행에 있어야 하고 유한해야 한다
+    for s_ in streams:
+        ts = [_num(r.get(f"{s_}_ts_ms")) for r in rows]
+        fn = [_num(r.get(f"{s_}_fn")) for r in rows]
+        if any(v is None for v in ts) or any(v is None for v in fn):
+            E.append(f"{s_} 타임스탬프·프레임 번호가 빠졌거나 비유한(시각 {sum(v is None for v in ts)}·번호 {sum(v is None for v in fn)})")
+            continue
+        if n > 1:
+            back, dup = _monotonic_issues(ts)
+            if back or dup:
+                E.append(f"{s_} 타임스탬프 역행 {back}·중복 {dup}")
+            fb, fd = _monotonic_issues(fn)
+            if fb or fd:
+                E.append(f"{s_} 프레임 번호 역행 {fb}·중복 {fd}")
             dts = np.diff(ts)
-            S[f"{s}_dt_ms"] = {"median": round(float(np.median(dts)), 2), "max": round(float(dts.max()), 2)}
-        doms = {r.get(f"{s}_ts_domain") for r in rows}
+            S[f"{s_}_dt_ms"] = {"median": round(float(np.median(dts)), 2), "max": round(float(dts.max()), 2)}
+        doms = sorted({r.get(f"{s_}_ts_domain") for r in rows})
         if len(doms) > 1:
-            W.append(f"{s} 타임스탬프 도메인이 섞임: {sorted(doms)}")
-    # 같은 frameset 안 시간차(같은 도메인일 때만)
-    for a, b in (("depth", "ir"), ("depth", "color")):
-        if a in streams and b in streams and rows and rows[0].get(f"{a}_ts_domain") == rows[0].get(f"{b}_ts_domain"):
-            d = [abs(float(r[f"{a}_ts_ms"]) - float(r[f"{b}_ts_ms"])) for r in rows]
-            S[f"{a}_{b}_skew_ms"] = {"median": round(float(np.median(d)), 2), "max": round(float(np.max(d)), 2)}
+            W.append(f"{s_} 타임스탬프 도메인이 섞임: {doms}")
+    # 같은 frameset 안 시간차 — 행마다 도메인이 같을 때만 뺀다
+    for a_, b_ in (("depth", "ir"), ("depth", "color")):
+        if a_ in streams and b_ in streams:
+            d = [abs(_num(r[f"{a_}_ts_ms"]) - _num(r[f"{b_}_ts_ms"])) for r in rows
+                 if r.get(f"{a_}_ts_domain") == r.get(f"{b_}_ts_domain")
+                 and _num(r.get(f"{a_}_ts_ms")) is not None and _num(r.get(f"{b_}_ts_ms")) is not None]
+            if d:
+                S[f"{a_}_{b_}_skew_ms"] = {"median": round(float(np.median(d)), 2), "max": round(float(np.max(d)), 2),
+                                          "rows": len(d)}
+            if len(d) < n:
+                W.append(f"{a_}–{b_} 도메인이 다른 행 {n - len(d)}개는 시간차를 계산하지 않음")
     # IMU
     ip = os.path.join(folder, "imu.csv")
+    imu_meta = meta.get("imu") or {}
     if os.path.exists(ip):
         imu = _read_csv(ip)
+        hm = [_num(r.get("host_mono_s")) for r in imu]
+        if any(v is None for v in hm):
+            E.append("IMU host_mono_s 빠짐·비유한")
+        elif len(hm) > 1 and _monotonic_issues(hm)[0]:
+            E.append("IMU 행이 수신 단조시각 순서가 아님")
         for kind in ("accel", "gyro"):
-            ts = [float(r["ts_ms"]) for r in imu if r["kind"] == kind]
+            sel = [r for r in imu if r.get("kind") == kind]
+            ts = [_num(r.get("ts_ms")) for r in sel]
+            fn = [_num(r.get("fn")) for r in sel]
+            xyz = [_num(r.get(k)) for r in sel for k in ("x", "y", "z")]
+            if any(v is None for v in ts + fn + xyz):
+                E.append(f"IMU {kind} 값 빠짐·비유한")
+                continue
             if len(ts) > 1:
                 back, dup = _monotonic_issues(ts)
                 if back or dup:
                     E.append(f"IMU {kind} 타임스탬프 역행 {back}·중복 {dup}")
                 S[f"imu_{kind}_hz"] = round((len(ts) - 1) / ((ts[-1] - ts[0]) / 1000.0), 1) if ts[-1] > ts[0] else None
-    elif (meta.get("imu") or {}).get("available"):
+                S[f"imu_{kind}_fn_gaps"] = int(sum(max(0, b - a - 1) for a, b in zip(fn, fn[1:])))
+            elif imu_meta.get("available"):
+                E.append(f"IMU {kind} 샘플이 1개 이하")
+    elif imu_meta.get("available"):
         E.append("meta는 IMU 있음인데 imu.csv 없음")
     # 깊이 표본
     vr, cz = [], []
-    for i in sorted(set(np.linspace(0, max(n - 1, 0), min(sample, n)).astype(int))) if n else []:
+    for i in _sample_idx(n, sample):
         a = cv2.imread(os.path.join(folder, "depth", f"{i:06d}.png"), cv2.IMREAD_UNCHANGED)
         if a is None or a.dtype != np.uint16:
             continue
@@ -266,5 +334,5 @@ def check_sequence(folder, sample=5):
         S["depth_valid_ratio"] = round(float(np.mean(vr)), 3)
     if cz:
         S["center_depth_m"] = round(float(np.median(cz)), 3)
-    S["stats"] = meta.get("stats")
+    S["stats"] = st
     return E, W, S

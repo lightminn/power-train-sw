@@ -9,7 +9,7 @@
 | `lidar_dev/record_seq.py` | 노트북 직결 L515 기록(depth 640×480 z16 + IR y8 + 컬러 1280×720 bgr8 + accel/gyro), pipeline 콜백 하나, 제한 큐(60) + 저장 스레드 4개, Gateway 보호(잠금 파일·`gateway_main` 프로세스·젯슨이면 거부, `--maintenance`는 잠금을 기록 끝까지 유지) |
 | `lidar_dev/seq_format.py` | l515-seq v1 형식: `SeqWriter`(임시 이름 → rename, save_idx 연속 발급, 쓰기 실패 즉시 중지, frames.csv는 저장 성공분만), `extrinsics_dict`(SDK 열 우선 → 행 우선), `check_sequence` |
 | `lidar_dev/check_seq.py` | 점검 CLI(구조 오류면 종료 코드 1) |
-| `lidar_dev/tests/test_lidar_seq_format.py` | 장치 없는 시험 12개(음성 대조 7개 포함). numpy·cv2 없으면 skip, terrain 호환 시험은 open3d 없으면 skip |
+| `lidar_dev/tests/test_lidar_seq_format.py` | 장치 없는 시험 19개(음성 대조 13개 포함). numpy·cv2 없으면 skip, terrain 호환 시험은 open3d 없으면 skip |
 
 기존 `lidar_dev/` 파일은 고치지 않았다. `terrain_node.py`(ROS 노드 호환)는 별도 커밋·젯슨 격리 스모크로 따로 받는다.
 
@@ -21,6 +21,8 @@
 | 10-17 22:00 | 실기 5 s(책상, 벽 쪽) → `check_seq` | 통과. 80프레임, 버림 0, depth–IR 0 ms·depth–컬러 9.8 ms, IMU 각 약 200 Hz |
 | 10-17 22:09 | 실기 5 s(바닥이 보이게) → `check_seq` → 인수받은 `terrain.py`·`ground.py`(NO3D=1) | 통과. `terrain.py` OK 79/79, 카메라 높이 0.666 m ± 0.8 mm(반복성), 기울기 19.7°. `ground.py` 66.8 cm·19.7°, 1 m 앞 수직면 검출 |
 | 10-17 22:1x | IMU 가속도 평균 대 바닥 법선(depth→accel 공장 외부 파라미터) | **1.74° 차이**, |a| 9.69 m/s²(다른 자세에서 9.58) → IMU 정지 보정 전에는 바닥 평면을 중력 기준으로 쓴다 |
+
+| 10-17 22:3x | 2차 교차검토(지적: 점검기가 빈 기록·오류 통계를 통과시킴, IMU 문자열 정렬, 빠진/비유한 시각 통과, 도메인 비교, 시작 단계 예외 시 저장 미확정, 첫 프레임 무한 대기, 불완전 frameset을 SDK 틈으로 중복 집계, 콜백 안 로그 I/O, 정비 모드 권한 검사 약함) → 모두 수정 | 시험 19개 통과(새 음성 대조: 빈 기록·오류 통계·stats 없음·저장 수 불일치·L515 0.001 단위·빠진/NaN 시각·IMU 수치 정렬). 기존 기록 2개·새 3 s 기록 `check_seq` 통과, 인자 검증 확인 |
 
 ## 남은 것
 
