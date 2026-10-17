@@ -7,7 +7,6 @@ last height for display.  Heights are never blended across frames.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import math
 
 import numpy as np
 
@@ -28,7 +27,7 @@ class _Tile:
     display_h: np.ndarray      # (n*n,) float32, NaN = unobserved
     observations: np.ndarray   # (n*n,) uint16
     last_seen: np.ndarray      # (n*n,) float64, NaN = unobserved
-    last_seen_s: float
+    last_fused: int            # ClassMap fusion counter when last touched (eviction order)
     version: int = 0
     signature: bytes = b""
 
@@ -39,12 +38,14 @@ class ClassMap:
         self.epoch = 0
         self._tiles: dict[tuple[int, int], _Tile] = {}
         self._counter = 0
+        self._fusions = 0
 
     # --- maintenance --------------------------------------------------------
     def clear(self, epoch: int) -> None:
         self.epoch = epoch
         self._tiles.clear()
         self._counter = 0
+        self._fusions = 0
 
     def tiles(self) -> list[tuple[int, int]]:
         return list(self._tiles)
@@ -54,10 +55,14 @@ class ClassMap:
         return None if tile is None else tile.version
 
     def evict_if_needed(self) -> list[tuple[int, int]]:
-        """Drop the least recently seen tiles beyond ``max_map_tiles`` (no notice is sent; §4.5)."""
+        """Drop the least recently fused tiles beyond ``max_map_tiles`` (no notice is sent; §4.5).
+
+        Fusion order, not receive time: a decisions replay fuses the same frames in the same
+        order but receives them at other times (Codex T6 re-review).
+        """
         evicted = []
         while len(self._tiles) > self.cfg.max_map_tiles:
-            key = min(self._tiles, key=lambda k: self._tiles[k].last_seen_s)
+            key = min(self._tiles, key=lambda k: self._tiles[k].last_fused)
             del self._tiles[key]
             evicted.append(key)
         return evicted
@@ -72,6 +77,7 @@ class ClassMap:
         seen_s = stamp_s if seen_s is None else seen_s
         if len(scan.h_m) == 0:
             return set()
+        self._fusions += 1
         cell, n = self.cfg.cell_m, self.cfg.tile_cells
         centres = np.stack([(scan.ix + 0.5) * cell, (scan.iy + 0.5) * cell], axis=1)
         world = np.floor(transform_points(pose, centres) / cell).astype(np.int64)
@@ -103,7 +109,7 @@ class ClassMap:
             display_h=np.full(size, np.nan, np.float32),
             observations=np.zeros(size, np.uint16),
             last_seen=np.full(size, np.nan),
-            last_seen_s=-math.inf,
+            last_fused=0,
         )
 
     def _update_tile(self, key, idx, h, code, stamp_s, seen_s) -> bool:
@@ -128,7 +134,7 @@ class ClassMap:
         tile.display_h[idx] = h
         tile.observations[idx] = np.minimum(tile.observations[idx].astype(np.int64) + 1, _MAX_OBS)
         tile.last_seen[idx] = seen_s
-        tile.last_seen_s = max(tile.last_seen_s, seen_s)
+        tile.last_fused = self._fusions
 
         heights, codes = self._transmitted(tile)
         signature = heights.tobytes() + codes.tobytes()

@@ -197,3 +197,14 @@ def test_clear_empties_the_map_and_restarts_versions():
     assert m.tiles() == [] and m.epoch == 1
     m.fuse(local([(0, 0, 0.0)]), IDENTITY, 2.0)
     assert m.version_of(0, 0) == 1
+
+
+def test_eviction_follows_the_fusion_order_not_the_receive_clock():
+    """Codex T6 re-review: rx order may differ from stamp order; the replay has rx = stamp."""
+    cfg = MapConfig(max_map_tiles=64)
+    m = ClassMap(cfg)
+    m.fuse(local([(0, 0, 0.0)], 100.0, cfg), IDENTITY, 100.0, seen_s=100.25)       # A: fused first, received last
+    m.fuse(local([(16, 0, 0.0)], 100.2, cfg), IDENTITY, 100.2, seen_s=100.22)      # B
+    for k in range(2, 65):
+        m.fuse(local([(16 * k, 0, 0.0)], 101.0 + k, cfg), IDENTITY, 101.0 + k, seen_s=101.0 + k)
+    assert m.evict_if_needed() == [(0, 0)]
