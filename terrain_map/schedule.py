@@ -21,6 +21,12 @@ class DepthFrame(NamedTuple):
     stamp_s: float
     rx_s: float
     array: Any
+    seg: int = 0              # identity (clock segment, copy) — see terrain_map.odometry.SampleIds
+    copy: int = 0
+
+    @property
+    def ident(self) -> tuple[int, float, int]:
+        return (self.seg, self.stamp_s, self.copy)
 
 
 class Selected(NamedTuple):
@@ -33,7 +39,7 @@ class FrameScheduler:
                  follow: frozenset | None = None) -> None:
         self.cfg = cfg
         self._record = record
-        self._follow = follow             # stamps processed live; replay processes exactly these
+        self._follow = follow             # identities processed live; replay processes exactly these
         self._pending: list[DepthFrame] = []
         self._target: DepthFrame | None = None
         self._last_attempt: float | None = None
@@ -94,7 +100,7 @@ class FrameScheduler:
         while self._pending:
             head = self._pending[0]
             eligible = floor is None or head.stamp_s >= floor - 1e-9
-            if eligible and (self._follow is None or head.stamp_s in self._follow):
+            if eligible and (self._follow is None or head.ident in self._follow):
                 return head
             self._pending.pop(0)
             self.skipped += 1
@@ -105,4 +111,5 @@ class FrameScheduler:
         self._target = None
         self._last_attempt = target.stamp_s
         if self._record is not None and self._follow is None:
-            self._record({"k": "frame", "t": target.stamp_s, "r": result, "why": reason})
+            self._record({"k": "frame", "seg": target.seg, "t": target.stamp_s, "seq": target.copy,
+                          "r": result, "why": reason})

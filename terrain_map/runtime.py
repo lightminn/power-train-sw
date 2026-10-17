@@ -23,7 +23,8 @@ from .classmap import ClassMap
 from .config import MapConfig
 from .correction import Correction, apply_delta, make_corrector, update_delta
 from .geometry import IDENTITY, Pose2D, base_to_optical
-from .odometry import FollowPlan, GyroSample, PlanarOdometry, PoseSample, WheelLayout, WheelSample, follow_plan
+from .odometry import (FollowPlan, GyroSample, PlanarOdometry, PoseSample, SampleIds, WheelLayout, WheelSample,
+                       follow_plan)
 from .pose import PoseTrack
 from .schedule import POSE_EXPIRED, DepthFrame, FrameScheduler
 from .scan import build_local_scan, decimate, make_frame, support_check
@@ -75,7 +76,8 @@ def load_decisions(records: Iterable[dict], session: str | None = None) -> Decis
         chosen = next(iter(runs.values()))
     else:
         raise ValueError(f"decisions log holds {len(runs)} runs {sorted(map(str, runs))}; choose one session")
-    frames = frozenset(float(r["t"]) for r in chosen if r.get("k") == "frame" and r.get("r") == "processed")
+    frames = frozenset((int(r["seg"]), float(r["t"]), int(r["seq"])) for r in chosen
+                       if r.get("k") == "frame" and r.get("r") == "processed")
     return Decisions(follow_plan(chosen), frames)
 
 
@@ -118,6 +120,7 @@ class MapRuntime:
                                else np.asarray(gyro_rotation, float))
         self._lock = threading.RLock()
         self._following = follow is not None
+        self._depth_ids = SampleIds(cfg.stamp_regression_epoch_s)
         self.odometry = PlanarOdometry(cfg, layout, record=self._record,
                                        follow=None if follow is None else follow.odometry)
         self.track = PoseTrack(cfg)
@@ -158,12 +161,16 @@ class MapRuntime:
                                 height=-(-camera.height // self.cfg.pixel_stride))
             self._detector = TerrainDetector(small, DetectorConfig(min_ground_points=self.cfg.ground_min_points))
 
-    def on_depth(self, array: np.ndarray, stamp_s: float, rx_s: float) -> None:
+    def on_depth(self, array: np.ndarray, stamp_s: float, rx_s: float, seq: int = -1, seg: int = -1) -> None:
+        """``seq``/``seg``: depth identity (clock segment, copy) — given by a replay, assigned live
+        on arrival with the same ``SampleIds`` rule, so recorded decisions name the frame (branch review)."""
         with self._lock:
+            if seq < 0 or seg < 0:
+                seg, seq = self._depth_ids.assign("depth", float(stamp_s))
             self._latest_depth = (float(stamp_s), float(rx_s), tuple(array.shape))
             camera = self._camera
             if camera is not None and tuple(array.shape) == (camera.height, camera.width):
-                self.scheduler.push(DepthFrame(float(stamp_s), float(rx_s), array))
+                self.scheduler.push(DepthFrame(float(stamp_s), float(rx_s), array, seg, seq))
 
     def on_bad_depth(self, rx_s: float) -> None:
         """A depth message failed the encoding/step check and was dropped."""

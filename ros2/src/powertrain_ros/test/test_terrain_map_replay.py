@@ -266,3 +266,20 @@ def test_a_rejected_gyro_does_not_shadow_its_valid_twin_in_the_plain_replay():
     records = RP.identify([RP.Record(F.GYRO_TOPIC, 100.0, 0, nan), RP.Record(F.GYRO_TOPIC, 100.0, 1, ok)], CFG)
     fed = [r for seg in RP.segments(records, CFG.stamp_regression_epoch_s, drop_small_regressions=True) for r in seg]
     assert [r.message for r in fed] == [ok]
+
+
+def test_depth_decisions_tell_clock_segments_apart(tmp_path):
+    """Branch review P2: after a clock restart only the node misses one depth frame."""
+    first, _ = F.scenario(F.drive_then(Command("skid", v=0.3, omega=0.1)), 4.0)
+    again, _ = F.scenario(F.drive_then(Command("skid", v=0.3, omega=0.4), stop_s=0.0), 4.0)
+    seg1 = [(rx, t, m) for rx, t, m in receipt(first)]
+    seg2 = sorted((e.stamp_s + 20.0 + (0.02 if e.topic in (F.DEPTH_TOPIC, F.INFO_TOPIC) else 0.0), e.topic, e.message)
+                  for e in again)
+    depth2 = [i for i, r in enumerate(seg2) if r[1] == F.DEPTH_TOPIC]
+    missed = depth2[0]          # the node misses the first depth frame of segment 2 — a stamp segment 1 processed
+    records = []
+    rt = live(seg1 + seg2[:missed] + seg2[missed + 1:], records.append)
+    assert rt.epoch >= 1 and rt.map.tiles()
+    write_bag(tmp_path / "bag", seg1 + seg2)                   # the recorder got it
+    write_log(tmp_path / "e.jsonl", records)
+    assert run_cli(tmp_path / "bag", tmp_path / "f.npz", "--decisions-from", str(tmp_path / "e.jsonl")) == content(rt)

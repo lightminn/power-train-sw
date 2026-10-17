@@ -90,8 +90,11 @@ def identify(records: list[Record], cfg: MapConfig) -> list[Record]:
             if not math.isfinite(gyro_body_rate(rotation, (v.x, v.y, v.z))):
                 continue                        # rejected live too: it must not shadow a valid twin
 
-        if r.topic in SOURCES:
-            seg, copy = ids.assign(SOURCES[r.topic], r.stamp_s)
+        if r.topic == DEPTH_TOPIC and r.message is not None and depth_array(r.message) is None:
+            out.append(r)                       # a malformed frame never reaches on_depth live
+            continue
+        if r.topic in SOURCES or r.topic == DEPTH_TOPIC:
+            seg, copy = ids.assign(SOURCES.get(r.topic, "depth"), r.stamp_s)
             r = r._replace(seg=seg, copy=copy)
         out.append(r)
     return out
@@ -109,7 +112,7 @@ def missing_from_bag(records: list[Record], decisions, regression_s: float) -> l
         lost = sorted(received - have)
         if lost:
             problems.append(f"{len(lost)} gyro/wheel samples the node received are not in the bag (first {lost[0]})")
-    depth = {r.stamp_s for r in records if r.topic == DEPTH_TOPIC}
+    depth = {(r.seg, r.stamp_s, r.copy) for r in records if r.topic == DEPTH_TOPIC}
     frames = sorted(decisions.frames - depth)
     if frames:
         problems.append(f"{len(frames)} processed depth frames are not in the bag (first {frames[0]})")
@@ -146,7 +149,7 @@ def feed(runtime: MapRuntime, clock, record: Record, radius_m: float) -> None:
         if array is None:
             runtime.on_bad_depth(record.stamp_s)
         else:
-            runtime.on_depth(array, record.stamp_s, record.stamp_s)
+            runtime.on_depth(array, record.stamp_s, record.stamp_s, record.copy, record.seg)
     elif record.topic == GYRO_TOPIC:
         v = m.angular_velocity
         runtime.on_gyro(record.stamp_s, record.stamp_s, (v.x, v.y, v.z), record.copy, record.seg)
