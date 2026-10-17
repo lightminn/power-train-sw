@@ -1659,6 +1659,14 @@ class MetadataCanvas(Gtk.DrawingArea):
         self._show_distance = bool(show_distance)
         self.queue_draw()
 
+    def _label_layout(self, context: object, text: str):
+        # PangoCairo, not cairo's toy text API: the toy API has no font
+        # fallback and draws Korean class names as missing-glyph boxes.
+        layout = PangoCairo.create_layout(context)
+        layout.set_font_description(Pango.FontDescription("Sans Bold 11"))
+        layout.set_text(text, -1)
+        return layout
+
     def _on_draw(self, _widget: Gtk.DrawingArea, context: object) -> bool:
         frame = self._receiver.latest()
         if (
@@ -1679,8 +1687,6 @@ class MetadataCanvas(Gtk.DrawingArea):
         )
         context.set_source_rgba(0.0, 0.835, 1.0, 0.98)
         context.set_line_width(2.0)
-        context.select_font_face("Sans", 0, 1)
-        context.set_font_size(15.0)
         # 갱신 소유자는 _sync_overlay_rail 타이머 하나다.  draw 는 읽기만 한다 —
         # 그리기 횟수가 필터(EMA/median/연속성) 진행을 바꾸면 창이 가려졌을 때
         # 거리값이 달라진다.
@@ -1716,23 +1722,25 @@ class MetadataCanvas(Gtk.DrawingArea):
             text = "  ".join(labels)
             label_x = offset_x + x * scale
             label_y = max(18.0, offset_y + y * scale - 5.0)
-            extents = context.text_extents(text)
+            layout = self._label_layout(context, text)
+            _ink, logical = layout.get_pixel_extents()
+            text_width, text_height = float(logical.width), float(logical.height)
             context.set_source_rgba(0.0, 0.059, 0.094, 0.88)
             context.rectangle(
-                label_x - 3.0, label_y - extents.height - 4.0,
-                extents.width + 9.0, extents.height + 7.0,
+                label_x - 3.0, label_y - text_height - 4.0,
+                text_width + 9.0, text_height + 7.0,
             )
             context.fill()
             if detection.is_pick_target:
                 context.set_source_rgba(0.0, 0.341, 1.0, 1.0)
                 context.rectangle(
-                    label_x - 3.0, label_y - extents.height - 4.0,
-                    3.0, extents.height + 7.0,
+                    label_x - 3.0, label_y - text_height - 4.0,
+                    3.0, text_height + 7.0,
                 )
                 context.fill()
             context.set_source_rgba(0.42, 0.914, 1.0, 1.0)
-            context.move_to(label_x + 2.0, label_y)
-            context.show_text(text)
+            context.move_to(label_x + 2.0, label_y - text_height - 1.0)
+            PangoCairo.show_layout(context, layout)
         return False
 
 
