@@ -332,3 +332,22 @@ def test_tile_age_uses_the_receive_clock_not_the_header_stamp():
         _, codes, age = C.unpack_cells(rt.map.encode_tile(tx, ty, clock.now)["cells"], CFG.tile_cells)
         ages += [a for c, a in zip(codes, age) if c != C.INSUFFICIENT]
     assert ages and min(ages) == 4                              # floor(9.7 / 2.0) for the newest cells
+
+
+def test_the_replay_check_sees_a_different_camera_model():
+    """Branch review 3: live processed some frames with an updated CameraInfo, the replay did not."""
+    from terrain_map.runtime import unreproduced
+    events, depth = scenario()
+    records = []
+    clock = Clock()
+    live = runtime(clock, decisions=records.append)
+    live.on_camera_info(CAM)
+    half = len(depth) // 2
+    drive(live, clock, events, depth[:half], until=depth[half][0])
+    live.on_camera_info(CameraModel(fx=CAM.fx * 1.01, fy=CAM.fy * 1.01, cx=CAM.cx, cy=CAM.cy,
+                                    width=CAM.width, height=CAM.height))
+    rest = [(rx, s) for rx, s in events if rx >= depth[half][0]]
+    drive(live, clock, rest, depth[half:])
+    plan = load_decisions(json.loads(json.dumps(r)) for r in records)
+    followed = replay([s for _, s in events], depth, follow=plan)        # the replay only ever saw CAM
+    assert unreproduced(plan, followed.followed_results)

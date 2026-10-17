@@ -50,11 +50,18 @@ def default_gyro_rotation(cfg: MapConfig) -> np.ndarray:
 class Decisions(NamedTuple):
     odometry: FollowPlan
     frames: frozenset    # depth identities processed live
-    results: tuple = ()  # ((frame identity), outcome) of the live processing, for the replay to verify
+    results: tuple = ()  # (frame identity, (outcome, camera digest)) of the live processing, for the replay to verify
 
 
 def _frame_ident(r: dict) -> tuple:
     return (int(r["seg"]), float(r["t"]), int(r["d"]), int(r["seq"]))
+
+
+def camera_digest(camera) -> int:
+    """Fingerprint of the CameraModel a frame was processed with (branch review 3)."""
+    if camera is None:
+        return 0
+    return zlib.crc32(repr((camera.fx, camera.fy, camera.cx, camera.cy, camera.width, camera.height)).encode())
 
 
 def depth_array_digest(array: np.ndarray) -> int:
@@ -65,14 +72,16 @@ def depth_array_digest(array: np.ndarray) -> int:
 def unreproduced(decisions: Decisions, replayed) -> list[str]:
     """Differences between the live processing results and a replay's (empty: reproduced).
 
-    A live ``epoch_changed`` (the epoch moved while that frame was processing) is a timing
-    artefact: the frame's cells were wiped either way, so it matches any replay outcome.
+    Each result is ``(outcome, camera digest)``: the same frame processed with another
+    CameraInfo is not the same result.  A live ``epoch_changed`` (the epoch moved while that
+    frame was processing) is a timing artefact: the frame's cells were wiped either way, so it
+    matches any replay outcome.
     """
     live = {ident: outcome for ident, outcome in decisions.results}
     got = dict(replayed)
     problems = []
     for ident, outcome in sorted(live.items()):
-        if outcome == "epoch_changed":
+        if outcome[0] == "epoch_changed":
             continue
         if got.get(ident) != outcome:
             problems.append(f"frame {ident}: live {outcome}, replay {got.get(ident, 'not processed')}")
@@ -108,7 +117,7 @@ def load_decisions(records: Iterable[dict], session: str | None = None) -> Decis
     else:
         raise ValueError(f"decisions log holds {len(runs)} runs {sorted(map(str, runs))}; choose one session")
     frames = frozenset(_frame_ident(r) for r in chosen if r.get("k") == "frame" and r.get("r") == "processed")
-    results = tuple((_frame_ident(r), r["r"]) for r in chosen if r.get("k") == "result")
+    results = tuple((_frame_ident(r), (r["r"], int(r.get("cam", 0)))) for r in chosen if r.get("k") == "result")
     return Decisions(follow_plan(chosen), frames, results)
 
 
@@ -151,7 +160,7 @@ class MapRuntime:
                                else np.asarray(gyro_rotation, float))
         self._lock = threading.RLock()
         self._following = follow is not None
-        self.followed_results: list[tuple[tuple, str]] = []
+        self.followed_results: list[tuple[tuple, tuple[str, int]]] = []
         self._depth_ids = SampleIds(cfg.stamp_regression_epoch_s)
         self.odometry = PlanarOdometry(cfg, layout, record=self._record,
                                        follow=None if follow is None else follow.odometry)
@@ -335,9 +344,9 @@ class MapRuntime:
                     self._epoch.not_support += 1
             if self._record is not None:
                 self._record({"k": "result", "seg": frame.seg, "t": frame.stamp_s, "d": frame.digest, "seq": frame.copy,
-                              "epoch": epoch, "r": outcome})
+                              "epoch": epoch, "r": outcome, "cam": camera_digest(camera)})
             elif self._following:
-                self.followed_results.append((frame.ident, outcome))
+                self.followed_results.append((frame.ident, (outcome, camera_digest(camera))))
 
     def _record_time(self, elapsed_s: float) -> None:
         self.max_processing_s = max(self.max_processing_s, elapsed_s)
