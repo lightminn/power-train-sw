@@ -64,3 +64,54 @@ def test_results_carry_processing_time():
     _, records = live_records()
     results = [r for r in records if r.get("k") == "result"]
     assert results and all(isinstance(r["ms"], float) and math.isfinite(r["ms"]) for r in results)
+
+
+# --- Codex field-tool review -------------------------------------------------------------
+def test_variation_covers_every_pose_not_just_the_middle_ninety_percent():
+    heights = [0.471] * 96 + [0.411] * 4                     # a few low poses are real variation
+    s = R.support_suggestion(heights, MapConfig())
+    assert s["support_base_variation_m"] >= 0.06 and not s["can_enable"]
+
+
+def test_a_fixed_reference_pools_poses_from_separate_recordings():
+    poses = [[0.411] * 50, [0.471] * 50, [0.531] * 50]       # each pose steady on its own
+    assert all(R.support_suggestion(p, MapConfig())["support_base_variation_m"] < 0.002 for p in poses)
+    pooled = R.support_suggestion([h for p in poses for h in p], MapConfig(), reference_m=0.471)
+    assert pooled["support_base_height_m"] == 0.471 and pooled["support_base_variation_m"] >= 0.06
+    assert not pooled["can_enable"] and pooled["reference"] == "given"
+
+
+def test_interval_stats_split_at_clock_resets():
+    s = R.interval_stats([100.0, 100.02, 10.0, 10.02], regression_s=1.0)
+    assert s["clock_resets"] == 1 and s["max_s"] == pytest.approx(0.02) and s["count"] == 2
+
+
+def test_processing_errors_and_missing_results_are_losses():
+    rt, records = live_records()
+    for r in records:
+        if r.get("k") == "result":
+            r["r"] = "PROCESSING_ERROR"
+    s = R.summarize_decisions(records)
+    assert s["frames"]["loss_rate"] == pytest.approx(1.0) and s["frames"]["errors"] == rt.scheduler.processed
+    _, records = live_records()
+    results = [k for k, r in enumerate(records) if r.get("k") == "result"]
+    del records[results[0]]                                   # a processed frame without its result
+    s = R.summarize_decisions(records)
+    assert s["frames"]["incomplete"] == 1 and s["frames"]["loss_rate"] > 0
+
+
+def test_processing_time_covers_correction_and_fusion():
+    events, depth = T.scenario()
+    records = []
+    clock = T.Clock()
+    rt = T.runtime(clock, decisions=records.append)
+    rt.on_camera_info(T.CAM)
+    fuse = rt.map.fuse
+
+    def slow_fuse(*args, **kwargs):
+        clock.now += 0.2                                      # fusion takes 200 ms
+        return fuse(*args, **kwargs)
+    rt.map.fuse = slow_fuse
+    T.drive(rt, clock, events, depth)
+    fused = [r for r in records if r.get("k") == "result" and r["r"] == "processed"]
+    assert fused and all(r["ms"] >= 200.0 for r in fused)
