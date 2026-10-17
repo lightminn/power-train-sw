@@ -336,7 +336,21 @@ def live_with_arrival_trouble():
             s = s._replace(rx_s=rx)
         live.append((rx, s))
     live.sort(key=lambda e: (e[0], 0 if isinstance(e[1], O.WheelSample) else 1))
-    return events, live
+    return number_by_receipt(live)
+
+
+def number_by_receipt(live):
+    """Give each sample its per-stream receive index (what a bag's record order preserves)."""
+    seq, numbered = {"g": 0, "w": 0}, []
+    for rx, s in live:
+        k = "w" if isinstance(s, O.WheelSample) else "g"
+        numbered.append((rx, s._replace(seq=seq[k])))
+        seq[k] += 1
+    return [s for _, s in sorted(numbered, key=lambda e: e[1].stamp_s)], numbered
+
+
+def stamp_order(samples):
+    return sorted(samples, key=lambda s: (s.stamp_s, 0 if isinstance(s, O.WheelSample) else 1, s.seq))
 
 
 def key(samples):
@@ -352,8 +366,7 @@ def test_followed_decisions_reproduce_the_live_pose_samples():
     assert any(r["k"] == "epoch" and r["cause"] == "stall" for r in records)
     plan = O.follow_plan(json_round_trip(records))
     f = O.PlanarOdometry(CFG, LAYOUT, follow=plan)
-    by_stamp = sorted(events, key=lambda e: (e[1].stamp_s, 0 if isinstance(e[1], O.WheelSample) else 1))
-    follow_out = feed(f, [(s.stamp_s, s) for _, s in by_stamp]) + f.drain()
+    follow_out = feed(f, [(s.stamp_s, s) for s in stamp_order(events)]) + f.drain()
     assert key(follow_out[:len(live_out)]) == key(live_out)
     assert f.epoch == o.epoch
 
@@ -362,11 +375,59 @@ def test_without_the_decisions_a_stamp_ordered_replay_differs():
     events, live = live_with_arrival_trouble()
     live_out = feed(odo(), live)
     plain = odo()
-    by_stamp = sorted(events, key=lambda e: (e[1].stamp_s, 0 if isinstance(e[1], O.WheelSample) else 1))
-    replay_out = feed(plain, [(s.stamp_s, s) for _, s in by_stamp])
+    replay_out = feed(plain, [(s.stamp_s, s) for s in stamp_order(events)])
     assert key(replay_out[:len(live_out)]) != key(live_out)
 
 
 def json_round_trip(records):
     import json
     return [json.loads(json.dumps(r)) for r in records]
+
+
+# --- Codex Task 4 re-review ---------------------------------------------------------
+def stop_wheels():
+    rows, *_ = wheels_for(Command("stop"))
+    return tuple(O.WheelReading(n, s, d, c, m, True) for n, s, d, c, m in rows)
+
+
+def test_regression_after_a_stall_flush_starts_a_new_time_base():
+    o = odo()
+    events, _ = simulate(stop_then(Command("stop")), 2.0)
+    feed(o, events)
+    o.poll(START + 2.4)                                       # stall flush keeps the committed floor
+    epoch = o.epoch
+    events, _ = simulate(stop_then(Command("stop")), 2.0, start_s=10.0)
+    out = feed(o, events)
+    assert o.epoch == epoch + 1 and len([s for s in out if s.valid]) > 50
+
+
+def test_drain_does_not_emit_wheels_past_the_last_gyro():
+    o = odo()
+    events, _ = simulate(stop_then(Command("skid", v=0.3, omega=0.3)), 2.2,
+                         drop_gyro=lambda t: t > 2.0)
+    out = feed(o, events) + o.drain()
+    assert out and max(s.stamp_s for s in out) <= START + 2.0 + 1e-9
+
+
+def test_a_duplicated_message_is_told_apart_from_its_twin_in_the_replay():
+    events, _ = simulate(stop_then(Command("skid", v=0.3, omega=0.3)), 3.0,
+                         drop_gyro=lambda t: 2.45 < t < 2.55)           # a gyro gap epoch after the duplicate
+    live = []
+    for rx, s in events:
+        live.append((rx, s))
+        if isinstance(s, O.WheelSample) and abs(s.stamp_s - (START + 2.0)) < 1e-9:
+            live.append((rx + 0.001, s._replace(rx_s=rx + 0.001)))     # the same message delivered twice
+    seq = {"g": 0, "w": 0}
+    numbered = []
+    for rx, s in live:                                                  # receive order = bag record order
+        k = "w" if isinstance(s, O.WheelSample) else "g"
+        numbered.append((rx, s._replace(seq=seq[k])))
+        seq[k] += 1
+    records = []
+    o = O.PlanarOdometry(CFG, LAYOUT, record=records.append)
+    live_out = feed(o, numbered)
+    assert o.epoch == 1 and any(r["k"] == "drop" and r["why"] == "duplicate" for r in records)
+    f = O.PlanarOdometry(CFG, LAYOUT, follow=O.follow_plan(json_round_trip(records)))
+    by_stamp = sorted(numbered, key=lambda e: (e[1].stamp_s, 0 if isinstance(e[1], O.WheelSample) else 1, e[1].seq))
+    follow_out = feed(f, [(s.stamp_s, s) for _, s in by_stamp]) + f.drain()
+    assert key(follow_out[:len(live_out)]) == key(live_out) and f.epoch == o.epoch

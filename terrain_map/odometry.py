@@ -26,6 +26,7 @@ class GyroSample(NamedTuple):
     stamp_s: float
     rx_s: float
     wz: float                 # body z yaw rate, rad/s (raw, bias not removed)
+    seq: int = -1             # per-stream receive index (bag record order); -1 = assign on intake
 
 
 class WheelReading(NamedTuple):
@@ -41,6 +42,7 @@ class WheelSample(NamedTuple):
     stamp_s: float
     rx_s: float
     wheels: tuple
+    seq: int = -1             # per-stream receive index (bag record order); -1 = assign on intake
 
 
 class PoseSample(NamedTuple):
@@ -108,20 +110,33 @@ def _stationary(readings, cfg: MapConfig) -> bool:
 
 
 class FollowPlan(NamedTuple):
-    """Live decisions replayed instead of the arrival-time rules (spec §4.4 equivalence scope)."""
-    drops: frozenset           # {(source, stamp_s)} never committed live
-    epochs: dict               # processed-sample index -> [mode, ...] in order
+    """Live decisions replayed instead of the arrival-time rules (spec §4.4 equivalence scope).
+
+    Samples are identified by ``(source, seq)`` — the per-stream receive index,
+    which a bag preserves as record order — so duplicates and repeated stamps
+    after a clock reset stay distinct (Codex T4 re-review P2-3).
+    """
+    drops: frozenset           # {(source, seq)} never committed live
+    before: dict               # (source, seq) -> [mode, ...] applied before that sample is processed
+    after: dict                # (source, seq) | None -> [mode, ...] applied after it (None: before the first)
+
+
+def _ident(value):
+    return None if value is None else (value[0], int(value[1]))
 
 
 def follow_plan(records) -> FollowPlan:
     """Build a FollowPlan from the ``record`` hook's dicts (e.g. read back from JSONL)."""
-    drops, epochs = set(), {}
+    drops, before, after = set(), {}, {}
     for r in records:
         if r.get("k") == "drop":
-            drops.add((r["src"], float(r["t"])))
+            drops.add((r["src"], int(r["seq"])))
         elif r.get("k") == "epoch":
-            epochs.setdefault(int(r["at"]), []).append(r["mode"])
-    return FollowPlan(frozenset(drops), epochs)
+            if "before" in r:
+                before.setdefault(_ident(r["before"]), []).append(r["mode"])
+            else:
+                after.setdefault(_ident(r["after"]), []).append(r["mode"])
+    return FollowPlan(frozenset(drops), before, after)
 
 
 def _finite_reading(r: WheelReading) -> WheelReading:
@@ -150,9 +165,12 @@ class PlanarOdometry:
         self.flushed = 0              # queued samples discarded by a flush epoch
         self.epoch_changes = 0
         self.invalid_samples = 0
-        self.processed = 0            # samples committed so far (index of the next one)
+        self.processed = 0            # samples committed so far
         self._record = record
         self._follow = follow
+        self._next_seq = {"gyro": 0, "wheel": 0}
+        self._processing = None       # (source, seq) being processed
+        self._last_id = None          # (source, seq) processed last
         self._gyro: list[GyroSample] = []
         self._wheels: list[WheelSample] = []
         self._committed = None
@@ -191,32 +209,37 @@ class PlanarOdometry:
         if self._record is not None and self._follow is None:
             self._record(entry)
 
-    def _drop(self, src: str, stamp: float, why: str) -> None:
-        self._note({"k": "drop", "src": src, "t": stamp, "why": why})
+    def _drop(self, src: str, sample, why: str) -> None:
+        self._note({"k": "drop", "src": src, "seq": sample.seq, "t": sample.stamp_s, "why": why})
 
     def _add(self, sample, src: str) -> list[PoseSample]:
         gyro = src == "gyro"
+        if sample.seq < 0:
+            sample = sample._replace(seq=self._next_seq[src])
+        self._next_seq[src] = max(self._next_seq[src], sample.seq + 1)
         if not (math.isfinite(sample.stamp_s) and math.isfinite(sample.rx_s)) or (gyro and not math.isfinite(sample.wz)):
             self.rejected += 1
             return []                                    # never stamped, so nothing to record
         if not gyro:
             sample = sample._replace(wheels=tuple(_finite_reading(r) for r in sample.wheels))
         if self._follow is not None:
-            if (src, sample.stamp_s) in self._follow.drops:
+            if (src, sample.seq) in self._follow.drops:
                 return []
         else:
-            latest = self._latest_gyro if gyro else self._latest_wheel
-            if latest is not None and sample.stamp_s < latest - self.cfg.stamp_regression_epoch_s:
+            # The committed floor survives a stall flush, so it also detects a new time base (Codex T4 re-review P2-1).
+            reference = max(v for v in (self._latest_gyro if gyro else self._latest_wheel, self._committed, -math.inf)
+                            if v is not None)
+            if sample.stamp_s < reference - self.cfg.stamp_regression_epoch_s:
                 self._new_epoch("flush", "regression", reset_floor=True)
             elif self._committed is not None and sample.stamp_s <= self._committed:
                 self.late_dropped += 1
-                self._drop(src, sample.stamp_s, "late")
+                self._drop(src, sample, "late")
                 return []
         queue = self._gyro if gyro else self._wheels
         keys = [s.stamp_s for s in queue]
         index = bisect.bisect_right(keys, sample.stamp_s)
         if index and keys[index - 1] == sample.stamp_s:
-            self._drop(src, sample.stamp_s, "duplicate")
+            self._drop(src, sample, "duplicate")
             return []
         queue.insert(index, sample)
         if gyro:
@@ -231,7 +254,7 @@ class PlanarOdometry:
                 # Nothing can commit without the other stream: keep only max_stream_skew_s of this one (Codex T4 P2-2).
                 while queue and own - queue[0].stamp_s > self.cfg.max_stream_skew_s:
                     self.trimmed += 1
-                    self._drop(src, queue.pop(0).stamp_s, "trim")
+                    self._drop(src, queue.pop(0), "trim")
             elif abs(own - other) > self.cfg.max_stream_skew_s:
                 self._new_epoch("flush", "skew")
                 return []
@@ -249,18 +272,25 @@ class PlanarOdometry:
             if g is None and w is None:
                 return out
             if w is not None and (g is None or w.stamp_s <= g.stamp_s):
-                if g is None and self._prev_gyro is not None and math.isfinite(watermark):
-                    return out       # the gyro right of this wheel is not committed yet (Codex T4 P2-1)
-                self._wheels.pop(0)
-                self._committed = w.stamp_s
-                self._apply_followed_epochs()
-                out.extend(self._on_wheel(w))
+                if g is None and self._prev_gyro is not None:
+                    # The gyro right of this wheel is not committed yet (Codex T4 P2-1); at the end
+                    # of a replay it never will be, so the unsupported tail stays out (re-review P2-2).
+                    return out
+                sample, src = self._wheels.pop(0), "wheel"
             else:
-                self._gyro.pop(0)
-                self._committed = g.stamp_s
-                self._apply_followed_epochs()
-                self._on_gyro(g)
+                sample, src = self._gyro.pop(0), "gyro"
+            self._committed = sample.stamp_s
+            ident = (src, sample.seq)
+            self._followed("before", ident)
+            self._processing = ident
+            if src == "wheel":
+                out.extend(self._on_wheel(sample))
+            else:
+                self._on_gyro(sample)
+            self._processing = None
+            self._last_id = ident
             self.processed += 1
+            self._followed("after", ident)
 
     # --- epochs -------------------------------------------------------------
     def _clear_intake(self) -> None:
@@ -288,21 +318,27 @@ class PlanarOdometry:
         """
         self.epoch += 1
         self.epoch_changes += 1
-        self._note({"k": "epoch", "at": self.processed, "mode": mode, "cause": cause, "epoch": self.epoch})
+        anchor = {"before": self._processing} if self._processing is not None else {"after": self._last_id}
+        self._note({"k": "epoch", **anchor, "mode": mode, "cause": cause, "epoch": self.epoch})
         if mode == "flush" and self._follow is None:
             for src, queue in (("gyro", self._gyro), ("wheel", self._wheels)):
                 for queued in queue:
                     self.flushed += 1
-                    self._drop(src, queued.stamp_s, "flush")
+                    self._drop(src, queued, "flush")
             self._clear_intake()
             if reset_floor:
                 self._committed = None
         self._reset_motion(keep_gyro=mode == "keep_gyro")
 
-    def _apply_followed_epochs(self) -> None:
-        if self._follow is not None:
-            for mode in self._follow.epochs.get(self.processed, ()):
+    def _followed(self, when: str, ident) -> None:
+        if self._follow is None:
+            return
+        table = self._follow.before if when == "before" else self._follow.after
+        if when == "before" and self._last_id is None:
+            for mode in self._follow.after.get(None, ()):
                 self._new_epoch(mode, "followed")
+        for mode in table.get(ident, ()):
+            self._new_epoch(mode, "followed")
 
     # --- processing ---------------------------------------------------------
     def _rate_at(self, t: float) -> float:
