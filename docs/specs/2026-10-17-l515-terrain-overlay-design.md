@@ -1,9 +1,10 @@
 # L515 지형 장애물 오버레이 설계
 
-- 작성일: 2026-10-17 (같은 날 검토 ②③ 반영 r2, Codex 2회차 r3, 3회차 r4, 4회차 r5, 5회차 r6)
+- 작성일: 2026-10-17 (같은 날 검토 ②③ 반영 r2, Codex 2회차 r3, 3회차 r4, 4회차 r5, 5회차 r6, 구현 반영 r7)
 - 브랜치: `feat/l515-terrain-overlay` (기준 `origin/main` `0ea5757`)
 - 출발점: PR #9(`7716592`)·PR #13(`11d8daa`)의 `lidar_dev/` 프로토타입. 원작자 seoyeon0777, 2026-10-17 사용자가 인수.
-- 상태: 설계 — Codex 교차검증 수렴(6회차, 2026-10-17), 사용자 검토 대기
+- 상태: 설계 승인(`78d14b1`) → **구현 반영 개정 r7**(계획 `docs/plans/2026-10-17-l515-terrain-overlay.md`, 브랜치 커밋 `9be520c`–`d20b23c`).
+  구현·계획 검토·브랜치 리뷰에서 바꾼 점을 본문에 반영했고 근거는 §11 ④에 모았다. 실기 E2E(§7.3)는 아직 하지 않았다.
 
 ## 1. 목적과 범위
 
@@ -80,12 +81,14 @@ L515 Gateway ── /l515/depth/image_rect_raw (16UC1, 640×480, raw 비정렬, 
 | 모듈 | 책임 | 의존 | 실행 위치 |
 |---|---|---|---|
 | `terrain_overlay/contract.py` | 상수(포트·스키마·한계), `encode_packet(dict)→bytes`, `parse_packet(bytes)→TerrainFrame` 검증 | **표준 라이브러리만** | Jetson·콘솔 공용 |
+| `terrain_overlay/camera.py` | `CameraModel`(핀홀, CameraInfo `k`에서 생성) | 표준 라이브러리 | Jetson |
 | `terrain_overlay/detector.py` | `TerrainDetector` | numpy, cv2 | Jetson |
 | `terrain_overlay/projection.py` | `DepthToColorProjector` | numpy | Jetson |
 | `terrain_overlay/contours.py` | 마스크→다각형·거리, 크기 제한 축소 | numpy, cv2 | Jetson |
-| `ros2/src/powertrain_ros/powertrain_ros/terrain_overlay_node.py` | ROS 어댑터 | rclpy + 위 모듈 | Jetson |
-| `operator_console/terrain.py` | 수신 스레드·표시 지연 버퍼 | `terrain_overlay.contract` | 콘솔 |
-| `operator_console/app.py` `TerrainCanvas` | 그리기 | GTK/cairo | 콘솔 |
+| `terrain_overlay/runtime.py` | 송신 틱 판단(§4.1 1–5)·자기 검증·처리시간 기록. rclpy 없이 시험한다 | numpy + 위 모듈 | Jetson |
+| `ros2/src/powertrain_ros/powertrain_ros/terrain_overlay_node.py` | ROS 어댑터(메시지 변환·실행기·UDP 송신) | rclpy + 위 모듈 | Jetson |
+| `operator_console/terrain.py` | 수신 스레드·세션 게이트·표시 지연 버퍼·표시 판단 순수 함수 `terrain_view` | `terrain_overlay.contract` | 콘솔 |
+| `operator_console/app.py` `TerrainCanvas` | `terrain_view` 결과 그리기 | GTK/cairo/PangoCairo | 콘솔 |
 
 - `contract.py`는 numpy·cv2를 import하지 않는다 — 콘솔은 `/usr/bin/python3`(cv2 없음, 2026-10-17 확인)로 돈다.
 - 의존 방향: `powertrain_ros` → `terrain_overlay`, `operator_console` → `terrain_overlay.contract`.
@@ -97,10 +100,12 @@ L515 Gateway ── /l515/depth/image_rect_raw (16UC1, 640×480, raw 비정렬, 
 
 - 삭제: `terrain.py`, `packet.py`, `terrain_node.py`(새 코어로 대체), `before.txt`·`after.txt`(빈 파일).
 - 유지·수정: `ground.py`·`overlay.py`·`scan_terrain.py`·`view_depth.py`는 오프라인 분석 도구로 남기고
-  `terrain_overlay.detector`를 쓰도록 바꾼다. open3d 3D 보기(`view_depth.py`, `ground.py`의 시각화)는
-  선택 의존으로 남긴다(import 실패 시 2D 결과만).
+  `terrain_overlay.detector`를 쓰도록 바꾼다. open3d는 선택 의존이다 — `ground.py`는 open3d가 없으면 3D 보기 없이
+  2D 결과만 내고, 3D 보기 전용인 `view_depth.py`는 설치 안내를 출력하고 종료 코드 1로 끝난다.
 - `record.py`: 출력 형식을 오프라인 도구 입력(`<폴더>/meta.json` + `depth/*.png`, **raw 비정렬 깊이**와
   depth/color intrinsics 모두 기록)으로 맞춘다. 컬러에 정렬한 깊이는 저장하지 않는다.
+- `record.py`는 깊이·컬러 저장이 둘 다 성공한 쌍만 세고, 하나라도 실패하면 경로와 "불완전한 녹화"를 알리고 종료 코드 1로 끝난다.
+- `ground.py`의 "장애물 주 평면 각도" 분석(open3d RANSAC)은 옮기지 않는다(판정기 범위 밖, open3d 없이 못 돈다).
 - `requirements.txt`(macOS pip freeze)는 삭제하고 `lidar_dev/README.md`에 오프라인 도구 실행법·의존(numpy, opencv, 선택 open3d)을 적는다.
 
 ## 4. 구성 요소 설계
@@ -108,8 +113,13 @@ L515 Gateway ── /l515/depth/image_rect_raw (16UC1, 640×480, raw 비정렬, 
 ### 4.1 ROS 어댑터 `terrain_overlay_node`
 
 - 엔트리포인트: `ros2 run powertrain_ros terrain_overlay` (`setup.py` console_scripts 추가).
-- 구독(QoS `qos_profile_sensor_data`, Gateway 발행 QoS와 동일):
-  `/l515/depth/image_rect_raw`, `/l515/depth/camera_info`, `/l515/color/camera_info`.
+- 구독: `/l515/depth/image_rect_raw`, `/l515/depth/camera_info`, `/l515/color/camera_info`.
+  - depth QoS는 best effort·volatile·**KEEP_LAST 1**이다(Gateway 발행 QoS와 호환). `qos_profile_sensor_data`(깊이 5)로 두면
+    처리가 느릴 때 쌓인 프레임이 늦게 "새로 수신"되어, depth가 끊긴 뒤 `DEPTH_STALE`이 1.2 s에야 나갔다(2026-10-17 시제작 실측).
+  - CameraInfo 두 토픽은 `qos_profile_sensor_data`.
+- **실행 구조**: `MultiThreadedExecutor(num_threads=2)`. depth 구독은 자기 콜백 그룹에, CameraInfo 두 구독과 타이머는
+  다른 한 그룹에 둔다(각각 `MutuallyExclusiveCallbackGroup`). 처리 중인 틱이 depth 수신 시각(`rx_mono`)을 늦추지 않게 하기 위해서다.
+  depth 보관과 틱의 입력 읽기는 한 락으로 보호한다.
 - 파라미터(기본값):
 
 | 이름 | 기본 | 근거 |
@@ -133,7 +143,11 @@ L515 Gateway ── /l515/depth/image_rect_raw (16UC1, 640×480, raw 비정렬, 
 - 깊이 수신 콜백: `encoding == "16UC1"`, `is_bigendian == 0`, `step == width*2`를 확인한 뒤
   `np.frombuffer(...).reshape(h, w).copy()`로 최신 1장만 보관한다. 위반 시 그 프레임은 버리고
   `SENSOR_ERROR`/`DEPTH_ENCODING`을 표시한다. 보관 항목: 배열, 헤더 stamp(ns), 수신 단조시각.
-- 타이머 틱(`publish_hz`), `now`는 단조시각:
+- 타이머 틱(`publish_hz`), `now`는 단조시각. 틱 논리는 `terrain_overlay/runtime.py`에 있고 시계를 주입받는다.
+  아래 판단을 **두 번** 한다 — 첫 번째는 새 depth를 처리해 캐시를 채우고, 처리 뒤 시계를 다시 읽은 두 번째가
+  송신할 상태·stale·만료·두 age를 **송신 시각 기준**으로 정한다(두 번째는 캐시를 쓰므로 다시 처리하지 않는다).
+  0단계로 `CAMERA_INFO_MISSING` → `COLOR_SHAPE_MISMATCH` → `DEPTH_ENCODING`(마지막 불량 프레임이 마지막 정상 프레임보다
+  새롭고 stale 시간 안일 때) 순으로 먼저 본다. 처리시간 `proc_ms`도 같은 시계로 잰다.
   1. 최신 depth가 없거나 `now − rx_mono > depth_stale_s` → `SENSOR_ERROR`/`DEPTH_STALE`.
   2. 새 depth(헤더 stamp가 직전 처리와 다름) → 코어 처리(`process(depth, frame_rx_s=그 depth의 수신 단조시각)`), 결과를 캐시.
   3. 새 depth 없음(아직 stale 아님) → 캐시 결과를 재사용한다. 재계산하지 않고 `depth_stamp_ns`도 그대로 둔다.
@@ -146,7 +160,13 @@ L515 Gateway ── /l515/depth/image_rect_raw (16UC1, 640×480, raw 비정렬, 
      전송 직전에만 `depth_age_ms = 1000×depth_age_s`, `ground.age_ms = 1000×ground_age_s`로 바꾼다.
   5. 코어 예외 → `SENSOR_ERROR`/`PROCESSING_ERROR`, 로그는 5 s당 1회.
 - **stale 판정 시간 계약**: depth가 끊긴 뒤 `SENSOR_ERROR` 패킷이 나가기까지
-  ≤ `depth_stale_s + 1/publish_hz + 0.05 s` (기본 0.65 s, 최악 허용값 5 Hz에서 0.75 s).
+  ≤ `depth_stale_s + 1/publish_hz + 최대 처리시간 + 0.05 s`. 처리시간이 0이면 0.65 s(5 Hz에서 0.75 s)다.
+  - 최대 처리시간은 한 틱(`1/publish_hz`) 이하여야 한다. 그러면 상한은 10 Hz에서 0.75 s, 5 Hz에서 0.95 s다.
+  - 성공·예외와 관계없이 모든 처리 시도를 반올림 전 값으로 한 틱과 비교해, 넘으면 `processing_overruns`를 세고
+    일반 오류와 다른 호출 위치에서 경고를 남긴다(rclpy 로그 제한은 호출 위치별이다).
+  - 노드 종료 때 제한 없는 요약 한 줄 `terrain processing summary: max … ms, overruns N`을 남긴다. §7.3-2는 이 줄로 판정한다.
+  - 콘솔은 수신이 끊긴 동안 0.5 s 연결 생존 한계로 독립적으로 윤곽을 지운다. 늦은 오류 패킷이 도착해 연결이 되살아난 뒤에는
+    표시 지연 버퍼와 depth 나이 규칙(§4.6)이 적용된다.
 - 매 틱 패킷 1개를 보낸다(패킷 자체가 생존 신호). 유일한 예외는 §4.4의 오류 패킷 자기 검증마저 실패한 틱(미송신·로그)과
   세션 파일 만료(§4.5)다. `sequence`는 송신한 패킷마다 단조 증가,
   세션 식별은 노드 기동 시 1회 정하는 세 값이다(§5.2): `sender_boot_id` = `/proc/sys/kernel/random/boot_id`
@@ -250,16 +270,33 @@ L515 Gateway ── /l515/depth/image_rect_raw (16UC1, 640×480, raw 비정렬, 
   - **표시 지연 `d`**: 허용 범위 0–0.4 s(그 이상이면 설정 오류로 기동 실패). §7.3-4에서 잰
     `Δ = (영상 속 출현 시각) − (윤곽 출현 시각)`으로 정한다 — `Δ > 0`(윤곽이 먼저)이면 `d = Δ`, `Δ ≤ 0`(윤곽이 늦거나 같음)이면
     `d = 0`(오버레이를 앞당길 수는 없다). `Δ > 0.4 s`면 기본값을 0.4로 두고 보고한다.
-- `TerrainCanvas(Gtk.DrawingArea)` — "전방 카메라" `VideoPanel`에 겹친다. 판정 값:
+- `LatestTerrainReceiver.snapshot(now)`은 `(최신 패킷, 표시 패킷, last_rx)`를 한 락에서 읽는다(서로 다른 세션이 섞이지 않게).
+  수신 스레드는 예외가 나도 살아 있고, `parse_packet`은 `RecursionError`·`OverflowError`·잘못된 타입도 `ValueError`로 거부한다.
+- `TerrainCanvas(Gtk.DrawingArea)` — "전방 카메라" `VideoPanel`에 겹친다. 판정은 순수 함수 `terrain_view`가 하고 캔버스는 그리기만 한다.
+  - **레이어**: 영상 대기 화면보다 위, 헤더보다 아래에 pass-through(입력 통과)로 붙는다. 그래서 배지는 영상 연결 전·끊김 중에도 보인다.
+    D435 metadata 캔버스의 위치(영상 레이어 안)와 입력 처리는 바꾸지 않는다.
+  - **글자는 PangoCairo로 그린다**(말줄임 포함). cairo 기본 텍스트 API는 한글 대체 글꼴이 없어 빈 네모로 나온다(2026-10-17 재현).
+  - 100 ms 재그리기 타이머는 캔버스 `destroy`에서 해제한다.
+  판정 값:
   `link_age = now − last_rx_monotonic`(연결), 표시 패킷 `F = display_frame(now)`,
   `depth_age = F.depth_age_ms/1000 + (now − d − F.received_monotonic)` — 표시 지연으로 의도적으로 늦춘 `d`는 빼고 잰다
   (영상도 그만큼 늦게 오므로). 즉 "영상 시간 기준 depth 나이"다.
   - **배지(항상)**: `link_age > 0.5 s`(또는 수신 없음)면 "지형: 수신 없음". 아니면 `F`(없으면 최신 패킷)의 상태별
-    `지형 OK · 경로 1.23 m` / `지형: 바닥 유지 0.3 s` (HELD) / `지형: 바닥 미검출` / `지형: 센서 오류(DEPTH_STALE)`.
+    `지형 OK · 경로 1.23 m` / `지형 OK · 경로 돌출 장애물 없음`(중앙 zone이 null) / `지형: 바닥 유지 0.3 s` (HELD) /
+    `지형: 바닥 미검출` / `지형: 센서 오류(DEPTH_STALE)`.
+    - "장애물 없음"이 아니라 "돌출 장애물 없음"이라 쓴다. 구덩이가 없다는 뜻으로 읽히지 않게 하기 위해서다.
+    - **배지 대상 패킷 `S`(= `F`, 없으면 최신 패킷)가 OK인데 그 depth 나이**
+      `S.depth_age_ms/1000 + max(0, now − d − S.received_monotonic)`가 **0.6 s를 넘거나 `depth_age_ms`가 null이면**
+      거리·"없음" 요약을 내지 않고 `지형: 깊이 지연 0.7 s`(경고색, null이면 숫자 없이 `지형: 깊이 지연`)로 바꾼다(HELD보다 우선).
+      `F`가 아직 없어(`d > 0`, 첫 패킷 직후) 최신 패킷을 쓸 때도 같다. 마지막 OK 패킷 뒤 링크가 끊기면 0.5 s 동안
+      옛 거리가 현재 판단처럼 보이던 문제(브랜치 리뷰 P2, §11 ④)를 막는다. 윤곽은 계속 `F`로만 판단한다(아래).
     거리 옆에 기준(`카메라 기준`/`차체 앞 기준`)을 붙이고, `alignment_verified=false`면 "정합 미검증",
     항상 "참고용 · 낮은 장애물/구덩이 미표시"를 작게 붙인다.
   - **윤곽(조건부)**: `F` 존재 ∧ `F.status == OK` ∧ `link_age ≤ 0.5 s` ∧ `depth_age ≤ 0.6 s` ∧ `frame_size`가 협상된 영상 크기와 같음일 때만.
     영상 크기 미협상(`None`)이면 그리지 않는다(기존 `overlay_size_matches`는 None을 허용하므로 terrain 쪽은 엄격하게).
+    영상 상태가 LIVE가 아니면(대기·ERROR·EOS·파이프라인 재시작 직후 포함) 그리지 않는다 — `VideoPanel`이 영상 상태를
+    `set_video_live`로 즉시 전달한다.
+    배지는 OK인데 윤곽을 숨겼으면 안내문 앞에 이유를 붙인다: `윤곽 숨김: 영상 끊김` / `영상 크기 미확인` / `영상 W×H ≠ 1280×720`.
   - 다각형: `in_path`면 빨강, 아니면 주황 외곽선 + 반투명 채움. 각 다각형 위에 `dist_m`("1.23 m").
   - `fit_overlay_transform`으로 레터박스를 반영한다.
 - `VideoPanel`: 오버레이 캔버스를 여러 개 가질 수 있게 일반화한다(현재는 `_metadata_canvas` 하나에만
@@ -326,11 +363,13 @@ L515 Gateway ── /l515/depth/image_rect_raw (16UC1, 640×480, raw 비정렬, 
 
 | 상황 | 송신부 | 콘솔 |
 |---|---|---|
-| Gateway 미기동·depth 끊김 | ≤ 0.65 s 안에 `SENSOR_ERROR`/`DEPTH_STALE`, 이후 계속 송신 | 윤곽 지움, 배지 "센서 오류" |
-| CameraInfo 미수신 | `SENSOR_ERROR`/`CAMERA_INFO_MISSING` | 같음 |
+| CameraInfo를 받은 뒤 depth 끊김(Gateway 정지 등) | ≤ 0.65 s + 최대 처리시간(10 Hz 상한 0.75 s) 안에 `SENSOR_ERROR`/`DEPTH_STALE`, 이후 계속 송신 | 윤곽 지움, 배지 "센서 오류" |
+| 처리시간이 한 틱 초과 | 그대로 송신, `processing_overruns` 증가·경고(별도 호출 위치), 종료 시 요약 줄 | — |
+| CameraInfo 미수신(처음부터 Gateway 미기동 포함 — 0단계에서 `DEPTH_STALE`보다 먼저 판단) | `SENSOR_ERROR`/`CAMERA_INFO_MISSING` | 같음 |
 | 바닥 일시 실패 | 0.5 s까지 `OK`+`HELD` | 윤곽 표시 + "바닥 유지 x.x s" |
 | 바닥 계속 실패·평면 만료 | `NO_GROUND`(`GROUND_NOT_FOUND`/`GROUND_EXPIRED`) | 윤곽 지움, "바닥 미검출" |
-| 오래된 `OK` 직후 통신 단절 | — | `depth_age > 0.6 s` 또는 `link_age > 0.5 s` 중 먼저 오는 쪽에서 윤곽 지움 |
+| 오래된 `OK` 직후 통신 단절 | — | `depth_age > 0.6 s`에서 윤곽 지움·배지 "깊이 지연", `link_age > 0.5 s`에서 "수신 없음" — 먼저 오는 쪽 |
+| 영상 끊김·크기 미확인/불일치 | — | 윤곽만 지움, 배지 유지, 안내문 "윤곽 숨김: …" |
 | 처리 예외·자기 검증 실패 | `SENSOR_ERROR`/`PROCESSING_ERROR`, 로그 제한 | 윤곽 지움, 배지 |
 | 송신 실패(OSError) | 흡수·카운트, 다음 틱 계속 | 0.5 s 후 "수신 없음" |
 | 세션 만료 | 송신 안 함(기존 규칙) | "수신 없음" |
@@ -386,7 +425,9 @@ L515 Gateway ── /l515/depth/image_rect_raw (16UC1, 640×480, raw 비정렬, 
   **윤곽이 실제 영상 위에 그려지는지는 증명하지 못한다** — 그건 §7.3-1에서 실기로 본다.
 - Jetson: 설치된 엔트리포인트 `ros2 run powertrain_ros terrain_overlay`를 도메인 77 격리로 기동,
   fixture 노드가 합성 depth·CameraInfo를 발행 → 로컬 UDP 수신기가 `OK` 패킷·장애물 1개를 받음 → killpg.
-  음성 대조: fixture depth 발행을 멈추면 0.65 s 안에 `SENSOR_ERROR`/`DEPTH_STALE`.
+  fixture depth 발행을 멈추면 0.65 s(+ 측정 여유 0.05 s) 안에 `SENSOR_ERROR`/`DEPTH_STALE`, SIGINT 뒤 종료 코드 0.
+  (로컬 x86 실측에서 fixture 처리는 수십 ms였으며, 일반 계약(§4.1, 처리시간 항 포함)보다 엄격한 이 스모크 전용 기준이다.)
+  음성 대조: 깊이 이중 스케일을 재주입(`--inject-double-scale`)하면 OK 패킷이 없어 FAIL.
 - compose 배포 후 컨테이너 상태 + 로그에 traceback·재시작 루프 없음.
 
 ### 7.3 실기 E2E (Jetson + 운용 PC) — 정지 상태에서만
@@ -394,6 +435,7 @@ L515 Gateway ── /l515/depth/image_rect_raw (16UC1, 640×480, raw 비정렬, 
 1. **표시 경로**: 실제 Gateway·SRT 영상에서 윤곽이 영상 위에 겹치는지, MAIN↔PiP 전환과 L515 RGB/DEPTH/OVERLAY 모드
    전환에서 따라오는지 확인(스크린샷 기록).
 2. **자원**: L515·D435i 두 SRT 인코딩이 도는 상태에서 서비스를 켜기 전/후를 비교한다 — `proc_ms` p95 < 80 ms,
+   노드 종료 요약 줄의 `overruns 0`(최대 처리시간 ≤ 한 틱, §4.1 stale 계약의 전제),
    노드 RSS 최대값, L515 SRT 화면 FPS, Gateway raw depth 주기, **차체 노드 50 Hz tick 간격과 워치독 이벤트**(`chassis_node` 실행시간 관측),
    `tegrastats` CPU·RAM. 하나라도 악화되면 `publish_hz` 5 또는 RANSAC 횟수 축소 후 재측정한다.
 3. **정합 합격 기준**: 상자를 1.0 m·2.0 m에 두고 화면 중앙과 가장자리(좌우 끝 20 % 띠)에서 윤곽 경계와 영상 속 상자 경계의 차이를 잰다.
@@ -415,7 +457,14 @@ L515 Gateway ── /l515/depth/image_rect_raw (16UC1, 640×480, raw 비정렬, 
   host network, ipc host, `/workspace:ro`, `/run/powertrain` bind, healthcheck 비활성 — chassis_telemetry와 같은 형태).
   명령: `ros2 run powertrain_ros terrain_overlay --ros-args -p operator_host:=127.0.0.1 -p operator_port:=5009`.
   자원 격리: `cpus: 1.0`, `mem_limit: 512m`, 환경변수 `OMP_NUM_THREADS=1`·`OPENBLAS_NUM_THREADS=1`.
-  `restart: unless-stopped`.
+  `restart: unless-stopped`. 세션 파일 `POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json`을 쓴다(§4.5).
+  서비스는 **opt-in compose 프로필 `terrain-overlay`**에 둔다. 기본 기동 목록에서 빠지는 것을 구조로 보장하기 위해서다.
+  켜는 법: `INTEGRATED_PROFILES=terrain-overlay INTEGRATED_SERVICES=powertrain_terrain_overlay scripts/robot-start`, 또는
+  `docker compose … --profile terrain-overlay up -d powertrain_terrain_overlay`.
+- 생산 이미지 엔트리포인트는 Gateway를 띄우므로, Jetson 시험 명령은 이 서비스(`bash -lc` 엔트리포인트)로
+  `docker compose … --profile terrain-overlay run --rm --no-deps -e ROS_DOMAIN_ID=77 powertrain_terrain_overlay '<cmd>'`처럼 실행한다.
+- **롤백**: 모든 변경은 `feat/l515-terrain-overlay`에만 있고 main 병합 전이다. 기능을 버리면 병합하지 않거나 병합 커밋을
+  되돌린다. `lidar_dev` 구 파일(`terrain.py`·`packet.py`·`terrain_node.py` 등)은 git 이력에 남는다.
 - **`scripts/robot-start` 기본 기동 목록에는 처음에 넣지 않는다.** 수동으로 `docker compose ... up -d powertrain_terrain_overlay`
   로 띄워 §7.3-2(차체 tick·워치독 영향 없음 포함)를 통과한 뒤 별도 커밋으로 추가한다.
 - 이미지 변경 없음(numpy·opencv-python-headless는 `Dockerfile.ros`에 있음 — 실제 Jetson 이미지 설치 여부는 배포 때 확인).
@@ -452,7 +501,7 @@ L515 Gateway ── /l515/depth/image_rect_raw (16UC1, 640×480, raw 비정렬, 
 - 투영 오프셋: `p_c = p_d − (0, −0.024, 0)` → 1 m 중심점은 컬러에서 `fy_c × 0.024` px 아래. Codex의 URDF chain 재계산과 같음.
 - depth step: Gateway `image_from_array`는 `step = strides[0]` = 연속 uint16이면 `width×2`(`l515_adapter.py`).
 - 직교성: `f ⟂ n`(투영), `r = f × n` ⟂ f, n → 셋이 직교.
-- stale 시간 계약: 0.5 + 1/10 + 0.05 = 0.65 s, 5 Hz에서 0.5 + 0.2 + 0.05 = 0.75 s.
+- stale 시간 계약: 0.5 + 1/10 + 0.05 = 0.65 s, 5 Hz에서 0.5 + 0.2 + 0.05 = 0.75 s(r6 당시, 처리시간 0 가정 — 처리시간 항을 넣은 r7 값은 ④).
 - RANSAC 채점 메모리: 3000 × 100 × 4 B = 1.2 MB. 표본 상한이 없으면 아래 절반 최대 307,200/2 = 153,600점 × 1000 × 4 B ≈ 586 MiB(Codex 계산과 같음).
 - 콘솔 depth 나이 반례: 490 ms 패킷 → 0.6 s 한계까지 0.11 s 뒤 숨김(이전 설계는 수신 후 0.5 s, 즉 실제 depth 0.99 s까지 표시).
 
@@ -541,3 +590,34 @@ L515 Gateway ── /l515/depth/image_rect_raw (16UC1, 640×480, raw 비정렬, 
 P2-h 해소(동률 시험 수용·전환·거부·수용 확인), 수신 공백 반례 해소 유지, 패킷 예시 667 B·FRESH 35.2 ms 일치.
 남은 P3 두 건(§4.1 "두 값"→"세 값", §7.3-6 time namespace를 시각 비교가 아니라 ns 링크·offset으로 직접 확인)은 r6 최종본에 반영했다.
 이 판정은 설계 수렴이며 구현·Jetson·실기 인수는 §7로 따로 판정한다.
+
+### ④ 구현 반영 개정 r7 (2026-10-17) — 계획 검토와 브랜치 리뷰에서 바꾼 점
+
+구현 계획(`docs/plans/2026-10-17-l515-terrain-overlay.md`)은 계획 단계에서 독립 검토 3회(직접 재계산, Codex 5회 수렴, `agy`)를 거쳤고,
+구현 브랜치는 Codex 적대 리뷰(`--base 78d14b1`) 2회에서 수렴했다. 그 과정에서 스펙과 다르게 정한 점을 본문에 반영했다.
+
+| 출처 | 바꾼 점 | 본문 |
+|---|---|---|
+| 시제작 실측 | depth QoS 깊이 5 → KEEP_LAST 1(처리 지연 때 stale 1.2 s) | §4.1 |
+| Codex 계획 1회차 P2 | 처리 중 depth 수신 시각이 밀림 → 2-스레드 실행기·콜백 그룹 분리 | §4.1 |
+| Codex 계획 1회차 P2 | stale·만료를 처리 전 시각으로 판단 → 처리 뒤 시계 재독, 송신 시각 기준 재판단 | §4.1 |
+| Codex 계획 2–4회차 P2 | 처리시간이 stale 계약을 늦춤 → 계약식에 최대 처리시간 항, 초과 기록·종료 요약 줄 | §4.1, §6, §7.3-2 |
+| Codex 계획 1회차 P2 | 수신기 값 세 개를 따로 읽어 세션이 섞일 수 있음 → `snapshot()` | §4.6 |
+| Codex 계획 1회차 P2 | cairo 기본 텍스트 API에서 한글이 빈 네모 → PangoCairo | §4.6 |
+| Codex 계획 1회차 P2 | 대기 화면이 배지를 가림 → 지형 레이어를 대기 화면 위로, 입력 통과 | §4.6 |
+| Codex 계획 2회차 P2 | ERROR·EOS·재시작 뒤 옛 윤곽이 남음 → 영상 LIVE가 아니면 즉시 숨김 | §4.6 |
+| Codex 계획 1회차 P2 | 타입 구멍·예외 → 파서 엄격화, 수신 스레드 보호 | §4.6 |
+| Codex 계획 1회차 P1 | Jetson 시험 명령이 Gateway 엔트리포인트를 띄움 → terrain 서비스로 실행 | §8 |
+| 계획 결정 | compose opt-in 프로필 `terrain-overlay`, 롤백 방법 | §8 |
+| 계획 결정 | `camera.py`·`runtime.py` 추가(노드 틱 시험을 rclpy 없이) | §3.1 |
+| `agy` | 빈 경로 문구 "경로 돌출 장애물 없음", 숨긴 이유 안내문 | §4.6 |
+| Codex 브랜치 1회차 P2 | 오래된 depth의 OK 배지가 옛 거리를 현재처럼 보임 → "깊이 지연" 배지 | §4.6, §6 |
+| Codex 브랜치 1회차 P2 | `record.py`가 저장 실패를 무시 → 실패 시 종료 코드 1 | §3.2 |
+| Codex 스펙 r7 검토 P2 | 배지 대상(`F` 없으면 최신)·null 표기 명시, CameraInfo 미수신과 depth 단절 분리, `view_depth.py`는 2D 대체 없음, 롤백 | §3.2, §4.6, §6, §8 |
+
+재계산(①과 같은 방식):
+- stale 상한: 10 Hz에서 0.5 + 0.1 + 0.1 + 0.05 = 0.75 s, 5 Hz에서 0.5 + 0.2 + 0.2 + 0.05 = 0.95 s(처리 ≤ 100 ms면 0.85 s).
+- 배지 경계: 490 ms 패킷, d = 0 → 0.11 s 뒤 depth 나이 0.6 s 초과로 "깊이 지연"(윤곽 숨김과 같은 시각, 같은 식). d = 0.3이면 T+0.41 s.
+- 실측(로컬 x86 ROS Humble 컨테이너): 설치 엔트리포인트 스모크 `proc_ms` 21.5–24.5, `stale_after_s` 0.435–0.445, 종료 코드 0.
+  Jetson 처리시간과 정합·지연은 §7.3에서 잰다 — 미실측.
+
