@@ -148,6 +148,21 @@ def test_depth_age_with_delay_hides_at_t_plus_0_41():
     assert not view_at(0.411, delay=0.3, depth_age_ms=490.0).obstacles
 
 
+def test_stale_depth_withdraws_the_ok_badge():
+    # Codex branch review P2: last OK packet carries depth_age 490 ms, then the link drops.
+    assert view_at(0.10, depth_age_ms=490.0).badge.startswith("지형 OK")
+    for now in (0.12, 0.49):
+        view = view_at(now, depth_age_ms=490.0)
+        assert view.badge == f"지형: 깊이 지연 {0.49 + now:.1f} s"
+        assert (view.tone, view.obstacles, view.probe_state) == ("warn", (), "LIVE")
+    held = view_at(0.2, depth_age_ms=490.0, ground={"state": "HELD", "age_ms": 300.0,
+                                                   "camera_height_m": 0.5, "camera_tilt_deg": 20.0})
+    assert held.badge.startswith("지형: 깊이 지연")
+    assert view_at(0.05, depth_age_ms=None).badge == "지형: 깊이 지연"
+    # Display delay is not counted as depth age (spec §4.6).
+    assert view_at(0.40, delay=0.3, depth_age_ms=490.0).badge.startswith("지형 OK")
+
+
 def test_link_age_drops_everything_after_half_a_second():
     view = view_at(0.51)
     assert (view.badge, view.obstacles, view.probe_state) == ("지형: 수신 없음", (), "STALE")

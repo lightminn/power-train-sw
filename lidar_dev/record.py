@@ -60,10 +60,14 @@ def main(argv=None) -> int:
             count += 1
             if count % SKIP:
                 continue
-            cv2.imwrite(str(folder / "depth" / f"{saved:06d}.png"),
-                        np.asanyarray(depth.get_data()).copy())
-            cv2.imwrite(str(folder / "color" / f"{saved:06d}.jpg"),
-                        np.asanyarray(color.get_data()).copy())
+            for path, image in (
+                (folder / "depth" / f"{saved:06d}.png", depth.get_data()),
+                (folder / "color" / f"{saved:06d}.jpg", color.get_data()),
+            ):
+                if not cv2.imwrite(str(path), np.asanyarray(image).copy()):
+                    # Disk full / unwritable: the recording is incomplete, not done.
+                    print(f"\n저장 실패: {path} — {saved}/{N_FRAMES} 쌍만 저장된 불완전한 녹화")
+                    return 1
             saved += 1
             print(f"saved {saved}/{N_FRAMES}   ", end="\r", flush=True)
     finally:

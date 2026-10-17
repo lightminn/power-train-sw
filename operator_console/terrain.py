@@ -192,7 +192,14 @@ def terrain_view(
         return TerrainView("지형: 수신 없음", "muted", REFERENCE_NOTE, (), "STALE")
     shown = display or latest
     aged = max(0.0, now_s - display_delay_s - shown.received_monotonic_s)
-    if shown.status == "OK":
+    shown_depth_age = (None if shown.depth_age_ms is None
+                       else shown.depth_age_ms / 1000.0 + aged)
+    if shown.status == "OK" and (shown_depth_age is None or shown_depth_age > DEPTH_STALE_S):
+        # An OK result from depth older than the outline limit is not a current
+        # reading: withdraw the distance / "no obstacle" summary too.
+        age_text = "" if shown_depth_age is None else f" {shown_depth_age:.1f} s"
+        badge, tone = f"지형: 깊이 지연{age_text}", "warn"
+    elif shown.status == "OK":
         if shown.ground.state == "HELD":
             held_s = shown.ground.age_ms / 1000.0 + aged
             badge, tone = f"지형: 바닥 유지 {held_s:.1f} s", "warn"
