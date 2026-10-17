@@ -351,3 +351,14 @@ def test_the_replay_check_sees_a_different_camera_model():
     plan = load_decisions(json.loads(json.dumps(r)) for r in records)
     followed = replay([s for _, s in events], depth, follow=plan)        # the replay only ever saw CAM
     assert unreproduced(plan, followed.followed_results)
+
+
+def test_the_decisions_log_carries_the_live_config_and_wheel_geometry():
+    from dataclasses import asdict
+    records = []
+    runtime(Clock(), decisions=records.append)
+    header = records[0]
+    assert header["k"] == "session" and header["config"] == asdict(CFG)
+    assert header["layout"]["radius"] == LAYOUT.wheel_radius_m and set(header["layout"]["positions"]) == set(LAYOUT.positions)
+    plan = load_decisions(json.loads(json.dumps(r)) for r in records)
+    assert plan.config == asdict(CFG) and plan.layout == json.loads(json.dumps(header["layout"]))

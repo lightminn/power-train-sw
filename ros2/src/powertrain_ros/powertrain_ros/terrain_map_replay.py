@@ -240,6 +240,26 @@ def _config(params: list[str]) -> MapConfig:
     return MapConfig(**overrides)
 
 
+def _live_config(decisions, requested: MapConfig, params: list[str]) -> MapConfig:
+    """A decisions replay reproduces the live run, so it runs with the live configuration;
+    ``--param`` may only repeat a logged value (branch review 4)."""
+    if decisions.layout is not None:
+        mine = wheel_layout()
+        logged = decisions.layout
+        if (abs(float(logged["radius"]) - mine.wheel_radius_m) > 1e-12
+                or {k: tuple(v) for k, v in logged["positions"].items()} != dict(mine.positions)):
+            raise ValueError("the live wheel geometry differs from this checkout's chassis.kinematics")
+    if decisions.config is None:
+        return requested
+    live = MapConfig(**decisions.config)
+    for item in params:
+        name = item.partition("=")[0]
+        if getattr(requested, name) != getattr(live, name):
+            raise ValueError(f"--param {name}={getattr(requested, name)} differs from the live run "
+                             f"({getattr(live, name)}); a decisions replay uses the live configuration")
+    return live
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("bag")
@@ -259,6 +279,7 @@ def main(argv: list[str] | None = None) -> int:
         with open(args.decisions_from, encoding="utf-8") as fh:
             try:
                 decisions = load_decisions((json.loads(line) for line in fh if line.strip()), args.session)
+                cfg = _live_config(decisions, cfg, params)
             except ValueError as exc:
                 print(f"refusing: {exc}", file=sys.stderr)
                 return 2
@@ -274,15 +295,20 @@ def main(argv: list[str] | None = None) -> int:
         if problems:
             print("refusing: the bag cannot reproduce this live run — " + "; ".join(problems), file=sys.stderr)
             return 2
-    runtime = replay(records, cfg, decisions=decisions, send=send, rate=args.rate,
-                     log=lambda m: print(m, file=sys.stderr))
+    log = lambda m: print(m, file=sys.stderr)  # noqa: E731
     end = max((r.stamp_s for r in records), default=0.0)
     if decisions is not None:
+        # Verify silently first: nothing reaches the console unless the live run is reproduced.
+        runtime = replay(records, cfg, decisions=decisions, log=log)
         problems = unreproduced(decisions, runtime.followed_results)
         if problems:
             print("refusing: the replay did not reproduce the live processing — " + "; ".join(problems[:5]),
                   file=sys.stderr)
             return 2
+        if send is not None:
+            runtime = replay(records, cfg, decisions=decisions, send=send, rate=args.rate, log=log)
+    else:
+        runtime = replay(records, cfg, send=send, rate=args.rate, log=log)
     if args.out:
         save_map(runtime, args.out, end)
     s = runtime.scheduler

@@ -7,6 +7,7 @@ arrival-time decisions recorded live.  All times are seconds.
 """
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 import math
 import threading
@@ -51,6 +52,8 @@ class Decisions(NamedTuple):
     odometry: FollowPlan
     frames: frozenset    # depth identities processed live
     results: tuple = ()  # (frame identity, (outcome, camera digest)) of the live processing, for the replay to verify
+    config: dict | None = None   # MapConfig the live run applied (session header)
+    layout: dict | None = None   # wheel geometry the live run used
 
 
 def _frame_ident(r: dict) -> tuple:
@@ -92,13 +95,14 @@ def unreproduced(decisions: Decisions, replayed) -> list[str]:
 
 
 def decision_sessions(records: Iterable[dict]) -> dict[str | None, list[dict]]:
-    """Split a decisions log into runs by their ``session`` header (None: records before any header)."""
+    """Split a decisions log into runs by their ``session`` header (None: records before any header).
+    Each run's list starts with its header record."""
     runs: dict[str | None, list[dict]] = {}
     current = None
     for r in records:
         if r.get("k") == "session":
             current = str(r["instance"])
-            runs[current] = []
+            runs[current] = [r]
             continue
         runs.setdefault(current, []).append(r)
     return runs
@@ -116,9 +120,10 @@ def load_decisions(records: Iterable[dict], session: str | None = None) -> Decis
         chosen = next(iter(runs.values()))
     else:
         raise ValueError(f"decisions log holds {len(runs)} runs {sorted(map(str, runs))}; choose one session")
+    header = chosen[0] if chosen and chosen[0].get("k") == "session" else {}
     frames = frozenset(_frame_ident(r) for r in chosen if r.get("k") == "frame" and r.get("r") == "processed")
     results = tuple((_frame_ident(r), (r["r"], int(r.get("cam", 0)))) for r in chosen if r.get("k") == "result")
-    return Decisions(follow_plan(chosen), frames, results)
+    return Decisions(follow_plan(chosen), frames, results, header.get("config"), header.get("layout"))
 
 
 @dataclass
@@ -153,8 +158,11 @@ class MapRuntime:
         self._log_overrun = log_error if log_overrun is None else log_overrun
         self._record = decisions if follow is None else None
         if self._record is not None:
+            # The replay restores exactly this configuration and geometry (branch review 4).
             self._record({"k": "session", "boot": session.boot_id, "start": session.start_mono_ns,
-                          "instance": session.instance})
+                          "instance": session.instance, "config": dataclasses.asdict(cfg),
+                          "layout": {"positions": {k: list(v) for k, v in layout.positions.items()},
+                                     "radius": layout.wheel_radius_m}})
         # v_opt = R v_base for the camera mount; the gyro shares the depth optical frame unless told otherwise.
         self._gyro_rotation = (default_gyro_rotation(cfg) if gyro_rotation is None
                                else np.asarray(gyro_rotation, float))

@@ -73,9 +73,9 @@ def receipt(events):
     return out
 
 
-def live(received, decisions, session=SESSION):
+def live(received, decisions, session=SESSION, cfg=CFG):
     clock = Clock()
-    rt = MapRuntime(CFG, session, N.wheel_layout(), clock=clock, decisions=decisions)
+    rt = MapRuntime(cfg, session, N.wheel_layout(), clock=clock, decisions=decisions)
     i, now = 0, F.START
     while i < len(received):
         while i < len(received) and received[i][0] <= now:
@@ -318,3 +318,44 @@ def test_a_replay_that_cannot_process_the_recorded_frames_refuses(tmp_path, caps
     code = RP.main([str(tmp_path / "bag"), "--param", "pixel_stride=1", "--decisions-from", str(tmp_path / "h.jsonl"),
                     "--out", str(out)])
     assert code == 2 and "did not reproduce" in capsys.readouterr().err and not out.exists()
+
+
+# --- branch review round 4 -------------------------------------------------------------
+def test_the_replay_uses_the_live_config_and_refuses_a_different_one(tmp_path, capsys):
+    from dataclasses import replace
+    events, _ = F.scenario(F.drive_then(Command("skid", v=0.3, omega=0.1)), 4.0)
+    received = receipt(events)
+    measured = replace(CFG, camera_x_m=0.36)                  # a re-measured mount, not the default
+    records = []
+    rt = live(received, records.append, cfg=measured)
+    write_bag(tmp_path / "bag", received)
+    write_log(tmp_path / "i.jsonl", records)
+    assert run_cli(tmp_path / "bag", tmp_path / "i.npz", "--decisions-from", str(tmp_path / "i.jsonl")) == content(rt)
+    code = RP.main([str(tmp_path / "bag"), "--param", "pixel_stride=1", "--param", "camera_x_m=0.348",
+                    "--decisions-from", str(tmp_path / "i.jsonl"), "--out", str(tmp_path / "j.npz")])
+    assert code == 2 and "camera_x_m" in capsys.readouterr().err
+
+
+def test_a_refused_decisions_replay_sends_nothing(tmp_path):
+    import socket
+    events, _ = F.scenario(F.drive_then(Command("skid", v=0.3, omega=0.1)), 4.0)
+    received = receipt(events)
+    records = []
+    live(received, records.append)
+    infos = [k for k, r in enumerate(received) if r[1] == F.INFO_TOPIC]
+    write_bag(tmp_path / "bag", [r for k, r in enumerate(received) if k not in infos[:4]])
+    write_log(tmp_path / "k.jsonl", records)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    sock.setblocking(False)
+    try:
+        code = RP.main([str(tmp_path / "bag"), "--param", "pixel_stride=1", "--decisions-from", str(tmp_path / "k.jsonl"),
+                        "--send", f"127.0.0.1:{sock.getsockname()[1]}", "--rate", "50"])
+        try:
+            sock.recv(2048)
+            got = True
+        except BlockingIOError:
+            got = False
+        assert code == 2 and not got
+    finally:
+        sock.close()

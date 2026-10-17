@@ -144,6 +144,9 @@ python3 -m powertrain_ros.terrain_map_replay ~/terrain_bags/run1 --out map.npz
 실시간과 **같은 지도**를 재생으로 만들려면 노드에 `-p processed_log_path:=/data/processed.jsonl`을 주고 녹화한 뒤
 `--decisions-from processed.jsonl`(로그에 실행이 여럿이면 `--session <instance>`)로 재생한다. 노드가 받은 표본이
 bag에 없으면 재생은 거부한다(같은 지도를 만들 수 없으므로).
+결정 재생은 기록에 남은 실시간 설정(`MapConfig`)·바퀴 기하를 그대로 쓴다 — `--param`은 기록값과 같을 때만 허용하고,
+설정을 바꿔 비교하려면 `--decisions-from` 없이 재생한다. 끝에 처리 프레임·결과·카메라 모델을 기록과 대조해 다르면
+지도를 저장하지 않고 거부하며, `--send`는 이 검증을 통과한 뒤에만 보낸다.
 
 ## 확인
 
