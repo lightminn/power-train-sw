@@ -18,7 +18,7 @@ from terrain_overlay.contract import (
     MAX_PACKET_BYTES, TerrainFrame, TerrainObstacle, parse_packet,
 )
 
-BOOT_SWITCH_SILENCE_S = 1.0
+from .session_gate import BOOT_SWITCH_SILENCE_S, NEW, REJECT, SAME, SessionSelector  # noqa: F401
 LINK_STALE_S = 0.5
 DEPTH_STALE_S = 0.6
 MAX_DISPLAY_DELAY_S = 0.4
@@ -27,35 +27,27 @@ REFERENCE_NOTE = "참고용 · 낮은 장애물/구덩이 미표시"
 
 
 class TerrainSessionGate:
-    """Order senders by session, never by address (spec §4.6 세션 게이트)."""
+    """Order senders by session, never by address (spec §4.6 세션 게이트).
+
+    The session switch rules live in ``SessionSelector``; this gate adds the
+    per-session sequence floor.
+    """
 
     def __init__(self) -> None:
-        self._session: tuple[str, int, str] | None = None
+        self._selector = SessionSelector()
         self._last_sequence: int | None = None
-        self._last_accepted_s: float | None = None
 
     def accept(self, frame: TerrainFrame, now_s: float) -> tuple[bool, bool]:
         """Return ``(accepted, session_changed)``."""
         key = frame.session_key
-        current = self._session
-        if current is None:
-            changed = True
-        elif key == current:
-            if frame.sequence <= self._last_sequence:
-                return False, False
-            changed = False
-        elif key[0] == current[0]:
-            if key[1:] <= current[1:]:
-                return False, False  # an older run of this boot, forever
-            changed = True
-        else:
-            if now_s - self._last_accepted_s <= BOOT_SWITCH_SILENCE_S:
-                return False, False
-            changed = True
-        self._session = key
+        decision = self._selector.classify(key, now_s)
+        if decision == REJECT:
+            return False, False
+        if decision == SAME and frame.sequence <= self._last_sequence:
+            return False, False
+        self._selector.commit(key, now_s)
         self._last_sequence = frame.sequence
-        self._last_accepted_s = now_s
-        return True, changed
+        return True, decision == NEW
 
 
 def validate_display_delay_s(value: float) -> float:
