@@ -95,12 +95,14 @@ def smooth_patches(h, tol):
     return lab
 
 
-def run(map_dir, criteria_path, cell=0.05, max_range_m=4.0):
+def run(map_dir, criteria_path, cell=0.05, max_range_m=4.0, allow_unaligned=False):
     import open3d as o3d
     crit = json.load(open(criteria_path, encoding="utf-8"))
     R = crit["rules"]
     P = np.asarray(o3d.io.read_point_cloud(os.path.join(map_dir, "map_points.ply")).points)
     summ = json.load(open(os.path.join(map_dir, "summary.json"), encoding="utf-8"))
+    if not summ.get("alignment_valid") and not allow_unaligned:   # 초기 평면 정렬이 없으면 z가 높이가 아니다
+        raise SystemExit(f"지도 좌표 정렬이 유효하지 않음(frame_id={summ.get('frame_id')}) — L2는 높이 지도로 쓸 수 없다")
     poses = np.load(os.path.join(map_dir, "poses_T_world_cam.npy"))
     cams = np.array([T[:3, 3] for T in poses if not np.isnan(T).any()])
     P = P[P[:, 2] < 2.0]                       # 천장 등 로버와 무관한 높은 점은 2.5D 지지면 계산에서 뺀다
@@ -188,7 +190,8 @@ def run(map_dir, criteria_path, cell=0.05, max_range_m=4.0):
            "cell_m": cell, "grid": {"x0": float(G["x0"]), "y0": float(G["y0"]), "nx": int(G["nx"]), "ny": int(G["ny"])}, "cell_counts": counts,
            "observation_model": "v1: 표면 점이 있는 칸 = 관측, 없으면 unknown, 카메라 궤적에서 4 m 밖 unknown(광선 FREE 미구현)",
            "unsupported": ["passage_width_m", "overhead_m"] + crit.get("unsupported_v0", []),
-           "source_map": {"tracked": summ.get("tracked"), "lost": summ.get("lost"), "gravity": summ.get("gravity")},
+           "source_map": {"tracked": summ.get("tracked"), "lost": summ.get("lost"), "frame_id": summ.get("frame_id"),
+                          "main_segment": summ.get("main_segment"), "preprocess": summ.get("preprocess")},
            "obstacles": obstacles}
     json.dump(out, open(os.path.join(map_dir, "terrain_map.json"), "w"), ensure_ascii=False, indent=1)
     np.savez_compressed(os.path.join(map_dir, "terrain_grid.npz"), level=level, top=top, patch=patch, step=step_of, slope=slope, rough=rough,
