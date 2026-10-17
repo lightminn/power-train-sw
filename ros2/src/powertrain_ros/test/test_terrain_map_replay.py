@@ -359,3 +359,20 @@ def test_a_refused_decisions_replay_sends_nothing(tmp_path):
         assert code == 2 and not got
     finally:
         sock.close()
+
+
+def test_a_log_without_config_or_geometry_is_refused(tmp_path, capsys):
+    """Branch review 5: an older log format must not fall back to defaults."""
+    events, _ = F.scenario(F.drive_then(Command("skid", v=0.3, omega=0.1)), 3.0)
+    received = receipt(events)
+    records = []
+    live(received, records.append)
+    for r in records:
+        if r.get("k") == "session":
+            r.pop("config")
+            r.pop("layout")
+    write_bag(tmp_path / "bag", received)
+    write_log(tmp_path / "old.jsonl", records)
+    out = tmp_path / "old.npz"
+    code = RP.main([str(tmp_path / "bag"), "--decisions-from", str(tmp_path / "old.jsonl"), "--out", str(out)])
+    assert code == 2 and "configuration" in capsys.readouterr().err and not out.exists()

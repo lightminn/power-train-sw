@@ -242,15 +242,17 @@ def _config(params: list[str]) -> MapConfig:
 
 def _live_config(decisions, requested: MapConfig, params: list[str]) -> MapConfig:
     """A decisions replay reproduces the live run, so it runs with the live configuration;
-    ``--param`` may only repeat a logged value (branch review 4)."""
+    ``--param`` may only repeat a logged value (branch review 4).  A log without the live
+    configuration and geometry (older format) cannot be reproduced and is refused (review 5)."""
+    if decisions.config is None or decisions.layout is None:
+        raise ValueError("the decisions log has no live configuration/wheel geometry (older format); "
+                         "record a new run, or replay without --decisions-from")
     if decisions.layout is not None:
         mine = wheel_layout()
         logged = decisions.layout
         if (abs(float(logged["radius"]) - mine.wheel_radius_m) > 1e-12
                 or {k: tuple(v) for k, v in logged["positions"].items()} != dict(mine.positions)):
             raise ValueError("the live wheel geometry differs from this checkout's chassis.kinematics")
-    if decisions.config is None:
-        return requested
     live = MapConfig(**decisions.config)
     for item in params:
         name = item.partition("=")[0]
