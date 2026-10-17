@@ -87,7 +87,7 @@ def test_recovery_window_exposes_existing_ops_without_hiding_drive_controls(
         window._stack.child_get_property(page, 'name')
         for page in window._stack.get_children()
     ] == [
-        'mission', 'mobility', 'systems', 'arm_manual', 'arm_calibration',
+        'mission', 'mobility', 'systems', 'terrain_map', 'arm_manual', 'arm_calibration',
     ]
     assert window._ops_panel._action_buttons['estop_reset'].get_mapped()
     assert window._ops_panel._action_buttons['us100_enable'].get_mapped()

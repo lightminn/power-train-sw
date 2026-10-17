@@ -83,6 +83,8 @@ from .metadata import (
 )
 from .mobility_view import MobilityDashboard, mission_mobility_values
 from .terrain import LatestTerrainReceiver, TerrainView, terrain_view
+from .terrain_map import DisplayConfig, LatestMapReceiver
+from .terrain_map_panel import MapPanel
 from .ops_client import ConsoleOpsClient
 from .ops_panel import (
     GESTURE_HOLD,
@@ -3824,6 +3826,8 @@ class OperatorConsole(Gtk.Window):
                  environment_telemetry_port: int = 5008,
                  terrain_port: int = 5009,
                  terrain_display_delay_ms: int = 0,
+                 terrain_map_port: int = 5010,
+                 map_display: DisplayConfig | None = None,
                  ops_host: str | None = None, ops_port: int = 9001,
                  ops_token_file: str = DEFAULT_OPS_TOKEN_FILE,
                  smoke_probe_file: str | None = None,
@@ -3859,6 +3863,8 @@ class OperatorConsole(Gtk.Window):
             terrain_port, display_delay_s=terrain_display_delay_ms / 1000.0,
         )
         self._terrain_canvas = TerrainCanvas(self._terrain_receiver)
+        self._map_receiver = LatestMapReceiver(terrain_map_port)
+        self._map_panel = MapPanel(self._map_receiver, map_display)
         self._events = EventLog()
         self._mission_events = EventLog()
         self._d435 = VideoPanel("작업 카메라", host, d435_port, latency_ms,
@@ -4413,6 +4419,7 @@ class OperatorConsole(Gtk.Window):
         stack.add_titled(mission_page, "mission", "실시간 화면")
         stack.add_titled(mobility_scroll, "mobility", "협조구동")
         stack.add_titled(systems_scroll, "systems", "시스템 상태")
+        stack.add_titled(self._map_panel, "terrain_map", "지형 지도")
         # The arm tabs use exactly the existing authenticated ops connection.
         # Only the two ingress paths implemented by the existing arm FSM are
         # registered; every other arm callback remains locally refused.
@@ -5682,6 +5689,7 @@ class OperatorConsole(Gtk.Window):
             "environment": environment_state,
             "terrain": terrain_view_now.probe_state,
             "terrain_badge": terrain_view_now.badge,
+            **self._map_panel.probe(),
             "environment_climate": self._environment_status.probe_values()[0],
             "environment_air": self._environment_status.probe_values()[1],
             "environment_hazard": self._environment_status.probe_values()[2],
@@ -5757,6 +5765,7 @@ class OperatorConsole(Gtk.Window):
         self._arm_receiver.close()
         self._environment_receiver.close()
         self._terrain_receiver.close()
+        self._map_receiver.close()
         self._ops_panel.close()
         if Gtk.main_level():
             Gtk.main_quit()
@@ -5801,6 +5810,18 @@ def _add_unix_signal_watch(
             signal_add(GLib.PRIORITY_DEFAULT, stop_signal, handler)
 
 
+def map_display_from_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> DisplayConfig:
+    """CLI display numbers → DisplayConfig; out of range is a usage error (Codex plan P2-3)."""
+    try:
+        return DisplayConfig(
+            display_upsample=args.map_display_upsample, max_render_pixels=args.map_max_render_pixels,
+            stale_display_s=args.map_stale_s, hillshade_azimuth_deg=args.map_hillshade_azimuth,
+            hillshade_altitude_deg=args.map_hillshade_altitude, z_exaggeration=args.map_hillshade_exaggeration,
+        )
+    except ValueError as exc:
+        parser.error(f"terrain map display: {exc}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="192.168.8.106")
@@ -5816,6 +5837,14 @@ def main() -> None:
         "--terrain-display-delay-ms", type=int, default=0,
         help="L515 terrain outline delay to match SRT video (0-400 ms)",
     )
+    parser.add_argument("--terrain-map-port", type=int, default=5010)
+    defaults = DisplayConfig()
+    parser.add_argument("--map-display-upsample", type=int, default=defaults.display_upsample)
+    parser.add_argument("--map-hillshade-azimuth", type=float, default=defaults.hillshade_azimuth_deg)
+    parser.add_argument("--map-hillshade-altitude", type=float, default=defaults.hillshade_altitude_deg)
+    parser.add_argument("--map-hillshade-exaggeration", type=float, default=defaults.z_exaggeration)
+    parser.add_argument("--map-stale-s", type=float, default=defaults.stale_display_s)
+    parser.add_argument("--map-max-render-pixels", type=int, default=defaults.max_render_pixels)
     parser.add_argument(
         "--ops-host",
         default=None,
@@ -5843,6 +5872,7 @@ def main() -> None:
     args = parser.parse_args()
     if not 0 <= args.terrain_display_delay_ms <= 400:
         parser.error("--terrain-display-delay-ms must be within 0-400")
+    map_display = map_display_from_args(parser, args)
     Gst.init(None)
     console = OperatorConsole(args.host, args.d435_port, args.l515_port,
                               args.metadata_port, args.latency_ms, args.telemetry_port,
@@ -5851,6 +5881,8 @@ def main() -> None:
                               args.environment_telemetry_port,
                               terrain_port=args.terrain_port,
                               terrain_display_delay_ms=args.terrain_display_delay_ms,
+                              terrain_map_port=args.terrain_map_port,
+                              map_display=map_display,
                               ops_host=args.host if args.ops_host is None else args.ops_host,
                               ops_port=args.ops_port,
                               ops_token_file=args.ops_token_file,

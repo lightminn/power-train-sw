@@ -38,7 +38,7 @@ STARTUP_TIMEOUT_S = 40.0
 # 이 패널들은 주입 중 LIVE 에 도달하고, 주입을 끊으면 STALE 로 전이해야 한다.
 # 하나라도 못 하면 그 채널은 실제로는 죽어 있는 것이다.
 REQUIRED_PANELS = frozenset({
-    "telemetry", "chassis", "metadata", "arm", "environment", "terrain",
+    "telemetry", "chassis", "metadata", "arm", "environment", "terrain", "terrain_map",
 })
 # One terrain sender session per smoke run (spec §4.6 session gate).
 TERRAIN_SMOKE_SESSION = ("5" * 32, time.monotonic_ns(), "5" * 16)
@@ -79,6 +79,34 @@ def _probe_states(probe_file: Path, wanted: str) -> set[str]:
     if not isinstance(states, dict):
         return set()
     return {name for name, state in states.items() if state == wanted}
+
+
+def _probe_map_tiles(probe_file: Path) -> int:
+    try:
+        states = json.loads(probe_file.read_text(encoding="utf-8"))
+        return int(states.get("terrain_map_tiles", 0))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return 0
+
+
+def _terrain_map_packets(sequence: int, *, tiles: bool = True, status: str = "OK") -> list[bytes]:
+    """One status packet and one refreshed tile per tick (terrain map contract v1, :5010)."""
+    from terrain_map import contract as C
+    session = dict(sender_boot_id="6" * 32, sender_start_mono_ns=TERRAIN_SMOKE_SESSION[1],
+                   sender_instance="6" * 16, map_epoch=0, sent_unix_ns=time.time_ns())
+    ok = status == "OK"
+    packets = [C.encode(C.StatusPacket(
+        **session, sequence=sequence, status=status, reason=None if ok else "POSE_GAP",
+        cell_m=0.05, tile_cells=16, age_step_s=2.0, pose=C.Pose(0.4, 0.4, 0.0) if ok else None,
+        distance_m=0.1 * sequence, pose_gaps=0, not_support=0, late_dropped=0, tile_count=1,
+        refresh_cycle_s=0.2, thresholds=C.Thresholds(0.08, 0.08, 2),
+        corrector=C.CorrectorInfo("identity", False, None, "identity"), proc_ms=12.0))]
+    if tiles:
+        heights = [12 if i % 16 < 8 else 0 for i in range(256)]
+        codes = [C.OBSTACLE if i % 16 < 8 else C.FREE for i in range(256)]
+        packets.append(C.encode(C.TilePacket(**session, tx=0, ty=0, version=1, tile_seq=sequence,
+                                             cells=C.pack_cells(heights, codes, [0] * 256))))
+    return packets
 
 
 def _probe_main_video(probe_file: Path) -> str | None:
@@ -445,6 +473,7 @@ def run_smoke(
         "metadata": _free_udp_port(), "telemetry": _free_udp_port(),
         "chassis": _free_udp_port(), "arm": _free_udp_port(),
         "environment": _free_udp_port(), "terrain": _free_udp_port(),
+        "terrain_map": _free_udp_port(),
     }
     ops_fixture = _OpsStateFixture()
     ops_fixture.start()
@@ -470,6 +499,7 @@ def run_smoke(
                 "--arm-telemetry-port", str(ports["arm"]),
                 "--environment-telemetry-port", str(ports["environment"]),
                 "--terrain-port", str(ports["terrain"]),
+                "--terrain-map-port", str(ports["terrain_map"]),
                 "--ops-token-file", token_file,
                 "--ops-port", str(ops_fixture.port),
                 "--smoke-probe-file", str(probe_file),
@@ -496,6 +526,7 @@ def run_smoke(
     role_sized_rovers_seen = False
     environment_values_seen = False
     terrain_ok_seen = False
+    map_tiles_seen = 0
     invalid_steering_held_seen = False
     arm_tabs_seen = False
     try:
@@ -529,8 +560,12 @@ def run_smoke(
                     json.dumps(build(sequence)).encode("utf-8"),
                     ("127.0.0.1", ports[channel]),
                 )
+            if omit_channel_for_test != "terrain_map":
+                for raw in _terrain_map_packets(sequence, tiles=omit_channel_for_test != "terrain_map_tiles"):
+                    sender.sendto(raw, ("127.0.0.1", ports["terrain_map"]))
             time.sleep(0.2)
             live_seen |= _probe_states(probe_file, "LIVE")
+            map_tiles_seen = max(map_tiles_seen, _probe_map_tiles(probe_file))
             unexpected_auto_swap_seen |= (
                 _probe_main_video(probe_file) == "작업 카메라"
             )
@@ -583,6 +618,9 @@ def run_smoke(
                 json.dumps(payload).encode("utf-8"),
                 ("127.0.0.1", ports[channel]),
             )
+        if omit_channel_for_test != "terrain_map":
+            for raw in _terrain_map_packets(sequence, tiles=False, status="NO_POSE"):
+                sender.sendto(raw, ("127.0.0.1", ports["terrain_map"]))
         sparse_deadline = time.monotonic() + 1.0
         while time.monotonic() < sparse_deadline and console.poll() is None:
             time.sleep(0.2)
@@ -648,6 +686,11 @@ def run_smoke(
             f"panels never went STALE after injection stopped: "
             f"{', '.join(missing_stale)}\n{text}"
         )
+    # The terrain map stage is judged before the arm tabs so its result stays readable
+    # even while those (pre-existing) checks fail (Codex plan P2-6).
+    if map_tiles_seen < 1:
+        return False, "terrain map tiles never arrived\n" + text
+    text = "terrain_map ok\n" + text
     if not terrain_ok_seen:
         return False, "terrain badge never showed 지형 OK while injecting\n" + text
     if unexpected_auto_swap_seen:
@@ -663,7 +706,7 @@ def run_smoke(
     if not arm_tabs_seen:
         return False, "arm tabs did not render live tool in safe disabled state\n" + text
     return True, (
-        f"PASS · {sequence} ticks on 6 channels · "
+        f"PASS · terrain_map ok · {sequence} ticks on 7 channels · "
         f"LIVE+STALE observed on {', '.join(sorted(REQUIRED_PANELS))} · "
         "invalid steering mode held disabled · "
         "arm tabs observed safely disabled · "

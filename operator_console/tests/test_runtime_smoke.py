@@ -99,3 +99,15 @@ def test_runtime_smoke_passes_isolated_environment_to_console_child():
     source = inspect.getsource(runtime_smoke.run_smoke)
 
     assert "env=smoke_child_env()" in source
+
+
+def test_terrain_map_stage_passes_and_is_reported_before_the_arm_tabs():
+    _, report = run_smoke()
+    assert "terrain_map ok" in report, report[-2000:]
+
+
+def test_terrain_map_negative_controls_name_their_reason():
+    passed, report = run_smoke(omit_channel_for_test="terrain_map")
+    assert not passed and report.startswith("panels never reached LIVE: terrain_map\n"), report[:300]
+    passed, report = run_smoke(omit_channel_for_test="terrain_map_tiles")
+    assert not passed and report.startswith("terrain map tiles never arrived"), report[:300]

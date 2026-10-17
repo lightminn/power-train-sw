@@ -24,8 +24,12 @@ DEFAULT_TEST_PORTS = {
     "arm": 15007,
     "environment": 15008,
     "terrain": 15009,
+    "terrain_map": 15010,
 }
-LIVE_PORTS = frozenset({5003, 5004, 5005, 5007, 5008, 5009})
+LIVE_PORTS = frozenset({5003, 5004, 5005, 5007, 5008, 5009, 5010})
+MAP_DEMO_PERIOD_S = 24.0
+MAP_DEMO_SPEED_M_S = 0.25
+MAP_DEMO_TILES_PER_TICK = 4
 # Fixed placeholder session; ``run`` gives every demo run its own session so
 # the console's terrain session gate accepts a restarted demo at once.
 DEMO_TERRAIN_SESSION = ("0" * 32, 0, "0" * 16)
@@ -295,6 +299,49 @@ def build_payloads(
     }
 
 
+def _map_course(x: float, y: float) -> tuple[int | None, int]:
+    """Demo course height (cm) and class: gentle waves, a box and a ditch; outside the cone unobserved."""
+    from terrain_map import contract as C
+    if x < 0.3 or abs(y) > 0.6 + 0.45 * x:
+        return None, C.INSUFFICIENT
+    if 2.4 <= x <= 2.7 and 0.35 <= y <= 0.65:                  # beside the demo path, not on it
+        return 15, C.OBSTACLE
+    if 3.6 <= x <= 3.9 and -0.9 <= y <= -0.35:
+        return -20, C.DITCH
+    return int(round(3.0 * math.sin(2.0 * x) + 2.0 * y)), C.FREE
+
+
+def map_packets(sequence: int, elapsed_s: float, session: tuple[str, int, str]) -> list[bytes]:
+    """Terrain map contract v1 (:5010) demo: a rover driving along x reveals a course;
+    every ``MAP_DEMO_PERIOD_S`` the run restarts in a new epoch."""
+    from terrain_map import contract as C
+    epoch, t = divmod(elapsed_s, MAP_DEMO_PERIOD_S)
+    x = MAP_DEMO_SPEED_M_S * t
+    reach = x + 3.0
+    revealed = [(tx, ty) for tx in range(0, 8) for ty in range(-3, 3) if tx * 0.8 < reach]
+    common = dict(sender_boot_id=session[0], sender_start_mono_ns=session[1], sender_instance=session[2],
+                  map_epoch=int(epoch), sent_unix_ns=time.time_ns())
+    packets = [C.encode(C.StatusPacket(
+        **common, sequence=sequence, status="OK", reason=None, cell_m=0.05, tile_cells=16, age_step_s=2.0,
+        pose=C.Pose(x, 0.05 * math.sin(t / 3.0), 0.05 * math.cos(t / 3.0)), distance_m=x, pose_gaps=0,
+        not_support=0, late_dropped=0, tile_count=len(revealed),
+        refresh_cycle_s=math.ceil(len(revealed) / MAP_DEMO_TILES_PER_TICK) / 10.0,
+        thresholds=C.Thresholds(0.08, 0.08, 2), corrector=C.CorrectorInfo("identity", False, None, "identity"),
+        proc_ms=18.0))]
+    for k in range(min(MAP_DEMO_TILES_PER_TICK, len(revealed))):
+        tx, ty = revealed[(sequence * MAP_DEMO_TILES_PER_TICK + k) % len(revealed)]
+        heights, codes = [], []
+        for gy in range(16):
+            for gx in range(16):
+                h, c = _map_course((tx * 16 + gx + 0.5) * 0.05, (ty * 16 + gy + 0.5) * 0.05)
+                heights.append(h)
+                codes.append(c)
+        packets.append(C.encode(C.TilePacket(
+            **common, tx=tx, ty=ty, version=1, tile_seq=sequence * MAP_DEMO_TILES_PER_TICK + k + 1,
+            cells=C.pack_cells(heights, codes, [0] * 256))))
+    return packets
+
+
 def validate_ports(ports: dict[str, int]) -> None:
     if set(ports) != set(DEFAULT_TEST_PORTS):
         raise ValueError("all demo channels are required")
@@ -334,6 +381,8 @@ def run(
                 if len(raw) > 4096:
                     raise RuntimeError(f"{channel} demo datagram exceeds 4096 bytes")
                 sender.sendto(raw, (host, ports[channel]))
+            for raw in map_packets(sequence, elapsed, terrain_session):
+                sender.sendto(raw, (host, ports["terrain_map"]))
             deadline = started + sequence * interval_s
             time.sleep(max(0.0, deadline - time.monotonic()))
     finally:

@@ -63,3 +63,30 @@ def test_demo_source_rejects_live_or_colliding_ports():
         validate_ports(dict(DEFAULT_TEST_PORTS, terrain=5009))
     with pytest.raises(ValueError, match="distinct"):
         validate_ports(dict(DEFAULT_TEST_PORTS, chassis=15004))
+
+
+def test_terrain_map_demo_packets_parse_and_reveal_the_course():
+    from operator_console.demo_source import MAP_DEMO_PERIOD_S, map_packets
+    from terrain_map import contract as C
+    session = ("0" * 32, 7, "a" * 16)
+    early = [C.parse_packet(raw) for raw in map_packets(1, 2.0, session)]
+    later = [C.parse_packet(raw) for raw in map_packets(200, 20.0, session)]
+    assert all(len(raw) <= C.MAX_PACKET_BYTES for raw in map_packets(200, 20.0, session))
+    assert isinstance(early[0], C.StatusPacket) and early[0].status == "OK" and early[0].map_epoch == 0
+    assert later[0].pose.x_m > early[0].pose.x_m and later[0].tile_count > early[0].tile_count
+    tiles = [p for p in later if isinstance(p, C.TilePacket)]
+    assert tiles and len({p.tile_seq for p in tiles}) == len(tiles)
+    cycle = [p for seq in range(200, 220) for p in map(C.parse_packet, map_packets(seq, 20.0, session))
+             if isinstance(p, C.TilePacket)]
+    assert {(p.tx, p.ty) for p in cycle} and len({(p.tx, p.ty) for p in cycle}) == later[0].tile_count
+    codes = {c for p in cycle for c in C.unpack_cells(p.cells, 16)[1]}
+    assert {C.OBSTACLE, C.DITCH, C.FREE, C.INSUFFICIENT} <= codes
+    looped = C.parse_packet(map_packets(400, MAP_DEMO_PERIOD_S + 1.0, session)[0])
+    assert looped.map_epoch == 1 and looped.tile_count < later[0].tile_count
+
+
+def test_terrain_map_demo_port_is_isolated_from_the_live_one():
+    validate_ports(dict(DEFAULT_TEST_PORTS))
+    assert DEFAULT_TEST_PORTS["terrain_map"] == 15010
+    with pytest.raises(ValueError):
+        validate_ports(dict(DEFAULT_TEST_PORTS, terrain_map=5010))
