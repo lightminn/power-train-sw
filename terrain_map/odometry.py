@@ -222,14 +222,24 @@ class PlanarOdometry:
             return []                                    # never stamped, so nothing to record
         if not gyro:
             sample = sample._replace(wheels=tuple(_finite_reading(r) for r in sample.wheels))
+        # The committed floor survives a stall flush, so it also detects a new time base (Codex T4 re-review P2-1).
+        reference = max(v for v in (self._latest_gyro if gyro else self._latest_wheel, self._committed, -math.inf)
+                        if v is not None)
+        regressed = sample.stamp_s < reference - self.cfg.stamp_regression_epoch_s
         if self._follow is not None:
             if (src, sample.seq) in self._follow.drops:
                 return []
+            if regressed:
+                # Finish the old time segment (and its anchored epochs) before the new one is queued
+                # in front of it (Codex T4 re-review 2).
+                done = self._advance(math.inf)
+                self._gyro.clear()
+                self._wheels.clear()
+                self._latest_gyro = self._latest_wheel = None
+                self._committed = None
+                return done + self._add(sample, src)
         else:
-            # The committed floor survives a stall flush, so it also detects a new time base (Codex T4 re-review P2-1).
-            reference = max(v for v in (self._latest_gyro if gyro else self._latest_wheel, self._committed, -math.inf)
-                            if v is not None)
-            if sample.stamp_s < reference - self.cfg.stamp_regression_epoch_s:
+            if regressed:
                 self._new_epoch("flush", "regression", reset_floor=True)
             elif self._committed is not None and sample.stamp_s <= self._committed:
                 self.late_dropped += 1

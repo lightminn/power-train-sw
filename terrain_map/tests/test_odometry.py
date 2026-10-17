@@ -431,3 +431,24 @@ def test_a_duplicated_message_is_told_apart_from_its_twin_in_the_replay():
     by_stamp = sorted(numbered, key=lambda e: (e[1].stamp_s, 0 if isinstance(e[1], O.WheelSample) else 1, e[1].seq))
     follow_out = feed(f, [(s.stamp_s, s) for _, s in by_stamp]) + f.drain()
     assert key(follow_out[:len(live_out)]) == key(live_out) and f.epoch == o.epoch
+
+
+def test_follow_finishes_the_old_time_segment_before_a_regressed_one():
+    """Codex T4 re-review 2: drive -> stall flush -> clock restart; segments fed back to back."""
+    first, _ = simulate(stop_then(Command("skid", v=0.3, omega=0.3)), 2.5)
+    second, _ = simulate(stop_then(Command("skid", v=0.3, omega=0.3)), 2.5, start_s=10.0)
+    _, numbered = number_by_receipt(first + second)
+    records = []
+    o = O.PlanarOdometry(CFG, LAYOUT, record=records.append)
+    live_out = []
+    for rx, s in numbered[:len(first)]:
+        live_out += (o.add_wheels(s) if isinstance(s, O.WheelSample) else o.add_gyro(s)) + o.poll(rx)
+    live_out += o.poll(START + 2.9)                                    # stall flush
+    for rx, s in numbered[len(first):]:                               # receive clock keeps running (+93 s)
+        s = s._replace(rx_s=rx + 93.0)
+        live_out += (o.add_wheels(s) if isinstance(s, O.WheelSample) else o.add_gyro(s)) + o.poll(s.rx_s)
+    assert o.epoch == 2 and any(s.valid and s.epoch == 2 for s in live_out)
+    f = O.PlanarOdometry(CFG, LAYOUT, follow=O.follow_plan(json_round_trip(records)))
+    segments = [stamp_order(s for _, s in numbered[:len(first)]), stamp_order(s for _, s in numbered[len(first):])]
+    follow_out = feed(f, [(s.stamp_s, s) for seg in segments for s in seg]) + f.drain()
+    assert key(follow_out[:len(live_out)]) == key(live_out) and f.epoch == o.epoch
