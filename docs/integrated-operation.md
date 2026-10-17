@@ -368,6 +368,7 @@ URDF 재추출 치수와 명령 계약은 [수동 애커만 설계](specs/2026-0
 | 작업 영상·인식·로봇팔 상태 | 준비된 선택 스택 + SRT :5002 / UDP :5003·5007 |
 | 전원·차체 상태 | UDP :5004·5005, 현재 인증된 노트북 주소로 전송 |
 | 지형 장애물 윤곽(참고용) | 선택 서비스 `powertrain_terrain_overlay`(compose profile `terrain-overlay`), UDP :5009, 현재 인증된 노트북 주소로 전송 |
+| 2.5D 지형 지도(참고용) | 선택 서비스 `powertrain_terrain_map`(compose profile `terrain-map`), UDP :5010, 콘솔 "지형 지도" 페이지 |
 | 부팅 순서/IP 변경 | 등록된 IPv4 호스트 후보 재해석, robot ID와 토큰으로 상대 확인 |
 
 세션 :9002는 동시 운용자 한 명만 허용한다. 연결 임대가 끝나면 입력/ops 프록시를
@@ -392,6 +393,12 @@ L515 지형 장애물 윤곽은 `terrain_port`(기본 `5009`)로 받고, 영상�
 `terrain_display_delay_ms`(0–400 정수, 기본 0)로 정한다. 윤곽은 운용자 참고용이며
 주행 제어·안전 판정에 쓰이지 않는다. 송신 서비스는 기본 기동에 들어 있지 않다 —
 `INTEGRATED_PROFILES=terrain-overlay INTEGRATED_SERVICES=powertrain_terrain_overlay scripts/robot-start`로 켠다.
+L515 2.5D 지형 지도는 `terrain_map_port`(기본 `5010`)로 받고, 표시 수치는 `terrain_map_display` 객체
+(`display_upsample`·`stale_display_s`·`hillshade_azimuth_deg`·`hillshade_altitude_deg`·`z_exaggeration`·
+`max_render_pixels`·`height_range_m`, 범위 밖이면 기동 거부)로 바꾼다. 송신 서비스는 기본 기동에 들어 있지 않다 —
+`INTEGRATED_PROFILES=terrain-map INTEGRATED_SERVICES=powertrain_terrain_map scripts/robot-start`로 켠다.
+켠 뒤 **로버를 1초 정지**해야 지도가 쌓이기 시작하고(자이로 바이어스 학습), 지도 작성은 0.5 m/s 이하를 권장한다.
+지도는 지나온 관측 기록이며 주행 제어·안전 판정에 쓰이지 않는다. 사용법·파라미터는 `terrain_map/README.md`.
 
 ## 문제 확인
 

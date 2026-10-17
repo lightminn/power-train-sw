@@ -143,7 +143,7 @@ python -m operator_console.demo_source
   --host 127.0.0.1 --d435-port 15002 --l515-port 15000 \
   --metadata-port 15003 --telemetry-port 15004 \
   --chassis-telemetry-port 15005 --arm-telemetry-port 15007 \
-  --environment-telemetry-port 15008 --terrain-port 15009 --input-source TEST \
+  --environment-telemetry-port 15008 --terrain-port 15009 --terrain-map-port 15010 --input-source TEST \
   --ops-token-file /tmp/operator-console-no-token
 ```
 
@@ -168,10 +168,23 @@ continues normally.
 
 For the integrated `python -m operator_console` entrypoint, the validated
 `~/.config/powertrain/operator.json` keys include
-`environment_telemetry_port` (default `5008`), `terrain_port` (default `5009`)
-and `terrain_display_delay_ms` (0–400, default 0). Port overrides must be
+`environment_telemetry_port` (default `5008`), `terrain_port` (default `5009`),
+`terrain_display_delay_ms` (0–400, default 0), `terrain_map_port` (default `5010`) and
+`terrain_map_display` (an object of `DisplayConfig` fields — out-of-range or non-integer values
+refuse to start). Port overrides must be
 integer ports from 1 through 65535 and must match the robot-side sender
 configuration. The L515 terrain outlines are an operator visual aid only.
+
+The **지형 지도** page draws the L515 2.5D terrain map (UDP `:5010`, `--terrain-map-port`):
+heading-up while following the rover, raised cells red and ditches blue on their raw cell
+boundaries, shaded heights, unobserved cells transparent, cells older than `--map-stale-s`
+(default 30 s) desaturated. The status line shows status, epoch, distance, pose gaps,
+received/total tiles, packet rate and sender; "수신 끊김" appears when no status packet
+arrived for 0.5 s and the last pose turns gray. Scroll to zoom, drag to pan (stops following),
+"화면에서 지우기" clears only the console's copy. Display numbers: `--map-display-upsample`,
+`--map-hillshade-azimuth`, `--map-hillshade-altitude`, `--map-hillshade-exaggeration`,
+`--map-stale-s`, `--map-max-render-pixels` (out of range is a usage error). Producer side and
+parameters: `terrain_map/README.md`.
 
 Observation remains caller/receiver-only: it never opens D435i/L515 or writes
 CAN. Commands are possible only through the authenticated ops client and every
