@@ -1,0 +1,147 @@
+"""terrain_map_replay — bag → same MapRuntime, with and without the live decisions (spec §6)."""
+import json
+
+import numpy as np
+import pytest
+import rosbag2_py
+from rclpy.serialization import serialize_message
+
+from powertrain_ros import terrain_map_node as N
+from powertrain_ros import terrain_map_replay as RP
+from terrain_map import contract as C
+from terrain_map.config import MapConfig
+from terrain_map.runtime import MapRuntime
+from terrain_map.tests.odometry_sim import Command
+from terrain_overlay.camera import CameraModel
+from terrain_overlay.runtime import SenderSession
+
+import terrain_map_fixture as F
+
+CFG = MapConfig(pixel_stride=1)
+SESSION = SenderSession(boot_id="0" * 32, start_mono_ns=1, instance="b" * 16)
+TYPES = {F.DEPTH_TOPIC: "sensor_msgs/msg/Image", F.INFO_TOPIC: "sensor_msgs/msg/CameraInfo",
+         F.GYRO_TOPIC: "sensor_msgs/msg/Imu", F.WHEEL_TOPIC: "powertrain_msgs/msg/WheelStates"}
+
+
+def write_bag(path, items):
+    """items: (record time s, topic, message) in record order."""
+    writer = rosbag2_py.SequentialWriter()
+    writer.open(rosbag2_py.StorageOptions(uri=str(path), storage_id="sqlite3"),
+                rosbag2_py.ConverterOptions(input_serialization_format="cdr", output_serialization_format="cdr"))
+    for name, kind in TYPES.items():
+        writer.create_topic(rosbag2_py.TopicMetadata(name=name, type=kind, serialization_format="cdr"))
+    for t, topic, message in items:
+        writer.write(topic, serialize_message(message), int(t * 1e9))
+    del writer
+
+
+class Clock:
+    now = 0.0
+
+    def __call__(self):
+        return self.now
+
+
+def deliver(rt, topic, message, rx):
+    """The node's callbacks, with an explicit receive time."""
+    stamp = N.stamp_s(message)
+    if topic == F.INFO_TOPIC:
+        rt.on_camera_info(CameraModel.from_k(message.k, message.width, message.height))
+    elif topic == F.DEPTH_TOPIC:
+        rt.on_depth(N.depth_array(message), stamp, rx)
+    elif topic == F.GYRO_TOPIC:
+        v = message.angular_velocity
+        rt.on_gyro(stamp, rx, (v.x, v.y, v.z))
+    else:
+        rt.on_wheels(stamp, rx, N.wheel_readings(message, CFG.wheel_radius_m))
+
+
+def receipt(events):
+    """Live receive times: some wheel messages late (dropped), a 0.45 s wheel silence then a burst (stall)."""
+    rng = np.random.default_rng(5)
+    out = []
+    for e in events:
+        rx = e.stamp_s + (0.02 if e.topic in (F.DEPTH_TOPIC, F.INFO_TOPIC) else 0.0)
+        t = e.stamp_s - F.START
+        if e.topic == F.WHEEL_TOPIC:
+            if 2.0 < t < 2.3 and rng.random() < 0.3:
+                rx += 0.12
+            elif 2.5 <= t <= 2.9:
+                rx = F.START + 2.95
+        out.append((rx, e.topic, e.message))
+    out.sort(key=lambda r: r[0])
+    return out
+
+
+def live(received, decisions):
+    clock = Clock()
+    rt = MapRuntime(CFG, SESSION, N.wheel_layout(), clock=clock, decisions=decisions)
+    i, now = 0, F.START
+    while i < len(received):
+        while i < len(received) and received[i][0] <= now:
+            deliver(rt, received[i][1], received[i][2], received[i][0])
+            i += 1
+        clock.now = now
+        rt.process_tick()
+        now += 0.1
+    return rt
+
+
+def content(rt):
+    out = {}
+    for tx, ty in rt.map.tiles():
+        heights, codes, _ = C.unpack_cells(rt.map.encode_tile(tx, ty, 0.0)["cells"], CFG.tile_cells)
+        out[(tx, ty)] = (rt.map.version_of(tx, ty), [C.UNOBSERVED_H if h is None else h for h in heights], codes)
+    return rt.epoch, out
+
+
+def npz_content(path):
+    z = np.load(path)
+    return int(z["epoch"]), {
+        (int(tx), int(ty)): (int(v), [int(h) for h in hs], [int(c) for c in cs])
+        for (tx, ty), v, hs, cs in zip(z["tiles"], z["versions"], z["heights_cm"], z["codes"])
+    }
+
+
+@pytest.fixture(scope="module")
+def recorded(tmp_path_factory):
+    events, _ = F.scenario(F.drive_then(Command("skid", v=0.3, omega=0.1)), 4.0)
+    received = receipt(events)
+    records = []
+    rt = live(received, records.append)
+    root = tmp_path_factory.mktemp("bag")
+    write_bag(root / "run", received)
+    log = root / "processed.jsonl"
+    log.write_text("".join(json.dumps(r) + "\n" for r in records))
+    return rt, root / "run", log
+
+
+def run_cli(bag, out, *extra):
+    assert RP.main([str(bag), "--param", "pixel_stride=1", "--out", str(out), *extra]) == 0
+    return npz_content(out)
+
+
+def test_decisions_reproduce_the_live_map(recorded, tmp_path):
+    rt, bag, log = recorded
+    assert rt.odometry.late_dropped > 0 and rt.epoch >= 1 and rt.map.tiles()
+    assert run_cli(bag, tmp_path / "follow.npz", "--decisions-from", str(log)) == content(rt)
+
+
+def test_ignoring_the_decisions_gives_a_different_map(recorded, tmp_path):
+    rt, bag, _ = recorded
+    assert run_cli(bag, tmp_path / "plain.npz") != content(rt)
+
+
+def test_plain_replay_is_deterministic(recorded, tmp_path):
+    _, bag, _ = recorded
+    assert run_cli(bag, tmp_path / "a.npz") == run_cli(bag, tmp_path / "b.npz")
+
+
+def test_record_order_regression_splits_the_epochs():
+    gyro = lambda t: F.gyro_message(t, 0.0)
+    records = [RP.Record(F.GYRO_TOPIC, t, k, gyro(t)) for k, t in enumerate([100.0, 100.02, 10.0, 10.02])]
+    parts = RP.segments(records, CFG.stamp_regression_epoch_s, drop_small_regressions=True)
+    assert [[r.stamp_s for r in p] for p in parts] == [[100.0, 100.02], [10.0, 10.02]]
+    small = [RP.Record(F.GYRO_TOPIC, t, k, gyro(t)) for k, t in enumerate([100.0, 100.04, 100.02, 100.06])]
+    assert [r.stamp_s for r in RP.segments(small, 1.0, drop_small_regressions=True)[0]] == [100.0, 100.04, 100.06]
+    assert len(RP.segments(small, 1.0, drop_small_regressions=False)[0]) == 4
