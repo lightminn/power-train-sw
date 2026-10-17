@@ -35,5 +35,9 @@ MAX_ARM_TELEMETRY_BYTES = 4096
 # terrain_overlay.contract keeps the same value as UDP_PORT; a test ties them.
 L515_TERRAIN_UDP_PORT = 5009
 
+# L515 2.5D terrain map tiles/status (operator visual aid only). terrain_map.contract
+# keeps the same value as UDP_PORT; a test ties them.
+L515_TERRAIN_MAP_UDP_PORT = 5010
+
 L515_UNAVAILABLE_VERDICT = "REMOTE_DRIVE_VIDEO_UNAVAILABLE"
 D435I_UNAVAILABLE_VERDICT = "REMOTE_ARM_VIDEO_UNAVAILABLE"
