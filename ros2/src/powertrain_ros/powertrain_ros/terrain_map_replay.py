@@ -9,8 +9,8 @@ order, to the same ``MapRuntime`` the live node uses, with the stamp as the
 clock.  Epoch boundaries come first, from the record order: a message whose
 stamp runs more than ``stamp_regression_epoch_s`` behind its topic starts a new
 time segment, and each segment is sorted on its own.  A gyro or wheel message is
-identified by ``(topic, clock segment, header stamp, copy)``, assigned by the same
-``SampleIds`` rule the live node's odometry applies (``processed_log_path``).  With ``--decisions-from`` only the samples the node
+identified by ``(topic, clock segment, header stamp, copy)``, assigned in record order
+(the order the live node received them) by the odometry's own ``SampleIds`` rule.  With ``--decisions-from`` only the samples the node
 received are fed, and a sample the node received that the bag lacks refuses the replay.
 """
 from __future__ import annotations
@@ -46,6 +46,8 @@ class Record(NamedTuple):
     stamp_s: float
     seq: int            # record index within the topic (keeps sorting stable)
     message: object
+    seg: int = -1       # identity (gyro/wheel): clock segment, fixed in record order by ``identify``
+    copy: int = -1      # identity: copy of this stamp within the segment
 
 
 SOURCES = {GYRO_TOPIC: "gyro", WHEEL_TOPIC: "wheel"}
@@ -73,22 +75,28 @@ def read_bag(path: str) -> list[Record]:
     return records
 
 
+def identify(records: list[Record], regression_s: float) -> list[Record]:
+    """Give gyro/wheel records their identity in record order — the order the live node received
+    them — before any sorting, with the odometry's own ``SampleIds`` rule (Codex re-review)."""
+    ids = SampleIds(regression_s)
+    out = []
+    for r in records:
+        if r.topic in SOURCES:
+            seg, copy = ids.assign(SOURCES[r.topic], r.stamp_s)
+            r = r._replace(seg=seg, copy=copy)
+        out.append(r)
+    return out
+
+
 def missing_from_bag(records: list[Record], decisions, regression_s: float) -> list[str]:
     """What the live node used that the bag does not hold (the replay cannot reproduce it).
 
-    Identities come from the same ``SampleIds`` rule the odometry applies, in feed order.
+    ``records`` must already carry their identities (``identify``).
     """
     problems = []
     received = decisions.odometry.received
     if received is not None:
-        ids = SampleIds(regression_s)
-        have = set()
-        for seg in segments(records, regression_s, drop_small_regressions=False):
-            for r in seg:
-                if r.topic in SOURCES:
-                    src = SOURCES[r.topic]
-                    segment, copy = ids.assign(src, r.stamp_s)
-                    have.add((src, segment, r.stamp_s, copy))
+        have = {(SOURCES[r.topic], r.seg, r.stamp_s, r.copy) for r in records if r.topic in SOURCES}
         lost = sorted(received - have)
         if lost:
             problems.append(f"{len(lost)} gyro/wheel samples the node received are not in the bag (first {lost[0]})")
@@ -132,9 +140,9 @@ def feed(runtime: MapRuntime, clock, record: Record, radius_m: float) -> None:
             runtime.on_depth(array, record.stamp_s, record.stamp_s)
     elif record.topic == GYRO_TOPIC:
         v = m.angular_velocity
-        runtime.on_gyro(record.stamp_s, record.stamp_s, (v.x, v.y, v.z))      # identity: odometry SampleIds
+        runtime.on_gyro(record.stamp_s, record.stamp_s, (v.x, v.y, v.z), record.copy, record.seg)
     else:
-        runtime.on_wheels(record.stamp_s, record.stamp_s, wheel_readings(m, radius_m))
+        runtime.on_wheels(record.stamp_s, record.stamp_s, wheel_readings(m, radius_m), record.copy, record.seg)
 
 
 class _Clock:
@@ -237,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.rate <= 0 or not math.isfinite(args.rate):
             raise SystemExit("--rate must be > 0")
         send = (socket.socket(socket.AF_INET, socket.SOCK_DGRAM), (host, int(port)))
-    records = read_bag(args.bag)
+    records = identify(read_bag(args.bag), cfg.stamp_regression_epoch_s)
     if decisions is not None:
         problems = missing_from_bag(records, decisions, cfg.stamp_regression_epoch_s)
         if problems:

@@ -157,15 +157,18 @@ class MapRuntime:
         with self._lock:
             self._bad_depth_rx = float(rx_s)
 
-    def on_gyro(self, stamp_s: float, rx_s: float, omega_optical, seq: int = -1) -> None:
-        """Angular velocity in the optical frame -> body z (v_base = Rᵀ v_opt, spec §4.8)."""
+    def on_gyro(self, stamp_s: float, rx_s: float, omega_optical, seq: int = -1, seg: int = -1) -> None:
+        """Angular velocity in the optical frame -> body z (v_base = Rᵀ v_opt, spec §4.8).
+
+        ``seq``/``seg`` (sample identity) are given only by a replay; live they are assigned on arrival.
+        """
         wz = float((self._gyro_rotation.T @ np.asarray(omega_optical, float))[2])
         with self._lock:
-            self._take(self.odometry.add_gyro(GyroSample(float(stamp_s), float(rx_s), wz, seq)))
+            self._take(self.odometry.add_gyro(GyroSample(float(stamp_s), float(rx_s), wz, seq, seg)))
 
-    def on_wheels(self, stamp_s: float, rx_s: float, wheels: tuple, seq: int = -1) -> None:
+    def on_wheels(self, stamp_s: float, rx_s: float, wheels: tuple, seq: int = -1, seg: int = -1) -> None:
         with self._lock:
-            self._take(self.odometry.add_wheels(WheelSample(float(stamp_s), float(rx_s), tuple(wheels), seq)))
+            self._take(self.odometry.add_wheels(WheelSample(float(stamp_s), float(rx_s), tuple(wheels), seq, seg)))
 
     def _take(self, samples: list[PoseSample]) -> None:
         for s in samples:

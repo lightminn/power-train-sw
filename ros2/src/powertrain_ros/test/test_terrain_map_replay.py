@@ -218,3 +218,26 @@ def test_a_clock_restart_that_repeats_old_stamps_replays_the_same_map(tmp_path):
     write_bag(tmp_path / "restart", received)
     write_log(tmp_path / "d.jsonl", records)
     assert run_cli(tmp_path / "restart", tmp_path / "r.npz", "--decisions-from", str(tmp_path / "d.jsonl")) == content(rt)
+
+
+def test_identities_are_fixed_in_record_order_before_sorting():
+    """Codex re-review: gyro100 → wheel100 → wheel98.8 → gyro99.5 → gyro99.5 → gyro98.9."""
+    from terrain_map import odometry as O
+    from terrain_map.runtime import Decisions
+    from terrain_map.tests.odometry_sim import wheels_for
+    rows, *_ = wheels_for(Command("stop"))
+    readings = tuple(O.WheelReading(n, s, d, c, m, True) for n, s, d, c, m in rows)
+    order = [("gyro", 100.0), ("wheel", 100.0), ("wheel", 98.8), ("gyro", 99.5), ("gyro", 99.5), ("gyro", 98.9)]
+    logged = []
+    o = O.PlanarOdometry(CFG, N.wheel_layout(), record=logged.append)
+    for src, t in order:                                       # live: arrival order
+        if src == "gyro":
+            o.add_gyro(O.GyroSample(t, t, 0.0))
+        else:
+            o.add_wheels(O.WheelSample(t, t, readings))
+    records = [RP.Record(F.GYRO_TOPIC if src == "gyro" else F.WHEEL_TOPIC, t, k, None)
+               for k, (src, t) in enumerate(order)]
+    records = RP.identify(records, CFG.stamp_regression_epoch_s)
+    decisions = Decisions(O.follow_plan(logged), frozenset())
+    assert RP.missing_from_bag(records, decisions, CFG.stamp_regression_epoch_s) == []
+    assert {(RP.SOURCES[r.topic], r.seg, r.stamp_s, r.copy) for r in records} == decisions.odometry.received
