@@ -1,8 +1,9 @@
 # imu_calib.py — L515 내장 가속도계 다자세 정지 보정(축별 편향·배율, 타원체 맞춤). 기록마다 한 자세로 5 s 가만히 둔다(9자세 이상).
 # v2(10-18, 교차검토 4차 반영): 축에 정확히 맞춰 놓을 필요가 없다 — 정지 평균 a_i에 대해 Σ(|(a_i − b)/s| − g)²를 최소화하는
 #   b(편향)·s(배율)를 구한다(가우스–뉴턴). L515는 원통형이라 옆면 자세를 축에 맞추기 어렵다.
-#   거부 조건: 자료 부족·비유한, 정지 아님(가속·자이로 표준편차), 자세 분포 부족(각 축이 ±방향 모두 중력과 60° 안으로 놓인 적 없음),
-#   배율·편향 범위 밖, 보정 후 잔차·한 자세 빼고 맞춘 잔차(교차 확인)가 큼. 하나라도 걸리면 결과를 저장하지 않는다(--force면 valid=false로 저장).
+#   거부 조건: 자료 부족·비유한, 정지 아님(가속·자이로 표준편차, 자세별 자이로 평균이 다른 자세와 다름 = 일정한 회전),
+#   자세 분포 부족(각 축이 ±방향 모두 중력과 60° 안으로 놓인 적 없음, 맞춤 조건수가 큼 = 식별 불가), 배율·편향 범위 밖,
+#   보정 후 잔차·한 자세 빼고 맞춘 잔차(교차 확인)가 큼. 하나라도 걸리면 결과를 저장하지 않는다(--force면 valid=false로 저장).
 # 모델 한계: 대각 배율 + 편향만이다. 축간 비직교·교차축 감도, IMU↔깊이↔차체 회전은 보정하지 않는다 → 크기가 g에 맞아도 방향 정확도는 입증되지 않는다.
 #   바닥 법선과 비교할 때는 meta의 depth_to_accel 회전을 적용하고, 전복 계산기에는 차체 좌표 변환까지 적용한다. 움직이는 동안의 가속도는 중력이 아니다.
 # 사용: python imu_calib.py <기록1> ... <기록N≥9> [--out imu_calib.json] [--force]   (record_seq.py 기록, imu.csv 필요)
@@ -15,7 +16,9 @@ Q = {"min_samples": 100, "min_window_s": 2.0, "trim_frac": 0.10,     # 가속·�
      "min_poses": 9,                                                   # 미지수 6개 — 6자세는 딱 맞아 잔차가 늘 0, 교차 확인에 9개 이상
      "cover_cos": 0.5,                                                 # 각 축 ±방향이 중력과 60° 안으로 놓인 자세가 있어야 함
      "scale_range": (0.95, 1.05), "bias_max": 0.6,                    # m/s²
-     "resid_max": 0.05, "loo_resid_max": 0.08}                        # 보정 후 |a| − g, 한 자세 빼고 맞춘 뒤 그 자세의 |a| − g (m/s²)
+     "resid_max": 0.05, "loo_resid_max": 0.08,                        # 보정 후 |a| − g, 한 자세 빼고 맞춘 뒤 그 자세의 |a| − g (m/s²)
+     "cond_max": 1e3,                                                  # 맞춤 자코비안 조건수 — 크면 방향 분포가 배율·편향을 구분하지 못함(예: 정육면체 대각선만)
+     "gyro_pose_dev_max": 0.02, "gyro_bias_abs_max": 0.05}            # 자세별 자이로 평균의 다른 자세 대비 차이, 공통 편향 크기(rad/s) — 일정한 회전 거부
 
 
 def read_imu(folder):
@@ -90,6 +93,8 @@ def calibrate(folders):
         if dirs[:, k].max() < Q["cover_cos"] or dirs[:, k].min() > -Q["cover_cos"]:
             bad.append(f"자세 분포 부족: {c}축 ±방향 중 하나가 중력과 60° 안에 놓인 적 없음(최대 {dirs[:, k].max():.2f}, 최소 {dirs[:, k].min():.2f})")
     b, s, r, cond = fit(a)
+    if not np.isfinite(cond) or cond > Q["cond_max"]:
+        bad.append(f"식별 불가: 자세 방향 분포가 배율·편향을 구분하지 못함(조건수 {cond:.3g} > {Q['cond_max']:g}) — 서로 다른 방향을 더 기록")
     loo = []
     for i in range(len(a) if len(a) >= Q["min_poses"] else 0):
         m = np.arange(len(a)) != i
@@ -103,7 +108,15 @@ def calibrate(folders):
         bad.append(f"보정 후 잔차 최대 {np.abs(r).max():.3f} m/s²")
     if loo and np.abs(loo).max() > Q["loo_resid_max"]:
         bad.append(f"한 자세 빼고 맞춘 잔차 최대 {np.abs(loo).max():.3f} m/s²")
-    gyro_bias = np.mean([p["gyro_mean"] for p in ok], 0)
+    gm = np.array([p["gyro_mean"] for p in ok])
+    gmed = np.median(gm, 0)
+    dev = np.linalg.norm(gm - gmed, axis=1)
+    for p, dv in zip(ok, dev):
+        if dv > Q["gyro_pose_dev_max"]:
+            bad.append(f"{os.path.basename(p['folder'].rstrip('/'))}: 회전 중(자이로 평균이 다른 자세와 {dv:.3f} rad/s 다름 — 일정한 회전)")
+    if np.linalg.norm(gmed) > Q["gyro_bias_abs_max"]:
+        bad.append(f"자이로 공통 평균 {np.linalg.norm(gmed):.3f} rad/s — 편향으로 보기에 큼(모든 자세에서 회전?)")
+    gyro_bias = gmed
     res.update({"accel_bias_m_s2": b.tolist(), "accel_scale": s.tolist(), "gyro_bias_rad_s": gyro_bias.tolist(),
                 "gyro_bias_spread_rad_s": np.ptp([p["gyro_mean"] for p in ok], 0).tolist(), "jacobian_cond": cond,
                 "norm_before": [float(np.linalg.norm(x)) for x in a], "resid_after": r.tolist(), "loo_resid": loo,

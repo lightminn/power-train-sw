@@ -121,3 +121,24 @@ def test_wrong_pose_caught_by_cross_check(tmp_path):
             w.writerow({"host_mono_s": k * 0.005, "kind": "gyro", "ts_ms": k * 5, "ts_domain": "s", "fn": k, "x": g[0], "y": g[1], "z": g[2]})
     cal = ic.calibrate(folders)
     assert not cal["valid"] and any("잔차" in r for r in cal["reasons"]), cal["reasons"]
+
+
+def test_cube_diagonals_not_identifiable(tmp_path):
+    """5차 반례: 정육면체 대각선 8방향 + 반복 1 — 모든 축 성분 크기가 같아 배율을 구분 못 함 → 조건수로 거부."""
+    import itertools
+    dirs = [np.array(d, float) for d in itertools.product((1, -1), repeat=3)] + [np.array([1.0, 1.0, 1.0])]
+    cal = ic.calibrate(make(tmp_path, dirs))
+    assert not cal["valid"] and any("식별" in r for r in cal["reasons"]), cal["reasons"]
+
+
+def test_constant_rotation_rejected(tmp_path):
+    """5차 반례: 한 자세에서 중력축 둘레로 일정하게 0.5 rad/s 회전 — 분산은 작지만 자이로 평균이 다른 자세와 달라 거부."""
+    folders = make(tmp_path, POSES9)
+    write_pose(folders[3], AXES[3], np.random.default_rng(5), gyro_fn=lambda k: np.array([0.0, 0.5, 0.0]))
+    cal = ic.calibrate(folders)
+    assert not cal["valid"] and any("일정한 회전" in r for r in cal["reasons"]), cal["reasons"]
+
+
+def test_good_set_is_well_conditioned(tmp_path):
+    cal = ic.calibrate(make(tmp_path, POSES9))
+    assert cal["valid"] and cal["jacobian_cond"] < ic.Q["cond_max"], cal["jacobian_cond"]

@@ -31,16 +31,29 @@ def nearest(obs, x, y):
 
 
 def test_boxes_classified_by_criteria(mapped):
+    """상자 6·7·10·30 cm. 6 cm는 측정 여유 1 cm로 기준 7 cm 경계에 걸려 주의·불가 둘 다 허용.
+    단차 값은 윗면까지 보이는 가까운 7·10 cm 상자만 확인한다(3 m의 6 cm 상자는 윗면이 안 보여 앞면 높이만 잰다 — 관측된 만큼만 보고)."""
     out = om.run(mapped, CRIT)
     obs = out["obstacles"]
     assert out["criteria_version"] == "v0.1" and out["type"] == "terrain_map"
-    want = {0.10: "block", 0.07: "block", 0.30: "block", 0.06: "caution"}
+    want = {0.10: {"block"}, 0.07: {"block"}, 0.30: {"block"}, 0.06: {"caution", "block"}}
     for x0, x1, y0, y1, h in ss.BOXES:
         o = nearest(obs, (x0 + x1) / 2, (y0 + y1) / 2)
         d = np.hypot(o["centroid_xy_m"][0] - (x0 + x1) / 2, o["centroid_xy_m"][1] - (y0 + y1) / 2)
-        assert d < 0.35 and o["level"] == want[h], (h, o)
-        if h < 0.2:
+        assert d < 0.35 and o["level"] in want[h], (h, o)
+        if h in (0.07, 0.10):
             assert abs(o["step_m"] - h) < 0.015, (h, o["step_m"])
+
+
+def test_box_footprints_never_pass(mapped):
+    """경로 허가 층에서 상자 안 칸은 하나도 통과가 아니다(소수 누출도 실패)."""
+    om.run(mapped, CRIT)
+    g = np.load(os.path.join(mapped, "terrain_grid.npz"))
+    lv, x0, y0, c = g["level"], float(g["x0"]), float(g["y0"]), float(g["cell"])
+    gx, gy = x0 + (np.arange(lv.shape[1]) + 0.5) * c, y0 + (np.arange(lv.shape[0]) + 0.5) * c
+    for bx0, bx1, by0, by1, h in ss.BOXES:
+        sub = lv[np.ix_((gy > by0) & (gy < by1), (gx > bx0) & (gx < bx1))]
+        assert not (sub == om.LEVEL["pass"]).any(), (h, np.unique(sub, return_counts=True))
 
 
 def test_no_obstacle_on_open_floor(mapped):

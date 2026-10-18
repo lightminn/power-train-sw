@@ -1,5 +1,7 @@
 # L2 분류 핵심(classify_points) 반례 시험: 높이 함수로 만든 점구름(수직 면 포함)을 바로 넣는다. L1·open3d 불필요.
-# 교차검토 4차의 반례(넓은 단 위, 갈린 바닥, 급경사, 층층 단, 관계없는 윗면, 단일 칸)와 경계값·보류·내려가기를 고정한다.
+# 교차검토 4·5차의 반례(넓은 단 위, 갈린 바닥, 급경사·경사 위 평탄부, 층층 단, 관계없는 윗면, 단일 칸, 얇은 턱, 도랑 너머 낮은 면, 큰 잡음)와
+# 경계값·보류·내려가기를 고정한다. 위험 영역은 최빈 단계가 아니라 '통과 칸 0'으로 확인한다(소수 누출을 놓치지 않게).
+# 시작 카메라는 (0, 0)에서 +x를 본다. level = 출발 지지면에서의 경로 허가, level_local = 그 칸의 국소 위험.
 import json, math, os, sys
 
 import pytest
@@ -36,7 +38,7 @@ def scene(zfun, xr=(0.3, 2.5), yr=(-1.0, 1.0), noise=0.002, holes=None, seed=0):
 
 
 def run(P, **kw):
-    core, g = om.classify_points(P, CRIT, CAMS, 0.05, kw or None)
+    core, g = om.classify_points(P, CRIT, CAMS, 0.05, kw or None, start=(0.0, 0.0, 0.0))
     return core, g
 
 
@@ -46,12 +48,12 @@ def level_at(core, g, x, y):
     return om.NAME[int(g["level"][iy, ix])]
 
 
-def levels_in(core, g, xr, yr):
+def levels_in(core, g, xr, yr, layer="level"):
     gx = core["grid"]["x0"] + (np.arange(core["grid"]["nx"]) + 0.5) * 0.05
     gy = core["grid"]["y0"] + (np.arange(core["grid"]["ny"]) + 0.5) * 0.05
     mx = (gx > xr[0]) & (gx < xr[1])
     my = (gy > yr[0]) & (gy < yr[1])
-    sub = g["level"][np.ix_(my, mx)]
+    sub = g[layer][np.ix_(my, mx)]
     return {om.NAME[v]: int((sub == v).sum()) for v in range(4)}
 
 
@@ -64,23 +66,37 @@ def test_wide_step_top_is_not_ground():
     assert floor["pass"] > 0.8 * sum(floor.values()), floor
 
 
-def test_floor_split_by_box_stays_ground():
-    """20 cm 상자가 바닥을 둘로 갈라도 반대편 바닥은 z = 0 기준 바닥이라 통과."""
+def test_floor_split_by_box_layers():
+    """20 cm 상자가 바닥을 둘로 가르면: 반대편 바닥은 국소로는 통과(주의 아님), 경로 허가는 상자에 가로막혀 통과 아님. 상자는 장애물."""
     core, g = run(scene(lambda x, y: np.where((x > 1.2) & (x < 1.5), 0.20, 0.0)))
+    far_l = levels_in(core, g, (1.7, 2.4), (-0.9, 0.9), "level_local")
     far = levels_in(core, g, (1.7, 2.4), (-0.9, 0.9))
     box = levels_in(core, g, (1.27, 1.43), (-0.9, 0.9))
-    assert far["pass"] > 0.8 * sum(far.values()) and far["caution"] == 0, far
-    assert box["block"] == sum(box.values()), box
+    assert far_l["pass"] > 0.8 * sum(far_l.values()) and far_l["caution"] == 0, far_l
+    assert far["pass"] == 0, far
+    assert box["pass"] == 0 and box["block"] > 0.9 * sum(box.values()), box
+    assert any(o["level"] == "block" and 1.2 < o["centroid_xy_m"][0] < 1.5 for o in core["obstacles"]), core["obstacles"]
 
 
 @pytest.mark.parametrize("deg,allowed", [(35, {"block", "unknown"}), (27, {"block"}), (20, {"caution"})])
 def test_slope_never_leaks_as_pass(deg, allowed):
-    """경사면: 연결 규칙에 끊기는 35°도 통과가 되면 안 된다. 27°는 불가, 20°는 주의."""
+    """경사면: 연결 규칙에 끊기는 35°도 통과가 되면 안 된다. 27°는 불가, 20°는 주의(두 층 모두)."""
     t = math.tan(math.radians(deg))
     core, g = run(scene(lambda x, y: np.clip((x - 1.0) * t, 0, None) * (x < 1.8) + (x >= 1.8) * 0.8 * t))
-    mid = levels_in(core, g, (1.25, 1.6), (-0.8, 0.8))
-    got = {k for k, v in mid.items() if v}
-    assert "pass" not in got and got <= allowed, (deg, mid)
+    for layer in ("level", "level_local"):
+        mid = levels_in(core, g, (1.25, 1.6), (-0.8, 0.8), layer)
+        got = {k for k, v in mid.items() if v}
+        assert "pass" not in got and got <= allowed, (deg, layer, mid)
+
+
+def test_plateau_behind_steep_slope_is_not_permitted():
+    """5차 반례: 27° 경사 위 평탄부 — 국소로는 평평하지만 경로 허가는 경사(불가)를 지나야 하므로 통과 아님. 경사 모서리 칸도 통과 아님."""
+    core, g = run(scene(lambda x, y: np.clip(np.tan(np.deg2rad(27)) * (x - 1.0), 0, 0.30)))
+    ramp = levels_in(core, g, (1.0, 1.59), (-0.9, 0.9))
+    top = levels_in(core, g, (1.75, 2.4), (-0.9, 0.9))
+    assert ramp["pass"] == 0, ramp
+    assert top["pass"] == 0, top
+    assert levels_in(core, g, (1.8, 2.3), (-0.8, 0.8), "level_local")["pass"] > 0
 
 
 def test_tiered_steps_take_local_boundary():
@@ -99,7 +115,7 @@ def test_climbable_staircase_of_small_steps_passes():
 
 
 def test_unrelated_top_is_unknown_not_pass():
-    """관측 안 된 띠로 떨어진 30 cm 윗면(수직 면 없음)은 기준 바닥과 관계가 없어 unknown."""
+    """관측 안 된 띠로 떨어진 30 cm 윗면(수직 면 없음)은 출발 지지면에서 관측된 길이 없어 통과 아님."""
     P = scene(lambda x, y: np.where(x > 1.6, 0.30, 0.0), holes=lambda x, y: (x > 1.3) & (x < 1.6))
     core, g = run(P)
     s = levels_in(core, g, (1.7, 2.4), (-0.9, 0.9))
@@ -140,8 +156,44 @@ def test_step_down_seen_directly_uses_down_rule(drop, want):
     assert max((v, k) for k, v in s.items())[1] == want, (drop, s)
 
 
-def test_flat_noisy_floor_has_no_obstacles():
-    """σ 3 mm 평평한 바닥: 주의·불가 0(가짜 장애물 없음)."""
-    core, g = run(scene(lambda x, y: np.zeros_like(x), noise=0.003))
-    assert core["cell_counts"]["caution"] == 0 and core["cell_counts"]["block"] == 0 and not core["obstacles"], core["cell_counts"]
+@pytest.mark.parametrize("noise,unk_max", [(0.003, 0.0), (0.010, 0.05)])
+def test_flat_noisy_floor_has_no_obstacles(noise, unk_max):
+    """평평한 바닥 σ 3·10 mm: 주의·불가 0(가짜 장애물 없음), 미확인은 관측 칸의 5% 이하(5차: σ10 mm에서 모서리 과검출 확인)."""
+    core, g = run(scene(lambda x, y: np.zeros_like(x), noise=noise))
+    c = core["cell_counts"]
+    assert c["caution"] == 0 and c["block"] == 0 and not core["obstacles"], c
+    obs = core["info"]["observed_cells"]
+    assert levels_in(core, g, (0.4, 2.4), (-0.9, 0.9))["unknown"] <= unk_max * obs + 1, (c, core["info"])
 
+
+def test_thin_full_width_bar_is_blocked():
+    """5차 반례(v2 회귀): 높이 10 cm·폭 2.5 cm 전폭 턱 — 칸 안 돌출이 양옆 바닥으로 설명되지 않으므로 불가, 건너편 경로 허가 없음, 장애물 목록에 있음."""
+    core, g = run(scene(lambda x, y: np.where(np.abs(x - 1.425) < 0.0125, 0.10, 0.0)))
+    bar = levels_in(core, g, (1.36, 1.49), (-0.9, 0.9), "level_local")
+    beyond = levels_in(core, g, (1.6, 2.4), (-0.9, 0.9))
+    assert bar["block"] > 0 and bar["block"] >= 0.8 * 36, bar    # 36칸 = 띠 길이 1.8 m / 5 cm
+    assert beyond["pass"] == 0, beyond
+    assert any(o["level"] == "block" and abs(o["centroid_xy_m"][0] - 1.425) < 0.1 for o in core["obstacles"]), core["obstacles"]
+
+
+def test_low_surface_beyond_trench_is_not_reference():
+    """5차 반례: z 0 → −10 cm(도랑) → +2.5 cm. 건너편 면은 z ≈ 0이지만 출발 지지면이 아니며, 12.5 cm 오르기 경계 때문에 통과 아님."""
+    core, g = run(scene(lambda x, y: np.where(x < 0.9, 0.0, np.where(x < 1.4, -0.10, 0.025))))
+    trench = levels_in(core, g, (1.0, 1.3), (-0.9, 0.9))
+    far = levels_in(core, g, (1.5, 2.4), (-0.9, 0.9))
+    assert trench["pass"] > 0.8 * sum(trench.values()), trench    # 10 cm 내려가기는 통과
+    assert far["pass"] == 0, far
+
+
+@pytest.mark.parametrize("hgt,want", [(1.2, "pass"), (0.95, "caution"), (0.7, "block")])
+def test_overhang_uses_overhead_rule(hgt, want):
+    """책상·선반 아랫면(바닥 위 판): 돌출이 아니라 머리 위 틈 — 1.2 m 통과, 0.95 m 주의, 0.7 m 불가(기준값 overhead 1.00/0.90 m)."""
+    P = scene(lambda x, y: np.zeros_like(x))
+    rs = np.random.default_rng(4)
+    X, Y = np.meshgrid(np.arange(1.2, 1.8, SP), np.arange(-0.4, 0.4, SP))
+    plate = np.stack([X.ravel(), Y.ravel(), np.full(X.size, hgt)], 1) + rs.normal(0, 0.002, (X.size, 3))
+    core, g = run(np.concatenate([P, plate]))
+    s = levels_in(core, g, (1.3, 1.7), (-0.3, 0.3))
+    assert max((v, k) for k, v in s.items())[1] == want and (want == "pass" or s["pass"] == 0), (hgt, s)
+    reasons = set(g["reason_local"][g["observed"]].astype(str))
+    assert "protrusion" not in reasons, reasons
