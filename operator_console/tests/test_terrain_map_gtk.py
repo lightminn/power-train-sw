@@ -212,3 +212,10 @@ def test_scale_bar_stays_above_the_legend_when_the_note_wraps(window, width, hei
     draw(panel, rx + 0.05, width, height)
     label_top = panel.last_scale_bar_y - 18
     assert 0 < label_top and panel.last_scale_bar_y + 2 < panel.last_legend_top - 6
+
+
+def test_wheel_slip_reason_has_its_own_text():
+    from operator_console.terrain_map_panel import REASON_TEXT
+    from terrain_map import contract as C
+    assert all(r in REASON_TEXT for reasons in C.STATUS_REASONS.values() for r in reasons)
+    assert REASON_TEXT["WHEEL_SLIP"] == "바퀴 합의 실패"

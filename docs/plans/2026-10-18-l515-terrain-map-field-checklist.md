@@ -99,12 +99,19 @@ scripts/record_terrain_map_bag.sh field1
 | 4-4 | 큰 도랑·바로 앞 단차 장면 | 상태 `NO_GROUND / NOT_SUPPORT` 빈도 | 기록 |
 | 4-5 | 전체 주행 중 | `pose_gaps`, epoch 전환 횟수·원인, 자이로 간격 분포 | 60 ms 공백 epoch가 잦으면 `gyro_gap_epoch_s`·Gateway IMU 주기 조정(§10) |
 | 4-6 | 자세 대기 | 손실 이유별 수(`POSE_EXPIRED` 등) | 기록 |
+| 4-7 | 바퀴 합의(스펙 §4.4 r13, 기본 끔) — 4-1·4-2와 **스키드 제자리 선회·급가속/급정지**를 포함한 녹화 | 아래 재생의 `slip_excluded`·`slip_guessed`, 같은 bag 합의 끔/켬 지도 | 헛돎 없는 주행에서 둘 다 0(또는 극소)이고 지도가 끔과 같으면 → 실기 기본 `max_slip_wheels` 2로 켬(별도 커밋). 0이 아니면 `slip_residual_m_s`를 올려 다시 재생(0.15·0.2 순) |
 
 ```bash
 python3 -m powertrain_ros.terrain_map_field_report --bag ~/terrain_bags/field1 \
   --decisions /run/powertrain/terrain_map_decisions.jsonl --out field1.json
 ```
 ✅ `gyro interval … gaps >60 ms: N`, `loss rate … (≤ 0.1: PASS)`, `proc_ms p95 … on the robot (≤ 150.0: PASS)`, `epochs N {원인: 수}` — 세부(손실 이유·처리 결과별 수)는 `field1.json`.
+```bash
+# 4-7: 노트북 결정적 재생(결정 기록 없이 — 파라미터를 바꾸므로 실시간 재현이 아니다)
+scripts/replay_terrain_map.sh ~/terrain_bags/field1 --param max_slip_wheels=2 --out field1_slip2.npz
+scripts/replay_terrain_map.sh ~/terrain_bags/field1 --out field1_slip0.npz
+```
+✅ 마지막 줄 JSON의 `"slip_excluded": 0, "slip_guessed": 0`(헛돎 없는 주행). 미끄러운 바닥·턱에서 바퀴가 헛돈 구간이 있으면 그 구간에서만 늘어야 한다(바퀴를 손으로 드는 시험은 하지 않는다).
 ⚠️ `proc_ms: old log …`이 나오면 그 로그는 이 버전 전의 노드(검출 시간만 기록)라 처리시간 판정에 쓰지 않는다 — 노드를 이 브랜치로 갱신한 뒤 다시 잰다.
 
 ## 5. 자원 10분 (§7.3-3) — 두 SRT + 오버레이 노드 + 지도 서비스 동시

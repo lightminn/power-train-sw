@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import bisect
 from dataclasses import dataclass
+import itertools
 import math
 from typing import NamedTuple
 import zlib
@@ -65,6 +66,9 @@ class BodyVelocity(NamedTuple):
     vy: float
     ok: bool
     reason: str | None
+    excluded: tuple = ()          # wheels left out by the consensus (r13), name order
+    best_effort: bool = False     # no consensus: integrate (vx, vy) but the pose is invalid (WHEEL_SLIP)
+    fit_ok: bool | None = None    # the plain all-wheel solution was valid (r12 ``ok``); None = same as ok
 
 
 @dataclass(frozen=True)
@@ -73,24 +77,29 @@ class WheelLayout:
     wheel_radius_m: float
 
 
-def solve_body_velocity(readings, layout: WheelLayout, omega: float, cfg: MapConfig) -> BodyVelocity:
-    """Least squares (vx, vy) from s_i = (vx − ω y_i) cos δ_i + (vy + ω x_i) sin δ_i (spec §4.4)."""
+def _rows(readings, layout: WheelLayout, omega: float) -> list:
+    """(name, cos δ, sin δ, b) per valid wheel, b = s + ω·y·cos δ − ω·x·sin δ = v_x·cos δ + v_y·sin δ."""
     rows = []
     for r in readings:
         if not r.valid or r.name not in layout.positions:
             continue
         x_i, y_i = layout.positions[r.name]
         c, s = math.cos(r.steer_rad), math.sin(r.steer_rad)
-        rows.append((c, s, r.speed_m_s + omega * y_i * c - omega * x_i * s))
+        rows.append((r.name, c, s, r.speed_m_s + omega * y_i * c - omega * x_i * s))
+    return rows
+
+
+def _fit(rows, cfg: MapConfig):
+    """Least squares on the rows: None if structurally unsolvable, else (vx, vy, ok)."""
     if len(rows) < cfg.min_valid_wheels:
-        return BodyVelocity(0.0, 0.0, False, "WHEELS_STALE")
-    scc = sum(c * c for c, _, _ in rows)
-    sss = sum(s * s for _, s, _ in rows)
-    scs = sum(c * s for c, s, _ in rows)
-    scb = sum(c * b for c, _, b in rows)
-    ssb = sum(s * b for _, s, b in rows)
+        return None
+    scc = sum(c * c for _, c, _, _ in rows)
+    sss = sum(s * s for _, _, s, _ in rows)
+    scs = sum(c * s for _, c, s, _ in rows)
+    scb = sum(c * b for _, c, _, b in rows)
+    ssb = sum(s * b for _, _, s, b in rows)
     if scc < 1e-6:
-        return BodyVelocity(0.0, 0.0, False, "WHEELS_STALE")
+        return None
     det = scc * sss - scs * scs
     trace = scc + sss
     # condition number of the 2x2 normal matrix is (cond of A)^2
@@ -98,12 +107,66 @@ def solve_body_velocity(readings, layout: WheelLayout, omega: float, cfg: MapCon
     lam_max, lam_min = trace / 2.0 + disc, trace / 2.0 - disc
     cond = math.inf if lam_min <= 1e-12 else math.sqrt(lam_max / lam_min)
     if cond > cfg.ls_max_condition:
-        return BodyVelocity(scb / scc, 0.0, True, None)
+        return scb / scc, 0.0, True
     vx = (sss * scb - scs * ssb) / det
     vy = (scc * ssb - scs * scb) / det
-    if abs(vy) > cfg.max_lateral_speed_m_s:
-        return BodyVelocity(vx, vy, False, "WHEELS_STALE")
-    return BodyVelocity(vx, vy, True, None)
+    return vx, vy, abs(vy) <= cfg.max_lateral_speed_m_s
+
+
+def _residuals(rows, vx: float, vy: float) -> list:
+    return [b - (vx * c + vy * s) for _, c, s, b in rows]
+
+
+def solve_body_velocity(readings, layout: WheelLayout, omega: float, cfg: MapConfig) -> BodyVelocity:
+    """Least squares (vx, vy) from s_i = (vx − ω y_i) cos δ_i + (vy + ω x_i) sin δ_i (spec §4.4).
+
+    With ``max_slip_wheels`` > 0 a solution whose wheel residuals exceed ``slip_residual_m_s``
+    goes through the wheel consensus (r13): leave out the fewest wheels that make the rest agree.
+    """
+    rows = _rows(readings, layout, omega)
+    if cfg.max_slip_wheels > 0:
+        rows.sort()               # name order from the first check on: the input order cannot flip a decision
+    fit = _fit(rows, cfg)
+    if fit is None:
+        return BodyVelocity(0.0, 0.0, False, "WHEELS_STALE")
+    vx, vy, ok = fit
+    if cfg.max_slip_wheels == 0:
+        return BodyVelocity(vx, vy, ok, None if ok else "WHEELS_STALE")     # r12, input-order sums
+    residuals = _residuals(rows, vx, vy)
+    if ok and max(abs(e) for e in residuals) <= cfg.slip_residual_m_s:
+        return BodyVelocity(vx, vy, True, None)
+    return _consensus(rows, cfg, fit, residuals)
+
+
+def _consensus(rows, cfg: MapConfig, full, full_residuals) -> BodyVelocity:
+    """Wheel consensus on name-ordered rows given their all-wheel solution (spec §4.4 r13, steps 2 and 3)."""
+    tol = cfg.slip_residual_m_s
+    fx, fy, fit_ok = full
+    # (max residual, distance to the all-wheel solution, SSE, excluded names, vx, vy) of every valid candidate
+    guesses = []
+    if fit_ok:
+        guesses.append((max(abs(x) for x in full_residuals), 0.0, sum(x * x for x in full_residuals), (), fx, fy))
+    for k in range(1, cfg.max_slip_wheels + 1):
+        if len(rows) - k < cfg.min_valid_wheels:
+            break
+        agreed = None
+        for drop in itertools.combinations(range(len(rows)), k):
+            keep = [r for i, r in enumerate(rows) if i not in drop]
+            fit = _fit(keep, cfg)
+            if fit is None or not fit[2]:
+                continue
+            e = _residuals(keep, fit[0], fit[1])
+            worst, sse, names = max(abs(x) for x in e), sum(x * x for x in e), tuple(rows[i][0] for i in drop)
+            guesses.append((worst, math.hypot(fit[0] - fx, fit[1] - fy), sse, names, fit[0], fit[1]))
+            if worst <= tol and (agreed is None or (sse, names) < agreed[0]):
+                agreed = ((sse, names), fit)
+        if agreed is not None:
+            (_, names), (vx, vy, _) = agreed
+            return BodyVelocity(vx, vy, True, None, names, False, fit_ok)
+    if not guesses:
+        return BodyVelocity(0.0, 0.0, False, "WHEELS_STALE", (), False, fit_ok)
+    _, _, _, names, vx, vy = min(guesses, key=lambda g: g[:4])
+    return BodyVelocity(vx, vy, False, "WHEEL_SLIP", names, True, fit_ok)
 
 
 def is_stationary(readings, cfg: MapConfig) -> bool:
@@ -224,6 +287,8 @@ class PlanarOdometry:
         self.epoch_changes = 0
         self.invalid_samples = 0
         self.processed = 0            # samples committed so far
+        self.slip_excluded = 0        # wheel samples solved with wheels left out (r13 consensus)
+        self.slip_guessed = 0         # wheel samples with no consensus: best-effort speed, pose invalid
         self._record = record
         self._follow = follow
         self._ids = SampleIds(cfg.stamp_regression_epoch_s)
@@ -383,6 +448,7 @@ class PlanarOdometry:
         self._last_ok_t = None        # stamp of the last wheel sample with a velocity solution
         self._last_v = None           # (vx, vy) at that sample
         self._window = None           # (start_t, sum, sumsq, n) stationary gyro window
+        self._slip_since = None       # stamp of the first wheel sample of the current no-consensus run
 
     def _new_epoch(self, mode: str, cause: str, *, reset_floor: bool = False) -> None:
         """Pose back to the origin; the caller's map clears on the epoch change. Bias survives.
@@ -460,6 +526,14 @@ class PlanarOdometry:
         if self._prev_gyro is None:
             self._update_window(w, ok=False)
             return self._emit(t1, False, "POSE_GAP" if self.bias_ready else "BIAS_PENDING")
+        # A long no-consensus run would join the old map at a guessed position (r13). Checked on every
+        # wheel sample whatever it solves to (Codex r13 round 4), and before the wheel-gap rules: a followed
+        # replay applies the recorded epoch before this sample, so live must not judge a gap across it
+        # either (round 5). Not before the bias is known: omega still carries it, and the epoch would clear
+        # the stationary window that learns it (round 3).
+        if (self._follow is None and self.bias_ready and self._slip_since is not None
+                and t1 - self._slip_since > self.cfg.slip_epoch_s):
+            self._new_epoch("keep_gyro", "slip")
         # A wheel gap and a run of too few valid wheels are the same thing: no speed since _last_ok_t.
         gap_invalid = False
         if self._last_ok_t is not None:
@@ -470,15 +544,26 @@ class PlanarOdometry:
             elif gap > self.cfg.wheel_gap_invalid_s:
                 gap_invalid = True
         omega = self._rate_at(t1)
+        sol = solve_body_velocity(w.wheels, self.layout, omega, self.cfg)
+        if sol.ok and sol.excluded:
+            self.slip_excluded += 1
+        if sol.best_effort:
+            self.slip_guessed += 1
+        if sol.best_effort and self.bias_ready:
+            if self._slip_since is None:
+                self._slip_since = t1
+        elif sol.ok or not self.bias_ready:
+            self._slip_since = None   # only a real solution ends the run; too few wheels do not (round 3)
         if self._t is None or t1 >= self._t:
             self._yaw_to(t1, omega)
-        sol = solve_body_velocity(w.wheels, self.layout, omega, self.cfg)
-        v1 = (sol.vx, sol.vy) if sol.ok else None
+        # A best-effort speed is still a speed: integrated, and no wheel gap (spec §4.4 r13 step 3).
+        v1 = (sol.vx, sol.vy) if sol.ok or sol.best_effort else None
         self._translate(v1, gap_invalid)
         if v1 is not None:
             self._last_ok_t, self._last_v = t1, v1
         self._knots = [(t1, self.yaw)]
-        self._update_window(w, ok=sol.ok and not gap_invalid)
+        fit_ok = sol.ok if sol.fit_ok is None else sol.fit_ok    # bias window: r12 rule, not the consensus
+        self._update_window(w, ok=fit_ok and not gap_invalid)
         if not self.bias_ready:
             return self._emit(t1, False, "BIAS_PENDING")
         if not sol.ok:

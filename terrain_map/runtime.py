@@ -260,7 +260,7 @@ class MapRuntime:
             if s.epoch != self.epoch:
                 continue
             self._last_pose_sample = s
-            if s.valid:
+            if s.valid or s.reason == "WHEEL_SLIP":       # a best-effort pose still moves along the path (r13)
                 if self._epoch.last_xy is not None:
                     self._epoch.distance_m += math.hypot(s.x - self._epoch.last_xy[0], s.y - self._epoch.last_xy[1])
                 self._epoch.last_xy = (s.x, s.y)
@@ -410,7 +410,8 @@ class MapRuntime:
     def processing_summary(self) -> str:
         s, o = self.scheduler, self.odometry
         return (f"terrain map: processed {s.processed}, lost {s.lost}, skipped {s.skipped}, epochs {o.epoch_changes}, "
-                f"late {o.late_dropped}, max {self.max_processing_s * 1000.0:.1f} ms, overruns {self.processing_overruns}")
+                f"late {o.late_dropped}, slip excluded {o.slip_excluded}, guessed {o.slip_guessed}, "
+                f"max {self.max_processing_s * 1000.0:.1f} ms, overruns {self.processing_overruns}")
 
     # --- send tick (status_hz) ------------------------------------------------------
     def status(self, now: float) -> tuple[str, str | None]:

@@ -61,9 +61,14 @@ def simulate(
     stale: Callable[[float, str], bool] | None = None,
     drop_wheels: Callable[[float], bool] | None = None,
     drop_gyro: Callable[[float], bool] | None = None,
+    corrupt: Callable[[float, str, float], float] | None = None,
     start_s: float = 100.0,
 ):
-    """Return (events sorted by receive time, truth(t) -> (x, y, yaw))."""
+    """Return (events sorted by receive time, truth(t) -> (x, y, yaw)).
+
+    ``corrupt(t, name, speed) -> speed`` replaces a wheel's measured ground speed (a spinning or
+    dragging wheel); the measured turns follow it, the command and the truth do not.
+    """
     fine = 0.001
     steps = int(duration_s / fine) + 1
     truth = [(0.0, 0.0, 0.0)]
@@ -89,6 +94,9 @@ def simulate(
         if drop_wheels is not None and drop_wheels(t):
             continue
         readings, *_ = wheels_for(schedule(t))
+        if corrupt is not None:
+            readings = [(name, corrupt(t, name, speed), steer, cmd, corrupt(t, name, speed) / CIRCUMFERENCE)
+                        for name, speed, steer, cmd, meas in readings]
         wheels = tuple(
             WheelReading(name, speed, steer, cmd, meas, not (stale and stale(t, name)))
             for name, speed, steer, cmd, meas in readings

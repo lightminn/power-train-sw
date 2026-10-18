@@ -46,6 +46,7 @@ def note_and_legend(display: DisplayConfig) -> tuple[str, tuple]:
     return note, legend
 REASON_TEXT = {
     None: "", "ODOM_MISSING": "주행 기록 없음", "POSE_GAP": "자세 끊김", "WHEELS_STALE": "바퀴 신호 끊김",
+    "WHEEL_SLIP": "바퀴 합의 실패",
     "BIAS_PENDING": "로버를 1초 정지하세요", "GROUND_NOT_FOUND": "바닥 못 찾음", "NOT_SUPPORT": "바닥 아님(지지면 불일치)",
     "DEPTH_STALE": "깊이 영상 끊김", "DEPTH_ENCODING": "깊이 형식 오류", "DEPTH_SHAPE_MISMATCH": "깊이 해상도 불일치",
     "CAMERA_INFO_MISSING": "카메라 정보 없음", "PROCESSING_ERROR": "처리 오류",

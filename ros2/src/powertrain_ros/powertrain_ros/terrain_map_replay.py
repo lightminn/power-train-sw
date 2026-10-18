@@ -348,6 +348,7 @@ def main(argv: list[str] | None = None) -> int:
         "records": len(records), "epoch": runtime.epoch, "tiles": len(runtime.map.tiles()),
         "processed": s.processed, "lost": s.lost, "skipped": s.skipped,
         "late_dropped": runtime.odometry.late_dropped, "follow": decisions is not None,
+        "slip_excluded": runtime.odometry.slip_excluded, "slip_guessed": runtime.odometry.slip_guessed,
     }))
     return 0
 

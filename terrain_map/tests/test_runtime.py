@@ -444,3 +444,23 @@ def test_accel_does_not_touch_the_map():
     drive_with_accel(with_accel, a, events, depth, accel)
     drive_with_accel(without, b, events, depth, ())
     assert same_map(with_accel, without) and with_accel.scheduler.processed == without.scheduler.processed
+
+
+# --- r13 wheel consensus: distance and log ---------------------------------------
+def test_distance_follows_the_best_effort_path_through_a_slip():
+    """A unit circle whose middle is WHEEL_SLIP: the distance is the arc, not the chord (Codex r13 P2-6)."""
+    rt = runtime(Clock())
+    n = 400
+    samples = [O.PoseSample(START + 0.02 * k, math.sin(2 * math.pi * k / n), 1 - math.cos(2 * math.pi * k / n), 0.0,
+                            not (0 < k < n), None if not (0 < k < n) else "WHEEL_SLIP", 0) for k in range(n + 1)]
+    rt._take(samples)
+    assert rt._epoch.distance_m == pytest.approx(2 * math.pi, rel=1e-3)
+    rt2 = runtime(Clock())
+    rt2._take([s._replace(reason="POSE_GAP") if s.reason == "WHEEL_SLIP" else s for s in samples])
+    assert rt2._epoch.distance_m == pytest.approx(0.0, abs=1e-9)           # other invalid stretches: unchanged
+
+
+def test_processing_summary_counts_the_wheel_consensus():
+    rt = runtime(Clock())
+    rt.odometry.slip_excluded, rt.odometry.slip_guessed = 3, 2
+    assert "slip excluded 3, guessed 2" in rt.processing_summary()

@@ -50,6 +50,9 @@ _RANGES: dict[str, tuple[float, float]] = {
     "wheel_gap_epoch_s": (0.1, 1.0),
     "ls_max_condition": (5.0, 1000.0),
     "max_lateral_speed_m_s": (0.05, 1.0),
+    "max_slip_wheels": (0, 5),
+    "slip_residual_m_s": (0.03, 1.0),
+    "slip_epoch_s": (0.1, 5.0),
     "max_stream_skew_s": (0.2, 2.0),
     "stationary_command_turns_per_s": (0.0, 0.1),
     "stationary_measured_turns_per_s": (0.0, 0.2),
@@ -86,6 +89,7 @@ _INTEGERS = {
     "tile_cells", "pixel_stride", "ground_min_points", "min_points_per_cell", "history_length",
     "support_min_points", "min_observations", "max_tiles_per_tick", "refresh_tiles_per_tick",
     "max_map_tiles", "depth_pending_max", "min_valid_wheels", "match_min_features", "match_min_overlap",
+    "max_slip_wheels",
 }
 
 
@@ -129,6 +133,9 @@ class MapConfig:
     wheel_gap_epoch_s: float = 0.30
     ls_max_condition: float = 50.0
     max_lateral_speed_m_s: float = 0.2
+    max_slip_wheels: int = 0                 # r13 wheel consensus; 0 = off (r12)
+    slip_residual_m_s: float = 0.10
+    slip_epoch_s: float = 1.0
     max_stream_skew_s: float = 0.5
     stationary_command_turns_per_s: float = 0.005
     stationary_measured_turns_per_s: float = 0.02

@@ -91,6 +91,9 @@ Gateway depth·CameraInfo·gyro + chassis /wheel_states
 | `wheel_gap_invalid_s`·`wheel_gap_epoch_s` | 0.06·0.30 | — | 바퀴 표본 간격(또는 유효 바퀴 < `min_valid_wheels` 구간)이 앞 값을 넘으면 그 구간 자세 무효(속도 외삽), 뒤 값을 넘으면 새 epoch |
 | `ls_max_condition` | 50 | 5–1000 | 최소제곱 `[cos δ, sin δ]` 행렬 조건수 상한. 넘으면 `v_y = 0`으로 두고 `v_x`만 푼다(§4.4) |
 | `max_lateral_speed_m_s` | 0.2 | 0.05–1 | 풀이한 `|v_y|`가 이보다 크면 그 표본 무효 |
+| `max_slip_wheels` | 0 | 0–5 | 바퀴 합의(r13): 잔차가 큰 표본에서 뺄 수 있는 바퀴 수 상한. **0 = 끔**. 실기 잔차를 잰 뒤 2로 켠다 |
+| `slip_residual_m_s` | 0.10 | 0.03–1 | 바퀴 합의 잔차 허용치(남은 바퀴가 모두 이하여야 합의) |
+| `slip_epoch_s` | 1.0 | 0.1–5 | 합의 실패(`WHEEL_SLIP`)가 이보다 오래 이어지면 새 epoch |
 | `max_stream_skew_s` | 0.5 | 0.2–2 | 두 스트림 큐의 최신 stamp 차가 이를 넘으면 정체로 보고 새 epoch·큐 비움(큐 상한) |
 | `stationary_command_turns_per_s`·`stationary_measured_turns_per_s` | 0.005·0.02 | — | 정지 판정: 모든 유효 바퀴 |명령| < 앞 값 ∧ |측정| < 뒤 값 |
 | `bias_stationary_s` | 1.0 | 0.3–5 | 정지가 이 시간 이어지고 그 구간 자이로 표준편차 < `bias_max_std_rad_s`이면 바이어스 갱신 |
@@ -142,6 +145,11 @@ INTEGRATED_PROFILES=terrain-map INTEGRATED_SERVICES=powertrain_terrain_map scrip
 - **기동 뒤 로버를 1초 정지**한다 — 자이로 바이어스를 정지 구간에서만 배우고, 그 전에는 지도가 쌓이지 않는다
   (콘솔에 "로버를 1초 정지하세요").
 - 지도 작성 권장 속도 0.5 m/s 이하. 미끄러짐이 많은 험지에서는 지도가 휠 수 있다(위치 보정 B 전).
+- **바퀴 합의(r13, 기본 끔)**: 한두 바퀴가 헛돌면 최소제곱이 그 속도를 평균에 넣어 지도가 앞으로 밀린다(같은 봉우리가 두 번 찍힘).
+  `-p max_slip_wheels:=2`면 잔차가 `slip_residual_m_s`를 넘는 바퀴를 1–2개 빼고 다시 푼다. 바퀴가 제각각이면 최선 추정으로 적분하고 그 동안 자세는
+  무효(`WHEEL_SLIP`, 콘솔 "바퀴 합의 실패"), `slip_epoch_s` 넘게 이어지면 새 epoch. 모든 바퀴가 같은 비율로 헛도는 공회전은 못 잡는다.
+  노드 로그 `slip excluded N, guessed M`이 누계다. 켜기 전에 실기 잔차 분포를 잰다(실기 체크리스트).
+  상태 이유 `WHEEL_SLIP`이 계약에 늘었으므로 콘솔과 Jetson은 같은 커밋으로 배포한다.
 - 연속성이 끊기면(자이로·바퀴 공백, 수신 정지, 시계 역행) 새 epoch로 지도를 비우고 원점에서 다시 쌓는다.
 
 ## 녹화·재생

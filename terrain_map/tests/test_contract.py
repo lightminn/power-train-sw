@@ -253,3 +253,11 @@ def test_allowed_wire_values_round_trip_unchanged(cell_m, age_step_s):
     cfg = MapConfig(cell_m=cell_m, age_step_s=age_step_s, tile_cells=8)
     parsed = C.parse_packet(C.encode(status(cell_m=cfg.cell_m, age_step_s=cfg.age_step_s, tile_cells=8)))
     assert (parsed.cell_m, parsed.age_step_s) == (cfg.cell_m, cfg.age_step_s)
+
+
+def test_wheel_slip_is_a_no_pose_reason():
+    """r13: the wheel consensus failed (spec §4.4, §5.3)."""
+    parsed = C.parse_packet(C.encode(status(status="NO_POSE", reason="WHEEL_SLIP")))
+    assert (parsed.status, parsed.reason) == ("NO_POSE", "WHEEL_SLIP")
+    with pytest.raises(ValueError):
+        C.parse_packet(mutate(status(), status="NO_GROUND", reason="WHEEL_SLIP"))

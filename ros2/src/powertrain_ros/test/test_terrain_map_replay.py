@@ -448,3 +448,11 @@ def test_accel_segments_follow_record_order_not_the_sorted_head():
     merged = RP.with_accel([seg_a, sorted(seg_b, key=lambda r: r.stamp_s)], accel_b)
     assert sum(r.topic == F.ACCEL_TOPIC for r in merged[0]) == 0
     assert sum(r.topic == F.ACCEL_TOPIC for r in merged[1]) == 51
+
+
+def test_the_summary_reports_the_wheel_consensus(recorded, tmp_path, capsys):
+    """Field use (checklist 4-7): replay a slip-free drive with the consensus on and read its counts."""
+    _, bag, _ = recorded
+    assert RP.main([str(bag), "--param", "pixel_stride=1", "--param", "max_slip_wheels=2"]) == 0
+    summary = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert summary["slip_excluded"] == 0 and summary["slip_guessed"] == 0
