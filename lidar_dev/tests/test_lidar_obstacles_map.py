@@ -53,9 +53,9 @@ def test_no_obstacle_on_open_floor(mapped):
 
 
 def test_criteria_file_drives_classification(mapped, tmp_path):
-    """음성 대조: 기준값 파일의 턱 기준을 8/12 cm로 바꾸면 6 cm는 통과, 7 cm는 통과, 10 cm는 주의가 돼야 한다."""
+    """음성 대조: 기준값 파일의 턱 기준을 9/13 cm로 바꾸면 6 cm는 통과, 7 cm는 통과, 10 cm는 주의가 돼야 한다(측정 여유 1 cm 포함)."""
     c = json.load(open(CRIT, encoding="utf-8"))
-    c["rules"]["step_up_m"].update(caution_from=0.08, block_from=0.12)
+    c["rules"]["step_up_m"].update(caution_from=0.09, block_from=0.13)
     p = tmp_path / "crit.json"
     p.write_text(json.dumps(c), encoding="utf-8")
     obs = om.run(mapped, str(p))["obstacles"]
