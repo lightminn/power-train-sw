@@ -199,3 +199,16 @@ def test_note_and_legend_describe_only_the_tidy_rules_that_are_on():
         assert ("낮은 외톨이 칸은 숨김" in note) is hidden
         assert ("관측 부족(낮은 칸은 반투명)" in labels) is weak and ("관측 부족" in labels) is not weak
         assert "실시간 장애물 감지가 아님" in note and len(legend) == 5
+
+
+@pytest.mark.parametrize("width, height", [(720, 540), (480, 400), (1200, 800)])
+def test_scale_bar_stays_above_the_legend_when_the_note_wraps(window, width, height):
+    """r12's longer note wraps on narrow pages; the legend box must not cover the scale bar."""
+    send(window, status(1, pose=(0.4, 0.4, 0.0)),
+         tile(0, 0, 1, 1, payload=C.pack_cells(*split_fill(), [0] * 256)))
+    panel = window._map_panel
+    assert pump_until(lambda: received(panel, 1))
+    rx = panel.receiver.snapshot(time.monotonic()).last_rx_s
+    draw(panel, rx + 0.05, width, height)
+    label_top = panel.last_scale_bar_y - 18
+    assert 0 < label_top and panel.last_scale_bar_y + 2 < panel.last_legend_top - 6

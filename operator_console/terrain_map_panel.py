@@ -80,6 +80,8 @@ class MapPanel(Gtk.Box):
         self._packet_times: deque[float] = deque()
         self._last_count = 0
         self.last_meta: dict = {}
+        self.last_scale_bar_y = 0.0
+        self.last_legend_top = 0.0
         self.unknown_glyphs = 0
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.follow_button = Gtk.ToggleButton(label="로버 따라가기")
@@ -250,8 +252,8 @@ class MapPanel(Gtk.Box):
             cr.set_source_rgba(1.0, 0.8, 0.2, 1.0)
             cr.move_to(16, height / 2.0)
             PangoCairo.show_layout(cr, note)
-        self._scale_bar(cr, width, height, mpp)
-        self._overlay_text(cr, snap, width, height, now_s)
+        legend_top = self._overlay_text(cr, snap, width, height, now_s)
+        self._scale_bar(cr, width, legend_top, mpp)       # above the legend box, however the note wraps
 
     def _grid(self, cr, cx, cy, reach, mpp) -> None:
         cr.set_source_rgba(1.0, 1.0, 1.0, 0.10)
@@ -297,10 +299,11 @@ class MapPanel(Gtk.Box):
             PangoCairo.show_layout(cr, label)
         cr.restore()
 
-    def _scale_bar(self, cr, width, height, mpp) -> None:
+    def _scale_bar(self, cr, width, legend_top, mpp) -> None:
         metres = 1.0 if 1.0 / mpp <= width / 3 else 0.5
         length = metres / mpp
-        x0, y0 = 16.0, height - 70.0
+        x0, y0 = 16.0, legend_top - 12.0
+        self.last_scale_bar_y = y0
         cr.set_source_rgba(1.0, 1.0, 1.0, 0.9)
         cr.set_line_width(3.0)
         cr.move_to(x0, y0)
@@ -310,7 +313,8 @@ class MapPanel(Gtk.Box):
         cr.move_to(x0, y0 - 18)
         PangoCairo.show_layout(cr, layout)
 
-    def _overlay_text(self, cr, snap: MapSnapshot, width, height, now_s) -> None:
+    def _overlay_text(self, cr, snap: MapSnapshot, width, height, now_s) -> float:
+        """Status line, tilt, link-loss and the bottom legend box; returns the legend box top."""
         s = snap.status
         rate = self._packet_rate(snap, now_s)
         address = self.receiver.last_address or "-"
@@ -371,6 +375,8 @@ class MapPanel(Gtk.Box):
         cr.set_source_rgba(0.85, 0.88, 0.92, 1.0)
         cr.move_to(12, top + 24)
         PangoCairo.show_layout(cr, note)
+        self.last_legend_top = top - 6
+        return top - 6
 
     def _tilt_lines(self, cr, s, snap, width, top, now_s) -> float:
         """Plane tilt (r11) under the status line while the observation is younger than 1 s
