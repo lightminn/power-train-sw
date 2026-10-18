@@ -115,12 +115,15 @@ def test_cli_display_numbers_reach_the_config_and_bad_ones_are_usage_errors():
     from operator_console.app import map_display_from_args
     parser = argparse.ArgumentParser()
     ok = argparse.Namespace(map_display_upsample=2, map_max_render_pixels=500_000, map_stale_s=20.0,
-                            map_hillshade_azimuth=200.0, map_hillshade_altitude=30.0, map_hillshade_exaggeration=5.0)
+                            map_hillshade_azimuth=200.0, map_hillshade_altitude=30.0, map_hillshade_exaggeration=5.0,
+                            map_tidy_low_m=0.02, map_tidy_min_neighbours=3, map_weak_alpha=0.6)
     cfg = map_display_from_args(parser, ok)
     assert (cfg.display_upsample, cfg.max_render_pixels, cfg.stale_display_s, cfg.hillshade_azimuth_deg,
             cfg.hillshade_altitude_deg, cfg.z_exaggeration) == (2, 500_000, 20.0, 200.0, 30.0, 5.0)
-    with pytest.raises(SystemExit):
-        map_display_from_args(parser, argparse.Namespace(**{**vars(ok), "map_stale_s": 61.0}))
+    assert (cfg.tidy_low_m, cfg.tidy_min_neighbours, cfg.weak_alpha) == (0.02, 3, 0.6)
+    for bad in ({"map_stale_s": 61.0}, {"map_tidy_min_neighbours": 5}, {"map_weak_alpha": 0.1}):
+        with pytest.raises(SystemExit):
+            map_display_from_args(parser, argparse.Namespace(**{**vars(ok), **bad}))
 
 
 # --- Codex Task 9 review ---------------------------------------------------------
@@ -181,3 +184,18 @@ def test_no_gravity_line_without_gravity(window):
     rx = panel.receiver.snapshot(time.monotonic()).last_rx_s
     _, texts = draw(panel, rx + 0.05)
     assert any("차체 기준" in t for t in texts) and not any("정지 구간 측정" in t for t in texts)
+
+
+def test_note_and_legend_describe_only_the_tidy_rules_that_are_on():
+    """Codex r12 P3: switching a rule off must also drop its sentence."""
+    from operator_console.terrain_map import DisplayConfig
+    from operator_console.terrain_map_panel import FIXED_NOTE, LEGEND, note_and_legend
+    assert note_and_legend(DisplayConfig()) == (FIXED_NOTE, LEGEND)
+    for display, hidden, weak in ((DisplayConfig(tidy_min_neighbours=0), False, True),
+                                  (DisplayConfig(weak_alpha=1.0), True, False),
+                                  (DisplayConfig(tidy_low_m=0.0), False, False)):
+        note, legend = note_and_legend(display)
+        labels = [label for label, _ in legend]
+        assert ("낮은 외톨이 칸은 숨김" in note) is hidden
+        assert ("관측 부족(낮은 칸은 반투명)" in labels) is weak and ("관측 부족" in labels) is not weak
+        assert "실시간 장애물 감지가 아님" in note and len(legend) == 5

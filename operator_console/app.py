@@ -5817,6 +5817,8 @@ def map_display_from_args(parser: argparse.ArgumentParser, args: argparse.Namesp
             display_upsample=args.map_display_upsample, max_render_pixels=args.map_max_render_pixels,
             stale_display_s=args.map_stale_s, hillshade_azimuth_deg=args.map_hillshade_azimuth,
             hillshade_altitude_deg=args.map_hillshade_altitude, z_exaggeration=args.map_hillshade_exaggeration,
+            tidy_low_m=args.map_tidy_low_m, tidy_min_neighbours=args.map_tidy_min_neighbours,
+            weak_alpha=args.map_weak_alpha,
         )
     except ValueError as exc:
         parser.error(f"terrain map display: {exc}")
@@ -5845,6 +5847,9 @@ def main() -> None:
     parser.add_argument("--map-hillshade-exaggeration", type=float, default=defaults.z_exaggeration)
     parser.add_argument("--map-stale-s", type=float, default=defaults.stale_display_s)
     parser.add_argument("--map-max-render-pixels", type=int, default=defaults.max_render_pixels)
+    parser.add_argument("--map-tidy-low-m", type=float, default=defaults.tidy_low_m)
+    parser.add_argument("--map-tidy-min-neighbours", type=int, default=defaults.tidy_min_neighbours)
+    parser.add_argument("--map-weak-alpha", type=float, default=defaults.weak_alpha)
     parser.add_argument(
         "--ops-host",
         default=None,

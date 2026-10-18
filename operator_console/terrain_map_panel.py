@@ -24,15 +24,26 @@ TILT_MAX_AGE_S = 1.0          # same as the producer's slope_max_age_s default
 REDRAW_MS = 200
 DEFAULT_M_PER_PX = 0.01
 ZOOM_RANGE = (0.002, 0.08)
-FIXED_NOTE = "지도는 지나온 관측 기록 · 분류는 그 칸을 본 위치 기준 · 오래된 칸은 흐리게 · 실시간 장애물 감지가 아님"
+FIXED_NOTE = ("지도는 지나온 관측 기록 · 분류는 그 칸을 본 위치 기준 · 오래된 칸은 흐리게 · 낮은 외톨이 칸은 숨김"
+              " · 실시간 장애물 감지가 아님")
 LEGEND = (
     ("돌출", (0.89, 0.18, 0.18)),
     ("도랑·낙차", (0.16, 0.38, 0.93)),
     ("주행 가능(높이 음영)", (0.60, 0.60, 0.55)),
-    ("관측 부족", (0.50, 0.50, 0.50)),
+    ("관측 부족(낮은 칸은 반투명)", (0.50, 0.50, 0.50)),
     ("미관측", (0.07, 0.09, 0.12)),
 )
 BACKGROUND = (0.07, 0.09, 0.12)
+
+
+def note_and_legend(display: DisplayConfig) -> tuple[str, tuple]:
+    """Fixed note and legend naming only the tidy rules that are on (spec §4.10-6, Codex r12 P3)."""
+    hides = display.tidy_low_m > 0 and display.tidy_min_neighbours > 0
+    weak = display.tidy_low_m > 0 and display.weak_alpha < 1.0
+    note = FIXED_NOTE if hides else FIXED_NOTE.replace(" · 낮은 외톨이 칸은 숨김", "")
+    legend = LEGEND if weak else tuple(("관측 부족", rgb) if label.startswith("관측 부족") else (label, rgb)
+                                       for label, rgb in LEGEND)
+    return note, legend
 REASON_TEXT = {
     None: "", "ODOM_MISSING": "주행 기록 없음", "POSE_GAP": "자세 끊김", "WHEELS_STALE": "바퀴 신호 끊김",
     "BIAS_PENDING": "로버를 1초 정지하세요", "GROUND_NOT_FOUND": "바닥 못 찾음", "NOT_SUPPORT": "바닥 아님(지지면 불일치)",
@@ -340,14 +351,15 @@ class MapPanel(Gtk.Box):
             cr.move_to((width - w) / 2.0, height / 2.0 - lh + 8)
             PangoCairo.show_layout(cr, lost)
         # legend + fixed note at the bottom
-        note = self._text(cr, FIXED_NOTE, "Sans 10", width - 24)
+        fixed_note, legend = note_and_legend(self.display)
+        note = self._text(cr, fixed_note, "Sans 10", width - 24)
         _, nh = note.get_pixel_size()
         top = height - nh - 40
         cr.set_source_rgba(0.0, 0.0, 0.0, 0.65)
         cr.rectangle(0, top - 6, width, height - top + 6)
         cr.fill()
         x = 12.0
-        for label, rgb in LEGEND:
+        for label, rgb in legend:
             cr.set_source_rgb(*rgb)
             cr.rectangle(x, top + 2, 14, 14)
             cr.fill()

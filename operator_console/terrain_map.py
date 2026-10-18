@@ -217,12 +217,16 @@ class DisplayConfig:
     hillshade_altitude_deg: float = 40.0
     z_exaggeration: float = 6.0                 # spec §4.1 "hillshade_exaggeration"
     height_range_m: float = 0.3
+    tidy_low_m: float = 0.03                    # §4.10-6: 0 = no cell is "low" (rules off)
+    tidy_min_neighbours: int = 2                # 0 = never hide
+    weak_alpha: float = 0.45                    # 1 = once-seen low cells opaque
 
     def __post_init__(self) -> None:
         checks = {
             "display_upsample": (1, 8), "max_render_pixels": (10_000, 4_000_000),
             "stale_display_s": STALE_DISPLAY_RANGE_S, "hillshade_azimuth_deg": (0.0, 360.0),
             "hillshade_altitude_deg": (5.0, 85.0), "z_exaggeration": (1.0, 20.0), "height_range_m": (0.05, 1.0),
+            "tidy_low_m": (0.0, 0.05), "tidy_min_neighbours": (0, 4), "weak_alpha": (0.2, 1.0),
         }
         for name, (low, high) in checks.items():
             value = getattr(self, name)
@@ -252,6 +256,7 @@ _RED = np.array([226, 46, 46], np.float32)
 _BLUE = np.array([40, 96, 236], np.float32)
 _GRAY = np.array([128, 128, 128], np.float32)
 _OUTLINE = np.array([24, 24, 24], np.float32)
+OUTLINE_BOTH_SIDES_MIN_PX = 4      # fewer pixels per cell: outline only outside hazards (Codex r12 P2)
 
 
 @dataclass
@@ -259,6 +264,8 @@ class _Layers:
     rgb: np.ndarray            # float32 (H, W, 3), age-independent
     alpha: np.ndarray          # uint8 (H, W)
     height_m: np.ndarray       # float32 (H, W), NaN unobserved
+    hidden_cells: int = 0
+    weak_cells: int = 0
 
 
 @dataclass
@@ -283,8 +290,9 @@ def _grid(snapshot: MapSnapshot, view: MapView, display: DisplayConfig) -> _Grid
     while scale > 1 and nx * ny * scale * scale > display.max_render_pixels:
         scale -= 1
     n = status.tile_cells
-    visible = [t for t in snapshot.tiles
-               if t.side == n and t.tx * n < gx1 and (t.tx + 1) * n > gx0 and t.ty * n < gy1 and (t.ty + 1) * n > gy0]
+    # one cell of margin: the tidy rules count neighbours past the window edge (§4.10-6)
+    visible = [t for t in snapshot.tiles if t.side == n and t.tx * n < gx1 + 1 and (t.tx + 1) * n > gx0 - 1
+               and t.ty * n < gy1 + 1 and (t.ty + 1) * n > gy0 - 1]
     return _Grid(gx0, gy1, nx, ny, scale, visible)
 
 
@@ -343,11 +351,35 @@ def _nearest(a: np.ndarray, s: int) -> np.ndarray:
     return np.repeat(np.repeat(a, s, axis=0), s, axis=1)
 
 
-def _static_layers(grid: _Grid, n: int, cell_m: float, display: DisplayConfig) -> _Layers:
+def _tidy(grid: _Grid, n: int, heights: np.ndarray, codes: np.ndarray, display: DisplayConfig,
+          thresholds: C.Thresholds) -> tuple[np.ndarray, np.ndarray]:
+    """(hidden, weak) raw-cell masks (spec §4.10-6) — display only, never a tall or hazard cell.
+
+    Low = observed, |height| under min(tidy_low_m, half the sender thresholds), not obstacle/ditch.
+    Hidden = low with fewer than ``tidy_min_neighbours`` observed 8-neighbours (counted one cell
+    past the window).  Weak = low, not hidden, still insufficient (seen < min_observations).
+    """
+    low_m = min(display.tidy_low_m, 0.5 * min(thresholds.obstacle_height_m, thresholds.ditch_depth_m))
+    observed = heights != C.UNOBSERVED_H
+    low = observed & (np.abs(heights.astype(np.float32)) < np.float32(low_m * 100.0)) \
+        & ~np.isin(codes, (C.OBSTACLE, C.DITCH))
+    wide = _Grid(grid.gx0 - 1, grid.gy1 + 1, grid.nx + 2, grid.ny + 2, grid.scale, grid.tiles)
+    seen = (_cells(wide, n, lambda t: t.heights.reshape(n, n), C.UNOBSERVED_H, np.int16)
+            != C.UNOBSERVED_H).astype(np.int8)
+    neighbours = sum(seen[1 + dy:1 + dy + grid.ny, 1 + dx:1 + dx + grid.nx]
+                     for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
+    hidden = low & (neighbours < display.tidy_min_neighbours)
+    weak = low & ~hidden & (codes == C.INSUFFICIENT) if display.weak_alpha < 1.0 else np.zeros_like(low)
+    return hidden, weak
+
+
+def _static_layers(grid: _Grid, n: int, cell_m: float, display: DisplayConfig,
+                   thresholds: C.Thresholds) -> _Layers:
     s = grid.scale
     heights = _cells(grid, n, lambda t: t.heights.reshape(n, n), C.UNOBSERVED_H, np.int16)
     codes = _cells(grid, n, lambda t: t.codes.reshape(n, n), C.INSUFFICIENT, np.uint8)
-    observed = heights != C.UNOBSERVED_H
+    hidden, weak = _tidy(grid, n, heights, codes, display, thresholds)
+    observed = (heights != C.UNOBSERVED_H) & ~hidden          # hidden cells feed neither fill nor shade
     h = np.where(observed, heights.astype(np.float32) / 100.0, np.nan)
     filled = _fill_holes(h).astype(np.float32)
     up = _bilinear(filled, s)
@@ -380,9 +412,13 @@ def _static_layers(grid: _Grid, n: int, cell_m: float, display: DisplayConfig) -
     edge[:, :-1] |= change_x
     edge[1:, :] |= change_y
     edge[:-1, :] |= change_y
+    if s < OUTLINE_BOTH_SIDES_MIN_PX:
+        edge &= ~hazard                # a 1-3 px hazard cell would otherwise be all outline
     rgb[edge & seen] = _OUTLINE
-    return _Layers(rgb.astype(np.float32), np.where(seen, 255, 0).astype(np.uint8),
-                   np.where(seen, up, np.nan).astype(np.float32))
+    alpha = np.where(seen, 255, 0).astype(np.uint8)
+    alpha[_nearest(weak, s)] = round(255 * display.weak_alpha)
+    return _Layers(rgb.astype(np.float32), alpha, np.where(seen, up, np.nan).astype(np.float32),
+                   int(hidden.sum()), int(weak.sum()))
 
 
 def map_rgba(snapshot: MapSnapshot, view: MapView, display: DisplayConfig, now_s: float, cache: dict | None = None):
@@ -399,12 +435,12 @@ def map_rgba(snapshot: MapSnapshot, view: MapView, display: DisplayConfig, now_s
         return np.zeros((1, 1, 4), np.uint8), {"drawn": False, "cache_hit": False, "reason": "view too large"}
     n, cell = status.tile_cells, status.cell_m
     key = (snapshot.session, snapshot.epoch, cell, n, grid.gx0, grid.gy1, grid.nx, grid.ny, grid.scale, display,
-           tuple(sorted((t.tx, t.ty, t.version) for t in grid.tiles)))
+           status.thresholds, tuple(sorted((t.tx, t.ty, t.version) for t in grid.tiles)))
     hit = cache is not None and cache.get("key") == key
     if hit:
         layers = cache["layers"]
     else:
-        layers = _static_layers(grid, n, cell, display)
+        layers = _static_layers(grid, n, cell, display, status.thresholds)
         if cache is not None:
             cache.clear()
             cache.update(key=key, layers=layers)
@@ -425,6 +461,7 @@ def map_rgba(snapshot: MapSnapshot, view: MapView, display: DisplayConfig, now_s
         "drawn": True, "cache_hit": hit, "pixels_per_cell": grid.scale, "m_per_px": cell / grid.scale,
         "origin_x_m": grid.gx0 * cell, "top_y_m": grid.gy1 * cell, "height_m": layers.height_m,
         "stale_cells": stale_cells, "tiles": len(grid.tiles),
+        "hidden_cells": layers.hidden_cells, "weak_cells": layers.weak_cells,
     }
     return rgba, meta
 

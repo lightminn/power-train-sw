@@ -331,3 +331,144 @@ def test_the_readme_json_example_starts_the_console_config():
     text = (Path(__file__).resolve().parents[2] / "terrain_map/README.md").read_text()
     block = re.search(r"```json\n(.*?)```", text, re.S).group(1)
     DisplayConfig(**json.loads(block)["terrain_map_display"])
+
+
+# --- display tidy (spec §4.10-6, r12) ------------------------------------------------
+def sparse_fill(cells_at):
+    """Only the listed ``{(gx, gy): (height_cm, code)}`` cells are observed."""
+    heights, codes = [None] * (N * N), [C.INSUFFICIENT] * (N * N)
+    for (gx, gy), (h, code) in cells_at.items():
+        heights[gy * N + gx], codes[gy * N + gx] = h, code
+    return heights, codes
+
+
+def tidy_snapshot(tiles, thresholds=(0.08, 0.08, 2)):
+    """``tiles = {(tx, ty): fill}`` in one receiver; returns its snapshot."""
+    r = LatestMapReceiver(0)
+    try:
+        r.ingest(status(1, refresh=26.0, thresholds=C.Thresholds(*thresholds)), 0.0)
+        for k, ((tx, ty), (heights, codes)) in enumerate(tiles.items()):
+            r.ingest(tile(tx, ty, 1, k + 1, payload=C.pack_cells(heights, codes, [0] * (N * N))), 0.0)
+        return r.snapshot(0.0)
+    finally:
+        r.close()
+
+
+def cell_alpha(rgba, meta, gx, gy, view_y0=0.0, view_x0=0.0):
+    """Alpha at the centre of raw cell (gx, gy) (cell 5 cm, north-up raster)."""
+    s = meta["pixels_per_cell"]
+    col = int(round((gx * 0.05 - meta["origin_x_m"]) / 0.05)) * s + s // 2
+    row = int(round((meta["top_y_m"] - (gy + 1) * 0.05) / 0.05)) * s + s // 2
+    return int(rgba[row, col, 3])
+
+
+def block(x0, y0, w, h, height_cm, code):
+    return {(gx, gy): (height_cm, code) for gx in range(x0, x0 + w) for gy in range(y0, y0 + h)}
+
+
+def test_isolated_low_cells_are_hidden_but_tall_and_hazard_cells_never():
+    fill = sparse_fill({(2, 2): (0, C.FREE), (5, 5): (1, C.INSUFFICIENT),       # isolated, low -> hidden
+                        (8, 8): (12, C.INSUFFICIENT), (11, 11): (-2, C.DITCH),   # tall / hazard -> kept
+                        (13, 2): (1, C.OBSTACLE), (2, 13): (-5, C.FREE),
+                        **block(9, 1, 3, 3, 0, C.FREE)})                         # a 3x3 patch -> kept
+    rgba, meta = map_rgba(tidy_snapshot({(0, 0): fill}), VIEW, DisplayConfig(display_upsample=4), 0.0)
+    assert cell_alpha(rgba, meta, 2, 2) == 0 and cell_alpha(rgba, meta, 5, 5) == 0
+    for gx, gy in ((8, 8), (11, 11), (13, 2), (2, 13), (10, 2), (9, 1)):
+        assert cell_alpha(rgba, meta, gx, gy) > 0, (gx, gy)
+    assert meta["hidden_cells"] == 2
+
+
+def test_low_once_seen_cells_are_translucent_and_tall_once_seen_cells_are_not():
+    fill = sparse_fill({**block(1, 1, 4, 4, 0, C.INSUFFICIENT), **block(8, 8, 4, 4, 12, C.INSUFFICIENT),
+                        **block(1, 8, 4, 4, 0, C.FREE)})
+    display = DisplayConfig(display_upsample=4)
+    rgba, meta = map_rgba(tidy_snapshot({(0, 0): fill}), VIEW, display, 0.0)
+    assert cell_alpha(rgba, meta, 2, 2) == round(255 * display.weak_alpha)
+    assert cell_alpha(rgba, meta, 9, 9) == 255 and cell_alpha(rgba, meta, 2, 9) == 255
+    assert meta["weak_cells"] == 16 and meta["hidden_cells"] == 0
+
+
+def test_low_limit_never_reaches_half_the_sender_thresholds():
+    """Sender obstacle threshold 4 cm -> low is 2 cm, so an isolated 2.5 cm cell stays visible."""
+    fill = sparse_fill({(3, 3): (2.5, C.FREE), (9, 9): (1, C.FREE)})
+    fill = ([None if h is None else (3 if h == 2.5 else h) for h in fill[0]], fill[1])   # int8 cm: use 3 cm
+    loose = map_rgba(tidy_snapshot({(0, 0): fill}), VIEW, DisplayConfig(tidy_low_m=0.05), 0.0)
+    tight = map_rgba(tidy_snapshot({(0, 0): fill}, thresholds=(0.04, 0.08, 2)), VIEW,
+                     DisplayConfig(tidy_low_m=0.05), 0.0)
+    assert cell_alpha(*loose, 3, 3) == 0 and cell_alpha(*tight, 3, 3) > 0
+    assert cell_alpha(*tight, 9, 9) == 0
+
+
+def test_neighbours_are_counted_past_the_view_and_tile_edges():
+    """A low cell on the view's east edge whose neighbours sit in the next tile is not isolated."""
+    west = sparse_fill({(15, 7): (0, C.FREE)})
+    east = sparse_fill({(0, 6): (0, C.FREE), (0, 7): (0, C.FREE), (0, 8): (0, C.FREE)})
+    snap = tidy_snapshot({(0, 0): west, (1, 0): east})
+    rgba, meta = map_rgba(snap, MapView(0.0, 0.0, 0.8, 0.8, 320, 320), DisplayConfig(display_upsample=4), 0.0)
+    assert cell_alpha(rgba, meta, 15, 7) > 0 and meta["hidden_cells"] == 0
+
+
+def test_tidy_rules_switch_off_with_their_neutral_values():
+    fill = sparse_fill({(2, 2): (0, C.FREE), **block(8, 8, 3, 3, 0, C.INSUFFICIENT)})
+    off = DisplayConfig(display_upsample=4, tidy_min_neighbours=0, weak_alpha=1.0)
+    rgba, meta = map_rgba(tidy_snapshot({(0, 0): fill}), VIEW, off, 0.0)
+    assert cell_alpha(rgba, meta, 2, 2) == 255 and cell_alpha(rgba, meta, 9, 9) == 255
+    assert meta["hidden_cells"] == 0 and meta["weak_cells"] == 0
+    zero = DisplayConfig(display_upsample=4, tidy_low_m=0.0)
+    rgba, meta = map_rgba(tidy_snapshot({(0, 0): fill}), VIEW, zero, 0.0)
+    assert meta["hidden_cells"] == 0 and meta["weak_cells"] == 0
+
+
+def test_hidden_cells_do_not_shade_their_neighbours():
+    """A hidden cell must not feed the interpolation: the raster matches the map without it."""
+    patch = block(4, 4, 4, 4, 0, C.FREE)
+    with_speck = map_rgba(tidy_snapshot({(0, 0): sparse_fill({**patch, (12, 12): (2, C.FREE)})}), VIEW,
+                          DisplayConfig(), 0.0)[0]
+    without = map_rgba(tidy_snapshot({(0, 0): sparse_fill(patch)}), VIEW, DisplayConfig(), 0.0)[0]
+    assert np.array_equal(with_speck, without)
+
+
+def test_cache_key_follows_the_sender_thresholds():
+    fill = sparse_fill({(3, 3): (3, C.FREE)})
+    renderer = MapRenderer()
+    _, first = renderer.render(tidy_snapshot({(0, 0): fill}), VIEW, DisplayConfig(tidy_low_m=0.05), 0.0)
+    _, second = renderer.render(tidy_snapshot({(0, 0): fill}, thresholds=(0.04, 0.08, 2)), VIEW,
+                                DisplayConfig(tidy_low_m=0.05), 0.0)
+    assert not second["cache_hit"] and first["hidden_cells"] == 1 and second["hidden_cells"] == 0
+
+
+@pytest.mark.parametrize("bad", [dict(tidy_low_m=0.051), dict(tidy_low_m=-0.01), dict(tidy_min_neighbours=5),
+                                 dict(tidy_min_neighbours=1.0), dict(weak_alpha=0.19), dict(weak_alpha=1.01)])
+def test_tidy_ranges_refuse_to_start(bad):
+    with pytest.raises(ValueError):
+        DisplayConfig(**bad)
+
+
+def test_tidy_defaults_follow_the_spec_table():
+    d = DisplayConfig()
+    assert (d.tidy_low_m, d.tidy_min_neighbours, d.weak_alpha) == (0.03, 2, 0.45)
+
+
+FREE_TILE = sparse_fill(block(0, 0, 16, 16, 0, C.FREE))
+
+
+@pytest.mark.parametrize("cells, view_px, display, scale", [
+    (16, 16, DisplayConfig(display_upsample=8), 1),
+    (16, 32, DisplayConfig(display_upsample=8), 2),
+    (16, 48, DisplayConfig(display_upsample=8), 3),
+    (40, 160, DisplayConfig(display_upsample=8, max_render_pixels=10_000), 2),     # pixel budget shrinks 4 -> 2
+])
+@pytest.mark.parametrize("height_cm, code, colour_axis", [(10, C.OBSTACLE, 0), (-10, C.DITCH, 2)])
+def test_a_one_cell_hazard_keeps_its_colour_when_cells_are_few_pixels(cells, view_px, display, scale,
+                                                                     height_cm, code, colour_axis):
+    """Codex r12 P2: at 1-3 px per cell the outline must not paint over a small hazard."""
+    tiles = {(tx, ty): FREE_TILE for tx in range(3) for ty in range(3)}
+    tiles[(0, 0)] = sparse_fill({**block(0, 0, 16, 16, 0, C.FREE), (8, 8): (height_cm, code)})
+    side_m = cells * 0.05
+    rgba, meta = map_rgba(tidy_snapshot(tiles), MapView(0.0, 0.0, side_m, side_m, view_px, view_px), display, 0.0)
+    s = meta["pixels_per_cell"]
+    assert s == scale
+    row = int(round((meta["top_y_m"] - 9 * 0.05) / 0.05)) * s
+    px = rgba[row:row + s, 8 * s:9 * s].reshape(-1, 4).astype(int)
+    other = 2 - colour_axis
+    assert (px[:, colour_axis] > px[:, other] + 60).all(), px

@@ -117,6 +117,13 @@ Gateway depth·CameraInfo·gyro + chassis /wheel_states
 | `stale_display_s` | `--map-stale-s` | `stale_display_s` | 30 · 5–60 |
 | `max_render_pixels` | `--map-max-render-pixels` | `max_render_pixels`(정수) | 2,000,000 · 10,000–4,000,000 |
 | (높이 색 범위) | — | `height_range_m` | 0.3 · 0.05–1.0 |
+| `tidy_low_m` | `--map-tidy-low-m` | `tidy_low_m` | 0.03 · 0–0.05 (0 = 정리 끔) |
+| `tidy_min_neighbours` | `--map-tidy-min-neighbours` | `tidy_min_neighbours`(정수) | 2 · 0–4 (0 = 숨기지 않음) |
+| `weak_alpha` | `--map-weak-alpha` | `weak_alpha` | 0.45 · 0.2–1 (1 = 불투명) |
+
+표시 정리(스펙 §4.10-6): 높이가 `min(tidy_low_m, 송신 경계의 절반)` 미만이고 돌출·도랑이 아닌 칸만 대상이다.
+그중 관측된 이웃이 `tidy_min_neighbours` 미만인 외톨이는 미관측처럼 숨기고, 아직 관측 부족인 칸은 `weak_alpha`로 반투명하게 그린다.
+높은 칸과 돌출·도랑 칸은 숨기거나 흐리게 하지 않는다. 분류와 송신 데이터는 바뀌지 않는다.
 
 `~/.config/powertrain/operator.json` 예시(모르는 키·범위 밖·비정수는 콘솔 기동을 거부한다):
 
