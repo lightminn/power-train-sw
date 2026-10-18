@@ -197,3 +197,32 @@ def test_overhang_uses_overhead_rule(hgt, want):
     assert max((v, k) for k, v in s.items())[1] == want and (want == "pass" or s["pass"] == 0), (hgt, s)
     reasons = set(g["reason_local"][g["observed"]].astype(str))
     assert "protrusion" not in reasons, reasons
+
+
+def test_box_right_in_front_does_not_move_start():
+    """6차 반례: 바로 앞(0.5–0.65 m) 10 cm 상자 — 상자 뒤 바닥을 출발 지지면으로 잡으면 안 된다(뒤쪽은 상자에 가로막힘)."""
+    core, g = run(scene(lambda x, y: np.where((x > 0.5) & (x < 0.65), 0.10, 0.0)))
+    s = levels_in(core, g, (0.85, 2.4), (-0.9, 0.9))
+    assert s["pass"] == 0, (s, core["info"])
+
+
+def test_coincident_height_does_not_erase_protrusion():
+    """6차 반례: 10 cm 돌출 점 3개 옆(약 10 cm)에 우연히 같은 높이의 작은 판 — 돌출 칸은 국소 불가, 경로 허가도 통과 아님."""
+    def z(x, y):
+        return np.where((x >= 1.10) & (x < 1.15) & (y >= 0.10) & (y < 0.15), 0.10, 0.0)
+    P = np.concatenate([scene(z, noise=0.0), np.array([[1.02, 0.025, 0.10], [1.025, 0.025, 0.10], [1.03, 0.025, 0.10]])])
+    core, g = run(P)
+    ix = int((1.025 - core["grid"]["x0"]) / 0.05)
+    iy = int((0.025 - core["grid"]["y0"]) / 0.05)
+    assert g["level_local"][iy, ix] == om.LEVEL["block"], (g["level_local"][iy, ix], g["reason_local"][iy, ix])
+    assert g["level"][iy, ix] != om.LEVEL["pass"], (g["level"][iy, ix], g["reason"][iy, ix])
+
+
+def test_unevaluated_bottleneck_keeps_beyond_unknown():
+    """6차 반례: 0.9–1.7 m 구간을 폭 5 cm 띠만 남긴 평지 — 띠는 표면 평가 불가라 지나갈 수 없고, 뒤쪽은 주의가 아니라 unknown."""
+    P = scene(lambda x, y: np.zeros_like(x), noise=0.0, holes=lambda x, y: (x > 0.9) & (x < 1.7) & ~((y >= 0) & (y < 0.05)))
+    core, g = run(P)
+    s = levels_in(core, g, (1.8, 2.4), (-0.9, 0.9))
+    assert s["caution"] == 0 and s["pass"] == 0 and s["block"] == 0, s
+    reasons = set(g["reason"][g["observed"]].astype(str))
+    assert "via_overhead" not in reasons and "overhead" not in reasons, reasons

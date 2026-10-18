@@ -3,14 +3,15 @@
 # v3(10-18, 교차검토 4·5차 반영) — 두 층으로 나눈다:
 #   level_local = 그 칸의 국소 위험(방향 무관). 경사·거칠기, 칸 안의 설명되지 않는 돌출·꺼짐, 머리 위 틈, 4-이웃과의 단차
 #                 (그 칸이 낮은 쪽이면 오르기 기준 step_up, 높은 쪽이면 내려가기 기준 step_down).
-#   level       = 출발 지지면에서의 경로 허가. 출발 시야(시작 카메라 앞 0.25–1.2 m, ±40°)에서 z = 0 근처 칸이 가장 많은 구역의 그 칸들에서 출발해
+#   level       = 출발 지지면에서의 경로 허가. 출발 시야(시작 카메라 앞 0.25–1.2 m, ±40°)의 z = 0 근처 칸(섞인 칸 제외) 가운데 로버에서
+#                 가장 가까운 띠(+15 cm)가 속한 구역의 그 칸들에서 출발해(멀리 있는 큰 구역으로 옮기지 않음 — 바로 앞 상자 뒤 바닥을 출발점으로 잡지 않게)
 #                 4-이웃으로 가는 길 가운데 '가장 나쁜 칸·경계'가 가장 덜 나쁜 길의 단계(칸 단위 병목). 경계 단차는 가는 방향으로
 #                 (오르기 = 가는 칸 윗면 − 오는 칸 지지면 → step_up, 내려가기 = 오는 칸 지지면 − 가는 칸 아랫면 → step_down;
 #                  섞인 칸의 윗면·아랫면 = 상·하위 10% 높이, 아니면 지지면),
-#                 칸은 경사·거칠기·돌출을 포함한다. 관측 안 된 칸은 지나갈 수 없다 → 이어지지 않으면 unknown.
-#   - 칸 높이 = 주 지지면(점이 가장 많은 1 cm 높이 구간 중앙값 ±1.5 cm 안 점의 평균). 수직 면 점이 칸 높이를 끌어올려 바닥과 윗면이 이어지는 것을 막는다.
-#     칸 안 상위 10%가 주 지지면보다 link_tol 넘게 높으면 돌출, 하위 10%가 낮으면 꺼짐. 반경 edge_win 안 이웃 칸 높이로 설명되면
-#     (상자 옆면·턱 모서리) 그 경계는 이웃 단차로 다루고, 설명되지 않으면(얇은 턱·기둥) 그 칸의 위험으로 분류한다.
+#                 칸은 경사·거칠기·머리 위 틈을 포함한다. 관측 안 된 칸과 표면을 평가 못 한 칸은 지나갈 수 없다 → 이어지지 않으면 unknown.
+#   - 칸 높이 = 주 지지면(점이 가장 많은 3 cm 높이 창 → 그 안 최빈 1 cm 구간 중앙값 ±1.5 cm 안 점의 평균). 수직 면 점이 칸 높이를 끌어올려 바닥과 윗면이 이어지는 것을 막는다.
+#     칸 안 상위 10%가 주 지지면보다 link_tol 넘게 높으면 돌출, 하위 10%가 낮으면 꺼짐(섞인 칸). 국소 층에서는 늘 그 칸의 위험이고
+#     (이웃 높이로 지우지 않음 — 우연히 같은 높이 칸이 있으면 돌출이 사라지던 문제), 경로 층에서는 그 칸으로 들어갈 때의 경계 단차로 잡힌다.
 #   - 평가하지 못한 칸(지지 부족·퇴화)은 통과가 아니라 unknown이다. 단차·돌출에는 측정 여유를 더해 경계 근처 값은 나쁜 쪽으로 보낸다.
 #     거칠기는 잔차의 5–95% 범위이고 측정 여유를 더하지 않는다.
 #   - 머리 위 구조: 같은 칸에서 지지면 위로 overhang_gap 넘게 비어 있다가 나타나는 점(책상·선반 아랫면)은 돌출이 아니라 머리 위 틈으로
@@ -38,11 +39,11 @@ ALG = {"min_pts": 6,             # 칸 통계에 쓰는 최소 지도 점 수(TS
        "slope_win_m": 0.30,      # 경사·거칠기 창(기준값: 30 cm 이상 창)
        "planar_rough_m": 0.02,   # 창 전체 평면 잔차(5–95% 범위)가 이보다 작으면 구역과 무관하게 그 평면으로 경사를 잰다
        "min_support_frac": 0.25,  # 창에서 평면 맞춤에 필요한 칸 비율(가로·세로 각 3칸 이상은 별도 검사)
-       "edge_win": 2,            # 돌출·꺼짐을 설명하는 이웃 칸을 찾는 반경(칸)
        "overhang_gap_m": 0.25,   # 같은 칸에서 지지면 위로 이만큼 넘게 비어 있다가 나타나는 점 = 머리 위 구조(overhead 규칙), 돌출 아님
        "ref_seed_h_m": 0.03,     # 출발 지지면 씨앗: |z| ≤ 이 값(z = 0은 L1 초기 평면)
        "start_view_m": [0.25, 1.2], "start_view_deg": 40.0,   # 씨앗을 찾는 출발 시야(시작 카메라 기준 거리·좌우 각) — 로버 바로 앞 바닥
-       "ref_min_seed": 12,       # 출발 지지면 구역(시야 안 씨앗이 가장 많은 구역 하나)의 씨앗 칸 최소
+       "ref_band_m": 0.15,       # 출발 지지면 = 시야 안 가장 가까운 씨앗에서 이 거리 안 씨앗이 가장 많이 속한 구역
+       "ref_min_seed": 12,       # 그 구역의 씨앗 칸 최소(모자라면 다른 구역으로 옮기지 않고 보류)
        "ref_min_cells": 40,      # 출발 지지면 구역 칸 합이 이보다 적으면 분류 보류
        "z_max_m": 2.0,           # 이보다 높은 점(천장 등)은 2.5D 계산에서 뺀다
        "range_m": 4.0}           # 주 구간 카메라 궤적에서 이보다 먼 칸은 unknown
@@ -57,7 +58,8 @@ def classify(value, rule):
 
 def build_grid(P, cell, min_pts, band=0.015, ovh_gap=0.25):
     """점(N×3, 지도 좌표 z 위) → 칸별 윗면(상위 90%)·아랫면(하위 10%)·주 지지면·머리 위 틈·점 수. 점이 min_pts 미만인 칸은 높이 NaN.
-    주 지지면 = 점이 가장 많은 1 cm 높이 구간의 중앙값에서 ±band 안 점들의 평균(최빈 구간만 쓰면 잡음이 커 거칠기가 부풀려진다).
+    주 지지면: 점이 가장 많은 3 cm 높이 창(1 cm 구간 셋)을 고르고, 그 안에서 점이 가장 많은 1 cm 구간의 중앙값 ±band 안 점들의 평균.
+    (최빈 1 cm 구간만 고르면 점이 적은 칸에서 흔들리고, 창 평균을 쓰면 수직 면 점에 끌려 중간 높이가 된다.)
     지지면 위 2·band 넘는 점 가운데 가장 낮은 것이 지지면에서 ovh_gap 넘게 떨어져 있으면 머리 위 구조(책상·선반 아랫면)로 보고
     그 높이 차를 틈(ovh)으로 남긴 뒤 윗면·아랫면 통계에서 뺀다(돌출로 세지 않음)."""
     x0, y0 = P[:, 0].min() - cell, P[:, 1].min() - cell
@@ -78,7 +80,13 @@ def build_grid(P, cell, min_pts, band=0.015, ovh_gap=0.25):
         if c >= min_pts:
             zz = z[s:s + c]
             b = np.floor((zz - zz.min()) / 0.01).astype(int)
-            m0 = float(np.median(zz[b == int(np.argmax(np.bincount(b)))]))
+            hc = np.bincount(b)
+            sm = np.convolve(hc, np.ones(3, int), "same")              # 3 cm 창의 점 수(1 cm 최빈 구간은 점이 적은 칸에서 흔들린다)
+            cand = np.nonzero(sm == sm.max())[0]
+            kb = int(cand[np.argmin(np.abs(cand - np.median(b)))])      # 동률이면 중앙값에 가까운 쪽
+            win = np.arange(max(kb - 1, 0), min(kb + 2, len(hc)))
+            kb = int(win[np.argmax(hc[win])])                            # 그 창 안에서 점이 가장 많은 1 cm 구간(창 평균은 수직 면 점에 끌려 중간 높이가 된다)
+            m0 = float(np.median(zz[b == kb]))
             sup[k] = float(zz[np.abs(zz - m0) <= band].mean())
             above = zz[zz > sup[k] + 2 * band]
             if above.size and above.min() - sup[k] >= ovh_gap:
@@ -194,22 +202,13 @@ def classify_points(P, crit, cams_xy, cell=0.05, alg=None, start=(0.0, 0.0, 0.0)
     dep = np.where(observed, sup - low, np.nan)
     patch = smooth_patches(h, tol)
     slope, rough, src = surface(h, patch, cell, alg)
-    # 칸 안 돌출·꺼짐: 이웃 칸 높이로 설명되는지
-    er = alg["edge_win"]
-    hp = np.pad(h, er, constant_values=np.nan)
-    up_un = np.zeros(top.shape, bool)
-    dn_un = np.zeros(top.shape, bool)
-    for j, i in zip(*np.nonzero(observed & ((prot > tol) | (dep > tol)))):
-        w = hp[j:j + 2 * er + 1, i:i + 2 * er + 1]
-        if prot[j, i] > tol and not np.any(np.abs(w - top[j, i]) < tol):
-            up_un[j, i] = True
-        if dep[j, i] > tol and not np.any(np.abs(w - low[j, i]) < tol):
-            dn_un[j, i] = True
-    hi = np.where(prot > tol, top, h)   # 섞인 칸은 높이 범위로: 경계를 건널 때 수직 면 칸이 중간 높이 디딤돌이 되지 않게
-    lo = np.where(dep > tol, low, h)
+    # 섞인 칸(칸 안 돌출·꺼짐): 경계를 건널 때 가는 칸의 윗면·아랫면으로 쓴다(수직 면 칸이 중간 높이 디딤돌이 되지 않게)
+    mix_up, mix_dn = observed & (prot > tol), observed & (dep > tol)
+    hi = np.where(mix_up, top, h)
+    lo = np.where(mix_dn, low, h)
     pr = np.nan_to_num(prot)
-    lv_prot = np.where(up_un, np.where(pr >= alg["wall_m"], 3, classify(pr + mg, R["step_up_m"])), 1)
-    lv_dep = np.where(dn_un, classify(np.nan_to_num(dep) + mg, R["step_down_m"]), 1)
+    lv_prot = np.where(mix_up, np.where(pr >= alg["wall_m"], 3, classify(pr + mg, R["step_up_m"])), 1)   # 국소 층: 돌출은 늘 위험(이웃 높이로 지우지 않음)
+    lv_dep = np.where(mix_dn, classify(np.nan_to_num(dep) + mg, R["step_down_m"]), 1)
     lv_slope = np.where(np.isnan(slope), 0, classify(np.nan_to_num(slope), R["slope_deg"]))
     lv_rough = np.where(np.isnan(rough), 0, classify(np.nan_to_num(rough), R["roughness_m"]))   # 잡음이 이미 범위를 키우므로 측정 여유 미적용
     surf = np.where(np.isnan(slope), 0, np.maximum(lv_slope, lv_rough))
@@ -245,23 +244,26 @@ def classify_points(P, crit, cams_xy, cell=0.05, alg=None, start=(0.0, 0.0, 0.0)
     dist = np.hypot(cx - sx, cy - sy)
     ang = np.abs((np.arctan2(cy - sy, cx - sx) - syaw + np.pi) % (2 * np.pi) - np.pi)
     near = (dist >= alg["start_view_m"][0]) & (dist <= alg["start_view_m"][1]) & (ang <= math.radians(alg["start_view_deg"]))
-    seed = observed & near & (np.abs(np.nan_to_num(h, nan=9.0)) <= alg["ref_seed_h_m"])
+    passable = observed & (surf > 0)        # 표면을 평가 못 한 칸은 지나갈 수 없다(뒤쪽도 이어지지 않으면 unknown)
+    seed = passable & near & ~mix_up & ~mix_dn & (np.abs(np.nan_to_num(h, nan=9.0)) <= alg["ref_seed_h_m"])
     npatch = int(patch.max()) + 1
     n_seed = np.bincount(patch[seed], minlength=npatch) if npatch > 0 else np.zeros(0, int)
     n_cells = np.bincount(patch[patch >= 0], minlength=npatch) if npatch > 0 else np.zeros(0, int)
     ref = np.zeros(npatch, bool)
-    if npatch > 0 and n_seed.max() >= alg["ref_min_seed"]:
-        ref[int(np.argmax(n_seed))] = True
+    if seed.any():   # 출발 지지면 = 로버에서 가장 가까운 씨앗 띠(최근접 + ref_band)의 구역. 멀리 있는 큰 구역으로 옮기지 않는다
+        band = seed & (dist <= dist[seed].min() + alg["ref_band_m"])
+        pid = int(np.argmax(np.bincount(patch[band], minlength=npatch)))
+        if n_seed[pid] >= alg["ref_min_seed"]:
+            ref[pid] = True
     ref_cells = int(n_cells[ref].sum()) if npatch > 0 else 0
-    node = np.maximum.reduce([np.where(surf == 0, 2, surf), lv_prot, lv_dep, lv_ovh])   # 경로 계산용 칸 단계(평가 못 한 칸은 주의로 지나감)
-    node_why = np.where(lv_ovh >= np.maximum.reduce([lv_prot, lv_dep, surf]), "overhead",
-                        np.where(lv_prot >= np.maximum(lv_dep, surf), "protrusion", np.where(lv_dep >= surf, "depression",
-                                 np.where(lv_slope >= lv_rough, "slope", "roughness"))))
+    node = np.maximum(surf, lv_ovh)          # 경로 계산용 칸 단계. 돌출·꺼짐은 경계(가는 칸 윗면 − 오는 칸 지지면)에서 잰다
+    node_why = np.where((lv_ovh >= surf) & (lv_ovh > 1), "overhead", np.where(lv_slope >= lv_rough, "slope", "roughness"))
     reach = np.full(top.shape, 99, int)
     why = np.full(top.shape, "", dtype=object)
     step = np.full(top.shape, np.nan)
     info = {"ref_cells": ref_cells, "ref_patches": int(ref.sum()) if npatch else 0, "start_seed_cells": int(seed.sum()), "patches": npatch,
-            "mixed_unexplained_cells": int((up_un | dn_un).sum()), "observed_cells": int(observed.sum()), "withheld": None}
+            "mixed_cells": int((mix_up | mix_dn).sum()), "unevaluated_cells": int((observed & ~passable).sum()),
+            "observed_cells": int(observed.sum()), "withheld": None}
     if ref_cells < alg["ref_min_cells"]:
         info["withheld"] = f"출발 지지면(시작 시야의 z = 0 근처) 칸 {ref_cells} < {alg['ref_min_cells']} — 경로 허가 보류, level 전부 unknown"
     else:
@@ -278,7 +280,7 @@ def classify_points(P, crit, cams_xy, cell=0.05, alg=None, start=(0.0, 0.0, 0.0)
                 continue
             for dy, dx in NB4:
                 b, a = j + dy, i + dx
-                if not (0 <= b < ny and 0 <= a < nx) or not observed[b, a]:
+                if not (0 <= b < ny and 0 <= a < nx) or not passable[b, a]:
                     continue
                 e, ewhy, d = step_level(float(hi[b, a] - h[j, i]), float(h[j, i] - lo[b, a]), R, alg)
                 n = max(L, e, int(node[b, a]))
@@ -293,9 +295,8 @@ def classify_points(P, crit, cams_xy, cell=0.05, alg=None, start=(0.0, 0.0, 0.0)
                         step[b, a] = step[j, i]
                     heapq.heappush(heap, (n, b, a))
     level = np.where(reach == 99, 0, reach)
-    level = np.where((surf == 0) & (level <= 2) & (np.maximum.reduce([lv_prot, lv_dep, lv_ovh]) < 2), 0, level)   # 평가 못 한 칸은 통과·주의 확정 보류
     level[~observed] = 0
-    why[(level == 0) & observed] = np.where(reach[(level == 0) & observed] == 99, "no_path_from_start", "surface_unevaluated")
+    why[(level == 0) & observed] = np.where(passable[(level == 0) & observed], "no_path_from_start", "surface_unevaluated")
     why[~observed] = ""
     # 장애물 목록: 국소 위험 칸 + 경로 허가가 주의·불가인 솟은/꺼진 면
     hz = np.nan_to_num(h)
@@ -327,7 +328,7 @@ def classify_points(P, crit, cams_xy, cell=0.05, alg=None, start=(0.0, 0.0, 0.0)
                           "poly_xy_m": [[round(float(x), 3), round(float(y), 3)] for x, y in hull]})
     grids = {"level": level, "level_local": local, "reason": why, "reason_local": reason_local, "step": step, "step_local": step_local,
              "top": top, "low": low, "sup": sup, "overhead_gap": ovh, "cnt": G["cnt"], "patch": patch, "observed": observed, "slope": slope, "rough": rough,
-             "surface_src": src, "unexplained_up": up_un, "unexplained_down": dn_un, "start_seed": seed, "obstacle_id": obj_id}
+             "surface_src": src, "mixed_up": mix_up, "mixed_down": mix_dn, "start_seed": seed, "obstacle_id": obj_id}
     counts = {NAME[v]: int((level == v).sum()) for v in LEVEL.values()}
     counts_local = {NAME[v]: int((local == v).sum()) for v in LEVEL.values()}
     return {"grid": {"x0": G["x0"], "y0": G["y0"], "nx": G["nx"], "ny": G["ny"]}, "info": info, "obstacles": obstacles,
