@@ -100,6 +100,7 @@ scripts/record_terrain_map_bag.sh field1
 | 4-5 | 전체 주행 중 | `pose_gaps`, epoch 전환 횟수·원인, 자이로 간격 분포 | 60 ms 공백 epoch가 잦으면 `gyro_gap_epoch_s`·Gateway IMU 주기 조정(§10) |
 | 4-6 | 자세 대기 | 손실 이유별 수(`POSE_EXPIRED` 등) | 기록 |
 | 4-7 | 바퀴 합의(스펙 §4.4 r13, 기본 끔) — 4-1·4-2와 **스키드 제자리 선회·급가속/급정지**를 포함한 녹화 | 아래 재생의 `slip_excluded`·`slip_guessed`, 같은 bag 합의 끔/켬 지도 | 헛돎 없는 주행에서 둘 다 0(또는 극소)이고 지도가 끔과 같으면 → 실기 기본 `max_slip_wheels` 2로 켬(별도 커밋). 0이 아니면 `slip_residual_m_s`를 올려 다시 재생(0.15·0.2 순) |
+| 4-8 | 버림 상한(스펙 §4.5 r14, 기본 끔) — 상자·말뚝·작은 돌(5–10 cm)과 평지, 장애물 뒤 그늘이 담긴 녹화 | 아래 재생의 `cell_trim_max_points` 0/2 지도 | 2에서 작은 장애물 칸이 더 잡히고 평지·그늘에 가짜 돌출이 늘지 않으면 → 실기 기본 2로 켬(별도 커밋). 가짜 돌출이 늘면 0 유지 |
 
 ```bash
 python3 -m powertrain_ros.terrain_map_field_report --bag ~/terrain_bags/field1 \
@@ -111,6 +112,11 @@ python3 -m powertrain_ros.terrain_map_field_report --bag ~/terrain_bags/field1 \
 scripts/replay_terrain_map.sh ~/terrain_bags/field1 --param max_slip_wheels=2 --out field1_slip2.npz
 scripts/replay_terrain_map.sh ~/terrain_bags/field1 --out field1_slip0.npz
 ```
+```bash
+# 4-8: 버림 상한 비교(r14) — 같은 bag을 상한 0(기본)과 2로
+scripts/replay_terrain_map.sh ~/terrain_bags/field1 --param cell_trim_max_points=2 --out field1_trim2.npz
+```
+✅ 콘솔 재생에서 `field1_slip0.npz`(상한 0)와 비교: 작은 장애물이 2에서만 돌출로 보이는지, 평지·장애물 뒤 그늘에 2에서만 생긴 돌출 칸이 없는지.
 ✅ 마지막 줄 JSON의 `"slip_excluded": 0, "slip_guessed": 0`(헛돎 없는 주행). 미끄러운 바닥·턱에서 바퀴가 헛돈 구간이 있으면 그 구간에서만 늘어야 한다(바퀴를 손으로 드는 시험은 하지 않는다).
 ⚠️ `proc_ms: old log …`이 나오면 그 로그는 이 버전 전의 노드(검출 시간만 기록)라 처리시간 판정에 쓰지 않는다 — 노드를 이 브랜치로 갱신한 뒤 다시 잰다.
 
@@ -123,6 +129,7 @@ scripts/replay_terrain_map.sh ~/terrain_bags/field1 --out field1_slip0.npz
 | FRESH 비율 | 기록(stride·`ground_min_points` 결정 근거) | `--bag` (자원 시험 중 1–2분만 녹화해 분석) |
 | 차체 50 Hz tick 간격 p99 | 서비스 끄기 전 대비 +2 ms 이내 | `--bag`의 `wheel (chassis tick) interval p99` — 지도 끈 상태 1분 녹화와 비교 |
 | 워치독 이벤트 | 0 | 기존 운용 로그 |
+| (r14) 융합 잠금 보유·대기·결정 기록 쓰기 | 최댓값 ≤ 50 ms | `terrain_map_field_report --decisions`의 `fusion lock hold max … wait max … decisions write max … (≤ 50.0: PASS)`. 노드를 정상 종료해야 판정된다(`timing_end` 없음·쓰기 실패·결과 누락이면 `not judged`) |
 | Jetson RAM 여유 | ≥ 1 GB | `free -h` |
 
 - ❌ 못 맞추면: stride 3·`process_hz` 낮추기 → 그래도 안 되면 오버레이·지도 판정기 통합(§11). `robot-start` 기본 목록에는 통과 전까지 넣지 않는다.

@@ -38,7 +38,8 @@ from powertrain_ros.terrain_map_node import (
 from powertrain_ros.terrain_map_replay import _config
 
 STREAMS = {GYRO_TOPIC: "gyro", WHEEL_TOPIC: "wheel", DEPTH_TOPIC: "depth", DEPTH_INFO_TOPIC: "camera_info"}
-CRITERIA = {"proc_ms_p95": 150.0, "loss_rate": 0.10}               # spec §7.3-3 (defaults, tune with field data)
+CRITERIA = {"proc_ms_p95": 150.0, "loss_rate": 0.10,              # spec §7.3-3 (defaults, tune with field data)
+            "fuse_lock_max_ms": 50.0}                             # r14: worst fusion-lock hold / wait / log write
 
 
 def _messages(path: str):
@@ -180,6 +181,14 @@ def _summary(report: dict) -> list[str]:
         else:
             lines.append(f"proc_ms p95 {p95} on the robot "
                          f"(≤ {CRITERIA['proc_ms_p95']}: {verdict(p95 is not None and p95 <= CRITERIA['proc_ms_p95'])})")
+        hold, wait, rec = dec.get("hold_ms", {}), dec.get("lock_wait_ms", {}), dec.get("rec_ms_max", {})
+        if dec.get("timing_complete") and hold.get("n") and wait.get("n") and rec.get("n"):
+            ok = max(hold["max"], wait["max"], rec["max"]) <= CRITERIA["fuse_lock_max_ms"]
+            lines.append(f"fusion lock hold max {round(hold['max'], 1)} ms, wait max {round(wait['max'], 1)} ms, "
+                         f"decisions write max {round(rec['max'], 1)} ms, binning p95 {round(dec['bin_ms']['p95'], 1)} ms "
+                         f"(≤ {CRITERIA['fuse_lock_max_ms']}: {verdict(ok)})")
+        else:
+            lines.append("fusion lock: not judged (no timing_end — log incomplete, or written before r14)")
         lines.append(f"epochs {dec['epochs']['count']} {dec['epochs']['by_cause']} · late samples {dec['samples']['late']}")
     return lines
 

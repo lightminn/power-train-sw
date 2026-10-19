@@ -29,7 +29,7 @@ import numpy as np
 from terrain_map import contract as C
 from terrain_map.config import MapConfig
 from terrain_map.odometry import GyroSample, SampleIds, WheelSample, sample_digest
-from terrain_map.runtime import (MapRuntime, default_gyro_rotation, depth_array_digest, gyro_body_rate,
+from terrain_map.runtime import (MAP_ALGORITHM, MapRuntime, default_gyro_rotation, depth_array_digest, gyro_body_rate,
                                  load_decisions, unreproduced)
 from terrain_overlay.camera import CameraModel
 from terrain_overlay.runtime import SenderSession
@@ -277,6 +277,10 @@ def _live_config(decisions, requested: MapConfig, params: list[str]) -> MapConfi
     if decisions.config is None or decisions.layout is None:
         raise ValueError("the decisions log has no live configuration/wheel geometry (older format); "
                          "record a new run, or replay without --decisions-from")
+    if decisions.algorithm != MAP_ALGORITHM:
+        raise ValueError(f"the decisions log was recorded with map aggregation "
+                         f"{decisions.algorithm or 'r13 (unlabelled)'}, this build uses {MAP_ALGORITHM}; "
+                         "the live map cannot be reproduced — replay without --decisions-from to re-evaluate")
     if decisions.layout is not None:
         mine = wheel_layout()
         logged = decisions.layout
@@ -349,6 +353,7 @@ def main(argv: list[str] | None = None) -> int:
         "processed": s.processed, "lost": s.lost, "skipped": s.skipped,
         "late_dropped": runtime.odometry.late_dropped, "follow": decisions is not None,
         "slip_excluded": runtime.odometry.slip_excluded, "slip_guessed": runtime.odometry.slip_guessed,
+        "map_algorithm": MAP_ALGORITHM,
     }))
     return 0
 

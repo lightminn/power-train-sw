@@ -53,6 +53,31 @@ def test_cli_combines_bag_and_decisions_and_judges_the_criteria(drive_bag, tmp_p
     assert report["decisions"]["frames"]["processed"] > 0 and "loss_rate" in report["decisions"]["frames"]
     text = capsys.readouterr().out
     assert "loss rate" in text and "proc_ms p95" in text and "support_base_height_m" in text
+    assert "fusion lock hold max" in text and "decisions write max" in text   # r14 lock timing is judged
+
+
+def test_a_slow_decisions_write_fails_the_lock_gate(drive_bag, tmp_path, capsys):
+    """r14 Codex rounds 2–4: a log write that held the map lock must not pass."""
+    bag, received, root = drive_bag
+    records = []
+    live(received, records.append)
+    result = next(r for r in records if r.get("k") == "result" and "rec_ms_max" in r)
+    result["rec_ms_max"] = 120.0
+    write_log(root / "slow.jsonl", records)
+    assert FR.main(["--decisions", str(root / "slow.jsonl"), "--out", str(tmp_path / "r.json")]) == 0
+    line = next(l for l in capsys.readouterr().out.splitlines() if "fusion lock hold max" in l)
+    assert "decisions write max 120.0 ms" in line and line.endswith("FAIL)")
+
+
+def test_a_log_without_its_closing_line_is_not_judged(drive_bag, tmp_path, capsys):
+    """r14 Codex round 5: missing timing must not read as 0 ms and pass."""
+    bag, received, root = drive_bag
+    records = []
+    live(received, records.append)
+    write_log(root / "cut.jsonl", [r for r in records if r.get("k") != "timing_end"])
+    assert FR.main(["--decisions", str(root / "cut.jsonl"), "--out", str(tmp_path / "r.json")]) == 0
+    out = capsys.readouterr().out
+    assert "fusion lock: not judged" in out and "fusion lock hold max" not in out
 
 
 def test_late_arrivals_do_not_look_like_publisher_gaps(tmp_path):

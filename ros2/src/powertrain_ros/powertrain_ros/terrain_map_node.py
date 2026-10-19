@@ -191,6 +191,7 @@ class TerrainMapNode(Node):
     def destroy_node(self) -> bool:
         self.get_logger().info(self.processing_summary())
         if self._log_file is not None:
+            self._runtime.close_log()                # r14: the last frame's lock timing
             self._log_file.close()
         self._udp.close()
         return super().destroy_node()

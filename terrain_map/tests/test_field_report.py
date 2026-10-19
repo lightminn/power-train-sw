@@ -42,6 +42,7 @@ def live_records():
     rt = T.runtime(clock, decisions=records.append)
     rt.on_camera_info(T.CAM)
     T.drive(rt, clock, T.live_trouble(events), depth)
+    rt.close_log()
     return rt, [json.loads(json.dumps(r)) for r in records]
 
 
@@ -112,15 +113,38 @@ def test_processing_time_covers_correction_and_fusion():
     clock = T.Clock()
     rt = T.runtime(clock, decisions=records.append)
     rt.on_camera_info(T.CAM)
-    fuse = rt.map.fuse
+    fuse = rt.map.fuse_cells
 
     def slow_fuse(*args, **kwargs):
         clock.now += 0.2                                      # fusion takes 200 ms
         return fuse(*args, **kwargs)
-    rt.map.fuse = slow_fuse
+    rt.map.fuse_cells = slow_fuse
     T.drive(rt, clock, events, depth)
     fused = [r for r in records if r.get("k") == "result" and r["r"] == "processed"]
     assert fused and all(r["total_ms"] >= 200.0 > r["detect_ms"] for r in fused)
+    assert all(r["fuse_ms"] >= 200.0 for r in fused)        # r14: the fusion lock hold carries it
+    s = R.summarize_decisions(records)
+    assert s["fuse_ms"]["n"] == len(fused) and s["fuse_ms"]["max"] >= 200.0
+    assert s["bin_ms"]["n"] == s["lock_wait_ms"]["n"] == len(fused)
+
+
+def test_a_log_before_r14_has_no_lock_timing():
+    _, records = live_records()
+    records = [r for r in records if r.get("k") != "timing_end"]
+    for r in records:
+        if r.get("k") == "result":
+            for k in ("bin_ms", "lock_wait_ms", "fuse_ms", "rec_ms_max", "hold_ms_prev"):
+                r.pop(k)
+    s = R.summarize_decisions(records)
+    assert s["fuse_ms"] == s["lock_wait_ms"] == s["bin_ms"] == s["rec_ms_max"] == s["hold_ms"] == {"n": 0}
+    assert s["timing_complete"] is False
+
+
+def test_lock_timing_is_complete_only_with_the_closing_line():
+    _, records = live_records()
+    assert R.summarize_decisions(records)["timing_complete"] is True
+    cut = [r for r in records if r.get("k") != "timing_end"]
+    assert R.summarize_decisions(cut)["timing_complete"] is False
 
 
 def test_an_old_log_with_detection_time_only_is_not_judged():
@@ -135,3 +159,27 @@ def test_an_old_log_with_detection_time_only_is_not_judged():
     _, records = live_records()
     s = R.summarize_decisions(records)
     assert s["proc_ms"]["n"] > 0 and s["proc_ms_note"] is None
+
+
+def test_a_failed_log_write_leaves_the_lock_timing_unjudged():
+    """r14 Codex round 6: a write error, then the shutdown's closing line, must not read as complete."""
+    events, depth = T.scenario()
+    records, clock = [], T.Clock()
+    state = {"results": 0}
+
+    def log(entry):
+        if entry.get("k") == "result":
+            state["results"] += 1
+            if state["results"] == 5:
+                clock.now += 0.2
+                raise OSError("disk full")
+        records.append(entry)
+    rt = T.runtime(clock, decisions=log)
+    rt.on_camera_info(T.CAM)
+    with pytest.raises(OSError):
+        T.drive(rt, clock, events, depth)
+    rt.close_log()                                           # the node's finally -> destroy_node path
+    end = records[-1]
+    assert end["k"] == "timing_end" and end["write_failed"] is True and end["hold_ms_prev"] >= 200.0
+    s = R.summarize_decisions([json.loads(json.dumps(r)) for r in records])
+    assert s["timing_complete"] is False and s["frames"]["incomplete"] == 1

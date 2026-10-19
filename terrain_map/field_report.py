@@ -103,6 +103,7 @@ def summarize_decisions(records: Iterable[dict], session: str | None = None) -> 
     frames = Counter(r["r"] for r in chosen if r.get("k") == "frame")
     lost_why = Counter(r.get("why") for r in chosen if r.get("k") == "frame" and r.get("r") == "lost")
     results = [r for r in chosen if r.get("k") == "result"]
+    ends = [r for r in chosen if r.get("k") == "timing_end"]
     epochs = [r for r in chosen if r.get("k") == "epoch"]
     drops = Counter(r.get("why") for r in chosen if r.get("k") == "drop")
     key = lambda r: (r.get("seg"), r.get("t"), r.get("d"), r.get("seq"))  # noqa: E731
@@ -123,6 +124,19 @@ def summarize_decisions(records: Iterable[dict], session: str | None = None) -> 
         "proc_ms": distribution([float(r["total_ms"]) for r in results if "total_ms" in r]),
         "proc_ms_note": (None if any("total_ms" in r for r in results) or not any("ms" in r for r in results)
                          else "old log: its ms covered detection only — re-measure with this version"),
+        # r14: binning (no lock), waiting for and holding the fusion lock; absent in older logs (n = 0)
+        "bin_ms": distribution([float(r["bin_ms"]) for r in results if "bin_ms" in r]),
+        "lock_wait_ms": distribution([float(r["lock_wait_ms"]) for r in results if "lock_wait_ms" in r]),
+        "fuse_ms": distribution([float(r["fuse_ms"]) for r in results if "fuse_ms" in r]),
+        "rec_ms_max": distribution([float(r["rec_ms_max"]) for r in results + ends if "rec_ms_max" in r]),
+        # whole fusion-lock hold incl. the result line write: each line carries the previous frame's,
+        # the closing timing_end the last one (r14 Codex round 5)
+        "hold_ms": distribution([float(r["hold_ms_prev"]) for r in results + ends if r.get("hold_ms_prev") is not None]),
+        # judged only for a whole, closed log: a closing line without a write failure, no handed frame
+        # missing its result line, and every processed result carrying the timing (r14 Codex rounds 5–6)
+        "timing_complete": (bool(ends) and ends[-1].get("write_failed") is False and incomplete == 0
+                            and all("hold_ms_prev" in r and "rec_ms_max" in r and "lock_wait_ms" in r
+                                    for r in results if r["r"] == "processed")),
         "epochs": {"count": len(epochs), "by_cause": dict(Counter(r.get("cause") for r in epochs))},
         "samples": {"received": sum(1 for r in chosen if r.get("k") == "rx"), "late": drops.get("late", 0),
                     "drops": dict(drops)},

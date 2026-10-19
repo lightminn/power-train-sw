@@ -30,7 +30,7 @@ from .odometry import (FollowPlan, GyroSample, PlanarOdometry, PoseSample, Sampl
 from .slope import StillGravity, body_tilt, plane_tilt
 from .pose import PoseTrack
 from .schedule import POSE_EXPIRED, DepthFrame, FrameScheduler
-from .scan import build_local_scan, decimate, make_frame, support_check
+from .scan import build_local_scan, decimate, make_frame, support_check, world_cells
 
 DEPTH_STALE_S = 0.5
 RECENT_S = 1.0          # NO_POSE / NO_GROUND look back this far (spec §4.8)
@@ -49,12 +49,18 @@ def default_gyro_rotation(cfg: MapConfig) -> np.ndarray:
     return base_to_optical(cfg.camera_pitch_down_deg, cfg.camera_roll_deg, cfg.camera_yaw_deg)
 
 
+# How a frame becomes map votes (spec §4.5).  Recorded in the decisions header: a decisions replay
+# reproduces a live map only with the same aggregation (r14 Codex P2-2).
+MAP_ALGORITHM = "r14-world-points"
+
+
 class Decisions(NamedTuple):
     odometry: FollowPlan
     frames: frozenset    # depth identities processed live
     results: tuple = ()  # (frame identity, (outcome, camera digest)) of the live processing, for the replay to verify
     config: dict | None = None   # MapConfig the live run applied (session header)
     layout: dict | None = None   # wheel geometry the live run used
+    algorithm: str | None = None  # MAP_ALGORITHM of the live run; None = before r14 (r13 cell-centre mapping)
 
 
 def _frame_ident(r: dict) -> tuple:
@@ -124,7 +130,8 @@ def load_decisions(records: Iterable[dict], session: str | None = None) -> Decis
     header = chosen[0] if chosen and chosen[0].get("k") == "session" else {}
     frames = frozenset(_frame_ident(r) for r in chosen if r.get("k") == "frame" and r.get("r") == "processed")
     results = tuple((_frame_ident(r), (r["r"], int(r.get("cam", 0)))) for r in chosen if r.get("k") == "result")
-    return Decisions(follow_plan(chosen), frames, results, header.get("config"), header.get("layout"))
+    return Decisions(follow_plan(chosen), frames, results, header.get("config"), header.get("layout"),
+                     header.get("map_algorithm"))
 
 
 @dataclass
@@ -157,11 +164,29 @@ class MapRuntime:
         self._clock = clock
         self._log_error = log_error
         self._log_overrun = log_error if log_overrun is None else log_overrun
-        self._record = decisions if follow is None else None
+        # Decisions entries are written where they arise, as before (often under the map lock; the log is
+        # off by default and buffered).  r14: every write is timed, and the worst write since the previous
+        # frame result rides on the next result line ("rec_ms_max") so a slow log cannot pass the load gate.
+        self._record = None
+        self._rec_max_ms = 0.0
+        self._hold_prev_ms: float | None = None      # previous frame's whole fusion-lock hold, incl. its result line
+        self._record_failed = False
+        if decisions is not None and follow is None:
+            def _record(entry: dict, _write=decisions) -> None:
+                t0 = self._clock()
+                try:
+                    _write(entry)
+                except BaseException:
+                    self._record_failed = True          # the log is incomplete from here on (r14 Codex round 6)
+                    raise
+                finally:
+                    self._rec_max_ms = max(self._rec_max_ms, (self._clock() - t0) * 1000.0)
+            self._record = _record
         if self._record is not None:
             # The replay restores exactly this configuration and geometry (branch review 4).
             self._record({"k": "session", "boot": session.boot_id, "start": session.start_mono_ns,
                           "instance": session.instance, "config": dataclasses.asdict(cfg),
+                          "map_algorithm": MAP_ALGORITHM,
                           "layout": {"positions": {k: list(v) for k, v in layout.positions.items()},
                                      "radius": layout.wheel_radius_m}})
         # v_opt = R v_base for the camera mount; the gyro shares the depth optical frame unless told otherwise.
@@ -315,6 +340,17 @@ class MapRuntime:
         seed = apply_delta(self.delta, selected.pose)
         return selected.frame, selected.pose, seed, self.epoch, self._detector, self._camera, now
 
+    def close_log(self) -> None:
+        """Last decisions line of a live run: the timing that no later result line will carry (r14).
+        A log without it is incomplete and its lock timing is not judged."""
+        if self._record is None:
+            return
+        with self._lock:
+            rec_max, self._rec_max_ms = self._rec_max_ms, 0.0
+            self._record({"k": "timing_end",
+                          "hold_ms_prev": None if self._hold_prev_ms is None else round(self._hold_prev_ms, 2),
+                          "rec_ms_max": round(rec_max, 2), "write_failed": self._record_failed})
+
     def finish(self) -> None:
         """End of a replay: commit what is queued and process every frame that can still get a pose."""
         with self._lock:
@@ -347,16 +383,33 @@ class MapRuntime:
         self._record_time(elapsed)
         with self._lock:
             self.proc_ms = round(elapsed * 1000.0, 1)
-            if outcome == "PROCESSING_ERROR":
-                self._error_at = now
             if epoch != self.epoch:
                 outcome = "epoch_changed"           # processed against a map that no longer exists
+            elif outcome == "PROCESSING_ERROR":
+                self._error_at = now                # only a current-epoch frame flags the status (r14)
             elif outcome == "processed":
                 correction = self.corrector.correct(scan, seed, self.map)
                 self._correction = correction
                 if correction.applied:
                     self.delta = update_delta(correction.pose, odom)
-                for key in self.map.fuse(scan, correction.pose, frame.stamp_s, frame.rx_s):
+        # r14: bin the frame's points with the final pose outside the lock (inputs keep flowing).
+        cells, bin_error, bin_started = None, False, self._clock()
+        if outcome == "processed":
+            try:
+                cells = world_cells(scan, correction.pose, self.cfg)
+            except Exception as exc:  # noqa: BLE001 — any core failure becomes a status
+                outcome, bin_error = "PROCESSING_ERROR", True
+                self._log_error(f"terrain map processing failed: {type(exc).__name__}: {exc}")
+        bin_ms = (self._clock() - bin_started) * 1000.0
+        wait_started = self._clock()
+        with self._lock:
+            held_started = self._clock()
+            if epoch != self.epoch:
+                outcome = "epoch_changed"           # the epoch moved meanwhile: nothing reaches the new one
+            elif bin_error:
+                self._error_at = now
+            if outcome == "processed":
+                for key in self.map.fuse_cells(*cells, frame.stamp_s, frame.rx_s):
                     self._changed[key] = self.map.version_of(*key)
                 for key in self.map.evict_if_needed():
                     self._changed.pop(key, None)
@@ -368,12 +421,25 @@ class MapRuntime:
                 if outcome == "NOT_SUPPORT":
                     self._epoch.not_support += 1
             if self._record is not None:
-                self._record({"k": "result", "seg": frame.seg, "t": frame.stamp_s, "d": frame.digest, "seq": frame.copy,
-                              "epoch": epoch, "r": outcome, "cam": camera_digest(camera),
-                              # whole frame on this machine — detection, correction, fusion, lock waits
-                              "total_ms": round((self._clock() - started) * 1000.0, 2),
-                              "detect_ms": round(elapsed * 1000.0, 2),
-                              **self._tilt_record(outcome)})
+                rec_max, self._rec_max_ms = self._rec_max_ms, 0.0
+                hold_prev = None if self._hold_prev_ms is None else round(self._hold_prev_ms, 2)
+                try:
+                    self._record({"k": "result", "seg": frame.seg, "t": frame.stamp_s, "d": frame.digest, "seq": frame.copy,
+                                  "epoch": epoch, "r": outcome, "cam": camera_digest(camera),
+                                  # whole frame on this machine — detection, correction, fusion, lock waits
+                                  "total_ms": round((self._clock() - started) * 1000.0, 2),
+                                  "detect_ms": round(elapsed * 1000.0, 2),
+                                  # r14: world-cell binning (no lock), waiting for and holding the fusion lock
+                                  "bin_ms": round(bin_ms, 2), "lock_wait_ms": round((held_started - wait_started) * 1000.0, 2),
+                                  "fuse_ms": round((self._clock() - held_started) * 1000.0, 2),
+                                  # worst decisions-log write since the previous result line (this line's own
+                                  # write is in the next one's)
+                                  "rec_ms_max": round(rec_max, 2),
+                                  # the previous frame's whole fusion-lock hold, its own result line included
+                                  "hold_ms_prev": hold_prev,
+                                  **self._tilt_record(outcome)})
+                finally:
+                    self._hold_prev_ms = (self._clock() - held_started) * 1000.0
             elif self._following:
                 self.followed_results.append((frame.ident, (outcome, camera_digest(camera))))
 

@@ -12,8 +12,8 @@ import numpy as np
 
 from . import contract as C
 from .config import MapConfig
-from .geometry import Pose2D, transform_points
-from .scan import LocalScan, severity
+from .geometry import Pose2D
+from .scan import LocalScan, world_cells
 
 _CODES = np.array([C.FREE, C.OBSTACLE, C.DITCH], np.uint8)
 _MAX_OBS = np.iinfo(np.uint16).max
@@ -74,20 +74,17 @@ class ClassMap:
         ``stamp_s`` (sensor clock) orders and expires votes; ``seen_s`` is when the frame was
         received on the clock ``encode_tile`` is later given, for the age bits (Codex T6 P2-2).
         """
+        # One vote per world cell: the frame's points binned with the final pose (r14), or for a
+        # cell-only scan the r13 centre mapping with the more severe of two local cells.
+        return self.fuse_cells(*world_cells(scan, pose, self.cfg), stamp_s, seen_s)
+
+    def fuse_cells(self, gx, gy, h, code, stamp_s: float, seen_s: float | None = None) -> set[tuple[int, int]]:
+        """Vote precomputed world cells (``scan.world_cells`` output, one per cell) into the map."""
         seen_s = stamp_s if seen_s is None else seen_s
-        if len(scan.h_m) == 0:
+        if len(gx) == 0:
             return set()
         self._fusions += 1
-        cell, n = self.cfg.cell_m, self.cfg.tile_cells
-        centres = np.stack([(scan.ix + 0.5) * cell, (scan.iy + 0.5) * cell], axis=1)
-        world = np.floor(transform_points(pose, centres) / cell).astype(np.int64)
-        gx, gy = world[:, 0], world[:, 1]
-        h = scan.h_m.astype(np.float64)
-        # Two local cells in one world cell: keep the more severe one, code and height together.
-        key = (gx + (1 << 30)) * (1 << 31) + (gy + (1 << 30))
-        order = np.lexsort((-severity(h, self.cfg), key))
-        first = order[np.r_[True, key[order][1:] != key[order][:-1]]]
-        gx, gy, h, code = gx[first], gy[first], h[first], scan.code[first]
+        n = self.cfg.tile_cells
 
         tx, ty = gx // n, gy // n
         changed = set()

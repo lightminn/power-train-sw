@@ -464,3 +464,151 @@ def test_processing_summary_counts_the_wheel_consensus():
     rt = runtime(Clock())
     rt.odometry.slip_excluded, rt.odometry.slip_guessed = 3, 2
     assert "slip excluded 3, guessed 2" in rt.processing_summary()
+
+
+# --- world-cell aggregation (r14) -------------------------------------------------------
+def test_the_decisions_log_names_the_map_algorithm():
+    from terrain_map import runtime as RT
+    records = []
+    runtime(Clock(), decisions=records.append)
+    assert records[0]["map_algorithm"] == RT.MAP_ALGORITHM == "r14-world-points"
+    assert load_decisions(json.loads(json.dumps(r)) for r in records).algorithm == RT.MAP_ALGORITHM
+    old = dict(records[0]); del old["map_algorithm"]                     # an r13 log carries no algorithm
+    assert load_decisions([old]).algorithm is None
+
+
+def test_world_binning_runs_outside_the_lock_and_its_times_are_recorded(monkeypatch):
+    from terrain_map import runtime as RT
+    events, depth = scenario()
+    records, calls = [], []
+    clock = Clock()
+    rt = runtime(clock, decisions=records.append)
+    real = RT.world_cells
+
+    def checked(scan, pose, cfg):
+        calls.append(rt._lock._is_owned())
+        return real(scan, pose, cfg)
+    monkeypatch.setattr(RT, "world_cells", checked)
+    rt.on_camera_info(CAM)
+    drive(rt, clock, events, depth)
+    assert calls and not any(calls)
+    done = [r for r in records if r.get("k") == "result" and r["r"] == "processed"]
+    assert len(done) == len(calls) and rt.map.tiles()
+    assert all(r["bin_ms"] >= 0 and r["lock_wait_ms"] >= 0 and r["fuse_ms"] >= 0 for r in done)
+
+
+def test_an_epoch_change_while_binning_keeps_the_frame_out_of_the_new_map(monkeypatch):
+    from terrain_map import runtime as RT
+    events, depth = scenario()
+    records = []
+    clock = Clock()
+    rt = runtime(clock, decisions=records.append)
+    real = RT.world_cells
+    hit = []
+
+    def epoch_meanwhile(scan, pose, cfg):
+        cells = real(scan, pose, cfg)
+        if not hit:                                     # an input callback moves the epoch mid-frame
+            with rt._lock:
+                rt.odometry._new_epoch("keep_gyro", "slip")
+                rt._sync_epoch()
+            hit.append(rt.epoch)
+        return cells
+    monkeypatch.setattr(RT, "world_cells", epoch_meanwhile)
+    rt.on_camera_info(CAM)
+    drive(rt, clock, events, depth, until=START + 2.0)
+    first = next(r for r in records if r.get("k") == "result" and r["r"] != "GROUND_NOT_FOUND")
+    assert hit and first["r"] == "epoch_changed" and first["epoch"] == hit[0] - 1
+
+
+def test_a_binning_error_after_an_epoch_change_does_not_flag_the_new_epoch(monkeypatch):
+    """r14 Codex round 2: the old epoch's failure must not show as the new epoch's SENSOR_ERROR."""
+    from terrain_map import runtime as RT
+    events, depth = scenario()
+    records = []
+    clock = Clock()
+    rt = runtime(clock, decisions=records.append)
+    real = RT.world_cells
+    hit = []
+
+    def fail_after_epoch(scan, pose, cfg):
+        if not hit:                                     # the epoch moves, then binning fails
+            with rt._lock:
+                rt.odometry._new_epoch("keep_gyro", "slip")
+                rt._sync_epoch()
+            hit.append(rt.epoch)
+            raise MemoryError("injected")
+        return real(scan, pose, cfg)
+    monkeypatch.setattr(RT, "world_cells", fail_after_epoch)
+    rt.on_camera_info(CAM)
+    drive(rt, clock, events, depth, until=START + 2.0)
+    first = next(r for r in records if r.get("k") == "result" and r["r"] != "GROUND_NOT_FOUND")
+    assert hit and first["r"] == "epoch_changed" and first["epoch"] == hit[0] - 1
+    assert rt._error_at is None
+
+
+def test_a_slow_decisions_log_shows_in_the_next_result_line():
+    """r14 Codex rounds 2–4: log writes stay where they arise but are timed, so a slow disk fails the gate."""
+    events, depth = scenario()
+    lines = []
+    clock = Clock()
+
+    def slow_log(entry):
+        if entry.get("k") == "result":
+            clock.now += 0.2                                  # a slow disk: 200 ms per result line
+        lines.append(entry)
+    rt = runtime(clock, decisions=slow_log)
+    rt.on_camera_info(CAM)
+    drive(rt, clock, events, depth)
+    results = [r for r in lines if r.get("k") == "result"]
+    assert len(results) >= 3
+    assert results[0]["rec_ms_max"] < 200.0                  # nothing slow before the first result line
+    assert all(r["rec_ms_max"] >= 200.0 for r in results[1:]) # each carries the previous line's write
+    assert results[0]["hold_ms_prev"] is None
+    assert all(r["hold_ms_prev"] >= 200.0 for r in results[1:])   # the whole hold includes the write
+
+
+def test_the_closing_line_carries_the_last_frame_and_writes_after_it():
+    """r14 Codex round 5: the last result line's write and later input writes must not go unmeasured."""
+    events, depth = scenario()
+    lines = []
+    clock = Clock()
+    slow = {"result": 0.2}
+
+    def log(entry):
+        clock.now += slow.get(entry.get("k"), 0.0)
+        lines.append(entry)
+    rt = runtime(clock, decisions=log)
+    rt.on_camera_info(CAM)
+    drive(rt, clock, events, depth)
+    slow["result"], slow["rx"] = 0.0, 0.07
+    rt.on_gyro(START + 9.0, START + 9.0, (0.0, 0.0, 0.0), 99)  # an input write after the last result
+    rt.close_log()
+    end = lines[-1]
+    assert any(r.get("k") == "result" for r in lines)
+    assert end["k"] == "timing_end" and end["hold_ms_prev"] >= 200.0 and end["rec_ms_max"] >= 70.0
+
+
+def test_fusion_and_its_result_write_add_up_in_the_hold(monkeypatch):
+    """r14 Codex round 5: 40 ms fusion + 40 ms result write is an 80 ms hold, not max(40, 40)."""
+    events, depth = scenario()
+    lines = []
+    clock = Clock()
+
+    def log(entry):
+        if entry.get("k") == "result":
+            clock.now += 0.04
+        lines.append(entry)
+    rt = runtime(clock, decisions=log)
+    fuse = rt.map.fuse_cells
+
+    def slow_fuse(*args, **kwargs):
+        clock.now += 0.04
+        return fuse(*args, **kwargs)
+    rt.map.fuse_cells = slow_fuse
+    rt.on_camera_info(CAM)
+    drive(rt, clock, events, depth)
+    rt.close_log()
+    processed = [r for r in lines if r.get("k") == "result" and r["r"] == "processed"]
+    holds = [r["hold_ms_prev"] for r in lines if r.get("k") in ("result", "timing_end") and r.get("hold_ms_prev") is not None]
+    assert processed and max(holds) >= 80.0 and all(r["fuse_ms"] < 80.0 for r in processed)

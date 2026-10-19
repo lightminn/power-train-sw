@@ -21,6 +21,7 @@ _RANGES: dict[str, tuple[float, float]] = {
     "max_abs_height_m": (0.3, 1.2),
     "min_points_per_cell": (3, 50),
     "cell_trim_fraction": (0.0, 0.4),
+    "cell_trim_max_points": (0, 10),
     "obstacle_height_m": (0.02, 0.5),
     "ditch_depth_m": (0.02, 0.5),
     "history_length": (1, 3),
@@ -89,7 +90,7 @@ _INTEGERS = {
     "tile_cells", "pixel_stride", "ground_min_points", "min_points_per_cell", "history_length",
     "support_min_points", "min_observations", "max_tiles_per_tick", "refresh_tiles_per_tick",
     "max_map_tiles", "depth_pending_max", "min_valid_wheels", "match_min_features", "match_min_overlap",
-    "max_slip_wheels",
+    "max_slip_wheels", "cell_trim_max_points",
 }
 
 
@@ -104,6 +105,7 @@ class MapConfig:
     max_abs_height_m: float = 1.0
     min_points_per_cell: int = 5
     cell_trim_fraction: float = 0.1
+    cell_trim_max_points: int = 0           # r14: cap on the per-side trim count (0 = no cap)
     obstacle_height_m: float = 0.08
     ditch_depth_m: float = 0.08
     history_length: int = 3

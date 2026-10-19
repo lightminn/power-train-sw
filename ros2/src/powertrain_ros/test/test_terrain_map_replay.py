@@ -84,6 +84,7 @@ def live(received, decisions, session=SESSION, cfg=CFG):
         clock.now = now
         rt.process_tick()
         now += 0.1
+    rt.close_log()
     return rt
 
 
@@ -376,6 +377,26 @@ def test_a_log_without_config_or_geometry_is_refused(tmp_path, capsys):
     out = tmp_path / "old.npz"
     code = RP.main([str(tmp_path / "bag"), "--decisions-from", str(tmp_path / "old.jsonl"), "--out", str(out)])
     assert code == 2 and "configuration" in capsys.readouterr().err and not out.exists()
+
+
+def test_an_r13_log_is_refused_for_strict_reproduction_but_replays_without_it(tmp_path, capsys):
+    """r14 Codex P2-2: a log recorded before world-cell aggregation cannot reproduce the live map."""
+    events, _ = F.scenario(F.drive_then(Command("skid", v=0.3, omega=0.1)), 3.0)
+    received = receipt(events)
+    records = []
+    live(received, records.append)
+    for r in records:
+        if r.get("k") == "session":
+            assert r.pop("map_algorithm") == "r14-world-points"
+    write_bag(tmp_path / "bag", received)
+    write_log(tmp_path / "r13.jsonl", records)
+    out = tmp_path / "r13.npz"
+    code = RP.main([str(tmp_path / "bag"), "--decisions-from", str(tmp_path / "r13.jsonl"), "--out", str(out)])
+    err = capsys.readouterr().err
+    assert code == 2 and "r13 (unlabelled)" in err and "r14-world-points" in err and not out.exists()
+    assert RP.main([str(tmp_path / "bag"), "--out", str(out)]) == 0          # re-evaluation still works
+    summary = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert summary["map_algorithm"] == "r14-world-points" and out.exists()
 
 
 # --- ground-plane tilt (r11): the accelerometer never shapes the map replay ------------------
