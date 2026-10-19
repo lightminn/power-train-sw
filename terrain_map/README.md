@@ -102,7 +102,7 @@ Gateway depth·CameraInfo·gyro + chassis /wheel_states
 | `bias_alpha` | 0.2 | 0.01–1 | 두 번째 정지 구간부터의 갱신 가중(`b ← b + α(평균 − b)`). 첫 구간은 그 평균을 그대로 쓴다 |
 | `stamp_regression_epoch_s` | 1.0 | 0.1–10 | stamp가 이보다 크게 역행하면(시계 점프·bag 반복) 새 epoch |
 | `camera_x_m`·`camera_y_m`·`camera_z_m` | 0.348·0.0·0.029 | — | base_link 기준 depth 광학 원점(보관 CAD). 실차 측정으로 교체 |
-| `camera_pitch_down_deg`·`camera_roll_deg`·`camera_yaw_deg` | 20·0·0 | 0–35·±20·±30 | 장착 회전. pitch 상한 35°는 판정기 평면 기울기 상한 40°(`MAX_TILT_DEG`)에 여유를 둔 값. 같은 세 값으로 IMU 축도 변환한다(§4.4) |
+| `camera_pitch_down_deg`·`camera_roll_deg`·`camera_yaw_deg` | 15·0·0 (URDF 실차 장착) | 0–35·±20·±30 | 장착 회전. pitch 상한 35°는 판정기 평면 기울기 상한 40°(`MAX_TILT_DEG`)에 여유를 둔 값. 같은 세 값으로 IMU 축도 변환한다(§4.4) |
 | `corrector` | `"identity"` | `identity`·`height_match` | §4.7 |
 | `match_*` | §4.7 | — | B 상수 |
 | 콘솔: `display_upsample`·`hillshade_azimuth_deg`·`hillshade_altitude_deg`·`hillshade_exaggeration`·`stale_display_s`·`max_render_pixels` | 4·315·40·6·30·2,000,000 | 1–8·0–360·5–85·1–20·5–60·— | §4.10. 판정에 쓰지 않는다 |

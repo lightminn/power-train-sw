@@ -60,7 +60,7 @@ python3 /workspace/ros2/src/powertrain_ros/test/terrain_map_isolation_gate.py co
 
 | # | 할 일 | 기록할 값 | 합격·판단 |
 |---|---|---|---|
-| 3-1 | L515 depth 원점 위치(base_link 기준 x·y·z)와 하향각·롤·요를 줄자·수평계로 측정 | `camera_x_m`·`camera_y_m`·`camera_z_m`·`camera_pitch_down_deg`·`camera_roll_deg`·`camera_yaw_deg` | CAD 기본(0.348, 0, 0.029, 20°)과 차이 기록 → 노드 파라미터로 교체 |
+| 3-1 | L515 depth 원점 위치(base_link 기준 x·y·z)와 하향각·롤·요를 줄자·수평계로 측정 | `camera_x_m`·`camera_y_m`·`camera_z_m`·`camera_pitch_down_deg`·`camera_roll_deg`·`camera_yaw_deg` | 기본(위치 CAD 0.348, 0, 0.029 · 피치 URDF 15°)과 차이 기록 → 노드 파라미터로 교체. 지도 파라미터는 **지면 위 원점(CAD 방식) 기준**으로 넣는다(높이 검사 범위 0.05–0.80 m의 전제). URDF는 지면 원점이라 z는 그 차만큼 옮긴다. URDF·`imu_tilt` 장착값도 같은 실측으로 갱신 |
 | 3-2 | 평지 정지 30 s 녹화 → 아래 ①로 기준 높이 H(측정 전용 출력) | base_link 높이(줄자) vs H(`n·o+d` 중앙값) | 둘 차이 기록, H가 `support_base_height_m` 값 |
 | 3-3 | 험지 위 정지 자세 3–5곳을 각각 녹화(또는 한 녹화에서 `--window`로 구간 지정) → ②로 **모든 자세를 H 기준으로 합쳐** 판정 | 합친 `support_base_variation_m`(모든 표본의 H 대비 최대 편차, 잘라내지 않음) | ②의 `can enable: True`일 때만 켬. `--reference-height` 없는 실행은 "measurement only"라 승인으로 쓰지 않는다 |
 

@@ -39,7 +39,7 @@ class Event(NamedTuple):
     message: object
 
 
-def optical_axes_in_base(pitch_down_deg=20.0, roll_deg=0.0, yaw_deg=0.0) -> np.ndarray:
+def optical_axes_in_base(pitch_down_deg=15.0, roll_deg=0.0, yaw_deg=0.0) -> np.ndarray:
     """Rows: optical x (right), y (down), z (forward) in base coordinates."""
     m = rot_z(math.radians(yaw_deg)) @ rot_y(math.radians(pitch_down_deg)) @ rot_x(math.radians(roll_deg))
     return np.stack([m @ np.array([0.0, -1.0, 0.0]), m @ np.array([0.0, 0.0, -1.0]), m @ np.array([1.0, 0.0, 0.0])])
@@ -70,14 +70,14 @@ def depth_message(array, stamp_s):
     return set_stamp(message, stamp_s)
 
 
-def gyro_message(stamp_s, wz_body, mount=(20.0, 0.0, 0.0)):
+def gyro_message(stamp_s, wz_body, mount=(15.0, 0.0, 0.0)):
     w = optical_axes_in_base(*mount) @ np.array([0.0, 0.0, wz_body])
     message = Imu()
     message.angular_velocity.x, message.angular_velocity.y, message.angular_velocity.z = (float(v) for v in w)
     return set_stamp(message, stamp_s)
 
 
-def accel_message(stamp_s, up_body=(0.0, 0.0, 1.0), mount=(20.0, 0.0, 0.0)):
+def accel_message(stamp_s, up_body=(0.0, 0.0, 1.0), mount=(15.0, 0.0, 0.0)):
     """Specific force at rest: +g along 'up', expressed in the optical frame (independent axes)."""
     up = np.asarray(up_body, float) / np.linalg.norm(up_body)
     a = optical_axes_in_base(*mount) @ (G * up)
@@ -105,7 +105,7 @@ def drive_then(motion, stop_s=1.5):
     return lambda t: Command("stop") if t < stop_s else motion
 
 
-def scenario(schedule, duration_s, *, surface=BOX, mount=(20.0, 0.0, 0.0), depth_from_s=1.6,
+def scenario(schedule, duration_s, *, surface=BOX, mount=(15.0, 0.0, 0.0), depth_from_s=1.6,
              stale_wheels_after_s=None, gyro_rate=None, accel_up=None) -> tuple[list[Event], object]:
     """All messages in stamp order, plus truth(stamp) -> (x, y, yaw)."""
     events, truth = simulate(schedule, duration_s, start_s=START, gyro_rate=gyro_rate)

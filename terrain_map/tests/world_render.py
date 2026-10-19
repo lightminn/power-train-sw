@@ -53,7 +53,7 @@ class BasePose:
 class Mount:
     """Depth optical origin in base_link and its mounting angles."""
     t: tuple[float, float, float] = (0.348, 0.0, 0.029)
-    pitch_down_deg: float = 20.0
+    pitch_down_deg: float = 15.0
     roll_deg: float = 0.0
     yaw_deg: float = 0.0
 

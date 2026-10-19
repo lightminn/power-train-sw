@@ -154,7 +154,7 @@ class MapConfig:
     camera_x_m: float = 0.348
     camera_y_m: float = 0.0
     camera_z_m: float = 0.029
-    camera_pitch_down_deg: float = 20.0
+    camera_pitch_down_deg: float = 15.0      # L515 mount per the URDF (2026-10-19 user: as built, cannot change)
     camera_roll_deg: float = 0.0
     camera_yaw_deg: float = 0.0
     corrector: str = "identity"

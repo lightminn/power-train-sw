@@ -168,11 +168,22 @@ def test_wide_ditch_seen_from_the_rim_is_ditch():
 def test_floor_below_a_plateau_edge_is_a_drop():
     base = BasePose(z=0.471 + 0.20)                              # rover standing on a 20 cm plateau
     fx = foot_x(base)
-    surface = with_box(flat(), -5.0, fx + 1.2, -5.0, 5.0, 0.20)  # plateau ends 1.2 m ahead of the camera foot
-    *_, scan = run(surface, base=base)
-    beyond = cells_at(scan, fx + 1.5, fx + 2.2, -0.3, 0.3)
+    # At the 15° mount the plateau must end 1.6 m ahead of the camera foot for its top to stay the
+    # fitted floor (r14: 1.2 m at the old 20° default).
+    surface = with_box(flat(), -5.0, fx + 1.6, -5.0, 5.0, 0.20)
+    *_, support, scan = run(surface, base=base)
+    beyond = cells_at(scan, fx + 1.9, fx + 2.6, -0.3, 0.3)
     near = cells_at(scan, fx + 0.4, fx + 0.9, -0.3, 0.3)
+    assert support.ok and beyond.sum() >= 5
     assert np.all(scan.code[beyond] == S.DITCH) and np.all(scan.code[near] == S.FREE)
+
+
+def test_a_nearer_plateau_edge_lets_the_lower_floor_win_and_the_frame_is_refused():
+    """1.2 m ahead at 15°: the detector fits the floor below the edge; the support check drops the frame."""
+    base = BasePose(z=0.471 + 0.20)
+    fx = foot_x(base)
+    *_, support, _ = run(with_box(flat(), -5.0, fx + 1.2, -5.0, 5.0, 0.20), base=base)
+    assert not support.ok and support.reason == "near_band"
 
 
 def test_cell_value_ignores_a_single_outlier_and_prefers_the_severe_side():
