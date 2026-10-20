@@ -10,13 +10,15 @@ def load_criteria(path, profile=None):
     raw = open(path, "rb").read()
     crit = json.loads(raw.decode("utf-8"))
     profiles = crit.get("profiles") or {}
-    name = profile or crit.get("default_profile")
+    default = crit.get("default_profile")
+    if profiles:   # 파일 자체의 무결성은 어떤 프로필을 고르든 먼저 확인한다(Codex 13차 #1: --profile로 검사를 건너뛰던 결함)
+        if default not in profiles:
+            raise SystemExit(f"{path}: 기본 프로필 {default!r}이 profiles에 없음")
+        if crit.get("rules") not in (None, profiles[default]["rules"]):
+            raise SystemExit(f"{path}: 최상위 rules가 기본 프로필 {default}과 다름 — 생성기로 다시 만들 것")
     if profile and profile not in profiles:
         raise SystemExit(f"{path}: 프로필 {profile!r} 없음 — 있는 것 {sorted(profiles) or '(없음, v0.1 형식)'}")
-    if profiles and name not in profiles:
-        raise SystemExit(f"{path}: 기본 프로필 {name!r}이 profiles에 없음")
-    if profiles and profile is None and crit.get("rules") not in (None, profiles[name]["rules"]):
-        raise SystemExit(f"{path}: 최상위 rules가 기본 프로필 {name}과 다름 — 생성기로 다시 만들 것")
+    name = profile or default
     if name in profiles:
         crit = copy.deepcopy(crit)
         crit["rules"] = crit["profiles"][name]["rules"]

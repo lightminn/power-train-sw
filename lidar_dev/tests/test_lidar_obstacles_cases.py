@@ -280,3 +280,14 @@ def test_loader_rejects_inconsistent_default(tmp_path):
     p.write_text(json.dumps(bad2), encoding="utf-8")
     with pytest.raises(SystemExit):
         load_criteria(str(p))
+
+
+def test_loader_checks_file_even_with_explicit_profile(tmp_path):
+    """--profile을 명시해도 파일 무결성(기본 프로필 존재·최상위 rules 일치)을 먼저 검사한다(Codex 13차 #1)."""
+    d = json.load(open(V2, encoding="utf-8"))
+    p = tmp_path / "bad.json"
+    for bad in (dict(d, default_profile="B_stop20"), dict(d, default_profile="C"), dict(d, rules=d["profiles"]["B_stop20"]["rules"])):
+        p.write_text(json.dumps(bad), encoding="utf-8")
+        for prof in ("A_no_stop", "B_stop20"):
+            with pytest.raises(SystemExit):
+                load_criteria(str(p), prof)
