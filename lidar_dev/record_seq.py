@@ -11,7 +11,7 @@ import pyrealsense2 as rs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from seq_format import (FORMAT, FORMAT_VERSION, SeqWriter, extrinsics_dict, write_json_atomic)
 
-TOOL_VERSION = "record_seq 1.0"
+TOOL_VERSION = "record_seq 1.1"   # 1.1(10-20): --align-to-color(컬러 정렬 깊이)·--color-png
 GATEWAY_LOCK = "/run/powertrain/l515-gateway.lock"
 WARMUP = 30  # 자동 노출 안정화용으로 버리는 frameset 수
 
@@ -91,8 +91,9 @@ def parse_res(s):
 class Capture:
     """pipeline 콜백 하나로 영상 frameset과 IMU를 받는다(레포 Gateway와 같은 방식)."""
 
-    def __init__(self, writer, every, want):
+    def __init__(self, writer, every, want, aligner=None):
         self.writer, self.every, self.want = writer, every, want
+        self.aligner = aligner   # rs.align(rs.stream.color) — 저장하는 frameset만 정렬(CPU 절약)
         self.lock = threading.Lock()
         self.capture_idx = 0
         self.skipped_warmup = self.skipped_every = self.incomplete = 0
@@ -107,10 +108,8 @@ class Capture:
     def on_frame(self, f):
         try:
             host_mono, host_wall = time.monotonic(), time.time()
-            if f.is_frameset():
-                frames = list(f.as_frameset())
-            else:
-                frames = [f]
+            fs = f.as_frameset() if f.is_frameset() else None
+            frames = list(fs) if fs is not None else [f]
             video = {}
             for fr in frames:
                 st = fr.get_profile().stream_type()
@@ -123,7 +122,7 @@ class Capture:
                 elif st == rs.stream.color:
                     video["color"] = fr
             if video and not self.stopping:
-                self._video(video, host_mono, host_wall)
+                self._video(video, host_mono, host_wall, fs)
         except Exception as e:  # 콜백 예외는 SDK가 삼키므로 직접 남긴다
             self.error = self.error or f"콜백 예외: {e!r}"
 
@@ -138,7 +137,7 @@ class Capture:
             if self.imu_first is None:
                 self.imu_first = datetime.now().isoformat(timespec="milliseconds")
 
-    def _video(self, video, host_mono, host_wall):
+    def _video(self, video, host_mono, host_wall, fs=None):
         self.last_video_mono = host_mono
         row = {"host_mono_s": f"{host_mono:.6f}", "host_wall": datetime.fromtimestamp(host_wall).isoformat(timespec="milliseconds")}
         for k, fr in video.items():  # 스트림별 번호 추적은 완전성 검사보다 먼저(받은 스트림의 틈을 잘못 세지 않게)
@@ -167,6 +166,9 @@ class Capture:
             self.writer.log_capture(ci, "every", row)
             return
         images = {k: np.ascontiguousarray(np.asanyarray(fr.get_data())).copy() for k, fr in video.items()}
+        if self.aligner is not None and fs is not None:
+            al = self.aligner.process(fs).get_depth_frame()
+            images["depth_aligned"] = np.ascontiguousarray(np.asanyarray(al.get_data())).copy()
         self.latest_depth = images["depth"]
         self.writer.submit(ci, images, row)
 
@@ -182,6 +184,8 @@ def main():
     ap.add_argument("--depth-res", default="640x480", help="640x480(기존 스크립트 호환) | 1024x768 | 320x240")
     ap.add_argument("--color-res", default="1280x720")
     ap.add_argument("--no-color", action="store_true")
+    ap.add_argument("--align-to-color", action="store_true", help="컬러에 정렬한 깊이도 저장(depth_aligned/, 컬러 해상도, rs.align)")
+    ap.add_argument("--color-png", action="store_true", help="컬러를 무손실 PNG로(기본 JPEG 95)")
     ap.add_argument("--no-ir", action="store_true")
     ap.add_argument("--no-imu", action="store_true")
     ap.add_argument("--serial", default="", help="장치 시리얼(여러 대일 때 필수)")
@@ -193,6 +197,8 @@ def main():
     a = ap.parse_args()
     if a.every < 1 or a.workers < 1 or a.queue < 1 or a.seconds < 0 or a.frames < 0 or a.start_timeout <= 0 or a.stall_timeout <= 0:
         ap.error("--every·--workers·--queue는 1 이상, --seconds·--frames는 0 이상, 시간 제한은 양수여야 한다")
+    if a.no_color and (a.align_to_color or a.color_png):
+        ap.error("--align-to-color·--color-png는 컬러 스트림이 필요하다(--no-color와 같이 못 씀)")
 
     ok, why, lock_fd = gateway_guard(a.maintenance)
     print("guard:", why)
@@ -236,8 +242,9 @@ def main():
         name = datetime.now().strftime("%Y%m%d_%H%M%S") + (f"_{a.label}" if a.label else "")
         folder = os.path.join(os.path.expanduser(a.out), name)
         os.makedirs(folder, exist_ok=False)
-        writer = SeqWriter(folder, want, workers=a.workers, queue_size=a.queue)
-        cap = Capture(writer, a.every, want)
+        writer = SeqWriter(folder, want + (["depth_aligned"] if a.align_to_color else []), workers=a.workers, queue_size=a.queue,
+                           exts={"color": ".png"} if a.color_png else None)
+        cap = Capture(writer, a.every, want, rs.align(rs.stream.color) if a.align_to_color else None)
         pipe = rs.pipeline()
         imu_reason = "요청 안 함(--no-imu)" if a.no_imu else ""
         try:
@@ -265,6 +272,9 @@ def main():
             if key != "depth":
                 e = d_prof.get_extrinsics_to(p_)
                 ext[f"depth_to_{key}"] = extrinsics_dict(e.rotation, e.translation)
+        if a.align_to_color and streams.get("color"):
+            streams["depth_aligned"] = {**streams["color"], "aligned_to": "color", "method": "pyrealsense2 rs.align(rs.stream.color)",
+                                        "intrinsics": "color_intrinsics", "timestamps": "depth_*"}
         depth_sensor = dev.first_depth_sensor()
         meta = {
             "format": FORMAT, "format_version": FORMAT_VERSION, "tool_version": TOOL_VERSION,
@@ -280,6 +290,7 @@ def main():
             "color_intrinsics": intr_dict(prof.get_stream(rs.stream.color)) if streams.get("color") else None,
             "infrared_intrinsics": intr_dict(prof.get_stream(rs.stream.infrared, 0)) if streams.get("ir") else None,
             "extrinsics": ext,
+            "file_ext": {"color": ".png"} if a.color_png else {},
             "frames_convention": "optical: x 오른쪽, y 아래, z 앞, m. extrinsics: p_to = R·p_from + t (R_row_major 행 우선; R_sdk_col_major는 SDK 원본 열 우선)",
             "compat": {"terrain_family": (dw, dh) == (640, 480),
                        "reason": "terrain.py·overlay.py·scan_terrain.py는 (480, 640) 가정" if (dw, dh) != (640, 480) else ""},

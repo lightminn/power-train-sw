@@ -12,9 +12,10 @@ L515_DEPTH_SCALE = 0.00025  # 0.25 mm
 STREAMS = {
     "depth": ("depth", ".png", np.uint16, 1),
     "ir": ("infrared", ".png", np.uint8, 1),
-    "color": ("color", ".jpg", np.uint8, 3),
+    "color": ("color", ".jpg", np.uint8, 3),            # --color-png면 .png(무손실), meta file_ext에 적음
+    "depth_aligned": ("depth_aligned", ".png", np.uint16, 1),   # 컬러에 정렬한 깊이(--align-to-color, 컬러 해상도·color_intrinsics)
 }
-STREAM_TS = ("depth", "ir", "color")
+STREAM_TS = ("depth", "ir", "color")   # depth_aligned는 depth 시각을 따른다(자기 시각 열 없음)
 FRAME_COLS = ["save_idx", "capture_idx", "host_mono_s", "host_wall"] + [
     f"{s}_{k}" for s in STREAM_TS for k in ("ts_ms", "ts_domain", "fn")]
 CAPTURE_COLS = ["capture_idx", "status", "host_mono_s"] + [f"{s}_fn" for s in STREAM_TS]
@@ -48,8 +49,9 @@ class SeqWriter:
     save_idx는 큐에 넣을 때 연속 발급, frames.csv는 close()에서 저장 성공분만 save_idx 순으로 쓴다.
     쓰기 실패는 error에 남기고 이후 submit()을 거부한다(호출 측이 기록을 멈춘다)."""
 
-    def __init__(self, folder, streams, workers=4, queue_size=60, jpeg_quality=95, png_level=1):
+    def __init__(self, folder, streams, workers=4, queue_size=60, jpeg_quality=95, png_level=1, exts=None):
         self.folder, self.streams = folder, list(streams)
+        self.exts = {s: (exts or {}).get(s, STREAMS[s][1]) for s in self.streams}
         for s in self.streams:
             os.makedirs(os.path.join(folder, STREAMS[s][0]), exist_ok=True)
         self.params = {".png": [cv2.IMWRITE_PNG_COMPRESSION, png_level], ".jpg": [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality]}
@@ -113,7 +115,7 @@ class SeqWriter:
             idx, images, row = item
             try:
                 for s, arr in images.items():
-                    sub, ext = STREAMS[s][0], STREAMS[s][1]
+                    sub, ext = STREAMS[s][0], self.exts[s]
                     path = os.path.join(self.folder, sub, f"{idx:06d}{ext}")
                     tmp = os.path.join(self.folder, sub, f".{idx:06d}.tmp{ext}")
                     if not cv2.imwrite(tmp, arr, self.params[ext]):
@@ -239,8 +241,13 @@ def check_sequence(folder, sample=5):
     ci = meta.get("color_intrinsics")
     if ci:
         shape["color"] = (int(ci["height"]), int(ci["width"]), 3)
+        shape["depth_aligned"] = (int(ci["height"]), int(ci["width"]))
+    elif "depth_aligned" in streams:
+        E.append("depth_aligned가 있는데 color_intrinsics 없음(정렬 기준을 모름)")
+    exts = meta.get("file_ext") or {}
     for s_ in streams:
-        sub, ext, dt, ch = STREAMS[s_]
+        sub, _, dt, ch = STREAMS[s_]
+        ext = exts.get(s_, STREAMS[s_][1])
         files = sorted(os.path.basename(p_) for p_ in glob.glob(os.path.join(folder, sub, "*" + ext))
                        if not os.path.basename(p_).startswith("."))
         if files != [f"{i:06d}{ext}" for i in range(n)]:
@@ -260,8 +267,8 @@ def check_sequence(folder, sample=5):
                 E.append(f"{sub}/{i:06d}{ext} dtype {a.dtype} ≠ {np.dtype(dt)}")
             if s_ in shape and a.shape != tuple(shape[s_]):
                 E.append(f"{sub}/{i:06d}{ext} 크기 {a.shape} ≠ meta {tuple(shape[s_])}")
-    # 시각·번호: 모든 행에 있어야 하고 유한해야 한다
-    for s_ in streams:
+    # 시각·번호: 모든 행에 있어야 하고 유한해야 한다(depth_aligned는 depth 시각을 따른다)
+    for s_ in [x for x in streams if x in STREAM_TS]:
         ts = [_num(r.get(f"{s_}_ts_ms")) for r in rows]
         fn = [_num(r.get(f"{s_}_fn")) for r in rows]
         if any(v is None for v in ts) or any(v is None for v in fn):

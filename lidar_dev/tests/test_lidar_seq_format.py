@@ -24,15 +24,15 @@ def floor_depth(h=0.45, pitch_deg=20.0, k=K, scale=sf.L515_DEPTH_SCALE):
     return np.round(z / scale).astype(np.uint16)
 
 
-def make_seq(folder, n=10, streams=("depth", "ir", "color"), depth=None):
+def make_seq(folder, n=10, streams=("depth", "ir", "color"), depth=None, exts=None):
     meta = {"format": sf.FORMAT, "format_version": sf.FORMAT_VERSION, "depth_scale_m": sf.L515_DEPTH_SCALE,
             "depth_intrinsics": K, "color_intrinsics": CK if "color" in streams else None,
             "streams": {s: ({"w": 1} if s in streams else None) for s in sf.STREAMS},
             "device": {"product_line": "L500"}, "imu": {"available": False},
-            "stats": {"saved": n, "error": None, "write_errors": 0}}
+            "stats": {"saved": n, "error": None, "write_errors": 0}, "file_ext": exts or {}}
     os.makedirs(folder, exist_ok=True)
     sf.write_json_atomic(os.path.join(folder, "meta.json"), meta)
-    w = sf.SeqWriter(folder, streams, workers=3, queue_size=n + 2)
+    w = sf.SeqWriter(folder, streams, workers=3, queue_size=n + 2, exts=exts)
     d = floor_depth() if depth is None else depth
     for i in range(n):
         imgs = {"depth": d.copy()}
@@ -40,6 +40,8 @@ def make_seq(folder, n=10, streams=("depth", "ir", "color"), depth=None):
             imgs["ir"] = np.full((H, W), 100 + i, np.uint8)
         if "color" in streams:
             imgs["color"] = np.full((720, 1280, 3), i, np.uint8)
+        if "depth_aligned" in streams:
+            imgs["depth_aligned"] = np.full((720, 1280), 4000 + i, np.uint16)
         row = {"host_mono_s": f"{i * 0.0667:.6f}", "host_wall": "x"}
         for s in sf.STREAM_TS:
             if s in streams:
@@ -248,3 +250,22 @@ def test_imu_sorted_numerically(tmp_path):
     w.close()
     got = [r["host_mono_s"] for r in csv.DictReader(open(os.path.join(f, "imu.csv")))]
     assert got == ["99999.990000", "99999.995000", "100000.000000"]
+
+
+def test_aligned_depth_and_png_color(tmp_path):
+    """--align-to-color·--color-png(10-20): 컬러 해상도 정렬 깊이와 무손실 컬러가 점검을 통과하고 값이 그대로 읽힌다."""
+    f = str(tmp_path / "seq")
+    make_seq(f, n=5, streams=("depth", "ir", "color", "depth_aligned"), exts={"color": ".png"})
+    E, Wn, S = sf.check_sequence(f)
+    assert E == [], E
+    a = cv2.imread(os.path.join(f, "depth_aligned", "000002.png"), cv2.IMREAD_UNCHANGED)
+    assert a.dtype == np.uint16 and a.shape == (720, 1280) and int(a[0, 0]) == 4002
+    c = cv2.imread(os.path.join(f, "color", "000004.png"), cv2.IMREAD_UNCHANGED)
+    assert c.shape == (720, 1280, 3) and int(c[0, 0, 0]) == 4   # 무손실
+
+
+def test_neg_aligned_without_color_intrinsics(tmp_path):
+    f = str(tmp_path / "seq")
+    make_seq(f, n=3, streams=("depth", "depth_aligned"))
+    E, _, _ = sf.check_sequence(f)
+    assert any("color_intrinsics" in e for e in E), E
