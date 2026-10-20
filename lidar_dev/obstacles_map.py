@@ -51,11 +51,14 @@ ALG = {"min_pts": 6,             # 칸 통계에 쓰는 최소 지도 점 수(TS
        "range_m": 4.0}           # 주 구간 카메라 궤적에서 이보다 먼 칸은 unknown
 
 
+EPS = 1e-9   # 경계 비교 허용오차: 0.08 + 0.01이 0.09보다 작게 계산돼 보수 판정이 뒤집히지 않게(Codex 9차 #13)
+
+
 def classify(value, rule):
-    """기준값 규칙 하나로 값 → 단계(1 pass, 2 caution, 3 block). 반개구간(JSON interval_rule)."""
+    """기준값 규칙 하나로 값 → 단계(1 pass, 2 caution, 3 block). 반개구간(JSON interval_rule), 경계는 보수 쪽으로 EPS 허용."""
     if rule["kind"] == "higher_is_worse":
-        return np.where(value >= rule["block_from"], 3, np.where(value >= rule["caution_from"], 2, 1))
-    return np.where(value < rule["block_below"], 3, np.where(value < rule["pass_from"], 2, 1))
+        return np.where(value >= rule["block_from"] - EPS, 3, np.where(value >= rule["caution_from"] - EPS, 2, 1))
+    return np.where(value < rule["block_below"] + EPS, 3, np.where(value < rule["pass_from"] + EPS, 2, 1))
 
 
 def build_grid(P, cell, min_pts, band=0.015, ovh_gap=0.25):

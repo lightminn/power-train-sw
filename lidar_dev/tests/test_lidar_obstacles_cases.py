@@ -259,3 +259,24 @@ def test_box_level_follows_profile(h, want):
             assert not obs, (h, name, got)
         else:
             assert len(obs) == 1 and obs[0]["level"] == want[name], (h, name, got)
+
+
+@pytest.mark.parametrize("v,rule,want", [(0.08 + 0.01, "block", 3), (0.06 + 0.01, "caution", 2), (0.0699, "caution", 1)])
+def test_boundary_is_conservative_despite_float_error(v, rule, want):
+    """정확한 경계(측정 + 여유가 경계와 같음)는 보수 쪽(위 단계)으로. 0.08 + 0.01 < 0.09가 되는 부동소수점 오차를 막는다."""
+    R = load_criteria(V2)["rules"]["step_up_m"]          # A: 주의 0.07, 불가 0.09
+    assert int(om.classify(np.array(v), R)) == want
+
+
+def test_loader_rejects_inconsistent_default(tmp_path):
+    """기본 프로필이 profiles에 없거나, 최상위 rules가 기본 프로필과 다르면 거부(옛 코드와 새 로더가 다른 값을 읽지 않게)."""
+    d = json.load(open(V2, encoding="utf-8"))
+    bad = dict(d, default_profile="B_stop20")             # 최상위 rules는 A 그대로 → 불일치
+    p = tmp_path / "bad.json"
+    p.write_text(json.dumps(bad), encoding="utf-8")
+    with pytest.raises(SystemExit):
+        load_criteria(str(p))
+    bad2 = dict(d, default_profile="C")
+    p.write_text(json.dumps(bad2), encoding="utf-8")
+    with pytest.raises(SystemExit):
+        load_criteria(str(p))

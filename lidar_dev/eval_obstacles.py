@@ -58,6 +58,8 @@ class Map:
             raise SystemExit(f"{map_dir}: 정렬된 terrain_map이 아님 — 평가하지 않는다")
         if tm.get("criteria_version") != crit.get("criteria_version"):
             raise SystemExit(f"{map_dir}: 지도 기준값 {tm.get('criteria_version')} ≠ 평가 기준값 {crit.get('criteria_version')}")
+        if tm.get("criteria_profile") != crit.get("criteria_profile"):   # v0.2부터: A 지도를 B 기준으로 평가하지 않는다(Codex 9차 #2)
+            raise SystemExit(f"{map_dir}: 지도 프로필 {tm.get('criteria_profile')} ≠ 평가 프로필 {crit.get('criteria_profile')}")
         g = np.load(os.path.join(map_dir, "terrain_grid.npz"))
         if "obstacle_id" not in g.files:
             raise SystemExit(f"{map_dir}: terrain_grid에 obstacle_id 층이 없음(L2 v3.1 이전 출력) — L2를 다시 돌린다")
@@ -320,7 +322,8 @@ def main():
     gts = [json.load(open(g, encoding="utf-8")) for g in a.pairs[1::2]]
     kw = {"tol_m": a.tol, "border_m": a.border}
     scenes = [eval_scene(M, g, crit, **kw) for M, g in zip(maps, gts)]
-    res = {"criteria_version": crit.get("criteria_version"), "params": {**kw, "jitter": a.jitter}, "summary": summarize(scenes), "scenes": scenes}
+    res = {"criteria_version": crit.get("criteria_version"), "criteria_profile": crit.get("criteria_profile"),
+           "criteria_sha256": crit.get("criteria_sha256"), "params": {**kw, "jitter": a.jitter}, "summary": summarize(scenes), "scenes": scenes}
     d, _, yw = a.jitter.partition(",")
     if float(d or 0) > 0 or float(yw or 0) > 0:
         res["sensitivity"] = sensitivity(maps, gts, crit, float(d or 0), float(yw or 0), **kw)

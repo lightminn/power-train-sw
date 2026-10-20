@@ -79,3 +79,18 @@ def test_criteria_file_drives_classification(mapped, tmp_path):
             assert not near, (h, near)
         if h == 0.10:
             assert near and near[0]["level"] == "caution", (h, near)
+
+
+def test_profile_flows_to_map_and_eval_rejects_mismatch(mapped):
+    """v0.2 사슬: L1 지도 → L2(--profile B) → terrain_map.json에 criteria_profile=B, 같은 프로필 평가는 받고 A 평가는 거부(Codex 9차 #9)."""
+    import eval_obstacles as ev
+    from criteria import load_criteria
+    v2 = os.path.join(HERE, "config", "obstacle_criteria_v0.2.json")
+    out = om.run(mapped, v2, profile="B_stop20")
+    assert out["criteria_version"] == "v0.2" and out["criteria_profile"] == "B_stop20"
+    tm = json.load(open(os.path.join(mapped, "terrain_map.json"), encoding="utf-8"))
+    assert tm["criteria_profile"] == "B_stop20"
+    ev.Map(mapped, load_criteria(v2, "B_stop20"))
+    with pytest.raises(SystemExit):
+        ev.Map(mapped, load_criteria(v2))
+    om.run(mapped, v2)                                    # 기본(A)으로 되돌려 다른 시험과 섞이지 않게

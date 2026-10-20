@@ -3,7 +3,8 @@
  "criteria_version": "v0.2",
  "date": "2026-10-20",
  "canonical": true,
- "nature": "표시용 보수 정책값 — 실기 통행 한계 아님. 바퀴별 제어를 전제로 한 두 프로필(A·B). 근거: 새 형상(CNC) 시뮬, UBAI Isaac 6.0.1, 시드 1–10(마찰 0.70–0.90·구동 개체차·지연·구름 저항·조향 유격 무작위). 모두 [SIM]",
+ "nature": "표시용 보수 정책값 — 실기 통행 한계 아님. 바퀴별 제어를 전제로 한 두 프로필(A·B). 근거: 새 형상(CNC) 시뮬, UBAI Isaac 6.0.1, 시드 1–10(마찰 0.70–0.90·구동 개체차·지연·구름 저항·조향 유격 무작위)에서의 기하 판정. 10/10은 그 10개 조건에서의 결과이지 성공률 보장이 아님. 모두 [SIM]",
+ "measurement_contract": "경계값은 실제 높이·폭(줄자) 기준. L2(lidar_dev/obstacles_map.py)는 단차 측정값에 meas_margin_m(1 cm)을 더해 비교하므로, 측정값 기준 경계는 1 cm 낮다(A: 주의 6·불가 8 cm, B: 주의 7·불가 9 cm). 시뮬로 넘은 높이도 지도에서는 주의·불가로 보일 수 있음 — 의도된 보수",
  "default_profile": "A_no_stop",
  "levels": [
   "pass",
@@ -39,116 +40,124 @@
  ],
  "profiles": {
   "A_no_stop": {
-   "description": "기준 A: 바퀴별 제어(막힌 바퀴 6배) + 전류 9 A, 멈춤쇠 없음 — 프로그램만 바꿈",
+   "description": "기준 A: 바퀴별 제어(막힌 선두 바퀴 지령 6배) + 전류 9 A, 멈춤쇠 없음 — 프로그램만 바꿈",
    "rules": {
     "step_up_m": {
      "kind": "higher_is_worse",
      "caution_from": 0.07,
      "block_from": 0.09,
      "measure": "인접 지지면 높이 차(국소 지지면 기준)",
-     "observed": "전폭 8 cm 10/10, 9 cm 6/10, 10 cm 4/10, 11 cm 4/10, 12 cm 6/10 / 한쪽 7 cm 10/10, 8 cm 10/10, 9 cm 4/10 (시드 1–10, 바퀴별 제어)",
-     "basis": "모든 시드 통과 최대: 전폭 8 cm, 한쪽 8 cm → 낮은 쪽 8 cm. 불가 = 다음 시험 높이, 주의 = 1 cm 아래"
+     "observed": "전폭 8 cm 10/10(모터 무효 표시 3), 9 cm 6/10(모터 무효 표시 7), 10 cm 4/10(모터 무효 표시 4), 11 cm 4/10(모터 무효 표시 8), 12 cm 6/10(모터 무효 표시 3) / 한쪽 7 cm 10/10, 8 cm 10/10, 9 cm 4/10(모터 무효 표시 3) (시드 1–10, 바퀴별 제어, 기하 판정)",
+     "basis": "연속 통과 L: 전폭 8 cm, 한쪽 8 cm → 낮은 쪽 8 cm. 불가 = 그 위 시험값 9 cm, 주의 = 1 cm 아래"
     },
     "step_down_m": {
      "kind": "higher_is_worse",
      "caution_from": 0.15,
      "block_from": 0.3,
      "measure": "아래로 떨어지는 지지면 높이 차",
-     "observed": "낙하(모서리 각 무작위) 30 cm 10/10, 40 cm 7/10",
-     "basis": "모든 시드 통과 최대 30 cm, 그 위 40 cm에서 실패·넘어짐 → 사이를 안 쟀고 충격 미평가라 30 cm부터 불가"
+     "observed": "낙하(모서리 각 무작위) 30 cm 10/10(모터 무효 표시 4), 40 cm 7/10",
+     "basis": "연속 통과 30 cm, 그 위 40 cm에서 실패·넘어짐 → 사이를 안 쟀고 충격 미평가라 30 cm부터 불가"
     },
     "gap_width_m": {
      "kind": "higher_is_worse",
      "caution_from": 0.12,
      "block_from": 0.18,
      "measure": "진행 방향 지지면이 끊긴 길이(양쪽 모서리 관측 시만)",
-     "observed": "깊이 0.5 m 도랑 18 cm 9/10, 19 cm 5/10, 20 cm 3/10, 22 cm 0/10",
-     "basis": "지도 칸 5 cm로 18·19 cm를 못 가름 → 12 / 18 cm 유지"
+     "observed": "깊이 0.5 m 도랑 18 cm 9/10(모터 무효 표시 4), 19 cm 5/10(모터 무효 표시 9), 20 cm 3/10(모터 무효 표시 8), 22 cm 0/10(모터 무효 표시 6)",
+     "basis": "지도 칸 5 cm로 18·19 cm를 못 가름 → 12 / 18 cm 유지. L2는 아직 도랑 폭을 분류에 쓰지 않음"
     },
     "slope_deg": {
      "kind": "higher_is_worse",
      "caution_from": 15.0,
      "block_from": 25.0,
      "measure": "30 cm 이상 창 국소 평면 기울기, 방향 무관",
-     "observed": "오르막 31/32°, 내리막 30/32°, 옆경사 35/40°, R2 31° 6/8(시험한 마찰 0.76 이상만 성공)"
+     "observed": "오르막 31/32°, 내리막 30/32°, 옆경사 35/40°, R2 31° 6/8(시험한 마찰 0.76 이상만 성공)",
+     "basis": "A·B별 재검증 전까지 v0.1 정책 유지"
     },
     "roughness_m": {
      "kind": "higher_is_worse",
      "caution_from": 0.03,
      "block_from": 0.05,
      "measure": "같은 창에서 국소 평면을 뺀 잔차 범위(단차와 별도)",
-     "observed": "잔해 조각 10–20 cm 통과 못 함(X4)"
+     "observed": "잔해 조각 10–20 cm 통과 못 함(X4)",
+     "basis": "A·B별 재검증 전까지 v0.1 정책 유지"
     },
     "passage_width_m": {
      "kind": "lower_is_worse",
      "pass_from": 1.3,
      "block_below": 1.05,
      "measure": "물리적 장애물 경계 사이 최소 폭(경계 오차 하한)",
-     "observed": "로버 폭 0.94 m(CAD)"
+     "observed": "로버 폭 0.94 m(CAD)",
+     "basis": "A·B별 재검증 전까지 v0.1 정책 유지"
     },
     "overhead_m": {
      "kind": "lower_is_worse",
      "pass_from": 1.0,
      "block_below": 0.9,
      "measure": "바닥~위 장애물 아랫면(아래 공간 관측 시만)",
-     "observed": "로버 최고 0.81 m(팔 접힘, CAD), 선반 빔 1.135 m 아래 통과"
+     "observed": "로버 최고 0.81 m(팔 접힘, CAD), 선반 빔 1.135 m 아래 통과",
+     "basis": "A·B별 재검증 전까지 v0.1 정책 유지"
     }
    }
   },
   "B_stop20": {
-   "description": "기준 B: 기준 A + 보기 멈춤쇠 20° + 막힌 바퀴 전류 13.5 A — 부품 하나 추가",
+   "description": "기준 B: 기준 A + 보기 멈춤쇠 20° + lead 바퀴 전류 13.5 A — 멈춤쇠 부품, 바퀴별 제어, 전류 설정이 모두 있어야 함",
    "rules": {
     "step_up_m": {
      "kind": "higher_is_worse",
      "caution_from": 0.08,
      "block_from": 0.1,
      "measure": "인접 지지면 높이 차(국소 지지면 기준)",
-     "observed": "전폭 8 cm 10/10, 9 cm 10/10, 10 cm 8/10, 11 cm 2/10, 12 cm 3/10 / 한쪽 7 cm 10/10, 8 cm 10/10, 9 cm 10/10 (시드 1–10, 바퀴별 제어)",
-     "basis": "모든 시드 통과 최대: 전폭 9 cm, 한쪽 9 cm 이상(시험 끝) → 낮은 쪽 9 cm. 불가 = 다음 시험 높이, 주의 = 1 cm 아래"
+     "observed": "전폭 8 cm 10/10(모터 무효 표시 1), 9 cm 10/10(모터 무효 표시 5), 10 cm 8/10(모터 무효 표시 1), 11 cm 2/10(모터 무효 표시 5), 12 cm 3/10(모터 무효 표시 5) / 한쪽 7 cm 10/10, 8 cm 10/10, 9 cm 10/10 (시드 1–10, 바퀴별 제어, 기하 판정)",
+     "basis": "연속 통과 L: 전폭 9 cm, 한쪽 9 cm(시험 끝까지 통과) → 낮은 쪽 9 cm. 불가 = 그 위 시험값 10 cm, 주의 = 1 cm 아래"
     },
     "step_down_m": {
      "kind": "higher_is_worse",
      "caution_from": 0.15,
      "block_from": 0.3,
      "measure": "아래로 떨어지는 지지면 높이 차",
-     "observed": "낙하(모서리 각 무작위) 30 cm 10/10, 40 cm 10/10",
-     "basis": "모든 시드 통과 40 cm(시험 끝)이지만 착지 충격을 멈춤쇠가 받고 그 하중은 미평가 → A와 같은 15 / 30 cm 유지"
+     "observed": "낙하(모서리 각 무작위) 30 cm 10/10(모터 무효 표시 1), 40 cm 10/10(모터 무효 표시 2)",
+     "basis": "시험 끝 40 cm까지 모든 시드 통과지만 착지 충격 하중 미평가 → A와 같은 15 / 30 cm 유지"
     },
     "gap_width_m": {
      "kind": "higher_is_worse",
      "caution_from": 0.12,
      "block_from": 0.18,
      "measure": "진행 방향 지지면이 끊긴 길이(양쪽 모서리 관측 시만)",
-     "observed": "깊이 0.5 m 도랑 18 cm 10/10, 19 cm 9/10, 20 cm 1/10, 22 cm 0/10",
-     "basis": "지도 칸 5 cm로 18·19 cm를 못 가름 → 12 / 18 cm 유지"
+     "observed": "깊이 0.5 m 도랑 18 cm 10/10(모터 무효 표시 3), 19 cm 9/10(모터 무효 표시 8), 20 cm 1/10(모터 무효 표시 8), 22 cm 0/10(모터 무효 표시 10)",
+     "basis": "지도 칸 5 cm로 18·19 cm를 못 가름 → 12 / 18 cm 유지. L2는 아직 도랑 폭을 분류에 쓰지 않음"
     },
     "slope_deg": {
      "kind": "higher_is_worse",
      "caution_from": 15.0,
      "block_from": 25.0,
      "measure": "30 cm 이상 창 국소 평면 기울기, 방향 무관",
-     "observed": "오르막 31/32°, 내리막 30/32°, 옆경사 35/40°, R2 31° 6/8(시험한 마찰 0.76 이상만 성공)"
+     "observed": "오르막 31/32°, 내리막 30/32°, 옆경사 35/40°, R2 31° 6/8(시험한 마찰 0.76 이상만 성공)",
+     "basis": "A·B별 재검증 전까지 v0.1 정책 유지"
     },
     "roughness_m": {
      "kind": "higher_is_worse",
      "caution_from": 0.03,
      "block_from": 0.05,
      "measure": "같은 창에서 국소 평면을 뺀 잔차 범위(단차와 별도)",
-     "observed": "잔해 조각 10–20 cm 통과 못 함(X4)"
+     "observed": "잔해 조각 10–20 cm 통과 못 함(X4)",
+     "basis": "A·B별 재검증 전까지 v0.1 정책 유지"
     },
     "passage_width_m": {
      "kind": "lower_is_worse",
      "pass_from": 1.3,
      "block_below": 1.05,
      "measure": "물리적 장애물 경계 사이 최소 폭(경계 오차 하한)",
-     "observed": "로버 폭 0.94 m(CAD)"
+     "observed": "로버 폭 0.94 m(CAD)",
+     "basis": "A·B별 재검증 전까지 v0.1 정책 유지"
     },
     "overhead_m": {
      "kind": "lower_is_worse",
      "pass_from": 1.0,
      "block_below": 0.9,
      "measure": "바닥~위 장애물 아랫면(아래 공간 관측 시만)",
-     "observed": "로버 최고 0.81 m(팔 접힘, CAD), 선반 빔 1.135 m 아래 통과"
+     "observed": "로버 최고 0.81 m(팔 접힘, CAD), 선반 빔 1.135 m 아래 통과",
+     "basis": "A·B별 재검증 전까지 v0.1 정책 유지"
     }
    }
   }
@@ -159,57 +168,61 @@
    "caution_from": 0.07,
    "block_from": 0.09,
    "measure": "인접 지지면 높이 차(국소 지지면 기준)",
-   "observed": "전폭 8 cm 10/10, 9 cm 6/10, 10 cm 4/10, 11 cm 4/10, 12 cm 6/10 / 한쪽 7 cm 10/10, 8 cm 10/10, 9 cm 4/10 (시드 1–10, 바퀴별 제어)",
-   "basis": "모든 시드 통과 최대: 전폭 8 cm, 한쪽 8 cm → 낮은 쪽 8 cm. 불가 = 다음 시험 높이, 주의 = 1 cm 아래"
+   "observed": "전폭 8 cm 10/10(모터 무효 표시 3), 9 cm 6/10(모터 무효 표시 7), 10 cm 4/10(모터 무효 표시 4), 11 cm 4/10(모터 무효 표시 8), 12 cm 6/10(모터 무효 표시 3) / 한쪽 7 cm 10/10, 8 cm 10/10, 9 cm 4/10(모터 무효 표시 3) (시드 1–10, 바퀴별 제어, 기하 판정)",
+   "basis": "연속 통과 L: 전폭 8 cm, 한쪽 8 cm → 낮은 쪽 8 cm. 불가 = 그 위 시험값 9 cm, 주의 = 1 cm 아래"
   },
   "step_down_m": {
    "kind": "higher_is_worse",
    "caution_from": 0.15,
    "block_from": 0.3,
    "measure": "아래로 떨어지는 지지면 높이 차",
-   "observed": "낙하(모서리 각 무작위) 30 cm 10/10, 40 cm 7/10",
-   "basis": "모든 시드 통과 최대 30 cm, 그 위 40 cm에서 실패·넘어짐 → 사이를 안 쟀고 충격 미평가라 30 cm부터 불가"
+   "observed": "낙하(모서리 각 무작위) 30 cm 10/10(모터 무효 표시 4), 40 cm 7/10",
+   "basis": "연속 통과 30 cm, 그 위 40 cm에서 실패·넘어짐 → 사이를 안 쟀고 충격 미평가라 30 cm부터 불가"
   },
   "gap_width_m": {
    "kind": "higher_is_worse",
    "caution_from": 0.12,
    "block_from": 0.18,
    "measure": "진행 방향 지지면이 끊긴 길이(양쪽 모서리 관측 시만)",
-   "observed": "깊이 0.5 m 도랑 18 cm 9/10, 19 cm 5/10, 20 cm 3/10, 22 cm 0/10",
-   "basis": "지도 칸 5 cm로 18·19 cm를 못 가름 → 12 / 18 cm 유지"
+   "observed": "깊이 0.5 m 도랑 18 cm 9/10(모터 무효 표시 4), 19 cm 5/10(모터 무효 표시 9), 20 cm 3/10(모터 무효 표시 8), 22 cm 0/10(모터 무효 표시 6)",
+   "basis": "지도 칸 5 cm로 18·19 cm를 못 가름 → 12 / 18 cm 유지. L2는 아직 도랑 폭을 분류에 쓰지 않음"
   },
   "slope_deg": {
    "kind": "higher_is_worse",
    "caution_from": 15.0,
    "block_from": 25.0,
    "measure": "30 cm 이상 창 국소 평면 기울기, 방향 무관",
-   "observed": "오르막 31/32°, 내리막 30/32°, 옆경사 35/40°, R2 31° 6/8(시험한 마찰 0.76 이상만 성공)"
+   "observed": "오르막 31/32°, 내리막 30/32°, 옆경사 35/40°, R2 31° 6/8(시험한 마찰 0.76 이상만 성공)",
+   "basis": "A·B별 재검증 전까지 v0.1 정책 유지"
   },
   "roughness_m": {
    "kind": "higher_is_worse",
    "caution_from": 0.03,
    "block_from": 0.05,
    "measure": "같은 창에서 국소 평면을 뺀 잔차 범위(단차와 별도)",
-   "observed": "잔해 조각 10–20 cm 통과 못 함(X4)"
+   "observed": "잔해 조각 10–20 cm 통과 못 함(X4)",
+   "basis": "A·B별 재검증 전까지 v0.1 정책 유지"
   },
   "passage_width_m": {
    "kind": "lower_is_worse",
    "pass_from": 1.3,
    "block_below": 1.05,
    "measure": "물리적 장애물 경계 사이 최소 폭(경계 오차 하한)",
-   "observed": "로버 폭 0.94 m(CAD)"
+   "observed": "로버 폭 0.94 m(CAD)",
+   "basis": "A·B별 재검증 전까지 v0.1 정책 유지"
   },
   "overhead_m": {
    "kind": "lower_is_worse",
    "pass_from": 1.0,
    "block_below": 0.9,
    "measure": "바닥~위 장애물 아랫면(아래 공간 관측 시만)",
-   "observed": "로버 최고 0.81 m(팔 접힘, CAD), 선반 빔 1.135 m 아래 통과"
+   "observed": "로버 최고 0.81 m(팔 접힘, CAD), 선반 빔 1.135 m 아래 통과",
+   "basis": "A·B별 재검증 전까지 v0.1 정책 유지"
   }
  },
  "history": {
   "v0": "10-17 22:11–22:26 첫 작성",
   "v0.1": "10-17 22:51 Codex 2차 검토 A1~A6 반영(내려가기 30 cm 불가, 통로 1.05/1.30 m, 머리 위 0.90/1.00 m, 거칠기 잔차 정의, 구간·우선순위)",
-  "v0.2": "10-20 바퀴별 제어 기준 A·B 프로필(턱·내려가기 다시, 도랑·경사·통로·머리 위는 v0.1 유지)"
+  "v0.2": "10-20 바퀴별 제어 기준 A·B 프로필(턱·내려가기 다시, 도랑·경사·통로·머리 위는 v0.1 유지). Codex 9차 반영"
  }
 }

@@ -39,7 +39,7 @@ def ring(o):
     return foot(o, 0.05)
 
 
-def mk(d, obs=(), objects=(BOX,), edit=None, aligned=True, version=None, base=1):
+def mk(d, obs=(), objects=(BOX,), edit=None, aligned=True, version=None, base=1, profile=None):
     """바닥 전부 base 단계·관측, objects 발자국은 경로 허가 불가. obs = [(항목, 마스크)]."""
     os.makedirs(d, exist_ok=True)
     lv = np.full((NY, NX), base, np.int64)
@@ -53,7 +53,7 @@ def mk(d, obs=(), objects=(BOX,), edit=None, aligned=True, version=None, base=1)
         edit(g)
     np.savez_compressed(os.path.join(d, "terrain_grid.npz"), x0=X0, y0=Y0, cell=CELL, **g)
     json.dump({"type": "terrain_map", "alignment_valid": aligned, "criteria_version": version or CRIT["criteria_version"],
-               "obstacles": [item for item, _ in obs]}, open(os.path.join(d, "terrain_map.json"), "w"))
+               "criteria_profile": profile, "obstacles": [item for item, _ in obs]}, open(os.path.join(d, "terrain_map.json"), "w"))
     return str(d)
 
 
@@ -291,3 +291,14 @@ def test_terrain_map_npz_rejects_wrong_file(tmp_path):
     np.savez(p, a=np.zeros(3))
     with pytest.raises(SystemExit):
         ev.TerrainMapNpz(p)
+
+
+def test_profile_mismatch_rejected(tmp_path):
+    """v0.2: A 프로필로 만든 지도를 B 기준으로 평가하지 않는다(Codex 9차 #2). 같은 프로필이면 통과."""
+    from criteria import load_criteria
+    v2 = os.path.join(os.path.dirname(CRIT_PATH), "obstacle_criteria_v0.2.json")
+    a, b = load_criteria(v2), load_criteria(v2, "B_stop20")
+    d = mk(tmp_path / "a", version="v0.2", profile="A_no_stop")
+    ev.Map(d, a)
+    with pytest.raises(SystemExit):
+        ev.Map(d, b)
