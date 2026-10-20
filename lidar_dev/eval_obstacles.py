@@ -26,7 +26,8 @@ import argparse, itertools, json, math, os, statistics, sys
 
 import numpy as np
 
-from criteria import load_criteria
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # python -m lidar_dev.… 과 스크립트 실행 둘 다
+from criteria import load_criteria  # noqa: E402
 
 LEVEL = {"unknown": 0, "pass": 1, "caution": 2, "block": 3}
 NAME = {v: k for k, v in LEVEL.items()}

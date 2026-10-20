@@ -302,3 +302,13 @@ def test_profile_mismatch_rejected(tmp_path):
     ev.Map(d, a)
     with pytest.raises(SystemExit):
         ev.Map(d, b)
+
+
+def test_cli_modules_import_from_repo_root():
+    """README대로 `python -m lidar_dev.…`로 실행할 때 형제 모듈(criteria) import가 되는지(10-21 결함: 시험만 경로를 넣어 줘서 못 잡았음)."""
+    import subprocess
+    root = os.path.dirname(HERE)
+    for m in ("eval_obstacles", "obstacles_map"):
+        r = subprocess.run([sys.executable, "-m", f"lidar_dev.{m}", "--help"], cwd=root,
+                           env={**os.environ, "PYTHONPATH": ""}, capture_output=True, text=True)
+        assert r.returncode == 0, (m, r.stderr[-300:])

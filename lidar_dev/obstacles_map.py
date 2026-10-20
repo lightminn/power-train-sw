@@ -22,11 +22,12 @@
 #   이어지지 않아 unknown이다. 출발 지지면과 관측된 길로 이어지지 않는 곳(상자에 가로막힌 반대편 바닥 등)은 level이 불가(via_…)지만
 #   level_local은 그대로 통과일 수 있다 — 관측된 범위에서는 거기까지 갈 길이 없다는 뜻이다. 통로 폭·머리 위 높이·틈 폭은 계산하지 않는다.
 # 사용: python obstacles_map.py <map_seq 출력 폴더> <기준값 json> [--cell 0.05]
-import argparse, csv, heapq, json, math, os
+import argparse, csv, heapq, json, math, os, sys
 import numpy as np
 import cv2
 
-from criteria import load_criteria
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # python -m lidar_dev.… 과 스크립트 실행 둘 다
+from criteria import load_criteria  # noqa: E402
 
 LEVEL = {"unknown": 0, "pass": 1, "caution": 2, "block": 3}
 NAME = {v: k for k, v in LEVEL.items()}
