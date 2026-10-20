@@ -28,8 +28,8 @@ def rot_z(a):
     return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
 
 
-def cam_pose(x, y, yaw, h=0.46, pitch_deg=20.0):
-    """월드 ← 카메라 4×4. 아래로 pitch_deg 숙인 카메라(L515 로버 장착과 같은 20°)."""
+def cam_pose(x, y, yaw, h=0.46, pitch_deg=15.0):
+    """월드 ← 카메라 4×4. 아래로 pitch_deg 숙인 카메라(L515 실물 장착 15°, CAD의 20°는 구버전)."""
     R = rot_z(yaw) @ R_BASE @ rot_x(-math.radians(pitch_deg))
     T = np.eye(4)
     T[:3, :3] = R

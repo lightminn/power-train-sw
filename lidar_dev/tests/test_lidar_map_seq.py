@@ -56,7 +56,7 @@ def test_clean_baseline_tracks_all_and_box_height(clean):
     poses, s, out = clean
     assert s["tracked"] == 16 and s["lost"] == 0 and s["alignment_valid"] and s["end_frame_tracked"]
     seg = s["segments"][0]
-    assert abs(seg["camera_height_m"] - 0.46) < 0.005 and abs(seg["tilt_deg"] - 20.0) < 0.5 and seg["below_frac"] < 0.01
+    assert abs(seg["camera_height_m"] - 0.46) < 0.005 and abs(seg["tilt_deg"] - 15.0) < 0.5 and seg["below_frac"] < 0.01
     est = np.load(os.path.join(out, "poses_T_world_cam.npy"))
     worst = max(rel(poses, est, i) for i in range(16))
     assert worst[0] < 0.01 and worst[1] < 0.3, worst
