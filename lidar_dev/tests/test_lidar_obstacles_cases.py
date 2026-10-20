@@ -226,3 +226,36 @@ def test_unevaluated_bottleneck_keeps_beyond_unknown():
     assert s["caution"] == 0 and s["pass"] == 0 and s["block"] == 0, s
     reasons = set(g["reason"][g["observed"]].astype(str))
     assert "via_overhead" not in reasons and "overhead" not in reasons, reasons
+
+
+# ---------- 기준값 v0.2(10-20, 바퀴별 제어 기준 A·B 프로필) ----------
+from criteria import load_criteria  # noqa: E402
+
+V2 = os.path.join(HERE, "config", "obstacle_criteria_v0.2.json")
+
+
+def test_criteria_v02_profiles_and_v01_compat():
+    """v0.2 최상위 rules = 기본 프로필(A). B는 profile로. v0.1 파일은 그대로 읽힘(프로필 없음)."""
+    a, b, v1 = load_criteria(V2), load_criteria(V2, "B_stop20"), load_criteria(os.path.join(HERE, "config", "obstacle_criteria_v0.json"))
+    assert a["criteria_profile"] == "A_no_stop" and a["rules"]["step_up_m"]["block_from"] == pytest.approx(0.09)
+    assert b["criteria_profile"] == "B_stop20" and b["rules"]["step_up_m"]["block_from"] == pytest.approx(0.10)
+    assert v1["criteria_profile"] is None and v1["rules"]["step_up_m"]["block_from"] == pytest.approx(0.07)
+    with pytest.raises(SystemExit):
+        load_criteria(V2, "C")
+
+
+@pytest.mark.parametrize("h,want", [(0.065, {"v0.1": "block", "A_no_stop": "caution", "B_stop20": "pass"}),
+                                    (0.085, {"v0.1": "block", "A_no_stop": "block", "B_stop20": "caution"})])
+def test_box_level_follows_profile(h, want):
+    """같은 상자를 v0.1·A·B로 분류. L2는 단차에 측정 여유 1 cm(ALG meas_margin_m)를 더해 판정한다:
+    6.5 cm(재면 약 6.4 + 1) = v0.1 불가(≥ 7)·A 주의(7–9)·B 통과(< 8, 장애물 없음), 8.5 cm(약 8.3 + 1) = A 불가(≥ 9)·B 주의(8–10)."""
+    P = scene(lambda x, y: np.where((x > 1.2) & (x < 1.6) & (np.abs(y) < 0.3), h, 0.0))
+    crits = {"v0.1": CRIT, "A_no_stop": load_criteria(V2), "B_stop20": load_criteria(V2, "B_stop20")}
+    for name, crit in crits.items():
+        core, g = om.classify_points(P, crit, CAMS, 0.05, None, start=(0.0, 0.0, 0.0))
+        obs = [o for o in core["obstacles"] if 1.2 < o["centroid_xy_m"][0] < 1.6 and abs(o["centroid_xy_m"][1]) < 0.3]
+        got = [(o["level"], o["step_m"], o["centroid_xy_m"]) for o in core["obstacles"]]
+        if want[name] == "pass":
+            assert not obs, (h, name, got)
+        else:
+            assert len(obs) == 1 and obs[0]["level"] == want[name], (h, name, got)

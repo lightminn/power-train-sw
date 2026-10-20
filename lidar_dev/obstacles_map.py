@@ -1,5 +1,5 @@
 # obstacles_map.py — L2: map_seq(L1) 지도 점구름 → 2.5D 높이 격자 → 기준값(JSON) 분류 → 장애물 목록(terrain_map JSON)·위에서 본 그림.
-# 기준값 정본: 시뮬 담당의 obstacle_criteria JSON(v0.1, profile l2-exp-v1). 값을 코드에 옮겨 적지 않고 파일을 읽는다.
+# 기준값 정본: 시뮬 담당의 obstacle_criteria JSON(v0.1, v0.2부터 프로필 A·B — criteria.load_criteria). 값을 코드에 옮겨 적지 않고 파일을 읽는다.
 # v3(10-18, 교차검토 4·5차 반영) — 두 층으로 나눈다:
 #   level_local = 그 칸의 국소 위험(방향 무관). 경사·거칠기, 칸 안의 설명되지 않는 돌출·꺼짐, 머리 위 틈, 4-이웃과의 단차
 #                 (그 칸이 낮은 쪽이면 오르기 기준 step_up, 높은 쪽이면 내려가기 기준 step_down).
@@ -25,6 +25,8 @@
 import argparse, csv, heapq, json, math, os
 import numpy as np
 import cv2
+
+from criteria import load_criteria
 
 LEVEL = {"unknown": 0, "pass": 1, "caution": 2, "block": 3}
 NAME = {v: k for k, v in LEVEL.items()}
@@ -349,9 +351,9 @@ def main_segment_poses(map_dir, main_segment):
     return np.array(out).reshape(-1, 2), start
 
 
-def run(map_dir, criteria_path, cell=0.05, allow_unaligned=False, alg=None):
+def run(map_dir, criteria_path, cell=0.05, allow_unaligned=False, alg=None, profile=None):
     import open3d as o3d
-    crit = json.load(open(criteria_path, encoding="utf-8"))
+    crit = load_criteria(criteria_path, profile)
     summ = json.load(open(os.path.join(map_dir, "summary.json"), encoding="utf-8"))
     aligned = bool(summ.get("alignment_valid"))
     if not aligned and not allow_unaligned:   # 초기 평면 정렬이 없으면 z가 높이가 아니다
@@ -360,7 +362,7 @@ def run(map_dir, criteria_path, cell=0.05, allow_unaligned=False, alg=None):
     cams, start = main_segment_poses(map_dir, summ.get("main_segment"))
     core, grids = classify_points(P, crit, cams, cell, alg, start or (0.0, 0.0, 0.0))
     out = {"type": "terrain_map", "schema_version": 3, "map_version": 1, "criteria_version": crit.get("criteria_version"),
-           "profile": crit.get("profile"), "alignment_valid": aligned,
+           "profile": crit.get("profile"), "criteria_profile": crit.get("criteria_profile"), "alignment_valid": aligned,
            "frame": "map(z 위, 바닥 z = 0, 원점 = 시작 카메라 바로 아래, x = 시작 시 카메라 앞)" if aligned else "unaligned(높이 아님 — 시험용)",
            "cell_m": cell, "grid": core["grid"], "start_pose": start, "cell_counts": core["cell_counts"], "cell_counts_local": core["cell_counts_local"],
            "classification": core["info"],
@@ -392,8 +394,9 @@ def main():
     ap.add_argument("map_dir")
     ap.add_argument("criteria")
     ap.add_argument("--cell", type=float, default=0.05)
+    ap.add_argument("--profile", help="기준값 프로필(v0.2: A_no_stop 기본 · B_stop20). 없으면 파일의 기본")
     a = ap.parse_args()
-    out = run(a.map_dir, a.criteria, a.cell)
+    out = run(a.map_dir, a.criteria, a.cell, profile=a.profile)
     print(json.dumps({k: out[k] for k in ("cell_counts", "cell_counts_local", "criteria_version", "classification")}, ensure_ascii=False))
     for o in out["obstacles"]:
         print(o["id"], o["level"], o["centroid_xy_m"], "단차", o["step_m"], o["direction"], "윗면", o["top_z_m"], o["reasons"], "면적", o["area_m2"])

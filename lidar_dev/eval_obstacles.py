@@ -26,6 +26,8 @@ import argparse, itertools, json, math, os, statistics, sys
 
 import numpy as np
 
+from criteria import load_criteria
+
 LEVEL = {"unknown": 0, "pass": 1, "caution": 2, "block": 3}
 NAME = {v: k for k, v in LEVEL.items()}
 CAUTION = LEVEL["caution"]
@@ -309,10 +311,11 @@ def main():
     ap.add_argument("--tol", type=float, default=0.10, help="정답 발자국을 넓혀 장애물 소유를 가르는 사람 좌표 오차(m)")
     ap.add_argument("--border", type=float, default=0.015, help="경계 허용(m): 줄자 오차 + L2 측정 여유")
     ap.add_argument("--jitter", default="0.05,3", help="좌표 오차 민감도 '앞·옆 m,yaw °'(0이면 생략)")
+    ap.add_argument("--profile", help="기준값 프로필(v0.2: A_no_stop 기본 · B_stop20)")
     a = ap.parse_args()
     if len(a.pairs) % 2:
         ap.error("지도 폴더와 정답 json을 쌍으로 준다")
-    crit = json.load(open(a.criteria, encoding="utf-8"))
+    crit = load_criteria(a.criteria, a.profile)
     maps = [TerrainMapNpz(m) if m.endswith(".npz") else Map(m, crit) for m in a.pairs[::2]]   # .npz = 광민 실시간 지도 재생 결과
     gts = [json.load(open(g, encoding="utf-8")) for g in a.pairs[1::2]]
     kw = {"tol_m": a.tol, "border_m": a.border}
