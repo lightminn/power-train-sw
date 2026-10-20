@@ -20,7 +20,8 @@
 #   - 단차 = 가진 장애물 중 Z와 가장 많이 겹친 것의 step_m, 부호로 방향 확인(step_up +, step_down −). 방향이 틀리면 오차를 내지 않는다
 #   - 누출 = 기대 주의·불가인 정답의 C 안 경로 허가 '통과' 칸. C가 없거나(크기 없음·너무 작음) 지도 밖이거나 전부 unknown이면 검사 못 함으로 따로 센다
 #   - 바닥 가짜 위험 = 구역 안, 정답 Z + ring 밖, 관측된 칸 중 국소 위험(level_local) 주의 이상
-# 사용: python eval_obstacles.py <기준값 json> <지도 폴더> <정답 json> [<지도 폴더> <정답 json> ...] [--out eval.json] [--jitter 0.05,3]
+# 사용: python eval_obstacles.py <기준값 json> <지도 폴더 | map.npz> <정답 json> [...] [--out eval.json] [--jitter 0.05,3]
+#   map.npz = 광민 실시간 지형 지도 재생 결과(python3 -m powertrain_ros.terrain_map_replay <bag> --out map.npz, 10-20 형식) — TerrainMapNpz
 import argparse, itertools, json, math, os, statistics, sys
 
 import numpy as np
@@ -79,6 +80,70 @@ class Map:
         inside = (I >= 0) & (I < self.nx) & (J >= 0) & (J < self.ny)
         m[J[inside], I[inside]] = True
         return m, int(np.size(I))
+
+
+class TerrainMapNpz(Map):
+    """광민 실시간 지형 지도의 재생 결과(map.npz, powertrain_ros.terrain_map_replay, 10-20 형식)를 같은 판정으로 평가한다.
+    tiles [N,2](tx, ty) · heights_cm [N,256](-128 = 관측 없음) · codes [N,256](0 정상, 1 장애물(턱), 2 도랑·낙차, 4 관측 부족)
+    · 타일 = 16×16칸, 칸 0.05 m, i번째 칸 gx = tx·16 + i%16, gy = ty·16 + i//16, 중심 ((gx+0.5)·0.05, (gy+0.5)·0.05),
+    원점 = 노드(또는 epoch) 시작 때 로봇 위치, x 앞·y 왼쪽. 지도에 '주의' 단계가 없어 장애물·도랑은 불가로, 관측 부족·관측 없음은 미확인으로 본다.
+    장애물 목록은 코드 1·2 칸을 8방향 이웃끼리 묶어 만들고, 단차 = 묶음의 최고 높이(코드 2는 최저, 음수)."""
+
+    CELL = 0.05
+
+    def __init__(self, path, crit=None):
+        z = np.load(path)
+        need = {"tiles", "heights_cm", "codes"}
+        if not need <= set(z.files):
+            raise SystemExit(f"{path}: map.npz 형식 아님(필요 {sorted(need)}, 있음 {z.files})")
+        T, Hc, C = z["tiles"].astype(np.int64), z["heights_cm"].astype(np.int64), z["codes"].astype(np.int64)
+        i = np.arange(256)
+        gx = (T[:, :1] * 16 + i % 16).reshape(-1)
+        gy = (T[:, 1:2] * 16 + i // 16).reshape(-1)
+        h, code = Hc.reshape(-1), C.reshape(-1)
+        self.dir, self.tm = path, {"type": "terrain_map_npz", "epoch": int(z["epoch"]) if "epoch" in z.files else None}
+        self.c = self.CELL
+        if len(gx) == 0:
+            raise SystemExit(f"{path}: 타일이 없음")
+        gx0, gy0 = int(gx.min()), int(gy.min())
+        self.nx, self.ny = int(gx.max()) - gx0 + 1, int(gy.max()) - gy0 + 1
+        self.x0, self.y0 = gx0 * self.c, gy0 * self.c
+        ix, iy = gx - gx0, gy - gy0
+        observed = (h != -128) & (code != 4)
+        lv = np.zeros((self.ny, self.nx), np.int64)                      # 지도 밖 칸 = unknown(0)
+        hz = np.full((self.ny, self.nx), np.nan)
+        cd = np.full((self.ny, self.nx), -1)
+        lv[iy, ix] = np.where(~observed, LEVEL["unknown"], np.where((code == 1) | (code == 2), LEVEL["block"], LEVEL["pass"]))
+        hz[iy, ix] = np.where(h == -128, np.nan, h / 100.0)
+        cd[iy, ix] = np.where(observed, code, -1)
+        self.lv, self.loc = lv, lv.copy()
+        self.obs = lv != LEVEL["unknown"]
+        self.oid = np.full((self.ny, self.nx), -1, np.int64)
+        self.obstacles = {}
+        for k in (1, 2):
+            seen = np.zeros_like(self.obs)
+            for j0, i0 in zip(*np.nonzero(cd == k)):
+                if seen[j0, i0]:
+                    continue
+                stack, comp = [(j0, i0)], []
+                seen[j0, i0] = True
+                while stack:
+                    j, ii = stack.pop()
+                    comp.append((j, ii))
+                    for dj in (-1, 0, 1):
+                        for di in (-1, 0, 1):
+                            jj, kk = j + dj, ii + di
+                            if 0 <= jj < self.ny and 0 <= kk < self.nx and not seen[jj, kk] and cd[jj, kk] == k:
+                                seen[jj, kk] = True
+                                stack.append((jj, kk))
+                oid = len(self.obstacles)
+                J, I = np.array(comp).T
+                self.oid[J, I] = oid
+                hs = hz[J, I]
+                step = float(np.nanmax(hs)) if k == 1 else float(np.nanmin(hs))
+                self.obstacles[oid] = {"id": oid, "level": "block", "kind": "obstacle" if k == 1 else "ditch", "cells": int(len(comp)),
+                                       "step_m": round(step, 3) if np.isfinite(step) else None,
+                                       "centroid_xy_m": [round(float(self.x0 + (I.mean() + 0.5) * self.c), 3), round(float(self.y0 + (J.mean() + 0.5) * self.c), 3)]}
 
 
 def _rect(M, obj, grow):
@@ -248,7 +313,7 @@ def main():
     if len(a.pairs) % 2:
         ap.error("지도 폴더와 정답 json을 쌍으로 준다")
     crit = json.load(open(a.criteria, encoding="utf-8"))
-    maps = [Map(m, crit) for m in a.pairs[::2]]
+    maps = [TerrainMapNpz(m) if m.endswith(".npz") else Map(m, crit) for m in a.pairs[::2]]   # .npz = 광민 실시간 지도 재생 결과
     gts = [json.load(open(g, encoding="utf-8")) for g in a.pairs[1::2]]
     kw = {"tol_m": a.tol, "border_m": a.border}
     scenes = [eval_scene(M, g, crit, **kw) for M, g in zip(maps, gts)]

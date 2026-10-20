@@ -252,3 +252,42 @@ def test_synthetic_chain_end_to_end(tmp_path):
     lk = sm["leak"]   # 윗면이 안 보이는 상자(30 cm·먼 6 cm)는 안쪽이 전부 unknown → 검사 못 함으로 따로
     assert lk["checked"] >= 2 and lk["checked"] + lk["not_checked"]["unobserved"] == 4 and lk["pass_cells"] == 0, s["objects"]
     assert sm["false_obstacles"]["n"] == 0 and sm["floor_false_risk_cells"]["n"] == 0, s["region"]
+
+
+def _npz(tmp_path, cells, name="map.npz"):
+    """cells: {(gx, gy): (code, height_cm)} → 광민 map.npz 형식. 나머지 칸은 정상·높이 0."""
+    import numpy as np
+    tiles = sorted({(gx // 16, gy // 16) for gx, gy in cells} | {(0, -1), (0, 0), (1, -1), (1, 0)})
+    H = np.zeros((len(tiles), 256), np.int16)
+    C = np.zeros((len(tiles), 256), np.uint8)
+    for (gx, gy), (code, hcm) in cells.items():
+        ti = tiles.index((gx // 16, gy // 16))
+        k = (gy % 16) * 16 + gx % 16
+        C[ti, k], H[ti, k] = code, hcm
+    p = str(tmp_path / name)
+    np.savez(p, epoch=np.int64(0), tiles=np.array(tiles, np.int64), versions=np.zeros(len(tiles), np.int64), heights_cm=H, codes=C)
+    return p
+
+
+def test_terrain_map_npz_detects_box_and_reads_coordinates(tmp_path):
+    """광민 map.npz(10-20): 칸 좌표 변환·장애물 묶음·단차가 맞고, 같은 판정으로 상자를 검출한다."""
+    crit = CRIT
+    box = {"id": "b", "kind": "step_up", "height_m": 0.10, "x_m": 1.0, "y_m": 0.10, "size_m": [0.20, 0.20]}
+    cells = {(gx, gy): (1, 10) for gx in range(18, 22) for gy in range(0, 4)}       # x 0.90–1.10, y 0.00–0.20
+    cells.update({(gx, gy): (4, 0) for gx in range(26, 28) for gy in range(-4, -2)})  # 관측 부족
+    M = ev.TerrainMapNpz(_npz(tmp_path, cells))
+    assert abs(M.x0 - 0.0) < 1e-9 and abs(M.y0 - (-0.8)) < 1e-9 and M.c == 0.05
+    assert len(M.obstacles) == 1
+    o = M.obstacles[0]
+    assert o["step_m"] == 0.10 and abs(o["centroid_xy_m"][0] - 1.0) < 1e-6 and abs(o["centroid_xy_m"][1] - 0.10) < 1e-6
+    r = ev.eval_scene(M, {"scene": "npz", "objects": [box], "eval_region": {"x_m": [0.4, 1.4], "y_m": [-0.5, 0.5]}}, crit)
+    row = r["objects"][0]
+    assert row["detected"] and row["got"] == "block"
+
+
+def test_terrain_map_npz_rejects_wrong_file(tmp_path):
+    import numpy as np
+    p = str(tmp_path / "x.npz")
+    np.savez(p, a=np.zeros(3))
+    with pytest.raises(SystemExit):
+        ev.TerrainMapNpz(p)
