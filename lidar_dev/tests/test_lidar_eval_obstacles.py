@@ -312,3 +312,14 @@ def test_cli_modules_import_from_repo_root():
         r = subprocess.run([sys.executable, "-m", f"lidar_dev.{m}", "--help"], cwd=root,
                            env={**os.environ, "PYTHONPATH": ""}, capture_output=True, text=True)
         assert r.returncode == 0, (m, r.stderr[-300:])
+
+
+def test_trench_uses_trench_rule_not_step_down():
+    """10-21 Codex 15차 C12: 정답 trench는 trench_depth_m(v0.2.1, 주의 4·불가 6.5 cm)으로 — step_down_m(15/30 cm)이면 6.5 cm 도랑이 '통과'가 됨.
+    기준값에 trench_depth_m이 없으면 조용히 step_down으로 바꾸지 않고 멈춘다."""
+    rules = {**CRIT["rules"], "trench_depth_m": {"kind": "higher_is_worse", "caution_from": 0.04, "block_from": 0.065}}
+    lv = lambda kind, h, rr=rules: ev.expected_level({"id": "t", "kind": kind, "height_m": h}, rr, 0.0)
+    assert lv("trench", 0.07) == ("block", {"block"}) and lv("trench", 0.05) == ("caution", {"caution"})
+    assert lv("step_down", 0.07)[0] == "pass"               # 같은 깊이를 내려가기로 보면 통과 — 둘이 다름을 고정
+    with pytest.raises(SystemExit, match="trench_depth_m"):
+        lv("trench", 0.07, CRIT["rules"])

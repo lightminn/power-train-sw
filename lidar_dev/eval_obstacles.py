@@ -7,7 +7,8 @@
 #    "eval_region": {"x_m": [0.4, 2.5], "y_m": [-1.0, 1.0]}}
 #   좌표는 L2 지도 좌표와 같다: 원점 = 시작 카메라 바로 아래 바닥, x = 시작 시 카메라 앞, y = 왼쪽(+). x_m·y_m = 물체 가운데,
 #   size_m = [x 방향 길이, y 방향 폭](없으면 10 cm 네모로 가정하고 누출 검사 생략). height_m은 늘 양수(step_down이면 깊이).
-#   kind = step_up(솟은 물체·단) | step_down(꺼진 곳 — 발자국 = 아래 면) | wall(넘지 못하는 높은 것).
+#   kind = step_up(솟은 물체·단) | step_down(꺼진 곳 — 발자국 = 아래 면) | trench(내려간 뒤 다시 올라와야 하는 도랑 — 기준값 trench_depth_m, v0.2.1부터)
+#          | wall(넘지 못하는 높은 것).
 #   eval_region = 오검출·바닥 가짜 위험·unknown을 세는 구역(정답에 안 적은 벽·가구는 구역 밖에 두기). 지도 밖 구역 칸은 unknown으로 센다.
 # 판정:
 #   - 칸 집합: 발자국 F(칸 중심이 발자국 안), 소유 구역 Z = F를 tol(사람 좌표 오차, 기본 10 cm)만큼 넓힌 것, 안쪽 C = F를 core_shrink만큼 줄인 것
@@ -38,7 +39,12 @@ def expected_level(obj, rules, border_m):
     """정답 물체 → (기대 단계 이름, 허용 단계 집합). wall은 늘 불가. 허용은 가장 가까운 경계 하나만(같은 거리면 나쁜 쪽)."""
     if obj["kind"] == "wall":
         return "block", {"block"}
-    r = rules["step_up_m" if obj["kind"] == "step_up" else "step_down_m"]
+    if obj["kind"] == "trench":                    # 10-21 Codex 15차 C12: 도랑을 step_down_m(15/30 cm)으로 채점하면 6.5 cm 도랑도 '통과'가 됨
+        if "trench_depth_m" not in rules:
+            raise SystemExit(f"{obj.get('id')}: 정답이 trench인데 기준값에 trench_depth_m이 없음(v0.2.1 이상 필요)")
+        r = rules["trench_depth_m"]
+    else:
+        r = rules["step_up_m" if obj["kind"] == "step_up" else "step_down_m"]
     h = abs(float(obj["height_m"]))
     lv = "block" if h >= r["block_from"] else "caution" if h >= r["caution_from"] else "pass"
     near = [(round(abs(h - thr), 6), -k, lo, hi) for k, (thr, lo, hi) in enumerate(((r["caution_from"], "pass", "caution"), (r["block_from"], "caution", "block")))
@@ -198,7 +204,7 @@ def eval_scene(M, gt, crit, tol_m=0.10, border_m=0.015, core_shrink_m=0.05, ring
         if main is not None and main.get("step_m") is not None and obj["kind"] != "wall":
             s, h = float(main["step_m"]), abs(float(obj["height_m"]))
             r["step_m"] = s
-            r["direction_ok"] = s > 0 if obj["kind"] == "step_up" else s < 0
+            r["direction_ok"] = s > 0 if obj["kind"] == "step_up" else s < 0   # step_down·trench = 아래로
             if r["direction_ok"]:
                 r["step_err_m"] = round(abs(s) - h, 4)
         if want != "pass":   # 안쪽 칸 누출
