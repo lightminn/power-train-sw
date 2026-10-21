@@ -40,6 +40,19 @@ class AnalyzeTest(unittest.TestCase):
         self.assertFalse(result['accepted'])
         self.assertEqual(result['requested'], 3)
 
+    def test_receiver_overflow_is_reported_and_rejected(self):
+        # Echoes lost in this socket's receive queue are a tool failure, not a bus verdict.
+        result = probe.analyze([(0, 0.0), (1, 0.0)], [(0, 0.1)], socket_drops=1)
+        self.assertFalse(result['accepted'])
+        self.assertEqual(result['socket_drops'], 1)
+        # Even a complete, ordered echo set is rejected when the socket reports drops.
+        self.assertFalse(probe.analyze([(0, 0.0)], [(0, 0.1)], socket_drops=1)['accepted'])
+
+    def test_drop_counter_is_read_from_ancillary_data(self):
+        cmsg = [(socket.SOL_SOCKET, probe.SO_RXQ_OVFL, (7).to_bytes(4, 'little'))]
+        self.assertEqual(probe.ancillary_drops(cmsg), 7)
+        self.assertIsNone(probe.ancillary_drops([]))
+
     def test_send_failure_is_rejected(self):
         result = probe.analyze([(0, 0.0)], [(0, 0.1)], send_error='ENOBUFS')
         self.assertFalse(result['accepted'])

@@ -29,6 +29,10 @@ MARKER = 0xA5A5
 FRAME = struct.Struct('=IB3x8s')  # struct can_frame
 TIMESPEC = struct.Struct('@qq')
 SO_TIMESTAMPNS = getattr(socket, 'SO_TIMESTAMPNS', 35)  # Linux value; some Pythons lack the name
+SO_RXQ_OVFL = getattr(socket, 'SO_RXQ_OVFL', 40)        # per-socket receive-queue drop counter
+SO_RCVBUFFORCE = getattr(socket, 'SO_RCVBUFFORCE', 33)
+RECEIVE_BUFFER = 8 * 1024 * 1024
+DROPS = struct.Struct('=I')
 
 
 def encode(seq, nonce):
@@ -67,7 +71,15 @@ def foreign_node63(frame, flags):
     return (can_id & socket.CAN_SFF_MASK) >> 5 == PROBE_NODE
 
 
-def analyze(sent, echoed, send_error=None, node63_seen=False, requested=None):
+def ancillary_drops(ancillary):
+    """Receive-queue drop counter from SO_RXQ_OVFL ancillary data, else None."""
+    for level, kind, value in ancillary:
+        if level == socket.SOL_SOCKET and kind == SO_RXQ_OVFL:
+            return DROPS.unpack(value[:DROPS.size])[0]
+    return None
+
+
+def analyze(sent, echoed, send_error=None, node63_seen=False, requested=None, socket_drops=0):
     sent_seq = [seq for seq, _ in sent]
     echo_seq = [seq for seq, _ in echoed]
     sent_time = dict(sent)
@@ -76,8 +88,11 @@ def analyze(sent, echoed, send_error=None, node63_seen=False, requested=None):
     def pct(q):
         return latencies[min(len(latencies) - 1, int(q * (len(latencies) - 1) + 0.5))] if latencies else None
     return {'accepted': (bool(sent_seq) and echo_seq == sent_seq and send_error is None
-                         and not node63_seen and (requested is None or len(sent_seq) == requested)),
+                         and not node63_seen and (requested is None or len(sent_seq) == requested)
+                         and socket_drops == 0),
             'requested': requested,
+            # >0 means this tool's receive queue overflowed: a tool failure, not a bus verdict.
+            'socket_drops': socket_drops,
             'node63_seen': node63_seen,
             'missing': sorted(set(sent_seq) - set(echo_seq)),
             'echoed': len(echo_seq), 'sent': len(sent_seq), 'send_error': send_error,
@@ -102,15 +117,21 @@ def open_socket(channel):
     sock = socket.socket(socket.AF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
     sock.setsockopt(socket.SOL_CAN_RAW, socket.CAN_RAW_RECV_OWN_MSGS, 1)
     sock.setsockopt(socket.SOL_SOCKET, SO_TIMESTAMPNS, 1)
+    sock.setsockopt(socket.SOL_SOCKET, SO_RXQ_OVFL, 1)
+    try:  # a deep queue keeps a slow host from losing its own echoes; root may exceed rmem_max
+        sock.setsockopt(socket.SOL_SOCKET, SO_RCVBUFFORCE, RECEIVE_BUFFER)
+    except PermissionError:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, RECEIVE_BUFFER)
     sock.bind((channel,))
     sock.settimeout(0.05)
     return sock
 
 
 def receive(sock):
-    """(frame, flags, kernel timestamp or None), or None on timeout."""
+    """(frame, flags, kernel timestamp or None, drop counter or None), or None on timeout."""
     try:
-        frame, ancillary, flags, _ = sock.recvmsg(FRAME.size, socket.CMSG_SPACE(TIMESPEC.size))
+        frame, ancillary, flags, _ = sock.recvmsg(
+            FRAME.size, socket.CMSG_SPACE(TIMESPEC.size) + socket.CMSG_SPACE(DROPS.size))
     except socket.timeout:
         return None
     stamp = None
@@ -118,23 +139,25 @@ def receive(sock):
         if level == socket.SOL_SOCKET and kind == SO_TIMESTAMPNS:
             sec, nsec = TIMESPEC.unpack(value[:TIMESPEC.size])
             stamp = sec + nsec / 1e9
-    return frame, flags, stamp
+    return frame, flags, stamp, ancillary_drops(ancillary)
 
 
 def check_node63_absent(sock, listen_s, confirm_timeout_s=2.0):
-    """Query node 63 and listen listen_s after the query is confirmed on the bus."""
+    """Query node 63 and listen listen_s after it is confirmed; return the drop counter."""
     sock.send(pack_frame(QUERY_ID | socket.CAN_RTR_FLAG, b''))
-    confirm_by, listen_until = time.time() + confirm_timeout_s, None
+    confirm_by, listen_until, drops = time.time() + confirm_timeout_s, None, 0
     while listen_until is None or time.time() < listen_until:
         if listen_until is None and time.time() > confirm_by:
             raise SystemExit('node-63 query was never confirmed on the bus; refusing to transmit')
         got = receive(sock)
         if got is None:
             continue
+        drops = got[3] if got[3] is not None else drops
         if foreign_node63(got[0], got[1]):
             raise SystemExit('node 63 is live on the bus; refusing to transmit')
         if listen_until is None and query_confirmed(got[0], got[1]):
             listen_until = time.time() + listen_s
+    return drops
 
 
 def run(channel, count, gap_s, listen_s, timeout_s, report):
@@ -144,7 +167,8 @@ def run(channel, count, gap_s, listen_s, timeout_s, report):
     nonce = secrets.randbits(16)
     sock = open_socket(channel)
     try:
-        check_node63_absent(sock, listen_s)
+        drops = {'base': check_node63_absent(sock, listen_s)}
+        drops['last'] = drops['base']
         sent, echoed, send_error = [], [], None
         node63 = threading.Event()
         deadline = time.time() + timeout_s
@@ -156,6 +180,8 @@ def run(channel, count, gap_s, listen_s, timeout_s, report):
                 got = receive(sock)
                 if got is None:
                     continue
+                if got[3] is not None:
+                    drops['last'] = got[3]
                 if foreign_node63(got[0], got[1]):
                     node63.set()  # a live node 63 appeared mid-run: stop and fail
                     return
@@ -182,7 +208,8 @@ def run(channel, count, gap_s, listen_s, timeout_s, report):
         sock.close()
     if any(stamp is None for _, stamp in echoed):
         raise SystemExit('kernel echo timestamps unavailable')
-    return analyze(sent, echoed, send_error, node63.is_set(), requested=count)
+    return analyze(sent, echoed, send_error, node63.is_set(), requested=count,
+                   socket_drops=drops['last'] - drops['base'])
 
 
 def listen_seconds(text):
