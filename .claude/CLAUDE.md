@@ -90,6 +90,13 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
   캘리 보존·실물 IDLE 거부 시험을 통과했으며 비영속도 실주행은 별도다. node11/12는
   패치 미적용이므로 그 축의 소실은 자동 재개 대상이 아니다.
   `docs/reports/2026-09-10-can-auto-resume.md`를 따른다.
+- **MKS CAN patch4 node13/14 적용(2026-10-21)** — 정보성 CAN 오류는 계수만 하고 정지하지
+  않는다. CAN 소유 CLOSED_LOOP 축은 마지막으로 수락한 setpoint 뒤 300 ms를 넘기면 만료되고,
+  그 CAN 세션에서 setpoint를 아직 하나도 받지 않았으면 폐루프 진입 뒤 500 ms 유예를 쓴다.
+  원본 1 MiB 백업 뒤 application만 교체하고 NVM·설정307개·캘리 보존, 버스 단선 상태 USB
+  인수(래치·복구 0)까지 통과했다. 실트래픽·D0·송신 순서 인수와 node15/16 적용은 남았다.
+  motor_gui `odrive_can` 트랙과 `can_drive_test.py`는 setpoint를 300 ms 넘게 끊으면 만료된다.
+  `docs/reports/2026-10-21-mks-can-patch4.md`를 따른다.
 - **USB 스키드 조향 레이어**(2026-08-05 작성, **실기 주행 확인 후 2026-08-24 main 병합**) —
   `DriveOdriveUsbAxis` USB 다보드 구동 → `skid_geometry()` → 애커만↔스키드 런타임 전환
   → ops 액션 `steer_mode_skid` → 콘솔 배지 → 젯슨 원클릭 배포 스크립트.
@@ -294,6 +301,8 @@ python -m pytest motor_control -q
   점유하지 않고 `/detected_objects`를 구독한다.
 - node13/14(2026-09-09)와 node15/16(2026-09-10)은 원본 **0.5.1 unreleased** 백업 후
   초기 patch1 이후 두 보드 모두 **0.5.1-dev·CAN patch3**으로 갱신했다(2026-09-10).
+  **node13/14는 2026-10-21 patch4로 갱신**했다(USB 인수까지, 실트래픽 인수 전 —
+  `docs/reports/2026-10-21-mks-can-patch4.md`). node15/16은 patch3이다.
   node11/12 firmware는 USB 미확인·패치 미적용이다. 도구·프로토콜 검토용
   fw-v0.5.6과 실물 firmware를 혼동하지 않는다. MKS 배포 소스와 설치 바이너리의 동일성은
   별도 확인 대상이다. 폐루프 진입 전
