@@ -32,7 +32,11 @@ def read_imu(folder):
 def static_pose(folder):
     """기록 하나 → 공통 구간 정지 평균과 판정. 반환: (자세 정보, 거부 사유 목록)."""
     d = read_imu(folder)
-    A, W = d["accel"], d["gyro"]
+    return pose_from_arrays(d["accel"], d["gyro"], folder)
+
+
+def pose_from_arrays(A, W, folder):
+    """가속·자이로 (시각 s, x, y, z) 배열 → static_pose와 같은 판정(실시간 창 live_overlay.py도 이것을 쓴다)."""
     bad = []
     if len(A) < Q["min_samples"] or len(W) < Q["min_samples"]:
         return {"folder": folder, "n_accel": len(A), "n_gyro": len(W)}, [f"자료 부족(가속 {len(A)}, 자이로 {len(W)})"]
@@ -79,8 +83,14 @@ def calibrate(folders):
         info, why = static_pose(f)
         poses.append(info)
         bad += [f"{os.path.basename(f.rstrip('/'))}: {x}" for x in why]
-    if len(folders) < Q["min_poses"]:
-        bad.append(f"자세 수 {len(folders)} < {Q['min_poses']}(6개는 미지수와 같아 잔차·교차 확인이 무의미)")
+    return calibrate_poses(poses, bad)
+
+
+def calibrate_poses(poses, bad):
+    """자세 정보 목록(static_pose·pose_from_arrays 결과)과 그 거부 사유 → 보정 결과."""
+    bad = list(bad)
+    if len(poses) < Q["min_poses"]:
+        bad.append(f"자세 수 {len(poses)} < {Q['min_poses']}(6개는 미지수와 같아 잔차·교차 확인이 무의미)")
     ok = [p for p in poses if "accel_mean" in p]
     res = {"g": G, "quality_limits": Q, "poses": poses, "valid": False, "reasons": bad,
            "model": "대각 배율 + 편향(비직교·교차축·좌표 회전 미보정)", "apply": "a_corr = (a_raw − bias) / scale (축별), gyro_corr = gyro_raw − gyro_bias"}
