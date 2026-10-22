@@ -1,6 +1,6 @@
 # seq_format.py — L515 기록 폴더 형식(l515-seq v1) 쓰기·점검. record_seq.py·check_seq.py·시험이 같이 쓴다.
 # 형식: 폴더/meta.json + depth/%06d.png(uint16 원본) — ground.py·terrain.py 등 기존 스크립트가 그대로 읽는다(640×480).
-# 설계: isaacsim/2026_10_17/docs/specs/2026-10-17-l515-recorder-and-mapping-method.md (2판)
+# 설계: docs/specs/2026-10-17-l515-seq-recorder-and-mapping-design.md
 import csv, glob, json, os, queue, threading
 import numpy as np
 import cv2

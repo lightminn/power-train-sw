@@ -18,9 +18,12 @@ import numpy as np
 import pyrealsense2 as rs
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-TMAP_DEFAULT = os.path.expanduser("~/workspace/projects/Rocker_Bogie_robot/power-train-sw-tmap")
-REC = os.path.expanduser("~/workspace/isaacsim/2026_10_17/recordings")
-CRIT_DEFAULT = os.path.expanduser("~/workspace/isaacsim/2026_10_17/docs/criteria/obstacle_criteria_v0.2.2-draft-e30.json")
+REPO = os.path.dirname(HERE)
+# 기본 경로(환경 변수로 바꿈): 광민 terrain_map·terrain_overlay가 있는 저장소 = 이 저장소(feat/l515-terrain-map 위) 또는 L515_TMAP_ROOT 작업트리,
+#   기록·보정 파일 = L515_OUT_DIR(없으면 지금 폴더의 recordings), 기준값 = L515_CRITERIA(없으면 lidar_dev/config의 v0.2)
+TMAP_DEFAULT = os.environ.get("L515_TMAP_ROOT") or REPO
+REC = os.environ.get("L515_OUT_DIR") or os.path.join(os.getcwd(), "recordings")
+CRIT_DEFAULT = os.environ.get("L515_CRITERIA") or os.path.join(HERE, "config", "obstacle_criteria_v0.2.json")
 WHITE, YEL, GRAY, CYAN = (255, 255, 255), (40, 220, 240), (150, 150, 150), (230, 200, 40)
 
 

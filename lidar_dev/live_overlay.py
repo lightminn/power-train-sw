@@ -40,11 +40,10 @@ import mount_calib                               # noqa: E402
 import imu_calib                                 # noqa: E402
 from criteria import load_criteria               # noqa: E402
 from live_map import LiveHeightMap, cell_colors, classify_heights, filter_hazards, nearest_in_band, oblique_image, tidy_low, tmap_local_grid, top_image   # noqa: E402
-from tmap_live import TMAP_DEFAULT, git_head, load_tmap, mount_from_gravity   # noqa: E402
+from tmap_live import CRIT_DEFAULT, REC, TMAP_DEFAULT, git_head, load_tmap, mount_from_gravity   # noqa: E402
 from gm_features import ConsoleMap, KText, OverlayBridge, Recorder, draw_overlay, intr_dict, load_constants   # noqa: E402
-from gm_worker import GmProc                     # noqa: E402
+from gm_worker import GmProc, hybrid_cores       # noqa: E402
 
-CRIT_DEFAULT = os.path.expanduser("~/workspace/isaacsim/2026_10_17/docs/criteria/obstacle_criteria_v0.2.2-draft-e30.json")
 
 WHITE, GREEN, RED, YEL, CYAN, GRAY = (255, 255, 255), (60, 200, 60), (40, 40, 230), (40, 220, 240), (230, 200, 40), (130, 130, 130)
 
@@ -362,7 +361,7 @@ def main():
     ap.add_argument("--min-dist", type=float, default=None, help="L515 최소 거리(mm, 기본 장치값 490)")
     ap.add_argument("--obst-h", type=float, default=0.05, help="장애물로 칠할 바닥 위 높이(m, terrain.py 기본 0.05)")
     ap.add_argument("--min-blob", type=int, default=150, help="장애물 덩어리 최소 픽셀")
-    ap.add_argument("--out", default=os.path.expanduser("~/workspace/isaacsim/2026_10_17/recordings"))
+    ap.add_argument("--out", default=REC, help="저장 화면·지도·녹화·보정 파일 폴더(기본 L515_OUT_DIR 또는 지금 폴더의 recordings)")
     ap.add_argument("--snap-sec", type=float, default=3.0)
     ap.add_argument("--calib-sec", type=float, default=5.0, help="보정 자세 하나 기록 시간(imu_calib 기록 절차와 같은 5 s)")
     ap.add_argument("--calib", default=None, help="가속도 보정 JSON(기본 = recordings의 가장 최근 유효 imu_calib_live_*.json, 'none'이면 안 씀)")
@@ -370,7 +369,7 @@ def main():
     ap.add_argument("--criteria", default=CRIT_DEFAULT if os.path.exists(CRIT_DEFAULT) else None)
     ap.add_argument("--profile", default=None, help="기준값 프로필(기본 = JSON의 default_profile)")
     ap.add_argument("--map", choices=("gwangmin", "own"), default="gwangmin", help="지도 원천: 광민 MapRuntime(기본, 세계 고정 칸·자이로 회전) 또는 자체 LiveHeightMap")
-    ap.add_argument("--tmap-root", default=TMAP_DEFAULT, help="광민 브랜치 작업트리(읽기 전용)")
+    ap.add_argument("--tmap-root", default=TMAP_DEFAULT, help="광민 terrain_map·terrain_overlay가 있는 저장소(기본 L515_TMAP_ROOT 또는 이 저장소, 읽기 전용)")
     ap.add_argument("--cell", type=float, default=0.03, help="지도 칸(m) — 광민 MapConfig cell_m(0.02–0.20) 또는 자체 지도 칸")
     ap.add_argument("--gwangmin-thresholds", action="store_true", help="광민 코드 문턱을 광민 기본(8 cm)으로 — 기본은 기준값 측정값 문턱(돌출 = 턱 주의 − 1 cm, 도랑 = 도랑 주의 − 1 cm)")
     ap.add_argument("--no-code-gate", action="store_true", help="광민 다수결 코드로 거르지 않음(마지막 관측 높이만으로 분류 — 한 프레임 튐이 그대로 보임)")
@@ -393,11 +392,13 @@ def main():
     ap.add_argument("--move-dps", type=float, default=3.0, help="자체 지도: 자이로가 이보다 빠르면 쌓기 멈춤(°/s)")
     ap.add_argument("--view", choices=("class", "height", "console"), default="class", help="처음 지도 보기(v로 바꿈): 기준값 단계·높이·광민 콘솔")
     ap.add_argument("--oblique-tilt", type=float, default=0.35, help="2.5D 비스듬히 보기 내려다보는 정도(0 = 6판 시점 … 1, 키 [ ] 로 0.1씩)")
+    ap.add_argument("--max-fps", type=float, default=0.0, help="처리 속도 상한(0 = 끔). 얇은 노트북은 계속 30 fps로 돌면 80 °C대에서 발열 제한으로 15–20 s씩 "
+                                                                 "0.5–1 GHz까지 떨어짐(10-22 밤 실측) — 20–24로 두면 고르게")
     ap.add_argument("--video-fps", type=float, default=20.0, help="키 w 화면 녹화의 출력 fps(실시간 속도로 맞춰 씀)")
     ap.add_argument("--seconds", type=float, default=0, help="이 시간 뒤 자동 종료(시험용, 마지막 화면 저장)")
     a = ap.parse_args()
     if a.calib is None:                                  # 기록 폴더 + 기본 recordings 폴더에서 가장 최근 유효 보정(7판: --out을 바꿔도 찾게)
-        cands = glob.glob(os.path.join(a.out, "imu_calib_live_*.json")) + glob.glob(os.path.expanduser("~/workspace/isaacsim/2026_10_17/recordings/imu_calib_live_*.json"))
+        cands = glob.glob(os.path.join(a.out, "imu_calib_live_*.json")) + glob.glob(os.path.join(REC, "imu_calib_live_*.json"))
         for p_ in sorted(set(cands), key=os.path.basename, reverse=True):
             if json.load(open(p_)).get("valid"):
                 a.calib = p_
@@ -417,7 +418,10 @@ def main():
     keep = a.keep if a.keep is not None else (30.0 if a.map == "gwangmin" else 2.0)
     tm = ob = None
     T = load_tmap(a.tmap_root)                      # 광민 코드(읽기 전용 작업트리) — 오버레이 런타임은 지도 원천과 상관없이 늘
-    gm = GmProc()                                   # 광민 두 런타임 자식 프로세스 — 카메라·스레드를 열기 전에 fork
+    gm = GmProc()                                   # 광민 두 런타임 자식 프로세스 — 카메라·스레드를 열기 전에 fork(자식은 E코어로 스스로 옮김)
+    hc = hybrid_cores()
+    if hc and os.environ.get("OV_PIN", "1") == "1":  # P/E 혼합 CPU(노트북 i7-1260P): 화면 루프·카메라는 P코어에. 메인 스레드가 E코어로 옮겨지면 모든 구간이
+        os.sched_setaffinity(0, hc[0])                # 고르게 2–3배 느려지는 저하(10-22 밤 2 s 기록)를 막음. 이후 만드는 스레드가 물려받음. OV_PIN=0이면 끔
     gm.start_rx()
     tm_head = git_head(a.tmap_root)
     consts = load_constants(a.tmap_root)
@@ -653,12 +657,19 @@ def main():
     oimg, mimg_c, map_key, frame, depth_s, valid_s, t_still_try = None, None, None, None, None, None, 0.0
     lv = dip = Z = known = age = None
     obl_tilt = float(np.clip(a.oblique_tilt, 0.0, 1.0))
+    t_loop = time.perf_counter()
     solid = {}                                       # 칠하기 단색 화면(크기별 한 번)
     n_filtered = 0
     prof_t = collections.defaultdict(float)
     prof_n = [0]
     PROF = bool(os.environ.get("OV_PROFILE"))
     log_t, log_n, cam_n0 = collections.defaultdict(float), [0], [0]          # 2 s 기록용 구간 시간(늘 켬 — 주기적으로 느려지는 원인을 기록에 남김)
+
+    def main_cpu():
+        try:
+            return int(open(f"/proc/self/task/{threading.get_native_id()}/stat").read().rsplit(")", 1)[1].split()[36])   # 필드 39 = 마지막에 돈 CPU
+        except (OSError, ValueError, IndexError):
+            return -1
 
     def tick(name, t0):
         t1 = time.perf_counter()
@@ -668,6 +679,9 @@ def main():
         return t1
     try:
         while True:
+            if a.max_fps > 0:                                                  # 처리 속도 상한(발열 줄이기): 이전 루프 시작에서 1/max_fps 지날 때까지 쉼
+                time.sleep(max(0.0, t_loop + 1.0 / a.max_fps - time.perf_counter()))
+            t_loop = time.perf_counter()
             with lock:
                 fcv.wait_for(lambda: latest["n"] != n_seen, timeout=0.03)    # 새 프레임을 30 ms까지 기다림(없으면 그대로 진행 — 키·지도는 계속)
                 n_now, fs = latest["n"], latest["fs"]
@@ -1016,7 +1030,8 @@ def main():
                 rx_ms, rx_n = (tm.rx_stat() if tm is not None else (0.0, 0))
                 print(f"[{time.strftime('%H:%M:%S')}] 카메라 {cam_fps:.1f} fps · 루프 {log_n[0] / max(dt_log, 1e-3):.1f}/s · ms/루프 "
                       + " ".join(f"{k_} {v_:.0f}" for k_, v_ in slow)
-                      + f" · 지도 수신 {rx_ms / max(dt_log, 1e-3) / 10:.0f}%({rx_n}개) 타일 {len(snap.tiles) if snap is not None else 0}", flush=True)
+                      + f" · 지도 수신 {rx_ms / max(dt_log, 1e-3) / 10:.0f}%({rx_n}개) 타일 {len(snap.tiles) if snap is not None else 0}"
+                      + f" · 코어 {main_cpu()}", flush=True)
                 log_t.clear()
                 log_n[0] = 0
                 print(f"[{time.strftime('%H:%M:%S')}] {fps:.1f} fps {res['status'] if res else '-'} 구역 {zs} 덩어리 [" +

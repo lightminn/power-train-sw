@@ -13,9 +13,27 @@ import threading
 import time
 
 
+def hybrid_cores():
+    """Intel P/E 혼합 CPU면 (P코어 집합, E코어 집합), 아니면 None(Jetson 등). /sys/devices/cpu_core·cpu_atom/cpus = '0-7' 꼴."""
+    def read(p):
+        try:
+            out = set()
+            for part in open(p).read().strip().split(","):
+                a, _, b = part.partition("-")
+                out.update(range(int(a), int(b or a) + 1))
+            return out
+        except (OSError, ValueError):
+            return None
+    pc, ec = read("/sys/devices/cpu_core/cpus"), read("/sys/devices/cpu_atom/cpus")
+    return (pc, ec) if pc and ec else None
+
+
 def _worker(depq, ctlq, outq):
     signal.signal(signal.SIGINT, signal.SIG_IGN)                     # Ctrl+C는 부모가 받아 'stop'으로 끝낸다
     outq.cancel_join_thread()                                        # 부모가 먼저 죽으면 보낼 패킷이 파이프에 막혀 종료가 멈추고 고아로 남음(10-22 재현) → 기다리지 않음
+    hc = hybrid_cores()
+    if hc and os.environ.get("OV_PIN", "1") == "1":                  # 지도·오버레이 처리는 E코어로(화면 루프의 P코어와 다투지 않게)
+        os.sched_setaffinity(0, hc[1])
     from terrain_map.config import MapConfig
     from terrain_map.odometry import WheelLayout, WheelReading
     from terrain_map.runtime import MapRuntime

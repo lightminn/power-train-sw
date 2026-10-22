@@ -2,7 +2,7 @@
 # 사용법: python record_seq.py --out ~/data --label wall_1m --seconds 5 --note "벽 정면 1.00 m"
 #        Enter 또는 Ctrl+C로 멈춘다. 결과 폴더는 ground.py·terrain.py·check_seq.py가 그대로 읽는다.
 # ⚠️ 로봇에서는 쓰지 않는다 — 로봇의 L515는 Gateway만 소유한다(AGENTS.md §7). 로봇 데이터는 rosbag으로.
-# 설계: isaacsim/2026_10_17/docs/specs/2026-10-17-l515-recorder-and-mapping-method.md (2판)
+# 설계: docs/specs/2026-10-17-l515-seq-recorder-and-mapping-design.md
 import argparse, fcntl, glob, importlib.metadata, os, select, stat, sys, threading, time
 from datetime import datetime
 import numpy as np
