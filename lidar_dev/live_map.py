@@ -23,7 +23,8 @@ def classify_heights(Z, known, rules, margin=0.01, wall=0.5):
     if rules:
         up = classify(np.maximum(z0, 0) + margin, rules["step_up_m"])
         up = np.where(z0 >= wall, 3, up)
-        dn = classify(np.maximum(-z0, 0) + margin, rules["trench_depth_m"])
+        dn = classify(np.maximum(-z0, 0) + margin, rules.get("trench_depth_m") or rules["step_up_m"])   # v0.2.1 전 형식엔 trench 없음 → 다시 올라와야 하니
+        #   턱 기준으로 보수 대체(step_down_m 15/30 cm로 보면 6.5 cm 도랑도 통과로 보임 — Codex 15차 C12와 같은 이유)
         lv, dip = np.maximum(up, dn).astype(np.int8), dn > up
     else:
         lv, dip = np.ones(Z.shape, np.int8), np.zeros(Z.shape, bool)

@@ -99,3 +99,13 @@ def test_oblique_row_check_detects_drop():
     Z, C, known = _striped()
     img = live_map.oblique_image(Z, C, known, W=960, Hh=110, fwd_max=3.5, tilt=0.0)
     assert _stripes(img, 960) < Z.shape[0] - 1
+
+
+def test_dip_without_trench_rule_is_not_pass():
+    """trench_depth_m이 없는 옛 기준값(v0.2)에서도 6.5 cm 꺼진 칸이 '통과'로 보이지 않음(턱 기준 보수 대체 — step_down_m 15/30 cm로 보면 통과가 됨)."""
+    import json
+    rules = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "obstacle_criteria_v0.2.json")))["rules"]
+    assert "trench_depth_m" not in rules
+    Z = np.full((3, 3), -0.065)
+    lv, dip = live_map.classify_heights(Z, np.ones((3, 3), bool), rules)
+    assert (lv[1, 1] >= 2) and dip[1, 1]

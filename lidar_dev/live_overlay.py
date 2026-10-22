@@ -430,7 +430,11 @@ def main():
         cfg_kw = {"cell_m": a.cell, "range_max_m": float(min(5.0, max(1.0, a.map_range)))}
         if not a.gwangmin_thresholds and rules:      # 광민 코드 경계 = 표시 단계(주의) 경계 → 다수결 거르기가 같은 기준
             cfg_kw["obstacle_height_m"] = round(float(rules["step_up_m"]["caution_from"]) - 0.01, 4)
-            cfg_kw["ditch_depth_m"] = round(float(rules["trench_depth_m"]["caution_from"]) - 0.01, 4)
+            if "trench_depth_m" in rules:
+                cfg_kw["ditch_depth_m"] = round(float(rules["trench_depth_m"]["caution_from"]) - 0.01, 4)
+            else:                                    # v0.2.1 전 형식(저장소 기본 v0.2): 도랑도 턱 기준으로 보수 대체(live_map과 같음)
+                cfg_kw["ditch_depth_m"] = cfg_kw["obstacle_height_m"]
+                print("기준값에 trench_depth_m 없음(v0.2.1 전 형식) — 도랑을 턱(step_up_m) 기준으로 보수 대체", flush=True)
     min_nb = a.min_neighbors if a.min_neighbors is not None else (0 if (a.map == "gwangmin" and not a.no_code_gate) else 1)
 
     cfg = rs.config()

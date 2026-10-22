@@ -139,7 +139,7 @@ def main():
         from criteria import load_criteria
         R = load_criteria(a.criteria)["rules"]
         cfg_kw["obstacle_height_m"] = float(R["step_up_m"]["caution_from"])
-        cfg_kw["ditch_depth_m"] = math.floor(float(R["trench_depth_m"]["block_from"]) * 100 - 1e-9) / 100.0
+        cfg_kw["ditch_depth_m"] = math.floor(float((R.get("trench_depth_m") or R["step_up_m"])["block_from"]) * 100 - 1e-9) / 100.0   # trench 없는 옛 형식은 턱 기준
 
     rcfg = rs.config()
     rcfg.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
