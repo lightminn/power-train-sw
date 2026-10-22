@@ -25,6 +25,9 @@
 #   콘솔 보기: 지도를 끌면 옮김(따라가기 꺼짐), 휠 = 확대·축소
 import argparse, collections, glob, json, math, os, sys, threading, time, types
 
+for _v in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):   # numpy 불러오기 전에: BLAS 스레드 1개(7판 끝 실측 — 다른 부하가 있으면 16스레드 풀이
+    os.environ.setdefault(_v, "1")                                          # 서로 헛돌아 바닥 검출 중앙 28–32 ms·최대 75 ms, 1스레드 12 ms·최대 15–23 ms. fork 자식도 물려받음)
+
 if os.path.isdir("/usr/share/fonts/truetype/dejavu"):
     os.environ.setdefault("QT_QPA_FONTDIR", "/usr/share/fonts/truetype/dejavu")
 import cv2
@@ -276,6 +279,7 @@ class TmapBridge:
         self.n_depth = 0
         self.wheel_gap_max = 0.0
         self.summary = "terrain map: (자식 프로세스 시작 중)"
+        self._rx_ms, self._rx_n = 0.0, 0
         gm.handlers["map"] = self._on_map
         gm.handlers["stats"] = self._on_stats
         gm.send("map_init", dict(fx=camera.fx, fy=camera.fy, cx=camera.cx, cy=camera.cy, width=camera.width, height=camera.height), self.cfg_kw)
@@ -308,11 +312,20 @@ class TmapBridge:
         self.gm.send("map_start", pitch, roll, gen)
 
     def _on_map(self, gen, raws, now):
+        t0 = time.perf_counter()
         with self.lock:
             rx = self.rx if gen == self.gen else None                # 새로 시작하기 전 런타임의 패킷은 버림
         if rx is not None:
             for raw in raws:
                 rx.ingest(raw, now)
+        self._rx_ms += (time.perf_counter() - t0) * 1000.0
+        self._rx_n += len(raws)
+
+    def rx_stat(self):
+        """마지막 호출 뒤 수신 스레드가 패킷을 푼 시간(ms)·패킷 수 — 2 s 기록용."""
+        out = (self._rx_ms, self._rx_n)
+        self._rx_ms, self._rx_n = 0.0, 0
+        return out
 
     def _on_stats(self, d):
         self.summary, self.wheel_gap_max = d["summary"], d["wheel_gap_max"]
@@ -627,9 +640,11 @@ def main():
         vid = None
         import shutil, subprocess
         if shutil.which("ffmpeg"):                                         # 공유하기 쉬운 H.264(yuv420p)로 — 백그라운드
-            subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "22",
-                              "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", dst],
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            pr_ = subprocess.Popen(["nice", "-n", "15", "ffmpeg", "-y", "-loglevel", "error", "-i", src, "-c:v", "libx264", "-preset", "veryfast",
+                                    "-threads", "2", "-pix_fmt", "yuv420p", "-crf", "22",       # 낮은 우선순위·2코어: 바꾸는 동안 화면 루프를 방해하지 않게
+                                    "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", dst],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            threading.Thread(target=pr_.wait, name="ffmpeg-wait", daemon=True).start()   # 끝나면 회수(좀비로 남지 않게)
             print(f"화면 녹화 끝({dur:.1f} s) → {dst} (H.264로 바꾸는 중, 원본 {src})", flush=True)
         else:
             print(f"화면 녹화 끝({dur:.1f} s) → {src}", flush=True)
@@ -643,11 +658,14 @@ def main():
     prof_t = collections.defaultdict(float)
     prof_n = [0]
     PROF = bool(os.environ.get("OV_PROFILE"))
+    log_t, log_n, cam_n0 = collections.defaultdict(float), [0], [0]          # 2 s 기록용 구간 시간(늘 켬 — 주기적으로 느려지는 원인을 기록에 남김)
 
     def tick(name, t0):
+        t1 = time.perf_counter()
+        log_t[name] += t1 - t0
         if PROF:
-            prof_t[name] += time.perf_counter() - t0
-        return time.perf_counter()
+            prof_t[name] += t1 - t0
+        return t1
     try:
         while True:
             with lock:
@@ -797,6 +815,7 @@ def main():
             mono = time.monotonic()
             snap = tm.snapshot(mono) if tm is not None else None
             mstat = snap.status if snap is not None else None
+            tp = tick("snap", tp)
             key = ((None if tm is not None else hm.frames), map_mode, map_click, int(mono * a.map_hz),   # 7판: 지도 그림은 초당 map_hz번(광민 상태마다 다시 그리면 타일이 쌓일수록 느려짐)
                    (cmap.mpp, cmap.follow, cmap.center) if cmap is not None and map_mode == "console" else None)
             if key != map_key:
@@ -804,6 +823,7 @@ def main():
                 codes = None
                 if tm is not None:
                     g = tmap_local_grid(snap, mono, (tm.cfg.camera_x_m, tm.cfg.camera_y_m), a.map_fwd, a.map_lat, keep, T["C"]) if snap is not None else None
+                    tp = tick("grid", tp)
                     if g is None:
                         nf_, nl_ = int(round(a.map_fwd / tm.cfg.cell_m)), int(round(2 * a.map_lat / tm.cfg.cell_m))
                         g = {"Z": np.full((nf_, nl_), np.nan), "known": np.zeros((nf_, nl_), bool), "weak": np.zeros((nf_, nl_), bool), "codes": np.full((nf_, nl_), 255, np.uint8),
@@ -985,8 +1005,20 @@ def main():
             if PROF and prof_n[0] % 60 == 0:
                 print("[profile ms/frame]", {k_: round(1000 * v_ / 60, 1) for k_, v_ in prof_t.items() if not k_.startswith("_")}, f"루프 {prof_n[0]} 새 프레임 {n_seen}", flush=True)
                 prof_t.clear()
+            log_n[0] += 1
             if time.time() - t_log > 2.0:
+                dt_log = time.time() - t_log if t_log else 2.0
                 t_log = time.time()
+                with lock:
+                    cam_now = latest["n"]
+                cam_fps, cam_n0[0] = (cam_now - cam_n0[0]) / max(dt_log, 1e-3), cam_now
+                slow = sorted(((k_, 1000 * v_ / max(log_n[0], 1)) for k_, v_ in log_t.items()), key=lambda x: -x[1])[:4]
+                rx_ms, rx_n = (tm.rx_stat() if tm is not None else (0.0, 0))
+                print(f"[{time.strftime('%H:%M:%S')}] 카메라 {cam_fps:.1f} fps · 루프 {log_n[0] / max(dt_log, 1e-3):.1f}/s · ms/루프 "
+                      + " ".join(f"{k_} {v_:.0f}" for k_, v_ in slow)
+                      + f" · 지도 수신 {rx_ms / max(dt_log, 1e-3) / 10:.0f}%({rx_n}개) 타일 {len(snap.tiles) if snap is not None else 0}", flush=True)
+                log_t.clear()
+                log_n[0] = 0
                 print(f"[{time.strftime('%H:%M:%S')}] {fps:.1f} fps {res['status'] if res else '-'} 구역 {zs} 덩어리 [" +
                       ", ".join(f"h{b[4] * 100:.1f}cm d{b[5]:.2f}m w{b[6] * 100:.0f}cm" for b in bl[:4]) + f"] | 지도 알려진 칸 {known.mean() * 100:.0f}% "
                       f"주의 {f2(nc)} 불가 {f2(nb)} | " + (L[2] if len(L) > 2 else "") + (f" | {tm.summary}" if tm is not None else ""), flush=True)

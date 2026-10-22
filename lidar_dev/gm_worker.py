@@ -15,6 +15,7 @@ import time
 
 def _worker(depq, ctlq, outq):
     signal.signal(signal.SIGINT, signal.SIG_IGN)                     # Ctrl+C는 부모가 받아 'stop'으로 끝낸다
+    outq.cancel_join_thread()                                        # 부모가 먼저 죽으면 보낼 패킷이 파이프에 막혀 종료가 멈추고 고아로 남음(10-22 재현) → 기다리지 않음
     from terrain_map.config import MapConfig
     from terrain_map.odometry import WheelLayout, WheelReading
     from terrain_map.runtime import MapRuntime
