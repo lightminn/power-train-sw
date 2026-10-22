@@ -88,9 +88,9 @@ def test_extrinsics_col_major_to_row_major():
 
 
 def test_legacy_terrain_reads_recording(tmp_path):
-    """인수받은 terrain.py가 새 기록을 읽어 합성 바닥에서 OK와 맞는 카메라 높이·기울기를 낸다."""
+    """인수받은 terrain.py가 새 기록을 읽어 합성 바닥에서 OK와 맞는 카메라 높이·기울기를 낸다(terrain.py가 있는 트리에서만 — #15가 지움)."""
     pytest.importorskip("open3d")
-    import terrain
+    terrain = pytest.importorskip("terrain")
     f = str(tmp_path / "seq")
     make_seq(f, n=3, streams=("depth",), depth=floor_depth(h=0.45, pitch_deg=20.0))
     det = terrain.load_detector(f)
@@ -98,6 +98,22 @@ def test_legacy_terrain_reads_recording(tmp_path):
     assert r["status"] == "OK", r
     assert abs(r["camera_height_m"] - 0.45) < 0.01, r
     assert abs(r["camera_tilt_deg"] - 20.0) < 1.0, r
+
+
+def test_team_reader_reads_recording(tmp_path):
+    """terrain.py를 대신한 팀 기록 리더(lidar_dev.recording)·검출기(terrain_overlay.detector)가 새 기록을 읽어
+    합성 바닥에서 OK와 맞는 카메라 높이·기울기를 낸다(그 모듈이 있는 트리에서만)."""
+    rec_mod = pytest.importorskip("lidar_dev.recording")
+    f = str(tmp_path / "seq")
+    make_seq(f, n=3, streams=("depth",), depth=floor_depth(h=0.45, pitch_deg=20.0))
+    rec = rec_mod.load_recording(f)
+    det = rec_mod.make_detector(rec)
+    r = None
+    for _, depth, t in rec_mod.iter_frames(rec):
+        r = det.process(depth, t)
+    assert r.status == "OK", r
+    assert abs(r.camera_height_m - 0.45) < 0.01, r
+    assert abs(r.camera_tilt_deg - 20.0) < 1.0, r
 
 
 # ---- 음성 대조: 알려진 결함을 넣으면 check_sequence가 실패해야 한다
