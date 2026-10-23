@@ -17,6 +17,7 @@ from . import contracts as C
 
 
 ALL_CAPABILITIES = frozenset({
+    C.CAP_TOOL_JOG, C.CAP_INDIVIDUAL_TARGETS,
     C.CAP_TOOL_CHANGE,
     C.CAP_CONTROL_MODE,
     C.CAP_TELEOP_JOG,

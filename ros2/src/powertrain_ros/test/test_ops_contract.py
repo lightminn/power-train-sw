@@ -118,7 +118,7 @@ def test_arm_fsm_actions_are_console_only_and_use_existing_arm_topics():
 
     assert mode.roles == tool.roles == frozenset({oc.ROLE_CONSOLE})
     assert mode.kind == "publish_arm_mode" and mode.target == ("/control/mode",)
-    assert tool.kind == "publish_tool_fsm" and tool.target == ("/tool/fsm_command",)
+    assert tool.kind == "publish_tool_fsm" and tool.target == ("/tool/manual_command",)
 
 
 def test_extraction_grant_is_console_only_chassis_service():

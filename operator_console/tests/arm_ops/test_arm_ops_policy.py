@@ -14,7 +14,8 @@ from operator_console.arm_ops import policy as P
 
 
 ALL_CAPS = frozenset({
-    P.CAP_TOOL_CHANGE, P.CAP_CONTROL_MODE, P.CAP_TELEOP_JOG, P.CAP_TELEOP_POSE,
+    P.CAP_TOOL_JOG, P.CAP_INDIVIDUAL_TARGETS, 'tool_enable',
+    P.CAP_COUPLING_LOCK, P.CAP_TOOL_CHANGE, P.CAP_CONTROL_MODE, P.CAP_TELEOP_JOG, P.CAP_TELEOP_POSE,
     P.CAP_GRIPPER_COMMAND, P.CAP_DUAL_SYNC, P.CAP_ARM_CALIBRATION,
     P.CAP_TOOL_CALIBRATION, P.CAP_DUAL_TOOL_CALIBRATION,
 })
@@ -296,10 +297,18 @@ def test_a_matching_tool_identity_is_allowed():
 def test_a_backend_block_reason_is_surfaced_verbatim():
     context = granted_context(blocked_reasons=("비상정지 상태입니다.",))
 
-    decision = P.authorize(context, K.ACTION_HOME)
+    decision = P.authorize(context, K.ACTION_TOOL_COMMAND,
+                           tool_params(context))
 
     assert not decision
     assert decision.korean == "비상정지 상태입니다."
+
+
+def test_a_tool_block_does_not_prevent_arm_jog_or_pose():
+    context = granted_context(blocked_reasons=("도구가 분리됨으로 판정됨",))
+
+    assert P.authorize(context, K.ACTION_HOME)
+    assert P.authorize(context, K.ACTION_JOG)
 
 
 def test_a_backend_block_does_not_prevent_stopping():
@@ -318,6 +327,7 @@ def test_capability_tokens_match_the_arm_ui_contract_exactly():
     command that can never be built."""
     from operator_console.arm_ui import contracts as ui
 
+    assert P.CAP_COUPLING_LOCK == ui.CAP_COUPLING_LOCK
     assert P.CAP_TOOL_CHANGE == ui.CAP_TOOL_CHANGE
     assert P.CAP_CONTROL_MODE == ui.CAP_CONTROL_MODE
     assert P.CAP_TELEOP_JOG == ui.CAP_TELEOP_JOG
@@ -328,7 +338,8 @@ def test_capability_tokens_match_the_arm_ui_contract_exactly():
     assert P.CAP_TOOL_CALIBRATION == ui.CAP_TOOL_CALIBRATION
     assert P.CAP_DUAL_TOOL_CALIBRATION == ui.CAP_DUAL_TOOL_CALIBRATION
     assert ALL_CAPS == frozenset({
-        ui.CAP_TOOL_CHANGE, ui.CAP_CONTROL_MODE, ui.CAP_TELEOP_JOG,
+        ui.CAP_TOOL_JOG, ui.CAP_INDIVIDUAL_TARGETS, ui.CAP_TOOL_ENABLE,
+        ui.CAP_COUPLING_LOCK, ui.CAP_TOOL_CHANGE, ui.CAP_CONTROL_MODE, ui.CAP_TELEOP_JOG,
         ui.CAP_TELEOP_POSE, ui.CAP_GRIPPER_COMMAND, ui.CAP_DUAL_SYNC,
         ui.CAP_ARM_CALIBRATION, ui.CAP_TOOL_CALIBRATION,
         ui.CAP_DUAL_TOOL_CALIBRATION,
@@ -349,7 +360,7 @@ def test_tool_targets_match_the_arm_ui_contract():
         ui.TARGET_SINGLE, ui.TARGET_LEFT, ui.TARGET_RIGHT, ui.TARGET_BOTH,
     })
     assert K.TOOL_COMMANDS == frozenset({
-        ui.COMMAND_OPEN, ui.COMMAND_CLOSE, ui.COMMAND_STOP,
+        ui.COMMAND_OPEN, ui.COMMAND_CLOSE, ui.COMMAND_STOP, ui.COMMAND_LEFT, ui.COMMAND_RIGHT,
     })
 
 

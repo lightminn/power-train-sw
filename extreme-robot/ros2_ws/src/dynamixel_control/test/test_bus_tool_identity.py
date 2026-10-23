@@ -88,6 +88,7 @@ def _bridge(observations):
     bridge._tool_detection_reason = ''
     bridge.tool_type = 'dual_motor_gripper'
     bridge.control_scope = 'END_EFFECTOR_ONLY'
+    bridge.control_mode = 'FSM'
     bridge._arm_fsm_state = None
     bridge._gripper_goal_active = False
     bridge.tool_discovered = True
@@ -233,5 +234,20 @@ def test_full_robot_waits_for_safe_arm_state_before_switch():
     assert bridge._switches == []
     assert 'waiting for safe arm state' in bridge._tool_detection_reason
     bridge._arm_fsm_state = 'STOWED_LOCKED'
+    bridge._poll_physical_tool()
+    assert bridge._switches == ['spur_1motor_gripper']
+
+
+def test_manual_full_robot_without_fsm_uses_stationary_arm_proof():
+    from dynamixel_control.toolchanger_lock import LockError
+    bridge = _bridge([None, None, 'spur_1motor_gripper', 'spur_1motor_gripper', 'spur_1motor_gripper'])
+    bridge.control_scope, bridge.control_mode = 'FULL_ROBOT', 'MANUAL'
+    def moving():
+        raise LockError('pose is still moving')
+    bridge._require_manual_lock_arm_stopped = moving
+    for _ in range(4):
+        bridge._poll_physical_tool()
+    assert not bridge._switches
+    bridge._require_manual_lock_arm_stopped = lambda: None
     bridge._poll_physical_tool()
     assert bridge._switches == ['spur_1motor_gripper']
