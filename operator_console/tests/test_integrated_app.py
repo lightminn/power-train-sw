@@ -87,7 +87,7 @@ def test_recovery_window_exposes_existing_ops_without_hiding_drive_controls(
         window._stack.child_get_property(page, 'name')
         for page in window._stack.get_children()
     ] == [
-        'mission', 'mobility', 'systems', 'terrain_map', 'arm_manual', 'arm_calibration',
+        'mission', 'mobility', 'systems', 'terrain_map', 'vision', 'arm_manual', 'arm_calibration',
     ]
     assert window._ops_panel._action_buttons['estop_reset'].get_mapped()
     assert window._ops_panel._action_buttons['us100_enable'].get_mapped()
@@ -171,9 +171,12 @@ def test_integrated_controls_use_scoped_dark_theme(console):
                 Gtk.StateFlags.NORMAL
             )
         )
-    assert max(
-        panel_background.red, panel_background.green, panel_background.blue,
-    ) < 0.20
+    from operator_console.themes import theme_tokens
+    expected = Gdk.RGBA()
+    expected.parse(theme_tokens()['surface'])
+    assert (panel_background.red, panel_background.green, panel_background.blue) == pytest.approx(
+        (expected.red, expected.green, expected.blue)
+    )
 
 
 def test_integrated_console_fits_1366_by_768_laptop_view(console):

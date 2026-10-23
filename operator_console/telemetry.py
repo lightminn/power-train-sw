@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from collections.abc import Mapping
 import json
+import math
 import socket
 import threading
 import time
@@ -104,6 +105,28 @@ class TelemetrySnapshot:
     stuck_candidate: bool | None
     truncated: bool
     received_monotonic_s: float
+    suspension_joints_rad: tuple[tuple[str, float], ...] = ()
+    suspension_age_ms: float | None = None
+
+
+def _suspension_joints(payload):
+    raw = payload.get("suspension_joints_rad", {})
+    allowed = {"ml_rocker_joint", "mr_rocker_joint", "bl_bogie_joint", "br_bogie_joint"}
+    if not isinstance(raw, dict) or not set(raw).issubset(allowed):
+        raise ValueError("invalid suspension joints")
+    values = []
+    for name, value in raw.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("invalid suspension angle")
+        value = float(value)
+        if not math.isfinite(value) or abs(value) > math.tau:
+            raise ValueError("invalid suspension angle")
+        values.append((name, value))
+    age = payload.get("suspension_age_ms")
+    if age is not None and (isinstance(age, bool) or not isinstance(age, (int, float))
+                            or not math.isfinite(age) or age < 0):
+        raise ValueError("invalid suspension age")
+    return tuple(values)
 
 
 def _optional_number(payload: dict[str, Any], name: str) -> float | None:
@@ -281,6 +304,8 @@ def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> Te
         wheel_axis_error_count=_optional_int(payload, "wheel_axis_error_count"),
         wheel_steer_fault_count=_optional_int(payload, "wheel_steer_fault_count"),
         wheel_statuses=_wheel_statuses(payload),
+        suspension_joints_rad=_suspension_joints(payload),
+        suspension_age_ms=_optional_number(payload, "suspension_age_ms"),
         terrain_path_available=_optional_bool(payload, "terrain_path_available"),
         terrain_path_offset_m=_optional_number(payload, "terrain_path_offset_m"),
         terrain_heading_error_rad=_optional_number(payload, "terrain_heading_error_rad"),

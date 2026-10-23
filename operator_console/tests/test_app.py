@@ -1692,7 +1692,7 @@ def test_mission_preparation_keeps_dual_camera_layout_without_progress_hud():
     assert "self._readiness_count" in source
     assert 'step_names = ("준비", "탐색", "접근", "도구 작업", "완료")' not in source
     assert "videos.add_overlay(progress_hud)" not in source
-    assert "rail.pack_end(display_options" in source
+    assert "rail_heading.pack_end(display_options" in source
     assert "로봇의 주행 영상을 연결하고 있습니다" in source
     assert "로봇팔 작업 영상을 연결하고 있습니다" in source
 

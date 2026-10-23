@@ -1,5 +1,34 @@
 # Operator Console
 
+## 비전 탭 (단계별 통합 중)
+
+노트북 Graphite GUI(초록 강조·하단 탭·기존 3D 표시)를 기준으로 통합한다.
+현재는 기존 L515 영상·지형 오버레이를 공유하는 탭 뼈대까지 구현했다.
+Top/Oblique 지도와 자세 영역은 아직 연결 준비 상태다.
+협조구동의 **지형 보기** 버튼도 비전 탭을 연다.
+
+```bash
+# 운용 PC, 이 작업 브랜치의 저장소 루트
+/usr/bin/python3 -m operator_console.app --host <Gateway-IP> --page vision
+# 기존 페어링 설정을 사용하는 통합 진입점
+/usr/bin/python3 -m operator_console --config ~/.config/powertrain/operator.json --page vision
+```
+
+비전은 기존 SRT :5000 디코더와 UDP :5009 지형 수신기를 공유한다.
+탭을 나가면 기존 메인/PiP 배치를 복원한다. 비전에서는 L515 고정으로 V 전환을 막는다.
+지형 토글 상태는 실시간 화면과 공유한다. 바닥 영역 mask는 현재 전송되지 않으며,
+기존 바닥 상태 배지와 장애물 윤곽만 표시할 수 있다.
+노트북 버전의 별도 장애물 :5009 수신기·HTTP 시험대 창은 이 경로에서 기동하지 않는다.
+
+기존 GTK/GStreamer 의존성과 numpy가 필요하다. 향후 지도 함수 재사용용 OpenCV는
+운용 PC의 **콘솔과 같은 Python**에 설치한다. 이 PC에서는 관리자 권한 없이
+사용자 영역에 numpy 2.5.4 / OpenCV-headless 5.0.0 / pytest 9.1.1을 설치했다.
+시스템 Python용 pip가 없다면 배포판 패키지 또는 `--system-site-packages` 가상환경을
+사용하되, GTK/gtksink 접근 여부를 확인한다. RealSense SDK는 콘솔에 필요하지 않다.
+
+[단계별 계획](../docs/plans/2026-10-23-vision-tab.md)과
+[2단계 결과](../docs/reports/2026-10-23-vision-tab-step2.md)에 검증·미연결 항목을 기록한다.
+
 Integrated entrypoint: `python -m operator_console` uses the prepared paired-robot
 config, reconnects automatically, supervises a separate gamepad process and offers
 a held manual-start action. See [the integrated operation runbook](../docs/integrated-operation.md)

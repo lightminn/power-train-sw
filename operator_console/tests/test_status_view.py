@@ -62,7 +62,7 @@ def test_operator_end_effector_inventory_is_limited_to_four_confirmed_categories
 
 def test_competition_status_is_unified_around_power_communication_and_safety():
     source = inspect.getsource(CompetitionStatusDashboard)
-    assert '"power", "전원 · PDIST80B"' in source
+    assert '"power", "전원"' in source
     assert '"communication", "통신"' in source
     assert '"safety", "안전"' in source
     assert '"drive", "주행"' not in source

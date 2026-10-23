@@ -13,7 +13,12 @@ def _fresh(snapshot, key):
 
 
 def control_mode_text(snapshot):
-    return _fresh(snapshot, 'control_mode') or '수신 대기'
+    value = _fresh(snapshot, 'control_mode')
+    return {
+        'MANUAL': '수동 준비',
+        'AUTO': '자동 준비',
+        'IDLE': '안전 대기',
+    }.get(value, value or '수신 대기')
 
 
 def fsm_text(snapshot):
@@ -35,10 +40,6 @@ def refresh_arm_summary(window, snapshot):
              joints_age + max(0, time.monotonic() - snapshot.received_monotonic_s) <= 1.0)
     if not fresh or not snapshot.joint_names:
         window._mission_arm_load.set_text('정보 없음')
-    elif snapshot.joint_effort_raw:
-        window._mission_arm_load.set_text(
-            f'최고 {max(abs(value) for value in snapshot.joint_effort_raw):.0f} raw · '
-            f'관절 {len(snapshot.joint_names)}개')
     else:
         window._mission_arm_load.set_text(
-            f'관절 {len(snapshot.joint_names)}개 · 피드백 raw 미수신')
+            f'관절 {len(snapshot.joint_names)}개 응답')

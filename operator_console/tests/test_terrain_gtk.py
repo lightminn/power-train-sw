@@ -79,10 +79,11 @@ def test_live_packet_reaches_the_canvas_and_draws(window):
 
 
 def test_terrain_checkbox_only_hides_the_drawing(window):
+    objects_enabled = window._show_objects.get_active()
     window._show_terrain.set_active(False)
     assert window.overlay_view_state["show_terrain"] is False
     assert window._terrain_canvas._enabled is False
-    assert window._show_objects.get_active() is True  # D435 options untouched
+    assert window._show_objects.get_active() is objects_enabled  # D435 options untouched
     window._show_terrain.set_active(True)
     assert window._terrain_canvas._enabled is True
 

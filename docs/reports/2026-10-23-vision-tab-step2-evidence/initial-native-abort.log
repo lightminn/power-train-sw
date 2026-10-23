@@ -1,0 +1,96 @@
+........................................FF....F......................... [  9%]
+F..............F........................................................ [ 18%]
+....F................F.......F.......................................... [ 27%]
+.........................................................F.............. [ 36%]
+........................................................................ [ 45%]
+........................................................................ [ 54%]
+..............F.......................sss............................... [ 63%]
+........................................................................ [ 73%]
+....................................................................F... [ 82%]
+........................................................................ [ 91%]
+.................................................................Fatal Python error: Aborted
+
+Thread 0x0000719f0b7fe6c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/terrain_map.py", line 117 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x0000719f0bfff6c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/terrain.py", line 86 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x0000719f28bfb6c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/environment_telemetry.py", line 198 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x0000719f293fc6c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/arm_telemetry.py", line 270 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x0000719f29bfd6c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/telemetry.py", line 492 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x0000719f2a3fe6c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/telemetry.py", line 492 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x0000719f2abff6c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/metadata.py", line 395 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x0000719fb8580080 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/tests/test_vision_gtk.py", line 45 in console
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/fixtures.py", line 998 in call_fixture_func
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/fixtures.py", line 1328 in pytest_fixture_setup
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_execution.py", line 147 in _multicall
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_manager.py", line 183 in _hookexec
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_caller.py", line 197 in __call__
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/fixtures.py", line 1232 in execute
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/fixtures.py", line 726 in _get_active_fixturedef
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/fixtures.py", line 630 in getfixturevalue
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/fixtures.py", line 806 in _fillfixtures
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/python.py", line 1710 in setup
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/runner.py", line 536 in setup
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/runner.py", line 170 in pytest_runtest_setup
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_execution.py", line 147 in _multicall
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_manager.py", line 183 in _hookexec
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_caller.py", line 197 in __call__
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/runner.py", line 250 in <lambda>
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/runner.py", line 361 in from_call
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/runner.py", line 249 in call_and_report
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/runner.py", line 132 in runtestprotocol
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/runner.py", line 118 in pytest_runtest_protocol
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_execution.py", line 147 in _multicall
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_manager.py", line 183 in _hookexec
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_caller.py", line 197 in __call__
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/main.py", line 408 in pytest_runtestloop
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_execution.py", line 147 in _multicall
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_manager.py", line 183 in _hookexec
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_caller.py", line 197 in __call__
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/main.py", line 384 in _main
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/main.py", line 330 in wrap_session
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/main.py", line 377 in pytest_cmdline_main
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_execution.py", line 147 in _multicall
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_manager.py", line 183 in _hookexec
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pluggy/_caller.py", line 197 in __call__
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/config/__init__.py", line 229 in _main
+  File "/home/kimseon/.local/lib/python3.12/site-packages/_pytest/config/__init__.py", line 253 in _console_main
+  File "/home/kimseon/.local/lib/python3.12/site-packages/pytest/__main__.py", line 9 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 198 in _run_module_as_main
+
+Extension modules: gi._gi, cairo._cairo, gi._gi_cairo, numpy._core._multiarray_umath, numpy.linalg._umath_linalg, apt_pkg, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 15)

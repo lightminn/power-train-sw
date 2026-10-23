@@ -115,7 +115,7 @@ def test_udp_to_existing_console(tmp_path):
         assert not any(button.get_sensitive() for button in window._arm_manual_tab.gate.widgets)
         window._refresh_end_effector_summary()
         assert window._mission_tool_selector.get_active_text() == '단일 그리퍼'
-        assert 'ID 5' in window._mission_tool_reading.get_text()
+        assert window._mission_tool_reading.get_text() == '구동부 1개 응답'
         window._show_end_effector_popup()
         assert '현재 감지 도구' in window._end_effector_popup_purpose.get_text()
         time.sleep(1.05)
@@ -133,7 +133,7 @@ def test_udp_to_existing_console(tmp_path):
         window._refresh_end_effector_summary()
         assert window._mission_tool_selector.get_active_text() == '듀얼 그리퍼'
         assert window._arm_manual_tab._state.detected_tool.kind == 'dual_gripper'
-        assert 'ID 3, 4' in window._mission_tool_reading.get_text()
+        assert window._mission_tool_reading.get_text() == '구동부 2개 응답'
         assert 'ID 5:' not in window._end_effector_popup_values['load'].get_text()
     finally:
         sender.close()

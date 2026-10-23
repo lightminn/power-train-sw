@@ -1,0 +1,124 @@
+/* Neutral charcoal surfaces with green accents, amber warnings and red faults. */
+@define-color success_surface mix(@surface_soft, @success, 0.18);
+@define-color success_border mix(@border, @success, 0.50);
+@define-color warning_surface mix(@app_bg, @warning, 0.12);
+@define-color warning_border mix(@border, @warning, 0.38);
+@define-color danger_surface mix(@app_bg, @danger, 0.15);
+@define-color danger_border mix(@border, @danger, 0.45);
+window, window .console-shell, window .page, window .arm-ui,
+window .system-status-dashboard, window .ops-settings-shell {
+  background: @app_bg; background-image: none; color: @text_main;
+}
+window .topbar { background: @header_bg; padding: 12px 22px 8px; border: none; }
+window .brand-mark { color: @primary; background: transparent; border: none; min-width: 30px; min-height: 32px; }
+window .topbar .brand { color: @text_main; font-size: 22px; }
+window .topbar .eyebrow { color: @text_muted; letter-spacing: 1.2px; }
+window .demo-source-badge { color: @warning; background: @warning_surface; border: 1px solid @warning_border; border-radius: 18px; padding: 6px 12px; }
+window .health-strip { background: @surface; border-radius: 24px; padding: 3px 15px; margin: 0; }
+window .top-warning { background: @warning_surface; color: @warning; border: 1px solid @warning_border; border-left: 3px solid @warning; border-radius: 18px; padding: 5px 12px; margin-top: 5px; }
+window .top-alert { background: @danger_surface; color: @danger; }
+window .global-estop { background: #A63D2C; border-color: #F4775D; border-radius: 23px; padding: 4px 15px; }
+window .global-estop:hover { background: #BD4934; }
+window .global-estop:active { background: #873021; }
+window .global-estop:disabled { background: @danger_surface; border-color: @danger_border; }
+window .estop-symbol { border-color: @danger; }
+window .estop-subtitle { color: #FFD3C4; }
+window .nav, window.viewport-compact .nav, window.viewport-spacious .nav {
+  background: @header_bg; border-top: 1px solid @border; border-bottom: none;
+  border-radius: 15px; margin: 0 18px 10px; padding: 7px 12px;
+}
+window .nav button, window.viewport-compact .nav button, window.viewport-spacious .nav button {
+  background: transparent; background-image: none; border: 1px solid transparent;
+  border-radius: 20px; min-height: 30px; padding: 3px 20px; box-shadow: none;
+}
+window .nav button label { color: @text_secondary; }
+window .nav button:checked, window .nav button:checked:focus,
+window.viewport-compact .nav button:checked, window.viewport-spacious .nav button:checked {
+  background: @primary; background-image: none; border-color: @primary;
+}
+window .nav button:checked label { color: @app_bg; }
+window .nav button.ops-settings-button { background: @surface_raised; border-color: @border; }
+window .system-card, window .system-section, window .mobility-card,
+window .arm-ui .arm-card, window .sensor-group, window .rail-data-row,
+window .mission-rail .rail-section, window .mission-rail .rail-preparation,
+window .mission-rail .rail-technology, window .mission-rail .rail-data-row,
+window .mission-rail .end-effector-summary, window .mission-rail .environment-summary {
+  background: @surface; background-image: none; border: 1px solid @border;
+  border-top: 1px solid @border; border-radius: 13px; box-shadow: 0 3px 9px rgba(0,0,0,.08);
+}
+window .system-section, window .arm-ui .arm-card { padding: 13px; }
+window .mobility-card { padding: 11px; }
+window .system-decision, window .mobility-story {
+  background: @surface_soft; background-image: none; border: 1px solid @border;
+  border-left: 3px solid @primary; border-radius: 13px; padding: 8px 13px;
+}
+window .mobility-story-action { background: @primary_soft; border: none; border-radius: 20px; color: @primary; padding: 7px 14px; }
+window .mobility-story-action.status-muted { background: @surface_raised; color: @text_secondary; }
+window .mobility-source-chip, window .environment-connection,
+window .system-overall-chip, window .arm-ui .arm-badge { border-radius: 20px; }
+window .system-metric, window .arm-ui .arm-metric, window .sensor-tile,
+window .mobility-faults, window .end-effector-popup-card {
+  background: @surface_soft; background-image: none; border: 1px solid @border; border-radius: 10px;
+}
+window .mobility-control-button, window .arm-ui button,
+window .ops-settings-panel button, window .end-effector-detail-button {
+  background: @surface_raised; background-image: none; border: 1px solid @border;
+  border-radius: 18px; box-shadow: none;
+}
+window .arm-ui button.arm-primary { background: @primary; border-color: @primary; }
+window .arm-ui button.arm-primary label { color: @app_bg; }
+window .mobility-control-button:not(:disabled) { background: @primary_soft; border-color: @success_border; }
+window .mobility-control-button:not(:disabled) label { color: @primary; }
+window .mobility-control-button:hover, window .arm-ui button:hover { background: @surface_selected; border-color: @primary; }
+window .arm-ui button.arm-primary:not(:disabled):hover { background: @primary_hover; border-color: @primary_hover; }
+window .mobility-control-button:disabled, window .arm-ui button:disabled,
+window .arm-ui button.arm-primary:disabled, window .ops-settings-panel button:disabled {
+  background: @surface_soft; border-color: @border; opacity: 1;
+}
+window .status-live, window .system-metric-value.status-live, window .arm-ui .arm-metric-value.status-live { color: @success; }
+window .status-warn, window .arm-ui .arm-metric-value.status-warn { color: @warning; }
+window .status-bad, window .arm-ui .arm-metric-value.status-bad { color: @danger; }
+window .status-muted, window .arm-ui .arm-metric-value.status-muted { color: @text_muted; }
+window .video-card, window .pip-frame { border-color: @border; border-radius: 13px; background: @video_stage; }
+window .camera-placeholder-title { color: @text_main; }
+window .camera-placeholder-detail, window .rail-data-label { color: @text_muted; }
+window .mission-rail { background: transparent; border: none; }
+window .arm-pose-card { background: @surface; border: 1px solid @border; border-radius: 13px; padding: 12px; }
+window .arm-ui .arm-metric-label, window .arm-ui .arm-note, window .muted { color: @text_secondary; }
+window .arm-ui entry, window .arm-ui treeview, window .arm-ui list, window .arm-ui list row { background: @surface_soft; color: @text_main; border-color: @border; }
+window .system-status-title, window .mobility-title, window .arm-ui .arm-page-title { color: @text_main; }
+window .system-section-title, window .mobility-panel-title, window .arm-ui .arm-card-title { color: @text_main; }
+window .power-soc-value, window .power-voltage-value { color: @primary; }
+
+/* Keep small camera labels, selectors and state badges in the same palette. */
+window .main-camera-label { background: @video_overlay; border-color: @border_strong; }
+window .mission-rail .rail-data-label { color: @text_muted; }
+window .end-effector-selector button, window .end-effector-summary combobox button {
+  background: @surface_soft; border-color: @border_strong;
+}
+window .end-effector-summary button.end-effector-detail-button {
+  background: @primary; border-color: @primary;
+}
+window .end-effector-summary button.end-effector-detail-button label { color: @app_bg; }
+window .end-effector-summary button.end-effector-detail-button:hover { background: @primary_hover; }
+window .end-effector-summary-state.status-live, window .environment-connection.status-live,
+window .system-overall-chip.status-live, window .system-section-badge.status-live,
+window .sensor-status.status-live, window .mobility-live-pill.status-live,
+window .arm-ui .arm-badge.status-live, window .mobility-story-action.status-live,
+window .sensor-overall-block.status-live {
+  background: @success_surface; border-color: @success_border;
+}
+window .end-effector-summary-state.status-warn, window .environment-connection.status-warn,
+window .system-overall-chip.status-warn, window .system-section-badge.status-warn,
+window .sensor-status.status-warn, window .mobility-live-pill.status-warn,
+window .arm-ui .arm-badge.status-warn, window .mobility-story-action.status-warn,
+window .sensor-overall-block.status-warn, window .arm-ui .arm-reason {
+  background: @warning_surface; border-color: @warning_border;
+}
+window .system-overall-chip.status-bad, window .system-section-badge.status-bad,
+window .sensor-status.status-bad, window .arm-ui .arm-badge.status-bad,
+window .mobility-story-action.status-bad, window .sensor-overall-block.status-bad,
+window .arm-ui button.arm-danger {
+  background: @danger_surface; border-color: @danger_border;
+}
+window .arm-ui button.arm-danger:disabled { background: @surface_soft; border-color: @border; }
