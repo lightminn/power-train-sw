@@ -6,12 +6,16 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk  # noqa: E402
 
+from .terrain_map import DisplayConfig
+from .vision_config import resolve_criteria
+from .vision_map_view import VisionMaps
+
 
 class VisionPanel(Gtk.Box):
-    """Four simultaneous slots; no socket, decoder, timer or camera SDK here."""
+    """Four simultaneous slots sharing the console's receivers and camera."""
 
     def __init__(self, *, map_receiver, chassis_receiver, overlay_enabled: bool,
-                 on_overlay_toggled) -> None:
+                 on_overlay_toggled, map_display=None, criteria=None) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.map_receiver = map_receiver
         self.chassis_receiver = chassis_receiver
@@ -21,7 +25,11 @@ class VisionPanel(Gtk.Box):
         self.show_terrain.set_active(overlay_enabled)
         self.show_terrain.connect("toggled", on_overlay_toggled)
         self.show_terrain.set_tooltip_text("실시간 화면과 같은 지형 표시 설정을 사용합니다")
-        self.pack_start(self.show_terrain, False, False, 0)
+        self.maps = VisionMaps(map_receiver, map_display or DisplayConfig(), criteria or resolve_criteria())
+        bar = Gtk.Box(spacing=10)
+        bar.pack_start(self.show_terrain, False, False, 0)
+        bar.pack_start(self.maps.controls, True, True, 0)
+        self.pack_start(bar, False, False, 0)
 
         grid = Gtk.Grid(column_spacing=8, row_spacing=8)
         grid.set_column_homogeneous(True)
@@ -30,8 +38,8 @@ class VisionPanel(Gtk.Box):
         grid.set_vexpand(True)
         self.camera_slot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.attitude_slot = self._waiting("자세 표시 준비 중\n차체 자세 보정 미확인")
-        self.top_slot = self._waiting("지도 표시 준비 중")
-        self.oblique_slot = self._waiting("지도 표시 준비 중")
+        self.top_slot = self.maps.top_slot
+        self.oblique_slot = self.maps.oblique_slot
         for title, slot, column, row in (
             ("L515 카메라", self.camera_slot, 0, 0),
             ("차체 자세", self.attitude_slot, 1, 0),
@@ -45,6 +53,11 @@ class VisionPanel(Gtk.Box):
             frame.add(slot)
             grid.attach(frame, column, row, 1, 1)
         self.pack_start(grid, True, True, 0)
+        note = Gtk.Label(label="지도는 지나온 관측 기록 · 실시간 장애물 감지가 아님 · 표시 기준은 주행 허가가 아님", xalign=0)
+        note.get_style_context().add_class("muted")
+        note.set_line_wrap(True)
+        note.set_max_width_chars(1)
+        self.pack_start(note, False, False, 0)
 
     @staticmethod
     def _waiting(text: str) -> Gtk.Box:

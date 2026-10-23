@@ -285,12 +285,16 @@ def test_latest_start_outcome_remains_visible_after_connection_loss(console):
     assert '연결 대기' in window._operation_panel.connection_label.get_text()
 
 
-def test_integrated_entrypoint_forwards_environment_port(monkeypatch, tmp_path):
+@pytest.mark.parametrize('criteria_channel', ['config', 'cli'])
+def test_integrated_entrypoint_forwards_environment_port(monkeypatch, tmp_path, criteria_channel):
+    from operator_console.vision_config import DEFAULT_CRITERIA
     token = tmp_path / 'token'
     token.write_text('fixture-token')
     config = {
         'token_file': str(token),
         'environment_telemetry_port': 15008,
+        'l515_criteria': str(DEFAULT_CRITERIA),
+        'l515_criteria_profile': 'B_stop20',
     }
     captured = {}
 
@@ -329,8 +333,14 @@ def test_integrated_entrypoint_forwards_environment_port(monkeypatch, tmp_path):
     monkeypatch.setattr(app.Gtk, 'main', lambda: None)
     monkeypatch.setattr(app, '_add_unix_signal_watch', lambda *_args: None)
 
-    assert integrated_entrypoint.main(['--config', str(tmp_path / 'operator.json')]) == 0
+    args = ['--config', str(tmp_path / 'operator.json')]
+    if criteria_channel == 'cli':
+        args += ['--l515-criteria', str(DEFAULT_CRITERIA), '--l515-criteria-profile', 'A_no_stop']
+    assert integrated_entrypoint.main(args) == 0
     assert captured['console_kwargs']['environment_telemetry_port'] == 15008
+    assert captured['console_kwargs']['vision_criteria'].profile == (
+        'A_no_stop' if criteria_channel == 'cli' else 'B_stop20'
+    )
     assert captured['shown'] is True
     assert captured['runtime_closed'] == 1
 

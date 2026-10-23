@@ -86,6 +86,7 @@ from .terrain import LatestTerrainReceiver, TerrainView, terrain_view
 from .terrain_map import DisplayConfig, LatestMapReceiver
 from .terrain_map_panel import MapPanel
 from .vision_panel import VisionPanel
+from .vision_config import resolve_criteria
 from .rover_3d import Rover3DView
 from .ops_client import ConsoleOpsClient
 from .ops_panel import (
@@ -438,6 +439,11 @@ label {{ color: {text_main}; }}
 .vision-page {{ background: {app_bg}; }}
 .vision-page label {{ color: {text_main}; }}
 .vision-card {{ background: {surface}; border: 1px solid {border}; border-radius: 13px; padding: 8px; }}
+.vision-page button {{ background: {surface_raised}; border: 1px solid {border}; border-radius: 18px; padding: 4px 12px; }}
+.vision-page button label {{ color: {text_main}; }}
+.vision-page button:checked {{ background: {primary}; border-color: {primary}; }}
+.vision-page button:checked label {{ color: {app_bg}; }}
+.vision-page check:checked {{ background: {primary}; color: {app_bg}; border-color: {primary}; }}
 .story-panel, .readiness, .system-card, .diagnostics, .card {{ background: {surface}; border-color: {border}; }}
 .story-card, .safety-row {{ background: {surface_soft}; border-color: {border}; }}
 .card label, .card > label {{ color: {text_main}; }}
@@ -3970,11 +3976,13 @@ class OperatorConsole(Gtk.Window):
                  terrain_display_delay_ms: int = 0,
                  terrain_map_port: int = 5010,
                  map_display: DisplayConfig | None = None,
+                 vision_criteria=None,
                  ops_host: str | None = None, ops_port: int = 9001,
                  ops_token_file: str = DEFAULT_OPS_TOKEN_FILE,
                  smoke_probe_file: str | None = None,
                  input_source: str = "LIVE", operation_runtime=None,
                  arm_developer_mode: bool = False) -> None:
+        vision_criteria = vision_criteria or resolve_criteria()
         super().__init__(title="파워트레인 운영 콘솔")
         _install_console_css()
         self._operation_runtime = operation_runtime
@@ -4629,6 +4637,8 @@ class OperatorConsole(Gtk.Window):
             chassis_receiver=self._chassis_receiver,
             overlay_enabled=self.overlay_view_state["show_terrain"],
             on_overlay_toggled=self._on_vision_overlay_toggled,
+            map_display=map_display,
+            criteria=vision_criteria,
         )
         stack.add_titled(self._vision_panel, "vision", "비전")
         # The arm tabs use exactly the existing authenticated ops connection.
@@ -6087,6 +6097,8 @@ def main() -> None:
         help="L515 terrain outline delay to match SRT video (0-400 ms)",
     )
     parser.add_argument("--terrain-map-port", type=int, default=5010)
+    parser.add_argument("--l515-criteria", default=None, help="표시 기준값 JSON (L515_CRITERIA)")
+    parser.add_argument("--l515-criteria-profile", default=None)
     defaults = DisplayConfig()
     parser.add_argument("--map-display-upsample", type=int, default=defaults.display_upsample)
     parser.add_argument("--map-hillshade-azimuth", type=float, default=defaults.hillshade_azimuth_deg)
@@ -6128,6 +6140,10 @@ def main() -> None:
     if not 0 <= args.terrain_display_delay_ms <= 400:
         parser.error("--terrain-display-delay-ms must be within 0-400")
     map_display = map_display_from_args(parser, args)
+    try:
+        vision_criteria = resolve_criteria(args.l515_criteria, args.l515_criteria_profile)
+    except ValueError as exc:
+        parser.error(str(exc))
     Gst.init(None)
     console = OperatorConsole(args.host, args.d435_port, args.l515_port,
                               args.metadata_port, args.latency_ms, args.telemetry_port,
@@ -6138,6 +6154,7 @@ def main() -> None:
                               terrain_display_delay_ms=args.terrain_display_delay_ms,
                               terrain_map_port=args.terrain_map_port,
                               map_display=map_display,
+                              vision_criteria=vision_criteria,
                               ops_host=args.host if args.ops_host is None else args.ops_host,
                               ops_port=args.ops_port,
                               ops_token_file=args.ops_token_file,

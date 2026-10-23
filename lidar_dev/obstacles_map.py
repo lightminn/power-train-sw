@@ -26,8 +26,10 @@ import argparse, csv, heapq, json, math, os, sys
 import numpy as np
 import cv2
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # python -m lidar_dev.… 과 스크립트 실행 둘 다
-from criteria import load_criteria  # noqa: E402
+if __package__:
+    from .criteria import load_criteria
+else:
+    from criteria import load_criteria
 
 LEVEL = {"unknown": 0, "pass": 1, "caution": 2, "block": 3}
 NAME = {v: k for k, v in LEVEL.items()}

@@ -3,8 +3,8 @@
 ## 비전 탭 (단계별 통합 중)
 
 노트북 Graphite GUI(초록 강조·하단 탭·기존 3D 표시)를 기준으로 통합한다.
-현재는 기존 L515 영상·지형 오버레이를 공유하는 탭 뼈대까지 구현했다.
-Top/Oblique 지도와 자세 영역은 아직 연결 준비 상태다.
+기존 L515 영상·지형 오버레이와 Top/Oblique 지도까지 연결했다.
+차체 자세 영역은 다음 단계에서 연결한다.
 협조구동의 **지형 보기** 버튼도 비전 탭을 연다.
 
 ```bash
@@ -20,14 +20,36 @@ Top/Oblique 지도와 자세 영역은 아직 연결 준비 상태다.
 기존 바닥 상태 배지와 장애물 윤곽만 표시할 수 있다.
 노트북 버전의 별도 장애물 :5009 수신기·HTTP 시험대 창은 이 경로에서 기동하지 않는다.
 
-기존 GTK/GStreamer 의존성과 numpy가 필요하다. 향후 지도 함수 재사용용 OpenCV는
+두 지도는 기존 UDP :5010 수신기를 공유한다. 지도 이미지는 별도 작업 스레드에서
+각각 약 2 Hz로 생성하며, 비전 탭을 숨기면 지도 계산·화면 갱신을 멈추고 수신은 유지한다.
+휠/+/−로 두 지도를 확대·축소하고, Top을 끌면 따라가기가 해제된다.
+따라가기 중에는 로버 방향이 위이며, 해제하면 Top은 북쪽이 위이고 Oblique는 선택 위치를 기준으로 본다.
+Top 범례는 송신 지도 클래스, Oblique 범례는 기준값 JSON의 표시용 재분류다.
+미수신·끊김 시 원점 자세를 만들지 않으며, 오래된 Oblique 투영은 숨긴다.
+
+```bash
+# 운용 PC: 코드 수정 없이 기준값 교체 (적용 후 콘솔 재시작)
+/usr/bin/python3 -m operator_console.app --host <Gateway-IP> --page vision \
+  --l515-criteria /path/to/obstacle_criteria.json --l515-criteria-profile A_no_stop
+# 통합 진입점에도 같은 CLI 옵션을 사용할 수 있다.
+```
+
+설정 JSON의 `l515_criteria`, `l515_criteria_profile`도 지원한다.
+경로·프로필 각각 CLI > 설정 JSON > `L515_CRITERIA`/`L515_CRITERIA_PROFILE` > 저장소 기본값 순이다.
+JSON의 상대 경로는 설정 파일 폴더 기준이다. 프로필을 생략하면 파일의 기본 프로필을 사용한다.
+화면에 버전·프로필·SHA256 앞 8자, 툴팁에 파일 경로와 전체 해시를 표시한다.
+v0.2에서 trench_depth_m이 없으면 기존 함수대로 step_up_m을 사용한다.
+이 설정은 Gateway 송신 기준이나 주행 제어를 변경하지 않는다.
+
+기존 GTK/GStreamer 의존성과 numpy, 지도 함수 재사용용 OpenCV가 필요하다.
+OpenCV는
 운용 PC의 **콘솔과 같은 Python**에 설치한다. 이 PC에서는 관리자 권한 없이
 사용자 영역에 numpy 2.5.4 / OpenCV-headless 5.0.0 / pytest 9.1.1을 설치했다.
 시스템 Python용 pip가 없다면 배포판 패키지 또는 `--system-site-packages` 가상환경을
 사용하되, GTK/gtksink 접근 여부를 확인한다. RealSense SDK는 콘솔에 필요하지 않다.
 
 [단계별 계획](../docs/plans/2026-10-23-vision-tab.md)과
-[2단계 결과](../docs/reports/2026-10-23-vision-tab-step2.md)에 검증·미연결 항목을 기록한다.
+[3단계 결과](../docs/reports/2026-10-23-vision-tab-step3.md)에 검증·미연결 항목을 기록한다.
 
 Integrated entrypoint: `python -m operator_console` uses the prepared paired-robot
 config, reconnects automatically, supervises a separate gamepad process and offers

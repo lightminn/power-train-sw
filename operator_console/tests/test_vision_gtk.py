@@ -11,6 +11,7 @@ import pytest
     "test_vision_roundtrip_keeps_single_decoder_and_restores_layout[False]",
     "test_vision_roundtrip_keeps_single_decoder_and_restores_layout[True]",
     "test_vision_overlay_toggle_shares_mission_state",
+    "test_vision_maps_live_stale_recovery_hidden_and_controls",
 ])
 def test_vision_srt_in_isolated_gtk_process(case):
     if shutil.which("xvfb-run") is None:
