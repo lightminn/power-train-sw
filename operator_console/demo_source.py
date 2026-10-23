@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import secrets
 import signal
 import socket
 import time
@@ -22,8 +23,12 @@ DEFAULT_TEST_PORTS = {
     "chassis": 15005,
     "arm": 15007,
     "environment": 15008,
+    "terrain": 15009,
 }
-LIVE_PORTS = frozenset({5003, 5004, 5005, 5007, 5008})
+LIVE_PORTS = frozenset({5003, 5004, 5005, 5007, 5008, 5009})
+# Fixed placeholder session; ``run`` gives every demo run its own session so
+# the console's terrain session gate accepts a restarted demo at once.
+DEMO_TERRAIN_SESSION = ("0" * 32, 0, "0" * 16)
 WHEEL_NAMES = (
     "front_left", "front_right", "mid_left",
     "mid_right", "rear_left", "rear_right",
@@ -82,7 +87,39 @@ def _wheel_payloads(scenario: str, elapsed_s: float) -> list[dict]:
     return payloads
 
 
-def build_payloads(sequence: int, elapsed_s: float) -> dict[str, dict]:
+def _terrain_payload(
+    sequence: int, scenario: str, session: tuple[str, int, str],
+) -> dict:
+    """L515 terrain packet v1: one outline, in the path only when blocked."""
+    boot_id, start_ns, instance = session
+    blocked = scenario == "BLOCKED_HOLD"
+    distance = 0.62 if blocked else 2.1
+    poly = (
+        [[520, 330], [760, 330], [760, 520], [520, 520]] if blocked
+        else [[930, 300], [1030, 300], [1030, 380], [930, 380]]
+    )
+    return {
+        "schema_version": 1, "type": "l515_terrain",
+        "sender_boot_id": boot_id, "sender_start_mono_ns": start_ns,
+        "sender_instance": instance, "sequence": sequence,
+        "sent_unix_ns": time.time_ns(), "depth_stamp_ns": time.time_ns(),
+        "depth_age_ms": 35.0, "status": "OK", "reason": None,
+        "frame_size": [1280, 720], "distance_origin": "l515_depth_optical",
+        "alignment_verified": False,
+        "ground": {"state": "FRESH", "age_ms": 35.0,
+                   "camera_height_m": 0.5, "camera_tilt_deg": 20.0},
+        "path_half_width_m": 0.4445,
+        "zones": {"left": None, "center": distance if blocked else None,
+                  "right": None if blocked else distance},
+        "obstacles": [{"dist_m": distance, "in_path": blocked, "poly": poly}],
+        "proc_ms": 20.0,
+    }
+
+
+def build_payloads(
+    sequence: int, elapsed_s: float,
+    terrain_session: tuple[str, int, str] = DEMO_TERRAIN_SESSION,
+) -> dict[str, dict]:
     """Build one coherent multi-channel frame for a deterministic scenario."""
     scenario = scenario_at(elapsed_s)
     path_available = scenario != "BLOCKED_HOLD"
@@ -254,6 +291,7 @@ def build_payloads(sequence: int, elapsed_s: float) -> dict[str, dict]:
         "chassis": chassis,
         "arm": arm,
         "environment": environment,
+        "terrain": _terrain_payload(sequence, scenario, terrain_session),
     }
 
 
@@ -281,6 +319,7 @@ def run(
         raise ValueError("duration_s must be greater than zero")
     sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     started = time.monotonic()
+    terrain_session = ("0" * 32, time.monotonic_ns(), secrets.token_hex(8))
     sequence = 0
     try:
         while (
@@ -289,7 +328,8 @@ def run(
         ):
             elapsed = time.monotonic() - started
             sequence += 1
-            for channel, payload in build_payloads(sequence, elapsed).items():
+            payloads = build_payloads(sequence, elapsed, terrain_session)
+            for channel, payload in payloads.items():
                 raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
                 if len(raw) > 4096:
                     raise RuntimeError(f"{channel} demo datagram exceeds 4096 bytes")

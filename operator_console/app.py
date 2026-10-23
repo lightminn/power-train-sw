@@ -51,7 +51,8 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 gi.require_version("Gst", "1.0")
 gi.require_version("Rsvg", "2.0")
-from gi.repository import Gdk, GLib, Gst, Gtk, Pango, Rsvg  # noqa: E402
+gi.require_version("PangoCairo", "1.0")
+from gi.repository import Gdk, GLib, Gst, Gtk, Pango, PangoCairo, Rsvg  # noqa: E402
 
 from .arm_telemetry import (
     ArmTelemetrySnapshot,
@@ -81,6 +82,7 @@ from .metadata import (
     target_distance_m,
 )
 from .mobility_view import MobilityDashboard, mission_mobility_values
+from .terrain import LatestTerrainReceiver, TerrainView, terrain_view
 from .ops_client import ConsoleOpsClient
 from .ops_panel import (
     GESTURE_HOLD,
@@ -1657,6 +1659,14 @@ class MetadataCanvas(Gtk.DrawingArea):
         self._show_distance = bool(show_distance)
         self.queue_draw()
 
+    def _label_layout(self, context: object, text: str):
+        # PangoCairo, not cairo's toy text API: the toy API has no font
+        # fallback and draws Korean class names as missing-glyph boxes.
+        layout = PangoCairo.create_layout(context)
+        layout.set_font_description(Pango.FontDescription("Sans Bold 11"))
+        layout.set_text(text, -1)
+        return layout
+
     def _on_draw(self, _widget: Gtk.DrawingArea, context: object) -> bool:
         frame = self._receiver.latest()
         if (
@@ -1677,8 +1687,6 @@ class MetadataCanvas(Gtk.DrawingArea):
         )
         context.set_source_rgba(0.0, 0.835, 1.0, 0.98)
         context.set_line_width(2.0)
-        context.select_font_face("Sans", 0, 1)
-        context.set_font_size(15.0)
         # 갱신 소유자는 _sync_overlay_rail 타이머 하나다.  draw 는 읽기만 한다 —
         # 그리기 횟수가 필터(EMA/median/연속성) 진행을 바꾸면 창이 가려졌을 때
         # 거리값이 달라진다.
@@ -1714,23 +1722,137 @@ class MetadataCanvas(Gtk.DrawingArea):
             text = "  ".join(labels)
             label_x = offset_x + x * scale
             label_y = max(18.0, offset_y + y * scale - 5.0)
-            extents = context.text_extents(text)
+            layout = self._label_layout(context, text)
+            _ink, logical = layout.get_pixel_extents()
+            text_width, text_height = float(logical.width), float(logical.height)
             context.set_source_rgba(0.0, 0.059, 0.094, 0.88)
             context.rectangle(
-                label_x - 3.0, label_y - extents.height - 4.0,
-                extents.width + 9.0, extents.height + 7.0,
+                label_x - 3.0, label_y - text_height - 4.0,
+                text_width + 9.0, text_height + 7.0,
             )
             context.fill()
             if detection.is_pick_target:
                 context.set_source_rgba(0.0, 0.341, 1.0, 1.0)
                 context.rectangle(
-                    label_x - 3.0, label_y - extents.height - 4.0,
-                    3.0, extents.height + 7.0,
+                    label_x - 3.0, label_y - text_height - 4.0,
+                    3.0, text_height + 7.0,
                 )
                 context.fill()
             context.set_source_rgba(0.42, 0.914, 1.0, 1.0)
-            context.move_to(label_x + 2.0, label_y)
-            context.show_text(text)
+            context.move_to(label_x + 2.0, label_y - text_height - 1.0)
+            PangoCairo.show_layout(context, layout)
+        return False
+
+
+TERRAIN_TONES = {
+    "ok": (0.0, 0.835, 1.0),
+    "warn": (1.0, 0.72, 0.0),
+    "error": (1.0, 0.32, 0.32),
+    "muted": (0.75, 0.78, 0.82),
+}
+
+
+class TerrainCanvas(Gtk.DrawingArea):
+    """Transparent L515 terrain outlines + status badge (operator aid only).
+
+    Sits above the video standby layer so the badge stays visible while the
+    SRT video is connecting or stale; outlines are hidden in that case.
+    Text goes through PangoCairo — cairo's toy text API has no Hangul
+    fallback and renders the Korean badge as empty boxes.
+    """
+
+    def __init__(self, receiver: LatestTerrainReceiver) -> None:
+        super().__init__()
+        self._receiver = receiver
+        self._enabled = True
+        self._video_size: tuple[int, int] | None = None
+        self._video_live = False
+        self.connect("draw", self._on_draw)
+        self._redraw_source = GLib.timeout_add(100, self._redraw)
+        self.connect("destroy", self._on_destroy)
+
+    def set_video_size(self, width: int, height: int) -> None:
+        size = (int(width), int(height))
+        if size != self._video_size:
+            self._video_size = size
+            self.queue_draw()
+
+    def set_video_live(self, live: bool) -> None:
+        if bool(live) != self._video_live:
+            self._video_live = bool(live)
+            self.queue_draw()  # drop outlines the moment the standby layer appears
+
+    def set_display_enabled(self, enabled: bool) -> None:
+        self._enabled = bool(enabled)
+        self.queue_draw()
+
+    def view(self, now_s: float | None = None) -> TerrainView:
+        now_s = time.monotonic() if now_s is None else now_s
+        latest, display, last_rx_s = self._receiver.snapshot(now_s)
+        return terrain_view(
+            latest, display, last_rx_s, now_s, self._receiver.display_delay_s,
+            self._video_size, video_live=self._video_live,
+        )
+
+    def _redraw(self) -> bool:
+        self.queue_draw()
+        return True
+
+    def _on_destroy(self, *_args: object) -> None:
+        if self._redraw_source is not None:
+            GLib.source_remove(self._redraw_source)
+            self._redraw_source = None
+
+    def _layout(self, context: object, text: str, font: str, max_width: float):
+        layout = PangoCairo.create_layout(context)
+        layout.set_font_description(Pango.FontDescription(font))
+        layout.set_width(int(max(40.0, max_width) * Pango.SCALE))
+        layout.set_ellipsize(Pango.EllipsizeMode.END)
+        layout.set_text(text, -1)
+        return layout
+
+    def _on_draw(self, _widget: Gtk.DrawingArea, context: object) -> bool:
+        if not self._enabled:
+            return False
+        view = self.view()
+        allocation = self.get_allocation()
+        frame_width, frame_height = self._video_size or (1280, 720)
+        scale, offset_x, offset_y = fit_overlay_transform(
+            allocation.width, allocation.height, frame_width, frame_height,
+        )
+        for obstacle in view.obstacles:
+            red = obstacle.in_path
+            rgb = (1.0, 0.25, 0.25) if red else (1.0, 0.6, 0.0)
+            first, *rest = obstacle.poly
+            context.move_to(offset_x + first[0] * scale, offset_y + first[1] * scale)
+            for x, y in rest:
+                context.line_to(offset_x + x * scale, offset_y + y * scale)
+            context.close_path()
+            context.set_source_rgba(*rgb, 0.22)
+            context.fill_preserve()
+            context.set_source_rgba(*rgb, 0.95)
+            context.set_line_width(3.0 if red else 2.0)
+            context.stroke()
+            top = min(obstacle.poly, key=lambda point: point[1])
+            label = self._layout(context, f"{obstacle.dist_m:.2f} m", "Sans Bold 13", 120.0)
+            context.move_to(offset_x + top[0] * scale, max(0.0, offset_y + top[1] * scale - 22.0))
+            PangoCairo.show_layout(context, label)
+        left = offset_x + 12.0
+        max_width = max(40.0, frame_width * scale - 24.0)
+        badge = self._layout(context, view.badge, "Sans Bold 14", max_width)
+        note = self._layout(context, view.note, "Sans 11", max_width)
+        badge_w, badge_h = badge.get_pixel_size()
+        note_w, note_h = note.get_pixel_size()
+        top = offset_y + frame_height * scale - 12.0 - badge_h - note_h - 8.0
+        context.set_source_rgba(0.0, 0.059, 0.094, 0.82)
+        context.rectangle(left - 6.0, top - 4.0, max(badge_w, note_w) + 12.0, badge_h + note_h + 12.0)
+        context.fill()
+        context.set_source_rgba(*TERRAIN_TONES[view.tone], 1.0)
+        context.move_to(left, top)
+        PangoCairo.show_layout(context, badge)
+        context.set_source_rgba(0.85, 0.88, 0.92, 0.95)
+        context.move_to(left, top + badge_h + 4.0)
+        PangoCairo.show_layout(context, note)
         return False
 
 
@@ -2303,7 +2425,8 @@ class VideoPanel(Gtk.Box):
     def __init__(self, name: str, host: str, port: int, latency_ms: int,
                  metadata_receiver: LatestMetadataReceiver | None = None,
                  target_tracker: DisplayTargetTracker | None = None,
-                 event_sink: Callable[[str, str], None] | None = None) -> None:
+                 event_sink: Callable[[str, str], None] | None = None,
+                 overlay_canvases: tuple[Gtk.Widget, ...] = ()) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         _style(self, "video-card")
         self._name = name
@@ -2352,6 +2475,12 @@ class VideoPanel(Gtk.Box):
         header_click.set_halign(Gtk.Align.FILL)
         header_click.set_valign(Gtk.Align.START)
         _style(header_click, "video-overlay")
+        # Every overlay canvas receives the negotiated video size.  The D435
+        # metadata canvas stays inside the video layer (unchanged); extra
+        # canvases sit above the standby layer (see video_stage below).
+        self._overlay_canvases: list[Gtk.Widget] = []
+        self._stage_canvases = tuple(overlay_canvases)
+        self._video_live_published: bool | None = None
         if metadata_receiver is None:
             visual = self._video_widget
         else:
@@ -2364,7 +2493,10 @@ class VideoPanel(Gtk.Box):
             canvas.set_vexpand(True)
             metadata_overlay.add_overlay(canvas)
             self._metadata_canvas = canvas
+            self._overlay_canvases.append(canvas)
             visual = metadata_overlay
+        self._overlay_canvases.extend(self._stage_canvases)
+        if metadata_receiver is not None:
             self._metadata_receiver = metadata_receiver
             self._metadata_label = Gtk.Label(label="YOLO: UDP :5003 대기 중")
             self._metadata_state: tuple[str, int] | None = None
@@ -2392,6 +2524,11 @@ class VideoPanel(Gtk.Box):
         self._rover_status_overlay = placeholder.rover
         standby.add_overlay(placeholder)
         video_stage.add_overlay(standby)
+        for canvas in self._stage_canvases:
+            canvas.set_hexpand(True)
+            canvas.set_vexpand(True)
+            video_stage.add_overlay(canvas)
+            video_stage.set_overlay_pass_through(canvas, True)
         video_stage.add_overlay(header_click)
         self._placeholder = standby
         self.pack_start(video_stage, True, True, 0)
@@ -2481,6 +2618,21 @@ class VideoPanel(Gtk.Box):
                 show_distance=show_distance,
             )
 
+    def _publish_video_live(self, live: bool) -> None:
+        if live == self._video_live_published:
+            return
+        self._video_live_published = live
+        for canvas in self._stage_canvases:
+            setter = getattr(canvas, "set_video_live", None)
+            if setter is not None:
+                setter(live)
+
+    def publish_video_size(self, width: int, height: int) -> bool:
+        """GTK thread: hand the negotiated size to every overlay canvas."""
+        for canvas in self._overlay_canvases:
+            canvas.set_video_size(width, height)
+        return False
+
     @property
     def last_fps(self) -> float | None:
         return self._last_fps
@@ -2517,9 +2669,7 @@ class VideoPanel(Gtk.Box):
                 and video_size != self._video_size
             ):
                 self._video_size = video_size
-                canvas = getattr(self, "_metadata_canvas", None)
-                if canvas is not None:
-                    GLib.idle_add(canvas.set_video_size, width, height)
+                GLib.idle_add(self.publish_video_size, width, height)
         now = time.monotonic()
         self._last_frame_monotonic = now
         elapsed = now - self._sample_start
@@ -2534,6 +2684,7 @@ class VideoPanel(Gtk.Box):
     def _on_bus_message(self, _bus: Gst.Bus, message: Gst.Message) -> None:
         if message.type == Gst.MessageType.ERROR:
             self._placeholder.show_all()
+            self._publish_video_live(False)
             error, detail = message.parse_error()
             self._pipeline_live = False
             self._status.set_text(f"{self._name} 연결 대기")
@@ -2541,6 +2692,7 @@ class VideoPanel(Gtk.Box):
             self._schedule_reconnect()
         elif message.type == Gst.MessageType.EOS:
             self._placeholder.show_all()
+            self._publish_video_live(False)
             self._pipeline_live = False
             self._status.set_text(f"{self._name} 연결 대기")
             self._schedule_reconnect()
@@ -2557,6 +2709,7 @@ class VideoPanel(Gtk.Box):
     def _refresh_video_health(self) -> bool:
         if self._stopped:
             return False
+        self._publish_video_live(self.health_state() == "LIVE")
         if not self._pipeline_live:
             self._placeholder.show_all()
             self._header_state.set_text("연결 대기")
@@ -2616,6 +2769,7 @@ class VideoPanel(Gtk.Box):
         # 다시 발화하고 표시도 거대한 stale 나이를 보인다 — 상태를 리셋한다.
         self._pipeline_live = False
         self._last_frame_monotonic = None
+        self._publish_video_live(False)
         self._last_fps = None
         self._frames = 0
         self._sample_start = time.monotonic()
@@ -3668,6 +3822,8 @@ class OperatorConsole(Gtk.Window):
                  latency_ms: int, telemetry_port: int, chassis_telemetry_port: int,
                  arm_telemetry_port: int = 5007,
                  environment_telemetry_port: int = 5008,
+                 terrain_port: int = 5009,
+                 terrain_display_delay_ms: int = 0,
                  ops_host: str | None = None, ops_port: int = 9001,
                  ops_token_file: str = DEFAULT_OPS_TOKEN_FILE,
                  smoke_probe_file: str | None = None,
@@ -3699,6 +3855,10 @@ class OperatorConsole(Gtk.Window):
         self._environment_receiver = LatestEnvironmentTelemetryReceiver(
             environment_telemetry_port,
         )
+        self._terrain_receiver = LatestTerrainReceiver(
+            terrain_port, display_delay_s=terrain_display_delay_ms / 1000.0,
+        )
+        self._terrain_canvas = TerrainCanvas(self._terrain_receiver)
         self._events = EventLog()
         self._mission_events = EventLog()
         self._d435 = VideoPanel("작업 카메라", host, d435_port, latency_ms,
@@ -3706,7 +3866,8 @@ class OperatorConsole(Gtk.Window):
                                 target_tracker=self._display_target_tracker,
                                 event_sink=self._add_event)
         self._l515 = VideoPanel("전방 카메라", host, l515_port, latency_ms,
-                                event_sink=self._add_event)
+                                event_sink=self._add_event,
+                                overlay_canvases=(self._terrain_canvas,))
         # Fixed judge layout: forward view owns the stage; work view is 848:480 PiP.
         videos = Gtk.Overlay()
         videos.set_hexpand(True)
@@ -3760,19 +3921,25 @@ class OperatorConsole(Gtk.Window):
             label="인식 대상"
         )
         self._show_distance = Gtk.CheckButton(label="대상 거리")
+        self._show_terrain = Gtk.CheckButton(label="지형 장애물")
         self.overlay_view_state = {
             "show_detection": True,
             "show_distance": True,
+            "show_terrain": True,
         }
         self._show_objects.set_active(True)
         self._show_distance.set_active(True)
+        self._show_terrain.set_active(True)
         _style(self._show_objects, "display-option")
         _style(self._show_distance, "display-option")
+        _style(self._show_terrain, "display-option")
         self._show_objects.connect("toggled", self._on_display_option_toggled)
         self._show_distance.connect("toggled", self._on_display_option_toggled)
+        self._show_terrain.connect("toggled", self._on_display_option_toggled)
         display_options.pack_start(display_title, False, False, 0)
         display_options.pack_start(self._show_objects, False, False, 0)
         display_options.pack_start(self._show_distance, False, False, 0)
+        display_options.pack_start(self._show_terrain, False, False, 0)
         self._display_options = display_options
         videos.connect("size-allocate", self._on_video_area_allocated)
         self._videos = videos
@@ -4728,6 +4895,12 @@ class OperatorConsole(Gtk.Window):
         self.overlay_view_state["show_distance"] = (
             self._show_distance.get_active()
         )
+        self.overlay_view_state["show_terrain"] = (
+            self._show_terrain.get_active()
+        )
+        self._terrain_canvas.set_display_enabled(
+            self.overlay_view_state["show_terrain"],
+        )
         self._d435.set_metadata_display_options(
             show_objects=self.overlay_view_state["show_detection"],
             show_distance=self.overlay_view_state["show_distance"],
@@ -5500,12 +5673,15 @@ class OperatorConsole(Gtk.Window):
             self._readiness_detail.set_text(
                 " · ".join(waiting_items) + "의 연결을 확인하고 있습니다"
             )
+        terrain_view_now = self._terrain_canvas.view()
         self._write_smoke_probe({
             "telemetry": telemetry,
             "chassis": chassis_state,
             "metadata": yolo,
             "arm": arm_state,
             "environment": environment_state,
+            "terrain": terrain_view_now.probe_state,
+            "terrain_badge": terrain_view_now.badge,
             "environment_climate": self._environment_status.probe_values()[0],
             "environment_air": self._environment_status.probe_values()[1],
             "environment_hazard": self._environment_status.probe_values()[2],
@@ -5580,6 +5756,7 @@ class OperatorConsole(Gtk.Window):
         self._chassis_receiver.close()
         self._arm_receiver.close()
         self._environment_receiver.close()
+        self._terrain_receiver.close()
         self._ops_panel.close()
         if Gtk.main_level():
             Gtk.main_quit()
@@ -5634,6 +5811,11 @@ def main() -> None:
     parser.add_argument("--chassis-telemetry-port", type=int, default=5005)
     parser.add_argument("--arm-telemetry-port", type=int, default=5007)
     parser.add_argument("--environment-telemetry-port", type=int, default=5008)
+    parser.add_argument("--terrain-port", type=int, default=5009)
+    parser.add_argument(
+        "--terrain-display-delay-ms", type=int, default=0,
+        help="L515 terrain outline delay to match SRT video (0-400 ms)",
+    )
     parser.add_argument(
         "--ops-host",
         default=None,
@@ -5659,12 +5841,16 @@ def main() -> None:
         help="developer-info provenance label only; does not change receivers",
     )
     args = parser.parse_args()
+    if not 0 <= args.terrain_display_delay_ms <= 400:
+        parser.error("--terrain-display-delay-ms must be within 0-400")
     Gst.init(None)
     console = OperatorConsole(args.host, args.d435_port, args.l515_port,
                               args.metadata_port, args.latency_ms, args.telemetry_port,
                               args.chassis_telemetry_port,
                               args.arm_telemetry_port,
                               args.environment_telemetry_port,
+                              terrain_port=args.terrain_port,
+                              terrain_display_delay_ms=args.terrain_display_delay_ms,
                               ops_host=args.host if args.ops_host is None else args.ops_host,
                               ops_port=args.ops_port,
                               ops_token_file=args.ops_token_file,

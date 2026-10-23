@@ -78,6 +78,8 @@ cd ~/power-train-sw && sudo bash scripts/install_operator_host_helper.sh
 --telemetry-port 5004       파워트레인 텔레메트리(UDP)
 --chassis-telemetry-port 5005
 --arm-telemetry-port 5007   로봇팔 텔레메트리(UDP)
+--terrain-port 5009         L515 지형 장애물 윤곽(UDP, 참고용)
+--terrain-display-delay-ms 0  윤곽을 영상 지연에 맞추는 표시 지연(0–400)
 --ops-port 9001             조작 채널(TCP, 역할토큰)
 --ops-host                  ops 브로커가 다른 호스트면 지정(기본: --host 와 동일)
 --latency-ms 60             SRT 지연. 송신측 --srt-latency 와 같이 맞출 것

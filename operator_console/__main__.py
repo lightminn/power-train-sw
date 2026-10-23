@@ -21,7 +21,8 @@ def main(argv=None):
             raise ValueError('token_file이 비어 있습니다')
         defaults = dict(d435_port=5002, l515_port=5000, metadata_port=5003,
                         telemetry_port=5004, chassis_telemetry_port=5005,
-                        arm_telemetry_port=5007, environment_telemetry_port=5008)
+                        arm_telemetry_port=5007, environment_telemetry_port=5008,
+                        terrain_port=5009)
         ports = {key: config.get(key, value) for key, value in defaults.items()}
         for key, value in ports.items():
             if type(value) is not int or not 1 <= value <= 65535:
@@ -29,6 +30,9 @@ def main(argv=None):
         latency = config.get('latency_ms', 60)
         if type(latency) is not int or not 0 <= latency <= 10000:
             raise ValueError('latency_ms: 0–10000 정수가 필요합니다')
+        terrain_delay = config.get('terrain_display_delay_ms', 0)
+        if type(terrain_delay) is not int or not 0 <= terrain_delay <= 400:
+            raise ValueError('terrain_display_delay_ms: 0–400 정수가 필요합니다')
         lock_root = Path(os.environ.get('XDG_RUNTIME_DIR', str(Path.home() / '.cache')))
         with ConsoleInstanceLock(lock_root / 'powertrain' / 'operator-console.lock'):
             from operator_console.app import OperatorConsole, Gst, Gtk, GLib, _add_unix_signal_watch
@@ -37,6 +41,7 @@ def main(argv=None):
                 raise RuntimeError('화면에 연결할 수 없습니다. 데스크톱 세션에서 실행하세요')
             runtime = OperationRuntime(config)
             console = OperatorConsole('127.0.0.1', latency_ms=latency, **ports,
+                terrain_display_delay_ms=terrain_delay,
                 ops_token_file=config['token_file'], operation_runtime=runtime,
                 smoke_probe_file=args.smoke_probe_file)
             console.show_all()

@@ -367,6 +367,7 @@ URDF 재추출 치수와 명령 계약은 [수동 애커만 설계](specs/2026-0
 | 전방 영상 | L515 Gateway 단일 소유, SRT :5000 |
 | 작업 영상·인식·로봇팔 상태 | 준비된 선택 스택 + SRT :5002 / UDP :5003·5007 |
 | 전원·차체 상태 | UDP :5004·5005, 현재 인증된 노트북 주소로 전송 |
+| 지형 장애물 윤곽(참고용) | 선택 서비스 `powertrain_terrain_overlay`(compose profile `terrain-overlay`), UDP :5009, 현재 인증된 노트북 주소로 전송 |
 | 부팅 순서/IP 변경 | 등록된 IPv4 호스트 후보 재해석, robot ID와 토큰으로 상대 확인 |
 
 세션 :9002는 동시 운용자 한 명만 허용한다. 연결 임대가 끝나면 입력/ops 프록시를
@@ -387,6 +388,10 @@ HMAC은 짝 확인을 위한 인증이며 암호화 전송은 아니다. 기존 
 환경 텔레메트리 포트는 `~/.config/powertrain/operator.json`의
 `environment_telemetry_port`로 지정하며 기본값은 `5008`이다. 1–65535 범위의 정수만
 허용되고, 잘못된 값은 세션·네트워크 시작 전에 콘솔 기동을 거부한다.
+L515 지형 장애물 윤곽은 `terrain_port`(기본 `5009`)로 받고, 영상과 맞추는 표시 지연은
+`terrain_display_delay_ms`(0–400 정수, 기본 0)로 정한다. 윤곽은 운용자 참고용이며
+주행 제어·안전 판정에 쓰이지 않는다. 송신 서비스는 기본 기동에 들어 있지 않다 —
+`INTEGRATED_PROFILES=terrain-overlay INTEGRATED_SERVICES=powertrain_terrain_overlay scripts/robot-start`로 켠다.
 
 ## 문제 확인
 
