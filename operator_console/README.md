@@ -4,7 +4,8 @@
 
 노트북 Graphite GUI(초록 강조·하단 탭·기존 3D 표시)를 기준으로 통합한다.
 기존 L515 영상·지형 오버레이와 Top/Oblique 지도까지 연결했다.
-차체 자세 영역은 다음 단계에서 연결한다.
+차체 자세 영역은 원시 IMU·바퀴 피드백·로커/보기 선택 필드·지도 정지 기록을 표시한다.
+보정된 차체 자세는 아직 미확인이며, 개략도에 미보정 roll/pitch를 적용하지 않는다.
 협조구동의 **지형 보기** 버튼도 비전 탭을 연다.
 
 ```bash
@@ -49,7 +50,19 @@ OpenCV는
 사용하되, GTK/gtksink 접근 여부를 확인한다. RealSense SDK는 콘솔에 필요하지 않다.
 
 [단계별 계획](../docs/plans/2026-10-23-vision-tab.md)과
-[3단계 결과](../docs/reports/2026-10-23-vision-tab-step3.md)에 검증·미연결 항목을 기록한다.
+[4단계 결과](../docs/reports/2026-10-23-vision-tab-step4.md)에 검증·미연결 항목을 기록한다.
+
+자세 수치는 :5005의 roll_rad/pitch_rad를 도 단위로 바꾼 **원시값(장착 보정 미확인)**이다.
+나이는 원 IMU 측정 시각이 없는 관계로 '패킷 수신 후'만 표시한다.
+바퀴는 steer_deg와 drive_turns_per_s의 실제 수신값을 사용하며, stale/결측은 숫자 대신 표시한다.
+Hall 저속 값(<0.3 rev/s)은 실제 정지와 다를 수 있으며 지령이나 0으로 바꾸지 않는다.
+지도 기준면은 차체 자세와 다르며, 정지 기록은 n초 전의 관측으로만 표시한다.
+
+로커/보기는 선택 필드 suspension_joints_rad, suspension_age_ms를 사용하고,
+suspension_source·suspension_frame으로 출처와 기준을 받을 수 있다.
+각도 키는 ml_rocker_joint/mr_rocker_joint/bl_bogie_joint/br_bogie_joint, 단위는 rad이다.
+나이가 없으면 시간 미확인, 값이 없으면 미수신이며 0이나 추정값을 만들지 않는다.
+실제 AS5048B 송신기·영점·부호 합의는 아직 없다. [필드 계약](../docs/reports/2026-10-23-vision-tab-step4.md)을 먼저 확인한다.
 
 Integrated entrypoint: `python -m operator_console` uses the prepared paired-robot
 config, reconnects automatically, supervises a separate gamepad process and offers

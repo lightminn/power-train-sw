@@ -2,6 +2,9 @@ window, window label, window button, window entry, window combobox, window expan
   font-family: "눈누 기초고딕 Regular", "Noto Sans CJK KR", sans-serif;
   font-size: 14px;
 }
+/* Dense read-only values in the four-view Vision page; other pages keep their fonts. */
+window .vision-attitude label { font-size: 10px; }
+window.viewport-spacious .vision-attitude label { font-size: 12px; }
 window .brand { font-family: "눈누 기초고딕 Regular", "Noto Sans CJK KR", sans-serif; font-size: 22px; font-weight: 700; }
 window .eyebrow, window .estop-subtitle { font-size: 11px; }
 window .brand-mark { font-size: 28px; }

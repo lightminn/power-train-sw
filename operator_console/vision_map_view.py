@@ -205,7 +205,11 @@ class VisionMaps:
             self.top_detail.set_text(images.top_note)
             self.oblique_detail.set_text(images.oblique_note)
             self.displayed_count += 1
-        st = None if self.images is None else self.images.status
+        st = self.worker.latest_status()
+        if st is not None and self.images is not None and self.images.status is not None and (
+                (st.session_key,st.map_epoch)!=(self.images.status.session_key,self.images.status.map_epoch)):
+            self.top.set_raster(None)
+            self.oblique.set_raster(None)
         age = None if st is None or st.received_s is None else max(0,time.monotonic()-st.received_s)
         self.state = "WAITING" if age is None else "STALE" if age > LINK_LOST_S else "LIVE"
         if error:
@@ -219,7 +223,7 @@ class VisionMaps:
         self.top.message = "지도 처리 오류: "+error if error else status
         self.oblique.message = ("지도 처리 오류: "+error if error else
             status + (" · 현재 투영 보류" if self.state != "LIVE" else ""))
-        if self.state == "STALE":
+        if self.state != "LIVE" or st is None or st.pose is None or st.status!="OK":
             # Withdraw the live pose projection immediately, before the next 2 Hz result.
             self.oblique.set_raster(None)
         self.top.queue_draw()

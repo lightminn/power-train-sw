@@ -15,6 +15,7 @@ from .terrain_map import DisplayConfig, MapRenderer, MapView
 from .vision_config import VisionCriteria
 
 PERIOD_S = 0.5
+STATUS_PERIOD_S = 0.1
 LINK_LOST_S = 0.5
 
 
@@ -198,6 +199,7 @@ class MapRenderWorker:
         self._generation = 0
         self._serial = 0
         self._result = None
+        self._status = None
         self.render_count = 0
         self.last_error = None
         self._thread = threading.Thread(target=self._run, name="vision-map-render", daemon=True)
@@ -214,11 +216,18 @@ class MapRenderWorker:
                 self._settings = settings
             if active is not None:
                 self._active = active
+                if not active:
+                    self._status = None
             self._condition.notify_all()
 
     def latest(self):
         with self._condition:
             return self._serial, self._result, self.last_error
+
+    def latest_status(self):
+        """Small immutable status only; never make GTK copy/expire terrain tiles."""
+        with self._condition:
+            return self._status
 
     def close(self):
         with self._condition:
@@ -226,25 +235,33 @@ class MapRenderWorker:
             self._active = False
             self._generation += 1
             self._result = None
+            self._status = None
             self._condition.notify_all()
         self._thread.join(timeout=0.3)
 
     def _run(self):
         renderer = VisionRenderer(self.display, self.criteria)
-        due = 0.0
+        due = poll_due = 0.0
         while True:
             with self._condition:
-                while not self._closed and (not self._active or time.monotonic() < due):
+                while not self._closed and (not self._active or time.monotonic() < poll_due):
                     if not self._active:
-                        due = 0.0
-                    self._condition.wait(None if not self._active else max(0, due-time.monotonic()))
+                        due = poll_due = 0.0
+                    self._condition.wait(None if not self._active else max(0, poll_due-time.monotonic()))
                 if self._closed:
                     return
                 settings, generation = self._settings, self._generation
             now = time.monotonic()
-            due = now + PERIOD_S
+            poll_due = now + STATUS_PERIOD_S
             try:
-                result = renderer.render(self.receiver.snapshot(now), settings, now)
+                snapshot = self.receiver.snapshot(now)
+                with self._condition:
+                    if generation == self._generation and self._active and not self._closed:
+                        self._status = snapshot.status
+                if now < due:
+                    continue
+                due = now + PERIOD_S
+                result = renderer.render(snapshot, settings, now)
                 error = None
             except Exception as exc:
                 result, error = None, f"{type(exc).__name__}: {exc}"

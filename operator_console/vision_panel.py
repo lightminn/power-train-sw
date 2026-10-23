@@ -9,6 +9,7 @@ from gi.repository import Gtk  # noqa: E402
 from .terrain_map import DisplayConfig
 from .vision_config import resolve_criteria
 from .vision_map_view import VisionMaps
+from .vision_attitude_view import AttitudePanel
 
 
 class VisionPanel(Gtk.Box):
@@ -37,7 +38,9 @@ class VisionPanel(Gtk.Box):
         grid.set_hexpand(True)
         grid.set_vexpand(True)
         self.camera_slot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.attitude_slot = self._waiting("자세 표시 준비 중\n차체 자세 보정 미확인")
+        self.attitude_slot = AttitudePanel(chassis_receiver,
+            self.maps.worker.latest_status,
+            map_port=map_receiver.port)
         self.top_slot = self.maps.top_slot
         self.oblique_slot = self.maps.oblique_slot
         for title, slot, column, row in (
@@ -58,15 +61,6 @@ class VisionPanel(Gtk.Box):
         note.set_line_wrap(True)
         note.set_max_width_chars(1)
         self.pack_start(note, False, False, 0)
-
-    @staticmethod
-    def _waiting(text: str) -> Gtk.Box:
-        slot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        label = Gtk.Label(label=text)
-        label.set_line_wrap(True)
-        label.set_justify(Gtk.Justification.CENTER)
-        slot.set_center_widget(label)
-        return slot
 
     def set_overlay_enabled(self, enabled: bool) -> None:
         if self.show_terrain.get_active() != enabled:

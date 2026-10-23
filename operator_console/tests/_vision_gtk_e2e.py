@@ -233,3 +233,110 @@ def test_vision_maps_live_stale_recovery_hidden_and_controls(console):
     finally:
         GLib.source_remove(heartbeat)
         sender.close()
+
+
+def test_vision_attitude_sources_missing_values_static_history_and_recovery(console):
+    from dataclasses import asdict, replace
+    from pathlib import Path
+    import json
+    import math
+    import os
+    import socket
+    from operator_console.app import Gdk
+    from operator_console.runtime_smoke import _chassis_payload, _terrain_map_packets
+    from operator_console.tests.test_terrain import payload as overlay_payload
+    from terrain_map import contract as C
+
+    window=console
+    panel=window._vision_panel.attitude_slot
+    maps=window._vision_panel.maps
+    window._stack.set_visible_child_name('vision')
+    assert pump_until(lambda:panel.view is not None)
+    assert panel.view.raw_pitch.value is None
+    assert all(r.value is None for _,r in panel.view.suspension)
+    sender=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+    sequence=0; last_sent=0
+    phase='missing-encoders'
+    def feed():
+        nonlocal sequence,last_sent
+        now=time.monotonic()
+        if now-last_sent>.08:
+            sequence+=1; last_sent=now
+            data=_chassis_payload(sequence)
+            data['roll_rad']=0.0
+            data['pitch_rad']=math.radians(19.5)
+            data['wheel_statuses'][0].update(steer_deg=-12.5,drive_turns_per_s=.12,
+                command_turns_per_s=2.0,stale=False)
+            data['wheel_statuses'][2]['steer_deg']=None
+            if phase in ('encoders','aged','recover'):
+                data.update(suspension_joints_rad=dict(ml_rocker_joint=0,mr_rocker_joint=.02,
+                    bl_bogie_joint=-.03,br_bogie_joint=None),suspension_age_ms=1800 if phase=='aged' else 100,
+                    suspension_source='fixture-only',suspension_frame='urdf_joint')
+            if phase=='aged':
+                data['roll_rad']=None; data['pitch_rad']=None
+            sender.sendto(json.dumps(data).encode(),('127.0.0.1',window._chassis_receiver.port))
+            sender.sendto(overlay_payload(sequence=sequence),('127.0.0.1',window._terrain_receiver.port))
+            packets=_terrain_map_packets(sequence)
+            status=C.parse_packet(packets[0])
+            if phase!='aged':
+                status=replace(status,plane_tilt=C.PlaneTilt(4,-1,100),
+                    gravity=C.GravityTilt(6,-2,6.3,3,1))
+            sender.sendto(C.encode(status),('127.0.0.1',window._map_receiver.port))
+            sender.sendto(packets[1],('127.0.0.1',window._map_receiver.port))
+        return False
+    def until(predicate):
+        return pump_until(lambda:feed() or predicate())
+    def save(name):
+        destination=os.environ.get('VISION_ATTITUDE_EVIDENCE_DIR')
+        if destination:
+            out=Path(destination); out.mkdir(parents=True,exist_ok=True)
+            (out/(name+'.json')).write_text(json.dumps(asdict(panel.view),indent=2,ensure_ascii=False)+'\n')
+            image=Gdk.pixbuf_get_from_window(window.get_window(),0,0,
+                window.get_allocated_width(),window.get_allocated_height())
+            image.savev(str(out/(name+'.png')),'png',[],[])
+    try:
+        assert until(lambda:panel.view.raw_pitch.value is not None and panel.view.still is not None
+                     and maps.images is not None and maps.images.top is not None and maps.images.oblique is not None)
+        assert panel.view.raw_pitch.value==pytest.approx(19.5)
+        assert panel.view.body_state=='UNVERIFIED' and '보정 미확인' in panel.body.get_text()
+        assert '기울기 미적용' in panel.body.get_text()
+        assert panel.wheel_labels['front_left'][1].get_text()=='-12.5'
+        assert panel.wheel_labels['front_left'][2].get_text()=='+0.12'
+        assert panel.wheel_labels['mid_left'][2].get_text()=='오래됨'
+        assert '정지 기록' in panel.still.get_text() and '+3.0°' in panel.still.get_text()
+        assert all(r.text()=='미수신' for _,r in panel.view.suspension)
+        assert window.get_allocated_width()<=1100 and window.get_allocated_height()<=680
+        save('missing-encoders')
+        phase='encoders'
+        assert until(lambda:panel.view.suspension[0][1].state=='LIVE')
+        assert panel.view.suspension[0][1].value==0
+        assert panel.view.suspension[3][1].value is None
+        assert 'fixture-only' in panel.joint_source.get_text()
+        save('fixture-encoders')
+        phase='aged'
+        assert until(lambda:panel.view.link_state=='LIVE' and panel.view.raw_pitch.value is None and
+                     panel.view.suspension[0][1].state=='STALE')
+        assert until(lambda:maps.images is not None and maps.images.status.gravity is None)
+        old_age=panel.view.still_age_s
+        assert until(lambda:panel.view.still_age_s>old_age+.3)
+        assert panel.view.still.body_pitch_deg==3
+        assert '정지 기록' in panel.still.get_text() and '비교 보류' in panel.still.get_text()
+        assert pump_until(lambda:panel.view.link_state=='STALE',timeout_s=2)
+        assert panel.view.raw_pitch.value is None
+        assert all(w.speed.value is None for w in panel.view.wheels)
+        save('stale')
+        phase='recover'
+        assert until(lambda:panel.view.link_state=='LIVE' and panel.view.raw_pitch.value is not None)
+        assert panel.view.raw_pitch.value==pytest.approx(19.5)
+        window._stack.set_visible_child_name('mission')
+        count=panel.refresh_count
+        received=window._chassis_receiver.latest().sequence
+        deadline=time.monotonic()+.6
+        assert pump_until(lambda:feed() or time.monotonic()>deadline)
+        assert panel.refresh_count==count and panel._timer is None
+        assert window._chassis_receiver.latest().sequence>received
+        window._stack.set_visible_child_name('vision')
+        assert until(lambda:panel.view.link_state=='LIVE')
+        print('VISION_ATTITUDE_E2E: PASS · shared UDP · missing/stale/recovery · no mount correction · static history · hidden pause')
+    finally:
+        sender.close()

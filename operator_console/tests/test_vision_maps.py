@@ -172,3 +172,27 @@ def test_hidden_inflight_result_cannot_be_published_after_remap(receiver,monkeyp
         assert worker.render_count==1
     finally:
         release.set(); worker.close()
+
+
+def test_status_updates_between_rasters_without_rendering_more_or_polling_hidden(receiver):
+    worker=MapRenderWorker(receiver,DisplayConfig(),resolve_criteria())
+    try:
+        worker.configure(active=True)
+        assert wait_until(lambda:worker.render_count>=1)
+        count=worker.render_count
+        now=time.monotonic()
+        for raw in _terrain_map_packets(2):
+            receiver.ingest(raw,now)
+        assert wait_until(lambda:worker.latest_status() is not None and
+                          worker.latest_status().sequence==2,timeout=.3)
+        assert worker.render_count==count  # status must not wait for the next 2 Hz image
+        worker.configure(active=False)
+        assert worker.latest_status() is None
+        for raw in _terrain_map_packets(3):
+            receiver.ingest(raw,time.monotonic())
+        time.sleep(.2)
+        assert worker.latest_status() is None and worker.render_count==count
+        worker.configure(active=True)
+        assert wait_until(lambda:worker.latest_status() is not None and worker.latest_status().sequence==3)
+    finally:
+        worker.close()
