@@ -350,6 +350,10 @@ def _arm_payload(sequence: int) -> dict:
                 "actuators": [{"id": 3, "online": True}, {"id": 4, "online": True}],
             },
             "source_age_s": 0.1,
+            "coupling_lock_age_s": 0.1,
+            "coupling_lock": {"enabled": True, "state": "LOCKED",
+                              "zero_tick": 2048, "zero_state": "LOCKED",
+                              "position": 2048, "torque": 1},
         },
         "arm_runtime": {
             "control_mode": "MANUAL", "fsm_state": "IDLE", "arm_status": "READY",
@@ -457,6 +461,7 @@ def run_smoke(
     environment_values_seen = False
     invalid_steering_held_seen = False
     arm_tabs_seen = False
+    lock_panel_seen = False
     try:
         # 콘솔이 Gtk 루프에 진입하기 전에 주입 창을 소진하면 LIVE 를 한 번도
         # 못 보고 거짓 FAIL 이 난다(부하가 높으면 xvfb 기동이 수 초 걸린다).
@@ -509,6 +514,12 @@ def run_smoke(
                 1,
                 "invalid-smoke-mode",
             )
+            try:
+                lock_probe = json.loads(probe_file.read_text())
+                lock_panel_seen |= (lock_probe.get("arm_lock_state") == "LOCKED"
+                                    and lock_probe.get("arm_lock_motion_disabled") is True)
+            except (OSError, ValueError):
+                pass
             arm_tabs_seen |= _probe_arm_tabs(probe_file) == (
                 "dual_gripper", True,
             )
@@ -615,6 +626,8 @@ def run_smoke(
         return False, "environment values never rendered in the GUI\n" + text
     if not invalid_steering_held_seen:
         return False, "invalid steering ops state was not held disabled\n" + text
+    if not lock_panel_seen:
+        return False, "coupling lock panel did not render with motion disabled"
     if not arm_tabs_seen:
         return False, "arm tabs did not render live tool in safe disabled state\n" + text
     return True, (

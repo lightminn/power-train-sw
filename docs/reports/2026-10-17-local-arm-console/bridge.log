@@ -1,0 +1,17 @@
+[WARN] [1792228297.962111369] [moveit_dynamixel_bridge]: 관절 ['arm_joint_2'] 의 리밋은 **실측 하드스톱보다 넓혀둔 사용자 확인 값**이다 (arm_joint_2=[+0.0000, +1.7768]). 스윕 실측으로 확정된 값이 아니므로 이 축이 끝까지 갈 때 기구가 부딪히지 않는지 눈으로 확인하면서 쓰고, scripts/measure_joint_limits.py 로 재측정해 확정할 것.
+[INFO] [1792228297.964612242] [moveit_dynamixel_bridge]: /dev/ttyUSB0 버스 배타 잠금 획득 (flock)
+[ERROR] [1792228298.001223591] [moveit_dynamixel_bridge]: Torque enable blocked: arm_joint_1, id=11: ID 11 startup torque read failed: result=-3001, error=0
+[ERROR] [1792228298.036517140] [moveit_dynamixel_bridge]: Torque enable blocked: arm_joint_2, id=14: ID 14 startup torque read failed: result=-3001, error=0
+[ERROR] [1792228298.071471111] [moveit_dynamixel_bridge]: Torque enable blocked: arm_joint_3, id=13: ID 13 startup torque read failed: result=-3001, error=0
+[ERROR] [1792228298.106562324] [moveit_dynamixel_bridge]: Torque enable blocked: arm_joint_4, id=12: ID 12 startup torque read failed: result=-3001, error=0
+[INFO] [1792228298.234520524] [moveit_dynamixel_bridge]: Torque enabled safely: arm_joint_5 -> id 16
+[ERROR] [1792228298.269438037] [moveit_dynamixel_bridge]: tool actuator IDs not discovered: [5]
+[INFO] [1792228298.506505940] [moveit_dynamixel_bridge]: MoveIt Dynamixel bridge started (arm=['arm_joint_1', 'arm_joint_2', 'arm_joint_3', 'arm_joint_4', 'arm_joint_5'], cleaning_actuator=UNCONFIGURED, tool_type=spur_1motor_gripper, tool_ready=False, control_scope=FULL_ROBOT, temporary_jog=False, read_only=False, mock_mode=False)
+[WARN] [1792228380.328190485] [moveit_dynamixel_bridge]: local wrist jog rejected: expired or foreign-clock local wrist jog
+[WARN] [1792228380.535306050] [moveit_dynamixel_bridge]: local wrist jog rejected: expired or foreign-clock local wrist jog
+[WARN] [1792228380.744101065] [moveit_dynamixel_bridge]: local wrist jog rejected: expired or foreign-clock local wrist jog
+[WARN] [1792228380.951239679] [moveit_dynamixel_bridge]: local wrist jog rejected: expired or foreign-clock local wrist jog
+[WARN] [1792228381.335273055] [moveit_dynamixel_bridge]: local wrist jog rejected: expired or foreign-clock local wrist jog
+[WARN] [1792228381.544110188] [moveit_dynamixel_bridge]: local wrist jog rejected: expired or foreign-clock local wrist jog
+[WARN] [1792228381.752098098] [moveit_dynamixel_bridge]: local wrist jog rejected: expired or foreign-clock local wrist jog
+[INFO] [1792228442.804999411] [moveit_dynamixel_bridge]: Torque enabled safely: arm_joint_5 -> id 16

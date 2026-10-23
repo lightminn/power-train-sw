@@ -52,7 +52,7 @@ def test_package_has_the_expected_modules():
     assert {path.name for path in module_files()} == {
         "__init__.py", "__main__.py", "calibration_tab.py", "contracts.py",
         "fixtures.py", "keyboard_panel.py", "manual_tab.py", "preview.py",
-        "styling.py", "tool_panels.py", "widgets.py",
+        "styling.py", "tool_panels.py", "widgets.py", "coupling_lock.py",
     }
 
 

@@ -53,6 +53,8 @@ MAX_PARAMS_BYTES = 1200
 
 
 # --- action names -----------------------------------------------------------
+ACTION_LOCK_COMMAND = "robot_arm_lock_command"
+ACTION_LOCK_STOP = "robot_arm_lock_stop"
 ACTION_TOOL_CHANGE = "robot_arm_tool_change"
 ACTION_MODE_REQUEST = "robot_arm_mode_request"
 ACTION_MODE_RELEASE = "robot_arm_mode_release"
@@ -75,6 +77,7 @@ ACTION_CALIBRATION_JOG_STOP = "robot_arm_calibration_jog_stop"
 
 # Actions that command motion and therefore require an approved MANUAL grant.
 MOTION_ACTIONS = frozenset({
+    ACTION_LOCK_COMMAND,
     ACTION_JOG,
     ACTION_JOG_STOP,
     ACTION_RESUME_HOLD,
@@ -91,6 +94,7 @@ MOTION_ACTIONS = frozenset({
 # Actions that end motion.  These are the one category that must stay reachable
 # when everything else is blocked: a stop that needs permission is not a stop.
 STOP_ACTIONS = frozenset({
+    ACTION_LOCK_STOP,
     ACTION_STOP,
     ACTION_JOG_STOP,
     ACTION_TOOL_JOG_STOP,
@@ -239,6 +243,13 @@ _JOG_LIFETIME = (
 
 
 ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
+    ACTION_LOCK_STOP: (),
+    ACTION_LOCK_COMMAND: (
+        _spec("command", _in({"SET_ZERO", "ENABLE", "CHANGE"})),
+        _spec("state", _in({"LOCKED", "UNLOCKED"}), required=False),
+        _spec("to", _in({"LOCKED", "UNLOCKED"}), required=False),
+        _spec("direction", lambda v: type(v) is int and v in (-1, 1), required=False),
+    ),
     ACTION_TOOL_CHANGE: (
         _spec("requested_kind", _is_str, note="변경 요청 대상 도구 종류"),
         _spec("observed_tool_generation", _is_generation,
@@ -340,6 +351,12 @@ def validate_params(action: str, params: Mapping[str, Any]) -> dict[str, Any]:
                 f"{action}: invalid param {spec.name!r}={value!r}"
             )
         result[spec.name] = value
+    if action == ACTION_LOCK_COMMAND:
+        from powertrain_observability.tool_snapshot import validate_lock_command
+        try:
+            validate_lock_command(result)
+        except ValueError as exc:
+            raise ArmParamsError(str(exc)) from exc
     _assert_size(action, result)
     return result
 
@@ -426,6 +443,8 @@ _CONSOLE_ONLY = ("console",)
 PLANNED_ACTIONS: tuple[PlannedAction, ...] = tuple(
     PlannedAction(action=action, roles=_CONSOLE_ONLY, note=note)
     for action, note in (
+        (ACTION_LOCK_COMMAND, "결합 잠금의 기존 수동 벤치 명령"),
+        (ACTION_LOCK_STOP, "결합 잠금 정지"),
         (ACTION_TOOL_CHANGE, "명시적 도구 변경. 완료는 백엔드의 새 활성 도구 상태로 확인한다"),
         (ACTION_MODE_REQUEST, "MANUAL/FSM 제어권 요청. 승인은 별도 상태로 회신되어야 한다"),
         (ACTION_MODE_RELEASE, "제어권 반납"),
