@@ -81,6 +81,7 @@ INTEGRATED_SERVICES="powertrain_terrain_overlay powertrain_terrain_map" \
 - 전체 콘솔: **887 passed / 10 failed / 3 skipped**. 직전 **871 passed / 동일 10 failed / 3 skipped** 대비 새 실패 0, 신규 검사 16개 통과. 기존 실패는 로봇팔 경계·계약 9개와 arm safe-disabled runtime smoke 1개입니다.
 - `runtime_smoke --vision-only`: PASS. 정상/결측/오래된 측정/끊김/복구, 숨김 중 수신 유지, MAIN/PiP 왕복, decoder/receiver 공유, worker/timer/socket/pipeline 종료 확인.
 - 순수 지도·오버레이·lidar 회귀: **543 passed / 4 skipped**. 바닥 packet 상한/오류/구형 호환, 실제 detector→`:5009`→GTK 표시 경로 포함. ROS 노드 직접 테스트는 이 노트북에 `rclpy`가 없어 미실행입니다.
+- ROS adapter의 `publish_floor_mask=true` 선언과 RuntimeConfig 전달은 host AST 계약 **1 passed**입니다. 실제 rclpy 노드 실행을 대체하지 않습니다.
 - 고장 9종: 지도/텔레메트리 누락, 결측 0 조작, stale 무력화, 복구 누락, 숨김 렌더 강제, decoder 추가, worker 종료 누락, 650 ms GTK 정지를 모두 검출.
 - 별도 CPU/RSS 수집기: 실제 대상 프로세스 관찰·종료/미관측 처리 검사 3개 통과. 카메라 연결을 추가하지 않으며 수집 완료를 실기 통과로 판정하지 않음.
 - 기본 `runtime_smoke`: 비전·지도 단계 통과, 기존 **arm safe-disabled 표시 실패로 전체 FAIL**. 게이트를 완화하지 않았습니다.
@@ -129,6 +130,14 @@ RSS가 첫 실시간 구간 대비 **62.68 MiB 증가**했습니다. 측정 하�
 후속 코드는 95초 메모리 추적과 위 회귀를 통과했지만, 현재 노트북 전원 센서가 AC/USB
 offline이라 `--require-ac` 600초 재실행을 중단했습니다. 전원 연결 후 정식 결과를 갱신합니다.
 
+현재 환경에서 가능한 범위로 후속 코드를 **배터리 600.006초** 추가 실행했습니다.
+L515 **15.000 FPS**, 최대 draw **118.6 ms**, GTK heartbeat **68.1 ms**,
+Top/Oblique **각 1.996 Hz**, stall/callback/worker 오류 0, 비전 후 hidden render 0이었습니다.
+RSS는 343,176→347,944 KiB(+4,768 KiB), 콘솔 CPU는 106.10%였습니다.
+626개 표본 모두 AC off이고 CPU 0.399–2.800 GHz/최고 45.0 ℃였으므로 이 결과는
+AC 인수나 개선율 비교가 아닙니다. `malloc_trim` 후 RSS가 315,148 KiB로 내려갔지만
+제품에 강제 trim을 넣거나 장기 무누수를 단정하지 않습니다.
+
 ## 동작 영상과 자료
 
 [합성 동작 영상(WebM)](2026-10-24-vision-tab-step7-evidence/vision-synthetic-demo.webm) — 화면에 **합성 입력 시연 · 실기 검증 아님** 표시. 저장소의 합성 시연 원본 파일이며 실제 카메라 인수 영상이 아닙니다.
@@ -152,6 +161,7 @@ offline이라 `--require-ac` 600초 재실행을 중단했습니다. 전원 연�
 - 녹화 준비 중 같은 프로세스의 합성 SRT 송·수신/Wayland 상속 구성에서 native SRT epoll/unwind 충돌을 재현했습니다. 시험 송신기를 별도 프로세스로 옮기고 리슨 준비와 X11 격리를 보장했습니다. 이것을 실기 네이티브 안정성 해결로 간주하지 않습니다.
 - 바닥 관측 격자 송수신·표시는 로컬 합성 경로에서 구현/검증했지만, Jetson에 갱신 송신기를 배포하지 않았고 실제 바닥 경계·좌표 정합은 미검증입니다. 구형 송신기는 선택 필드를 생략하므로 미수신으로 표시됩니다.
 - 광민·도현과 좌표계/부호/영점/장착 회전 합의 및 실기 자세 보정은 미확인. raw 값을 차체 기울기로 적용하지 않습니다.
+- 로컬 재대조에서 현재 보관 URDF pitch는 0.349066 rad(20°), 노트북 도구의 가속도 미수신 fallback은 15°, 19.5°는 요청/합성 fixture 값이었습니다. `imu_tilt_node`의 mount 회전은 identity이고 확인된 production calibration 파일은 없어 어느 숫자도 자동 적용하지 않습니다.
 - AS5048B 실제 송신·필드별 측정 시각 연결 없음. 현재 인터페이스/미수신 표시만 제공합니다.
 - 물리 영상/오버레이의 좌표·시간 정합과 실제 end-to-end 지연 미검증.
 

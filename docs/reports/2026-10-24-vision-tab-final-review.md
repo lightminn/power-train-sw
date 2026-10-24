@@ -117,7 +117,7 @@ PR #20은 Draft이며 인수 완료나 병합 완료로 처리하지 않는다.
 | 5.07 | 없으면 미수신, 0/추정 금지 | 누락/명시적 null/부분 누락 검사; 값 0 자체는 유효 측정으로 구분 |
 | 5.08 | L515 장착 pitch를 차체 기울기로 표시 금지 | 원시 IMU(L515 기준)와 차체 보정 미확인 분리 |
 | 5.09 | imu_tilt→filtered→telemetry 원시 경로 확인 | 소스 조사·4단계 보고서; 생산자 좌표 보정 변경 없음 |
-| 5.10 | 19.5°/URDF15°/옛 지도20° 차이 확인 | **외부 대기**: 자료 불일치 기록, 광민·도현 합의 없음 |
+| 5.10 | 19.5°/URDF15°/옛 지도20° 차이 확인 | 로컬 재대조: 현재 보관 URDF는 실제 0.349066 rad=20°, 노트북 가속도 미수신 fallback은 15°, 19.5°는 요청/fixture 값. production calibration 없음; **광민·도현 합의는 외부 대기** |
 | 5.11 | 좌표/부호/영점/장착각 반영 방식 합의 | **외부 대기**: 확정 없이 보정 자세 활성화하지 않음 |
 | 5.12 | 19.5° 일괄 차감 금지 | 준수: 수신 rad→표시 ° 변환만 수행 |
 | 5.13 | 협조구동 raw Roll/Pitch 수정 금지·PR 설명 | 파일 원본 유지, PR 명시 |
@@ -145,7 +145,7 @@ PR #20은 Draft이며 인수 완료나 병합 완료로 처리하지 않는다.
 | 6.14 | 같은 조건 최적화 전/후 비교 | AC 20초 pair 보존; 작은 CPU 차이를 개선율로 주장하지 않음 |
 | 6.15 | AC 연결·CPU 클럭 동시 기록 | 5단계/이번 600초 power·주파수·온도 표본; 새 PID sampler는 thermal throttle 누계도 수집 |
 | 6.16 | 발열 clock 제한과 프로그램 병목 구분 | 지표 분리 수집; 8.20초 기록의 원인을 발열/GIL/Wayland 중 하나로 단정하지 않음 |
-| 6.17 | 오래 켜도 끊기지 않음 | 71f5072 계열 합성 600초 결과와 후속 코드 95초 메모리 추적은 아래; 후속 코드의 AC 600초 재실행은 전원 미연결로 보류. **실기 미검증·이전 정지 원인 미해결** |
+| 6.17 | 오래 켜도 끊기지 않음 | 71f5072 계열 AC 합성 600초, 후속 코드 95초 추적과 배터리 600초 결과는 아래; 후속 코드의 AC 재실행은 전원 미연결로 보류. **실기 미검증·이전 정지 원인 미해결** |
 
 ### 7. 검증·PR·채팅의 작업 방식
 
@@ -224,12 +224,28 @@ callback/worker 오류는 없었다. 전체 원시 표본은 bounded JSONL로 �
 다만 현재 노트북 전원 센서가 AC/USB 모두 offline이라 `--require-ac` 동일 조건 600초 재실행은
 정식 결과로 채택하지 않고 보류한다.
 
+### 후속 코드 배터리 600초 관찰
+
+현재 환경에서 할 수 있는 범위를 남기기 위해 AC가 아닌 사실을 명시하고 600.006초를
+추가 실행했다. 626개 전원 표본 모두 AC off, CPU 0.399–2.800 GHz, 최고 45.0 ℃였으므로
+AC 성능 인수나 위 AC 결과와의 개선율 비교로 사용하지 않는다.
+
+- L515 sink 15.000 FPS, draw 최대 118.6 ms, sink 최대 140.1 ms, GTK heartbeat 최대 68.1 ms.
+- Top/Oblique 각각 1.996 Hz·1203 raster, 최대 개별 반영 간격 603.4 ms.
+- stall event 0, callback/worker 오류 0, 비전 후 실시간 구간 map worker render 0.
+- 콘솔 CPU 106.10%(논리 코어 하나=100%), 지도 평균 render 18.76 ms.
+- RSS 첫 343,176 KiB → 마지막 347,944 KiB(+4,768 KiB). 종료 후 `malloc_trim(0)`에서
+  348,284 → 315,148 KiB로 감소했다. 제품에는 강제 trim을 넣지 않았고 장기 plateau를 단정하지 않는다.
+
+원시 자료는 `2026-10-24-vision-tab-nonhw-evidence/battery-600*`에 보존한다.
+
 ### 회귀 검사
 
 - 후속 지정 경로 전체 콘솔 pytest: **887 passed / 10 failed / 3 skipped**, 306.87초.
   직전 871 pass 기준의 실패 ID 10개와 정확히 같고 새 실패 0개다. 별도 skip 3개는 통과로 합산하지 않는다.
 - `terrain_overlay`·`terrain_map`·`lidar_dev` 순수 회귀: **543 passed / 4 skipped**.
   ROS adapter 직접 검사는 이 노트북에 `rclpy`가 없어 수집 불가로 별도 미검증 처리했다.
+- ROS adapter의 새 bool 파라미터 기본값/전달은 host-runnable AST 계약 **1 passed**로 보완했다.
 - 후속 `runtime_smoke --vision-only`: PASS. 바닥 LIVE/끊김 숨김/복구까지 기존 lifecycle과 함께 확인했다.
 - 기본 `runtime_smoke`: 비전/지도 PASS, 기존 arm safe-disabled 표시 실패로 전체 FAIL.
 - 비전 positive/고장 9종 모두 기대 결과 확인. 새 event 도구에서도 650ms 주입 정지가 검출됐다.
@@ -243,5 +259,5 @@ callback/worker 오류는 없었다. 전체 원시 표본은 bounded JSONL로 �
   [보존 검사](2026-10-24-vision-tab-final-review-evidence/source-boundaries.json),
   [고장 event](2026-10-24-vision-tab-final-review-evidence/negative-drawing-stall-events.json).
 
-**실기 이전 검토는 수행했지만 요구 전체 완료는 아니다. 후속 AC 600초 재실행,
+**현재 환경에서 가능한 실기 이전 검토는 수행했지만 요구 전체 완료는 아니다. 후속 AC 600초 재실행,
 외부 보정 합의·이전 정지 원인·메모리 증가 확인·실제 HW 인수를 열린 항목으로 유지한다.**
