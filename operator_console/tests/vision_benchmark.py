@@ -106,6 +106,7 @@ def run(args):
         original_hook(kind, value, traceback)
     sys.excepthook = callback_error
     window = None
+    observer = None
     try:
         time.sleep(1)
         window = OperatorConsole('127.0.0.1', ports[0], ports[1], 0, 60, 0, ports[3],
@@ -113,6 +114,9 @@ def run(args):
             terrain_map_port=ports[2], ops_port=1, input_source='TEST',
             ops_token_file='/nonexistent/vision-benchmark-no-token')
         window.show_all()
+        if args.metrics_output:
+            from operator_console.performance_probe import ConsolePerformanceProbe
+            observer = ConsolePerformanceProbe(window,args.metrics_output)
         maps = window._vision_panel.maps
         counters = {'frames': 0, 'last': None, 'gap': 0., 'lateness': 0.}
         draws = {'count': 0, 'last': None, 'gap': 0.}
@@ -192,7 +196,8 @@ def run(args):
                     return False
                 GLib.timeout_add(1000, stall)
             start = time.monotonic(); cpu = time.process_time()
-            pump(args.seconds)
+            duration = args.vision_seconds if page=='vision' and args.vision_seconds is not None else args.seconds
+            pump(duration)
             elapsed = time.monotonic()-start
             GLib.source_remove(heartbeat); GLib.source_remove(sampler)
             phase = dict(page=page, duration_s=elapsed,
@@ -237,6 +242,8 @@ def run(args):
         assert report['phases'][2]['map_worker_render_count'] == 0, 'hidden render work'
     finally:
         sys.excepthook = original_hook
+        if observer:
+            observer.close()
         if window:
             window.destroy()
         sender.terminate()
@@ -254,10 +261,14 @@ if __name__ == '__main__':
     parser.add_argument('--inject-stall', action='store_true',
                         help='negative control: deliberately block GTK for 650 ms')
     parser.add_argument('--require-ac', action='store_true', help='reject runs without online AC/USB power')
+    parser.add_argument('--vision-seconds', type=float, help='separate visible vision duration for soak tests')
+    parser.add_argument('--metrics-output', type=Path, help='observe the same events as the real-console monitor')
     args = parser.parse_args()
     if args.source:
         source(args.source)
     else:
         if not 5 <= args.seconds <= 3600:
             parser.error('--seconds must be 5..3600 per phase')
+        if args.vision_seconds is not None and not 5 <= args.vision_seconds <= 3600:
+            parser.error('--vision-seconds must be 5..3600')
         run(args)

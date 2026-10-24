@@ -113,6 +113,8 @@ class TelemetrySnapshot:
 
 def _suspension_joints(payload):
     raw = payload.get("suspension_joints_rad", {})
+    if raw is None:
+        raw = {}
     allowed = {"ml_rocker_joint", "mr_rocker_joint", "bl_bogie_joint", "br_bogie_joint"}
     if not isinstance(raw, dict) or not set(raw).issubset(allowed):
         raise ValueError("invalid suspension joints")

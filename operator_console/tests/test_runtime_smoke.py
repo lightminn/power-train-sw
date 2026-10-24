@@ -115,8 +115,9 @@ def test_terrain_map_negative_controls_name_their_reason():
 
 
 @pytest.mark.skipif(not _toolchain_ready(), reason='needs Xvfb/system GTK/GStreamer')
-def test_vision_runtime_smoke_connections_values_roundtrip_and_shutdown():
-    passed, report = runtime_smoke.run_vision_smoke()
+def test_vision_runtime_smoke_connections_values_roundtrip_and_shutdown(tmp_path):
+    metrics = tmp_path/'console-events.json'
+    passed, report = runtime_smoke.run_vision_smoke(metrics_output=metrics)
     _save_vision_evidence('vision-positive.json' if passed else 'vision-positive-failed.log', report)
     assert passed, report
     data = json.loads(report)
@@ -131,6 +132,12 @@ def test_vision_runtime_smoke_connections_values_roundtrip_and_shutdown():
     assert phases['returned']['slots_mapped']==[True]*4
     assert data['shutdown']=='worker/timers/receivers/pipelines/ports closed'
     assert data['receiver_pipelines']==2
+    observed = json.loads(metrics.read_text())
+    assert observed['status']=='closed' and not observed['hardware_verified']
+    vision = max((s for s in observed['segments'] if s['page']=='vision'), key=lambda s:s['duration_s'])
+    assert 12 < vision['events']['l515_sink']['hz'] < 18
+    assert vision['events']['top_images']['count'] >= 4
+    assert vision['events']['oblique_images']['count'] >= 4
 
 
 @pytest.mark.skipif(not _toolchain_ready(), reason='needs Xvfb/system GTK/GStreamer')
@@ -145,11 +152,16 @@ def test_vision_runtime_smoke_connections_values_roundtrip_and_shutdown():
     ('shutdown', 'vision worker shutdown: timed out'),
     ('drawing-stall', 'vision camera draw stalled'),
 ])
-def test_vision_runtime_negative_controls_reject_the_specific_fault(fault, reason):
-    passed, report = runtime_smoke.run_vision_smoke(fault_for_test=fault)
+def test_vision_runtime_negative_controls_reject_the_specific_fault(fault, reason, tmp_path):
+    metrics = tmp_path/'fault-events.json' if fault=='drawing-stall' else None
+    passed, report = runtime_smoke.run_vision_smoke(fault_for_test=fault, metrics_output=metrics)
     _save_vision_evidence(f'negative-{fault}.log', report)
     assert not passed, report
     assert reason in report, report
+    if metrics is not None:
+        observed = json.loads(metrics.read_text())
+        assert observed['status']=='closed'
+        assert max(s['events']['heartbeat']['max_gap_s'] or 0 for s in observed['segments']) >= .6
 
 
 def _save_vision_evidence(name, report):

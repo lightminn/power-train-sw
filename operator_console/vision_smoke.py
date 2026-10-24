@@ -25,7 +25,7 @@ FAULTS = ('map', 'telemetry', 'missing-zero', 'stale', 'recovery',
           'hidden-render', 'duplicate-camera', 'shutdown', 'drawing-stall')
 
 
-def exercise(fault=None, record_webm=None):
+def exercise(fault=None, record_webm=None, metrics_output=None):
     if fault == 'missing-zero':
         from . import vision_attitude
         original = vision_attitude.reading
@@ -86,7 +86,11 @@ def exercise(fault=None, record_webm=None):
                 receiver_descriptions.append(description)
                 return original_launch(description, *args, **kwargs)
             Gst.parse_launch = audit_receiver
-            window = OperatorConsole('127.0.0.1', ports[0], ports[1], 0, 60, 0, 0,
+            console_class = OperatorConsole
+            if metrics_output is not None:
+                from .vision_monitor import observed_console
+                console_class = observed_console(OperatorConsole, metrics_output)
+            window = console_class('127.0.0.1', ports[0], ports[1], 0, 60, 0, 0,
                 arm_telemetry_port=0, environment_telemetry_port=0, terrain_port=0,
                 terrain_map_port=0, ops_port=1, ops_token_file=str(Path(directory)/'absent'),
                 input_source='TEST', smoke_probe_file=str(probe_file))
@@ -334,6 +338,7 @@ def main():
     parser.add_argument('--fault', choices=FAULTS)
     parser.add_argument('--report-file', type=Path)
     parser.add_argument('--record-webm', type=Path, help='record synthetic console window only (X11)')
+    parser.add_argument('--metrics-output', type=Path)
     args = parser.parse_args()
     code = 1
     try:
@@ -341,7 +346,7 @@ def main():
             raise ValueError('record with runtime_smoke --vision-only --record-webm to isolate X11')
         if args.record_webm and args.record_webm.exists():
             raise ValueError('recording file already exists; choose a new path')
-        report = json.dumps(exercise(args.fault, args.record_webm), ensure_ascii=False)
+        report = json.dumps(exercise(args.fault, args.record_webm, args.metrics_output), ensure_ascii=False)
         if args.report_file:
             args.report_file.write_text(report+'\n', encoding='utf-8')
             print('VISION-CHILD: PASS', flush=True)

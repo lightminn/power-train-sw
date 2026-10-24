@@ -72,6 +72,12 @@ def test_bad_rules_and_unknown_profile_are_rejected(tmp_path):
             resolve_criteria(file)
 
 
+def test_null_optional_json_criteria_still_uses_environment_profile():
+    selected = resolve_criteria(config={'l515_criteria':None, 'l515_criteria_profile':None},
+        environ={'L515_CRITERIA':str(DEFAULT_CRITERIA), 'L515_CRITERIA_PROFILE':'B_stop20'})
+    assert selected.profile=='B_stop20'
+
+
 def test_real_render_reuses_data_and_never_invents_missing_pose(receiver):
     now=time.monotonic()
     snap=receiver.snapshot(now)

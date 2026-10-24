@@ -28,6 +28,13 @@
 - 값/출처/유효성/나이를 구분. 미수신·오래됨·끊김·복구를 표시하고 결측은 0으로 채우지 않음.
 - raw IMU, 장착 보정 미확인 차체 자세, 정지 창 지도 기록을 분리. 19.5° 일괄 차감 없음.
 - AS5048B 선택 연결 인터페이스: `suspension_joints_rad`, `suspension_age_ms`, `suspension_source`, `suspension_frame`. 실제 송신이 없으면 미수신.
+  각도는 rad, UI는 °, age는 ms입니다. 네 키는 `ml_rocker_joint`(좌 로커),
+  `mr_rocker_joint`(우 로커), `bl_bogie_joint`(좌 보기), `br_bogie_joint`(우 보기)입니다.
+  `urdf_joint` 기준의 parent +Y 오른손 회전/CAD·URDF 영점을 **제안**한 상태이며 실제 AS5048B
+  부호·영점은 미합의입니다. 각도 group/각도를 생략하거나 null로 보내면 해당 각도는 미수신입니다.
+  source는 실제 생산자 식별자이며, 각도 수신 후 source만 없으면 출처 미표기로 표시합니다.
+  group age는 포함 각도 중 가장 오래된 측정 나이를 보내야 하며, 없으면 시간 미확인입니다.
+  기존 협조구동 탭은 같은 미보정 원시 Roll/Pitch 표기를 유지했습니다.
 - 기준값 CLI/JSON/env 설정과 버전·프로필·SHA256 표시. v0.2 사용, 10/26 파일은 코드 변경 없이 경로/파일 교체 후 재시작.
 - NumPy import 전 `OPENBLAS_NUM_THREADS=1`, decoded raw 프레임 1개 leaky queue, `sync=false` 유지, 최신 값만 GTK에 전달, 한글 Pango cache 상한 설정.
 - 종료 시 비전 worker/timer를 공유 receiver보다 먼저 정리.
@@ -47,11 +54,25 @@ OPENBLAS_NUM_THREADS=1 /usr/bin/python3 -m operator_console.app \
 
 기준값 우선순위는 CLI > JSON > env > 기본값입니다. 필드별 독립 선택이며 JSON의 상대 경로는 설정 폴더 기준입니다. 이미 들어오는 데이터만 받으며 카메라 SDK를 열거나 `live_overlay.py`를 로봇에서 실행하지 않습니다.
 
-지도/오버레이 송신은 기존 Compose opt-in `terrain-map`/`terrain-overlay`입니다. 실제 Jetson checkout·기동 상태·세션 목적지를 확인하지 못했으므로 이번에 로봇 서비스/체크아웃을 변경하지 않았습니다.
+지도/오버레이 송신은 기존 Compose opt-in `terrain-map`/`terrain-overlay`입니다.
+준비된 통합 스택의 **Jetson 저장소 루트**에서 두 서비스를 같이 포함하는 명령은 다음과 같습니다.
+미커밋/실행 중인 Gateway 상태를 먼저 확인하며, 같은 Gateway를 새로 열지 않습니다.
+
+```bash
+INTEGRATED_PROFILES="terrain-overlay terrain-map" \
+INTEGRATED_SERVICES="powertrain_terrain_overlay powertrain_terrain_map" \
+  scripts/robot-start
+```
+
+`robot-start`는 공백으로 구분한 profile/service를 받습니다. 이 명령은 실제 로봇에서 미실행이며
+최초 준비 매니페스트·CAN 준비·기존 설치/세션 상태가 필요합니다.
+카메라 오버레이 지연은 현재 기본 **0 ms**입니다. `--terrain-display-delay-ms 0` 또는
+통합 JSON의 `terrain_display_delay_ms: 0`을 사용하며 0–400 ms 범위만 허용합니다.
+이 값은 실기 정합으로 결정한 보정값이 아닙니다. 실제 Jetson checkout·기동 상태·세션 목적지를 확인하지 못했으므로 이번에 로봇 서비스/체크아웃을 변경하지 않았습니다.
 
 ## 검증과 성능
 
-- 전체 콘솔: **862 passed / 10 failed / 3 skipped**. 실패 ID 10개는 변경 전 단계와 동일합니다.
+- 전체 콘솔: **871 passed / 10 failed / 3 skipped**. 실패 ID 10개는 변경 전 단계와 동일합니다.
 - `runtime_smoke --vision-only`: PASS. 정상/결측/오래된 측정/끊김/복구, 숨김 중 수신 유지, MAIN/PiP 왕복, decoder/receiver 공유, worker/timer/socket/pipeline 종료 확인.
 - 고장 9종: 지도/텔레메트리 누락, 결측 0 조작, stale 무력화, 복구 누락, 숨김 렌더 강제, decoder 추가, worker 종료 누락, 650 ms GTK 정지를 모두 검출.
 - 별도 CPU/RSS 수집기: 실제 대상 프로세스 관찰·종료/미관측 처리 검사 3개 통과. 카메라 연결을 추가하지 않으며 수집 완료를 실기 통과로 판정하지 않음.
@@ -71,6 +92,32 @@ AC 연결, 합성 영상 2×1280×720@15 + 지도 3 tile + 오버레이/자세 �
 
 작은 CPU 차이를 개선율로 단정하지 않습니다. 프레임/알림/캐시 보관량 상한과 숨김 중 계산 중지를 검증했습니다. sink running-time 지표는 실제 camera-to-screen 지연이 아닙니다. 전원·CPU별 클럭·온도 표본도 보관했습니다.
 
+## 최종 요구사항 재검토 (10/24)
+
+원본 문서와 채팅 요구 **110개 항목**을 [최종 대조표](2026-10-24-vision-tab-final-review.md)로 다시 확인했습니다.
+JSON null 프로필의 환경 변수 fallback, 선택 encoder group null의 미수신 처리를 보완했습니다.
+실제 콘솔에서 기존 sink/draw/heartbeat·각 지도 반영 이벤트를 기록하는 `vision_monitor`도 추가했습니다.
+정상 수동 진입점은 다음처럼 관찰하며 `--integrated`를 추가하면 페어링 진입점을 사용합니다.
+
+```bash
+OPENBLAS_NUM_THREADS=1 /usr/bin/python3 -m operator_console.vision_monitor \
+  --metrics-output /tmp/vision-physical-events.json --host <JETSON_IP> --page vision
+```
+
+콘솔은 하나만 실행하며 같은 PID의 CPU/RSS/전원/클럭/온도를 별도 수집합니다.
+[실기 절차](2026-10-24-vision-tab-field-runbook.md)에 명령과 지표 범위를 기록했습니다.
+카메라/디코더/수신기를 추가하지 않고 repaint Hz와 camera FPS를 구분합니다.
+광학 camera-to-screen 지연은 별도 실측입니다.
+
+AC·X11/Xvfb·합성 SRT 15fps/지도 3tile/overlay/telemetry에서 비전 **600.007초** 관찰:
+L515 sink **14.998 FPS**, Top/Oblique **각 1.997 Hz**, 최대 video draw **122.3 ms**,
+GTK heartbeat **53.2 ms**, 콘솔 CPU **87.79%**, 최대 RSS **346.92 MiB**였습니다.
+지도 개별 최대 반영 간격은 **607.8 ms**로 평균 약 2Hz이며 정확히 매500ms 이내 보장이 아닙니다.
+RSS가 첫 실시간 구간 대비 **62.68 MiB 증가**했습니다. 측정 하니스의 자료 누적도 포함하므로
+누수/plateau 여부를 단정하지 않고 추가 확인 항목으로 남깁니다.
+원시 JSON·event JSON·AC/클럭/온도·조건은 대조표에 연결했습니다.
+**합성 600초를 실기 600초 인수나 이전 8.20초 정지 해결로 처리하지 않습니다.**
+
 ## 동작 영상과 자료
 
 [합성 동작 영상(WebM)](2026-10-24-vision-tab-step7-evidence/vision-synthetic-demo.webm) — 화면에 **합성 입력 시연 · 실기 검증 아님** 표시. 저장소의 합성 시연 원본 파일이며 실제 카메라 인수 영상이 아닙니다.
@@ -89,6 +136,7 @@ AC 연결, 합성 영상 2×1280×720@15 + 지도 3 tile + 오버레이/자세 �
 
 - **Gateway+실제 L515 600초 연속 시험 미수행**: 현재 `jetson`/`jetson-orin.local` 해석 실패. 현재 SSH/IP 정보가 필요합니다.
 - 실기 카메라 FPS 비교, 0.5초 초과 표시 정지 없음, 지도 2 Hz, CPU/RSS/네트워크 지연, Gateway 충돌 없음과 기존 탭 실기 회귀는 미검증.
+- 합성 장시간 관찰의 RSS 증가 원인/실제 조건 메모리 안정성은 추가 확인이 필요합니다.
 - 5단계에서 video draw가 **8.20초 멈춘 실행 1회**를 관측했습니다. 이후 짧은 검사에서 재현되지 않았지만 원인 미확정이며 해결로 표시하지 않습니다.
 - 녹화 준비 중 같은 프로세스의 합성 SRT 송·수신/Wayland 상속 구성에서 native SRT epoll/unwind 충돌을 재현했습니다. 시험 송신기를 별도 프로세스로 옮기고 리슨 준비와 X11 격리를 보장했습니다. 이것을 실기 네이티브 안정성 해결로 간주하지 않습니다.
 - **바닥 영역 칠하기 미충족**: 현 `:5009`에는 ground 상태·장애물 polygon만 있고 바닥 mask/polygon이 없습니다. 현재는 바닥 상태 배지와 장애물 윤곽입니다.

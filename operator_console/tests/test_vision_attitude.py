@@ -67,6 +67,13 @@ def test_fresh_packet_with_missing_fields_does_not_reuse_old_imu():
     assert recovered.raw_roll.value==0 and recovered.raw_roll.state=='LIVE'
 
 
+def test_null_encoder_group_does_not_drop_other_received_telemetry():
+    view=AttitudeTracker().update(packet(roll_rad=.1,pitch_rad=.2,
+        suspension_joints_rad=None,suspension_age_ms=None),None,100.1)
+    assert view.link_state=='LIVE' and view.raw_pitch.value==pytest.approx(math.degrees(.2))
+    assert all(r.state=='WAITING' and r.value is None for _,r in view.suspension)
+
+
 def test_wheels_use_actual_feedback_and_stale_per_wheel_not_command_or_hall_assumptions():
     good=dict(name='front_left',mode='ARMED',steer_deg=-12.5,drive_turns_per_s=.12,
               command_turns_per_s=2.0,stale=False)

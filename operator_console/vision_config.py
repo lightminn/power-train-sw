@@ -27,7 +27,9 @@ def resolve_criteria(path=None, profile=None, *, config=None, config_dir=None,
     environ = os.environ if environ is None else environ
     configured = config.get("l515_criteria")
     value = path if path is not None else configured if configured is not None else environ.get("L515_CRITERIA", str(DEFAULT_CRITERIA))
-    selected = profile if profile is not None else config.get("l515_criteria_profile", environ.get("L515_CRITERIA_PROFILE"))
+    configured_profile = config.get("l515_criteria_profile")
+    selected = (profile if profile is not None else configured_profile
+                if configured_profile is not None else environ.get("L515_CRITERIA_PROFILE"))
     if not isinstance(value, (str, Path)) or not str(value).strip():
         raise ValueError("l515_criteria: 기준값 파일 경로가 필요합니다")
     if selected is not None and (not isinstance(selected, str) or not selected.strip()):
