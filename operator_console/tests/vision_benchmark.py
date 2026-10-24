@@ -28,6 +28,13 @@ SOURCE_START_MONO_NS = time.monotonic_ns()
 SOURCE_INSTANCE = uuid.uuid4().hex[:16]
 
 
+def configure_backend(force_x11):
+    """Select X11 before importing GTK so xvfb runs cannot inherit Wayland."""
+    if force_x11:
+        os.environ['GDK_BACKEND'] = 'x11'
+        os.environ.pop('WAYLAND_DISPLAY', None)
+
+
 class Summary:
     def __init__(self):
         self.count = 0
@@ -235,6 +242,7 @@ def run(args):
             latency_scope='sink buffer running-time lateness; NOT camera-to-screen latency',
             revision=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
             openblas_num_threads=os.environ.get('OPENBLAS_NUM_THREADS'),
+            gtk_backend=window.get_display().__gtype__.name,
             numpy_runtime=str(np.__version__), machine_before=machine(), phases=[], timeline=deque(maxlen=128),
             machine_samples=deque(maxlen=32), samples_file=str(args.output)+'.samples.jsonl')
         report['ac_entire_run'] = ac_online(report['machine_before'])
@@ -356,6 +364,9 @@ def run(args):
                        [report['machine_before'], report['machine_after'],
                         *report['machine_samples'], *(p['machine'] for p in report['phases'])]), \
                    'AC power missing or changed during measurement'
+        if args.x11:
+            assert report['gtk_backend'] == 'GdkX11Display', \
+                   f"X11 requested but GTK used {report['gtk_backend']}"
         assert sender.poll() is None, 'source died'
         assert report['phases'][1]['overlay_state'] == 'LIVE', 'overlay not live'
         assert report['phases'][1]['map_state'] == 'LIVE', 'map not live'
@@ -393,9 +404,12 @@ if __name__ == '__main__':
     parser.add_argument('--inject-stall', action='store_true',
                         help='negative control: deliberately block GTK for 650 ms')
     parser.add_argument('--require-ac', action='store_true', help='reject runs without online AC/USB power')
+    parser.add_argument('--x11', action='store_true',
+                        help='force and verify the GDK X11 backend (recommended with xvfb-run)')
     parser.add_argument('--vision-seconds', type=float, help='separate visible vision duration for soak tests')
     parser.add_argument('--metrics-output', type=Path, help='observe the same events as the real-console monitor')
     args = parser.parse_args()
+    configure_backend(args.x11)
     if args.source:
         source(args.source)
     else:

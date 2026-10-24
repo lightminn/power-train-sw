@@ -138,6 +138,19 @@ RSS는 343,176→347,944 KiB(+4,768 KiB), 콘솔 CPU는 106.10%였습니다.
 AC 인수나 개선율 비교가 아닙니다. `malloc_trim` 후 RSS가 315,148 KiB로 내려갔지만
 제품에 강제 trim을 넣거나 장기 무누수를 단정하지 않습니다.
 
+### 10/25 합성 최적화 재검증
+
+최신 GUI 변경 뒤 다시 600.006초 실행해 L515 15.000 FPS, Top/Oblique 각각
+1.997 Hz, 최대 video draw 134.4 ms, GTK heartbeat 85.1 ms, stall/callback/worker
+오류 0, 비전 이탈 뒤 hidden render 0을 확인했습니다. RSS는 302.7→315.8 MiB였고
+약 183초 뒤 315 MiB 부근에서 평탄해졌습니다.
+
+다만 232.5초에 AC가 물리적으로 분리됐고 실행도 상속된 Wayland backend였으므로
+이 수치는 AC/X11 비교 인수로 사용하지 않습니다. 이 과정에서 성능 하니스에 명시적
+`--x11` 선택과 `GdkX11Display` 검증을 추가해 잘못된 backend 비교를 차단했습니다.
+[상세 판정과 원시 자료](2026-10-25-vision-simulation-optimization.md)에 기록했습니다.
+노트북 전원을 다시 연결한 뒤 `--x11 --require-ac` 600초 재실행은 여전히 필요합니다.
+
 ## 동작 영상과 자료
 
 [합성 동작 영상(WebM)](2026-10-24-vision-tab-step7-evidence/vision-synthetic-demo.webm) — 화면에 **합성 입력 시연 · 실기 검증 아님** 표시. 저장소의 합성 시연 원본 파일이며 실제 카메라 인수 영상이 아닙니다.

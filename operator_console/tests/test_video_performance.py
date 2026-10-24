@@ -21,6 +21,16 @@ def test_heartbeat_gate_detects_missing_callbacks_at_both_boundaries():
     assert heartbeat_gap(10., 12., [10.01, 11.99]) > 1.9
 
 
+def test_benchmark_can_force_x11_before_gtk_import(monkeypatch):
+    from operator_console.tests.vision_benchmark import configure_backend
+
+    monkeypatch.setenv('GDK_BACKEND', 'wayland')
+    monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-0')
+    configure_backend(True)
+    assert os.environ['GDK_BACKEND'] == 'x11'
+    assert 'WAYLAND_DISPLAY' not in os.environ
+
+
 def test_console_caps_inherited_blas_before_numpy_import():
     pytest.importorskip('threadpoolctl', reason='optional BLAS runtime inspection dependency')
     result = subprocess.run(['/usr/bin/python3', '-c',
