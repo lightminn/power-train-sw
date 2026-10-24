@@ -54,7 +54,7 @@ OPENBLAS_NUM_THREADS=1 /usr/bin/python3 -m operator_console.app \
 - 전체 콘솔: **862 passed / 10 failed / 3 skipped**. 실패 ID 10개는 변경 전 단계와 동일합니다.
 - `runtime_smoke --vision-only`: PASS. 정상/결측/오래된 측정/끊김/복구, 숨김 중 수신 유지, MAIN/PiP 왕복, decoder/receiver 공유, worker/timer/socket/pipeline 종료 확인.
 - 고장 9종: 지도/텔레메트리 누락, 결측 0 조작, stale 무력화, 복구 누락, 숨김 렌더 강제, decoder 추가, worker 종료 누락, 650 ms GTK 정지를 모두 검출.
-- 별도 CPU/RSS 수집기: 실제 대상 프로세스 관찰·종료/미관측 처리 검사 2개 통과. 카메라 연결을 추가하지 않으며 수집 완료를 실기 통과로 판정하지 않음.
+- 별도 CPU/RSS 수집기: 실제 대상 프로세스 관찰·종료/미관측 처리 검사 3개 통과. 카메라 연결을 추가하지 않으며 수집 완료를 실기 통과로 판정하지 않음.
 - 기본 `runtime_smoke`: 비전·지도 단계 통과, 기존 **arm safe-disabled 표시 실패로 전체 FAIL**. 게이트를 완화하지 않았습니다.
 - 도구 복구 검사에서 단발 패킷이 1초 임계값을 넘기는 간헐 실패를 기준선에서 지연 주입으로 재현했습니다. 테스트의 LIVE 복구 입력만 연속 송신으로 보강했고 stale 검사와 제품 임계값은 유지했습니다.
 

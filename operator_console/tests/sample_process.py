@@ -16,6 +16,8 @@ def process(pid):
     base = Path('/proc')/str(pid)
     raw = (base/'stat').read_text()
     fields = raw[raw.rfind(')')+2:].split()
+    if fields[0] in ('Z', 'X', 'x'):
+        raise ProcessLookupError('process has exited')
     return dict(ticks=int(fields[11])+int(fields[12]), start_ticks=int(fields[19]),
                 threads=int(fields[17]), rss_kib=int((base/'statm').read_text().split()[1])*
                 os.sysconf('SC_PAGE_SIZE')/1024)

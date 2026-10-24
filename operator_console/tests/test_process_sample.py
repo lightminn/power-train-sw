@@ -2,8 +2,26 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import time
+import pytest
 
 from operator_console.tests.sample_process import sample
+
+
+def test_sampler_rejects_exited_child_before_it_is_reaped():
+    from operator_console.tests.sample_process import process
+    target = subprocess.Popen([sys.executable, '-c', 'pass'])
+    try:
+        deadline = time.monotonic()+3
+        while time.monotonic()<deadline:
+            raw = Path(f'/proc/{target.pid}/stat').read_text()
+            if raw[raw.rfind(')')+2:].split()[0]=='Z':
+                break
+            time.sleep(.01)
+        with pytest.raises(ProcessLookupError):
+            process(target.pid)
+    finally:
+        target.wait()
 
 
 def test_sampler_observes_process_without_stopping_it(tmp_path):
