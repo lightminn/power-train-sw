@@ -7,6 +7,7 @@ import argparse
 from collections import deque
 from dataclasses import replace
 import json
+import math
 import os
 from pathlib import Path
 import resource
@@ -14,8 +15,17 @@ import socket
 import subprocess
 import sys
 import time
+import uuid
 from operator_console.performance_probe import Events
 from operator_console.smoke_timing import callback_gap as heartbeat_gap
+
+
+# A new fixture process represents a new sender session.  This lets the real
+# console session gates exercise immediate recovery after the demo is stopped
+# and started again, without waiting for old sequence numbers to be exceeded.
+SOURCE_BOOT_ID = uuid.uuid4().hex
+SOURCE_START_MONO_NS = time.monotonic_ns()
+SOURCE_INSTANCE = uuid.uuid4().hex[:16]
 
 
 class Summary:
@@ -62,7 +72,10 @@ def packets(sequence):
     from terrain_map import contract as C
     from operator_console.runtime_smoke import _terrain_map_packets
     status = C.parse_packet(_terrain_map_packets(sequence)[0])
-    yield C.encode(replace(status, tile_count=3))
+    status = replace(status, sender_boot_id=SOURCE_BOOT_ID,
+                     sender_start_mono_ns=SOURCE_START_MONO_NS,
+                     sender_instance=SOURCE_INSTANCE, tile_count=3)
+    yield C.encode(status)
     for tx in range(3):
         heights = [12 if tx == 1 and 5 <= i//16 < 10 and 3 <= i%16 < 7
                    else -10 if tx == 2 and 3 <= i//16 < 7 and i%16 < 4 else 0
@@ -74,33 +87,68 @@ def packets(sequence):
             tile_seq=sequence, cells=C.pack_cells(heights, codes, [0]*256)))
 
 
+def demo_chassis_payload(sequence):
+    """Clearly-labelled synthetic motion for the on-screen GUI demo only."""
+    from operator_console.runtime_smoke import _chassis_payload
+    payload = _chassis_payload(sequence)
+    phase = sequence * 0.08
+    payload.update(
+        roll_rad=math.radians(4.0) * math.sin(phase),
+        pitch_rad=math.radians(-4.0 + 2.0 * math.cos(phase * 0.7)),
+        suspension_joints_rad={
+            'ml_rocker_joint': math.radians(5.0) * math.sin(phase),
+            'mr_rocker_joint': math.radians(-5.0) * math.sin(phase),
+            'bl_bogie_joint': math.radians(3.0) * math.cos(phase * 0.8),
+            'br_bogie_joint': math.radians(-3.0) * math.cos(phase * 0.8),
+        },
+        suspension_age_ms=25.0,
+        suspension_source='TEST 더미 AS5048B',
+        suspension_frame='시뮬레이션 관절 좌표계',
+    )
+    wheel_phase = math.sin(phase * 0.6)
+    for index, wheel in enumerate(payload['wheel_statuses']):
+        wheel.update(
+            stale=False,
+            steer_deg=(8.0 if index < 2 else 2.5) * wheel_phase,
+            drive_turns_per_s=0.35 + 0.08 * math.sin(phase + index * 0.3),
+        )
+    payload.update(wheel_stale_count=0, wheel_axis_error_count=0)
+    return payload
+
+
 def source(ports):
     import signal
-    from operator_console.runtime_smoke import _chassis_payload
     from terrain_overlay.tests.test_runtime import ready
     from terrain_overlay.tests.scenes import default_scene
+    from terrain_overlay.runtime import SenderSession
     sources = []
     udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     signal.signal(signal.SIGTERM,lambda *_: sys.exit(0))
     try:
         overlay = ready()
+        overlay.session = SenderSession(
+            SOURCE_BOOT_ID, SOURCE_START_MONO_NS, SOURCE_INSTANCE)
         overlay.on_depth(default_scene(),111,10.)
         overlay._clock.t = 10.03
         for port in ports[:2]:
             sources.append(subprocess.Popen([
-                'gst-launch-1.0','-q','videotestsrc','is-live=true','!',
+                'gst-launch-1.0','-q','videotestsrc','is-live=true','pattern=ball',
+                'animation-mode=wall-time','foreground-color=0xff52e8c4',
+                'background-color=0xff07131d','!',
                 'video/x-raw,width=1280,height=720,framerate=15/1','!',
                 'x264enc','tune=zerolatency','speed-preset=ultrafast','key-int-max=15','threads=2','!',
                 'h264parse','config-interval=-1','!','mpegtsmux','alignment=7','!',
                 'srtsink',f'uri=srt://127.0.0.1:{port}?mode=listener',
-                'wait-for-connection=false','sync=false','async=false']))
+                'wait-for-connection=false','sync=false','async=false'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         sequence = 0
         while True:
             assert all(src.poll() is None for src in sources), 'SRT fixture source died'
             sequence += 1
             for raw in packets(sequence):
                 udp.sendto(raw, ('127.0.0.1', ports[2]))
-            udp.sendto(json.dumps(_chassis_payload(sequence)).encode(), ('127.0.0.1', ports[3]))
+            udp.sendto(json.dumps(demo_chassis_payload(sequence)).encode(),
+                       ('127.0.0.1', ports[3]))
             udp.sendto(overlay.tick(), ('127.0.0.1', ports[4]))
             time.sleep(.08)
     finally:

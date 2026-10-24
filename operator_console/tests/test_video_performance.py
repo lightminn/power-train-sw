@@ -72,9 +72,23 @@ def test_streaming_probe_keeps_only_latest_values_without_gtk_idle_backlog(monke
     caps = Gst.Caps.from_string('video/x-raw,width=1280,height=720')
     pad = SimpleNamespace(get_current_caps=lambda: caps)
     model = SimpleNamespace(_frames=0, _sample_start=0., _video_size=None,
-                            _last_frame_monotonic=None, _last_fps=None)
+                            _last_frame_monotonic=None, _last_fps=None,
+                            _fresh_frame_run=0)
     for _ in range(2000):
         assert VideoPanel._on_video_buffer(model, pad, None) == Gst.PadProbeReturn.OK
     assert model._video_size == (1280, 720)
     assert model._last_frame_monotonic > 0
     assert model._last_fps is not None
+    assert model._fresh_frame_run == 2000
+
+
+def test_gui_demo_chassis_values_are_explicitly_synthetic_and_parseable():
+    import json
+    from operator_console.telemetry import parse_telemetry
+    from operator_console.tests.vision_benchmark import demo_chassis_payload
+
+    payload = demo_chassis_payload(7)
+    snapshot = parse_telemetry(json.dumps(payload).encode(), 1.0)
+    assert snapshot.suspension_source == 'TEST 더미 AS5048B'
+    assert len(snapshot.suspension_joints_rad) == 4
+    assert len(snapshot.wheel_statuses) == 6

@@ -2668,11 +2668,9 @@ class VideoPanel(Gtk.Box):
         _style(standby_background, "camera-standby-background")
         standby.add(standby_background)
         placeholder = RoverPlaceholder(
-            title=("전방 화면 준비 중"
-                   if name == "전방 카메라" else "작업 화면 준비 중"),
-            description=("로봇의 주행 영상을 연결하고 있습니다"
-                         if name == "전방 카메라"
-                         else "로봇팔 작업 영상을 연결하고 있습니다"),
+            title=("전방 영상 연결 대기 중"
+                   if name == "전방 카메라" else "작업 영상 연결 대기 중"),
+            description="신호가 들어오면 자동으로 표시됩니다",
             camera_kind=("front" if name == "전방 카메라" else "work"),
         )
         self._rover_placeholder = placeholder
@@ -2697,6 +2695,10 @@ class VideoPanel(Gtk.Box):
         self._frames = 0
         self._sample_start = time.monotonic()
         self._last_frame_monotonic: float | None = None
+        # Do not reveal a decoder's first incomplete frame after a reconnect.
+        # Three consecutive fresh frames are enough to cover the short H.264
+        # join window without making recovery feel sluggish.
+        self._fresh_frame_run = 0
         self._last_fps: float | None = None
         self._video_size: tuple[int, int] | None = None
         self._published_video_size: tuple[int, int] | None = None
@@ -2828,7 +2830,13 @@ class VideoPanel(Gtk.Box):
             ):
                 self._video_size = video_size
         now = time.monotonic()
+        previous_frame = self._last_frame_monotonic
         self._last_frame_monotonic = now
+        self._fresh_frame_run = (
+            self._fresh_frame_run + 1
+            if previous_frame is not None and now - previous_frame <= 0.5
+            else 1
+        )
         elapsed = now - self._sample_start
         if elapsed >= 1.0:
             fps = self._frames / elapsed
@@ -2841,6 +2849,7 @@ class VideoPanel(Gtk.Box):
         if message.type == Gst.MessageType.ERROR:
             self._placeholder.show_all()
             self._publish_video_live(False)
+            self._fresh_frame_run = 0
             error, detail = message.parse_error()
             self._pipeline_live = False
             self._status.set_text(f"{self._name} 연결 대기")
@@ -2849,6 +2858,7 @@ class VideoPanel(Gtk.Box):
         elif message.type == Gst.MessageType.EOS:
             self._placeholder.show_all()
             self._publish_video_live(False)
+            self._fresh_frame_run = 0
             self._pipeline_live = False
             self._status.set_text(f"{self._name} 연결 대기")
             self._schedule_reconnect()
@@ -2885,9 +2895,15 @@ class VideoPanel(Gtk.Box):
             self._status.set_text(f"{self._name} 연결 대기")
             self._header_state.set_text("연결 대기")
             return True
+        if self._fresh_frame_run < 3:
+            self._placeholder.show_all()
+            self._status.set_text(f"{self._name} 연결 대기")
+            self._header_state.set_text("연결 대기")
+            return True
         age_ms = (time.monotonic() - self._last_frame_monotonic) * 1000.0
         if age_ms > 1000.0:
             self._placeholder.show_all()
+            self._fresh_frame_run = 0
             if self._freshness_state != "stale":
                 self._emit_event("frame became stale (>1000 ms)")
                 self._freshness_state = "stale"
@@ -2917,6 +2933,8 @@ class VideoPanel(Gtk.Box):
             return "CONNECTING"
         if self._last_frame_monotonic is None:
             return "WAITING"
+        if self._fresh_frame_run < 3:
+            return "WAITING"
         return "STALE" if time.monotonic() - self._last_frame_monotonic > 1.0 else "LIVE"
 
     def _schedule_reconnect(self) -> None:
@@ -2935,6 +2953,7 @@ class VideoPanel(Gtk.Box):
         # 다시 발화하고 표시도 거대한 stale 나이를 보인다 — 상태를 리셋한다.
         self._pipeline_live = False
         self._last_frame_monotonic = None
+        self._fresh_frame_run = 0
         self._publish_video_live(False)
         self._last_fps = None
         self._frames = 0

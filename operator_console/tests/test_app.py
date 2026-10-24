@@ -1693,8 +1693,8 @@ def test_mission_preparation_keeps_dual_camera_layout_without_progress_hud():
     assert 'step_names = ("준비", "탐색", "접근", "도구 작업", "완료")' not in source
     assert "videos.add_overlay(progress_hud)" not in source
     assert "rail_heading.pack_end(display_options" in source
-    assert "로봇의 주행 영상을 연결하고 있습니다" in source
-    assert "로봇팔 작업 영상을 연결하고 있습니다" in source
+    assert "전방 영상 연결 대기 중" in source
+    assert "작업 영상 연결 대기 중" in source
 
 
 def test_console_health_is_split_into_named_status_chips():
@@ -1781,9 +1781,9 @@ def test_camera_status_is_overlaid_and_has_a_waiting_placeholder():
     ).read_text(encoding="utf-8")
 
     assert '_style(header_click, "video-overlay")' in source
-    assert "전방 화면 준비 중" in source
-    assert "작업 화면 준비 중" in source
-    assert "로봇의 주행 영상을 연결하고 있습니다" in source
+    assert "전방 영상 연결 대기 중" in source
+    assert "작업 영상 연결 대기 중" in source
+    assert "신호가 들어오면 자동으로 표시됩니다" in source
     assert "RoverPlaceholder(" in source
     assert 'camera_kind=("front" if name == "전방 카메라" else "work")' in source
     assert '"arm": (72.0, 4.0, 190.0, 172.0)' in source
