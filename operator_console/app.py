@@ -18,6 +18,7 @@ import time
 from collections.abc import Callable
 
 from operator_console.pipelines import pipeline_description, srt_uri
+from operator_console.text_layout import TextLayouts
 from operator_console.tool_binding import refresh_tool
 from operator_console.arm_binding import control_mode_text, contract_text, fsm_text, refresh_arm_summary
 from operator_console.arm_ui import (
@@ -1712,6 +1713,7 @@ class MetadataCanvas(Gtk.DrawingArea):
         self._target_tracker = target_tracker or DisplayTargetTracker()
         self._show_objects = True
         self._show_distance = True
+        self._text_layouts = TextLayouts(self)
         self._video_width: int | None = None
         self._video_height: int | None = None
         self.connect("draw", self._on_draw)
@@ -1734,10 +1736,7 @@ class MetadataCanvas(Gtk.DrawingArea):
     def _label_layout(self, context: object, text: str):
         # PangoCairo, not cairo's toy text API: the toy API has no font
         # fallback and draws Korean class names as missing-glyph boxes.
-        layout = PangoCairo.create_layout(context)
-        layout.set_font_description(Pango.FontDescription("Sans Bold 11"))
-        layout.set_text(text, -1)
-        return layout
+        return self._text_layouts.get(context, text, "Sans Bold 11")
 
     def _on_draw(self, _widget: Gtk.DrawingArea, context: object) -> bool:
         frame = self._receiver.latest()
@@ -1837,6 +1836,7 @@ class TerrainCanvas(Gtk.DrawingArea):
         super().__init__()
         self._receiver = receiver
         self._enabled = True
+        self._text_layouts = TextLayouts(self)
         self._video_size: tuple[int, int] | None = None
         self._video_live = False
         self.connect("draw", self._on_draw)
@@ -1876,12 +1876,7 @@ class TerrainCanvas(Gtk.DrawingArea):
             self._redraw_source = None
 
     def _layout(self, context: object, text: str, font: str, max_width: float):
-        layout = PangoCairo.create_layout(context)
-        layout.set_font_description(Pango.FontDescription(font))
-        layout.set_width(int(max(40.0, max_width) * Pango.SCALE))
-        layout.set_ellipsize(Pango.EllipsizeMode.END)
-        layout.set_text(text, -1)
-        return layout
+        return self._text_layouts.get(context, text, font, max_width)
 
     def _on_draw(self, _widget: Gtk.DrawingArea, context: object) -> bool:
         if not self._enabled:
@@ -2692,6 +2687,7 @@ class VideoPanel(Gtk.Box):
         self._last_frame_monotonic: float | None = None
         self._last_fps: float | None = None
         self._video_size: tuple[int, int] | None = None
+        self._published_video_size: tuple[int, int] | None = None
         self._pipeline_live = False
         self._reconnects = 0
         self._freshness_state = "connecting"
@@ -2819,7 +2815,6 @@ class VideoPanel(Gtk.Box):
                 and video_size != self._video_size
             ):
                 self._video_size = video_size
-                GLib.idle_add(self.publish_video_size, width, height)
         now = time.monotonic()
         self._last_frame_monotonic = now
         elapsed = now - self._sample_start
@@ -2828,7 +2823,6 @@ class VideoPanel(Gtk.Box):
             self._frames = 0
             self._sample_start = now
             self._last_fps = fps
-            GLib.idle_add(self._fps.set_text, f"화면 FPS: {fps:.1f}")
         return Gst.PadProbeReturn.OK
 
     def _on_bus_message(self, _bus: Gst.Bus, message: Gst.Message) -> None:
@@ -2859,6 +2853,16 @@ class VideoPanel(Gtk.Box):
     def _refresh_video_health(self) -> bool:
         if self._stopped:
             return False
+        # Streaming threads publish only latest values. Reuse this GTK timer
+        # instead of accumulating idle callbacks while the UI is busy.
+        size = self._video_size
+        if size is not None and size != self._published_video_size:
+            self.publish_video_size(*size)
+            self._published_video_size = size
+        if self._last_fps is not None:
+            text = f"화면 FPS: {self._last_fps:.1f}"
+            if self._fps.get_text() != text:
+                self._fps.set_text(text)
         self._publish_video_live(self.health_state() == "LIVE")
         if not self._pipeline_live:
             self._placeholder.show_all()

@@ -253,3 +253,22 @@ parameters: `terrain_map/README.md`.
 Observation remains caller/receiver-only: it never opens D435i/L515 or writes
 CAN. Commands are possible only through the authenticated ops client and every
 panel action passes state-revision revalidation plus its confirmation gesture.
+
+### 비전 탭 성능 계측 (개발용)
+
+비전 탭은 기존 L515 위젯·지도·자세 수신기를 공유한다. NumPy import 전
+`OPENBLAS_NUM_THREADS=1`을 적용하고, 영상은 `sync=false`와 raw 프레임 1개 대기열을 사용한다.
+지도·자세의 비전 전용 계산/표시는 탭이 보일 때만 갱신한다.
+
+실제 카메라 없이 로컬 SRT/UDP 합성 입력으로 CPU/RSS·영상 수신/그리기·지도 반영률을
+측정하려면 저장소 루트에서 다음을 실행한다. GTK/GStreamer·NumPy/OpenCV·pytest가 필요하다.
+
+```bash
+OPENBLAS_NUM_THREADS=8 xvfb-run -a /usr/bin/python3 \
+  -m operator_console.tests.vision_benchmark --require-ac \
+  --seconds 20 --output /tmp/vision-performance.json
+```
+
+인코더/송신은 별도 프로세스이며 측정 CPU/RSS에서 제외한다. 실기/전원 조건·그리기 정지
+미해결 사항과 수치 해석은 [5단계 보고서](../docs/reports/2026-10-24-vision-tab-step5.md)를 따른다.
+이 합성 시험은 Gateway/L515 10분 인수를 대체하지 않는다.

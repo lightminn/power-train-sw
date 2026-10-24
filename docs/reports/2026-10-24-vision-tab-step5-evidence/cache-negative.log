@@ -1,0 +1,29 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_hangul_layouts_reuse_and_evict_with_style_and_scale_invalidation _____
+
+    def test_hangul_layouts_reuse_and_evict_with_style_and_scale_invalidation():
+        if not Gtk.init_check()[0]:
+            pytest.skip('needs GTK display')
+        widget = Gtk.DrawingArea()
+        cache = TextLayouts(widget, limit=4)
+        cr = cairo.Context(cairo.ImageSurface(cairo.FORMAT_ARGB32, 640, 360))
+        first = cache.get(cr, '바닥 · 장애물 미수신', 'Sans 11', 300)
+        assert first.get_unknown_glyphs_count() == 0
+        assert cache.get(cr, '바닥 · 장애물 미수신', 'Sans 11', 300) is first
+        assert cache.get(cr, '바닥 · 장애물 미수신', 'Sans 11', 200) is not first
+        cr.scale(2, 2)
+        assert cache.get(cr, '바닥 · 장애물 미수신', 'Sans 11', 300) is not first
+        for i in range(40):
+            cache.get(cr, f'거리 {i} m', 'Sans 11')
+>       assert len(cache.entries) == 4
+E       AssertionError: assert 43 == 4
+E        +  where 43 = len(OrderedDict({('바닥 · 장애물 미수신', 'Sans 11', 300, 1.0, 0.0, 0.0, 1.0, (1.0, 1.0)): <Pango.Layout object at 0x75fb07fbe040 ...'Sans 11', None, 2.0, 0.0, 0.0, 2.0, (1.0, 1.0)): <Pango.Layout object at 0x75fb074fea00 (PangoLayout at 0x24d03060)>}))
+E        +    where OrderedDict({('바닥 · 장애물 미수신', 'Sans 11', 300, 1.0, 0.0, 0.0, 1.0, (1.0, 1.0)): <Pango.Layout object at 0x75fb07fbe040 ...'Sans 11', None, 2.0, 0.0, 0.0, 2.0, (1.0, 1.0)): <Pango.Layout object at 0x75fb074fea00 (PangoLayout at 0x24d03060)>}) = <vision_step5_cache_negative.pytest_collection_modifyitems.<locals>.Unbounded object at 0x75fb07fb92b0>.entries
+
+operator_console/tests/test_text_layout.py:26: AssertionError
+=========================== short test summary info ============================
+FAILED operator_console/tests/test_text_layout.py::test_hangul_layouts_reuse_and_evict_with_style_and_scale_invalidation
+1 failed in 0.09s
+
+exit_code=1
