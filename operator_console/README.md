@@ -276,3 +276,16 @@ OPENBLAS_NUM_THREADS=8 xvfb-run -a /usr/bin/python3 \
 인코더/송신은 별도 프로세스이며 측정 CPU/RSS에서 제외한다. 실기/전원 조건·그리기 정지
 미해결 사항과 수치 해석은 [5단계 보고서](../docs/reports/2026-10-24-vision-tab-step5.md)를 따른다.
 이 합성 시험은 Gateway/L515 10분 인수를 대체하지 않는다.
+
+실기 연결 대기 중에도 합성 동작 영상을 만들 수 있다. 별도 Xvfb/X11의 콘솔 창만 녹화하며,
+UI에 합성 입력임을 표시한다. 이미 존재하는 출력 파일에는 덮어쓰지 않는다.
+
+```bash
+/usr/bin/python3 -m operator_console.runtime_smoke --vision-only \
+  --record-webm /tmp/vision-synthetic-demo-new.webm
+```
+
+실제 콘솔 PID의 CPU/RSS·전원·CPU별 클럭·온도는 `operator_console.tests.sample_process`로
+별도 수집할 수 있다. 이 도구는 영상 연결을 추가하지 않고, 프로세스 수집 완료를 실기 인수로
+판정하지 않는다. [7단계 상태](../docs/reports/2026-10-24-vision-tab-step7.md)와
+[실기 실행 절차](../docs/reports/2026-10-24-vision-tab-field-runbook.md)를 따른다.

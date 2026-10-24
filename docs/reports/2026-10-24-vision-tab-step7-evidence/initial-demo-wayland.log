@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 335, in main
+    report = json.dumps(exercise(args.fault, args.record_webm), ensure_ascii=False)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 183, in exercise
+    xid = window.get_window().get_xid()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'GdkWaylandWindow' object has no attribute 'get_xid'. Did you mean: 'get_width'?

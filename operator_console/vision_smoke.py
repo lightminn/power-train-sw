@@ -10,6 +10,7 @@ import math
 import os
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import tempfile
 import time
@@ -24,7 +25,7 @@ FAULTS = ('map', 'telemetry', 'missing-zero', 'stale', 'recovery',
           'hidden-render', 'duplicate-camera', 'shutdown', 'drawing-stall')
 
 
-def exercise(fault=None):
+def exercise(fault=None, record_webm=None):
     if fault == 'missing-zero':
         from . import vision_attitude
         original = vision_attitude.reading
@@ -55,16 +56,29 @@ def exercise(fault=None):
     draws = []
     heartbeat = None
     source_id = None
+    recorder = None
     try:
+        # Keep synthetic SRT listeners in separate processes, matching the
+        # Gateway/console topology. Mixing listeners and callers in this GTK
+        # process reproduced a native SRT epoll/unwinder crash during startup.
         for port in ports:
-            src = Gst.parse_launch(
-                'videotestsrc is-live=true ! video/x-raw,width=1280,height=720,framerate=15/1 ! '
-                'x264enc tune=zerolatency speed-preset=ultrafast threads=2 key-int-max=15 ! '
-                'h264parse config-interval=-1 ! mpegtsmux alignment=7 ! '
-                f'srtsink uri="srt://127.0.0.1:{port}?mode=listener" '
-                'wait-for-connection=false sync=false async=false')
-            sources.append(src)
-            src.set_state(Gst.State.PLAYING)
+            sources.append(subprocess.Popen([
+                'gst-launch-1.0', '-q', 'videotestsrc', 'is-live=true', '!',
+                'video/x-raw,width=1280,height=720,framerate=15/1', '!',
+                'x264enc', 'tune=zerolatency', 'speed-preset=ultrafast',
+                'threads=2', 'key-int-max=15', '!', 'h264parse', 'config-interval=-1',
+                '!', 'mpegtsmux', 'alignment=7', '!', 'srtsink',
+                f'uri=srt://127.0.0.1:{port}?mode=listener',
+                'wait-for-connection=false', 'sync=false', 'async=false']))
+        deadline = time.monotonic()+5
+        while True:
+            assert all(src.poll() is None for src in sources), 'synthetic SRT source exited'
+            bound = {int(line.split()[1].split(':')[1], 16)
+                     for line in Path('/proc/net/udp').read_text().splitlines()[1:]}
+            if all(port in bound for port in ports):
+                break
+            assert time.monotonic()<deadline, 'synthetic SRT listeners not ready'
+            time.sleep(.02)
         with tempfile.TemporaryDirectory(prefix='vision-smoke-') as directory:
             probe_file = Path(directory)/'probe.json'
             receiver_descriptions = []
@@ -89,6 +103,10 @@ def exercise(fault=None):
             Gst.parse_launch = no_new_decoder
             if fault == 'duplicate-camera':
                 Gst.parse_launch('videotestsrc ! fakesink')
+            if record_webm:
+                label = Gtk.Label(label='합성 입력 시연 · 실기 검증 아님')
+                window._vision_panel.get_children()[0].pack_end(label, False, False, 0)
+                window.resize(1200, 800)
             window.show_all()
             heartbeat = GLib.timeout_add(20, lambda: beats.append(time.monotonic()) or True)
             window._l515._video_widget.connect_after('draw', lambda *_: draws.append(time.monotonic()) or False)
@@ -114,7 +132,14 @@ def exercise(fault=None):
                 sender.sendto(json.dumps(_terrain_payload(sequence)).encode(),
                               ('127.0.0.1', window._terrain_receiver.port))
                 if fault != 'map':
-                    for raw in _terrain_map_packets(sequence):
+                    if record_webm:
+                        # Reuse the existing performance fixture: put raised
+                        # and recessed terrain ahead of the synthetic rover.
+                        from .tests.vision_benchmark import packets
+                        terrain_packets = packets(sequence)
+                    else:
+                        terrain_packets = _terrain_map_packets(sequence)
+                    for raw in terrain_packets:
                         sender.sendto(raw, ('127.0.0.1', window._map_receiver.port))
                 return True
             context = GLib.MainContext.default()
@@ -140,6 +165,8 @@ def exercise(fault=None):
                 return state['vision']
             def record(label):
                 samples.append(dict(phase=label, **snapshot()))
+                if record_webm:
+                    dwell(1.2)
             def live():
                 p = snapshot()
                 return (p['map_state']=='LIVE' and p['map_rasters']==[True,True]
@@ -155,6 +182,18 @@ def exercise(fault=None):
             assert p['raw_pitch'] is None and p['joint_values']==[None]*4, 'vision missing values fabricated'
             assert p['joints_label'].count('미수신')==4, 'vision missing encoders not labelled'
             record('missing')
+            if record_webm:
+                import gi
+                gi.require_version('GdkX11', '3.0')
+                from gi.repository import GdkX11  # noqa: F401
+                # Capture this synthetic console window, never the desktop.
+                xid = window.get_window().get_xid()
+                recorder = original_launch(
+                    f'ximagesrc xid={xid} use-damage=false show-pointer=false ! '
+                    'video/x-raw,framerate=10/1 ! videoconvert ! '
+                    'vp8enc deadline=1 cpu-used=8 threads=2 ! webmmux ! '
+                    f'filesink location={json.dumps(str(record_webm))}')
+                recorder.set_state(Gst.State.PLAYING)
             source_id = GLib.timeout_add(80, feed)
             pump_until(live, 'vision map/telemetry LIVE')
             p = snapshot()
@@ -243,6 +282,12 @@ def exercise(fault=None):
             rx = (window._metadata_receiver, window._telemetry_receiver, window._chassis_receiver,
                   window._arm_receiver, window._environment_receiver, window._terrain_receiver, window._map_receiver)
             rx_ports = [r._socket.getsockname()[1] for r in rx]
+            if recorder is not None:
+                recorder.send_event(Gst.Event.new_eos())
+                message = recorder.get_bus().timed_pop_filtered(5*Gst.SECOND,
+                    Gst.MessageType.EOS | Gst.MessageType.ERROR)
+                assert message and message.type==Gst.MessageType.EOS, 'demo recording failed'
+                recorder.set_state(Gst.State.NULL)
             GLib.source_remove(source_id)
             source_id = None
             window.destroy()
@@ -264,6 +309,8 @@ def exercise(fault=None):
                         source='local synthetic SRT/UDP; no Gateway/L515 hardware')
     finally:
         Gst.parse_launch = original_launch
+        if recorder is not None:
+            recorder.set_state(Gst.State.NULL)
         if source_id is not None:
             GLib.source_remove(source_id)
         if heartbeat is not None:
@@ -272,7 +319,13 @@ def exercise(fault=None):
             window.destroy()
         sender.close()
         for src in sources:
-            src.set_state(Gst.State.NULL)
+            if src.poll() is None:
+                src.terminate()
+            try:
+                src.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                src.kill()
+                src.wait()
         sys.excepthook = original_hook
 
 
@@ -280,10 +333,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--fault', choices=FAULTS)
     parser.add_argument('--report-file', type=Path)
+    parser.add_argument('--record-webm', type=Path, help='record synthetic console window only (X11)')
     args = parser.parse_args()
     code = 1
     try:
-        report = json.dumps(exercise(args.fault), ensure_ascii=False)
+        if args.record_webm and os.environ.get('GDK_BACKEND') != 'x11':
+            raise ValueError('record with runtime_smoke --vision-only --record-webm to isolate X11')
+        if args.record_webm and args.record_webm.exists():
+            raise ValueError('recording file already exists; choose a new path')
+        report = json.dumps(exercise(args.fault, args.record_webm), ensure_ascii=False)
         if args.report_file:
             args.report_file.write_text(report+'\n', encoding='utf-8')
             print('VISION-CHILD: PASS', flush=True)

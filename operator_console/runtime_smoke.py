@@ -721,7 +721,8 @@ def run_smoke(
     )
 
 
-def run_vision_smoke(*, fault_for_test: str | None = None) -> tuple[bool, str]:
+def run_vision_smoke(*, fault_for_test: str | None = None,
+                     record_webm: Path | None = None) -> tuple[bool, str]:
     """Exercise vision independently so existing arm failures stay distinguishable."""
     with tempfile.TemporaryDirectory(prefix="vision-runtime-report-") as directory:
         report_file = Path(directory)/"result.json"
@@ -729,6 +730,8 @@ def run_vision_smoke(*, fault_for_test: str | None = None) -> tuple[bool, str]:
                    "--report-file", str(report_file)]
         if fault_for_test is not None:
             command += ["--fault", fault_for_test]
+        if record_webm is not None:
+            command += ["--record-webm", str(record_webm.resolve())]
         try:
             child = subprocess.Popen(command, cwd=REPO_ROOT, env=smoke_child_env(),
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
@@ -763,9 +766,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--vision-only", action="store_true",
                         help="run vision SRT/UDP and lifecycle checks independently")
+    parser.add_argument("--record-webm", type=Path,
+                        help="record the synthetic vision-only console window (requires --vision-only)")
     args = parser.parse_args()
+    if args.record_webm and not args.vision_only:
+        parser.error("--record-webm requires --vision-only")
     if args.vision_only:
-        passed, report = run_vision_smoke()
+        passed, report = run_vision_smoke(record_webm=args.record_webm)
         print(f"VISION-RUNTIME-SMOKE: {'PASS' if passed else 'FAIL'}")
         print(report)
         return 0 if passed else 1

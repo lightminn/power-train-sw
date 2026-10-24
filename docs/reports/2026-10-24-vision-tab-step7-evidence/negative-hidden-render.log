@@ -1,0 +1,10 @@
+vision runtime child rc=1
+Xlib:  extension "DRI2" missing on display ":101".
+Traceback (most recent call last):
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 344, in main
+    report = json.dumps(exercise(args.fault, args.record_webm), ensure_ascii=False)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 261, in exercise
+    assert maps.worker.render_count==count and panel.refresh_count==updates, 'vision hidden render continues'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: vision hidden render continues

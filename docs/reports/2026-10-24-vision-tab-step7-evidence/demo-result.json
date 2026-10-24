@@ -1,0 +1,540 @@
+{
+  "result": "PASS",
+  "phases": [
+    {
+      "phase": "missing",
+      "mapped": true,
+      "slots_mapped": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "map_state": "WAITING",
+      "map_displayed": 0,
+      "map_rasters": [
+        false,
+        false
+      ],
+      "map_timer": true,
+      "map_renders": 1,
+      "map_error": null,
+      "attitude_timer": true,
+      "attitude_refreshes": 1,
+      "link": "WAITING",
+      "raw_pitch": null,
+      "raw_pitch_state": "WAITING",
+      "packet_age_s": null,
+      "raw_label": "IMU 원시 R 미수신 / P 미수신",
+      "body_label": "차체 자세: 보정 미확인 · 개략도 기울기 미적용",
+      "raw_source_label": "UDP :41238 · 패킷 미수신 · 미수신",
+      "joints_label": "좌 로커 미수신 · 우 로커 미수신 · 좌 보기 미수신 · 우 보기 미수신",
+      "source_label": "로커·보기 · 측정 미수신 · UDP :41238 · 출처 미수신",
+      "joint_states": [
+        "WAITING",
+        "WAITING",
+        "WAITING",
+        "WAITING"
+      ],
+      "joint_values": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "wheel_labels": {
+        "front_left": [
+          "미수신",
+          "미수신"
+        ],
+        "front_right": [
+          "미수신",
+          "미수신"
+        ],
+        "mid_left": [
+          "미수신",
+          "미수신"
+        ],
+        "mid_right": [
+          "미수신",
+          "미수신"
+        ],
+        "rear_left": [
+          "미수신",
+          "미수신"
+        ],
+        "rear_right": [
+          "미수신",
+          "미수신"
+        ]
+      },
+      "wheel_states": [
+        "WAITING",
+        "WAITING",
+        "WAITING",
+        "WAITING",
+        "WAITING",
+        "WAITING"
+      ]
+    },
+    {
+      "phase": "live",
+      "mapped": true,
+      "slots_mapped": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "map_state": "LIVE",
+      "map_displayed": 3,
+      "map_rasters": [
+        true,
+        true
+      ],
+      "map_timer": true,
+      "map_renders": 4,
+      "map_error": null,
+      "attitude_timer": true,
+      "attitude_refreshes": 9,
+      "link": "LIVE",
+      "raw_pitch": 19.5,
+      "raw_pitch_state": "LIVE",
+      "packet_age_s": 0.027184593000129098,
+      "raw_label": "IMU 원시 R +0.0° / P +19.5°",
+      "body_label": "차체 자세: 보정 미확인 · 개략도 기울기 미적용",
+      "raw_source_label": "UDP :41238 · 패킷 0.0초 전 · 수신 중",
+      "joints_label": "좌 로커 미수신 · 우 로커 미수신 · 좌 보기 미수신 · 우 보기 미수신",
+      "source_label": "로커·보기 · 측정 미수신 · UDP :41238 · 출처 미수신",
+      "joint_states": [
+        "WAITING",
+        "WAITING",
+        "WAITING",
+        "WAITING"
+      ],
+      "joint_values": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "wheel_labels": {
+        "front_left": [
+          "-12.5",
+          "+0.12"
+        ],
+        "front_right": [
+          "-3.2",
+          "+0.50"
+        ],
+        "mid_left": [
+          "오래됨",
+          "오래됨"
+        ],
+        "mid_right": [
+          "-3.2",
+          "+0.50"
+        ],
+        "rear_left": [
+          "-3.2",
+          "+0.50"
+        ],
+        "rear_right": [
+          "-3.2",
+          "+0.50"
+        ]
+      },
+      "wheel_states": [
+        "LIVE",
+        "LIVE",
+        "STALE",
+        "LIVE",
+        "LIVE",
+        "LIVE"
+      ]
+    },
+    {
+      "phase": "encoders",
+      "mapped": true,
+      "slots_mapped": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "map_state": "LIVE",
+      "map_displayed": 5,
+      "map_rasters": [
+        true,
+        true
+      ],
+      "map_timer": true,
+      "map_renders": 7,
+      "map_error": null,
+      "attitude_timer": true,
+      "attitude_refreshes": 16,
+      "link": "LIVE",
+      "raw_pitch": 19.5,
+      "raw_pitch_state": "LIVE",
+      "packet_age_s": 0.0546094040000753,
+      "raw_label": "IMU 원시 R +0.0° / P +19.5°",
+      "body_label": "차체 자세: 보정 미확인 · 개략도 기울기 미적용",
+      "raw_source_label": "UDP :41238 · 패킷 0.1초 전 · 수신 중",
+      "joints_label": "좌 로커 +0.0° · 우 로커 +1.1° · 좌 보기 미수신 · 우 보기 미수신",
+      "source_label": "로커·보기 · 측정 0.2초 전 · UDP :41238 · fixture-only",
+      "joint_states": [
+        "LIVE",
+        "LIVE",
+        "WAITING",
+        "WAITING"
+      ],
+      "joint_values": [
+        0.0,
+        1.1459155902616465,
+        null,
+        null
+      ],
+      "wheel_labels": {
+        "front_left": [
+          "-12.5",
+          "+0.12"
+        ],
+        "front_right": [
+          "-3.2",
+          "+0.50"
+        ],
+        "mid_left": [
+          "오래됨",
+          "오래됨"
+        ],
+        "mid_right": [
+          "-3.2",
+          "+0.50"
+        ],
+        "rear_left": [
+          "-3.2",
+          "+0.50"
+        ],
+        "rear_right": [
+          "-3.2",
+          "+0.50"
+        ]
+      },
+      "wheel_states": [
+        "LIVE",
+        "LIVE",
+        "STALE",
+        "LIVE",
+        "LIVE",
+        "LIVE"
+      ]
+    },
+    {
+      "phase": "aged",
+      "mapped": true,
+      "slots_mapped": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "map_state": "LIVE",
+      "map_displayed": 8,
+      "map_rasters": [
+        true,
+        true
+      ],
+      "map_timer": true,
+      "map_renders": 9,
+      "map_error": null,
+      "attitude_timer": true,
+      "attitude_refreshes": 23,
+      "link": "LIVE",
+      "raw_pitch": null,
+      "raw_pitch_state": "WAITING",
+      "packet_age_s": 0.07376466900041123,
+      "raw_label": "IMU 원시 R 미수신 / P 미수신",
+      "body_label": "차체 자세: 보정 미확인 · 개략도 기울기 미적용",
+      "raw_source_label": "UDP :41238 · 패킷 0.1초 전 · 수신 중",
+      "joints_label": "좌 로커 오래됨 · 우 로커 오래됨 · 좌 보기 미수신 · 우 보기 미수신",
+      "source_label": "로커·보기 · 측정 1.9초 전 · UDP :41238 · fixture-only",
+      "joint_states": [
+        "STALE",
+        "STALE",
+        "WAITING",
+        "WAITING"
+      ],
+      "joint_values": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "wheel_labels": {
+        "front_left": [
+          "-12.5",
+          "+0.12"
+        ],
+        "front_right": [
+          "-3.2",
+          "+0.50"
+        ],
+        "mid_left": [
+          "오래됨",
+          "오래됨"
+        ],
+        "mid_right": [
+          "-3.2",
+          "+0.50"
+        ],
+        "rear_left": [
+          "-3.2",
+          "+0.50"
+        ],
+        "rear_right": [
+          "-3.2",
+          "+0.50"
+        ]
+      },
+      "wheel_states": [
+        "LIVE",
+        "LIVE",
+        "STALE",
+        "LIVE",
+        "LIVE",
+        "LIVE"
+      ]
+    },
+    {
+      "phase": "disconnected",
+      "mapped": true,
+      "slots_mapped": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "map_state": "STALE",
+      "map_displayed": 13,
+      "map_rasters": [
+        true,
+        false
+      ],
+      "map_timer": true,
+      "map_renders": 14,
+      "map_error": null,
+      "attitude_timer": true,
+      "attitude_refreshes": 35,
+      "link": "STALE",
+      "raw_pitch": null,
+      "raw_pitch_state": "STALE",
+      "packet_age_s": 1.0709965910000392,
+      "raw_label": "IMU 원시 R 오래됨 / P 오래됨",
+      "body_label": "차체 자세: 보정 미확인 · 개략도 기울기 미적용",
+      "raw_source_label": "UDP :41238 · 패킷 1.1초 전 · 수신 끊김",
+      "joints_label": "좌 로커 미수신 · 우 로커 미수신 · 좌 보기 미수신 · 우 보기 미수신",
+      "source_label": "로커·보기 · 측정 미수신 · UDP :41238 · 출처 미수신",
+      "joint_states": [
+        "WAITING",
+        "WAITING",
+        "WAITING",
+        "WAITING"
+      ],
+      "joint_values": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "wheel_labels": {
+        "front_left": [
+          "오래됨",
+          "오래됨"
+        ],
+        "front_right": [
+          "오래됨",
+          "오래됨"
+        ],
+        "mid_left": [
+          "오래됨",
+          "오래됨"
+        ],
+        "mid_right": [
+          "오래됨",
+          "오래됨"
+        ],
+        "rear_left": [
+          "오래됨",
+          "오래됨"
+        ],
+        "rear_right": [
+          "오래됨",
+          "오래됨"
+        ]
+      },
+      "wheel_states": [
+        "STALE",
+        "STALE",
+        "STALE",
+        "STALE",
+        "STALE",
+        "STALE"
+      ]
+    },
+    {
+      "phase": "recovered",
+      "mapped": true,
+      "slots_mapped": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "map_state": "LIVE",
+      "map_displayed": 17,
+      "map_rasters": [
+        true,
+        true
+      ],
+      "map_timer": true,
+      "map_renders": 18,
+      "map_error": null,
+      "attitude_timer": true,
+      "attitude_refreshes": 43,
+      "link": "LIVE",
+      "raw_pitch": 19.5,
+      "raw_pitch_state": "LIVE",
+      "packet_age_s": 0.019209756000236666,
+      "raw_label": "IMU 원시 R +0.0° / P +19.5°",
+      "body_label": "차체 자세: 보정 미확인 · 개략도 기울기 미적용",
+      "raw_source_label": "UDP :41238 · 패킷 0.0초 전 · 수신 중",
+      "joints_label": "좌 로커 미수신 · 우 로커 미수신 · 좌 보기 미수신 · 우 보기 미수신",
+      "source_label": "로커·보기 · 측정 미수신 · UDP :41238 · 출처 미수신",
+      "joint_states": [
+        "WAITING",
+        "WAITING",
+        "WAITING",
+        "WAITING"
+      ],
+      "joint_values": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "wheel_labels": {
+        "front_left": [
+          "-12.5",
+          "+0.12"
+        ],
+        "front_right": [
+          "-3.2",
+          "+0.50"
+        ],
+        "mid_left": [
+          "오래됨",
+          "오래됨"
+        ],
+        "mid_right": [
+          "-3.2",
+          "+0.50"
+        ],
+        "rear_left": [
+          "-3.2",
+          "+0.50"
+        ],
+        "rear_right": [
+          "-3.2",
+          "+0.50"
+        ]
+      },
+      "wheel_states": [
+        "LIVE",
+        "LIVE",
+        "STALE",
+        "LIVE",
+        "LIVE",
+        "LIVE"
+      ]
+    },
+    {
+      "phase": "returned",
+      "mapped": true,
+      "slots_mapped": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "map_state": "LIVE",
+      "map_displayed": 27,
+      "map_rasters": [
+        true,
+        true
+      ],
+      "map_timer": true,
+      "map_renders": 28,
+      "map_error": null,
+      "attitude_timer": true,
+      "attitude_refreshes": 63,
+      "link": "LIVE",
+      "raw_pitch": 19.5,
+      "raw_pitch_state": "LIVE",
+      "packet_age_s": 0.07932171700031176,
+      "raw_label": "IMU 원시 R +0.0° / P +19.5°",
+      "body_label": "차체 자세: 보정 미확인 · 개략도 기울기 미적용",
+      "raw_source_label": "UDP :41238 · 패킷 0.1초 전 · 수신 중",
+      "joints_label": "좌 로커 미수신 · 우 로커 미수신 · 좌 보기 미수신 · 우 보기 미수신",
+      "source_label": "로커·보기 · 측정 미수신 · UDP :41238 · 출처 미수신",
+      "joint_states": [
+        "WAITING",
+        "WAITING",
+        "WAITING",
+        "WAITING"
+      ],
+      "joint_values": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "wheel_labels": {
+        "front_left": [
+          "-12.5",
+          "+0.12"
+        ],
+        "front_right": [
+          "-3.2",
+          "+0.50"
+        ],
+        "mid_left": [
+          "오래됨",
+          "오래됨"
+        ],
+        "mid_right": [
+          "-3.2",
+          "+0.50"
+        ],
+        "rear_left": [
+          "-3.2",
+          "+0.50"
+        ],
+        "rear_right": [
+          "-3.2",
+          "+0.50"
+        ]
+      },
+      "wheel_states": [
+        "LIVE",
+        "LIVE",
+        "STALE",
+        "LIVE",
+        "LIVE",
+        "LIVE"
+      ]
+    }
+  ],
+  "shutdown": "worker/timers/receivers/pipelines/ports closed",
+  "receiver_pipelines": 2,
+  "source": "local synthetic SRT/UDP; no Gateway/L515 hardware"
+}
