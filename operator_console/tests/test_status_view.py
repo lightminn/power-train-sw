@@ -68,6 +68,7 @@ def test_competition_status_is_unified_around_power_communication_and_safety():
     assert '"drive", "주행"' not in source
     assert '"arm", "로봇팔"' not in source
     assert "값은 추정하지 않습니다" in source
+    assert "power-soc-value" not in source
 
 
 def test_status_view_defaults_to_drive_detail_only():

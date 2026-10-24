@@ -2664,8 +2664,6 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
             if key == "power_rs485":
                 card.set_no_show_all(True)
                 card.hide()
-            if key == "power_soc":
-                _style(value, "power-soc-value")
             return card
 
         def section(
