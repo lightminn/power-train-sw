@@ -1,10 +1,11 @@
-"""Read-only attitude semantics. No mounting correction or synthetic physical readings."""
+"""Read-only posture, with optional explicitly reviewed gravity rotation."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 import math
 
 from .telemetry import TelemetrySnapshot
+from .attitude_calibration import Calibration
 
 TELEMETRY_MAX_AGE_S = 1.0
 MAP_LINK_MAX_AGE_S = 0.5
@@ -95,12 +96,16 @@ class AttitudeView:
     still_age_s: float | None
     map_link_state: str
     comparison: str
+    body_roll: Reading | None = None
+    body_pitch: Reading | None = None
+    calibration_reference: str = "미확인"
 
 
 class AttitudeTracker:
     """Only the last still-window record is held, within its map session/epoch."""
 
-    def __init__(self):
+    def __init__(self, calibration=None):
+        self.calibration = calibration or Calibration()
         self._map_key = None
         self._still = None
 
@@ -153,6 +158,29 @@ class AttitudeTracker:
                 self._still = StillRecord(gravity.body_pitch_deg,gravity.body_roll_deg,
                     gravity.slope_pitch_deg,gravity.slope_roll_deg,now_s-plane_age)
         still_age = None if self._still is None else elapsed(self._still.observed_s,now_s)
-        return AttitudeView(link,age,roll,pitch,"UNVERIFIED",tuple(wheels),joints,source,
+        body_roll = body_pitch = None
+        body_state = "UNVERIFIED"
+        comparison = "비교 보류 · 좌표·보정·시각 미확인"
+        calibration = self.calibration
+        if calibration.confirmed:
+            body_state = roll.state if roll.state!='LIVE' else pitch.state
+            if roll.state=='LIVE' and pitch.state=='LIVE' and (abs(snapshot.roll_rad)>math.pi or abs(snapshot.pitch_rad)>math.pi/2):
+                body_state = 'INVALID'
+            elif roll.state=='LIVE' and pitch.state=='LIVE':
+                up = calibration.body_up(snapshot.roll_rad,snapshot.pitch_rad)
+                body_roll = reading(math.degrees(math.atan2(up[1],up[2])),age,calibration.reference)
+                body_pitch = reading(math.degrees(math.atan2(-up[0],math.hypot(up[1],up[2]))),age,calibration.reference)
+                body_state = "LIVE"
+                # Both values must be live NOW. Historical still records are never compared to driving data.
+                if calibration.compare_map and status is not None and status.gravity is not None and plane_pitch.state=='LIVE':
+                    front,left = (math.degrees(math.asin(max(-1.,min(1.,v)))) for v in up[:2])
+                    if still_age is not None and still_age<=.2 and age is not None and age<=.2:
+                        comparison = (f"정지 참고 차이 앞 {front-status.gravity.body_pitch_deg:+.1f}° / "
+                                      f"좌 {left-status.gravity.body_roll_deg:+.1f}° · 수신 시각 기준 · 센서 시각 미확인")
+                    else:
+                        comparison = "비교 보류 · 정지 측정/IMU 수신 시차"
+                else:
+                    comparison = "비교 보류 · 지도 좌표 미확인/현재 정지 측정 없음"
+        return AttitudeView(link,age,roll,pitch,body_state,tuple(wheels),joints,source,
             reference or "영점·부호 미확인",joint_age,plane_pitch,plane_roll,self._still,still_age,map_link,
-            "비교 보류 · 좌표·보정·시각 미확인")
+            comparison,body_roll,body_pitch,calibration.reference+" · SHA256 "+calibration.sha256[:12])

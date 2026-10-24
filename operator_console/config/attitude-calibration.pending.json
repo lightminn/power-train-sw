@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "confirmed": false,
+  "confirmed_by": null,
+  "reference": null,
+  "source_basis": "udp5005_imu_filtered_euler_xyz",
+  "target_frame": "base_link",
+  "sensor_to_body_xyzw": null,
+  "raw_roll_sign": null,
+  "raw_pitch_sign": null,
+  "map_frame_confirmed": false,
+  "map_reference": null
+}

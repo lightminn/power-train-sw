@@ -340,3 +340,48 @@ def test_vision_attitude_sources_missing_values_static_history_and_recovery(cons
         print('VISION_ATTITUDE_E2E: PASS · shared UDP · missing/stale/recovery · no mount correction · static history · hidden pause')
     finally:
         sender.close()
+
+
+def test_vision_floor_and_reviewed_attitude_share_existing_sources(console):
+    import json
+    import math
+    import socket
+    from operator_console.vision_attitude import AttitudeTracker
+    from operator_console.attitude_calibration import Calibration
+    from terrain_overlay.tests.test_runtime import ready
+    from terrain_overlay.tests.scenes import default_scene
+    from operator_console.runtime_smoke import _chassis_payload
+    window=console;page=window._vision_panel;panel=page.attitude_slot
+    a=math.radians(19.5)
+    panel.tracker=AttitudeTracker(Calibration(True,(0,math.sin(a/2),0,math.cos(a/2)),
+                                             reference='SYNTHETIC calibration test only'))
+    overlay=ready();overlay.on_depth(default_scene(),111,10);overlay._clock.t=10.03
+    sequence=0;legacy=False
+    udp=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+    def feed():
+        nonlocal sequence
+        sequence+=1;now=time.monotonic()
+        raw=json.loads(overlay.tick())
+        if legacy:raw.pop('floor_mask',None)
+        udp.sendto(json.dumps(raw).encode(),("127.0.0.1",window._terrain_receiver.port))
+        raw=_chassis_payload(sequence);raw.update(roll_rad=0,pitch_rad=a)
+        udp.sendto(json.dumps(raw).encode(),("127.0.0.1",window._chassis_receiver.port))
+        return True
+    timer=GLib.timeout_add(50,feed)
+    try:
+        window._stack.set_visible_child_name('vision')
+        assert pump_until(lambda: window._terrain_canvas._floor_layer.prepared>0 and panel.view and panel.view.body_state=='LIVE')
+        assert panel.view.body_pitch.value==pytest.approx(0,abs=1e-8)
+        assert '설정 보정' in panel.body.get_text() and '19.5' in panel.raw.get_text()
+        layer=window._terrain_canvas._floor_layer
+        assert layer.surface and len(layer.data)==9216
+        window._stack.set_visible_child_name('mission')
+        assert pump_until(lambda: layer.surface is not None)
+        legacy=True
+        assert pump_until(lambda: layer.surface is None)
+        panel.tracker=AttitudeTracker()
+        window._stack.set_visible_child_name('vision')
+        assert pump_until(lambda: '보정 미확인' in panel.body.get_text())
+    finally:
+        GLib.source_remove(timer)
+        udp.close()

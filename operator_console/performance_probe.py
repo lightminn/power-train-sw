@@ -46,6 +46,11 @@ class ConsolePerformanceProbe:
         self.connections = []
         self.probes = []
         self.last_rasters = {}
+        self.stall_events = deque(maxlen=64)
+        self.visibility_events = deque(maxlen=64)
+        self.visibility_dropped = 0
+        self._last_visibility = None
+        self._visibility()
         self._page()
         self.connections.append((console._stack,console._stack.connect('notify::visible-child-name',self._page)))
         for name, panel in (('l515',console._l515),('d435',console._d435)):
@@ -75,7 +80,15 @@ class ConsolePerformanceProbe:
     def _event(self,name):
         with self.lock:
             if not self.closed:
-                self.current['events'][name].add(time.monotonic())
+                now = time.monotonic()
+                events = self.current['events'][name]
+                if name in ('heartbeat','l515_draw') and events.last is not None and now-events.last>.5:
+                    sink_last = self.current['events']['l515_sink'].last
+                    clock = self.console.get_frame_clock()
+                    self.stall_events.append(dict(event=name,t=now,gap_s=now-events.last,
+                        visibility=self._visibility(),sink_age_s=None if sink_last is None else now-sink_last,
+                        gtk_frame_counter=None if clock is None else clock.get_frame_counter()))
+                events.add(now)
 
     def _buffer(self,_pad,_info,name):
         self._event(name+'_sink')
@@ -92,7 +105,21 @@ class ConsolePerformanceProbe:
             self._event(name+'_images')
         return False
 
+    def _visibility(self):
+        window = self.console.get_window()
+        display = self.console.get_display()
+        state = dict(mapped=bool(self.console.get_mapped()), visible=bool(self.console.get_visible()),
+                     gdk_window_state=None if window is None else int(window.get_state()),
+                     backend=display.__gtype__.name)
+        if state!=self._last_visibility:
+            if len(self.visibility_events)==self.visibility_events.maxlen:
+                self.visibility_dropped += 1
+            self.visibility_events.append(dict(t=time.monotonic(),**state))
+            self._last_visibility=state
+        return state
+
     def _beat(self):
+        self._visibility()
         self._event('heartbeat')
         return not self.closed
 
@@ -104,7 +131,9 @@ class ConsolePerformanceProbe:
                 for s in self.segments]
         view = self.console._vision_panel.attitude_slot.view
         return dict(console_pid=os.getpid(),status='closed' if self.closed else 'running',
-            observed_mono_s=now,
+            observed_mono_s=now,visibility=self._visibility(),
+            visibility_events=list(self.visibility_events),visibility_events_dropped=self.visibility_dropped,
+            stall_events=list(self.stall_events),
             video_states={name:panel.health_state() for name,panel in
                           (('l515',self.console._l515),('d435',self.console._d435))},
             map_state=self.console._vision_panel.maps.state,

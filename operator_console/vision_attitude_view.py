@@ -79,14 +79,14 @@ class ChassisSketch(Gtk.DrawingArea):
 
 
 class AttitudePanel(Gtk.Box):
-    def __init__(self,receiver,map_status_provider,*,map_port):
+    def __init__(self,receiver,map_status_provider,*,map_port,calibration=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL,spacing=2)
         self.get_style_context().add_class("vision-attitude")
         self.receiver=receiver
         self.port=receiver.port
         self.map_port=map_port
         self._map_status_provider=map_status_provider
-        self.tracker=AttitudeTracker()
+        self.tracker=AttitudeTracker(calibration)
         self.view=None
         self.refresh_count=0
         self._timer=None
@@ -148,6 +148,12 @@ class AttitudePanel(Gtk.Box):
         view=self.tracker.update(self.receiver.latest(),self._map_status_provider(),time.monotonic(),
             telemetry_port=self.port,map_port=self.map_port)
         self.view=view
+        body_text = "차체 자세: 보정 미확인 · 개략도 기울기 미적용"
+        if view.body_state!='UNVERIFIED':
+            body_text = (f"차체 R {view.body_roll.text()} / P {view.body_pitch.text()} · 설정 보정"
+                         if view.body_roll is not None and view.body_pitch is not None
+                         else "차체 자세: "+STATE_TEXT.get(view.body_state,view.body_state))
+        _set(self.body,body_text,view.calibration_reference+"\n"+view.comparison)
         self.refresh_count+=1
         _set(self.raw,f"IMU 원시 R {view.raw_roll.text()} / P {view.raw_pitch.text()}",
              view.raw_roll.source+"\nIMU 추정 quaternion을 Euler로 변환한 값이며 장착 회전·영점·부호는 미확인입니다.\n"+view.comparison)
@@ -176,7 +182,7 @@ class AttitudePanel(Gtk.Box):
             tip=f"UDP :{self.map_port} · gravity · 정지 창 측정\n원시 IMU와 기준·부호·시각이 달라 차이 계산을 보류합니다."
         else:
             text=(f"정지 기록 앞 {view.still.body_pitch_deg:+.1f}° / 좌 {view.still.body_roll_deg:+.1f}°"
-                  f" · {_age(view.still_age_s)} · 비교 보류")
+                  f" · {_age(view.still_age_s)} · {view.comparison}")
             tip=(f"UDP :{self.map_port} · gravity · 정지 창 기록(현재 주행 자세 아님)\n"
                  f"측정 {_age(view.still_age_s)} · 지도 수신 {view.map_link_state}\n"
                  f"기준면 경사 앞 {view.still.slope_pitch_deg:+.1f}° / 옆 {view.still.slope_roll_deg:+.1f}°\n"

@@ -25,7 +25,8 @@ def test_monitor_forwards_normal_console_arguments_without_another_instance(monk
     monkeypatch.setattr(app, 'main', lambda: calls.append(sys.argv[1:]))
     monkeypatch.setattr(entry, 'main', lambda args: calls.append(args))
     monkeypatch.setattr(app, 'OperatorConsole', app.OperatorConsole)
-    remaining = ['--page', 'vision', '--terrain-display-delay-ms', '0']
+    remaining = ['--page', 'vision', '--attitude-calibration',
+                 'operator_console/config/attitude-calibration.pending.json']
     monkeypatch.setattr(sys, 'argv', ['monitor', '--metrics-output', str(tmp_path/'events.json'),
                                     *(['--integrated'] if integrated else []), *remaining])
     vision_monitor.main()

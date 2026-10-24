@@ -24,6 +24,7 @@ from .contract import (
 )
 from .detector import DetectorConfig, TerrainDetector, TerrainResult
 from .projection import DEFAULT_COLOR_OFFSET_M, DepthToColorProjector
+from .floor import project_floor
 
 BOOT_ID_PATH = Path("/proc/sys/kernel/random/boot_id")
 PUBLISH_HZ_RANGE = (5.0, 10.0)
@@ -40,6 +41,7 @@ class RuntimeConfig:
     path_half_width_m: float = 0.4445
     front_offset_m: float = 0.0
     alignment_verified: bool = False
+    publish_floor_mask: bool = True
 
     def __post_init__(self) -> None:
         numbers = (self.publish_hz, self.depth_scale_m, self.depth_stale_s,
@@ -56,6 +58,8 @@ class RuntimeConfig:
             raise ValueError("front_offset_m must be >= 0")
         if len(self.color_offset_m) != 3:
             raise ValueError("color_offset_m needs three values")
+        if type(self.publish_floor_mask) is not bool:
+            raise ValueError('publish_floor_mask must be bool')
         if not isinstance(self.alignment_verified, bool):
             raise ValueError("alignment_verified must be bool")
 
@@ -107,6 +111,7 @@ class _Processed:
     zones: dict
     obstacles: list
     proc_ms: float | None
+    floor_mask: dict | None = None
 
 
 def _round_height(height_m: float) -> float:
@@ -227,6 +232,7 @@ class TerrainOverlayRuntime:
         try:
             result: TerrainResult = self._detector.process(depth.array, depth.rx_s)
             obstacles = []
+            floor_mask = None
             if result.status == "OK":
                 obstacles = build_obstacles(
                     result.obstacle_points, result.obstacle_fwd, result.obstacle_lat,
@@ -234,6 +240,8 @@ class TerrainOverlayRuntime:
                     half_width_m=self.config.path_half_width_m,
                     front_offset_m=self.config.front_offset_m,
                 )
+            if result.status == 'OK' and self.config.publish_floor_mask:
+                floor_mask = project_floor(result,self._projector)
         except Exception as exc:  # noqa: BLE001 — any core failure becomes a status
             self._record_processing_time(self._clock() - started)
             self._log_error(f"terrain processing failed: {type(exc).__name__}: {exc}")
@@ -245,7 +253,7 @@ class TerrainOverlayRuntime:
             depth.stamp_ns, depth.rx_s, result.status, result.reason,
             result.ground_state, result.fresh_rx_s,
             result.camera_height_m, result.camera_tilt_deg,
-            dict(result.zones), obstacles, round(elapsed_s * 1000.0, 1),
+            dict(result.zones), obstacles, round(elapsed_s * 1000.0, 1), floor_mask,
         )
 
     def _record_processing_time(self, elapsed_s: float) -> None:
@@ -304,6 +312,8 @@ class TerrainOverlayRuntime:
                 ground=None, zones=dict(EMPTY_ZONES), obstacles=[],
                 proc_ms=None if processed is None else processed.proc_ms,
             )
+        if status == 'OK' and processed.floor_mask is not None:
+            payload['floor_mask'] = processed.floor_mask
         return payload
 
     def _error_packet(self, now_s, stamp, age_ms) -> bytes | None:

@@ -124,6 +124,8 @@ def test_vision_runtime_smoke_connections_values_roundtrip_and_shutdown(tmp_path
     phases = {row['phase']:row for row in data['phases']}
     assert phases['missing']['raw_pitch'] is None
     assert phases['live']['raw_pitch']==pytest.approx(19.5)
+    assert phases['live']['floor_visible'] and not phases['disconnected']['floor_visible']
+    assert phases['recovered']['floor_visible']
     assert phases['live']['joint_values']==[None]*4
     assert phases['aged']['link']=='LIVE'
     assert phases['aged']['joint_values']==[None]*4

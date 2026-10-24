@@ -1,0 +1,12 @@
+vision runtime child rc=1
+Xlib:  extension "DRI2" missing on display ":100".
+Traceback (most recent call last):
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 349, in main
+    report = json.dumps(exercise(args.fault, args.record_webm, args.metrics_output), ensure_ascii=False)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 251, in exercise
+    assert callback_gap(watching, watched, draws) < .5, 'vision camera draw stalled'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: vision camera draw stalled
+
+

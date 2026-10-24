@@ -114,6 +114,13 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
             window.show_all()
             heartbeat = GLib.timeout_add(20, lambda: beats.append(time.monotonic()) or True)
             window._l515._video_widget.connect_after('draw', lambda *_: draws.append(time.monotonic()) or False)
+            # Same optional floor payload produced by the ROS-free sender core.
+            from terrain_overlay.tests.test_runtime import ready
+            from terrain_overlay.tests.scenes import default_scene
+            fixture_overlay=ready()
+            fixture_overlay.on_depth(default_scene(),111,10.)
+            fixture_overlay._clock.t=10.03
+            floor_fixture=json.loads(fixture_overlay.tick())['floor_mask']
             sequence = 0
             phase = 'live'
             def feed():
@@ -133,7 +140,9 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
                     data['roll_rad'] = data['pitch_rad'] = None
                 if fault != 'telemetry':
                     sender.sendto(json.dumps(data).encode(), ('127.0.0.1', window._chassis_receiver.port))
-                sender.sendto(json.dumps(_terrain_payload(sequence)).encode(),
+                terrain=_terrain_payload(sequence)
+                terrain['floor_mask']=floor_fixture
+                sender.sendto(json.dumps(terrain).encode(),
                               ('127.0.0.1', window._terrain_receiver.port))
                 if fault != 'map':
                     if record_webm:
@@ -168,7 +177,7 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
                 assert state['vision_camera_shared']==(state['page']=='vision'), 'vision camera sharing probe'
                 return state['vision']
             def record(label):
-                samples.append(dict(phase=label, **snapshot()))
+                samples.append(dict(phase=label,floor_visible=window._terrain_canvas._floor_layer.surface is not None, **snapshot()))
                 if record_webm:
                     dwell(1.2)
             def live():
@@ -177,7 +186,8 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
                         and p['link']=='LIVE' and p['raw_pitch_state']=='LIVE'
                         and window._l515.last_frame_age_s is not None
                         and window._l515.last_frame_age_s < .5
-                        and bool(window._terrain_canvas.view().obstacles))
+                        and bool(window._terrain_canvas.view().obstacles)
+                        and window._terrain_canvas._floor_layer.surface is not None)
             window._stack.set_visible_child_name('vision')
             pump_until(lambda: panel.view is not None and maps._timer is not None, 'vision creation')
             p = snapshot()

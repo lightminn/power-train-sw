@@ -4,6 +4,7 @@ Run in an isolated display with system Python; source/encoder CPU is excluded.
 This is a development measurement, not Gateway/L515 acceptance.
 """
 import argparse
+from collections import deque
 from dataclasses import replace
 import json
 import os
@@ -13,7 +14,26 @@ import socket
 import subprocess
 import sys
 import time
+from operator_console.performance_probe import Events
 from operator_console.smoke_timing import callback_gap as heartbeat_gap
+
+
+class Summary:
+    def __init__(self):
+        self.count = 0
+        self.total = 0.
+        self.maximum = None
+        self.last = None
+
+    def add(self, value):
+        self.count += 1
+        self.total += value
+        self.maximum = value if self.maximum is None else max(self.maximum, value)
+        self.last = value
+
+    @property
+    def mean(self):
+        return self.total/self.count if self.count else None
 
 
 def machine():
@@ -55,36 +75,43 @@ def packets(sequence):
 
 
 def source(ports):
-    import gi
-    gi.require_version('Gst', '1.0')
-    from gi.repository import Gst
+    import signal
     from operator_console.runtime_smoke import _chassis_payload
-    from operator_console.tests.test_terrain import payload
-    Gst.init(None)
-    pipelines = []
-    for port in ports[:2]:
-        pipeline = Gst.parse_launch(
-            'videotestsrc is-live=true ! video/x-raw,width=1280,height=720,framerate=15/1 ! '
-            'x264enc tune=zerolatency speed-preset=ultrafast key-int-max=15 threads=2 ! '
-            'h264parse config-interval=-1 ! mpegtsmux alignment=7 ! '
-            f'srtsink uri="srt://127.0.0.1:{port}?mode=listener" '
-            'wait-for-connection=false sync=false async=false')
-        pipeline.set_state(Gst.State.PLAYING)
-        pipelines.append(pipeline)
+    from terrain_overlay.tests.test_runtime import ready
+    from terrain_overlay.tests.scenes import default_scene
+    sources = []
     udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sequence = 0
+    signal.signal(signal.SIGTERM,lambda *_: sys.exit(0))
     try:
+        overlay = ready()
+        overlay.on_depth(default_scene(),111,10.)
+        overlay._clock.t = 10.03
+        for port in ports[:2]:
+            sources.append(subprocess.Popen([
+                'gst-launch-1.0','-q','videotestsrc','is-live=true','!',
+                'video/x-raw,width=1280,height=720,framerate=15/1','!',
+                'x264enc','tune=zerolatency','speed-preset=ultrafast','key-int-max=15','threads=2','!',
+                'h264parse','config-interval=-1','!','mpegtsmux','alignment=7','!',
+                'srtsink',f'uri=srt://127.0.0.1:{port}?mode=listener',
+                'wait-for-connection=false','sync=false','async=false']))
+        sequence = 0
         while True:
+            assert all(src.poll() is None for src in sources), 'SRT fixture source died'
             sequence += 1
             for raw in packets(sequence):
                 udp.sendto(raw, ('127.0.0.1', ports[2]))
             udp.sendto(json.dumps(_chassis_payload(sequence)).encode(), ('127.0.0.1', ports[3]))
-            udp.sendto(payload(sequence=sequence), ('127.0.0.1', ports[4]))
+            udp.sendto(overlay.tick(), ('127.0.0.1', ports[4]))
             time.sleep(.08)
     finally:
         udp.close()
-        for pipeline in pipelines:
-            pipeline.set_state(Gst.State.NULL)
+        for src in sources:
+            src.terminate()
+        for src in sources:
+            try:
+                src.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                src.kill();src.wait()
 
 
 def run(args):
@@ -97,7 +124,7 @@ def run(args):
     ports = [_free_udp_port() for _ in range(5)]
     while len(set(ports)) != 5:
         ports = [_free_udp_port() for _ in range(5)]
-    sender = subprocess.Popen([sys.executable, '-m', 'operator_console.tests.vision_benchmark', '--source', *map(str, ports)])
+    sender = subprocess.Popen([sys.executable, '-m', 'operator_console.tests.vision_benchmark', '--source', *map(str, ports)], cwd=args.source_repo)
     callback_errors = []
     original_hook = sys.excepthook
     def callback_error(kind, value, traceback):
@@ -107,8 +134,21 @@ def run(args):
     sys.excepthook = callback_error
     window = None
     observer = None
+    samples = None
+    if args.trace_memory:
+        import tracemalloc
+        tracemalloc.start(3)
     try:
-        time.sleep(1)
+        samples = open(str(args.output)+'.samples.jsonl', 'x', encoding='utf-8')
+        deadline=time.monotonic()+10
+        while True:
+            assert sender.poll() is None, f'synthetic source exited: {sender.returncode}'
+            bound={int(line.split()[1].split(':')[1],16)
+                   for line in Path('/proc/net/udp').read_text().splitlines()[1:]}
+            if all(p in bound for p in ports[:2]):
+                break
+            assert time.monotonic()<deadline, 'synthetic listeners not ready'
+            time.sleep(.02)
         window = OperatorConsole('127.0.0.1', ports[0], ports[1], 0, 60, 0, ports[3],
             arm_telemetry_port=0, environment_telemetry_port=0, terrain_port=ports[4],
             terrain_map_port=ports[2], ops_port=1, input_source='TEST',
@@ -147,8 +187,9 @@ def run(args):
             latency_scope='sink buffer running-time lateness; NOT camera-to-screen latency',
             revision=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
             openblas_num_threads=os.environ.get('OPENBLAS_NUM_THREADS'),
-            numpy_runtime=str(np.__version__), machine_before=machine(), phases=[], timeline=[],
-            machine_samples=[])
+            numpy_runtime=str(np.__version__), machine_before=machine(), phases=[], timeline=deque(maxlen=128),
+            machine_samples=deque(maxlen=32), samples_file=str(args.output)+'.samples.jsonl')
+        report['ac_entire_run'] = ac_online(report['machine_before'])
         context = GLib.MainContext.default()
         def pump(duration):
             end = time.monotonic()+duration
@@ -163,30 +204,43 @@ def run(args):
             before_draws = draws['count']
             counters['gap'] = counters['lateness'] = 0.
             draws['gap'] = 0.
-            beats = []; ages = []; rss = []; render_ms = []
+            beats = Events(); ages = Summary(); rss = Summary(); render_ms = Summary()
             machine_due = 0.
             def beat():
-                beats.append(time.monotonic())
+                beats.add(time.monotonic())
                 return True
             def sample():
                 nonlocal machine_due
                 now = time.monotonic()
                 if now >= machine_due:
-                    report['machine_samples'].append(dict(t=now, page=page, **machine()))
+                    environment = dict(t=now, page=page, **machine())
+                    report['ac_entire_run'] = report['ac_entire_run'] and ac_online(environment)
+                    report['machine_samples'].append(environment)
+                    samples.write(json.dumps(dict(kind='machine', **environment))+'\n')
+                    if args.trace_memory and int(now-start)%30==0:
+                        current, peak = tracemalloc.get_traced_memory()
+                        snapshot = tracemalloc.take_snapshot()
+                        samples.write(json.dumps(dict(kind='python-memory',t=now,current=current,peak=peak,
+                            top=[str(item) for item in snapshot.statistics('lineno')[:15]]))+'\n')
+                        del snapshot
                     machine_due = now+1
                 age = window._l515.last_frame_age_s
                 if age is not None:
-                    ages.append(age)
-                rss.append(int(Path('/proc/self/statm').read_text().split()[1])*os.sysconf('SC_PAGE_SIZE')/1024)
+                    ages.add(age)
+                rss.add(int(Path('/proc/self/statm').read_text().split()[1])*os.sysconf('SC_PAGE_SIZE')/1024)
                 if maps.images:
-                    render_ms.append(maps.images.render_ms)
-                report['timeline'].append(dict(t=time.monotonic(), page=page,
+                    render_ms.add(maps.images.render_ms)
+                row = dict(t=time.monotonic(), page=page, rss_kib=rss.last,
                     selected_page=window._stack.get_visible_child_name(),
                     video_mapped=window._l515._video_widget.get_mapped(),
                     map_mapped=maps.top_slot.get_mapped(), map_active=maps.worker._active,
                     map_generation=maps.worker._generation, renders=maps.worker.render_count,
-                    frames=counters['frames'], draws=draws['count'],
-                    size=[window.get_allocated_width(), window.get_allocated_height()]))
+                    frames=counters['frames'], draws=draws['count'], window_mapped=window.get_mapped(),
+                    backend=window.get_display().__gtype__.name,
+                    size=[window.get_allocated_width(), window.get_allocated_height()])
+                report['timeline'].append(row)
+                samples.write(json.dumps(dict(kind='timeline', **row))+'\n')
+                samples.flush()
                 return True
             heartbeat = GLib.timeout_add(20, beat)
             sampler = GLib.timeout_add(200, sample)
@@ -195,6 +249,12 @@ def run(args):
                     time.sleep(.65)
                     return False
                 GLib.timeout_add(1000, stall)
+            if args.hide_seconds and page=='vision':
+                def hide():
+                    window.hide()
+                    GLib.timeout_add(round(args.hide_seconds*1000),lambda: window.show_all() or False)
+                    return False
+                GLib.timeout_add(1000,hide)
             start = time.monotonic(); cpu = time.process_time()
             duration = args.vision_seconds if page=='vision' and args.vision_seconds is not None else args.seconds
             pump(duration)
@@ -202,18 +262,19 @@ def run(args):
             GLib.source_remove(heartbeat); GLib.source_remove(sampler)
             phase = dict(page=page, duration_s=elapsed,
                 cpu_percent=(time.process_time()-cpu)/elapsed*100,
-                rss_kib_max=max(rss, default=0), rss_kib_end=rss[-1] if rss else None,
+                rss_kib_max=rss.maximum, rss_kib_end=rss.last,
                 rss_peak_kib=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
                 camera_sink_fps=(counters['frames']-before)/elapsed,
                 camera_draw_hz=(draws['count']-before_draws)/elapsed,
                 camera_draw_gap_s_max=max(draws['gap'], time.monotonic()-(draws['last'] or start)),
                 camera_sink_gap_s_max=max(counters['gap'], time.monotonic()-(counters['last'] or start)),
                 sink_lateness_s_max=counters['lateness'],
-                camera_frame_age_s_max=max(ages, default=0),
-                ui_gap_s_max=heartbeat_gap(start, time.monotonic(), beats),
+                camera_frame_age_s_max=ages.maximum,
+                ui_gap_s_max=max(beats.first-start if beats.first is not None else elapsed,
+                    beats.snapshot(time.monotonic())['max_gap_s'] or elapsed),
                 map_pair_hz=(maps.displayed_count-count)/elapsed,
                 map_worker_render_count=maps.worker.render_count-renders,
-                render_ms_mean=sum(render_ms)/len(render_ms) if render_ms else None,
+                render_ms_mean=render_ms.mean,
                 overlay_state=window._terrain_canvas.view().probe_state,
                 map_state=maps.state,
                 window_size=[window.get_allocated_width(), window.get_allocated_height()],
@@ -222,13 +283,28 @@ def run(args):
                 machine=machine())
             report['phases'].append(phase)
             print(json.dumps(phase), flush=True)
+        if args.allocator_probe:
+            import ctypes
+            import gc
+            def rss_now():
+                return int(Path('/proc/self/statm').read_text().split()[1])*os.sysconf('SC_PAGE_SIZE')/1024
+            diagnostic=dict(before_gc_kib=rss_now(),scope='development-only; no GC/trim in console product')
+            diagnostic['gc_unreachable']=gc.collect()
+            diagnostic['after_gc_kib']=rss_now()
+            trim=ctypes.CDLL(None).malloc_trim
+            trim.argtypes=[ctypes.c_size_t];trim.restype=ctypes.c_int
+            diagnostic['trim_result']=trim(0)
+            diagnostic['after_trim_kib']=rss_now()
+            report['allocator_diagnostic']=diagnostic
         report['machine_after'] = machine()
         report['callback_errors'] = callback_errors
+        report['timeline'] = list(report['timeline'])
+        report['machine_samples'] = list(report['machine_samples'])
         Path(args.output).write_text(json.dumps(report, indent=2)+'\n')
         pad.remove_probe(probe)
         assert not callback_errors, callback_errors
         if args.require_ac:
-            assert all(ac_online(state) for state in
+            assert report['ac_entire_run'] and all(ac_online(state) for state in
                        [report['machine_before'], report['machine_after'],
                         *report['machine_samples'], *(p['machine'] for p in report['phases'])]), \
                    'AC power missing or changed during measurement'
@@ -242,6 +318,10 @@ def run(args):
         assert report['phases'][2]['map_worker_render_count'] == 0, 'hidden render work'
     finally:
         sys.excepthook = original_hook
+        if samples:
+            samples.close()
+        if args.trace_memory:
+            tracemalloc.stop()
         if observer:
             observer.close()
         if window:
@@ -256,6 +336,10 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', nargs=5, type=int)
+    parser.add_argument('--source-repo', type=Path, help='use identical source fixtures for baseline comparisons')
+    parser.add_argument('--hide-seconds', type=float, default=0, help='diagnostic negative control: unmap window')
+    parser.add_argument('--allocator-probe', action='store_true', help='diagnose retained malloc arenas after measurements only')
+    parser.add_argument('--trace-memory', action='store_true', help='diagnostic run; tracing changes timings')
     parser.add_argument('--seconds', type=float, default=20)
     parser.add_argument('--output', default='/tmp/vision-performance.json')
     parser.add_argument('--inject-stall', action='store_true',

@@ -87,6 +87,8 @@ from .terrain import LatestTerrainReceiver, TerrainView, terrain_view
 from .terrain_map import DisplayConfig, LatestMapReceiver
 from .terrain_map_panel import MapPanel
 from .vision_panel import VisionPanel
+from .floor_overlay import FloorLayer, display_floor
+from .attitude_calibration import resolve_calibration
 from .vision_config import resolve_criteria
 from .rover_3d import Rover3DView
 from .ops_client import ConsoleOpsClient
@@ -1837,6 +1839,7 @@ class TerrainCanvas(Gtk.DrawingArea):
         self._receiver = receiver
         self._enabled = True
         self._text_layouts = TextLayouts(self)
+        self._floor_layer = FloorLayer()
         self._video_size: tuple[int, int] | None = None
         self._video_live = False
         self.connect("draw", self._on_draw)
@@ -1860,17 +1863,24 @@ class TerrainCanvas(Gtk.DrawingArea):
 
     def view(self, now_s: float | None = None) -> TerrainView:
         now_s = time.monotonic() if now_s is None else now_s
+        return self._display_view(now_s)[0]
+
+    def _display_view(self, now_s):
         latest, display, last_rx_s = self._receiver.snapshot(now_s)
-        return terrain_view(
+        view = terrain_view(
             latest, display, last_rx_s, now_s, self._receiver.display_delay_s,
             self._video_size, video_live=self._video_live,
         )
+        floor = display_floor(latest,display,last_rx_s,now_s,self._receiver.display_delay_s,
+                              self._video_size,self._video_live,view=view)
+        return view, floor
 
     def _redraw(self) -> bool:
         self.queue_draw()
         return True
 
     def _on_destroy(self, *_args: object) -> None:
+        self._floor_layer.clear()
         if self._redraw_source is not None:
             GLib.source_remove(self._redraw_source)
             self._redraw_source = None
@@ -1881,12 +1891,13 @@ class TerrainCanvas(Gtk.DrawingArea):
     def _on_draw(self, _widget: Gtk.DrawingArea, context: object) -> bool:
         if not self._enabled:
             return False
-        view = self.view()
+        view, floor = self._display_view(time.monotonic())
         allocation = self.get_allocation()
         frame_width, frame_height = self._video_size or (1280, 720)
         scale, offset_x, offset_y = fit_overlay_transform(
             allocation.width, allocation.height, frame_width, frame_height,
         )
+        self._floor_layer.draw(context,floor,scale,offset_x,offset_y)
         for obstacle in view.obstacles:
             red = obstacle.in_path
             rgb = (1.0, 0.25, 0.25) if red else (1.0, 0.6, 0.0)
@@ -1907,7 +1918,8 @@ class TerrainCanvas(Gtk.DrawingArea):
         left = offset_x + 12.0
         max_width = max(40.0, frame_width * scale - 24.0)
         badge = self._layout(context, view.badge, "Sans Bold 14", max_width)
-        note = self._layout(context, view.note, "Sans 11", max_width)
+        floor_note = "바닥 격자(10 px) · 참고" if floor is not None else "바닥 영역 미수신/숨김"
+        note = self._layout(context, floor_note+" · "+view.note, "Sans 11", max_width)
         badge_w, badge_h = badge.get_pixel_size()
         note_w, note_h = note.get_pixel_size()
         top = offset_y + frame_height * scale - 12.0 - badge_h - note_h - 8.0
@@ -3981,6 +3993,7 @@ class OperatorConsole(Gtk.Window):
                  terrain_map_port: int = 5010,
                  map_display: DisplayConfig | None = None,
                  vision_criteria=None,
+                 attitude_calibration=None,
                  ops_host: str | None = None, ops_port: int = 9001,
                  ops_token_file: str = DEFAULT_OPS_TOKEN_FILE,
                  smoke_probe_file: str | None = None,
@@ -4643,6 +4656,7 @@ class OperatorConsole(Gtk.Window):
             on_overlay_toggled=self._on_vision_overlay_toggled,
             map_display=map_display,
             criteria=vision_criteria,
+            calibration=attitude_calibration,
         )
         stack.add_titled(self._vision_panel, "vision", "비전")
         # The arm tabs use exactly the existing authenticated ops connection.
@@ -6106,6 +6120,7 @@ def main() -> None:
         help="L515 terrain outline delay to match SRT video (0-400 ms)",
     )
     parser.add_argument("--terrain-map-port", type=int, default=5010)
+    parser.add_argument("--attitude-calibration", default=None, help="확인된 IMU 장착 회전 JSON")
     parser.add_argument("--l515-criteria", default=None, help="표시 기준값 JSON (L515_CRITERIA)")
     parser.add_argument("--l515-criteria-profile", default=None)
     defaults = DisplayConfig()
@@ -6151,7 +6166,8 @@ def main() -> None:
     map_display = map_display_from_args(parser, args)
     try:
         vision_criteria = resolve_criteria(args.l515_criteria, args.l515_criteria_profile)
-    except ValueError as exc:
+        attitude_calibration = resolve_calibration(args.attitude_calibration)
+    except (ValueError, OSError) as exc:
         parser.error(str(exc))
     Gst.init(None)
     console = OperatorConsole(args.host, args.d435_port, args.l515_port,
@@ -6164,6 +6180,7 @@ def main() -> None:
                               terrain_map_port=args.terrain_map_port,
                               map_display=map_display,
                               vision_criteria=vision_criteria,
+                              attitude_calibration=attitude_calibration,
                               ops_host=args.host if args.ops_host is None else args.ops_host,
                               ops_port=args.ops_port,
                               ops_token_file=args.ops_token_file,

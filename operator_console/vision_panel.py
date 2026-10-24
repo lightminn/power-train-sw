@@ -16,7 +16,7 @@ class VisionPanel(Gtk.Box):
     """Four simultaneous slots sharing the console's receivers and camera."""
 
     def __init__(self, *, map_receiver, chassis_receiver, overlay_enabled: bool,
-                 on_overlay_toggled, map_display=None, criteria=None) -> None:
+                 on_overlay_toggled, map_display=None, criteria=None, calibration=None) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.map_receiver = map_receiver
         self.chassis_receiver = chassis_receiver
@@ -40,7 +40,7 @@ class VisionPanel(Gtk.Box):
         self.camera_slot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.attitude_slot = AttitudePanel(chassis_receiver,
             self.maps.worker.latest_status,
-            map_port=map_receiver.port)
+            map_port=map_receiver.port,calibration=calibration)
         self.top_slot = self.maps.top_slot
         self.oblique_slot = self.maps.oblique_slot
         for title, slot, column, row in (
