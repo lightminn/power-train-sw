@@ -17,8 +17,10 @@
 
 비전은 기존 SRT :5000 디코더와 UDP :5009 지형 수신기를 공유한다.
 탭을 나가면 기존 메인/PiP 배치를 복원한다. 비전에서는 L515 고정으로 V 전환을 막는다.
-지형 토글 상태는 실시간 화면과 공유한다. 바닥 영역 mask는 현재 전송되지 않으며,
-기존 바닥 상태 배지와 장애물 윤곽만 표시할 수 있다.
+지형 토글 상태는 실시간 화면과 공유한다. 갱신된 terrain-overlay 송신기는 같은 `:5009`
+패킷에 선택 `floor_mask`를 싣고, 콘솔은 장애물과 같은 지연 정렬 snapshot에서 10 px 격자로
+표시한다. 미관측/혼합 격자는 투명하며 이 표시는 통과 가능·안전 영역 판정이 아니다.
+구형 송신기처럼 필드가 없거나 stale/끊김/영상 크기 불일치이면 바닥을 그리지 않는다.
 노트북 버전의 별도 장애물 :5009 수신기·HTTP 시험대 창은 이 경로에서 기동하지 않는다.
 
 두 지도는 기존 UDP :5010 수신기를 공유한다. 지도 이미지는 별도 작업 스레드에서
@@ -63,6 +65,19 @@ suspension_source·suspension_frame으로 출처와 기준을 받을 수 있다.
 각도 키는 ml_rocker_joint/mr_rocker_joint/bl_bogie_joint/br_bogie_joint, 단위는 rad이다.
 나이가 없으면 시간 미확인, 값이 없으면 미수신이며 0이나 추정값을 만들지 않는다.
 실제 AS5048B 송신기·영점·부호 합의는 아직 없다. [필드 계약](../docs/reports/2026-10-23-vision-tab-step4.md)을 먼저 확인한다.
+
+확인된 장착 회전만 별도 JSON으로 활성화할 수 있다. 기본값과
+`operator_console/config/attitude-calibration.pending.json`은 `confirmed=false`라 차체 자세를
+계산하지 않는다. 임의의 19.5°/15°/20° 차감값을 넣지 않는다. 광민·도현과
+좌표계·부호·영점·장착 회전을 확인한 파일에만 `confirmed=true`를 사용한다.
+
+```bash
+/usr/bin/python3 -m operator_console.app --host <Gateway-IP> --page vision \
+  --attitude-calibration /path/to/confirmed-attitude-calibration.json
+```
+
+통합 JSON의 `attitude_calibration` 또는 `L515_ATTITUDE_CALIBRATION`도 지원하며 우선순위는
+CLI > 통합 JSON > 환경 변수 > 비활성이다. 통합 JSON의 상대 경로는 설정 파일 폴더 기준이다.
 
 Integrated entrypoint: `python -m operator_console` uses the prepared paired-robot
 config, reconnects automatically, supervises a separate gamepad process and offers
@@ -237,7 +252,8 @@ continues normally.
 For the integrated `python -m operator_console` entrypoint, the validated
 `~/.config/powertrain/operator.json` keys include
 `environment_telemetry_port` (default `5008`), `terrain_port` (default `5009`),
-`terrain_display_delay_ms` (0–400, default 0), `terrain_map_port` (default `5010`) and
+`terrain_display_delay_ms` (0–400, default 0), `terrain_map_port` (default `5010`),
+`l515_criteria`, `l515_criteria_profile`, and optional `attitude_calibration` (confirmed JSON path), and
 `terrain_map_display` (an object of `DisplayConfig` fields — out-of-range or non-integer values
 refuse to start). Port overrides must be
 integer ports from 1 through 65535 and must match the robot-side sender
@@ -268,7 +284,7 @@ panel action passes state-revision revalidation plus its confirmation gesture.
 측정하려면 저장소 루트에서 다음을 실행한다. GTK/GStreamer·NumPy/OpenCV·pytest가 필요하다.
 
 ```bash
-OPENBLAS_NUM_THREADS=8 xvfb-run -a /usr/bin/python3 \
+OPENBLAS_NUM_THREADS=1 xvfb-run -a /usr/bin/python3 \
   -m operator_console.tests.vision_benchmark --require-ac \
   --seconds 20 --output /tmp/vision-performance.json
 ```

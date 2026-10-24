@@ -70,6 +70,22 @@ OPENBLAS_NUM_THREADS=1 /usr/bin/python3 -m operator_console.vision_monitor \
 기존 SRT listener, 계정, pairing token을 콘솔에서 새로 만들지 않는다.
 토큰/세션 ticket을 실행 로그·영상·PR에 포함하지 않는다.
 
+바닥 격자는 갱신된 `powertrain_terrain_overlay`가 같은 `:5009` v1 패킷의 선택
+`floor_mask`로 보낸다. 로봇 배포 전에는 구형 송신기가 필드를 생략하므로 UI의
+`바닥 영역 미수신/숨김`이 정상이다. 배포 시 ROS 파라미터 `publish_floor_mask=true`가
+기본이며, 문제 분리 시에만 false로 구형 형식을 선택한다. 격자는 관측된 바닥 표본 표시일
+뿐 통과 가능·안전 영역이 아니며 물리 좌표 정합은 아래 실기 항목으로 확인한다.
+
+자세 보정은 확인된 파일이 전달된 뒤에만 다음 옵션을 위 콘솔 명령에 추가한다.
+
+```bash
+--attitude-calibration /path/to/confirmed-attitude-calibration.json
+```
+
+`operator_console/config/attitude-calibration.pending.json`은 의도적으로 비활성이며,
+19.5°/15°/20° 중 하나를 임의 선택해 활성화하지 않는다. 통합 JSON에서는
+`attitude_calibration` 상대/절대 경로를 쓸 수 있다.
+
 ## 3. CPU/RSS·환경 수집 — 실제 콘솔 PID만 관찰
 
 다른 노트북 터미널에서 실행 중인 콘솔 PID를 확인한다.
@@ -112,9 +128,10 @@ CONSOLE_PID=<확인한_PID>
 | Top/Oblique 각각 약 2 Hz | 미검증 | 각 지도 반영 count/수집 시간 및 실제 화면 |
 | 콘솔 CPU/RSS | 미검증 | 위 PID 수집 JSON, 전원/클럭/온도/열 제한 누계 |
 | 실제 지연·좌표 정합 | 미검증 | 물리 타깃/영상과 overlay 기준, capture→display 지연 자료 |
+| 바닥 격자 실제 정합 | 미검증 | 갱신 송신기의 `floor_mask`, 실제 바닥 경계·가림·stale/복구 영상 |
 | 수신 끊김·복구 | 미검증 | 서비스 소유권을 유지한 상태에서 연결 변화에 대한 GUI 기록 |
 | 기존 탭 회귀·영상 연결 중복 없음 | 미검증 | 같은 프로세스 탭 왕복, 연결/decoder 수와 기존 탭 확인 |
-| body calibration | 미확인 | 광민·도현의 좌표/부호/영점/장착 회전 확인 |
+| body calibration | 기본 비활성/미확인 | 광민·도현의 좌표/부호/영점/장착 회전 확인 및 confirmed JSON |
 | AS5048B 실제 송신 | 미연결 | 실제 각도·출처·측정 age 필드; 없으면 계속 미수신 |
 
 CPU 수집만으로 FPS나 draw 지연을 추정하지 않는다. CPU 수집기는 해당 지표를 측정하지 않는다.

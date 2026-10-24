@@ -1,7 +1,8 @@
 # 비전 탭 최종 요구사항 대조 — 2026-10-24
 
 **판정: 실기 시험을 위한 구현·로컬 검증은 준비했으나, “실제 HW 테스트만 남고 모든 요구가 끝났다”는 판정은 불가하다.**
-바닥 영역 오버레이 계약, 자세 보정 합의·비교, 이전 표시 정지의 원인 확인은 실기 600초 시험과 별개의 열린 항목이다.
+바닥 영역 오버레이의 로컬 송수신 계약은 후속 구현했지만 실제 좌표 정합은 미검증이다.
+자세 보정 합의·실측 비교와 이전 표시 정지의 원인 확인은 실기 600초 시험과 별개의 열린 항목이다.
 PR #20은 Draft이며 인수 완료나 병합 완료로 처리하지 않는다.
 
 원본 `/home/kimseon/문서/카카오톡 받은 파일/vision-tab-task.md`의 모든 절과 이 채팅의 요구를 다시 대조했다.
@@ -20,6 +21,11 @@ PR #20은 Draft이며 인수 완료나 병합 완료로 처리하지 않는다.
    기존 CPU/RSS 수집기는 영상 지표를 측정하지 못했으므로 두 자료를 함께 수집하도록 절차를 보완했다.
    수신기·디코더·카메라를 추가하지 않고 정상 수동/페어링 진입점을 사용한다. 광학 end-to-end 지연은 별도 실측이다.
 5. AC 연결·X11 격리에서 비전 탭 합성 입력 600초 연속 관찰을 추가했다. 실기 시험을 대체하지 않는다.
+6. 같은 `:5009` v1 패킷의 선택 128×72 bitset 바닥 관측 격자를 sender core→parser→공유 TerrainCanvas까지 연결했다.
+   패킷 상한에서는 바닥을 먼저 생략하고 장애물·거리를 보존하며, 구형 송신기와 호환한다.
+7. 기본 비활성 자세 보정 JSON/CLI/env 인터페이스를 추가했다. 확인된 회전·부호만 적용하고
+   지도 정지값 비교도 좌표 확인과 현재 수신 age 조건을 모두 요구한다.
+8. 새 변경 후 전체 콘솔 및 순수 지도·오버레이 회귀와 비전 runtime smoke를 다시 실행했다.
 
 ## 전체 대조표
 
@@ -81,7 +87,7 @@ PR #20은 Draft이며 인수 완료나 병합 완료로 처리하지 않는다.
 |---|---|---|
 | 4.01 | 카메라·Top·Oblique·자세 한 화면 | 2×2 구성, mapped slot 네 개 동시 검사 |
 | 4.02 | 카메라 장애물 오버레이 | 기존 polygon overlay 공유; 합성 정합 확인 |
-| 4.03 | 카메라 바닥 영역 오버레이 | **외부 대기/미충족**: :5009에 바닥 영역 mask/polygon 없음. 바닥 상태 배지만 구현 |
+| 4.03 | 카메라 바닥 영역 오버레이 | 로컬 구현/검증: 갱신 overlay core가 선택 `floor_mask`를 같은 :5009 패킷으로 송신하고 공유 TerrainCanvas가 지연 정렬해 표시. 구형 송신·packet 상한에서는 생략; 실제 경계 정합/Jetson 배포는 미검증 |
 | 4.04 | overlay on/off·공유 여부 PR 기록 | 두 탭 동일 상태 공유, GTK toggle 검사·PR 기재 |
 | 4.05 | 영상/overlay 좌표 정합 | 합성 좌표 및 widget overlay 확인; **물리 타깃 정합 미검증** |
 | 4.06 | 표시 지연 및 0–400 ms 옵션/선택값 기록 | 기존 옵션 유지, 현재 0 ms 명시; **실기 지연 맞춤 미검증** |
@@ -139,7 +145,7 @@ PR #20은 Draft이며 인수 완료나 병합 완료로 처리하지 않는다.
 | 6.14 | 같은 조건 최적화 전/후 비교 | AC 20초 pair 보존; 작은 CPU 차이를 개선율로 주장하지 않음 |
 | 6.15 | AC 연결·CPU 클럭 동시 기록 | 5단계/이번 600초 power·주파수·온도 표본; 새 PID sampler는 thermal throttle 누계도 수집 |
 | 6.16 | 발열 clock 제한과 프로그램 병목 구분 | 지표 분리 수집; 8.20초 기록의 원인을 발열/GIL/Wayland 중 하나로 단정하지 않음 |
-| 6.17 | 오래 켜도 끊기지 않음 | 합성 600초 추가 결과는 아래; **실기 미검증·이전 정지 원인 미해결** |
+| 6.17 | 오래 켜도 끊기지 않음 | 71f5072 계열 합성 600초 결과와 후속 코드 95초 메모리 추적은 아래; 후속 코드의 AC 600초 재실행은 전원 미연결로 보류. **실기 미검증·이전 정지 원인 미해결** |
 
 ### 7. 검증·PR·채팅의 작업 방식
 
@@ -166,12 +172,12 @@ PR #20은 Draft이며 인수 완료나 병합 완료로 처리하지 않는다.
 | 7.19 | 채팅: 우선순위·한두 작업 단위·다음 요청 시 진행 | 단계 1~7 순차 기록, 이번은 사용자 요청 최종 검토 범위 |
 | 7.20 | 채팅: 저장하고 재개 | 전 단계 커밋·별도 worktree·계획 파일·Draft PR로 인계; 이번 결과도 커밋/원격 저장 |
 | 7.21 | 채팅: 남은 단계 수는 간단히 답변 | 실제 완료/미완료 기준은 본 문서; “7단계뿐=다른 요구 전부 완료”로 해석하지 않음 |
-| 7.22 | 기본 smoke/전체 pytest green 여부 | 전체 green 아님: 기존 arm 관련 10개 실패를 유지하고 새 실패와 구분 |
+| 7.22 | 기본 smoke/전체 pytest green 여부 | 후속 전체 887 pass/기존 arm 관련 10 fail/3 skip. 새 실패 0; 비전 전용 smoke PASS |
 
 ## 실기 전/후 남은 작업의 구분
 
 1. **콘솔 구현·도구:** 이번 보완과 로컬 검증까지 기록. 기존 로봇팔 10개 실패는 이 PR에서 계약을 바꿔 숨기지 않는다.
-2. **데이터 계약/팀 확인:** 바닥 mask/polygon 공급, 장착 회전·좌표·부호·영점 합의, 정지 지도와 IMU 비교 기준. AS5048B는 현재 요청대로 연결 자리만 준비했고 실제 생산자는 없음.
+2. **데이터 계약/팀 확인:** 바닥 mask 송수신 코드는 준비됐지만 실제 Jetson 배포·정합은 미검증. 장착 회전·좌표·부호·영점 합의와 정지 지도/IMU 비교 기준은 외부 대기다. AS5048B는 현재 요청대로 연결 자리만 준비했고 실제 생산자는 없음.
 3. **안정성 미해결:** 5단계 8.20초 draw 정지 원인. 최신 통제 조건 600초 정상 실행만으로 과거 실패를 해결 처리하지 않는다. 실제 조건에서 재현/계측해야 한다.
 4. **실제 HW 인수:** 기존 Gateway 소유권/체크아웃 확인 → opt-in 송신 확인 → 실시간/비전 비교 → 실제 600초 영상/FPS/draw/maps/CPU/RSS/클럭·온도/끊김 복구/좌표·지연 → PR 증거 갱신.
 
@@ -187,7 +193,7 @@ CPU/RSS·AC/clock/temperature는 기존 sample_process로 같은 console_pid를 
 
 ## 최종 실행 결과
 
-### 합성 600초 관찰
+### 기존 합성 600초 관찰 (후속 바닥/보정 변경 전)
 
 - 명령: `GDK_BACKEND=x11 OPENBLAS_NUM_THREADS=1 xvfb-run -a /usr/bin/python3 -m operator_console.tests.vision_benchmark --seconds 20 --vision-seconds 600 --require-ac --metrics-output /tmp/vision-finalreview-soak-events.json --output /tmp/vision-finalreview-soak.json`.
 - AC 연결, X11/Xvfb, 1100×680 창, 지도 각각 518×115, 2×1280×720@15 SRT + 3 map tiles/12.5Hz + overlay/chassis 합성 입력.
@@ -212,10 +218,19 @@ CPU/RSS·AC/clock/temperature는 기존 sample_process로 같은 console_pid를 
 이 결과는 기존 단기 AC 최적화 전/후 비교를 대체하거나 개선율을 입증하는 자료가 아니다.
 5단계의 8.20초 정지·초기 네이티브 충돌을 해결 처리하지 않고 실제 Gateway+L515 인수도 계속 미검증으로 둔다.
 
+후속 바닥/보정 변경 뒤에는 95초 tracemalloc/RSS 추적에서 L515 14.995 FPS,
+지도 pair 1.989 Hz, draw 최대 192.1 ms, GTK heartbeat 최대 177.7 ms를 기록했고
+callback/worker 오류는 없었다. 전체 원시 표본은 bounded JSONL로 분리했다.
+다만 현재 노트북 전원 센서가 AC/USB 모두 offline이라 `--require-ac` 동일 조건 600초 재실행은
+정식 결과로 채택하지 않고 보류한다.
+
 ### 회귀 검사
 
-- 지정 경로 전체 콘솔 pytest: **871 passed / 10 failed / 3 skipped**, 276.88초.
-  이전 단계의 실패 ID 10개와 정확히 같고 새 실패 0개다. 별도 skip 3개는 통과로 합산하지 않는다.
+- 후속 지정 경로 전체 콘솔 pytest: **887 passed / 10 failed / 3 skipped**, 306.87초.
+  직전 871 pass 기준의 실패 ID 10개와 정확히 같고 새 실패 0개다. 별도 skip 3개는 통과로 합산하지 않는다.
+- `terrain_overlay`·`terrain_map`·`lidar_dev` 순수 회귀: **543 passed / 4 skipped**.
+  ROS adapter 직접 검사는 이 노트북에 `rclpy`가 없어 수집 불가로 별도 미검증 처리했다.
+- 후속 `runtime_smoke --vision-only`: PASS. 바닥 LIVE/끊김 숨김/복구까지 기존 lifecycle과 함께 확인했다.
 - 기본 `runtime_smoke`: 비전/지도 PASS, 기존 arm safe-disabled 표시 실패로 전체 FAIL.
 - 비전 positive/고장 9종 모두 기대 결과 확인. 새 event 도구에서도 650ms 주입 정지가 검출됐다.
 - `vision_monitor` 실제 수동 CLI를 X11에서 8초 실행하고 SIGTERM 종료:
@@ -228,4 +243,5 @@ CPU/RSS·AC/clock/temperature는 기존 sample_process로 같은 console_pid를 
   [보존 검사](2026-10-24-vision-tab-final-review-evidence/source-boundaries.json),
   [고장 event](2026-10-24-vision-tab-final-review-evidence/negative-drawing-stall-events.json).
 
-**실기 이전 검토는 수행했지만 요구 전체 완료는 아니다. 외부 계약/보정 합의·이전 정지 원인·메모리 증가 확인·실제 HW 인수를 열린 항목으로 유지한다.**
+**실기 이전 검토는 수행했지만 요구 전체 완료는 아니다. 후속 AC 600초 재실행,
+외부 보정 합의·이전 정지 원인·메모리 증가 확인·실제 HW 인수를 열린 항목으로 유지한다.**

@@ -12,7 +12,7 @@
 | 화면/데이터 | 구현 및 연결 |
 |---|---|
 | 실시간 화면 | 기존 L515 `:5000`·D435 `:5002` VideoPanel 유지. 비전 진입 시 L515 위젯 전체를 이동하고 원래 MAIN/PiP 역할로 복원 |
-| 지형 오버레이 | 기존 `:5009` receiver/TerrainCanvas 공유. 두 탭의 토글도 같은 상태 사용 |
+| 지형 오버레이 | 기존 `:5009` receiver/TerrainCanvas 공유. 장애물과 선택 바닥 격자를 같은 지연 정렬 snapshot으로 표시하고 두 탭의 토글도 같은 상태 사용 |
 | 지형 지도 탭 | 기존 기능 유지. 동일 `:5010` receiver를 새 Top/Oblique worker에 전달 |
 | 협조구동·시스템·3D·로봇팔 | 노트북 Graphite 화면/자산 이식, 기존 기능 유지. 로봇팔 제어 계약 변경 없음 |
 | 비전 자세 | `:5005` raw roll/pitch·바퀴별 실제 steer/speed·stale/fault 사용. 지령을 피드백으로 대체하지 않음 |
@@ -24,9 +24,11 @@
 ## 추가한 동작
 
 - 한 화면 네 영역, 공유 오버레이 on/off, 지도 zoom/follow/drag, 로버 방향 화살표, 상태/색상 범례.
+- 같은 `:5009` v1 패킷의 선택 `floor_mask`를 128×72 bitset으로 수신해 10 px 바닥 관측 격자를 표시. 미관측/혼합 칸은 투명하고, 1200 byte 제한에서는 바닥 필드를 먼저 생략해 장애물 정보를 보존. 안전/통과 가능 영역으로 사용하지 않음.
 - 지도 계산은 worker에서 쌍당 약 2 Hz. GTK에는 준비된 raster만 전달하고 숨기면 비전 계산/표시 타이머를 멈춤. receiver는 계속 수신.
 - 값/출처/유효성/나이를 구분. 미수신·오래됨·끊김·복구를 표시하고 결측은 0으로 채우지 않음.
 - raw IMU, 장착 보정 미확인 차체 자세, 정지 창 지도 기록을 분리. 19.5° 일괄 차감 없음.
+- 확인된 `sensor_to_body_xyzw`·원시 축 부호만 적용하는 선택 자세 보정 JSON/CLI/env 인터페이스. 기본/pending 설정은 비활성이며, 지도 정지값 비교도 지도 좌표 확인과 현재 정지 측정·수신 age 조건이 모두 맞을 때만 참고값으로 표시.
 - AS5048B 선택 연결 인터페이스: `suspension_joints_rad`, `suspension_age_ms`, `suspension_source`, `suspension_frame`. 실제 송신이 없으면 미수신.
   각도는 rad, UI는 °, age는 ms입니다. 네 키는 `ml_rocker_joint`(좌 로커),
   `mr_rocker_joint`(우 로커), `bl_bogie_joint`(좌 보기), `br_bogie_joint`(우 보기)입니다.
@@ -53,6 +55,10 @@ OPENBLAS_NUM_THREADS=1 /usr/bin/python3 -m operator_console.app \
 ```
 
 기준값 우선순위는 CLI > JSON > env > 기본값입니다. 필드별 독립 선택이며 JSON의 상대 경로는 설정 폴더 기준입니다. 이미 들어오는 데이터만 받으며 카메라 SDK를 열거나 `live_overlay.py`를 로봇에서 실행하지 않습니다.
+자세 보정은 `--attitude-calibration`, 통합 JSON `attitude_calibration`,
+`L515_ATTITUDE_CALIBRATION` 순이며, 광민·도현 확인 전에는
+`operator_console/config/attitude-calibration.pending.json`처럼 `confirmed=false`로 둡니다.
+갱신된 overlay 송신기의 `publish_floor_mask` 기본값은 true이고 false면 구형 패킷 형식입니다.
 
 지도/오버레이 송신은 기존 Compose opt-in `terrain-map`/`terrain-overlay`입니다.
 준비된 통합 스택의 **Jetson 저장소 루트**에서 두 서비스를 같이 포함하는 명령은 다음과 같습니다.
@@ -72,8 +78,9 @@ INTEGRATED_SERVICES="powertrain_terrain_overlay powertrain_terrain_map" \
 
 ## 검증과 성능
 
-- 전체 콘솔: **871 passed / 10 failed / 3 skipped**. 실패 ID 10개는 변경 전 단계와 동일합니다.
+- 전체 콘솔: **887 passed / 10 failed / 3 skipped**. 직전 **871 passed / 동일 10 failed / 3 skipped** 대비 새 실패 0, 신규 검사 16개 통과. 기존 실패는 로봇팔 경계·계약 9개와 arm safe-disabled runtime smoke 1개입니다.
 - `runtime_smoke --vision-only`: PASS. 정상/결측/오래된 측정/끊김/복구, 숨김 중 수신 유지, MAIN/PiP 왕복, decoder/receiver 공유, worker/timer/socket/pipeline 종료 확인.
+- 순수 지도·오버레이·lidar 회귀: **543 passed / 4 skipped**. 바닥 packet 상한/오류/구형 호환, 실제 detector→`:5009`→GTK 표시 경로 포함. ROS 노드 직접 테스트는 이 노트북에 `rclpy`가 없어 미실행입니다.
 - 고장 9종: 지도/텔레메트리 누락, 결측 0 조작, stale 무력화, 복구 누락, 숨김 렌더 강제, decoder 추가, worker 종료 누락, 650 ms GTK 정지를 모두 검출.
 - 별도 CPU/RSS 수집기: 실제 대상 프로세스 관찰·종료/미관측 처리 검사 3개 통과. 카메라 연결을 추가하지 않으며 수집 완료를 실기 통과로 판정하지 않음.
 - 기본 `runtime_smoke`: 비전·지도 단계 통과, 기존 **arm safe-disabled 표시 실패로 전체 FAIL**. 게이트를 완화하지 않았습니다.
@@ -95,7 +102,8 @@ AC 연결, 합성 영상 2×1280×720@15 + 지도 3 tile + 오버레이/자세 �
 ## 최종 요구사항 재검토 (10/24)
 
 원본 문서와 채팅 요구 **110개 항목**을 [최종 대조표](2026-10-24-vision-tab-final-review.md)로 다시 확인했습니다.
-JSON null 프로필의 환경 변수 fallback, 선택 encoder group null의 미수신 처리를 보완했습니다.
+JSON null 프로필의 환경 변수 fallback, 선택 encoder group null의 미수신 처리,
+바닥 관측 격자와 확인 전 비활성인 자세 보정 인터페이스를 보완했습니다.
 실제 콘솔에서 기존 sink/draw/heartbeat·각 지도 반영 이벤트를 기록하는 `vision_monitor`도 추가했습니다.
 정상 수동 진입점은 다음처럼 관찰하며 `--integrated`를 추가하면 페어링 진입점을 사용합니다.
 
@@ -109,7 +117,8 @@ OPENBLAS_NUM_THREADS=1 /usr/bin/python3 -m operator_console.vision_monitor \
 카메라/디코더/수신기를 추가하지 않고 repaint Hz와 camera FPS를 구분합니다.
 광학 camera-to-screen 지연은 별도 실측입니다.
 
-AC·X11/Xvfb·합성 SRT 15fps/지도 3tile/overlay/telemetry에서 비전 **600.007초** 관찰:
+후속 바닥/보정 코드 전의 AC·X11/Xvfb·합성 SRT 15fps/지도 3tile/overlay/telemetry에서
+비전 **600.007초** 관찰:
 L515 sink **14.998 FPS**, Top/Oblique **각 1.997 Hz**, 최대 video draw **122.3 ms**,
 GTK heartbeat **53.2 ms**, 콘솔 CPU **87.79%**, 최대 RSS **346.92 MiB**였습니다.
 지도 개별 최대 반영 간격은 **607.8 ms**로 평균 약 2Hz이며 정확히 매500ms 이내 보장이 아닙니다.
@@ -117,6 +126,8 @@ RSS가 첫 실시간 구간 대비 **62.68 MiB 증가**했습니다. 측정 하�
 누수/plateau 여부를 단정하지 않고 추가 확인 항목으로 남깁니다.
 원시 JSON·event JSON·AC/클럭/온도·조건은 대조표에 연결했습니다.
 **합성 600초를 실기 600초 인수나 이전 8.20초 정지 해결로 처리하지 않습니다.**
+후속 코드는 95초 메모리 추적과 위 회귀를 통과했지만, 현재 노트북 전원 센서가 AC/USB
+offline이라 `--require-ac` 600초 재실행을 중단했습니다. 전원 연결 후 정식 결과를 갱신합니다.
 
 ## 동작 영상과 자료
 
@@ -139,7 +150,7 @@ RSS가 첫 실시간 구간 대비 **62.68 MiB 증가**했습니다. 측정 하�
 - 합성 장시간 관찰의 RSS 증가 원인/실제 조건 메모리 안정성은 추가 확인이 필요합니다.
 - 5단계에서 video draw가 **8.20초 멈춘 실행 1회**를 관측했습니다. 이후 짧은 검사에서 재현되지 않았지만 원인 미확정이며 해결로 표시하지 않습니다.
 - 녹화 준비 중 같은 프로세스의 합성 SRT 송·수신/Wayland 상속 구성에서 native SRT epoll/unwind 충돌을 재현했습니다. 시험 송신기를 별도 프로세스로 옮기고 리슨 준비와 X11 격리를 보장했습니다. 이것을 실기 네이티브 안정성 해결로 간주하지 않습니다.
-- **바닥 영역 칠하기 미충족**: 현 `:5009`에는 ground 상태·장애물 polygon만 있고 바닥 mask/polygon이 없습니다. 현재는 바닥 상태 배지와 장애물 윤곽입니다.
+- 바닥 관측 격자 송수신·표시는 로컬 합성 경로에서 구현/검증했지만, Jetson에 갱신 송신기를 배포하지 않았고 실제 바닥 경계·좌표 정합은 미검증입니다. 구형 송신기는 선택 필드를 생략하므로 미수신으로 표시됩니다.
 - 광민·도현과 좌표계/부호/영점/장착 회전 합의 및 실기 자세 보정은 미확인. raw 값을 차체 기울기로 적용하지 않습니다.
 - AS5048B 실제 송신·필드별 측정 시각 연결 없음. 현재 인터페이스/미수신 표시만 제공합니다.
 - 물리 영상/오버레이의 좌표·시간 정합과 실제 end-to-end 지연 미검증.
