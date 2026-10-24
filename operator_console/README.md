@@ -135,9 +135,13 @@ application under Xvfb, injects maximal synthetic datagrams into isolated UDP
 ports, and verifies LIVE→STALE, environment rendering, sparse-payload,
 clean-shutdown, traceback, role-layout, and no-automatic-camera-swap paths. A
 loopback ops TCP fixture also sends an unknown steering mode through the real
-client and checks that the GTK control stays unavailable. It does not inject or
-observe a decoded real SRT frame, prove GStreamer frame rendering, or exercise
-a real network or hardware sender. Those need separate runtime or E2E evidence.
+client and checks that the GTK control stays unavailable. The vision stage also
+decodes local synthetic SRT video and checks missing/live/aged/stale/recovery,
+shared camera round trips (including D435 MAIN), hidden rendering pause with
+continued reception, and worker/timer/receiver/pipeline shutdown. Run just this
+stage with `--vision-only` to distinguish its result from existing arm failures.
+These checks exercise neither a real network nor a hardware sender; Gateway/L515
+acceptance and the earlier intermittent draw stall still require separate evidence.
 
 The lower-right mission rail is the robot-arm/tool hub. It exposes only the
 four confirmed equipment categories (그리퍼 1, 그리퍼 2, 청소 모듈, 환경 센서

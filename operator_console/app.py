@@ -5980,6 +5980,9 @@ class OperatorConsole(Gtk.Window):
         """
         if self._smoke_probe_path is None:
             return
+        states = dict(states, page=self._stack.get_visible_child_name(),
+                      vision=self._vision_panel.probe(),
+                      vision_camera_shared=self._l515.get_parent() is self._vision_panel.camera_slot)
         if self._operation_runtime is not None:
             states = dict(states, operation=self._operation_runtime.snapshot(), console_pid=os.getpid())
         steer_button = self._ops_panel._action_buttons.get("steer_mode_skid")
@@ -6005,6 +6008,8 @@ class OperatorConsole(Gtk.Window):
             pass
 
     def _on_destroy(self, *_args: object) -> None:
+        # Stop vision work before closing the shared receivers it observes.
+        self._vision_panel.close()
         self._ops_panel.cancel_confirmation()
         self._arm_ops_adapter.blur()
         self._arm_ops_adapter.pump()

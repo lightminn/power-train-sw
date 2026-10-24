@@ -13,6 +13,7 @@ import socket
 import subprocess
 import sys
 import time
+from operator_console.smoke_timing import callback_gap as heartbeat_gap
 
 
 def machine():
@@ -35,13 +36,6 @@ def ac_online(state):
     return any(value == '1' and state['power_type'].get(path.replace('/online', '/type'))
                in ('Mains', 'USB', 'USB_C', 'USB_PD', 'USB_PD_DRP')
                for path, value in state['power'].items())
-
-
-def heartbeat_gap(start, end, beats):
-    """Include both boundaries: no callbacks must never look like zero delay."""
-    return max([end-start] if not beats else
-               [beats[0]-start, end-beats[-1],
-                *(b-a for a, b in zip(beats, beats[1:]))])
 
 
 def packets(sequence):
