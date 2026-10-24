@@ -9,7 +9,10 @@ import math
 import cv2
 import numpy as np
 
-from obstacles_map import classify                 # 경계 비교·EPS를 L2와 같게
+if __package__:
+    from .obstacles_map import classify
+else:
+    from obstacles_map import classify             # 경계 비교·EPS를 L2와 같게
 
 UP_COL = {1: (50, 125, 46), 2: (37, 168, 249), 3: (40, 40, 198)}     # 통과·주의·불가(BGR, obstacles_map 색)
 DIP_COL = {2: (235, 160, 40), 3: (190, 40, 150)}                    # 꺼진 칸 주의·불가(하늘·보라)

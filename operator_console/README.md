@@ -1,5 +1,69 @@
 # Operator Console
 
+## 비전 탭 (단계별 통합 중)
+
+노트북 Graphite GUI(초록 강조·하단 탭·기존 3D 표시)를 기준으로 통합한다.
+기존 L515 영상·지형 오버레이와 Top/Oblique 지도까지 연결했다.
+차체 자세 영역은 원시 IMU·바퀴 피드백·로커/보기 선택 필드·지도 정지 기록을 표시한다.
+보정된 차체 자세는 아직 미확인이며, 개략도에 미보정 roll/pitch를 적용하지 않는다.
+협조구동의 **지형 보기** 버튼도 비전 탭을 연다.
+
+```bash
+# 운용 PC, 이 작업 브랜치의 저장소 루트
+/usr/bin/python3 -m operator_console.app --host <Gateway-IP> --page vision
+# 기존 페어링 설정을 사용하는 통합 진입점
+/usr/bin/python3 -m operator_console --config ~/.config/powertrain/operator.json --page vision
+```
+
+비전은 기존 SRT :5000 디코더와 UDP :5009 지형 수신기를 공유한다.
+탭을 나가면 기존 메인/PiP 배치를 복원한다. 비전에서는 L515 고정으로 V 전환을 막는다.
+지형 토글 상태는 실시간 화면과 공유한다. 바닥 영역 mask는 현재 전송되지 않으며,
+기존 바닥 상태 배지와 장애물 윤곽만 표시할 수 있다.
+노트북 버전의 별도 장애물 :5009 수신기·HTTP 시험대 창은 이 경로에서 기동하지 않는다.
+
+두 지도는 기존 UDP :5010 수신기를 공유한다. 지도 이미지는 별도 작업 스레드에서
+각각 약 2 Hz로 생성하며, 비전 탭을 숨기면 지도 계산·화면 갱신을 멈추고 수신은 유지한다.
+휠/+/−로 두 지도를 확대·축소하고, Top을 끌면 따라가기가 해제된다.
+따라가기 중에는 로버 방향이 위이며, 해제하면 Top은 북쪽이 위이고 Oblique는 선택 위치를 기준으로 본다.
+Top 범례는 송신 지도 클래스, Oblique 범례는 기준값 JSON의 표시용 재분류다.
+미수신·끊김 시 원점 자세를 만들지 않으며, 오래된 Oblique 투영은 숨긴다.
+
+```bash
+# 운용 PC: 코드 수정 없이 기준값 교체 (적용 후 콘솔 재시작)
+/usr/bin/python3 -m operator_console.app --host <Gateway-IP> --page vision \
+  --l515-criteria /path/to/obstacle_criteria.json --l515-criteria-profile A_no_stop
+# 통합 진입점에도 같은 CLI 옵션을 사용할 수 있다.
+```
+
+설정 JSON의 `l515_criteria`, `l515_criteria_profile`도 지원한다.
+경로·프로필 각각 CLI > 설정 JSON > `L515_CRITERIA`/`L515_CRITERIA_PROFILE` > 저장소 기본값 순이다.
+JSON의 상대 경로는 설정 파일 폴더 기준이다. 프로필을 생략하면 파일의 기본 프로필을 사용한다.
+화면에 버전·프로필·SHA256 앞 8자, 툴팁에 파일 경로와 전체 해시를 표시한다.
+v0.2에서 trench_depth_m이 없으면 기존 함수대로 step_up_m을 사용한다.
+이 설정은 Gateway 송신 기준이나 주행 제어를 변경하지 않는다.
+
+기존 GTK/GStreamer 의존성과 numpy, 지도 함수 재사용용 OpenCV가 필요하다.
+OpenCV는
+운용 PC의 **콘솔과 같은 Python**에 설치한다. 이 PC에서는 관리자 권한 없이
+사용자 영역에 numpy 2.5.4 / OpenCV-headless 5.0.0 / pytest 9.1.1을 설치했다.
+시스템 Python용 pip가 없다면 배포판 패키지 또는 `--system-site-packages` 가상환경을
+사용하되, GTK/gtksink 접근 여부를 확인한다. RealSense SDK는 콘솔에 필요하지 않다.
+
+[단계별 계획](../docs/plans/2026-10-23-vision-tab.md)과
+[4단계 결과](../docs/reports/2026-10-23-vision-tab-step4.md)에 검증·미연결 항목을 기록한다.
+
+자세 수치는 :5005의 roll_rad/pitch_rad를 도 단위로 바꾼 **원시값(장착 보정 미확인)**이다.
+나이는 원 IMU 측정 시각이 없는 관계로 '패킷 수신 후'만 표시한다.
+바퀴는 steer_deg와 drive_turns_per_s의 실제 수신값을 사용하며, stale/결측은 숫자 대신 표시한다.
+Hall 저속 값(<0.3 rev/s)은 실제 정지와 다를 수 있으며 지령이나 0으로 바꾸지 않는다.
+지도 기준면은 차체 자세와 다르며, 정지 기록은 n초 전의 관측으로만 표시한다.
+
+로커/보기는 선택 필드 suspension_joints_rad, suspension_age_ms를 사용하고,
+suspension_source·suspension_frame으로 출처와 기준을 받을 수 있다.
+각도 키는 ml_rocker_joint/mr_rocker_joint/bl_bogie_joint/br_bogie_joint, 단위는 rad이다.
+나이가 없으면 시간 미확인, 값이 없으면 미수신이며 0이나 추정값을 만들지 않는다.
+실제 AS5048B 송신기·영점·부호 합의는 아직 없다. [필드 계약](../docs/reports/2026-10-23-vision-tab-step4.md)을 먼저 확인한다.
+
 Integrated entrypoint: `python -m operator_console` uses the prepared paired-robot
 config, reconnects automatically, supervises a separate gamepad process and offers
 a held manual-start action. See [the integrated operation runbook](../docs/integrated-operation.md)
@@ -71,9 +135,13 @@ application under Xvfb, injects maximal synthetic datagrams into isolated UDP
 ports, and verifies LIVE→STALE, environment rendering, sparse-payload,
 clean-shutdown, traceback, role-layout, and no-automatic-camera-swap paths. A
 loopback ops TCP fixture also sends an unknown steering mode through the real
-client and checks that the GTK control stays unavailable. It does not inject or
-observe a decoded real SRT frame, prove GStreamer frame rendering, or exercise
-a real network or hardware sender. Those need separate runtime or E2E evidence.
+client and checks that the GTK control stays unavailable. The vision stage also
+decodes local synthetic SRT video and checks missing/live/aged/stale/recovery,
+shared camera round trips (including D435 MAIN), hidden rendering pause with
+continued reception, and worker/timer/receiver/pipeline shutdown. Run just this
+stage with `--vision-only` to distinguish its result from existing arm failures.
+These checks exercise neither a real network nor a hardware sender; Gateway/L515
+acceptance and the earlier intermittent draw stall still require separate evidence.
 
 The lower-right mission rail is the robot-arm/tool hub. It exposes only the
 four confirmed equipment categories (그리퍼 1, 그리퍼 2, 청소 모듈, 환경 센서
@@ -189,3 +257,35 @@ parameters: `terrain_map/README.md`.
 Observation remains caller/receiver-only: it never opens D435i/L515 or writes
 CAN. Commands are possible only through the authenticated ops client and every
 panel action passes state-revision revalidation plus its confirmation gesture.
+
+### 비전 탭 성능 계측 (개발용)
+
+비전 탭은 기존 L515 위젯·지도·자세 수신기를 공유한다. NumPy import 전
+`OPENBLAS_NUM_THREADS=1`을 적용하고, 영상은 `sync=false`와 raw 프레임 1개 대기열을 사용한다.
+지도·자세의 비전 전용 계산/표시는 탭이 보일 때만 갱신한다.
+
+실제 카메라 없이 로컬 SRT/UDP 합성 입력으로 CPU/RSS·영상 수신/그리기·지도 반영률을
+측정하려면 저장소 루트에서 다음을 실행한다. GTK/GStreamer·NumPy/OpenCV·pytest가 필요하다.
+
+```bash
+OPENBLAS_NUM_THREADS=8 xvfb-run -a /usr/bin/python3 \
+  -m operator_console.tests.vision_benchmark --require-ac \
+  --seconds 20 --output /tmp/vision-performance.json
+```
+
+인코더/송신은 별도 프로세스이며 측정 CPU/RSS에서 제외한다. 실기/전원 조건·그리기 정지
+미해결 사항과 수치 해석은 [5단계 보고서](../docs/reports/2026-10-24-vision-tab-step5.md)를 따른다.
+이 합성 시험은 Gateway/L515 10분 인수를 대체하지 않는다.
+
+실기 연결 대기 중에도 합성 동작 영상을 만들 수 있다. 별도 Xvfb/X11의 콘솔 창만 녹화하며,
+UI에 합성 입력임을 표시한다. 이미 존재하는 출력 파일에는 덮어쓰지 않는다.
+
+```bash
+/usr/bin/python3 -m operator_console.runtime_smoke --vision-only \
+  --record-webm /tmp/vision-synthetic-demo-new.webm
+```
+
+실제 콘솔 PID의 CPU/RSS·전원·CPU별 클럭·온도는 `operator_console.tests.sample_process`로
+별도 수집할 수 있다. 이 도구는 영상 연결을 추가하지 않고, 프로세스 수집 완료를 실기 인수로
+판정하지 않는다. [7단계 상태](../docs/reports/2026-10-24-vision-tab-step7.md)와
+[실기 실행 절차](../docs/reports/2026-10-24-vision-tab-field-runbook.md)를 따른다.

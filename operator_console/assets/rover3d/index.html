@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'">
+<title>차체 3D</title>
+<style>
+@font-face{font-family:NoonnuBasicGothic;src:url('./fonts/NoonnuBasicGothic-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+*{box-sizing:border-box}body{margin:0;background:#292929;color:#f2f2f2;font:15px NoonnuBasicGothic,'Noto Sans CJK KR',sans-serif;overflow:hidden}canvas{display:block;touch-action:none}
+.hud{position:absolute;left:12px;top:8px;pointer-events:none;max-width:60%;font-size:13px;line-height:1.4}.line{margin:2px 0;color:#26e88a}.muted{color:#adadad}.warn{color:#ffc34a}
+#popup{position:absolute;right:20px;top:12px;width:290px;max-width:calc(100vw - 40px);max-height:calc(100vh - 24px);overflow:auto;padding:18px;background:#333333f5;border:1px solid #666666;border-radius:16px;display:none;box-shadow:0 12px 30px #0003}
+#popup h2{margin:0 28px 10px 0;font-size:17px}#popup dl{display:grid;grid-template-columns:1fr 1fr;gap:7px 8px;margin:0;font-size:15px}dt{color:#c9c9c9}dd{margin:0;text-align:right}button{color:#f2f2f2;background:#3e3e3e;border:1px solid #666666;border-radius:16px;cursor:pointer;padding:6px 11px;font:13px NoonnuBasicGothic,sans-serif}#close{position:absolute;right:8px;top:8px}#reset{position:absolute;left:8px;bottom:8px}#footnote{position:absolute;left:90px;bottom:10px;max-width:calc(100% - 102px);font-size:12px;pointer-events:none}
+#reset{background:#28533d;border-color:#2dbf79;color:#50f5a5}#reset:hover{background:#26e88a;color:#262626}#reset:focus-visible{outline:2px solid #70f2b2;outline-offset:2px}
+@media(max-width:650px){#popup{top:8px;right:8px;width:240px;padding:12px}.hud{max-width:70%}}
+</style>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+</head>
+<body>
+<div class="hud"><div id="link" class="line warn">차체 상태 미연결</div><div id="attitude" class="line muted">차체 기울기 미연결</div><div id="suspension" class="line warn">다리 각도 미연결 · 기준 자세 표시</div></div>
+<section id="popup" aria-label="바퀴 모터 상태"><button id="close" aria-label="모터 상태 닫기">×</button><h2 id="wheel-title"></h2><dl id="wheel-values"></dl></section>
+<button id="reset">기본 방향</button><div id="footnote" class="muted">드래그하여 360° 회전 · 바퀴를 눌러 상태 확인</div>
+<script type="module" src="./viewer.js"></script>
+</body></html>

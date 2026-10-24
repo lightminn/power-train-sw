@@ -1,0 +1,9 @@
+{
+  "base": "a40ea17",
+  "protected_changed": [],
+  "approved_laptop_copy_matches": {
+    "operator_console/mobility_view.py": true,
+    "operator_console/rover_3d.py": true
+  },
+  "merge_base": "a40ea170f871b86d4772763d55d3158ffcaabb29"
+}

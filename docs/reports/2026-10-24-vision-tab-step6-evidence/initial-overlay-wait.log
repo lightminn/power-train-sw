@@ -1,0 +1,11 @@
+VISION-RUNTIME-SMOKE: FAIL
+vision runtime child rc=1
+Xlib:  extension "DRI2" missing on display ":99".
+Traceback (most recent call last):
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 258, in main
+    print(json.dumps(exercise(args.fault), ensure_ascii=False), flush=True)
+                     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 153, in exercise
+    assert window._terrain_canvas.view().obstacles, 'vision terrain overlay not aligned/live'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: vision terrain overlay not aligned/live

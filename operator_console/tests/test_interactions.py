@@ -20,6 +20,7 @@ from operator_console.mobility_view import (
     RoverCoordinationGraphic,
     active_faults,
     mission_mobility_values,
+    mobility_story_values,
 )
 from operator_console.runtime_smoke import (
     _arm_payload,
@@ -148,14 +149,15 @@ def test_mobility_dashboard_shows_terrain_attitude_motor_and_fsms():
         now_s=10.0,
     )
 
-    assert "주행 경로 확보" in dashboard._terrain[1]["path"].get_text()
+    assert "통과 가능한 경로" in dashboard._terrain[1]["path"].get_text()
     assert "88%" in dashboard._terrain[1]["confidence"].get_text()
-    assert "Roll" in dashboard._attitude[1]["roll"].get_text()
-    assert "감지 없음" in dashboard._traction[1]["contact"].get_text()
+    assert "바퀴 4/6 정상" in dashboard._attitude[1]["roll"].get_text()
+    assert "주행 제한" in dashboard._traction[1]["contact"].get_text()
     assert "3.2 A" in dashboard._traction[1]["load"].get_text()
     assert dashboard._wheel_rows[0][2].get_text() == "0.60 r/s"
     assert dashboard._wheel_rows[0][3].get_text() == "3.2 A"
-    assert "TRACKING" in dashboard._fsm[1]["controller"].get_text()
+    assert "조건부 주행 가능" in dashboard._fsm[1]["controller"].get_text()
+    assert dashboard._story_title.get_text() == "바퀴 2개 점검 필요"
     assert dashboard._authority.get_text() == "권한 · MANUAL"
     assert dashboard._rover_graphic._snapshot is snapshot
     assert dashboard._rover_graphic._authority == "MANUAL"
@@ -187,8 +189,8 @@ def test_mobility_faults_keep_motor_and_terrain_sources_explicit():
 
     faults = active_faults(snapshot)
 
-    assert any("rear_right" in fault and "축 오류" in fault for fault in faults)
-    assert "지형 · low_confidence" in faults
+    assert any("우측 후륜" in fault and "구동축 오류" in fault for fault in faults)
+    assert "지형 판단 신뢰도 부족" in faults
     assert "구동 · 슬립 후보" in faults
 
 
@@ -196,14 +198,31 @@ def test_main_mission_mobility_values_show_only_received_measurements():
     values = mission_mobility_values(
         _parsed(parse_telemetry, _chassis_payload(3)),
     )
-    assert values["path"] == "경로 확보 · 신뢰도 88%"
-    assert "TRACKING" in values["control"]
-    assert "Roll" in values["attitude"]
-    assert "max |Iq| 3.2 A" in values["motors"]
+    assert values["path"] == "통과 가능 · 판단 신뢰도 88%"
+    assert "경로 추종" in values["control"]
+    assert "차체 기울기" in values["attitude"]
+    assert values["motors"] == "4/6 정상"
     assert mission_mobility_values(None) == {
         "path": "정보 없음", "control": "정보 없음",
         "attitude": "정보 없음", "motors": "정보 없음",
     }
+
+
+def test_mobility_story_prioritises_decision_and_response_over_raw_values():
+    payload = _chassis_payload(4)
+    payload.update(
+        slip_candidate=True,
+        stuck_candidate=False,
+        degradation_speed_scale=0.55,
+        controller_fsm_state="TRACTION_ASSIST",
+    )
+
+    story = mobility_story_values(_parsed(parse_telemetry, payload))
+
+    assert story["title"] == "바퀴 슬립 감지 · 접지력 보강"
+    assert story["judgement"] == "슬립·접지 저하 후보"
+    assert "6륜 출력 재분배" in story["control"]
+    assert story["result"] == "저속 통과 시도 중"
 
 
 @requires_gtk
@@ -235,7 +254,7 @@ def test_mobility_dashboard_reflows_cards_instead_of_squeezing_them():
     dashboard._on_size_allocated(dashboard, type("Allocation", (), {"width": 1400})())
     assert dashboard._summary_grid.child_get_property(
         dashboard._fsm[0], "left-attach",
-    ) == 3
+    ) == 1
     assert dashboard._lower_grid.child_get_property(
         dashboard._lower_cards[1], "left-attach",
     ) == 2

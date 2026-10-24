@@ -15,6 +15,7 @@ change:
 """
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import os
@@ -671,6 +672,12 @@ def run_smoke(
         )
     if "Traceback" in text:
         return False, f"callback traceback detected:\n{text}"
+    if omit_channel_for_test is None:
+        vision_passed, vision_report = run_vision_smoke()
+        if not vision_passed:
+            return False, "vision runtime check failed:\n" + vision_report + "\n" + text
+        text = ("vision runtime ok · missing/live/aged/stale/recovery/hidden/roundtrip/shutdown\n"
+                + text)
     # 기동·무traceback 만으로는 아무것도 보장하지 못한다. 수신 스레드를 통째로
     # 죽여도 그 두 조건은 통과했다(2026-07-18 R06 #10). 패널이 실제로 데이터를
     # 받아 LIVE 가 됐고, 주입을 끊었을 때 STALE 로 전이했는지까지 단언한다.
@@ -706,7 +713,7 @@ def run_smoke(
     if not arm_tabs_seen:
         return False, "arm tabs did not render live tool in safe disabled state\n" + text
     return True, (
-        f"PASS · terrain_map ok · {sequence} ticks on 7 channels · "
+        f"PASS · vision runtime ok · terrain_map ok · {sequence} ticks on 7 channels · "
         f"LIVE+STALE observed on {', '.join(sorted(REQUIRED_PANELS))} · "
         "invalid steering mode held disabled · "
         "arm tabs observed safely disabled · "
@@ -714,7 +721,65 @@ def run_smoke(
     )
 
 
+def run_vision_smoke(*, fault_for_test: str | None = None,
+                     record_webm: Path | None = None,
+                     metrics_output: Path | None = None) -> tuple[bool, str]:
+    """Exercise vision independently so existing arm failures stay distinguishable."""
+    with tempfile.TemporaryDirectory(prefix="vision-runtime-report-") as directory:
+        report_file = Path(directory)/"result.json"
+        command = ["xvfb-run", "-a", SYSTEM_PYTHON, "-m", "operator_console.vision_smoke",
+                   "--report-file", str(report_file)]
+        if fault_for_test is not None:
+            command += ["--fault", fault_for_test]
+        if record_webm is not None:
+            command += ["--record-webm", str(record_webm.resolve())]
+        if metrics_output is not None:
+            command += ["--metrics-output", str(metrics_output.resolve())]
+        try:
+            child = subprocess.Popen(command, cwd=REPO_ROOT, env=smoke_child_env(),
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+        except OSError as exc:
+            return False, f"vision runtime launch failed: {exc}"
+        try:
+            stdout, stderr = child.communicate(timeout=90)
+        except subprocess.TimeoutExpired:
+            os.killpg(child.pid, signal.SIGKILL)
+            stdout, stderr = child.communicate()
+            return False, "vision runtime timed out (including shutdown)\n" + stderr.decode("utf-8", "replace")
+        output, errors = stdout.decode("utf-8", "replace"), stderr.decode("utf-8", "replace")
+        if child.returncode != 0 or "Traceback" in errors or "Traceback" in output:
+            return False, f"vision runtime child rc={child.returncode}\n{output}\n{errors}"
+        try:
+            # Native Xlib messages may appear on stdout. Read structured evidence
+            # from a dedicated file only after the child has actually exited.
+            evidence = report_file.read_text(encoding="utf-8")
+            report = json.loads(evidence)
+            phases = [row["phase"] for row in report["phases"]]
+            required = ["missing", "live", "encoders", "aged", "disconnected", "recovered", "returned"]
+            if (report["result"] != "PASS" or phases != required or
+                    report["shutdown"] != "worker/timers/receivers/pipelines/ports closed" or
+                    type(report["receiver_pipelines"]) is not int or report["receiver_pipelines"] != 2):
+                raise ValueError("missing phase, shared pipeline or shutdown evidence")
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            return False, f"vision runtime invalid report: {exc}\n{output}\n{errors}"
+        return True, evidence.strip()
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--vision-only", action="store_true",
+                        help="run vision SRT/UDP and lifecycle checks independently")
+    parser.add_argument("--record-webm", type=Path,
+                        help="record the synthetic vision-only console window (requires --vision-only)")
+    parser.add_argument("--metrics-output", type=Path, help="optional event timing file for --vision-only")
+    args = parser.parse_args()
+    if (args.record_webm or args.metrics_output) and not args.vision_only:
+        parser.error("--record-webm/--metrics-output require --vision-only")
+    if args.vision_only:
+        passed, report = run_vision_smoke(record_webm=args.record_webm,metrics_output=args.metrics_output)
+        print(f"VISION-RUNTIME-SMOKE: {'PASS' if passed else 'FAIL'}")
+        print(report)
+        return 0 if passed else 1
     passed, report = run_smoke()
     print(f"CONSOLE-RUNTIME-SMOKE: {'PASS' if passed else 'FAIL'}")
     print(report)

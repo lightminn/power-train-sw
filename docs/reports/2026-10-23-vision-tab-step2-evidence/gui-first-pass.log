@@ -1,0 +1,37 @@
+........................................................................ [ 39%]
+.....................................F.................................. [ 78%]
+.......................................                                  [100%]
+=================================== FAILURES ===================================
+________ test_mobility_dashboard_shows_terrain_attitude_motor_and_fsms _________
+
+    @requires_gtk
+    def test_mobility_dashboard_shows_terrain_attitude_motor_and_fsms():
+        payload = _chassis_payload(1)
+        snapshot = _parsed(parse_telemetry, payload)
+        actions = []
+        dashboard = MobilityDashboard(actions.append)
+
+        dashboard.update(
+            snapshot,
+            ops_state={"authority_mode": "MANUAL"},
+            now_s=10.0,
+        )
+
+        assert "통과 가능한 경로" in dashboard._terrain[1]["path"].get_text()
+        assert "88%" in dashboard._terrain[1]["confidence"].get_text()
+        assert "바퀴 4/6 정상" in dashboard._attitude[1]["roll"].get_text()
+        assert "주행 제한" in dashboard._traction[1]["contact"].get_text()
+        assert "3.2 A" in dashboard._traction[1]["load"].get_text()
+        assert dashboard._wheel_rows[0][2].get_text() == "0.60 r/s"
+        assert dashboard._wheel_rows[0][3].get_text() == "3.2 A"
+        assert "조건부 주행 가능" in dashboard._fsm[1]["controller"].get_text()
+>       assert dashboard._story_title.get_text() == "경로는 열려 있으나 바퀴 점검이 필요합니다"
+E       AssertionError: assert '바퀴 2개 점검 필요' == '경로는 열려 있으나 바퀴 점검이 필요합니다'
+E
+E         - 경로는 열려 있으나 바퀴 점검이 필요합니다
+E         + 바퀴 2개 점검 필요
+
+operator_console/tests/test_interactions.py:160: AssertionError
+=========================== short test summary info ============================
+FAILED operator_console/tests/test_interactions.py::test_mobility_dashboard_shows_terrain_attitude_motor_and_fsms
+1 failed, 182 passed in 37.93s
