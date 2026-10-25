@@ -5,6 +5,10 @@ window, window label, window button, window entry, window combobox, window expan
 /* Dense read-only values in the four-view Vision page; other pages keep their fonts. */
 window .vision-attitude label { font-size: 10px; }
 window.viewport-spacious .vision-attitude label { font-size: 12px; }
+window .vision-map-state, window .vision-map-scale { font-size: 11px; }
+window .vision-map-detail, window .vision-map-legend { font-size: 10px; }
+window.viewport-spacious .vision-map-detail,
+window.viewport-spacious .vision-map-legend { font-size: 11px; }
 window .brand { font-family: "눈누 기초고딕 Regular", "Noto Sans CJK KR", sans-serif; font-size: 22px; font-weight: 700; }
 window .eyebrow, window .estop-subtitle { font-size: 11px; }
 window .brand-mark { font-size: 28px; }

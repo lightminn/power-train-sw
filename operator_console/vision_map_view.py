@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import replace
+import math
 import time
 
 import cairo
@@ -19,6 +20,7 @@ from .vision_render import LINK_LOST_S, MapRenderWorker, MapSettings
 class MapCanvas(Gtk.DrawingArea):
     def __init__(self):
         super().__init__()
+        self.get_style_context().add_class("vision-map-canvas")
         self.set_hexpand(True)
         self.set_vexpand(True)
         self.raster = None
@@ -29,12 +31,23 @@ class MapCanvas(Gtk.DrawingArea):
         self.connect("destroy", lambda *_: self.set_raster(None))
 
     def set_raster(self, raster):
+        if raster is self.raster:
+            return False
         if self.surface is not None:
             self.surface.finish()
         self.raster = raster  # surface borrows this buffer
         self.surface = None if raster is None else cairo.ImageSurface.create_for_data(
             raster.bgra, cairo.FORMAT_ARGB32, raster.width, raster.height, raster.width*4)
         self.queue_draw()
+        return True
+
+    def set_message(self, message):
+        """Queue a paint only when the on-map status actually changes."""
+        if message == self.message:
+            return False
+        self.message = message
+        self.queue_draw()
+        return True
 
     def _draw(self, _widget, cr):
         w, h = self.get_allocated_width(), self.get_allocated_height()
@@ -79,24 +92,46 @@ class VisionMaps:
         self.oblique = MapCanvas()
         self.top_slot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         self.oblique_slot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.top_slot.get_style_context().add_class("vision-map-slot")
+        self.oblique_slot.get_style_context().add_class("vision-map-slot")
         self.top_detail = Gtk.Label(xalign=0)
         self.oblique_detail = Gtk.Label(xalign=0)
         top_legend = " · ".join(label for label, _color in note_and_legend(display)[1])
         self.top.set_tooltip_text(note_and_legend(display)[0])
-        for slot, canvas, detail, legend in (
-            (self.top_slot, self.top, self.top_detail, "송신 지도: 빨강 돌출 · 파랑 도랑·낙차 · 높이 음영\n"+top_legend),
+        for slot, canvas, detail, markup, tooltip in (
+            (self.top_slot, self.top, self.top_detail,
+             '<span foreground="#EF6673">■</span> 돌출   '
+             '<span foreground="#5C91E8">■</span> 도랑·낙차   '
+             '<span foreground="#AAB7C4">▧</span> 높이',
+             "송신 지도: 빨강 돌출 · 파랑 도랑·낙차 · 높이 음영\n"+top_legend),
             (self.oblique_slot, self.oblique, self.oblique_detail,
+             '<span foreground="#55C995">■</span> 통과   '
+             '<span foreground="#F2C14E">■</span> 주의   '
+             '<span foreground="#EF6673">■</span> 불가   '
+             '<span foreground="#A980E8">■</span> 함몰   '
+             '<span foreground="#8795A3">■</span> 미확인',
              "표시 기준: 초록 통과 · 노랑 주의 · 빨강 불가\n꺼짐: 하늘 주의 · 보라 불가 · 회색 미확인"),
         ):
             slot.pack_start(canvas, True, True, 0)
             detail.set_ellipsize(Pango.EllipsizeMode.END)
             detail.set_max_width_chars(1)
+            detail.set_tooltip_text("지도의 범위와 적용 기준")
+            detail.get_style_context().add_class("vision-map-detail")
             slot.pack_start(detail, False, False, 0)
-            label = Gtk.Label(label=legend, xalign=0)
-            label.set_line_wrap(True)
-            label.set_max_width_chars(38)
+            label = Gtk.Label(xalign=0)
+            label.set_markup(markup)
+            label.set_ellipsize(Pango.EllipsizeMode.END)
+            label.set_max_width_chars(1)
+            label.set_tooltip_text(tooltip)
+            label.get_style_context().add_class("vision-map-legend")
             slot.pack_start(label, False, False, 0)
         self.controls = Gtk.Box(spacing=6)
+        self.controls.get_style_context().add_class("vision-map-controls")
+        self.state_badge = Gtk.Label(label="지도 대기")
+        self.state_badge.get_style_context().add_class("vision-map-state")
+        self.state_badge.get_style_context().add_class("status-muted")
+        self._state_tone = "status-muted"
+        self.controls.pack_start(self.state_badge, False, False, 0)
         self.follow = Gtk.ToggleButton(label="로버 따라가기")
         self.follow.set_active(True)
         self.follow.connect("toggled", self._follow)
@@ -104,7 +139,16 @@ class VisionMaps:
         for text, factor in (("−", 1.2), ("+", 1/1.2)):
             button = Gtk.Button(label=text)
             button.connect("clicked", lambda _b, f=factor: self.zoom(f))
+            button.set_tooltip_text("지도 축소" if factor > 1 else "지도 확대")
             self.controls.pack_start(button, False, False, 0)
+        self.scale_label = Gtk.Label(label="범위 ×1.00")
+        self.scale_label.set_tooltip_text("기본 보기와 비교한 지도 표시 범위")
+        self.scale_label.get_style_context().add_class("vision-map-scale")
+        self.controls.pack_start(self.scale_label, False, False, 0)
+        reset = Gtk.Button(label="기본 보기")
+        reset.set_tooltip_text("로버 따라가기와 기본 표시 범위로 복구")
+        reset.connect("clicked", self.reset_view)
+        self.controls.pack_start(reset, False, False, 0)
         self.provenance = Gtk.Label(label=f"{criteria.version} · {criteria.profile} · {criteria.sha256[:8]}", xalign=0)
         self.provenance.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
         self.provenance.set_max_width_chars(1)
@@ -155,13 +199,38 @@ class VisionMaps:
             self._timer = None
         self.images = None
         self.state = "WAITING"
-        self.top.message = self.oblique.message = "지도 수신 확인 중"
+        self._set_state("WAITING")
+        self.top.set_message("지도 수신 확인 중")
+        self.oblique.set_message("지도 수신 확인 중")
         self.top.set_raster(None)
         self.oblique.set_raster(None)
 
     def zoom(self, factor):
         self.settings = replace(self.settings, scale=min(4.0,max(.25,self.settings.scale*factor)))
+        self.scale_label.set_text(f"범위 ×{self.settings.scale:.2f}")
         self.worker.configure(self.settings)
+
+    def reset_view(self, *_):
+        if not self.follow.get_active():
+            self.follow.set_active(True)
+        self.settings = replace(self.settings, scale=1.0, follow=True)
+        self.scale_label.set_text("범위 ×1.00")
+        self.worker.configure(self.settings)
+
+    def _set_state(self, state):
+        text, tone = {
+            "LIVE": ("지도 수신 중", "status-live"),
+            "STALE": ("지도 갱신 지연", "status-warn"),
+            "ERROR": ("지도 처리 오류", "status-bad"),
+            "WAITING": ("지도 대기", "status-muted"),
+        }[state]
+        if tone != self._state_tone:
+            context = self.state_badge.get_style_context()
+            context.remove_class(self._state_tone)
+            context.add_class(tone)
+            self._state_tone = tone
+        if self.state_badge.get_text() != text:
+            self.state_badge.set_text(text)
 
     def _scroll(self, _widget, event):
         if event.direction == Gdk.ScrollDirection.SMOOTH:
@@ -216,18 +285,24 @@ class VisionMaps:
             self.state = "ERROR"
             self.top.set_raster(None)
             self.oblique.set_raster(None)
-        status = (f"지도 미수신 · UDP :{self.receiver.port}" if age is None else
-                  f"{'수신 끊김 · 과거 관측' if age > LINK_LOST_S else '수신 중'} · UDP :{self.receiver.port} · {age:.1f}초 전")
+        self._set_state(self.state)
+        if age is None:
+            status = f"지도 미수신 · UDP :{self.receiver.port}"
+        elif age <= LINK_LOST_S:
+            # Packets arrive faster than the 2 Hz raster. Keep the live banner
+            # stable so its 100 ms health poll does not repaint both maps.
+            status = f"수신 중 · UDP :{self.receiver.port} · 0.5초 이내"
+        else:
+            shown_age = math.floor(age * 2) / 2
+            status = f"수신 끊김 · 과거 관측 · UDP :{self.receiver.port} · {shown_age:.1f}초 전"
         if st is not None and st.status != "OK":
             status += " · " + REASON_TEXT.get(st.reason, st.reason or st.status)
-        self.top.message = "지도 처리 오류: "+error if error else status
-        self.oblique.message = ("지도 처리 오류: "+error if error else
+        self.top.set_message("지도 처리 오류: "+error if error else status)
+        self.oblique.set_message("지도 처리 오류: "+error if error else
             status + (" · 현재 투영 보류" if self.state != "LIVE" else ""))
         if self.state != "LIVE" or st is None or st.pose is None or st.status!="OK":
             # Withdraw the live pose projection immediately, before the next 2 Hz result.
             self.oblique.set_raster(None)
-        self.top.queue_draw()
-        self.oblique.queue_draw()
         return True
 
     def close(self, *_):

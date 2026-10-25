@@ -9,6 +9,7 @@ from gi.repository import Gtk  # noqa: E402
 
 from operator_console.app import OperatorConsole, Gst, GLib  # noqa: E402
 from operator_console.runtime_smoke import _free_udp_port  # noqa: E402
+from operator_console.vision_map_view import MapCanvas  # noqa: E402
 
 
 def pump_until(predicate, timeout_s=8):
@@ -20,6 +21,21 @@ def pump_until(predicate, timeout_s=8):
             return True
         time.sleep(0.01)
     return predicate()
+
+
+def test_map_status_repaint_is_change_driven():
+    class Canvas:
+        message = "수신 중"
+        draws = 0
+
+        def queue_draw(self):
+            self.draws += 1
+
+    canvas = Canvas()
+    assert MapCanvas.set_message(canvas, "수신 중") is False
+    assert canvas.draws == 0
+    assert MapCanvas.set_message(canvas, "수신 끊김") is True
+    assert canvas.draws == 1
 
 
 @pytest.fixture
@@ -180,6 +196,8 @@ def test_vision_maps_live_stale_recovery_hidden_and_controls(console):
         assert pump_until(live)
         assert window._terrain_canvas.view().probe_state=='LIVE'
         assert window._terrain_canvas.view().obstacles
+        assert maps.state_badge.get_text() == '지도 수신 중'
+        assert maps.scale_label.get_text() == '범위 ×1.00'
         initial=maps.displayed_count
         started=time.monotonic(); cpu=time.process_time()
         while time.monotonic()-started<3:
@@ -217,7 +235,10 @@ def test_vision_maps_live_stale_recovery_hidden_and_controls(console):
         center=maps.settings.center
         maps._motion(maps.top,SimpleNamespace(x=125,y=60))
         assert not maps.settings.follow and maps.settings.center!=center
-        maps.follow.set_active(True)
+        maps.reset_view()
+        assert maps.settings.follow and maps.follow.get_active()
+        assert maps.settings.scale == 1.0
+        assert maps.scale_label.get_text() == '범위 ×1.00'
         assert pump_until(live)
         window._stack.set_visible_child_name('mission')
         count=maps.worker.render_count

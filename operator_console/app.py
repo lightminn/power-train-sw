@@ -442,6 +442,15 @@ label {{ color: {text_main}; }}
 .vision-page {{ background: {app_bg}; }}
 .vision-page label {{ color: {text_main}; }}
 .vision-card {{ background: {surface}; border: 1px solid {border}; border-radius: 13px; padding: 8px; }}
+.vision-map-controls {{ background: {surface}; border: 1px solid {border}; border-radius: 10px; padding: 4px 7px; }}
+.vision-map-state {{ border-radius: 999px; padding: 4px 9px; font-weight: 800; }}
+.vision-map-state.status-live {{ color: {success}; background: rgba(38,143,101,0.16); }}
+.vision-map-state.status-warn {{ color: {warning}; background: rgba(214,154,36,0.16); }}
+.vision-map-state.status-bad {{ color: {danger}; background: rgba(196,59,67,0.16); }}
+.vision-map-state.status-muted {{ color: {offline}; background: {surface_soft}; }}
+.vision-map-scale {{ color: {text_secondary}; font-weight: 800; padding: 0 3px; }}
+.vision-map-detail {{ color: {text_secondary}; font-weight: 700; }}
+.vision-map-legend {{ color: {text_muted}; background: {surface_soft}; border-radius: 6px; padding: 3px 6px; }}
 .vision-page button {{ background: {surface_raised}; border: 1px solid {border}; border-radius: 18px; padding: 4px 12px; }}
 .vision-page button label {{ color: {text_main}; }}
 .vision-page button:checked {{ background: {primary}; border-color: {primary}; }}
@@ -2291,6 +2300,8 @@ class EventLog(Gtk.Box):
             "ERROR": True, "WARNING": True, "INFO": True,
         }
         self._developer_visible = False
+        self._scroll_source_id: int | None = None
+        self.connect("destroy", self._on_destroy)
         self.filter_box = Gtk.Box(spacing=16)
         self.filter_box.set_valign(Gtk.Align.CENTER)
         filter_labels = {
@@ -2458,15 +2469,28 @@ class EventLog(Gtk.Box):
         self._operation_list.show_all()
         self._user_scroll.set_visible(visible_count > 0)
         self._empty.set_visible(visible_count == 0)
-        GLib.idle_add(self._scroll_operations_to_bottom)
+        if self._scroll_source_id is None:
+            self._scroll_source_id = GLib.idle_add(
+                self._scroll_operations_to_bottom,
+            )
 
     def _scroll_operations_to_bottom(self) -> bool:
+        self._scroll_source_id = None
+        if not self._user_scroll.get_realized():
+            return GLib.SOURCE_REMOVE
         adjustment = self._user_scroll.get_vadjustment()
+        if adjustment is None:
+            return GLib.SOURCE_REMOVE
         adjustment.set_value(max(
             adjustment.get_lower(),
             adjustment.get_upper() - adjustment.get_page_size(),
         ))
         return GLib.SOURCE_REMOVE
+
+    def _on_destroy(self, *_args: object) -> None:
+        if self._scroll_source_id is not None:
+            GLib.source_remove(self._scroll_source_id)
+            self._scroll_source_id = None
 
     def add_event(self, source: str, message: str) -> None:
         stamp = time.strftime("%H:%M:%S")

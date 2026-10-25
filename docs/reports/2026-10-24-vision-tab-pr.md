@@ -151,6 +151,22 @@ AC 인수나 개선율 비교가 아닙니다. `malloc_trim` 후 RSS가 315,148 
 [상세 판정과 원시 자료](2026-10-25-vision-simulation-optimization.md)에 기록했습니다.
 노트북 전원을 다시 연결한 뒤 `--x11 --require-ac` 600초 재실행은 여전히 필요합니다.
 
+### 10/25 최종 지도 UI·repaint 개선
+
+지도 상태 100 ms polling이 문구 변화 없이도 Top/Oblique를 매번 다시 그리던 부분을
+change-driven repaint로 바꿨습니다. 상태 판정 주기는 유지하며 LIVE 문구를 안정화하고,
+동일 raster·동일 문구에는 draw를 요청하지 않습니다. 지도 상태 배지, 현재 표시 배율,
+`기본 보기` 복구, 한 줄 색상 범례와 상세 tooltip도 추가했습니다.
+
+AC/X11·동일 합성 입력의 15초 비전 구간에서 L515 **14.999→14.998 FPS**,
+지도 **2.000→2.000 Hz**, 최대 draw **107.6→119.2 ms**, GTK heartbeat
+**41.9→46.1 ms**로 처리율과 응답성은 유지됐습니다. 콘솔 CPU는 이번 한 쌍에서
+**87.13→79.16%**로 관측됐지만 짧은 단일 측정이고 클럭도 변동하므로 개선율로
+일반화하지 않습니다.
+비전 단위/회귀 **158 passed**, GTK 창 E2E **7 passed**, vision runtime smoke
+**PASS**입니다. [전후 화면·원시 수치](2026-10-25-vision-simulation-optimization.md)를
+보관했습니다. 이 결과 역시 실제 Gateway/L515 인수를 대체하지 않습니다.
+
 ## 동작 영상과 자료
 
 [합성 동작 영상(WebM)](2026-10-24-vision-tab-step7-evidence/vision-synthetic-demo.webm) — 화면에 **합성 입력 시연 · 실기 검증 아님** 표시. 저장소의 합성 시연 원본 파일이며 실제 카메라 인수 영상이 아닙니다.
