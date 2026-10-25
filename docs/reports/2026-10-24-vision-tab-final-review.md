@@ -141,11 +141,11 @@ PR #20은 Draft이며 인수 완료나 병합 완료로 처리하지 않는다.
 | 6.10 | 영상 sync=false 유지 | 기존 sink flag 유지·실제 pipeline 검사 |
 | 6.11 | 누적 대신 최신 프레임 | raw queue max-size-buffers=1/leaky downstream; overload 검사 |
 | 6.12 | 지도 처리와 영상 수신/표시 분리 | map worker와 기존 Gst streaming; receive/decode 생성 추가 없음 |
-| 6.13 | 모든 영역 켠 FPS/지연/CPU/RSS 비교 | 5단계 AC 동일 합성 조건 전후 자료; 실제 camera→screen 지연·실기 전후는 미검증 |
-| 6.14 | 같은 조건 최적화 전/후 비교 | AC 20초 pair 보존; 작은 CPU 차이를 개선율로 주장하지 않음 |
+| 6.13 | 모든 영역 켠 FPS/지연/CPU/RSS 비교 | AC/X11 동일 합성 15초 전후와 최종 600초 자료; 실제 camera→screen 지연·실기 전후는 미검증 |
+| 6.14 | 같은 조건 최적화 전/후 비교 | AC/X11 15초 pair 보존; 짧은 CPU 차이를 보장 개선율로 주장하지 않음 |
 | 6.15 | AC 연결·CPU 클럭 동시 기록 | 5단계/이번 600초 power·주파수·온도 표본; 새 PID sampler는 thermal throttle 누계도 수집 |
 | 6.16 | 발열 clock 제한과 프로그램 병목 구분 | 지표 분리 수집; 8.20초 기록의 원인을 발열/GIL/Wayland 중 하나로 단정하지 않음 |
-| 6.17 | 오래 켜도 끊기지 않음 | 71f5072 계열 AC 합성 600초, 후속 코드 95초 추적과 배터리 600초 결과는 아래; 후속 코드의 AC 재실행은 전원 미연결로 보류. **실기 미검증·이전 정지 원인 미해결** |
+| 6.17 | 오래 켜도 끊기지 않음 | 최종 `eeb97b6` AC/X11 합성 600.001초에서 stall 0·15 FPS·각 지도 1.998 Hz·숨김 렌더 0. **실기 미검증·이전 정지 원인 미해결** |
 
 ### 7. 검증·PR·채팅의 작업 방식
 
@@ -221,8 +221,8 @@ CPU/RSS·AC/clock/temperature는 기존 sample_process로 같은 console_pid를 
 후속 바닥/보정 변경 뒤에는 95초 tracemalloc/RSS 추적에서 L515 14.995 FPS,
 지도 pair 1.989 Hz, draw 최대 192.1 ms, GTK heartbeat 최대 177.7 ms를 기록했고
 callback/worker 오류는 없었다. 전체 원시 표본은 bounded JSONL로 분리했다.
-다만 현재 노트북 전원 센서가 AC/USB 모두 offline이라 `--require-ac` 동일 조건 600초 재실행은
-정식 결과로 채택하지 않고 보류한다.
+다만 당시 노트북 전원 센서가 AC/USB 모두 offline이라 `--require-ac` 동일 조건 600초 재실행은
+정식 결과로 채택하지 않고 보류했다. 이후 최종 코드의 AC/X11 600초 실행을 별도 완료했다.
 
 ### 후속 코드 배터리 600초 관찰
 
@@ -259,8 +259,8 @@ AC 성능 인수나 위 AC 결과와의 개선율 비교로 사용하지 않는�
   [보존 검사](2026-10-24-vision-tab-final-review-evidence/source-boundaries.json),
   [고장 event](2026-10-24-vision-tab-final-review-evidence/negative-drawing-stall-events.json).
 
-**현재 환경에서 가능한 실기 이전 검토는 수행했지만 요구 전체 완료는 아니다. 후속 AC 600초 재실행,
-외부 보정 합의·이전 정지 원인·메모리 증가 확인·실제 HW 인수를 열린 항목으로 유지한다.**
+**현재 환경에서 가능한 실기 이전 검토는 수행했지만 요구 전체 완료는 아니다. 외부 보정 합의,
+이전 정지 원인의 실기 재현 여부·실제 장기 메모리·실제 HW 인수를 열린 항목으로 유지한다.**
 
 ## 10/25 최종 재검토 부록
 
@@ -270,7 +270,13 @@ AC/X11 동일 합성 입력의 짧은 전후 측정에서 카메라 약 15 FPS, 
 최대 video draw/GTK heartbeat 0.5초 미만과 숨김 중 지도 렌더 0회를 다시 확인했다.
 비전 관련 단위/회귀 158개, GTK 실제 창 E2E 7개, vision-only runtime smoke가 통과했다.
 
+최종 commit `eeb97b6`은 AC/X11 합성 입력으로 600.001초 더 실행했다. L515/D435
+각 15.000 FPS, Top/Oblique 각 1.998 Hz, 최대 video draw 120.9 ms, GTK heartbeat
+76.9 ms, stall/callback/worker 오류 0, 숨김 중 지도 렌더 0이었다. CPU 65.15%,
+RSS 327.0→341.3 MiB였고 마지막 60초 범위는 32 KiB였다. AC 표본 596/596,
+OpenBLAS thread 1을 확인했다. 이로써 실기 전 AC/X11 합성 600초 재검증은 닫는다.
+
 이번 보완으로 닫힌 항목은 정상 상태의 반복 지도 repaint와 종료 시 남은 idle callback 경고다.
-AC/X11 **600초** 정식 재실행, 과거 8.20초 정지의 실기 재현 여부, 광민·도현과 자세 보정
-합의, Gateway/L515 10분 인수와 실제 좌표·지연·중복 연결 검증은 계속 미검증이다.
+과거 8.20초 정지의 실기 재현 여부, 광민·도현과 자세 보정 합의, Gateway/L515 10분 인수와
+실제 좌표·지연·중복 연결 검증은 계속 미검증이다.
 [세부 수치와 전후 화면](2026-10-25-vision-simulation-optimization.md)을 참고한다.
