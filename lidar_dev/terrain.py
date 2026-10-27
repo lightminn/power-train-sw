@@ -21,11 +21,16 @@ class TerrainDetector:
         hold_frames=15,
         max_h=2.0,
         front_offset=0.0,
+        min_blob_px=150,
+        persist_frames=3,
     ):
         self.scale = depth_scale
         self.obst_h, self.floor_h, self.max_dist = obst_h, floor_h, max_dist
         self.half_width, self.hold_max = half_width, hold_frames
         self.max_h, self.front_offset = max_h, front_offset
+        self.min_blob_px = min_blob_px  # 이보다 작은 장애물 덩어리는 노이즈로 보고 버림 (0이면 끔)
+        self.persist_frames = persist_frames  # 한 구역에 이 프레임 수만큼 연속으로 보여야 보고 (1이면 끔)
+        self._streak = {"left": 0, "center": 0, "right": 0}
         self.h, self.w = shape
         u, v = np.meshgrid(np.arange(self.w), np.arange(self.h))
         self.v = v
@@ -113,13 +118,19 @@ class TerrainDetector:
         obst = cv2.morphologyEx(
             obst.astype(np.uint8), cv2.MORPH_OPEN, np.ones((5, 5), np.uint8)
         ).astype(bool)
+        if self.min_blob_px > 0 and obst.any():
+            n, lab, st, _ = cv2.connectedComponentsWithStats(obst.astype(np.uint8), connectivity=8)
+            keep = np.zeros(n, bool)
+            keep[1:] = st[1:, cv2.CC_STAT_AREA] >= self.min_blob_px
+            obst = keep[lab]
         self.floor_mask, self.obst_mask = floor, obst
 
         hw = self.half_width
         bands = {"left": lat < -hw, "center": np.abs(lat) <= hw, "right": lat > hw}
         for name, m in bands.items():
             mm = obst & m
-            if mm.any():
+            self._streak[name] = self._streak[name] + 1 if mm.any() else 0
+            if mm.any() and self._streak[name] >= self.persist_frames:
                 out["zones"][name] = round(
                     max(0.0, float(np.percentile(fwd[mm], 2)) - self.front_offset), 2
                 )
