@@ -6,6 +6,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import math
+import os
 from pathlib import Path
 import threading
 import time
@@ -155,6 +156,10 @@ class Rover3DView(Gtk.Box):
             )
             self._server_thread.start()
             self._origin = f"http://127.0.0.1:{self._server.server_port}"
+            # WebKitGTK 2.54's FTL JIT intermittently turns the viewer's
+            # normal smoothing into NaN, rendering whole CAD parts black.
+            # The web process inherits this environment when it is spawned.
+            os.environ.setdefault("JSC_useFTLJIT", "false")
             context = WebKit2.WebContext.new_ephemeral()
             self._view = WebKit2.WebView.new_with_context(context)
             self._view.set_zoom_level(1.0)

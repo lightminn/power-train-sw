@@ -97,7 +97,27 @@ def main():
             assert value["triangles"] < 300000
             assert value["zoomEnabled"] is False and value["panEnabled"] is False
             assert not value["live"]
+            assert value["normalFaultMeshes"] == 0, value["normalRepairs"]
+            assert "failed" not in value["normalRepairs"].values(), value["normalRepairs"]
+            assert value["framing"] == "tight", value["framing"]
             check_page_zoom(widget)
+            evaluate("JSON.stringify(window.rover3d.normalSelfTest())", have_normal_control)
+
+        def have_normal_control(value):
+            nonlocal phase
+            # A black (NaN-normal) part must fail this gate and the fallback must repair it.
+            assert value == dict(before=0, injected=1, status="repaired", repaired=0, after=0), value
+            report.append(dict(normal_negative_control=value))
+            evaluate("JSON.stringify(window.rover3d.framingCheck())", have_framing)
+
+        def have_framing(value):
+            nonlocal phase
+            # The parked frame must lose this raised arm (detector works), the view must
+            # widen until it is visible, and return to the parked frame afterwards.
+            assert value == dict(start="tight", outsideParked=True, raised="wide",
+                                 visibleRaised=True, tilted="wide", visibleTilted=True,
+                                 lowered="tight", probeChildren=0), value
+            report.append(dict(arm_framing=value))
             phase = "inject"
 
         def check_page_zoom(view_widget):
@@ -191,6 +211,7 @@ def main():
         def have_arm_preview(value):
             assert value["viewMode"] == "arm" and value["armLive"] and value["wheels"] == [], value
             assert value["zoomEnabled"] is False and value["panEnabled"] is False
+            assert value["normalFaultMeshes"] == 0, value["normalRepairs"]
             check_page_zoom(console._arm_pose)
             report.append(dict(arm_preview=value))
             save_frame('2026-10-16-arm-only.png', finish, console._arm_pose)
