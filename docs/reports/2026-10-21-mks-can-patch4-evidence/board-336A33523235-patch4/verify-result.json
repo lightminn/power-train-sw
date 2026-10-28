@@ -1,0 +1,83 @@
+{
+  "serial": "336A33523235",
+  "started_at": "2026-10-21T08:53:38.768226+00:00",
+  "operations": [],
+  "candidate_sha256": "15462f7f64745b03d1347fccda8091cd34b795056fefee64f87e794dc8a4b3fc",
+  "original_sha256": "f1e985fc3ae3c43f3deb372301e71e074a6362d9eb33c56407b95195613f864e",
+  "after_axes": [
+    {
+      "current_state": 1,
+      "requested_state": 0,
+      "error": 0,
+      "encoder.pos_estimate": 0.03320838510990143,
+      "encoder.vel_estimate": 0.0,
+      "can_recovery_latched": false,
+      "can_recovery_in_progress": false
+    },
+    {
+      "current_state": 1,
+      "requested_state": 0,
+      "error": 0,
+      "encoder.pos_estimate": 0.03320838510990143,
+      "encoder.vel_estimate": 0.0,
+      "can_recovery_latched": false,
+      "can_recovery_in_progress": false
+    }
+  ],
+  "after_config_diff": [],
+  "can_after_boot": {
+    "reliability_patch": 4,
+    "hal_error": 0,
+    "last_hal_error": 11,
+    "hal_error_history": 11,
+    "recovery_count": 0,
+    "recovery_failure_count": 0,
+    "tx_drop_count": 2685,
+    "tx_error_count": 0,
+    "lec_error_count": 388775,
+    "rx_overrun_count": 0,
+    "bus_off_count": 0,
+    "error_passive_count": 388795,
+    "error_warning_count": 388810
+  },
+  "can_after_3s": {
+    "reliability_patch": 4,
+    "hal_error": 0,
+    "last_hal_error": 11,
+    "hal_error_history": 11,
+    "recovery_count": 0,
+    "recovery_failure_count": 0,
+    "tx_drop_count": 2987,
+    "tx_error_count": 0,
+    "lec_error_count": 432779,
+    "rx_overrun_count": 0,
+    "bus_off_count": 0,
+    "error_passive_count": 432799,
+    "error_warning_count": 432813
+  },
+  "axes_after_3s": [
+    {
+      "current_state": 1,
+      "requested_state": 0,
+      "error": 0,
+      "encoder.pos_estimate": 0.03320838510990143,
+      "encoder.vel_estimate": 0.0,
+      "can_recovery_latched": false,
+      "can_recovery_in_progress": false
+    },
+    {
+      "current_state": 1,
+      "requested_state": 0,
+      "error": 0,
+      "encoder.pos_estimate": 0.03320838510990143,
+      "encoder.vel_estimate": 0.0,
+      "can_recovery_latched": false,
+      "can_recovery_in_progress": false
+    }
+  ],
+  "deadline_counts": [
+    0,
+    0
+  ],
+  "accepted": true
+}

@@ -23,6 +23,21 @@ def stripped(path):
     return re.sub(r'^\s*#(?:include|pragma once)[^\n]*', '', path.read_text(), flags=re.M)
 
 
+DEFINE = re.compile(r'^#define\s+((?:CAN|HAL_CAN_ERROR)_\w+)\s+(.+?)\s*(?:/\*.*)?$')
+
+
+def real_can_defines(root):
+    sources = [root / 'Board/v3/Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f405xx.h',
+               root / 'Board/v3/Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_can.h']
+    lines = []
+    for path in sources:
+        for line in path.read_text(errors='replace').splitlines():
+            match = DEFINE.match(line)
+            if match and not line.rstrip().endswith('\\'):
+                lines.append(f'#define {match.group(1)} {match.group(2)}')
+    return '\n'.join(lines)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('source', type=Path, help='Extracted ODrive-fw-v0.5.1 root or Firmware directory')
@@ -32,14 +47,24 @@ def main():
     interface = root / 'communication/interface_can.hpp'
     patched = 'reliability_patch_' in interface.read_text()
     axis_header = (root / 'MotorControl/axis.hpp').read_text()
-    axis_methods = function(axis_header, 'void clear_errors()') + '\n' + function(axis_header, 'bool inline check_for_errors()')
+    axis_methods = 'template<typename T>\n' + function(axis_header, 'void run_control_loop(const T& update_handler) {') + '\n' + function(axis_header, 'void clear_errors()') + '\n' + function(axis_header, 'bool inline check_for_errors()')
+    for signature in ('void can_control_request(', 'void can_control_feed()',
+                      'void can_control_closed_loop_entry()', 'void can_control_idle_entry()',
+                      'bool can_control_check()'):
+        if signature in axis_header:
+            axis_methods += '\n' + function(axis_header, signature)
     if 'void latch_can_fault(' in axis_header:
         axis_methods += '\n' + function(axis_header, 'void latch_can_fault(')
-    prelude = (local / 'hal_boundary.hpp').read_text().replace('/* ACTUAL_AXIS_METHODS */', axis_methods)
-    fields = '\n'.join(re.findall(r'^\s*(?:bool|uint8_t) can_recovery_\w+_ = [^;]+;', axis_header, re.M))
+    prelude = ((local / 'hal_boundary.hpp').read_text().replace('/* REAL_CAN_DEFINES */', real_can_defines(root)).replace('/* ACTUAL_AXIS_METHODS */', axis_methods))
+    fields = '\n'.join(re.findall(
+        r'^\s*(?:static constexpr (?:uint8_t|uint32_t) kCan\w+ = [^;]+;'
+        r'|(?:bool|uint8_t|uint32_t) (?:can_\w+_|control_deadline_count_) = [^;]+;)',
+        axis_header, re.M))
     prelude = prelude.replace('/* ACTUAL_CAN_AXIS_FIELDS */', fields or
                             'bool can_recovery_latched_=false, can_recovery_in_progress_=false;')
     hal = function((root / 'Board/v3/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_can.c').read_text(), 'HAL_StatusTypeDef HAL_CAN_AddTxMessage(')
+    hal_c = (root / 'Board/v3/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_can.c').read_text()
+    irq_handler = function(hal_c, 'void HAL_CAN_IRQHandler(CAN_HandleTypeDef *hcan)')
     can_source = stripped(root / 'communication/interface_can.cpp')
     # Observe the actual encoder's packet at the TX boundary, including gated
     # attempts during reset. The production write body still executes unchanged.
@@ -48,15 +73,22 @@ def main():
     can_source = can_source.replace(signature, signature + '\n    observe_tx_attempt(txmsg);')
     source = '\n'.join([
         '#define PATCHED ' + str(int(patched)),
+        '#define PATCH4 ' + str(int('take_informational_errors' in interface.read_text())),
+        '#define HAS_ATTEMPTS ' + str(int('can_recovery_attempts_' in axis_header)),
+        '#define HAS_D0 ' + str(int('can_control_check' in axis_header)),
         '#define RECOVERY_METADATA ' + str(int('can_recovery_auto_resume_eligible_' in axis_header)), prelude,
         stripped(root / 'communication/can_helpers.hpp'),
         stripped(interface).replace('private:', 'public:'),
-        stripped(root / 'communication/can_simple.hpp'), hal,
+        stripped(root / 'communication/can_simple.hpp').replace('private:', 'public:'), hal,
         function((root / 'MotorControl/axis.cpp').read_text(), 'void Axis::watchdog_feed()'),
         function((root / 'MotorControl/axis.cpp').read_text(), 'bool Axis::watchdog_check()'),
+        function((root / 'MotorControl/axis.cpp').read_text(), 'bool Axis::run_closed_loop_control_loop() {'),
+        function((root / 'MotorControl/axis.cpp').read_text(), 'bool Axis::run_idle_loop() {'),
+        function((root / 'MotorControl/axis.cpp').read_text(), 'void Axis::run_state_machine_loop() {'),
         function((root / 'MotorControl/low_level.cpp').read_text(), 'void safety_critical_arm_motor_pwm('),
         function((root / 'MotorControl/low_level.cpp').read_text(), 'bool safety_critical_disarm_motor_pwm('),
         can_source,
+        irq_handler,
         stripped(root / 'communication/can_simple.cpp'),
         (local / 'scenarios.cpp').read_text(),
     ])
@@ -74,6 +106,21 @@ def main():
               'resume_generation_wrap', 'resume_reboot_defaults', 'resume_invalid_baud',
               'resume_patch_identity']
     cases += ['guard_resume_success', 'guard_resume_generation', 'guard_resume_new_axis_error', 'guard_resume_estop', 'guard_resume_manual_reinit', 'guard_resume_pending_hal', 'guard_resume_hal_error', 'guard_resume_reinitializing', 'guard_resume_progress', 'guard_resume_nonidle', 'guard_resume_pending_arm', 'guard_resume_motor_error', 'guard_resume_encoder_error', 'guard_resume_controller_error', 'guard_resume_sensorless_error', 'guard_resume_not_latched', 'guard_resume_ineligible', 'guard_resume_external_clear', 'guard_resume_wrong_magic', 'guard_resume_reserved', 'guard_resume_wrong_state', 'guard_resume_invalid_frame', 'guard_resume_pending_idle', 'guard_resume_atomic', 'guard_resume_replay_after_fault', 'guard_resume_late_fault', 'guard_manual_zero', 'guard_manual_empty', 'guard_clear_nonzero', 'guard_clear_old_cas']
+    cases += ['harness_irq_model', 'harness_state_machine', 'harness_estop_exit', 'harness_irq_masked']
+    cases += ['info_lec_no_latch', 'info_overrun_no_latch', 'info_status_no_latch', 'info_mixed_param',
+              'info_state_not_listening', 'info_success_then_burst', 'info_storm',
+              'info_atomic_take', 'info_repeat_recovery_yields',
+              'info_repeat_alternating_yields']
+    cases += ['filter_own_nodes', 'filter_ext_node', 'filter_out_of_range', 'filter_can_node_change',
+              'filter_usb_node_change', 'filter_config_failure',
+              'txid_std_range', 'txid_ext_range', 'txid_write_limit']
+    cases += ['pend_clear_before_latch', 'pend_arm_rejected', 'pend_request_wakes_server']
+    cases += ['k_attempt_limit', 'k_wrap_revoked', 'k_other_axis_clear', 'k_new_episode']
+    cases += ['d0_cmd_timeout', 'd0_grace', 'd0_reentry_can', 'd0_reentry_usb', 'd0_usb_only',
+              'd0_usb_then_can_motion', 'd0_precheck_failure', 'd0_startup_state2', 'd0_calibration_only',
+              'd0_can_idle_request', 'd0_query_only', 'd0_tick_wrap', 'd0_guarded_resume_session',
+              'd0_idle_concurrent_request', 'd0_per_axis', 'd0_idle_feed_ignored', 'd0_reboot_defaults',
+              'd0_expiry_clears_input']
     cases += ['guard_resume_reserved_eligible', 'guard_resume_new_generation', 'guard_resume_no_can', 'guard_manual_state4', 'guard_manual_state8']
     with tempfile.TemporaryDirectory(prefix='mks-source-tests-') as temp:
         cpp, exe = Path(temp) / 'source.cpp', Path(temp) / 'source-tests'

@@ -1,3 +1,5 @@
+// Real Axis::do_updates() ends with check_for_errors() and a CAN heartbeat (axis.cpp).
+bool Axis::do_updates(){bool ret=check_for_errors();if(odCAN)odCAN->send_heartbeat(this);return ret;}
 void run_server(ODriveCAN& can){try{can.can_server_thread();}catch(const StopLoop&){};}
 can_Message_t msg(uint32_t command,bool rtr=false,uint8_t len=8,float first=1,float second=0){can_Message_t m;m.id=(13<<5)|command;m.rtr=rtr;m.len=len;std::memcpy(m.buf,&first,4);std::memcpy(m.buf+4,&second,4);return m;}
 void expect_recovery_frame(Axis& axis,uint8_t flags,uint8_t generation){
@@ -11,10 +13,25 @@ void expect_recovery_frame(Axis& axis,uint8_t flags,uint8_t generation){
 }
 void recover_once(ODriveCAN& can,CAN_HandleTypeDef& h){waits=0;wait_budget=1;h.ErrorCode=HAL_CAN_ERROR_PARAM;run_server(can);}
 can_Message_t guarded_resume(uint8_t generation){auto m=msg(7);std::memset(m.buf,0,8);m.buf[0]=8;m.buf[4]=0xa3;m.buf[5]=generation;return m;}
+void run_one(ODriveCAN& can){waits=0;wait_budget=2;run_server(can);}
+#if PATCH4 && HAS_D0
+struct AxisRun{uint32_t cl_entries=0,first_exit=0;};
+// Runs the real dispatcher until `steps` axis waits; `at(tick)` injects events.
+AxisRun run_axis(Axis& a,uint32_t steps,const std::function<void(uint32_t)>& at){
+ AxisRun r;bool in_cl=a.current_state_==Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;uint32_t n=0;
+ meas_hook=[&](){at(virtual_tick);const bool cl=a.current_state_==Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;
+  if(cl && !in_cl){++r.cl_entries;}
+  if(!cl && in_cl && !r.first_exit){r.first_exit=virtual_tick;}
+  in_cl=cl;
+  if(++n>=steps)throw StopLoop{};};
+ try{a.run_state_machine_loop();}catch(const StopLoop&){}meas_hook=nullptr;return r;}
+void can_state(uint32_t node,uint32_t state){auto m=msg(7,false,4);std::memset(m.buf,0,8);std::memcpy(m.buf,&state,4);m.id=(node<<5)|7;CANSimple::handle_can_message(m);}
+void can_vel(uint32_t node){auto m=msg(13,false,8,0.5f,0);m.id=(node<<5)|13;CANSimple::handle_can_message(m);}
+#endif
 int main(int argc,char** argv){try{
  require(argc==2,"case required");std::string name=argv[1];
  CAN_HandleTypeDef h;ODriveCAN::Config_t cfg;ODriveCAN can(cfg,&h);odCAN=&can;a1.config_.can_node_id=14;can.thread_id_valid_=true;
- for(auto axis:axes){axis->motor_.axis_=axis;axis->motor_.hw_config_.timer=&axis->motor_;}
+ for(auto axis:axes){axis->motor_.axis_=axis;axis->motor_.hw_config_.timer=&axis->motor_;axis->controller_.pos_estimate_linear_src_=&axis->encoder_.pos_estimate_;}
  can_Message_t reply;
  if(name.rfind("guard_",0)==0){
 #if RECOVERY_METADATA
@@ -96,7 +113,7 @@ int main(int argc,char** argv){try{
    a0.error_=0x12345678;expect_recovery_frame(a0,0,0);
   }else if(name=="resume_patch_identity"){
 #if PATCHED
-   require(can.reliability_patch_==3,"patch3 identity missing");
+   require(can.reliability_patch_==4,"patch4 identity missing");
 #else
    require(false,"patch3 identity missing");
 #endif
@@ -113,7 +130,7 @@ int main(int argc,char** argv){try{
    if(name=="resume_manual_then_hal")can.record_hal_error(HAL_CAN_ERROR_PARAM);
    waits=0;wait_budget=1;run_server(can);expect_recovery_frame(a0,1,1);
   }else if(name=="resume_manual_at_dispatch"){
-   unsigned releases=0;on_irq_enable=[&](){if(++releases==2){on_irq_enable=nullptr;can.set_baud_rate(500000);}};
+   on_irq_enable=[&](){if(a0.can_recovery_latched_){on_irq_enable=nullptr;can.set_baud_rate(500000);}};
    during_reinit=[&](){expect_recovery_frame(a0,3,1);during_reinit=nullptr;};
    h.ErrorCode=HAL_CAN_ERROR_PARAM;wait_budget=2;run_server(can);expect_recovery_frame(a0,1,2);
   }else if(name=="resume_manual_during_hal"){
@@ -124,8 +141,13 @@ int main(int argc,char** argv){try{
    a1.current_state_=Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;
    recover_once(can,h);
    if(name=="resume_reinit_revokes")can.reinit_can();else can.set_baud_rate(name=="resume_invalid_baud"?123:500000);
-   expect_recovery_frame(a0,name=="resume_invalid_baud"?5:1,1);
-   expect_recovery_frame(a1,name=="resume_invalid_baud"?5:1,1);
+#if PATCH4
+   const uint8_t revoked=3;  // patch4 D5: the request marks in-progress before the server runs
+#else
+   const uint8_t revoked=1;
+#endif
+   expect_recovery_frame(a0,name=="resume_invalid_baud"?5:revoked,1);
+   expect_recovery_frame(a1,name=="resume_invalid_baud"?5:revoked,1);
   }else if(name=="resume_estop_before" || name=="resume_estop_after"){
    if(name=="resume_estop_after")recover_once(can,h);
    auto m=msg(2,false,0);CANSimple::handle_can_message(m);
@@ -153,7 +175,7 @@ int main(int argc,char** argv){try{
    recover_once(can,h);expect_recovery_frame(a0,1,1);
   }else if(name=="resume_generation_wrap"){
    for(unsigned n=0;n<256;++n)recover_once(can,h);
-   expect_recovery_frame(a0,5,0);
+   expect_recovery_frame(a0,1,0);
   }else if(name=="resume_reboot_defaults"){
    recover_once(can,h);Axis fresh;expect_recovery_frame(fresh,0,0);
   }else throw std::runtime_error("unknown resume scenario");
@@ -174,7 +196,7 @@ int main(int argc,char** argv){try{
 #endif
  }else if(name=="server_error" || name=="server_retry_failure"){
   h.ErrorCode=HAL_CAN_ERROR_PARAM;fail_inits=name=="server_retry_failure"?1:0;wait_budget=3;run_server(can);
-  require(delay_count>0,"error server failed to yield");require(init_calls>0,"API error not recovered");
+  require(name=="server_retry_failure"?delay_count>0:waits>0,"error server failed to yield");require(init_calls>0,"API error not recovered");
   require(h.ErrorCode==0,"retry did not recover");
 #if PATCHED
   require(can.recovery_count_==(name=="server_retry_failure"?2u:1u),"unnecessary recovery retry");
@@ -250,6 +272,290 @@ int main(int argc,char** argv){try{
   require(rcc_reset_count==1 && !can.reinitializing_,"Stop failure did not recover through RCC reset");
 #else
   require(false,"no retained Stop error diagnostic");
+#endif
+ }else if(name=="harness_irq_model"){
+  irq_handle=&h;can.thread_id_valid_=false;can.start_can_server();
+  regs.IER|=CAN_IT_RX_FIFO0_OVERRUN|CAN_IT_ERROR|CAN_IT_LAST_ERROR_CODE;
+  for(int n=0;n<4;++n)deliver((13<<5)|9,false,true);
+  require(fifo[0]==3 && (regs.RF0R&CAN_RF0R_FOVR0),"FIFO model did not overrun at depth 3");
+  fire_can_irq();
+  require(!(regs.RF0R&CAN_RF0R_FOVR0),"real IRQ handler did not clear FOVR0");
+  regs.IER|=CAN_IT_ERROR|CAN_IT_LAST_ERROR_CODE;inject_esr(1u<<CAN_ESR_LEC_Pos);fire_can_irq();
+  require(!(regs.ESR&CAN_ESR_LEC) && !(regs.MSR&CAN_MSR_ERRI),"real IRQ handler did not consume LEC/ERRI");
+ }else if(name=="harness_state_machine"){
+  a0.config_.enable_watchdog=false;uint32_t entered=0,left=0;
+  meas_hook=[&](){
+   if(virtual_tick==1010){auto m=msg(7,false,4);std::memset(m.buf,0,8);uint32_t s=8;std::memcpy(m.buf,&s,4);CANSimple::handle_can_message(m);}
+   if(!entered && a0.current_state_==Axis::AXIS_STATE_CLOSED_LOOP_CONTROL)entered=virtual_tick;
+   if(virtual_tick==1100)a0.requested_state_=Axis::AXIS_STATE_IDLE;
+   if(entered && !left && a0.current_state_==Axis::AXIS_STATE_IDLE)left=virtual_tick;
+   if(virtual_tick>=1200)throw StopLoop{};};
+  virtual_tick=1000;try{a0.run_state_machine_loop();}catch(const StopLoop&){}meas_hook=nullptr;
+  require(entered>1010 && left>1100 && a0.motor_.armed_state_==Motor::ARMED_STATE_DISARMED,"real dispatcher did not enter and leave CLOSED_LOOP with disarm");
+ }else if(name=="harness_estop_exit"){
+  a0.config_.enable_watchdog=false;bool left=false;
+  meas_hook=[&](){
+   if(virtual_tick==1010){auto m=msg(7,false,4);std::memset(m.buf,0,8);uint32_t s=8;std::memcpy(m.buf,&s,4);CANSimple::handle_can_message(m);}
+   if(virtual_tick==1050){auto stop=msg(2,false,0);CANSimple::handle_can_message(stop);}
+   if(virtual_tick>1050 && a0.current_state_==Axis::AXIS_STATE_IDLE)left=true;
+   if(virtual_tick>=1200)throw StopLoop{};};
+  virtual_tick=1000;try{a0.run_state_machine_loop();}catch(const StopLoop&){}meas_hook=nullptr;
+  require(left && (a0.error_&Axis::ERROR_ESTOP_REQUESTED) && a0.motor_.armed_state_==Motor::ARMED_STATE_DISARMED,"axis error did not end CLOSED_LOOP through the real loop");
+ }else if(name=="harness_irq_masked"){
+  irq_handle=&h;can.thread_id_valid_=false;can.start_can_server();regs.IER|=CAN_IT_ERROR|CAN_IT_LAST_ERROR_CODE;
+  can_irqs_disabled=15;inject_esr(1u<<CAN_ESR_LEC_Pos);fire_can_irq();
+  require(blocked_can_irqs==1 && (regs.ESR&CAN_ESR_LEC),"NVIC-disabled CAN IRQ ran");
+  can_irqs_disabled=0;fire_can_irq();require(!(regs.ESR&CAN_ESR_LEC),"re-enabled CAN IRQ did not run");
+ }else if(name.rfind("info_",0)==0){
+#if PATCH4
+  irq_handle=&h;can.thread_id_valid_=false;can.start_can_server();
+  a0.current_state_=Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;
+  if(name=="info_lec_no_latch"){
+   for(uint32_t code=1;code<=6;++code){inject_esr(code<<CAN_ESR_LEC_Pos);fire_can_irq();
+    require(!can.reinit_requested_,"IRQ requested reinit for a bus error");run_one(can);}
+   require(can.lec_error_count_==6 && can.recovery_count_==0 && h.ErrorCode==0,"LEC was not informational");
+  }else if(name=="info_overrun_no_latch"){
+   for(int n=0;n<4;++n)deliver((13<<5)|9,false,true);
+   fire_can_irq();require(!can.reinit_requested_,"IRQ requested reinit for overrun");run_one(can);
+   require(can.rx_overrun_count_==1 && can.recovery_count_==0 && rx_reads==3,"overrun was not informational or FIFO not serviced");
+  }else if(name=="info_status_no_latch"){
+   inject_esr(CAN_ESR_EWGF|CAN_ESR_EPVF|CAN_ESR_BOFF);fire_can_irq();run_one(can);
+   require(can.error_warning_count_==1 && can.error_passive_count_==1 && can.bus_off_count_==1 && can.recovery_count_==0,"status event stopped CAN");
+  }else if(name=="info_mixed_param"){
+   h.ErrorCode=HAL_CAN_ERROR_PARAM|HAL_CAN_ERROR_STF|HAL_CAN_ERROR_FOR|HAL_CAN_ERROR_RX_FOV0;run_one(can);
+   require(can.lec_error_count_==1 && can.rx_overrun_count_==1,"mixed informational bits not counted");
+   require(can.recovery_count_==1 && (can.hal_error_history_&HAL_CAN_ERROR_PARAM),"API error inside a mixed mask was swallowed");
+  }else if(name=="info_state_not_listening"){
+   h.State=HAL_CAN_STATE_READY;run_one(can);require(can.recovery_count_==1,"unexpected HAL state not recovered");
+  }else if(name=="info_success_then_burst"){
+   h.ErrorCode=HAL_CAN_ERROR_PARAM;bool burst=false;
+   on_wait=[&](){if(!burst){burst=true;for(int n=0;n<4;++n)deliver((13<<5)|9,false,true);fire_can_irq();}};
+   waits=0;wait_budget=3;run_server(can);on_wait=nullptr;
+   require(can.recovery_count_==1 && can.rx_overrun_count_==1,"post-recovery burst caused another recovery");
+   require(delay_count==0,"successful recovery still sleeps with RX unattended");
+  }else if(name=="info_atomic_take"){
+   // A new error IRQ right after the server snapshots ErrorCode must not double count the snapshot.
+   h.ErrorCode=HAL_CAN_ERROR_STF|HAL_CAN_ERROR_RX_FOV0;
+   on_error_read=[&](){h.ErrorCode|=HAL_CAN_ERROR_EPV;HAL_CAN_ErrorCallback(&h);};
+   can.take_informational_errors();
+   require(can.lec_error_count_==1 && can.rx_overrun_count_==1 && can.error_passive_count_==1 && h.ErrorCode==0,"informational read-count-clear was not atomic against the error IRQ");
+  }else if(name=="info_repeat_recovery_yields"){
+   // An API error right after every successful recovery: each back-to-back recovery must block.
+   after_start=[&](){h.ErrorCode=HAL_CAN_ERROR_PARAM;};
+   h.ErrorCode=HAL_CAN_ERROR_PARAM;waits=0;wait_budget=20;run_server(can);after_start=nullptr;
+   require(can.recovery_count_>=3 && delay_count+1>=can.recovery_count_,"back-to-back recoveries did not block between attempts");
+  }else if(name=="info_repeat_alternating_yields"){
+   // Codex T2-3 path: recovery → (loop-end activation) RX IRQ leaves a token → the next plain
+   // iteration's wait returns at once and its loop-end activation fails → another recovery.
+   // Recoveries in that cycle still must block between attempts.
+   irq_handle=&h;unsigned activations=0;
+   after_start=[&](){activations=0;activations_before_failure=2;};
+   after_activation=[&](){if(++activations==2){deliver((13<<5)|9,false,true);fire_can_irq();}};
+   h.ErrorCode=HAL_CAN_ERROR_PARAM;waits=0;wait_budget=20;run_server(can);
+   after_start=nullptr;after_activation=nullptr;activations_before_failure=-1;
+   require(can.recovery_count_>=3 && delay_count+1>=can.recovery_count_,"alternating RX/API-failure path bypassed the recovery backoff");
+  }else if(name=="info_storm"){
+   for(uint32_t n=0;n<10000;++n){inject_esr(1u<<CAN_ESR_LEC_Pos);fire_can_irq();if(n%100==99)run_one(can);}
+   run_one(can);
+   require(can.lec_error_count_>0 && can.recovery_count_==0 && h.ErrorCode==0,"LEC storm stopped CAN or left errors");
+   require((regs.IER&CAN_IT_ERROR)!=0,"error notifications not re-enabled after storm");
+   const uint32_t before=can.lec_error_count_;inject_esr(1u<<CAN_ESR_LEC_Pos);fire_can_irq();
+   require(can.lec_error_count_==before+1,"LEC after the storm was not observed (notifications stayed off)");
+  }else throw std::runtime_error("unknown info scenario");
+  if(name!="info_mixed_param" && name!="info_state_not_listening" && name!="info_success_then_burst" && name!="info_repeat_recovery_yields" && name!="info_repeat_alternating_yields")
+   require(a0.error_==0 && !a0.can_recovery_latched_ && !a0.motor_.disarmed,"informational event stopped the motor");
+#else
+  require(false,"patch4 informational classification missing");
+#endif
+ }else if(name.rfind("filter_",0)==0 || name.rfind("txid_",0)==0){
+#if PATCH4
+  irq_handle=&h;
+  if(name=="filter_ext_node"){a0.config_.can_node_id=0x40;a0.config_.can_node_id_extended=true;}
+  if(name=="filter_out_of_range")a0.config_.can_node_id=77;
+  can.thread_id_valid_=false;can.start_can_server();
+  if(name=="filter_own_nodes"){
+   require(deliver((13<<5)|13) && deliver((14<<5)|9,false,true),"own node frames rejected");
+   require(!deliver((15<<5)|13) && !deliver((12<<5)|9,false,true),"foreign node accepted");
+   require(!deliver((13<<5)|13,true) && !deliver(0x00000301,true),"extended or AK frame accepted by STD filter");
+   // EXT ID whose top bits equal STD node 13: only the IDE bit separates it (mask bit 2).
+   require(!deliver(13u<<23,true),"extended frame aliased into the STD node filter (IDE not compared)");
+   require(fifo[0]==2,"FIFO holds foreign traffic");
+   for(uint32_t cmd=0;cmd<32;++cmd)for(bool rtr:{false,true}){
+    require(deliver((13<<5)|cmd,false,rtr) && deliver((14<<5)|cmd,false,rtr),"own node command rejected by filter");
+    require(!deliver((15<<5)|cmd,false,rtr) && !deliver((13<<5)|cmd,true,rtr),"foreign node or EXT frame accepted");}
+  }else if(name=="filter_ext_node"){
+   require(deliver((0x40<<5)|9,true),"extended own node rejected");
+   require(!deliver(((0x40<<5)|9)&0x7FF) && !deliver((13<<5)|9),"STD alias or old node accepted");
+  }else if(name=="filter_out_of_range"){
+   require(!filters[0].FilterActivation,"out-of-range node opened a filter bank");
+   require(!deliver(((77<<5)|9)&0x7FF),"out-of-range node aliased into node13");
+   require(deliver((14<<5)|9),"in-range peer axis lost its filter");
+  }else if(name=="filter_can_node_change" || name=="filter_usb_node_change"){
+   const uint32_t calls=filter_config_calls;
+   if(name=="filter_can_node_change"){auto m=msg(6,false,4);std::memset(m.buf,0,8);uint32_t node=21;std::memcpy(m.buf,&node,4);CANSimple::handle_can_message(m);}
+   else a0.config_.can_node_id=21;
+   run_one(can);
+   require(filter_config_calls>calls && deliver((21<<5)|9) && !deliver((13<<5)|9),"node change did not reprogram the filter");
+  }else if(name=="filter_config_failure"){
+   fail_filter=true;a0.config_.can_node_id=21;waits=0;wait_budget=3;run_server(can);
+   require(can.recovery_count_>=1 && a0.can_recovery_latched_,"filter programming failure was not treated as a HAL failure");
+  }else if(name=="txid_std_range" || name=="txid_ext_range"){
+   const bool ext=name=="txid_ext_range";
+   auto send_all=[&](){can_Message_t q=msg(9,true);CANSimple::send_heartbeat(&a0);
+    CANSimple::get_motor_error_callback(&a0,q);CANSimple::get_encoder_error_callback(&a0,q);
+    CANSimple::get_sensorless_error_callback(&a0,q);CANSimple::get_encoder_estimates_callback(&a0,q);
+    CANSimple::get_sensorless_estimates_callback(&a0,q);CANSimple::get_encoder_count_callback(&a0,q);
+    CANSimple::get_iq_callback(&a0,q);CANSimple::get_vbus_voltage_callback(&a0,q);};
+   std::vector<uint32_t> rejected=ext?std::vector<uint32_t>{0x0800000Du}:std::vector<uint32_t>{0x40u,77u,0x0800000Du};
+   for(uint32_t node:rejected){
+    a0.config_.can_node_id=node;a0.config_.can_node_id_extended=ext;
+    const uint32_t drops=can.tx_drop_count_;observed_tx_len=0xff;send_all();
+    require(observed_tx_len==0xff,"out-of-range node reached CAN write");
+    require(can.tx_drop_count_==drops+9,"each out-of-range TX site must count one drop");
+   }
+   if(ext)for(uint32_t node:{0x40u,77u}){
+    a0.config_.can_node_id=node;a0.config_.can_node_id_extended=true;observed_tx_len=0xff;
+    CANSimple::send_heartbeat(&a0);
+    require(observed_tx_len==8 && observed_tx_id==((node<<5)|1),"valid extended node blocked or mis-encoded");
+   }
+  }else if(name=="txid_write_limit"){
+   can_Message_t m;m.isExt=false;m.id=0x800;const uint32_t drops=can.tx_drop_count_;const uint32_t tsr=regs.TSR;
+   require(can.write(m)==0 && can.tx_drop_count_==drops+1 && regs.TSR==tsr,"STD ID above 0x7FF reached HAL");
+   m.isExt=true;m.id=0x20000000;require(can.write(m)==0 && can.tx_drop_count_==drops+2,"EXT ID above 29 bits reached HAL");
+   m.id=0x1FFFFFFF;require(can.write(m)!=0,"maximum valid EXT ID rejected");
+  }else throw std::runtime_error("unknown filter/txid scenario");
+#else
+  require(false,"patch4 node filter/TX range missing");
+#endif
+ }else if(name.rfind("pend_",0)==0){
+#if PATCH4
+  a0.current_state_=Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;
+  if(name=="pend_clear_before_latch"){
+   can.record_hal_error(HAL_CAN_ERROR_PARAM);
+   require(a0.can_recovery_in_progress_ && !a0.can_recovery_latched_,"request did not mark the axes in progress");
+   a0.encoder_.spi_error_rate_=0.5f;a0.clear_errors();
+   require(a0.encoder_.spi_error_rate_==0.5f,"clear accepted while a reinit is pending");
+   run_one(can);expect_recovery_frame(a0,1,1);  // rejected clear still revoked eligibility
+  }else if(name=="pend_arm_rejected"){
+   can.set_baud_rate(500000);a0.motor_.armed_state_=Motor::ARMED_STATE_DISARMED;
+   safety_critical_arm_motor_pwm(a0.motor_);
+   require(a0.motor_.armed_state_==Motor::ARMED_STATE_DISARMED,"pending reinit allowed PWM arm");
+  }else if(name=="pend_request_wakes_server"){
+   sem_releases=0;can.set_baud_rate(500000);can.reinit_can();can.record_hal_error(HAL_CAN_ERROR_PARAM);
+   require(sem_releases==3,"reinit request did not wake the CAN server");
+  }else throw std::runtime_error("unknown pend scenario");
+#else
+  require(false,"patch4 pending-request marking missing");
+#endif
+ }else if(name.rfind("k_",0)==0){
+#if PATCH4 && HAS_ATTEMPTS
+  a0.current_state_=Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;
+  if(name=="k_attempt_limit"){
+   for(unsigned n=1;n<=16;++n){recover_once(can,h);expect_recovery_frame(a0,5,uint8_t(n));}
+   recover_once(can,h);expect_recovery_frame(a0,1,17);
+  }else if(name=="k_wrap_revoked"){
+   for(unsigned n=0;n<256;++n){recover_once(can,h);}
+   expect_recovery_frame(a0,1,0);
+   for(unsigned n=0;n<256;++n){recover_once(can,h);}
+   expect_recovery_frame(a0,1,0);
+  }else if(name=="k_other_axis_clear"){
+   a1.current_state_=Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;
+   for(unsigned n=0;n<10;++n)recover_once(can,h);
+   a1.current_state_=Axis::AXIS_STATE_IDLE;a1.requested_state_=Axis::AXIS_STATE_UNDEFINED;a1.clear_errors();
+   require(!a1.can_recovery_latched_,"peer clear rejected");
+   for(unsigned n=0;n<7;++n)recover_once(can,h);
+   expect_recovery_frame(a0,1,17);
+  }else if(name=="k_new_episode"){
+   for(unsigned n=0;n<17;++n)recover_once(can,h);
+   a0.current_state_=Axis::AXIS_STATE_IDLE;a0.requested_state_=Axis::AXIS_STATE_UNDEFINED;a0.clear_errors();
+   require(a0.can_recovery_attempts_==0 && !a0.can_recovery_episode_revoked_,"accepted clear did not end the episode");
+   a0.current_state_=Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;recover_once(can,h);expect_recovery_frame(a0,5,18);
+  }else throw std::runtime_error("unknown k scenario");
+#else
+  require(false,"patch4 attempt limit missing");
+#endif
+ }else if(name.rfind("d0_",0)==0){
+#if PATCH4 && HAS_D0
+  a0.config_.enable_watchdog=false;a1.config_.enable_watchdog=false;virtual_tick=1000;
+  auto watchdog_bit=[&](){return (a0.error_&Axis::ERROR_WATCHDOG_TIMER_EXPIRED)!=0;};
+  if(name=="d0_cmd_timeout"){
+   // Tick accounting: the feed at hook tick F is checked at the start of each loop
+   // iteration; F+300 passes, F+301 expires, and the next wait (in IDLE) is F+302.
+   auto r=run_axis(a0,2000,[&](uint32_t t){if(t==1010)can_state(13,8);if(t==1020)can_vel(13);});
+   require(r.first_exit==1322,"CAN command deadline not at last feed + 301 ms");
+   require(watchdog_bit() && a0.control_deadline_count_==1,"deadline error/count missing");
+   require(a0.motor_.armed_state_==Motor::ARMED_STATE_DISARMED,"expiry did not disarm PWM through the real IDLE path");
+  }else if(name=="d0_expiry_clears_input"){
+   // A D0 stop must not leave the old command armed for a later (e.g. USB) re-arm.
+   auto r=run_axis(a0,2000,[&](uint32_t t){if(t==1010)can_state(13,8);if(t==1020)can_vel(13);});
+   require(r.first_exit==1322 && a0.controller_.input_vel_==0 && a0.controller_.input_torque_==0 &&
+           a0.controller_.input_pos_==a0.encoder_.pos_estimate_,"D0 expiry left the previous setpoint in place");
+  }else if(name=="d0_grace"){
+   auto r=run_axis(a0,2000,[&](uint32_t t){if(t==1010)can_state(13,8);});
+   require(r.first_exit==1512 && watchdog_bit(),"grace not CLOSED_LOOP entry + 501 ms");
+  }else if(name=="d0_reentry_can" || name=="d0_reentry_usb"){
+   const bool usb=name=="d0_reentry_usb";
+   auto r=run_axis(a0,2000,[&](uint32_t t){if(t==1010)can_state(13,8);if(t==1020)can_vel(13);
+    if(t==1120||t==1220){if(usb)a0.requested_state_=Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;else can_state(13,8);}});
+   require(r.first_exit==1322,"state8 re-entry extended the deadline");
+  }else if(name=="d0_usb_only"){
+   auto r=run_axis(a0,3000,[&](uint32_t t){if(t==1010)a0.requested_state_=Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;});
+   require(r.cl_entries==1 && r.first_exit==0 && !a0.can_owner_ && !watchdog_bit(),"USB-only session supervised by the CAN deadline");
+  }else if(name=="d0_usb_then_can_motion"){
+   auto r=run_axis(a0,3000,[&](uint32_t t){if(t==1010)a0.requested_state_=Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;if(t==2000)can_vel(13);});
+   require(r.first_exit==2302,"CAN motion on a USB-armed axis escaped the deadline");
+  }else if(name=="d0_precheck_failure"){
+   a0.motor_.config_.direction=0;
+   auto r=run_axis(a0,4000,[&](uint32_t t){if(t==1010)can_state(13,8);
+    if(t==1100){a0.motor_.config_.direction=1;a0.requested_state_=Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;}});
+   require(r.cl_entries==1 && r.first_exit==0 && !watchdog_bit(),"failed CAN arm left ownership that expired a USB session");
+  }else if(name=="d0_startup_state2"){
+   a0.config_.startup_motor_calibration=true;a0.config_.startup_closed_loop_control=true;calibration_ms=30000;
+   auto r=run_axis(a0,40000,[&](uint32_t t){if(t==1010)can_state(13,2);});
+   require(r.first_exit==31512 && watchdog_bit(),"CAN startup chain grace not measured from CLOSED_LOOP entry");
+  }else if(name=="d0_calibration_only"){
+   calibration_ms=1000;
+   auto r=run_axis(a0,5000,[&](uint32_t t){if(t==1010)can_state(13,3);});
+   require(r.cl_entries==0 && !a0.can_owner_ && !watchdog_bit(),"calibration-only CAN request left a session or expired");
+  }else if(name=="d0_can_idle_request"){
+   bool owner_after_request=false;
+   auto r=run_axis(a0,2000,[&](uint32_t t){if(t==1010)can_state(13,8);if(t==1020)can_vel(13);
+    if(t==1050){can_state(13,1);owner_after_request=a0.can_owner_;}});
+   require(owner_after_request && r.first_exit==1051 && !a0.can_owner_ && !watchdog_bit(),"CAN IDLE request handling wrong");
+  }else if(name=="d0_query_only"){
+   auto r=run_axis(a0,2000,[&](uint32_t t){if(t==1010)can_state(13,8);
+    if(t>1010){auto q=msg(9,true);CANSimple::handle_can_message(q);auto iq=msg(20,true);CANSimple::handle_can_message(iq);CANSimple::send_heartbeat(&a0);}});
+   require(r.first_exit==1512,"queries or heartbeats fed the CAN deadline");
+  }else if(name=="d0_tick_wrap"){
+   virtual_tick=0xFFFFFF00u-20u;
+   auto r=run_axis(a0,1000,[&](uint32_t t){if(t==0xFFFFFF00u-10u)can_state(13,8);if(t==0xFFFFFF00u)can_vel(13);});
+   require(r.first_exit==uint32_t(0xFFFFFF00u+302u),"tick wrap changed the deadline");
+  }else if(name=="d0_guarded_resume_session"){
+   a0.current_state_=Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;recover_once(can,h);
+   a0.current_state_=Axis::AXIS_STATE_IDLE;a0.requested_state_=Axis::AXIS_STATE_UNDEFINED;
+   auto r=run_axis(a0,2000,[&](uint32_t t){if(t==1010){auto m=guarded_resume(1);CANSimple::handle_can_message(m);}});
+   require(r.cl_entries==1 && r.first_exit==1512,"resumed session without input escaped the deadline");
+  }else if(name=="d0_idle_concurrent_request"){
+   // Method policy: an IDLE entry that finds a request already pending keeps that
+   // request's ownership. CAN requests come from the Normal-priority server thread,
+   // which cannot preempt the axis thread inside the dispatcher, so the real loop
+   // never reaches this case; the test pins the policy if that ever changes.
+   can_state(13,8);a0.current_state_=Axis::AXIS_STATE_IDLE;a0.can_control_idle_entry();
+   require(a0.can_owner_,"IDLE entry dropped a concurrent CAN request");
+  }else if(name=="d0_per_axis"){
+   can_state(13,8);a0.requested_state_=Axis::AXIS_STATE_UNDEFINED;a0.current_state_=Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;
+   a0.can_control_closed_loop_entry();can_vel(13);
+   a1.current_state_=Axis::AXIS_STATE_CLOSED_LOOP_CONTROL;
+   virtual_tick=1301;require(!a0.watchdog_check() && a1.watchdog_check() && a1.error_==0,"deadline not per axis");
+  }else if(name=="d0_idle_feed_ignored"){
+   can_vel(13);require(!a0.can_owner_,"IDLE motion created a CAN session");
+  }else if(name=="d0_reboot_defaults"){
+   Axis fresh;
+   require(!fresh.can_owner_ && !fresh.can_feed_valid_ && !fresh.can_entry_recorded_ && fresh.control_deadline_count_==0,"D0 RAM defaults");
+   require(fresh.can_recovery_attempts_==0 && !fresh.can_recovery_episode_revoked_,"D4/D5 RAM defaults");
+  }else throw std::runtime_error("unknown d0 scenario");
+#else
+  require(false,"patch4 CAN control deadline missing");
 #endif
  }else throw std::runtime_error("unknown scenario");
  require(irq_mask==0,"critical section leaked");std::cout<<"ok\n";return 0;

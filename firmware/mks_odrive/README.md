@@ -1,8 +1,10 @@
-# MKS ODrive v3.6 CAN reliability patch 3
+# MKS ODrive v3.6 CAN reliability patch 4
 
 고정한 Makerbase **0.5.1 소스**에 적용하는 재현 가능한 패치다. 실물에서 읽은
 `0.5.1 unreleased` 바이너리와 제조사 ZIP의 동일성은 **입증되지 않았다**.
 아래 호스트 시험은 실제 소스를 실행하지만 STM32 실행·IRQ 지연·모터 제동 검증은 아니다.
+patch4의 설계와 검토 기록은 [patch4 설계](../../docs/specs/2026-10-15-mks-can-patch4.md),
+구현 순서와 검증 로그는 [patch4 계획](../../docs/plans/2026-10-15-mks-can-patch4.md)을 따른다.
 
 ## 소스 준비와 실행 시험
 
@@ -13,23 +15,27 @@
 python firmware/mks_odrive/prepare_source.py \
   --zip /path/to/mks-v36-fw051.zip --dest /tmp/mks-original --unpatched
 python firmware/mks_odrive/tests/run_source_tests.py /tmp/mks-original
-# 기대: 4 passed, 82 failed (수정 계약에 대한 원본의 RED)
+# 기대: 8 passed, 126 failed (수정 계약에 대한 원본의 RED)
 
 python firmware/mks_odrive/prepare_source.py \
   --zip /path/to/mks-v36-fw051.zip --dest /tmp/mks-patched
 python firmware/mks_odrive/tests/run_source_tests.py /tmp/mks-patched
-# 기대: 86 passed, 0 failed
+# 기대: 134 passed, 0 failed
 python firmware/mks_odrive/tests/test_prepare.py --zip /path/to/mks-v36-fw051.zip
-# 기대: 준비 도구 3개 통과 + 새 추출/패치 소스에서 86개 통과
+# 기대: 준비 도구 3개 통과 + 새 추출/패치 소스에서 134개 통과
+python firmware/mks_odrive/tests/test_regen_patch.py   # MKS_VENDOR_ZIP 필요
+# 기대: 2개 통과 (regen_patch.py가 작업 트리를 정확히 재현)
 ```
 
-patch3의 최종 계약은 보존한 patch2 소스에서 **49 passed, 37 failed**를 확인했다.
-구현 전 guarded clear 반례와 atomic RESUME 반례를 각각 RED로 실행했고, 최종 시험은
-자동 복구 자격·취소·세대와 원자적 clear/zero/state 요청을 함께 검사한다. 현재 오류,
-자격, 세대, CAN pending/HAL 오류, motor 오류, critical 원자성, reserved metadata,
-manual clear payload를 각각 깨뜨린 9개 변이가 지정된 실제 소스 반례에서 실패했다.
-기존 patch2의 provenance 계약도 함께 유지한다. 준비 시험의 전체 재생은 `--zip` 또는
-`MKS_VENDOR_ZIP`이 필요하며, 미지정 시 해당 시험만 명시적으로 skip한다.
+patch4의 계약은 patch3 소스(음성 대조)에서 **88 passed, 46 failed**를 확인했다. 계약마다
+구현 전 RED를 보고 구현했으며, 다음 변이가 지정 시험에서 실패한다: 정보성 mask에서 RX_FOV 제외,
+복구 성공 뒤 대기 복원, 반복 복구 백오프 제거, `take_informational_errors`의 critical 제거,
+이동 전 node 검사 제거, STD 필터의 IDE 비교 제거, 래치 자격에서 `episode_revoked` 무시,
+시도 상한 255, `run_control_loop`의 `watchdog_ok` 무시, 만료 비교 `>=`, 세션 시작 비멱등,
+IDLE 진입이 대기 요청 무시. patch3의 provenance·guarded RESUME 계약도 함께 유지한다.
+준비 시험의 전체 재생은 `--zip` 또는 `MKS_VENDOR_ZIP`이 필요하며, 미지정 시 해당 시험만
+명시적으로 skip한다. 패치를 고칠 때는 벤더 소스를 직접 수정한 작업 트리에서
+`regen_patch.py --original <원본> --work <작업 트리>`로 `reliability.patch`를 다시 만든다.
 
 원본 ZIP SHA256:
 `1c9ff347f997bbbf8cb693cdb44d93fe6f6ef992aefde60b6a65b0e1fa25a777`.
@@ -38,13 +44,17 @@ manual clear payload를 각각 깨뜨린 9개 변이가 지정된 실제 소스 
 벤더 소스 전체와 기존 바이너리는 저장소에 복제하지 않는다.
 
 시험은 `interface_can.cpp`, `can_simple.cpp`의 전체 구현 및 실제 헤더 선언,
-원문 `HAL_CAN_AddTxMessage`, Axis의 watchdog/clear/latch/error-check 함수,
-실제 PWM arm/disarm 함수를 컴파일한다. RTOS 스케줄링·레지스터·FIFO·모터 주변장치가
-경계 stub이다. 마지막 슬롯 확인 직후의 선점은 PRIMASK 해제까지 지연되며, HAL 상태
-고장은 IRQ 마스킹과 무관하게 주입한다. `get_watchdog_reset()`은 설정 계산 경계이며
-호출 횟수와 결정적인 작은 tick 수를 제공한다. 실제 watchdog 감소·만료 코드는 원문이다.
-heartbeat 데이터는 실제 송신 함수가 만든 패킷을 `write()` 진입 경계에서 관측한다.
-재초기화 중 관측한 패킷은 송신 시도에 해당하며, 기존 TX gate가 실제 HAL 전송을 막는다.
+원문 `HAL_CAN_AddTxMessage`와 `HAL_CAN_IRQHandler`, 실제 CMSIS/HAL CAN 상수,
+Axis의 watchdog/clear/latch/error-check·CAN 제어 세션 함수, 실제 `run_state_machine_loop`·
+`run_control_loop`·`run_closed_loop_control_loop`·`run_idle_loop`, 실제 PWM arm/disarm 함수를
+컴파일한다. 경계 모형은 다음과 같다: bxCAN 레지스터(IER/MSR/ESR/RF0R/TSR, 쓰기-1-클리어),
+깊이 3 FIFO와 overrun 시 마지막 메시지 덮어쓰기, CAN1 소유 bank·mask/list 모드 필터, NVIC
+차단 중 CAN IRQ 미실행(MspInit 경로에서만 재활성화), 이진 세마포어, 축 루프 대기마다 1 ms
+진행하는 가상 tick. 캘리브레이션·엔코더·모터 갱신은 결정적 stub이며, `do_checks`/`do_updates`는
+실제처럼 `check_for_errors()`로 루프를 끝내고 heartbeat를 보낸다. 마지막 슬롯 확인 직후의
+선점과 ErrorCode 읽기 직후의 IRQ는 PRIMASK 해제까지 지연된다. 실제 watchdog 감소·만료
+코드는 원문이다. heartbeat 데이터는 실제 송신 함수가 만든 패킷을 `write()` 진입 경계에서
+관측한다.
 
 ## 빌드
 
@@ -67,7 +77,7 @@ python firmware/mks_odrive/build_firmware.py \
 출력을 성공으로 취급하지 않는다. **이전 patch1의 비교 기준**은 ELF 1,102,364 bytes
 (`fd75b613…22d2`), BIN 247,880 bytes (`75678094…c710`),
 text/data/bss/dec = 246244/1580/136064/383888이다.
-patch3는 코드가 달라 이 값과 일치하지 않는다. 빌드 매니페스트는 현재 패치 ID와
+patch4는 코드가 달라 이 값과 일치하지 않는다(2026-10-15 patch4 빌드: ELF 1,103,132 bytes, BIN 251,868 bytes). 빌드 매니페스트는 현재 패치 ID와
 `reference_reliability_patch=1`을 구분하며, 현재 산출물의 크기·SHA256을 별도로 기록한다.
 
 이미지가 없는 머신은 다음 Dockerfile로 대체 이미지를 만들고 `--image`로 지정할 수 있다.
@@ -86,10 +96,48 @@ python firmware/mks_odrive/build_firmware.py \
 패키지 저장소 상태와 transitive dependency 때문에 Dockerfile 재빌드의 image ID나 산출물
 바이트 동일성은 별도 입증 대상이다. 스크립트는 실제 비교 결과를 기록하며 환경 간 동일성을
 가정하지 않는다. 패치의 version generator는 **0.5.1-dev /
-fw_version_unreleased=1**을 생성하고 식별자는 `can.reliability_patch == 3`이다.
+fw_version_unreleased=1**을 생성하고 식별자는 `can.reliability_patch == 4`이다.
 이 경로는 ZIP·벤더 소스·바이너리를 저장소에 복제하지 않으며 flash 동작을 전혀 수행하지 않는다.
 
 ## 런타임 계약
+
+patch4가 더한 계약(설계 D0~D5)을 먼저 적고, patch3에서 이어지는 계약을 그 뒤에 둔다.
+
+- **D1 오류 분류.** HAL `ErrorCode`의 정보성 비트 `0x000007FF`(EWG·EPV·BOF 사건·LEC
+  STF/FOR/ACK/BR/BD/CRC·RX_FOV0/1)는 계수(`lec_error_count`·`rx_overrun_count`·`bus_off_count`·
+  `error_passive_count`·`error_warning_count`)한 뒤 그 비트만 지우며, 재초기화·래치·정지를 하지
+  않는다. 읽기→계수→지우기는 한 PRIMASK 구간에서 하고, IRQ 문맥(`HAL_CAN_ErrorCallback`)은
+  재초기화를 요청하지 않는다. API 계열 비트(PARAM 등)가 남아 있거나 재초기화 중이 아닌데
+  handle State가 LISTENING이 아니면 재초기화한다. 정보성 비트만으로는 송·수신을 막지 않는다.
+- **D2 수신 필터와 송신 ID.** CAN1 bank0/bank1은 각 축 node만 받는다(STD id `node<<26`·mask
+  `0xFC000004`, EXT id `(node<<8)|4`·mask `0xFFFFFF04`, RTR don't-care, FIFO0,
+  `SlaveStartFilterBank=14`). 범위 밖 node는 bank를 비활성화한다. node 설정이 바뀌면 서버
+  루프가 필터를 다시 쓴다(실패 시 재초기화). 송신은 ID를 만들기 전에 node 범위(STD ≤ `0x3F`,
+  EXT ≤ `0xFFFFFF`)를 검사하고, `write()`도 STD ≤ `0x7FF`·EXT ≤ `0x1FFFFFFF`를 확인한다.
+  어긋나면 HAL에 넘기지 않고 `tx_drop_count`로 센다.
+- **D3 복구 뒤 대기.** 복구에 성공하면 대기 없이 RX 서비스로 돌아간다. 마지막으로 성공한
+  복구로부터 10 ms 안에 다시 복구해야 하면 그 시도 전에 `osDelay(10)`으로 반드시 차단한다.
+  실패한 시도도 10 ms 양보한다.
+- **D4 시도 상한.** 축별 래치 에피소드(래치 설정~해제)의 복구 시도를 포화 카운터로 세고,
+  17번째 시도부터 그 에피소드의 자동 재개 자격을 복구하지 않는다(세대는 계속 증가).
+  에피소드 사이의 세대 재사용은 호스트 송신 경로의 같은 ID 순서 보존을 운용 전제로 막으며,
+  그 실측은 자동 재개 의존 운용의 인수 게이트다.
+- **D5 요청 표시.** 모든 재초기화 요청은 즉시 양축 `can_recovery_in_progress`를 세운다(수동이면
+  자격 취소와 에피소드 취소 표시도). `clear_errors()`는 in-progress이거나 래치가 IDLE 전이면
+  거절하되 자격은 먼저 취소하며, PWM arm도 in-progress 동안 거절한다. 래치(PWM disarm·입력 0·
+  IDLE 요청)는 CAN 서버 스레드에서만 건다.
+- **D0 CAN 제어 수신 만료.** CAN으로 시작한 제어 세션의 CLOSED_LOOP에서 유효 CAN motion
+  setpoint를 마지막으로 수락한 뒤 300 ms(첫 setpoint 전에는 첫 CLOSED_LOOP 진입 뒤 500 ms)를
+  넘기면 `ERROR_WATCHDOG_TIMER_EXPIRED`로 루프를 끝내고 실제 IDLE 경로로 PWM을 끈다
+  (`enable_watchdog`과 무관, `control_deadline_count` 증가, 자동 재개 자격 없음). 세션은
+  IDLE 이외의 CAN 상태 요청(guarded RESUME 포함)이나 CLOSED_LOOP 중 CAN motion 수락으로
+  시작하고, 상태머신이 실제 IDLE을 요청 없이 실행할 때만 끝난다. state8 재진입은 타이머를
+  갱신하지 않는다. USB로만 운전하는 축은 대상이 아니다. 기준 시각은 보드의 마지막 수락
+  시각이며 호스트 송신 큐 지연만큼 늦어질 수 있다. 부팅 자동 시작은 CAN 세션이 아니므로
+  **모든 `startup_*`=false가 D0의 필수 전제**다. 만료하면 입력(vel/torque 0, pos=현재 위치)도
+  지워 이후 재무장이 이전 지령을 재생하지 않는다. CAN으로 arm하고 setpoint를 300 ms보다 길게
+  끊는 기존 도구(motor_gui `odrive_can` 트랙, `motor_control/drive/bl70200/can_drive_test.py`)는
+  patch4 보드에서 0x800으로 멈춘다 — 오진하지 말 것. 운용 경로(ChassisManager)는 50 Hz로 보낸다.
 
 - `write()`는 짧은 PRIMASK 구간에서 TX 허용 여부·빈 슬롯·HAL 등록을 함께 처리한다.
   세 슬롯이 모두 차면 `0`을 반환하고 drop을 센다. 재시도·blocking mutex는 없다.
@@ -106,7 +154,7 @@ fw_version_unreleased=1**을 생성하고 식별자는 `can.reliability_patch ==
   수행한다. 벤더 DeInit은 clock을 끈 뒤 MCR_RESET를 쓰므로 이 경로를 사용하지 않는다. `rx_discard_count`는 리셋 직전 FIFO
   관측 수이며 리셋 중 도착한 프레임의 정확한 총 폐기량을 뜻하지 않는다.
 - HAL 재초기화와 RTOS 대기는 **IRQ를 마스킹하지 않는다**. 벤더 HAL Init/Stop/Start의
-  각 poll은 `CAN_TIMEOUT_VALUE=10 ms` 제한이 있다. 실패와 성공 복구 모두 10 ms 양보하며,
+  각 poll은 `CAN_TIMEOUT_VALUE=10 ms` 제한이 있다. 양보 규칙은 위 D3를 따르며,
   실패하면 다음 유한 시도까지 정지 래치와 I/O 차단을 유지한다. HAL/RTOS tick 자체가
   멎는 고장은 이 소스 시험의 보장 범위가 아니다. PRIMASK 실행시간은 MCU에서 측정해야 한다.
 - 재초기화는 CLOSED_LOOP를 요청하거나 ESTOP를 자동 해제하지 않는다. Axis가 실제
@@ -141,7 +189,7 @@ fw_version_unreleased=1**을 생성하고 식별자는 `can.reliability_patch ==
   허용한다. 적용 대상은 **모든 `startup_*` 설정이 false인 보드**로 제한하고 flash 전과
   부팅 후 대조한다. 래치는 RAM 상태이므로 전원·USB reboot·CAN Reset ODrive 명령으로
   MCU가 재시작하면 사라진다. 재부팅을 가로질러 래치를 보존한다고 주장하지 않는다.
-  startup 자동진입이 켜진 보드는 이 운용 계약의 인수 대상이 아니다.
+  startup 자동진입이 켜진 보드는 이 운용 계약의 인수 대상이 아니며, D0 만료도 적용되지 않는다.
 
 ## Watchdog와 호스트 입력
 
@@ -168,19 +216,23 @@ USB Fibre에서 input 값을 쓰는 것만으로는 watchdog이 갱신되지 않
 
 | 속성 | 의미 |
 |---|---|
-| `can.reliability_patch` | 이 패치의 정수 식별자 `3` |
+| `can.reliability_patch` | 이 패치의 정수 식별자 `4` |
 | `can.hal_error` | 현재 STM32 HAL ErrorCode 값 |
 | `can.last_hal_error` | 가장 최근에 기록한 0이 아닌 HAL 오류 snapshot |
 | `can.hal_error_history` | 부팅 이후 기록한 HAL 오류의 OR |
-| `can.tx_drop_count` | mailbox 부족/재초기화 배제/잘못된 내부 DLC의 송신 drop |
+| `can.tx_drop_count` | mailbox 부족/재초기화 배제/잘못된 내부 DLC/범위 밖 node·ID의 송신 drop |
 | `can.tx_error_count` | HAL 오류로 거절하거나 AddTxMessage가 실패한 송신 |
 | `can.recovery_count` | USB 정비 요청을 포함한 재초기화 시도 수 |
 | `can.recovery_failure_count` | HAL 재초기화가 실패한 시도 수 |
 | `can.rx_discard_count` | 리셋 직전 관측한 오래된 FIFO 프레임 수 |
 | `can.reinit_requested`, `can.reinitializing` | 대기/진행 중 상태 |
+| `can.lec_error_count` | 정보성 LEC(stuff/form/ACK/bit/CRC) 사건 수 |
+| `can.rx_overrun_count` | 정보성 RX FIFO overrun 사건 수 |
+| `can.bus_off_count`, `can.error_passive_count`, `can.error_warning_count` | 정보성 bus-off·error passive·error warning 사건 수 |
 | `axisN.can_recovery_latched`, `axisN.can_recovery_in_progress` | 운전 금지 래치/복구 진행 |
 | `axisN.can_recovery_auto_resume_eligible` | 자동 HAL 복구가 중단한 건강한 폐루프 축의 재개 자격 |
 | `axisN.can_recovery_generation` | 각 복구 시도마다 증가하는 uint8 세대, 255→0 wrap |
+| `axisN.control_deadline_count` | D0 CAN 제어 수신 만료 횟수 |
 
 heartbeat는 error의 little-endian 4바이트와 **byte4 axis state**를 그대로 유지한다.
 byte5는 `0xA3`, byte6의 bit0/1/2는 각각 latch/in-progress/eligible이며 나머지 비트는 0이다.
