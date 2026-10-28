@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "i2c_bus": 7,
+  "read_hz": 20.0,
+  "max_age_s": 0.5,
+  "calibrated_frame": "urdf_joint",
+  "publish_unverified": false,
+  "note": "AS5048B x4 on Jetson 40-pin pins 3 (SDA)/5 (SCL); bus number 7 is unverified on hardware. Addresses 0x40-0x43 confirmed by user 2026-10-28; the joint<->address mapping and signs are PLACEHOLDERS (signs = joint_to_encoder_sign from simulation/jetin_rover_description/config/as5048b_encoders.json). joint_rad = sign * wrap_pi((raw - zero_counts) * 2pi/16384); urdf_joint = right-hand rotation about the joint +Y axis, 0 at the CAD/URDF reference pose. Capture zero with `python3 -m suspension_encoders capture-zero [--reference JOINT=DEG] --write` while the joint is at a KNOWN angle (default 0 = CAD pose). Set verified=true only after mapping, sign and zero were checked by moving each joint to a known angle. Only verified channels with zero_counts reach the operator console; publish_unverified=true is a bench-only opt-in (the console 3D view applies any received angle).",
+  "channels": [
+    {
+      "joint": "ml_rocker_joint",
+      "address": "0x40",
+      "sign": 1,
+      "verified": false,
+      "zero_counts": null
+    },
+    {
+      "joint": "mr_rocker_joint",
+      "address": "0x41",
+      "sign": -1,
+      "verified": false,
+      "zero_counts": null
+    },
+    {
+      "joint": "bl_bogie_joint",
+      "address": "0x42",
+      "sign": 1,
+      "verified": false,
+      "zero_counts": null
+    },
+    {
+      "joint": "br_bogie_joint",
+      "address": "0x43",
+      "sign": -1,
+      "verified": false,
+      "zero_counts": null
+    }
+  ]
+}

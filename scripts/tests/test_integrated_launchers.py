@@ -183,6 +183,56 @@ def test_robot_start_is_idempotent_no_build_and_needs_no_operator_ip(tmp_path):
     assert "restart" not in commands
 
 
+def _ready_robot_tree(tmp_path: Path) -> Path:
+    target, etc = _prepared_tree(tmp_path)
+    (etc / "robot.json").write_text(json.dumps({
+        "robot_id": "zetin-rover-1",
+        "token_file": "/etc/powertrain/operator_console.token",
+        "host": "0.0.0.0", "session_port": 9002, "input_port": 9000,
+        "ops_port": 9001, "input_target_port": 19000, "ops_target_port": 19001,
+        "destination_file": "/run/powertrain/operator-session.json",
+        "lease_timeout_s": 2.0,
+    }))
+    (etc / "integrated-prepared.env").write_text(
+        "POWERTRAIN_INTEGRATED_VERSION=1\nPOWERTRAIN_PROFILE=can-4ws\n"
+    )
+    return target
+
+
+def test_robot_start_adds_suspension_i2c_overlay_only_when_device_exists(tmp_path):
+    binary_dir, log = _fake_path(tmp_path)
+    _write_executable(
+        binary_dir / "docker",
+        "#!/bin/sh\nprintf 'docker %s dev=%s\\n' \"$*\" "
+        "\"${POWERTRAIN_SUSPENSION_I2C_DEVICE:-none}\" >>\"$FAKE_COMMAND_LOG\"\n",
+    )
+    target = _ready_robot_tree(tmp_path)
+    env = _env(tmp_path, binary_dir, log)
+
+    absent = _run(ROBOT_START, env=env)
+    assert absent.returncode == 0, absent.stderr
+    assert "/dev/i2c-7" in absent.stderr  # warns, but the base stack still starts
+    (target / "dev").mkdir()
+    (target / "dev/i2c-7").symlink_to("/dev/null")  # any character device
+    present = _run(ROBOT_START, env=env)
+    assert present.returncode == 0, present.stderr
+
+    first, second = [line for line in log.read_text().splitlines() if line.startswith("docker ")]
+    assert "suspension-i2c" not in first and first.endswith("dev=none")
+    assert "-f docker/docker-compose.integrated.yml -f docker/docker-compose.suspension-i2c.yml" in second
+    assert second.endswith("dev=/dev/i2c-7")
+    assert "powertrain_chassis_telemetry" in second
+
+
+def test_suspension_overlay_only_passes_the_i2c_device_to_the_observer():
+    import yaml
+    overlay = yaml.safe_load((ROOT / "docker/docker-compose.suspension-i2c.yml").read_text())
+    assert list(overlay["services"]) == ["powertrain_chassis_telemetry"]
+    service = overlay["services"]["powertrain_chassis_telemetry"]
+    assert list(service) == ["devices"]
+    assert "privileged" not in service
+
+
 def test_robot_start_rejects_bus_off_even_when_interface_has_up_flag(tmp_path):
     binary_dir, log = _fake_path(
         tmp_path,

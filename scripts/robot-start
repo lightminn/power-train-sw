@@ -111,6 +111,32 @@ if [ -n "${INTEGRATED_SERVICES:-}" ]; then
   done
 fi
 
+# Optional AS5048B suspension encoders: pass the configured I2C device to the
+# telemetry observer only when it is enabled and present, so an absent bus
+# never blocks the base stack (the observer then simply omits the fields).
+suspension_device="$(python3 - "$repo_root/config/suspension_encoders.json" <<'PY' || true
+import json
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as stream:
+        config = json.load(stream)
+    bus = config["i2c_bus"]
+    if (config.get("enabled") is True and isinstance(bus, int)
+            and not isinstance(bus, bool) and bus >= 0):
+        print(f"/dev/i2c-{bus}")
+except Exception:
+    pass
+PY
+)"
+if [ -n "$suspension_device" ] && [ -c "${target_root}${suspension_device}" ]; then
+  export POWERTRAIN_SUSPENSION_I2C_DEVICE="$suspension_device"
+  compose+=(-f docker/docker-compose.suspension-i2c.yml)
+elif [ -n "$suspension_device" ]; then
+  printf 'robot-start WARN: %s 장치가 없어 서스펜션 엔코더 없이 기동합니다.\n' \
+    "$suspension_device" >&2
+fi
+
 "${compose[@]}" up -d --no-build "${services[@]}"
 
 if [ -n "${OPTIONAL_COMPOSE_FILE:-}" ]; then
