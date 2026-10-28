@@ -57,13 +57,13 @@ plain JETSON_REPO "$REMOTE_REPO" '^/[A-Za-z0-9._/-]+$'
 plain ROBOT_ID "$ROBOT_ID" '^[A-Za-z0-9][A-Za-z0-9._-]*$'
 plain OPS_TOKEN_FILE "$TOKEN_FILE" '^/[A-Za-z0-9._/-]+$'
 for arg in "${PREPARE_ARGS[@]}"; do plain "robot_prepare 인자" "$arg" '^[A-Za-z0-9/._=:-]+$'; done
-for host in "${HOSTS[@]}"; do plain 호스트 "$host" '^[A-Za-z0-9._-]+$'; done
 
 TARGET="$(git -C "$REPO_LOCAL" rev-parse --verify --quiet "refs/heads/$BRANCH^{commit}")" \
   || die "로컬 브랜치가 없다: $BRANCH"
 [ -z "$(git -C "$REPO_LOCAL" status --porcelain --untracked-files=no)" ] \
   || warn "로컬에 커밋 안 된 변경이 있다 — 커밋된 $BRANCH 만 올라간다"
 HOSTS+=("${JETSON_HOST:-}" jetson-orin.local 192.168.8.106 192.168.50.98)
+for host in "${HOSTS[@]}"; do [ -z "$host" ] || plain 호스트 "$host" '^[A-Za-z0-9._-]+$'; done
 
 SSH=(ssh -o ConnectTimeout=6)
 if [ -n "${JETSON_SSH_PASS:-}" ] && command -v sshpass >/dev/null; then
