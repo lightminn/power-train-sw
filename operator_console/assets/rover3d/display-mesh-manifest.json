@@ -1,0 +1,277 @@
+{
+  "method": "0.05 mm seam welding; separate visible solids >= 6 mm; 1 mm display clustering and quadric-error LOD; original URDF frames and CAD references retained",
+  "meshes": [
+    {
+      "link": "base_link",
+      "mesh": "base_link.bin",
+      "source_sha256": "b6c3a0c9ffb6173f58eaff8cfe34079b444328cd2987d975f0ec7b547fa1f9cb",
+      "source_triangles": 2659203,
+      "triangles": 56480,
+      "bytes": 979664,
+      "bounds_error_mm": 1.8897902942362634
+    },
+    {
+      "link": "ml_new_chassis_pivot",
+      "mesh": "ml_new_chassis_pivot.bin",
+      "source_sha256": "9cd630a19ea60336d193af4fffbbb0050fa224166a2ec4bbccd2e09c53a692ee",
+      "source_triangles": 712328,
+      "triangles": 40394,
+      "bytes": 691424,
+      "bounds_error_mm": 0.145835981783776
+    },
+    {
+      "link": "ml_pin_PSFGR12-33",
+      "mesh": "ml_pin_PSFGR12-33_ball3R.bin",
+      "source_sha256": "54c424994b4e7360d420522df61b3b954cf27be3ab9f7826121357064275ac8d",
+      "source_triangles": 12000,
+      "triangles": 759,
+      "bytes": 13100,
+      "bounds_error_mm": 0.33469710797429997
+    },
+    {
+      "link": "rl_kingpin_flange",
+      "mesh": "rl_kingpin_flange.bin",
+      "source_sha256": "a43be43e5e49b652792eece146150e04bed0838eb8f49117eb0ac7c3c378b806",
+      "source_triangles": 100356,
+      "triangles": 3998,
+      "bytes": 69056,
+      "bounds_error_mm": 0.630797065515651
+    },
+    {
+      "link": "rl_bl70200s",
+      "mesh": "rl_bl70200s.bin",
+      "source_sha256": "bb2f33e246bed9d8a600fa79662cbab99b9c1b821d910486ce7d5433d6e240fa",
+      "source_triangles": 14000,
+      "triangles": 4474,
+      "bytes": 80648,
+      "bounds_error_mm": 0.515167236328125
+    },
+    {
+      "link": "bl_bogie_pivot_out_hub_L60_slot",
+      "mesh": "bl_bogie_pivot_out_hub_L60_slot.bin",
+      "source_sha256": "7cf1854155a0d798deda576ce880878b558486ac71b014222566faeef1fe5868",
+      "source_triangles": 486460,
+      "triangles": 25837,
+      "bytes": 442076,
+      "bounds_error_mm": 3.618946758475033
+    },
+    {
+      "link": "fl_kingpin_flange",
+      "mesh": "fl_kingpin_flange.bin",
+      "source_sha256": "984ae953abe73e61ea8b3ff5b63dd5d21c9a51c807448e63f47aa469ac214ae8",
+      "source_triangles": 100358,
+      "triangles": 3998,
+      "bytes": 69140,
+      "bounds_error_mm": 0.4238436613610759
+    },
+    {
+      "link": "fl_bl70200s",
+      "mesh": "fl_bl70200s.bin",
+      "source_sha256": "da0385daf0b94d000a3999df670ad61fea2c91d2996317fddec0e0fba0933b5d",
+      "source_triangles": 14000,
+      "triangles": 4474,
+      "bytes": 80648,
+      "bounds_error_mm": 0.515167236328125
+    },
+    {
+      "link": "cl_bl70200s",
+      "mesh": "cl_bl70200s.bin",
+      "source_sha256": "d0aff779e87e082c6be500522f74d0ab0921d3028b06ba9a0db88262317baf6d",
+      "source_triangles": 14000,
+      "triangles": 4481,
+      "bytes": 80672,
+      "bounds_error_mm": 1.6723334402454384
+    },
+    {
+      "link": "ml_rod_end_M10_A_housing",
+      "mesh": "ml_rod_end_M10_A_housing.bin",
+      "source_sha256": "4c1e22ee48fa2ae005085ee64933a8370d3e29767d2e4aea657f8b60e6defb77",
+      "source_triangles": 12000,
+      "triangles": 748,
+      "bytes": 13256,
+      "bounds_error_mm": 0.8198019940356005
+    },
+    {
+      "link": "ml_bar_differential_side",
+      "mesh": "ml_bar_differential_side_ball3R.bin",
+      "source_sha256": "90339ebd9313d6d059fd5cb6942a166e3e250cede429bb2f5bfc024e5fa2e98d",
+      "source_triangles": 172168,
+      "triangles": 1512,
+      "bytes": 24956,
+      "bounds_error_mm": 0.48435425459405224
+    },
+    {
+      "link": "mr_new_chassis_pivot",
+      "mesh": "mr_new_chassis_pivot.bin",
+      "source_sha256": "9342a44dd8e18bb867f9d78c392fc259b327c17338b9b17994839ef2d57f38e1",
+      "source_triangles": 712127,
+      "triangles": 41321,
+      "bytes": 707636,
+      "bounds_error_mm": 0.09088149607224238
+    },
+    {
+      "link": "mr_pin_PSFGR12-33",
+      "mesh": "mr_pin_PSFGR12-33_ball3R.bin",
+      "source_sha256": "b1c9ebd424080b557ea35fbf09701c5b867904041298add7329635456e2db5a5",
+      "source_triangles": 12000,
+      "triangles": 758,
+      "bytes": 13028,
+      "bounds_error_mm": 0.5742500107276811
+    },
+    {
+      "link": "rr_kingpin_flange",
+      "mesh": "rr_kingpin_flange.bin",
+      "source_sha256": "154006399bd30d48a68eaf44f358279982f61c791c8e7782bc72bfb846f74de6",
+      "source_triangles": 100356,
+      "triangles": 3997,
+      "bytes": 69140,
+      "bounds_error_mm": 0.28577934739234934
+    },
+    {
+      "link": "rr_bl70200s",
+      "mesh": "rr_bl70200s.bin",
+      "source_sha256": "f6b6a30bee0415128ccaf59193c098a0d2c292f41f581e8095dd717336283d0d",
+      "source_triangles": 14000,
+      "triangles": 4475,
+      "bytes": 80612,
+      "bounds_error_mm": 0.180999755859375
+    },
+    {
+      "link": "br_bogie_pivot_out_hub_L60_slot",
+      "mesh": "br_bogie_pivot_out_hub_L60_slot.bin",
+      "source_sha256": "6fae9a17f28ec923f990bdbc117c814af4c62f6cefb3d36b21047c9f8294af16",
+      "source_triangles": 486458,
+      "triangles": 25674,
+      "bytes": 439400,
+      "bounds_error_mm": 0.8070796670144205
+    },
+    {
+      "link": "fr_kingpin_flange",
+      "mesh": "fr_kingpin_flange.bin",
+      "source_sha256": "9df95c1fae8250d1d570fe13142c1143f76e9099df03256cba0a996f4fee39e1",
+      "source_triangles": 100358,
+      "triangles": 3998,
+      "bytes": 69116,
+      "bounds_error_mm": 0.7760746047009945
+    },
+    {
+      "link": "fr_bl70200s",
+      "mesh": "fr_bl70200s.bin",
+      "source_sha256": "e9ab7954c3836cec220916ac490d056b1546b858a68ebc536c70b78828019386",
+      "source_triangles": 14000,
+      "triangles": 4475,
+      "bytes": 80696,
+      "bounds_error_mm": 0.18100738525390625
+    },
+    {
+      "link": "cr_bl70200s",
+      "mesh": "cr_bl70200s.bin",
+      "source_sha256": "60d3d04dff9fbca88c2ff93175838515164cd209480f45fdfb3bb87b3b5048ee",
+      "source_triangles": 14000,
+      "triangles": 4435,
+      "bytes": 79952,
+      "bounds_error_mm": 1.52651368050563
+    },
+    {
+      "link": "mr_rod_end_M10_A_housing",
+      "mesh": "mr_rod_end_M10_A_housing.bin",
+      "source_sha256": "ac462c8a20e4b1bb33de0ff4f1cad91935d442d3a57fa5b853268b3d7f81e0a0",
+      "source_triangles": 12000,
+      "triangles": 748,
+      "bytes": 13280,
+      "bounds_error_mm": 1.3990814742364108
+    },
+    {
+      "link": "arm_link1",
+      "mesh": "arm_link1.bin",
+      "source_sha256": "91db7689ee7573eafcd1bf820437a959d7a4e93bde9cbbdc843966a6e21cbcb8",
+      "source_triangles": 12000,
+      "triangles": 4537,
+      "bytes": 80000,
+      "bounds_error_mm": 0.10425977198036662
+    },
+    {
+      "link": "arm_link2",
+      "mesh": "arm_link2.bin",
+      "source_sha256": "d435f52252d6e58d64bede6363e93088e1ac1e9d5f048c81f25cc6a0c3ce6443",
+      "source_triangles": 12000,
+      "triangles": 4540,
+      "bytes": 78512,
+      "bounds_error_mm": 1.3164909550031396
+    },
+    {
+      "link": "tool_link",
+      "mesh": "tool_link_revision2_visual.bin",
+      "source_sha256": "4c79edba15912e4d0a05268a99d988b08adeb8d757bb4fdf4ffa681c1b605fc7",
+      "source_triangles": 12000,
+      "triangles": 2636,
+      "bytes": 45068,
+      "bounds_error_mm": 1.0499252635938632
+    },
+    {
+      "link": "pinion_A",
+      "mesh": "pinion_A_revision2_visual.bin",
+      "source_sha256": "db68dff67f396e305331766b4649a608c197af0e99c7831e3341dc6e304b5104",
+      "source_triangles": 3520,
+      "triangles": 500,
+      "bytes": 8912,
+      "bounds_error_mm": 0.03560810610658294
+    },
+    {
+      "link": "pinion_B",
+      "mesh": "pinion_B_revision2_visual.bin",
+      "source_sha256": "9b0d6923f6381e6a178c95ee01e7e8b4bb533d7cc03ce97f49a8c8a09196964b",
+      "source_triangles": 3520,
+      "triangles": 500,
+      "bytes": 8912,
+      "bounds_error_mm": 0.03560810610658294
+    },
+    {
+      "link": "finger_lower",
+      "mesh": "finger_lower_revision2_visual.bin",
+      "source_sha256": "665f6116e5c081a8d61f002e5f678028acaf9800a30eeef5c1d5c0386d6d144a",
+      "source_triangles": 12000,
+      "triangles": 1497,
+      "bytes": 26912,
+      "bounds_error_mm": 0.3846962545514572
+    },
+    {
+      "link": "finger_upper",
+      "mesh": "finger_upper_revision2_visual.bin",
+      "source_sha256": "5e5f9d7328e41b670b507431e7f2de4b48bd62526520d569b388d2502c52bcbd",
+      "source_triangles": 12000,
+      "triangles": 1499,
+      "bytes": 26900,
+      "bounds_error_mm": 0.4210480381477453
+    },
+    {
+      "link": "arm_link3",
+      "mesh": "arm_link3_revision3_visual.bin",
+      "source_sha256": "612a4e6490170dadcd94a429487e3381010d00946b4fb49ff47d3e7a0d4b794b",
+      "source_triangles": 12000,
+      "triangles": 4998,
+      "bytes": 86600,
+      "bounds_error_mm": 0.3847031345698184
+    },
+    {
+      "link": "arm_link5",
+      "mesh": "arm_link5_revision3_visual.bin",
+      "source_sha256": "6691a2a50dea1f07b7170e2c4063c467b32c49d35fb11992aa738353f1e45650",
+      "source_triangles": 12000,
+      "triangles": 4691,
+      "bytes": 82484,
+      "bounds_error_mm": 0.27362874230219625
+    },
+    {
+      "link": "arm_link4",
+      "mesh": "arm_link4_revision3_visual.bin",
+      "source_sha256": "b2e4713da2c2e8eed1eca967fb3006b71e6bd3d39f9ff153fadfeae0f3acb4df",
+      "source_triangles": 2610,
+      "triangles": 2050,
+      "bytes": 36788,
+      "bounds_error_mm": 0.0
+    }
+  ],
+  "triangles": 264484,
+  "bytes": 4578588
+}

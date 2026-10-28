@@ -65,6 +65,7 @@ class TerrainOverlayNode(Node):
         self.declare_parameter("depth_scale_m", 0.00025)
         self.declare_parameter("depth_stale_s", 0.5)
         self.declare_parameter("ground_hold_s", 0.5)
+        self.declare_parameter("publish_floor_mask", True)
         self.declare_parameter("color_offset_m", [0.0, -0.024, 0.0])
         self.declare_parameter("path_half_width_m", 0.4445)
         self.declare_parameter("front_offset_m", 0.0)
@@ -81,6 +82,7 @@ class TerrainOverlayNode(Node):
             depth_scale_m=float(value("depth_scale_m")),
             depth_stale_s=float(value("depth_stale_s")),
             ground_hold_s=float(value("ground_hold_s")),
+            publish_floor_mask=value("publish_floor_mask"),
             color_offset_m=tuple(float(v) for v in value("color_offset_m")),
             path_half_width_m=float(value("path_half_width_m")),
             front_offset_m=float(value("front_offset_m")),

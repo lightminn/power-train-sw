@@ -18,6 +18,7 @@ import time
 from collections.abc import Callable
 
 from operator_console.pipelines import pipeline_description, srt_uri
+from operator_console.text_layout import TextLayouts
 from operator_console.tool_binding import refresh_tool
 from operator_console.arm_binding import control_mode_text, contract_text, fsm_text, refresh_arm_summary
 from operator_console.arm_ui import (
@@ -85,6 +86,11 @@ from .mobility_view import MobilityDashboard, mission_mobility_values
 from .terrain import LatestTerrainReceiver, TerrainView, terrain_view
 from .terrain_map import DisplayConfig, LatestMapReceiver
 from .terrain_map_panel import MapPanel
+from .vision_panel import VisionPanel
+from .floor_overlay import FloorLayer, display_floor
+from .attitude_calibration import resolve_calibration
+from .vision_config import resolve_criteria
+from .rover_3d import Rover3DView
 from .ops_client import ConsoleOpsClient
 from .ops_panel import (
     GESTURE_HOLD,
@@ -104,7 +110,7 @@ from .presentation import (
     public_freshness,
     public_safety,
 )
-from .themes import theme_tokens
+from .themes import active_theme_name, install_bundled_fonts, theme_stylesheet, theme_tokens
 from .status_view import (
     CompetitionStatusDashboard,
     END_EFFECTOR_PURPOSES,
@@ -433,6 +439,23 @@ label {{ color: {text_main}; }}
 .nav button:focus {{ border: none; border-bottom: 3px solid transparent; box-shadow: none; outline: none; }}
 .nav button:checked:focus {{ border: none; border-bottom: 3px solid {primary}; box-shadow: none; outline: none; }}
 .page {{ background: {app_bg}; }}
+.vision-page {{ background: {app_bg}; }}
+.vision-page label {{ color: {text_main}; }}
+.vision-card {{ background: {surface}; border: 1px solid {border}; border-radius: 13px; padding: 8px; }}
+.vision-map-controls {{ background: {surface}; border: 1px solid {border}; border-radius: 10px; padding: 4px 7px; }}
+.vision-map-state {{ border-radius: 999px; padding: 4px 9px; font-weight: 800; }}
+.vision-map-state.status-live {{ color: {success}; background: rgba(38,143,101,0.16); }}
+.vision-map-state.status-warn {{ color: {warning}; background: rgba(214,154,36,0.16); }}
+.vision-map-state.status-bad {{ color: {danger}; background: rgba(196,59,67,0.16); }}
+.vision-map-state.status-muted {{ color: {offline}; background: {surface_soft}; }}
+.vision-map-scale {{ color: {text_secondary}; font-weight: 800; padding: 0 3px; }}
+.vision-map-detail {{ color: {text_secondary}; font-weight: 700; }}
+.vision-map-legend {{ color: {text_muted}; background: {surface_soft}; border-radius: 6px; padding: 3px 6px; }}
+.vision-page button {{ background: {surface_raised}; border: 1px solid {border}; border-radius: 18px; padding: 4px 12px; }}
+.vision-page button label {{ color: {text_main}; }}
+.vision-page button:checked {{ background: {primary}; border-color: {primary}; }}
+.vision-page button:checked label {{ color: {app_bg}; }}
+.vision-page check:checked {{ background: {primary}; color: {app_bg}; border-color: {primary}; }}
 .story-panel, .readiness, .system-card, .diagnostics, .card {{ background: {surface}; border-color: {border}; }}
 .story-card, .safety-row {{ background: {surface_soft}; border-color: {border}; }}
 .card label, .card > label {{ color: {text_main}; }}
@@ -1237,6 +1260,17 @@ window.end-effector-popup {{ background: #07101B; }}
 .system-status-dashboard {{ background: #07101B; }}
 .system-status-title {{ color: #F2F7FC; font-size: 25px; font-weight: 900; }}
 .system-status-subtitle {{ color: #94A9BC; font-size: 12px; }}
+.system-decision {{
+  background-color: #0E1D2C;
+  background-image: linear-gradient(110deg, rgba(75,139,234,0.16), rgba(85,201,149,0.05));
+  border: 1px solid #31506D;
+  border-left: 4px solid #55B9DE;
+  border-radius: 10px;
+  padding: 15px 18px;
+}}
+.system-decision-kicker {{ color: #70C7F2; font-size: 9px; font-weight: 900; letter-spacing: 1px; }}
+.system-decision-title {{ color: #F0F6FB; font-size: 21px; font-weight: 900; }}
+.system-decision-detail {{ color: #A7B9C9; font-size: 11px; }}
 .system-overall-chip {{ border-radius: 999px; padding: 7px 12px; font-size: 11px; font-weight: 900; }}
 .system-overall-chip.status-live {{ color: #8BE3B6; background: #123D2D; }}
 .system-overall-chip.status-warn {{ color: #FFD77A; background: #493514; }}
@@ -1247,6 +1281,9 @@ window.end-effector-popup {{ background: #07101B; }}
 .system-section-safety {{ border-top-color: #55C995; }}
 .system-section-title {{ color: #F0F5FA; font-size: 18px; font-weight: 900; }}
 .system-section-description {{ color: #859BAF; font-size: 10px; }}
+.system-section-summary {{ color: #EEF5FA; font-size: 18px; font-weight: 900; padding-top: 8px; }}
+.system-section-action {{ color: #9CB2C5; font-size: 11px; }}
+.system-section-details {{ color: #8097AA; font-size: 10px; border-top: 1px solid #263B52; padding-top: 8px; }}
 .system-section-badge {{ border-radius: 999px; padding: 4px 9px; font-size: 10px; font-weight: 900; }}
 .system-section-badge.status-live {{ color: #8BE3B6; background: #123D2D; }}
 .system-section-badge.status-warn {{ color: #FFD77A; background: #493514; }}
@@ -1476,6 +1513,33 @@ window.end-effector-popup, .end-effector-popup-shell, .system-status-dashboard {
 .mobility-kicker {{ color: #70C7F2; font-size: 9px; font-weight: 900; letter-spacing: 1.5px; }}
 .mobility-title {{ color: #F1F6FB; font-size: 25px; font-weight: 900; }}
 .mobility-subtitle {{ color: #94A9BC; font-size: 11px; }}
+.mobility-story {{
+  background-color: #0E1D2C;
+  background-image: linear-gradient(120deg, rgba(75,139,234,0.18), rgba(85,201,149,0.06));
+  border: 1px solid #31506D;
+  border-left: 4px solid #55B9DE;
+  border-radius: 11px;
+  padding: 16px 18px;
+}}
+.mobility-story-kicker {{ color: #70C7F2; font-size: 9px; font-weight: 900; letter-spacing: 1px; }}
+.mobility-story-title {{ color: #F3F7FB; font-size: 22px; font-weight: 900; }}
+.mobility-story-title.status-live {{ color: #A0E8C3; }}
+.mobility-story-title.status-warn {{ color: #FFE09A; }}
+.mobility-story-title.status-bad {{ color: #FFABB4; }}
+.mobility-story-title.status-muted {{ color: #C4D0DC; }}
+.mobility-story-detail {{ color: #AFC0D0; font-size: 11px; }}
+.mobility-story-action {{
+  color: #DCE9F5;
+  background: #142A40;
+  border: 1px solid #31506D;
+  border-radius: 9px;
+  padding: 13px 16px;
+  font-size: 13px;
+  font-weight: 900;
+}}
+.mobility-story-action.status-live {{ color: #A0E8C3; background: #123D2D; border-color: #277A59; }}
+.mobility-story-action.status-warn {{ color: #FFE09A; background: #493514; border-color: #936A21; }}
+.mobility-story-action.status-bad {{ color: #FFABB4; background: #4A1823; border-color: #913342; }}
 .mobility-live-pill {{
   color: #A8B6C4;
   background: #263442;
@@ -1520,6 +1584,9 @@ window.end-effector-popup, .end-effector-popup-shell, .system-status-dashboard {
 .mobility-evidence-metrics {{ color: #8EA4B8; font-size: 10px; }}
 .mobility-evidence-rule {{ color: #72CDB2; font-size: 9px; font-weight: 900; }}
 .mobility-panel-title {{ color: #F0F5FA; font-size: 15px; font-weight: 900; }}
+.mobility-coordination-summary {{ color: #EAF2F8; font-size: 19px; font-weight: 900; }}
+.mobility-coordination-detail {{ color: #9CB0C2; font-size: 11px; }}
+.mobility-technical-expander {{ color: #8FA4B8; font-size: 10px; border-top: 1px solid #22364D; padding-top: 5px; }}
 .mobility-source-chip {{
   color: #76B7F6;
   background: #173353;
@@ -1577,12 +1644,27 @@ window.end-effector-popup, .end-effector-popup-shell, .system-status-dashboard {
 
 
 def _install_console_css() -> None:
+    install_bundled_fonts()
     provider = Gtk.CssProvider()
     provider.load_from_data(CONSOLE_CSS + _theme_css())
     screen = Gdk.Screen.get_default()
     if screen is not None:
         Gtk.StyleContext.add_provider_for_screen(
             screen, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
+        # Arm tabs install a scoped provider later during construction. Give
+        # the shared presentation priority over those legacy surface colours.
+        stylesheet = theme_stylesheet()
+        if stylesheet:
+            presentation = Gtk.CssProvider()
+            presentation.load_from_data(stylesheet)
+            Gtk.StyleContext.add_provider_for_screen(
+                screen, presentation, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
+            )
+        readability = Gtk.CssProvider()
+        readability.load_from_path(str(Path(__file__).parent / "assets" / "readability.css"))
+        Gtk.StyleContext.add_provider_for_screen(
+            screen, readability, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 3,
         )
 
 
@@ -1642,6 +1724,7 @@ class MetadataCanvas(Gtk.DrawingArea):
         self._target_tracker = target_tracker or DisplayTargetTracker()
         self._show_objects = True
         self._show_distance = True
+        self._text_layouts = TextLayouts(self)
         self._video_width: int | None = None
         self._video_height: int | None = None
         self.connect("draw", self._on_draw)
@@ -1664,10 +1747,7 @@ class MetadataCanvas(Gtk.DrawingArea):
     def _label_layout(self, context: object, text: str):
         # PangoCairo, not cairo's toy text API: the toy API has no font
         # fallback and draws Korean class names as missing-glyph boxes.
-        layout = PangoCairo.create_layout(context)
-        layout.set_font_description(Pango.FontDescription("Sans Bold 11"))
-        layout.set_text(text, -1)
-        return layout
+        return self._text_layouts.get(context, text, "Sans Bold 11")
 
     def _on_draw(self, _widget: Gtk.DrawingArea, context: object) -> bool:
         frame = self._receiver.latest()
@@ -1767,6 +1847,8 @@ class TerrainCanvas(Gtk.DrawingArea):
         super().__init__()
         self._receiver = receiver
         self._enabled = True
+        self._text_layouts = TextLayouts(self)
+        self._floor_layer = FloorLayer()
         self._video_size: tuple[int, int] | None = None
         self._video_live = False
         self.connect("draw", self._on_draw)
@@ -1790,38 +1872,41 @@ class TerrainCanvas(Gtk.DrawingArea):
 
     def view(self, now_s: float | None = None) -> TerrainView:
         now_s = time.monotonic() if now_s is None else now_s
+        return self._display_view(now_s)[0]
+
+    def _display_view(self, now_s):
         latest, display, last_rx_s = self._receiver.snapshot(now_s)
-        return terrain_view(
+        view = terrain_view(
             latest, display, last_rx_s, now_s, self._receiver.display_delay_s,
             self._video_size, video_live=self._video_live,
         )
+        floor = display_floor(latest,display,last_rx_s,now_s,self._receiver.display_delay_s,
+                              self._video_size,self._video_live,view=view)
+        return view, floor
 
     def _redraw(self) -> bool:
         self.queue_draw()
         return True
 
     def _on_destroy(self, *_args: object) -> None:
+        self._floor_layer.clear()
         if self._redraw_source is not None:
             GLib.source_remove(self._redraw_source)
             self._redraw_source = None
 
     def _layout(self, context: object, text: str, font: str, max_width: float):
-        layout = PangoCairo.create_layout(context)
-        layout.set_font_description(Pango.FontDescription(font))
-        layout.set_width(int(max(40.0, max_width) * Pango.SCALE))
-        layout.set_ellipsize(Pango.EllipsizeMode.END)
-        layout.set_text(text, -1)
-        return layout
+        return self._text_layouts.get(context, text, font, max_width)
 
     def _on_draw(self, _widget: Gtk.DrawingArea, context: object) -> bool:
         if not self._enabled:
             return False
-        view = self.view()
+        view, floor = self._display_view(time.monotonic())
         allocation = self.get_allocation()
         frame_width, frame_height = self._video_size or (1280, 720)
         scale, offset_x, offset_y = fit_overlay_transform(
             allocation.width, allocation.height, frame_width, frame_height,
         )
+        self._floor_layer.draw(context,floor,scale,offset_x,offset_y)
         for obstacle in view.obstacles:
             red = obstacle.in_path
             rgb = (1.0, 0.25, 0.25) if red else (1.0, 0.6, 0.0)
@@ -1842,7 +1927,8 @@ class TerrainCanvas(Gtk.DrawingArea):
         left = offset_x + 12.0
         max_width = max(40.0, frame_width * scale - 24.0)
         badge = self._layout(context, view.badge, "Sans Bold 14", max_width)
-        note = self._layout(context, view.note, "Sans 11", max_width)
+        floor_note = "바닥 격자(10 px) · 참고" if floor is not None else "바닥 영역 미수신/숨김"
+        note = self._layout(context, floor_note+" · "+view.note, "Sans 11", max_width)
         badge_w, badge_h = badge.get_pixel_size()
         note_w, note_h = note.get_pixel_size()
         top = offset_y + frame_height * scale - 12.0 - badge_h - note_h - 8.0
@@ -1885,6 +1971,57 @@ class ScanRing(Gtk.DrawingArea):
         return False
 
 
+class CameraStandbyBackground(Gtk.DrawingArea):
+    """Static decorative receiver grid, visible only while video is absent."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.connect("draw", self._draw)
+
+    def _draw(self, _widget: Gtk.DrawingArea, context: object) -> bool:
+        import cairo
+
+        width, height = self.get_allocated_width(), self.get_allocated_height()
+        token = theme_tokens()
+
+        def rgb(key: str) -> tuple[float, float, float]:
+            value = token[key].lstrip("#")
+            return tuple(int(value[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+        context.set_source_rgb(*rgb("video_stage"))
+        context.paint()
+        radius = max(width, height) * .70
+        glow = cairo.RadialGradient(width * .42, height * .40, 0,
+                                    width * .42, height * .40, radius)
+        glow.add_color_stop_rgba(0, *rgb("surface_selected"), .18)
+        glow.add_color_stop_rgba(1, *rgb("ai_cyan"), 0)
+        context.set_source(glow)
+        context.paint()
+        context.set_line_width(.7)
+        context.set_source_rgba(*rgb("ai_cyan"), .018)
+        # A quiet perspective plane, not a flat spreadsheet grid. Decorative
+        # receiver artwork is never presented as a camera or terrain reading.
+        horizon = height * .19
+        for x in range(-width * 2, width * 3, 110):
+            context.move_to(width * .44 + (x - width * .44) * .10, horizon)
+            context.line_to(x, height)
+        for fraction in (.03, .08, .16, .28, .45, .68, .96):
+            y = horizon + (height - horizon) * fraction
+            context.move_to(0, y)
+            context.line_to(width, y)
+        context.stroke()
+        context.save()
+        context.translate(width * .43, height * .56)
+        context.scale(1, .38)
+        context.set_source_rgba(*rgb("primary"), .11)
+        context.set_dash((2, 7))
+        for fraction in (.32, .44, .55):
+            context.arc(0, 0, min(width, height * 1.8) * fraction, 0, math.tau)
+        context.stroke()
+        context.restore()
+        return False
+
+
 class VideoStandbyCanvas(Gtk.DrawingArea):
     """Render the common rover asset as full, arm, or front framing."""
 
@@ -1901,8 +2038,10 @@ class VideoStandbyCanvas(Gtk.DrawingArea):
         self._work_live = False
         self._drive_ready = False
         self._safety_ready = False
+        self._showcase = active_theme_name() == "raktor"
         self._svg = Rsvg.Handle.new_from_file(str(
-            Path(__file__).resolve().parent / "assets" / "mobile_robot_pictogram.svg"
+            Path(__file__).resolve().parent / "assets" /
+            ("rover-showcase.svg" if self._showcase else "mobile_robot_pictogram.svg")
         ))
         self.set_hexpand(True)
         self.set_vexpand(True)
@@ -1915,6 +2054,8 @@ class VideoStandbyCanvas(Gtk.DrawingArea):
             return False
         _has_size, design_w, design_h = self._svg.get_intrinsic_size_in_pixels()
         crop_x, crop_y, crop_w, crop_h = self.CROPS[self._focus]
+        if self._showcase:
+            crop_x, crop_y, crop_w, crop_h = 0, 0, design_w, design_h
         scale = min(
             max(1.0, width) / crop_w,
             max(1.0, height) / crop_h,
@@ -1966,7 +2107,10 @@ class RoverPlaceholder(Gtk.Box):
         self, *, title: str, description: str, camera_kind: str,
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=7)
+        if active_theme_name() == "raktor":
+            self.set_spacing(4)
         self._camera_kind = camera_kind
+        self._role = "MAIN"
         self.set_halign(Gtk.Align.CENTER)
         self.set_valign(Gtk.Align.CENTER)
         self._rover = VideoStandbyCanvas()
@@ -1977,7 +2121,8 @@ class RoverPlaceholder(Gtk.Box):
         detail = Gtk.Label(label=description)
         detail.set_line_wrap(False)
         _style(detail, "camera-placeholder-detail")
-        self.pack_start(self._rover, False, False, 0)
+        self._rover.set_no_show_all(True)
+        self._rover.hide()
         self.pack_start(self._spacer, False, False, 0)
         self.pack_start(heading, False, False, 0)
         self.pack_start(detail, False, False, 0)
@@ -1989,7 +2134,10 @@ class RoverPlaceholder(Gtk.Box):
         return self._rover
 
     def set_slot(self, role: str) -> None:
+        self._role = role
         width = self.MAIN_WIDTH if role == "MAIN" else self.PREVIEW_WIDTH
+        if active_theme_name() == "raktor":
+            width = 460 if role == "MAIN" else 70
         focus = (
             "full" if role == "MAIN"
             else "arm" if self._camera_kind == "work"
@@ -2000,11 +2148,24 @@ class RoverPlaceholder(Gtk.Box):
             else 190 / 172 if focus == "arm"
             else 154 / 170
         )
+        if active_theme_name() == "raktor":
+            aspect = 460 / 390
         height = round(width / aspect)
         self._rover.set_focus(focus)
         self._rover.set_size_request(width, height)
-        self._spacer.set_size_request(-1, 32 if role == "MAIN" else 10)
-        self.set_margin_bottom(16 if role == "MAIN" else 0)
+        raktor = active_theme_name() == "raktor"
+        spacer = (4 if role == "MAIN" else 0) if raktor else (32 if role == "MAIN" else 10)
+        self._spacer.set_size_request(-1, spacer)
+        self.set_margin_bottom((12 if raktor else 16) if role == "MAIN" else 0)
+        self.set_margin_top(40 if role == "SUB" and active_theme_name() == "raktor" else 0)
+
+    def fit_to_viewport(self, width: int, height: int) -> None:
+        if active_theme_name() != "raktor" or self._role != "MAIN":
+            return
+        rover_width = int(max(110, min(620, width * .60, (height - 84) * 460 / 390)))
+        requested = (rover_width, round(rover_width * 390 / 460))
+        if self._rover.get_size_request() != requested:
+            self._rover.set_size_request(*requested)
 
 
 def draw_jet_in_watermark(
@@ -2139,6 +2300,8 @@ class EventLog(Gtk.Box):
             "ERROR": True, "WARNING": True, "INFO": True,
         }
         self._developer_visible = False
+        self._scroll_source_id: int | None = None
+        self.connect("destroy", self._on_destroy)
         self.filter_box = Gtk.Box(spacing=16)
         self.filter_box.set_valign(Gtk.Align.CENTER)
         filter_labels = {
@@ -2306,15 +2469,28 @@ class EventLog(Gtk.Box):
         self._operation_list.show_all()
         self._user_scroll.set_visible(visible_count > 0)
         self._empty.set_visible(visible_count == 0)
-        GLib.idle_add(self._scroll_operations_to_bottom)
+        if self._scroll_source_id is None:
+            self._scroll_source_id = GLib.idle_add(
+                self._scroll_operations_to_bottom,
+            )
 
     def _scroll_operations_to_bottom(self) -> bool:
+        self._scroll_source_id = None
+        if not self._user_scroll.get_realized():
+            return GLib.SOURCE_REMOVE
         adjustment = self._user_scroll.get_vadjustment()
+        if adjustment is None:
+            return GLib.SOURCE_REMOVE
         adjustment.set_value(max(
             adjustment.get_lower(),
             adjustment.get_upper() - adjustment.get_page_size(),
         ))
         return GLib.SOURCE_REMOVE
+
+    def _on_destroy(self, *_args: object) -> None:
+        if self._scroll_source_id is not None:
+            GLib.source_remove(self._scroll_source_id)
+            self._scroll_source_id = None
 
     def add_event(self, source: str, message: str) -> None:
         stamp = time.strftime("%H:%M:%S")
@@ -2462,6 +2638,7 @@ class VideoPanel(Gtk.Box):
         header.pack_start(self._role, False, False, 0)
         self._connection_dot = Gtk.Label(label="")
         self._connection_dot.set_size_request(7, 7)
+        self._connection_dot.set_valign(Gtk.Align.CENTER)
         _style(self._connection_dot, "status-dot", "camera-dot")
         header.pack_start(self._connection_dot, False, False, 0)
         self._header_state = Gtk.Label(label="연결 대기")
@@ -2511,20 +2688,20 @@ class VideoPanel(Gtk.Box):
         standby = Gtk.Overlay()
         standby.set_hexpand(True)
         standby.set_vexpand(True)
-        standby_background = Gtk.Box()
+        standby_background = CameraStandbyBackground()
         _style(standby_background, "camera-standby-background")
         standby.add(standby_background)
         placeholder = RoverPlaceholder(
-            title=("전방 화면 준비 중"
-                   if name == "전방 카메라" else "작업 화면 준비 중"),
-            description=("로봇의 주행 영상을 연결하고 있습니다"
-                         if name == "전방 카메라"
-                         else "로봇팔 작업 영상을 연결하고 있습니다"),
+            title=("전방 영상 연결 대기 중"
+                   if name == "전방 카메라" else "작업 영상 연결 대기 중"),
+            description="신호가 들어오면 자동으로 표시됩니다",
             camera_kind=("front" if name == "전방 카메라" else "work"),
         )
         self._rover_placeholder = placeholder
         self._rover_status_overlay = placeholder.rover
         standby.add_overlay(placeholder)
+        standby.connect("size-allocate", lambda _widget, allocation:
+                        placeholder.fit_to_viewport(allocation.width, allocation.height))
         video_stage.add_overlay(standby)
         for canvas in self._stage_canvases:
             canvas.set_hexpand(True)
@@ -2542,8 +2719,13 @@ class VideoPanel(Gtk.Box):
         self._frames = 0
         self._sample_start = time.monotonic()
         self._last_frame_monotonic: float | None = None
+        # Do not reveal a decoder's first incomplete frame after a reconnect.
+        # Three consecutive fresh frames are enough to cover the short H.264
+        # join window without making recovery feel sluggish.
+        self._fresh_frame_run = 0
         self._last_fps: float | None = None
         self._video_size: tuple[int, int] | None = None
+        self._published_video_size: tuple[int, int] | None = None
         self._pipeline_live = False
         self._reconnects = 0
         self._freshness_state = "connecting"
@@ -2671,22 +2853,27 @@ class VideoPanel(Gtk.Box):
                 and video_size != self._video_size
             ):
                 self._video_size = video_size
-                GLib.idle_add(self.publish_video_size, width, height)
         now = time.monotonic()
+        previous_frame = self._last_frame_monotonic
         self._last_frame_monotonic = now
+        self._fresh_frame_run = (
+            self._fresh_frame_run + 1
+            if previous_frame is not None and now - previous_frame <= 0.5
+            else 1
+        )
         elapsed = now - self._sample_start
         if elapsed >= 1.0:
             fps = self._frames / elapsed
             self._frames = 0
             self._sample_start = now
             self._last_fps = fps
-            GLib.idle_add(self._fps.set_text, f"화면 FPS: {fps:.1f}")
         return Gst.PadProbeReturn.OK
 
     def _on_bus_message(self, _bus: Gst.Bus, message: Gst.Message) -> None:
         if message.type == Gst.MessageType.ERROR:
             self._placeholder.show_all()
             self._publish_video_live(False)
+            self._fresh_frame_run = 0
             error, detail = message.parse_error()
             self._pipeline_live = False
             self._status.set_text(f"{self._name} 연결 대기")
@@ -2695,6 +2882,7 @@ class VideoPanel(Gtk.Box):
         elif message.type == Gst.MessageType.EOS:
             self._placeholder.show_all()
             self._publish_video_live(False)
+            self._fresh_frame_run = 0
             self._pipeline_live = False
             self._status.set_text(f"{self._name} 연결 대기")
             self._schedule_reconnect()
@@ -2711,6 +2899,16 @@ class VideoPanel(Gtk.Box):
     def _refresh_video_health(self) -> bool:
         if self._stopped:
             return False
+        # Streaming threads publish only latest values. Reuse this GTK timer
+        # instead of accumulating idle callbacks while the UI is busy.
+        size = self._video_size
+        if size is not None and size != self._published_video_size:
+            self.publish_video_size(*size)
+            self._published_video_size = size
+        if self._last_fps is not None:
+            text = f"화면 FPS: {self._last_fps:.1f}"
+            if self._fps.get_text() != text:
+                self._fps.set_text(text)
         self._publish_video_live(self.health_state() == "LIVE")
         if not self._pipeline_live:
             self._placeholder.show_all()
@@ -2721,9 +2919,15 @@ class VideoPanel(Gtk.Box):
             self._status.set_text(f"{self._name} 연결 대기")
             self._header_state.set_text("연결 대기")
             return True
+        if self._fresh_frame_run < 3:
+            self._placeholder.show_all()
+            self._status.set_text(f"{self._name} 연결 대기")
+            self._header_state.set_text("연결 대기")
+            return True
         age_ms = (time.monotonic() - self._last_frame_monotonic) * 1000.0
         if age_ms > 1000.0:
             self._placeholder.show_all()
+            self._fresh_frame_run = 0
             if self._freshness_state != "stale":
                 self._emit_event("frame became stale (>1000 ms)")
                 self._freshness_state = "stale"
@@ -2753,6 +2957,8 @@ class VideoPanel(Gtk.Box):
             return "CONNECTING"
         if self._last_frame_monotonic is None:
             return "WAITING"
+        if self._fresh_frame_run < 3:
+            return "WAITING"
         return "STALE" if time.monotonic() - self._last_frame_monotonic > 1.0 else "LIVE"
 
     def _schedule_reconnect(self) -> None:
@@ -2771,6 +2977,7 @@ class VideoPanel(Gtk.Box):
         # 다시 발화하고 표시도 거대한 stale 나이를 보인다 — 상태를 리셋한다.
         self._pipeline_live = False
         self._last_frame_monotonic = None
+        self._fresh_frame_run = 0
         self._publish_video_live(False)
         self._last_fps = None
         self._frames = 0
@@ -3828,11 +4035,14 @@ class OperatorConsole(Gtk.Window):
                  terrain_display_delay_ms: int = 0,
                  terrain_map_port: int = 5010,
                  map_display: DisplayConfig | None = None,
+                 vision_criteria=None,
+                 attitude_calibration=None,
                  ops_host: str | None = None, ops_port: int = 9001,
                  ops_token_file: str = DEFAULT_OPS_TOKEN_FILE,
                  smoke_probe_file: str | None = None,
                  input_source: str = "LIVE", operation_runtime=None,
                  arm_developer_mode: bool = False) -> None:
+        vision_criteria = vision_criteria or resolve_criteria()
         super().__init__(title="파워트레인 운영 콘솔")
         _install_console_css()
         self._operation_runtime = operation_runtime
@@ -3917,10 +4127,10 @@ class OperatorConsole(Gtk.Window):
         videos.add_overlay(self._watermark)
         videos.set_overlay_pass_through(self._watermark, True)
         display_options = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL, spacing=3,
+            orientation=Gtk.Orientation.HORIZONTAL, spacing=12,
         )
         _style(display_options, "display-options")
-        display_title = Gtk.Label(label="영상 표시")
+        display_title = Gtk.Label(label="표시")
         display_title.set_xalign(0.0)
         _style(display_title, "display-options-title")
         self._show_objects = Gtk.CheckButton(
@@ -3929,12 +4139,13 @@ class OperatorConsole(Gtk.Window):
         self._show_distance = Gtk.CheckButton(label="대상 거리")
         self._show_terrain = Gtk.CheckButton(label="지형 장애물")
         self.overlay_view_state = {
-            "show_detection": True,
-            "show_distance": True,
+            "show_detection": False,
+            "show_distance": False,
             "show_terrain": True,
         }
-        self._show_objects.set_active(True)
-        self._show_distance.set_active(True)
+        self._show_objects.set_active(False)
+        self._show_distance.set_active(False)
+        self._d435.set_metadata_display_options(show_objects=False, show_distance=False)
         self._show_terrain.set_active(True)
         _style(self._show_objects, "display-option")
         _style(self._show_distance, "display-option")
@@ -3946,6 +4157,8 @@ class OperatorConsole(Gtk.Window):
         display_options.pack_start(self._show_objects, False, False, 0)
         display_options.pack_start(self._show_distance, False, False, 0)
         display_options.pack_start(self._show_terrain, False, False, 0)
+        display_options.set_no_show_all(True)
+        display_options.hide()
         self._display_options = display_options
         videos.connect("size-allocate", self._on_video_area_allocated)
         self._videos = videos
@@ -3965,6 +4178,7 @@ class OperatorConsole(Gtk.Window):
             chip.set_xalign(0.0)
             dot = Gtk.Label(label="")
             dot.set_size_request(7, 7)
+            dot.set_valign(Gtk.Align.CENTER)
             _style(dot, "status-dot", "status-muted")
             item = Gtk.Box(spacing=6)
             item.set_valign(Gtk.Align.CENTER)
@@ -3984,20 +4198,31 @@ class OperatorConsole(Gtk.Window):
         title_row = Gtk.Box(spacing=12)
         title_row.set_margin_end(4)
         title_copy = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
-        title_copy.set_margin_top(9)
-        title = Gtk.Label(label="재난 대응 로봇 관제 시스템")
+        title_copy.set_margin_top(0)
+        title_copy.set_valign(Gtk.Align.CENTER)
+        brand_mark = Gtk.Label(label="✳")
+        brand_mark.set_valign(Gtk.Align.CENTER)
+        _style(brand_mark, "brand-mark")
+        title = Gtk.Label(label="JET—IN")
+        title.set_single_line_mode(True)
+        title.set_tooltip_text("재난 대응 로봇 관제 시스템")
         title.set_xalign(0.0)
         _style(title, "brand")
-        eyebrow = Gtk.Label(label="실시간 임무 수행 및 안전 상태 확인")
+        eyebrow = Gtk.Label(label="ROBOT OPERATIONS")
+        eyebrow.set_single_line_mode(True)
         eyebrow.set_xalign(0.0)
         _style(eyebrow, "eyebrow")
-        eyebrow.set_no_show_all(True)
-        eyebrow.hide()
         title_copy.pack_start(title, False, False, 0)
         title_copy.pack_start(eyebrow, False, False, 0)
+        title_row.pack_start(brand_mark, False, False, 0)
         title_row.pack_start(title_copy, False, False, 0)
-        title_row.pack_start(Gtk.Box(), True, True, 0)
+        if input_source == "TEST":
+            source_badge = Gtk.Label(label="더미 시연")
+            source_badge.set_valign(Gtk.Align.CENTER)
+            _style(source_badge, "demo-source-badge")
+            title_row.pack_start(source_badge, False, False, 8)
         self._global_estop = Gtk.Button()
+        self._global_estop.set_valign(Gtk.Align.CENTER)
         self._global_estop.set_size_request(124, 42)
         estop_content = Gtk.Box(spacing=9)
         estop_content.set_halign(Gtk.Align.CENTER)
@@ -4025,17 +4250,19 @@ class OperatorConsole(Gtk.Window):
             "clicked", lambda _button: self._ops_panel.trigger_estop()
         )
         self._global_estop.set_margin_start(12)
-        self._global_estop.set_margin_end(20)
+        self._global_estop.set_margin_end(0)
         title_row.pack_end(self._global_estop, False, False, 0)
-        title_row.pack_end(self._health, False, False, 6)
         topbar.pack_start(title_row, False, False, 0)
         self._estop_availability_warning = Gtk.Label()
         self._estop_availability_warning.set_xalign(0.0)
         self._estop_availability_warning.set_no_show_all(True)
         _style(self._estop_availability_warning, "top-warning")
-        topbar.pack_start(
-            self._estop_availability_warning, False, False, 2,
-        )
+        global_status = Gtk.Box(spacing=18)
+        global_status.pack_start(self._estop_availability_warning, True, True, 0)
+        self._health.set_halign(Gtk.Align.END)
+        self._health.set_valign(Gtk.Align.CENTER)
+        global_status.pack_end(self._health, False, False, 0)
+        topbar.pack_start(global_status, False, False, 2)
         self._alert_label = Gtk.Label()
         self._alert_label.set_xalign(0.0)
         self._alert_label.set_line_wrap(True)
@@ -4073,11 +4300,24 @@ class OperatorConsole(Gtk.Window):
             self._operation_source_id = GLib.timeout_add(100, self._refresh_operation)
         self._refresh_estop_availability()
         _style(self._ops_panel, "danger-card", "ops-settings-panel")
-        self._mobility = MobilityDashboard(self._open_mobility_action)
+        self._mobility = MobilityDashboard(self._open_mobility_action, input_source=input_source)
 
         mission_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         _style(mission_page, "page", "mission-page")
-        mission_body = Gtk.Box(spacing=12)
+        mission_intro = Gtk.Box(spacing=16)
+        _style(mission_intro, "mission-intro")
+        intro_copy = Gtk.Box(spacing=12)
+        intro_title = Gtk.Label(label="Mission overview")
+        _style(intro_title, "mission-heading")
+        intro_subtitle = Gtk.Label(label="실시간 로봇 관제")
+        _style(intro_subtitle, "mission-caption")
+        intro_copy.pack_start(intro_title, False, False, 0)
+        intro_copy.pack_start(intro_subtitle, False, False, 0)
+        mission_intro.pack_start(intro_copy, True, True, 0)
+        mission_intro.set_no_show_all(True)
+        mission_intro.hide()
+        mission_page.pack_start(mission_intro, False, False, 0)
+        mission_body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         mission_body.set_hexpand(True)
         mission_body.set_vexpand(True)
         mission_body.connect("size-allocate", self._on_mission_body_allocated)
@@ -4092,6 +4332,7 @@ class OperatorConsole(Gtk.Window):
         _style(camera_label_row, "main-camera-label")
         self._main_camera_dot = Gtk.Label(label="")
         self._main_camera_dot.set_size_request(7, 7)
+        self._main_camera_dot.set_valign(Gtk.Align.CENTER)
         _style(self._main_camera_dot, "status-dot", "status-muted")
         self._main_camera_label = Gtk.Label(label="전방 화면")
         _style(self._main_camera_label, "camera-name")
@@ -4107,17 +4348,25 @@ class OperatorConsole(Gtk.Window):
         self._mission_top = mission_top
 
         rail = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        rail.set_hexpand(False)
-        rail.set_vexpand(True)
+        rail.set_hexpand(True)
+        rail.set_vexpand(False)
         _style(rail, "mission-rail")
         self._mission_rail = rail
-        rail_heading = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        rail_heading_ko = Gtk.Label(label="실시간 운용")
+        rail_heading = Gtk.Box(spacing=12)
+        rail_kicker = Gtk.Label(label="MISSION TELEMETRY")
+        rail_kicker.set_xalign(0.0)
+        _style(rail_kicker, "rail-kicker")
+        rail_heading.pack_start(rail_kicker, False, False, 0)
+        rail_heading_ko = Gtk.Label(label="실시간 운용 상태")
         rail_heading_ko.set_xalign(0.0)
         _style(rail_heading_ko, "rail-heading-ko")
         rail_heading.pack_start(rail_heading_ko, False, False, 0)
-        # The approved layout starts directly with the device card.
-        # Keep no legacy mission heading above it.
+        # The dock heading shares a row with display switches, keeping every
+        # live control accessible without a tall scrolling side panel.
+        rail_heading.pack_end(display_options, False, False, 0)
+        rail_heading.set_no_show_all(True)
+        rail_heading.hide()
+        rail.pack_start(rail_heading, False, False, 0)
 
         system_check = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         _style(system_check, "rail-section")
@@ -4217,23 +4466,22 @@ class OperatorConsole(Gtk.Window):
             technology.pack_start(row, False, False, 0)
         self._rail_technology = technology
 
-        # These are live view controls, not explanatory content. Keep them in
-        # the compact rail so judges/operators can verify the AI overlay.
-        rail.pack_end(display_options, False, False, 0)
-
-        rail_data = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        # Keep the complete telemetry surface in a shallow horizontal dock;
+        # display switches remain pinned in its heading rather than scrolling.
+        rail_data = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        rail_data.set_homogeneous(True)
         rail_data.set_no_show_all(False)
         self._mission_metrics = {}
         self._mission_metric_rows: dict[str, Gtk.Box] = {}
-        # The live video is the primary mission view.  Keep its side rail
-        # scannable by grouping related telemetry instead of stacking one
-        # large card per measurement.
+        # Live video remains the primary view. Related telemetry shares three
+        # shallow cards instead of taking a full-height camera side rail.
         for key, heading in (
-            ("drive", "주행 상태"),
-            ("perception", "인식 대상"),
+            ("drive", "01  /  MOBILITY"),
+            ("perception", "02  /  PERCEPTION"),
         ):
-            row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-            _style(row, "rail-data-row")
+            row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
+            _style(row, "rail-data-row", f"mission-{key}-card")
+            row.set_hexpand(True)
             row_heading = Gtk.Label(label=heading)
             row_heading.set_xalign(0.0)
             _style(row_heading, "rail-data-label")
@@ -4241,16 +4489,29 @@ class OperatorConsole(Gtk.Window):
             row_value.set_xalign(0.0)
             row_value.set_line_wrap(True)
             row_value.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
-            row_value.set_max_width_chars(25)
+            row_value.set_max_width_chars(38)
             _style(row_value, "rail-data-value", f"rail-data-{key}")
             row.pack_start(row_heading, False, False, 0)
+            card_title = Gtk.Label(label="주행 상태" if key == "drive" else "인식 대상")
+            card_title.set_xalign(0.0)
+            _style(card_title, "mission-card-title")
+            row.pack_start(card_title, False, False, 0)
             row.pack_start(row_value, False, False, 0)
-            rail_data.pack_start(row, False, False, 0)
+            if key == "perception":
+                perception_note = Gtk.Label(label="작업 카메라 · RGB-D 인식")
+                perception_note.set_xalign(0.0)
+                _style(perception_note, "mission-card-note")
+                row.pack_end(perception_note, False, False, 0)
+            rail_data.pack_start(row, True, True, 0)
             self._mission_metrics[key] = row_value
             self._mission_metric_rows[key] = row
 
-        tool_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
+        tool_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         _style(tool_row, "end-effector-summary")
+        tool_kicker = Gtk.Label(label="02  /  MANIPULATOR")
+        tool_kicker.set_xalign(0.0)
+        _style(tool_kicker, "rail-data-label")
+        tool_row.pack_start(tool_kicker, False, False, 0)
         tool_header = Gtk.Box(spacing=8)
         tool_heading = Gtk.Label(label="로봇팔 · 도구")
         tool_heading.set_xalign(0.0)
@@ -4302,7 +4563,7 @@ class OperatorConsole(Gtk.Window):
             summary.pack_start(summary_heading, False, False, 0)
             summary.pack_start(value, False, False, 0)
             arm_summary_grid.attach(summary, column, 0, 1, 1)
-        self._mission_tool_detail = Gtk.Button(label="선택한 이펙터 상세 보기  ↗")
+        self._mission_tool_detail = Gtk.Button(label="상세 보기  ↗")
         self._mission_tool_detail.set_tooltip_text(
             "선택한 엔드이펙터의 상세 정보를 별도 창으로 엽니다"
         )
@@ -4311,15 +4572,23 @@ class OperatorConsole(Gtk.Window):
             "clicked", lambda _button: self._show_end_effector_popup(),
         )
         tool_row.pack_start(tool_header, False, False, 0)
-        tool_row.pack_start(self._mission_tool_selector, False, False, 0)
+        tool_selection = Gtk.Box(spacing=10)
+        self._mission_tool_selector.set_hexpand(True)
+        tool_selection.pack_start(self._mission_tool_selector, True, True, 0)
+        tool_selection.pack_end(self._mission_tool_detail, False, False, 0)
+        tool_row.pack_start(tool_selection, False, False, 0)
+        self._mission_tool_purpose.set_ellipsize(Pango.EllipsizeMode.END)
+        self._mission_tool_purpose.set_line_wrap(False)
+        self._mission_tool_purpose.set_no_show_all(True)
+        self._mission_tool_purpose.hide()
         tool_row.pack_start(self._mission_tool_purpose, False, False, 0)
         tool_row.pack_start(self._mission_tool_reading, False, False, 0)
         tool_row.pack_start(arm_summary_grid, False, False, 0)
-        tool_row.pack_start(self._mission_tool_detail, False, False, 0)
-        rail_data.pack_start(tool_row, False, False, 0)
+        rail_data.pack_start(tool_row, True, True, 0)
         self._mission_metric_rows["tool"] = tool_row
-        rail.pack_start(rail_data, False, False, 0)
         rail_data.show_all()
+        self._mission_metric_rows["perception"].set_no_show_all(True)
+        self._mission_metric_rows["perception"].hide()
         self._rail_data = rail_data
 
         self._mission_metrics["safety"] = self._preparation_status["safety"][1]
@@ -4328,13 +4597,15 @@ class OperatorConsole(Gtk.Window):
         rail_scroll.set_policy(
             Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC,
         )
-        rail_scroll.set_propagate_natural_width(True)
-        rail_scroll.set_max_content_width(350)
-        rail_scroll.set_propagate_natural_height(False)
-        rail_scroll.add(rail)
+        rail_scroll.set_propagate_natural_width(False)
+        rail_scroll.set_min_content_height(100)
+        rail_scroll.set_propagate_natural_height(True)
+        rail_scroll.set_max_content_height(180)
+        rail_scroll.add(rail_data)
+        rail.pack_start(rail_scroll, False, False, 0)
         self._mission_rail_scroll = rail_scroll
         mission_body.pack_start(videos, True, True, 0)
-        mission_body.pack_end(rail_scroll, False, False, 0)
+        mission_body.pack_end(rail, False, False, 0)
         self._mission_body = mission_body
         mission_page.pack_start(mission_body, True, True, 0)
         mission_event_expander, self._mission_event_latest = (
@@ -4363,7 +4634,7 @@ class OperatorConsole(Gtk.Window):
             self._on_status_end_effector_changed,
         )
         systems_scroll = Gtk.ScrolledWindow()
-        systems_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        systems_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         systems_scroll.add(systems_page)
         self._systems_scroll = systems_scroll
 
@@ -4420,6 +4691,17 @@ class OperatorConsole(Gtk.Window):
         stack.add_titled(mobility_scroll, "mobility", "협조구동")
         stack.add_titled(systems_scroll, "systems", "시스템 상태")
         stack.add_titled(self._map_panel, "terrain_map", "지형 지도")
+        self._vision_origin_parent: Gtk.Container | None = None
+        self._vision_panel = VisionPanel(
+            map_receiver=self._map_receiver,
+            chassis_receiver=self._chassis_receiver,
+            overlay_enabled=self.overlay_view_state["show_terrain"],
+            on_overlay_toggled=self._on_vision_overlay_toggled,
+            map_display=map_display,
+            criteria=vision_criteria,
+            calibration=attitude_calibration,
+        )
+        stack.add_titled(self._vision_panel, "vision", "비전")
         # The arm tabs use exactly the existing authenticated ops connection.
         # Only the two ingress paths implemented by the existing arm FSM are
         # registered; every other arm callback remains locally refused.
@@ -4441,6 +4723,27 @@ class OperatorConsole(Gtk.Window):
         )
         arm_callbacks = self._arm_ops_adapter.callbacks()
         self._arm_manual_tab = ArmManualTab(arm_callbacks)
+        self._arm_pose = Rover3DView(input_source=input_source, view_mode="arm")
+        self._arm_pose.set_size_request(260, 300)
+        arm_pose_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        _style(arm_pose_card, "arm-pose-card")
+        arm_pose_title = Gtk.Label(label="로봇팔 자세", xalign=0)
+        _style(arm_pose_title, "arm-card-title")
+        arm_pose_card.pack_start(arm_pose_title, False, False, 0)
+        arm_pose_card.pack_start(self._arm_pose, True, True, 0)
+        self._arm_manual_tab._page.pack_start(arm_pose_card, False, False, 0)
+        self._arm_manual_tab._page.reorder_child(arm_pose_card, 2)
+        def hide_arm_copy(widget):
+            if isinstance(widget, Gtk.Label) and any(
+                widget.get_style_context().has_class(name)
+                for name in ("arm-page-subtitle", "arm-card-description")
+            ):
+                widget.set_no_show_all(True)
+                widget.hide()
+            if isinstance(widget, Gtk.Container):
+                for child in widget.get_children():
+                    hide_arm_copy(child)
+        hide_arm_copy(self._arm_manual_tab.widget)
         self._arm_calibration_tab = ArmCalibrationTab(arm_callbacks)
         stack.add_titled(
             self._arm_manual_tab.widget,
@@ -4457,13 +4760,15 @@ class OperatorConsole(Gtk.Window):
         self._stack = stack
         switcher = Gtk.StackSwitcher()
         switcher.set_stack(stack)
-        switcher.set_halign(Gtk.Align.FILL)
+        switcher.set_halign(Gtk.Align.CENTER)
+        switcher.set_valign(Gtk.Align.CENTER)
         switcher.set_hexpand(True)
-        switcher.set_homogeneous(True)
+        switcher.set_homogeneous(False)
         switcher.set_margin_start(0)
         switcher.set_size_request(-1, 34)
         self._nav_switcher = switcher
         nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        nav.set_valign(Gtk.Align.CENTER)
         _style(nav, "nav")
         nav.pack_start(switcher, True, True, 0)
         self._nav = nav
@@ -4480,15 +4785,18 @@ class OperatorConsole(Gtk.Window):
         nav.pack_end(self._ops_settings_button, False, False, 4)
         self._viewport_density: str | None = None
         self.connect("size-allocate", self._on_window_allocated)
-        layout.pack_start(nav, False, False, 0)
         layout.pack_start(stack, True, True, 0)
         event_expander = EventDrawer(self._events)
         self._event_latest = event_expander.latest
         self._event_expander = event_expander
         stack.connect("notify::visible-child-name", self._on_page_changed)
         layout.pack_start(event_expander, False, True, 0)
+        layout.pack_end(nav, False, False, 0)
+        # Keep connection state visible in the header; navigation follows the references.
+        self._health.get_parent().remove(self._health)
+        title_row.pack_start(self._health, True, True, 24)
         # Preserve the original two-tab information architecture.  Navigation
-        # stays in the header instead of introducing an unrelated side rail.
+        # stays in the persistent footer beside the existing recovery action.
         self.add(layout)
         GLib.idle_add(
             lambda: (self._on_page_changed(self._stack, None), False)[1]
@@ -4529,7 +4837,10 @@ class OperatorConsole(Gtk.Window):
         self._ops_settings_window.present()
 
     def _open_mobility_action(self, action_name: str) -> None:
-        """Route shortcuts to the sole token-gated ops panel."""
+        """Open observation-only terrain, or route control to the gated ops panel."""
+        if action_name == "__terrain_preview__":
+            self._stack.set_visible_child_name("vision")
+            return
         if action_name != "__settings__":
             if not self._ops_panel.request_action(action_name):
                 self._show_alert(f"{action_name}: 현재 조작을 시작할 수 없습니다")
@@ -4869,11 +5180,35 @@ class OperatorConsole(Gtk.Window):
             return "연결 중", "prep-connecting", False
         return "정보 없음", "prep-offline", False
 
+    def _set_vision_camera_active(self, active: bool) -> None:
+        """Move the one L515 panel; preserve mission's selected MAIN/PiP roles."""
+        if active == (self._vision_origin_parent is not None):
+            return
+        if active:
+            self._vision_origin_parent = self._l515.get_parent()
+            self._vision_swap_sensitive = self._swap_button.get_sensitive()
+            self._swap_button.set_sensitive(False)
+            self._vision_origin_parent.remove(self._l515)
+            self._vision_panel.camera_slot.pack_start(self._l515, True, True, 0)
+            self._l515.set_role("MAIN")
+        else:
+            self._vision_panel.camera_slot.remove(self._l515)
+            self._vision_origin_parent.add(self._l515)
+            self._vision_origin_parent = None
+            self._l515.set_role("MAIN" if self._main_video is self._l515 else "SUB")
+            self._swap_button.set_sensitive(self._vision_swap_sensitive)
+        self._l515.show()
+
+    def _on_vision_overlay_toggled(self, button: Gtk.CheckButton) -> None:
+        self._show_terrain.set_active(button.get_active())
+
     def swap_camera_views(
         self, selected: VideoPanel, *, user_initiated: bool,
     ) -> bool:
         if not user_initiated:
             return False
+        if self._vision_origin_parent is not None:
+            return False  # vision always shows L515; V must not reparent it again
         if selected is self._main_video:
             return False
         secondary = self._main_video
@@ -4908,6 +5243,8 @@ class OperatorConsole(Gtk.Window):
         self._terrain_canvas.set_display_enabled(
             self.overlay_view_state["show_terrain"],
         )
+        if hasattr(self, "_vision_panel"):
+            self._vision_panel.set_overlay_enabled(self.overlay_view_state["show_terrain"])
         self._d435.set_metadata_display_options(
             show_objects=self.overlay_view_state["show_detection"],
             show_distance=self.overlay_view_state["show_distance"],
@@ -4916,6 +5253,7 @@ class OperatorConsole(Gtk.Window):
 
     def _on_page_changed(self, stack: Gtk.Stack, _param: object) -> None:
         """Use the in-page Mission footer; keep one footer on every tab."""
+        self._set_vision_camera_active(stack.get_visible_child_name() == "vision")
         mission_visible = stack.get_visible_child_name() == "mission"
         if hasattr(self, "_rail_buttons"):
             for index, button in enumerate(self._rail_buttons):
@@ -5109,10 +5447,7 @@ class OperatorConsole(Gtk.Window):
                 state_text, state_css = "미체결", "status-warn"
             else:
                 state_text, state_css = "확인 필요", "status-warn"
-            reading = " · ".join(filter(None, (
-                arm_snapshot.end_effector_id,
-                arm_snapshot.end_effector_interface,
-            ))) or "로봇팔 수신 중"
+            reading = "선택한 도구 상태를 실시간으로 확인 중"
         else:
             state_text, state_css = "선택됨", "status-warn"
             reading = "로봇팔 장착 정보 대기"
@@ -5131,13 +5466,7 @@ class OperatorConsole(Gtk.Window):
             if arm_snapshot.end_effector_id:
                 attachment += f" · ID {arm_snapshot.end_effector_id}"
             if arm_snapshot.joint_names:
-                if arm_snapshot.joint_effort_raw:
-                    load = (
-                        f"최고 {max(abs(value) for value in arm_snapshot.joint_effort_raw):.0f} raw · "
-                        f"관절 {len(arm_snapshot.joint_names)}개"
-                    )
-                else:
-                    load = f"관절 {len(arm_snapshot.joint_names)}개 · 피드백 raw 미수신"
+                load = f"관절 {len(arm_snapshot.joint_names)}개 응답"
             interface = arm_snapshot.end_effector_interface or "인터페이스 정보 없음"
             telemetry = (
                 f"{interface} · 선택 항목과 관측값 일치"
@@ -5196,20 +5525,19 @@ class OperatorConsole(Gtk.Window):
             pip_width = min(380, max(270, pip_width))
         # D435i transport is 848x480.  Preserve the exact native ratio instead
         # of the close-but-not-identical 16:9 approximation.
+        pip_width = min(pip_width, max(160, int(allocation.height * 0.48 * 848 / 480)))
         pip_height = int(round(pip_width * 480 / 848))
         self._pip_slot.set_slot_size(pip_width, pip_height)
 
     def _on_mission_body_allocated(
         self, _widget: Gtk.Box, allocation: Gdk.Rectangle,
     ) -> None:
-        if allocation.width < 1050:
-            rail_width = min(285, max(235, int(allocation.width * 0.24)))
-        elif allocation.width >= 1500:
-            rail_width = min(410, max(340, int(allocation.width * 0.23)))
-        else:
-            rail_width = min(350, max(285, int(allocation.width * 0.22)))
-        self._mission_rail.set_size_request(rail_width, -1)
-        self._mission_rail_scroll.set_max_content_width(rail_width)
+        # Horizontal telemetry dock: keep the stage flexible and the full
+        # existing data/control surface reachable on laptop-height displays.
+        self._mission_rail.set_size_request(-1, -1)
+        self._mission_rail_scroll.set_max_content_height(
+            180 if allocation.height < 550 else 190
+        )
 
     def _on_window_allocated(
         self, _widget: Gtk.Window, allocation: Gdk.Rectangle,
@@ -5231,10 +5559,8 @@ class OperatorConsole(Gtk.Window):
             "mission": "실시간" if compact else "실시간 화면",
             "mobility": "협조구동",
             "systems": "시스템" if compact else "시스템 상태",
-            ARM_MANUAL_TAB_NAME: "로봇팔 조작" if compact else ARM_MANUAL_TAB_TITLE,
-            ARM_CALIBRATION_TAB_NAME: (
-                "도구 보정" if compact else ARM_CALIBRATION_TAB_TITLE
-            ),
+            ARM_MANUAL_TAB_NAME: "로봇팔 조작",
+            ARM_CALIBRATION_TAB_NAME: "도구 보정",
         }
         for name, title in titles.items():
             child = self._stack.get_child_by_name(name)
@@ -5518,18 +5844,6 @@ class OperatorConsole(Gtk.Window):
             "success": "status-live", "warning": "status-warn",
             "danger": "status-bad", "offline": "status-muted",
         }[safety_public_tone])
-        wheel_speeds = (
-            () if chassis_state != "LIVE" or chassis_snapshot is None else
-            tuple(
-                abs(wheel.drive_turns_per_s)
-                for wheel in chassis_snapshot.wheel_statuses
-                if wheel.drive_turns_per_s is not None and not wheel.stale
-            )
-        )
-        speed_text = (
-            "정보 없음" if not wheel_speeds
-            else f"{sum(wheel_speeds) / len(wheel_speeds):.2f} turn/s"
-        )
         mobility_values = mission_mobility_values(
             chassis_snapshot
             if chassis_state == "LIVE"
@@ -5539,9 +5853,10 @@ class OperatorConsole(Gtk.Window):
             "정보 없음"
             if chassis_state != "LIVE" or chassis_snapshot is None
             else (
-                f'{mobility_values["path"]} · {mobility_values["control"]}\n'
-                f'{speed_text} · {mobility_values["attitude"]}\n'
-                f'{mobility_values["motors"]}'
+                f'경로  |  {mobility_values["path"]}\n'
+                f'제어  |  {mobility_values["control"]}\n'
+                f'자세  |  {mobility_values["attitude"]}\n'
+                f'바퀴  |  {mobility_values["motors"]}'
             )
         )
         self._sync_overlay_rail(metadata)
@@ -5605,6 +5920,9 @@ class OperatorConsole(Gtk.Window):
             chassis_snapshot,
             ops_state=self._ops_panel.latest_state(),
         )
+        self._mobility._rover_graphic.set_arm_state(arm_snapshot)
+        self._arm_pose.set_state(chassis_snapshot)
+        self._arm_pose.set_arm_state(arm_snapshot)
         self._environment_status.update(environment_snapshot)
         self._refresh_end_effector_summary(
             arm_snapshot=arm_snapshot,
@@ -5719,6 +6037,9 @@ class OperatorConsole(Gtk.Window):
         """
         if self._smoke_probe_path is None:
             return
+        states = dict(states, page=self._stack.get_visible_child_name(),
+                      vision=self._vision_panel.probe(),
+                      vision_camera_shared=self._l515.get_parent() is self._vision_panel.camera_slot)
         if self._operation_runtime is not None:
             states = dict(states, operation=self._operation_runtime.snapshot(), console_pid=os.getpid())
         steer_button = self._ops_panel._action_buttons.get("steer_mode_skid")
@@ -5744,6 +6065,8 @@ class OperatorConsole(Gtk.Window):
             pass
 
     def _on_destroy(self, *_args: object) -> None:
+        # Stop vision work before closing the shared receivers it observes.
+        self._vision_panel.close()
         self._ops_panel.cancel_confirmation()
         self._arm_ops_adapter.blur()
         self._arm_ops_adapter.pump()
@@ -5840,6 +6163,9 @@ def main() -> None:
         help="L515 terrain outline delay to match SRT video (0-400 ms)",
     )
     parser.add_argument("--terrain-map-port", type=int, default=5010)
+    parser.add_argument("--attitude-calibration", default=None, help="확인된 IMU 장착 회전 JSON")
+    parser.add_argument("--l515-criteria", default=None, help="표시 기준값 JSON (L515_CRITERIA)")
+    parser.add_argument("--l515-criteria-profile", default=None)
     defaults = DisplayConfig()
     parser.add_argument("--map-display-upsample", type=int, default=defaults.display_upsample)
     parser.add_argument("--map-hillshade-azimuth", type=float, default=defaults.hillshade_azimuth_deg)
@@ -5862,6 +6188,9 @@ def main() -> None:
         help="local bench mode: bypass arm grant/capability UI gates; keep FSM safety/stop",
     )
     parser.add_argument("--latency-ms", type=int, default=60)
+    parser.add_argument("--page", choices=("mission", "mobility", "systems", "terrain_map", "vision"), default="mission")
+    parser.add_argument("--show-terrain-preview", action="store_true",
+                        help="open the shared-receiver vision tab at startup")
     parser.add_argument(
         "--smoke-probe-file",
         default=None,
@@ -5878,6 +6207,11 @@ def main() -> None:
     if not 0 <= args.terrain_display_delay_ms <= 400:
         parser.error("--terrain-display-delay-ms must be within 0-400")
     map_display = map_display_from_args(parser, args)
+    try:
+        vision_criteria = resolve_criteria(args.l515_criteria, args.l515_criteria_profile)
+        attitude_calibration = resolve_calibration(args.attitude_calibration)
+    except (ValueError, OSError) as exc:
+        parser.error(str(exc))
     Gst.init(None)
     console = OperatorConsole(args.host, args.d435_port, args.l515_port,
                               args.metadata_port, args.latency_ms, args.telemetry_port,
@@ -5888,6 +6222,8 @@ def main() -> None:
                               terrain_display_delay_ms=args.terrain_display_delay_ms,
                               terrain_map_port=args.terrain_map_port,
                               map_display=map_display,
+                              vision_criteria=vision_criteria,
+                              attitude_calibration=attitude_calibration,
                               ops_host=args.host if args.ops_host is None else args.ops_host,
                               ops_port=args.ops_port,
                               ops_token_file=args.ops_token_file,
@@ -5895,7 +6231,10 @@ def main() -> None:
                               input_source=args.input_source,
                               arm_developer_mode=args.arm_developer_mode)
     console.show_all()
+    console._stack.set_visible_child_name(args.page)
     console.maximize()
+    if args.show_terrain_preview:
+        GLib.idle_add(lambda: console._open_mobility_action("__terrain_preview__") or False)
 
     def _quit_on_signal(*_args: object) -> bool:
         # Ctrl+C 를 창 닫기와 같은 경로로 흘린다.  기본 SIGINT 는 Gtk.main()

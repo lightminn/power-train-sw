@@ -1,0 +1,1 @@
+{"status": "complete", "reason": null, "scope": "process CPU/RSS/environment only; not FPS/draw/latency/hardware acceptance", "pid": 26009, "process_start_ticks": 582160, "requested_s": 1.1, "elapsed_s": 1.1029931670000224, "cpu_percent_mean": 99.98470733904682, "rss_kib_max": 9180.0}

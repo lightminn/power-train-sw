@@ -1,0 +1,477 @@
+
+This GDB supports auto-downloading debuginfo from the following URLs:
+  <https://debuginfod.ubuntu.com>
+Enable debuginfod for this session? (y or [n]) [answered N; input not from terminal]
+Debuginfod has been disabled.
+To make this setting permanent, add 'set debuginfod enabled off' to .gdbinit.
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libglib-2.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgobject-2.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgmodule-2.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libbrotlidec.so.1
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libbrotlicommon.so.1
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgio-2.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgdk_pixbuf-2.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgdk-3.so.0
+[New Thread 0x7ffff601d6c0 (LWP 22115)]
+[New Thread 0x7fffeffff6c0 (LWP 22116)]
+[New Thread 0x7ffff581c6c0 (LWP 22117)]
+[New Thread 0x7fffef7fe6c0 (LWP 22119)]
+[New Thread 0x7ffff4ff26c0 (LWP 22118)]
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libcap.so.2
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgstreamer-1.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstvideotestsrc.so
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgstvideo-1.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgstbase-1.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/liborc-0.4.so.0
+warning: could not find '.gnu_debugaltlink' file for /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstx264.so
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgstpbutils-1.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgstaudio-1.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgsttag-1.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstvideoparsersbad.so
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgstcodecparsers-1.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstmpegtsmux.so
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgstmpegts-1.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstsrt.so
+[New Thread 0x7fffccc046c0 (LWP 22120)]
+warning: could not find '.gnu_debugaltlink' file for /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstcoreelements.so
+[New Thread 0x7fffcc4036c0 (LWP 22121)]
+[New Thread 0x7fffcbc026c0 (LWP 22122)]
+[New Thread 0x7fffcb4016c0 (LWP 22123)]
+[New Thread 0x7fffcac006c0 (LWP 22124)]
+[New Thread 0x7fffca3ff6c0 (LWP 22125)]
+[New Thread 0x7fffc9bfe6c0 (LWP 22126)]
+[New Thread 0x7fffc93fd6c0 (LWP 22127)]
+[New Thread 0x7fffc8bfc6c0 (LWP 22128)]
+[New Thread 0x7fffbbfff6c0 (LWP 22129)]
+[New Thread 0x7fffbb7fe6c0 (LWP 22130)]
+warning: could not find '.gnu_debugaltlink' file for /usr/lib/x86_64-linux-gnu/gio/modules/libgvfsdbus.so
+warning: could not find '.gnu_debugaltlink' file for /usr/lib/x86_64-linux-gnu/gvfs/libgvfscommon.so
+[New Thread 0x7fffba8b66c0 (LWP 22131)]
+[New Thread 0x7fffb996e6c0 (LWP 22132)]
+[New Thread 0x7fffb916d6c0 (LWP 22133)]
+[New Thread 0x7fffb896c6c0 (LWP 22134)]
+[New Thread 0x7fffaffff6c0 (LWP 22135)]
+[New Thread 0x7fffaf7fe6c0 (LWP 22136)]
+[New Thread 0x7fffaeffd6c0 (LWP 22137)]
+[New Thread 0x7fffae7fc6c0 (LWP 22138)]
+[Detaching after vfork from child process 22139]
+[New Thread 0x7fffa55a96c0 (LWP 22140)]
+[New Thread 0x7fffa4da86c0 (LWP 22141)]
+[New Thread 0x7fff97fff6c0 (LWP 22142)]
+[New Thread 0x7fff977fe6c0 (LWP 22143)]
+[New Thread 0x7fff96ffd6c0 (LWP 22144)]
+[New Thread 0x7fff967fc6c0 (LWP 22145)]
+[New Thread 0x7fff95ffb6c0 (LWP 22146)]
+[New Thread 0x7fff957fa6c0 (LWP 22147)]
+warning: could not find '.gnu_debugaltlink' file for /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstmpegtsdemux.so
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libflite_cmu_us_awb.so.1
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libflite_cmu_us_kal.so.1
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libflite_cmu_us_kal16.so.1
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libflite_cmu_us_rms.so.1
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libflite_cmu_us_slt.so.1
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libvpl.so.2
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libzvbi.so.0
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libtheoraenc.so.1
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libtheoradec.so.1
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libvdpau.so.1
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libflite_usenglish.so.1
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libflite_cmulex.so.1
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libcjson.so.1
+warning: could not find '.gnu_debugaltlink' file for /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstvideoconvertscale.so
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgstallocators-1.0.so.0
+warning: could not find '.gnu_debugaltlink' file for /lib/x86_64-linux-gnu/libgbm.so.1
+[New Thread 0x7fff69cad6c0 (LWP 22170)]
+warning: could not find '.gnu_debugaltlink' file for /usr/lib/x86_64-linux-gnu/gtk-3.0/3.0.0/immodules/im-wayland.so
+[New Thread 0x7fff5b7ff6c0 (LWP 22174)]
+[New Thread 0x7fff5affe6c0 (LWP 22175)]
+[New Thread 0x7fff5a7fd6c0 (LWP 22176)]
+[New Thread 0x7fff59ffc6c0 (LWP 22177)]
+[New Thread 0x7fff597fb6c0 (LWP 22178)]
+
+Thread 15 "python3" received signal SIGSEGV, Segmentation fault.
+[Switching to Thread 0x7fffc8bfc6c0 (LWP 22128)]
+0x00007fffedef8df0 in ?? () from /lib/x86_64-linux-gnu/libgcc_s.so.1
+
+Thread 39 (Thread 0x7fff597fb6c0 (LWP 22178) "video_latest:sr"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x00007ffff739e52d in g_cond_wait () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#2  0x00007fffd7fde69a in ?? () from /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstcoreelements.so
+#3  0x00007fffdff72bb4 in ?? () from /lib/x86_64-linux-gnu/libgstreamer-1.0.so.0
+#4  0x00007ffff7379422 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#5  0x00007ffff7373e62 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#6  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#7  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 38 (Thread 0x7fff59ffc6c0 (LWP 22177) "operator_source"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x7fff59ffb2e0, op=137, expected=0, futex_word=0x7fffdc2383b0 <srt::sync::g_Sync+80>) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x7fff59ffb2e0, clockid=0, expected=0, futex_word=0x7fffdc2383b0 <srt::sync::g_Sync+80>) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fffdc2383b0 <srt::sync::g_Sync+80>, expected=expected@entry=0, clockid=clockid@entry=1, abstime=abstime@entry=0x7fff59ffb2e0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9bd6e in __pthread_cond_wait_common (abstime=0x7fff59ffb2e0, clockid=1, mutex=0x7fffdc238360 <srt::sync::g_Sync>, cond=0x7fffdc238388 <srt::sync::g_Sync+40>) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_timedwait64 (cond=0x7fffdc238388 <srt::sync::g_Sync+40>, mutex=0x7fffdc238360 <srt::sync::g_Sync>, abstime=0x7fff59ffb2e0) at ./nptl/pthread_cond_wait.c:652
+#5  0x00007fffdc209af1 in srt::sync::Condition::wait_for(srt::sync::UniqueLock&, srt::sync::Duration<srt::sync::steady_clock> const&) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#6  0x00007fffdc20f054 in srt::sync::CEvent::lock_wait_for(srt::sync::Duration<srt::sync::steady_clock> const&) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#7  0x00007fffdc20f0c9 in srt::sync::CGlobEvent::waitForEvent() () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+
+Thread 37 (Thread 0x7fff5a7fd6c0 (LWP 22176) "SRT:RcvQ:w3"):
+#0  0x00007ffff7d2bf6b in __recvmsg_syscall (flags=0, msg=0x7fff5a7fc8f0, fd=43) at ../sysdeps/unix/sysv/linux/recvmsg.c:27
+#1  __libc_recvmsg (fd=43, msg=0x7fff5a7fc8f0, flags=0) at ../sysdeps/unix/sysv/linux/recvmsg.c:41
+#2  0x00007fffdc1b878b in srt::CChannel::recvfrom(srt::sockaddr_any&, srt::CPacket&) const () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#3  0x00007fffdc201c0d in srt::CRcvQueue::worker_RetrieveUnit(int&, srt::CUnit*&, srt::sockaddr_any&) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#4  0x00007fffdc202ae2 in srt::CRcvQueue::worker(void*) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#5  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#6  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 36 (Thread 0x7fff5affe6c0 (LWP 22175) "SRT:SndQ:w3"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x237a330) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x0, clockid=0, expected=0, futex_word=0x237a330) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x237a330, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9b8cd in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x237a2e0, cond=0x237a308) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x237a308, mutex=0x237a2e0) at ./nptl/pthread_cond_wait.c:627
+#5  0x00007fffdc1ffc94 in srt::CSndUList::waitNonEmpty() const () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#6  0x00007fffdc20118f in srt::CSndQueue::worker(void*) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#7  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+
+Thread 35 (Thread 0x7fff5b7ff6c0 (LWP 22174) "video_latest:sr"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x00007ffff739e52d in g_cond_wait () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#2  0x00007fffd7fde69a in ?? () from /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstcoreelements.so
+#3  0x00007fffdff72bb4 in ?? () from /lib/x86_64-linux-gnu/libgstreamer-1.0.so.0
+#4  0x00007ffff7379422 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#5  0x00007ffff7373e62 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#6  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#7  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 34 (Thread 0x7fff69cad6c0 (LWP 22170) "python3"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=<optimized out>, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x7fff64000ba0) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=<optimized out>, abstime=0x0, clockid=0, expected=0, futex_word=0x7fff64000ba0) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fff64000ba0, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=<optimized out>) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7ca4fff in do_futex_wait (sem=sem@entry=0x7fff64000ba0, abstime=0x0, clockid=0) at ./nptl/sem_waitcommon.c:111
+#4  0x00007ffff7ca5098 in __new_sem_wait_slow64 (sem=0x7fff64000ba0, abstime=0x0, clockid=0) at ./nptl/sem_waitcommon.c:183
+#5  0x000000000061009d in PyThread_acquire_lock_timed ()
+#6  0x000000000064dcba in ?? ()
+#7  0x0000000000551348 in ?? ()
+
+Thread 33 (Thread 0x7fff957fa6c0 (LWP 22147) "python3"):
+#0  0x00007ffff7d1b5fd in __GI___poll (fds=0x7fff957f97d8, nfds=1, timeout=200) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x00000000006cc327 in ?? ()
+#2  0x00000000006ca96d in ?? ()
+#3  0x00000000004d0b6a in ?? ()
+#4  0x00000000004d0a62 in ?? ()
+#5  0x00000000005508cc in ?? ()
+#6  0x0000000000549935 in PyObject_Vectorcall ()
+#7  0x00000000005d6f09 in _PyEval_EvalFrameDefault ()
+
+Thread 32 (Thread 0x7fff95ffb6c0 (LWP 22146) "python3"):
+#0  0x00007ffff7d1b5fd in __GI___poll (fds=0x7fff95ffa7d8, nfds=1, timeout=200) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x00000000006cc327 in ?? ()
+#2  0x00000000006ca96d in ?? ()
+#3  0x00000000004d0b6a in ?? ()
+#4  0x00000000004d0a62 in ?? ()
+#5  0x00000000005508cc in ?? ()
+#6  0x0000000000549935 in PyObject_Vectorcall ()
+#7  0x00000000005d6f09 in _PyEval_EvalFrameDefault ()
+
+Thread 31 (Thread 0x7fff967fc6c0 (LWP 22145) "python3"):
+#0  0x00007ffff7d1b5fd in __GI___poll (fds=0x7fff967fb7d8, nfds=1, timeout=200) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x00000000006cc327 in ?? ()
+#2  0x00000000006ca96d in ?? ()
+#3  0x00000000004d0b6a in ?? ()
+#4  0x00000000004d0a62 in ?? ()
+#5  0x00000000005508cc in ?? ()
+#6  0x0000000000549935 in PyObject_Vectorcall ()
+#7  0x00000000005d6f09 in _PyEval_EvalFrameDefault ()
+
+Thread 30 (Thread 0x7fff96ffd6c0 (LWP 22144) "python3"):
+#0  0x00007ffff7d1b5fd in __GI___poll (fds=0x7fff96ffc7d8, nfds=1, timeout=200) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x00000000006cc327 in ?? ()
+#2  0x00000000006ca96d in ?? ()
+#3  0x00000000004d0b6a in ?? ()
+#4  0x00000000004d0a62 in ?? ()
+#5  0x00000000005508cc in ?? ()
+#6  0x0000000000549935 in PyObject_Vectorcall ()
+#7  0x00000000005d6f09 in _PyEval_EvalFrameDefault ()
+
+Thread 29 (Thread 0x7fff977fe6c0 (LWP 22143) "python3"):
+#0  0x00007ffff7d1b5fd in __GI___poll (fds=0x7fff977fd7d8, nfds=1, timeout=200) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x00000000006cc327 in ?? ()
+#2  0x00000000006ca96d in ?? ()
+#3  0x00000000004d0b6a in ?? ()
+#4  0x00000000004d0a62 in ?? ()
+#5  0x00000000005508cc in ?? ()
+#6  0x0000000000549935 in PyObject_Vectorcall ()
+#7  0x00000000005d6f09 in _PyEval_EvalFrameDefault ()
+
+Thread 28 (Thread 0x7fff97fff6c0 (LWP 22142) "python3"):
+#0  0x00007ffff7d1b5fd in __GI___poll (fds=0x7fff97ffe7d8, nfds=1, timeout=200) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x00000000006cc327 in ?? ()
+#2  0x00000000006ca96d in ?? ()
+#3  0x00000000004d0b6a in ?? ()
+#4  0x00000000004d0a62 in ?? ()
+#5  0x00000000005508cc in ?? ()
+#6  0x0000000000549935 in PyObject_Vectorcall ()
+#7  0x00000000005d6f09 in _PyEval_EvalFrameDefault ()
+
+Thread 27 (Thread 0x7fffa4da86c0 (LWP 22141) "python3"):
+#0  0x00007ffff7d1b5fd in __GI___poll (fds=0x7fffa4da77d8, nfds=1, timeout=200) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x00000000006cc327 in ?? ()
+#2  0x00000000006ca96d in ?? ()
+#3  0x00000000004d0b6a in ?? ()
+#4  0x00000000004d0a62 in ?? ()
+#5  0x00000000005508cc in ?? ()
+#6  0x0000000000549935 in PyObject_Vectorcall ()
+#7  0x00000000005d6f09 in _PyEval_EvalFrameDefault ()
+
+Thread 26 (Thread 0x7fffa55a96c0 (LWP 22140) "python3"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x00007ffff739e52d in g_cond_wait () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#2  0x00007ffff730f58b in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#3  0x00007ffff730f5ec in g_async_queue_pop () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#4  0x00007ffff602a0fb in ?? () from /lib/x86_64-linux-gnu/libpangoft2-1.0.so.0
+#5  0x00007ffff7373e62 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#6  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#7  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 25 (Thread 0x7fffae7fc6c0 (LWP 22138) "videotestsrc1:s"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x7fffa80431cc) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x0, clockid=0, expected=0, futex_word=0x7fffa80431cc) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fffa80431cc, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9b8cd in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x7fffa8043178, cond=0x7fffa80431a0) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x7fffa80431a0, mutex=0x7fffa8043178) at ./nptl/pthread_cond_wait.c:627
+#5  0x00007fffccf2952b in ?? () from /lib/x86_64-linux-gnu/libx264.so.164
+#6  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#7  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 24 (Thread 0x7fffaeffd6c0 (LWP 22137) "videotestsrc0:s"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x7fffc0043b4c) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x0, clockid=0, expected=0, futex_word=0x7fffc0043b4c) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fffc0043b4c, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9b8cd in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x7fffc0043af8, cond=0x7fffc0043b20) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x7fffc0043b20, mutex=0x7fffc0043af8) at ./nptl/pthread_cond_wait.c:627
+#5  0x00007fffccf2952b in ?? () from /lib/x86_64-linux-gnu/libx264.so.164
+#6  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#7  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 23 (Thread 0x7fffaf7fe6c0 (LWP 22136) "videotestsrc1:s"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x7fffa80431cc) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x0, clockid=0, expected=0, futex_word=0x7fffa80431cc) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fffa80431cc, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9b8cd in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x7fffa8043178, cond=0x7fffa80431a0) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x7fffa80431a0, mutex=0x7fffa8043178) at ./nptl/pthread_cond_wait.c:627
+#5  0x00007fffccf2952b in ?? () from /lib/x86_64-linux-gnu/libx264.so.164
+#6  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#7  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 22 (Thread 0x7fffaffff6c0 (LWP 22135) "videotestsrc0:s"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x7fffc0043b4c) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x0, clockid=0, expected=0, futex_word=0x7fffc0043b4c) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fffc0043b4c, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9b8cd in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x7fffc0043af8, cond=0x7fffc0043b20) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x7fffc0043b20, mutex=0x7fffc0043af8) at ./nptl/pthread_cond_wait.c:627
+#5  0x00007fffccf2952b in ?? () from /lib/x86_64-linux-gnu/libx264.so.164
+#6  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#7  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 21 (Thread 0x7fffb896c6c0 (LWP 22134) "videotestsrc1:s"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x7fffa800d04c) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x0, clockid=0, expected=0, futex_word=0x7fffa800d04c) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fffa800d04c, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9b8cd in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x7fffa800cff8, cond=0x7fffa800d020) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x7fffa800d020, mutex=0x7fffa800cff8) at ./nptl/pthread_cond_wait.c:627
+#5  0x00007fffccf2952b in ?? () from /lib/x86_64-linux-gnu/libx264.so.164
+#6  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#7  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 20 (Thread 0x7fffb916d6c0 (LWP 22133) "videotestsrc0:s"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x7fffc0000fcc) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x0, clockid=0, expected=0, futex_word=0x7fffc0000fcc) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fffc0000fcc, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9b8cd in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x7fffc0000f78, cond=0x7fffc0000fa0) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x7fffc0000fa0, mutex=0x7fffc0000f78) at ./nptl/pthread_cond_wait.c:627
+#5  0x00007fffccf2952b in ?? () from /lib/x86_64-linux-gnu/libx264.so.164
+#6  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#7  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 19 (Thread 0x7fffb996e6c0 (LWP 22132) "videotestsrc1:s"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x7fffa800d04c) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x0, clockid=0, expected=0, futex_word=0x7fffa800d04c) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fffa800d04c, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9b8cd in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x7fffa800cff8, cond=0x7fffa800d020) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x7fffa800d020, mutex=0x7fffa800cff8) at ./nptl/pthread_cond_wait.c:627
+#5  0x00007fffccf2952b in ?? () from /lib/x86_64-linux-gnu/libx264.so.164
+#6  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#7  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 18 (Thread 0x7fffba8b66c0 (LWP 22131) "videotestsrc0:s"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x7fffc0000fcc) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x0, clockid=0, expected=0, futex_word=0x7fffc0000fcc) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fffc0000fcc, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9b8cd in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x7fffc0000f78, cond=0x7fffc0000fa0) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x7fffc0000fa0, mutex=0x7fffc0000f78) at ./nptl/pthread_cond_wait.c:627
+#5  0x00007fffccf2952b in ?? () from /lib/x86_64-linux-gnu/libx264.so.164
+#6  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#7  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 17 (Thread 0x7fffbb7fe6c0 (LWP 22130) "videotestsrc1:s"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x00007fffdff7333d in ?? () from /lib/x86_64-linux-gnu/libgstreamer-1.0.so.0
+#2  0x00007fffdff73de9 in ?? () from /lib/x86_64-linux-gnu/libgstreamer-1.0.so.0
+#3  0x00007fffdff09863 in gst_clock_id_wait () from /lib/x86_64-linux-gnu/libgstreamer-1.0.so.0
+#4  0x00007fffdc6e8d5b in ?? () from /lib/x86_64-linux-gnu/libgstbase-1.0.so.0
+#5  0x00007fffdc6eba4a in ?? () from /lib/x86_64-linux-gnu/libgstbase-1.0.so.0
+#6  0x00007fffdff72bb4 in ?? () from /lib/x86_64-linux-gnu/libgstreamer-1.0.so.0
+#7  0x00007ffff7379422 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+
+Thread 16 (Thread 0x7fffbbfff6c0 (LWP 22129) "mpegtsmux1:src"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x00007ffff739e52d in g_cond_wait () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#2  0x00007fffdc6c405d in ?? () from /lib/x86_64-linux-gnu/libgstbase-1.0.so.0
+#3  0x00007fffdff72bb4 in ?? () from /lib/x86_64-linux-gnu/libgstreamer-1.0.so.0
+#4  0x00007ffff7379422 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#5  0x00007ffff7373e62 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#6  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#7  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 15 (Thread 0x7fffc8bfc6c0 (LWP 22128) "python3"):
+#0  0x00007fffedef8df0 in ?? () from /lib/x86_64-linux-gnu/libgcc_s.so.1
+#1  0x00007fffedef90cd in __gcc_personality_v0 () from /lib/x86_64-linux-gnu/libgcc_s.so.1
+#2  0x00007fffed2cb1ad in __libunwind_Unwind_Resume () from /lib/x86_64-linux-gnu/libunwind.so.8
+#3  0x00007fffdc199466 in ?? () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#4  0x00007fffdc1a026f in srt::CUDTUnited::epoll_add_ssock(int, int, int const*) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#5  0x00007fffdc1af6a2 in srt::CUDT::epoll_add_ssock(int, int, int const*) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#6  0x00007fffdc20c563 in srt_epoll_add_ssock () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#7  0x00007fffec85537e in ?? () from /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstsrt.so
+
+Thread 14 (Thread 0x7fffc93fd6c0 (LWP 22127) "SRT:RcvQ:w2"):
+#0  0x00007ffff7d2bf6b in __recvmsg_syscall (flags=0, msg=0x7fffc93fc8f0, fd=23) at ../sysdeps/unix/sysv/linux/recvmsg.c:27
+#1  __libc_recvmsg (fd=23, msg=0x7fffc93fc8f0, flags=0) at ../sysdeps/unix/sysv/linux/recvmsg.c:41
+#2  0x00007fffdc1b878b in srt::CChannel::recvfrom(srt::sockaddr_any&, srt::CPacket&) const () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#3  0x00007fffdc201c0d in srt::CRcvQueue::worker_RetrieveUnit(int&, srt::CUnit*&, srt::sockaddr_any&) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#4  0x00007fffdc202ae2 in srt::CRcvQueue::worker(void*) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#5  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#6  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 13 (Thread 0x7fffc9bfe6c0 (LWP 22126) "SRT:SndQ:w2"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x182aaf0) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x0, clockid=0, expected=0, futex_word=0x182aaf0) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x182aaf0, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9b8cd in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x182aaa0, cond=0x182aac8) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x182aac8, mutex=0x182aaa0) at ./nptl/pthread_cond_wait.c:627
+#5  0x00007fffdc1ffc94 in srt::CSndUList::waitNonEmpty() const () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#6  0x00007fffdc20118f in srt::CSndQueue::worker(void*) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#7  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+
+Thread 12 (Thread 0x7fffca3ff6c0 (LWP 22125) "videotestsrc0:s"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x00007fffdff7333d in ?? () from /lib/x86_64-linux-gnu/libgstreamer-1.0.so.0
+#2  0x00007fffdff73de9 in ?? () from /lib/x86_64-linux-gnu/libgstreamer-1.0.so.0
+#3  0x00007fffdff09863 in gst_clock_id_wait () from /lib/x86_64-linux-gnu/libgstreamer-1.0.so.0
+#4  0x00007fffdc6e8d5b in ?? () from /lib/x86_64-linux-gnu/libgstbase-1.0.so.0
+#5  0x00007fffdc6eba4a in ?? () from /lib/x86_64-linux-gnu/libgstbase-1.0.so.0
+#6  0x00007fffdff72bb4 in ?? () from /lib/x86_64-linux-gnu/libgstreamer-1.0.so.0
+#7  0x00007ffff7379422 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+
+Thread 11 (Thread 0x7fffcac006c0 (LWP 22124) "mpegtsmux0:src"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x00007ffff739e52d in g_cond_wait () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#2  0x00007fffdc6c405d in ?? () from /lib/x86_64-linux-gnu/libgstbase-1.0.so.0
+#3  0x00007fffdff72bb4 in ?? () from /lib/x86_64-linux-gnu/libgstreamer-1.0.so.0
+#4  0x00007ffff7379422 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#5  0x00007ffff7373e62 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#6  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#7  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 10 (Thread 0x7fffcb4016c0 (LWP 22123) "python3"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x7fffcb400650, op=137, expected=0, futex_word=0x7fffdc2383b4 <srt::sync::g_Sync+84>) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x7fffcb400650, clockid=0, expected=0, futex_word=0x7fffdc2383b4 <srt::sync::g_Sync+84>) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fffdc2383b4 <srt::sync::g_Sync+84>, expected=expected@entry=0, clockid=clockid@entry=1, abstime=abstime@entry=0x7fffcb400650, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9bd6e in __pthread_cond_wait_common (abstime=0x7fffcb400650, clockid=1, mutex=0x7fffdc238360 <srt::sync::g_Sync>, cond=0x7fffdc238388 <srt::sync::g_Sync+40>) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_timedwait64 (cond=0x7fffdc238388 <srt::sync::g_Sync+40>, mutex=0x7fffdc238360 <srt::sync::g_Sync>, abstime=0x7fffcb400650) at ./nptl/pthread_cond_wait.c:652
+#5  0x00007fffdc209af1 in srt::sync::Condition::wait_for(srt::sync::UniqueLock&, srt::sync::Duration<srt::sync::steady_clock> const&) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#6  0x00007fffdc20f054 in srt::sync::CEvent::lock_wait_for(srt::sync::Duration<srt::sync::steady_clock> const&) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#7  0x00007fffdc20f0c9 in srt::sync::CGlobEvent::waitForEvent() () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+
+Thread 9 (Thread 0x7fffcbc026c0 (LWP 22122) "SRT:RcvQ:w1"):
+#0  0x00007ffff7d2bf6b in __recvmsg_syscall (flags=0, msg=0x7fffcbc018f0, fd=18) at ../sysdeps/unix/sysv/linux/recvmsg.c:27
+#1  __libc_recvmsg (fd=18, msg=0x7fffcbc018f0, flags=0) at ../sysdeps/unix/sysv/linux/recvmsg.c:41
+#2  0x00007fffdc1b878b in srt::CChannel::recvfrom(srt::sockaddr_any&, srt::CPacket&) const () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#3  0x00007fffdc201c0d in srt::CRcvQueue::worker_RetrieveUnit(int&, srt::CUnit*&, srt::sockaddr_any&) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#4  0x00007fffdc202ae2 in srt::CRcvQueue::worker(void*) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#5  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#6  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 8 (Thread 0x7fffcc4036c0 (LWP 22121) "SRT:SndQ:w1"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x179dee0) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x0, clockid=0, expected=0, futex_word=0x179dee0) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x179dee0, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9b8cd in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x179de90, cond=0x179deb8) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x179deb8, mutex=0x179de90) at ./nptl/pthread_cond_wait.c:627
+#5  0x00007fffdc1ffc94 in srt::CSndUList::waitNonEmpty() const () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#6  0x00007fffdc20118f in srt::CSndQueue::worker(void*) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#7  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+
+Thread 7 (Thread 0x7fffccc046c0 (LWP 22120) "SRT:GC"):
+#0  0x00007ffff7c98e51 in __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x7fffccc03dd0, op=137, expected=0, futex_word=0x7fffdc237310) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x7fffccc03dd0, clockid=0, expected=0, futex_word=0x7fffdc237310) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fffdc237310, expected=expected@entry=0, clockid=clockid@entry=1, abstime=abstime@entry=0x7fffccc03dd0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c9bd6e in __pthread_cond_wait_common (abstime=0x7fffccc03dd0, clockid=1, mutex=0x7fffdc2372c0, cond=0x7fffdc2372e8) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_timedwait64 (cond=0x7fffdc2372e8, mutex=0x7fffdc2372c0, abstime=0x7fffccc03dd0) at ./nptl/pthread_cond_wait.c:652
+#5  0x00007fffdc209af1 in srt::sync::Condition::wait_for(srt::sync::UniqueLock&, srt::sync::Duration<srt::sync::steady_clock> const&) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#6  0x00007fffdc1add56 in srt::CUDTUnited::garbageCollect(void*) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#7  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+
+Thread 6 (Thread 0x7ffff4ff26c0 (LWP 22118) "gdbus"):
+#0  0x00007ffff7d1b5fd in __GI___poll (fds=0x7fffd8000b90, nfds=2, timeout=-1) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x00007ffff73a48ce in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#2  0x00007ffff7345f47 in g_main_loop_run () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#3  0x00007ffff6998582 in ?? () from /lib/x86_64-linux-gnu/libgio-2.0.so.0
+#4  0x00007ffff7373e62 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#5  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#6  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 5 (Thread 0x7fffef7fe6c0 (LWP 22119) "dconf worker"):
+#0  0x00007ffff7d1b5fd in __GI___poll (fds=0x7fffe4000b90, nfds=1, timeout=-1) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x00007ffff73a48ce in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#2  0x00007ffff7344a23 in g_main_context_iteration () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#3  0x00007ffff6a5b595 in ?? () from /usr/lib/x86_64-linux-gnu/gio/modules/libdconfsettings.so
+#4  0x00007ffff7373e62 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#5  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#6  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 4 (Thread 0x7ffff581c6c0 (LWP 22117) "pool-vision_smo"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x00007ffff739ee20 in g_cond_wait_until () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#2  0x00007ffff730f553 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#3  0x00007ffff737947a in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#4  0x00007ffff7373e62 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#5  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#6  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 3 (Thread 0x7fffeffff6c0 (LWP 22116) "gmain"):
+#0  0x00007ffff7d1b5fd in __GI___poll (fds=0xf144c0, nfds=1, timeout=-1) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x00007ffff73a48ce in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#2  0x00007ffff7344a23 in g_main_context_iteration () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#3  0x00007ffff7344a79 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#4  0x00007ffff7373e62 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#5  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#6  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 2 (Thread 0x7ffff601d6c0 (LWP 22115) "pool-spawner"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x00007ffff739e52d in g_cond_wait () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#2  0x00007ffff730f58b in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#3  0x00007ffff7374c43 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#4  0x00007ffff7373e62 in ?? () from /lib/x86_64-linux-gnu/libglib-2.0.so.0
+#5  0x00007ffff7c9cb84 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#6  0x00007ffff7d29d6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 1 (Thread 0x7ffff7e74080 (LWP 22112) "SRT:SndQ:w4"):
+#0  clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:62
+#1  0x00007ffff7d29c75 in __clone3_internal (arg=0x7fff58ffa6c0, func=0x7ffff7c9c800 <start_thread>, cl_args=0x7fffffff7f00) at ../sysdeps/unix/sysv/linux/clone-internal.c:82
+#2  __GI___clone_internal (cl_args=cl_args@entry=0x7fffffff7f00, func=func@entry=0x7ffff7c9c800 <start_thread>, arg=arg@entry=0x7fff58ffa6c0) at ../sysdeps/unix/sysv/linux/clone-internal.c:100
+#3  0x00007ffff7c9c630 in create_thread (pd=pd@entry=0x7fff58ffa6c0, attr=attr@entry=0x7fffffff8010, stopped_start=stopped_start@entry=0x7fffffff8006, stackaddr=stackaddr@entry=0x7fff587fa000, stacksize=<optimized out>, thread_ran=thread_ran@entry=0x7fffffff8007) at ./nptl/pthread_create.c:297
+#4  0x00007ffff7c9d285 in __pthread_create_2_1 (newthread=<optimized out>, attr=<optimized out>, start_routine=<optimized out>, arg=<optimized out>) at ./nptl/pthread_create.c:836
+#5  0x00007fffdc20f204 in srt::sync::CThread::create(void* (*)(void*), void*) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#6  0x00007fffdc20f68e in srt::sync::StartThread(srt::sync::CThread&, void* (*)(void*), void*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5
+#7  0x00007fffdc20076d in srt::CSndQueue::init(srt::CChannel*, srt::sync::CTimer*) () from /lib/x86_64-linux-gnu/libsrt-gnutls.so.1.5

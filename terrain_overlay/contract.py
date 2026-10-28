@@ -13,6 +13,8 @@ import math
 import re
 from typing import Any
 
+from .floor import FloorMask, parse_floor
+
 UDP_PORT = 5009
 SCHEMA_VERSION = 1
 PACKET_TYPE = "l515_terrain"
@@ -80,6 +82,7 @@ class TerrainFrame:
     obstacles: tuple[TerrainObstacle, ...]
     proc_ms: float | None
     received_monotonic_s: float | None = None
+    floor_mask: FloorMask | None = None
 
     @property
     def session_key(self) -> tuple[str, int, str]:
@@ -257,6 +260,9 @@ def parse_packet(raw: bytes, received_monotonic_s: float | None = None) -> Terra
         if obstacles:
             raise ValueError("obstacles must be empty unless status is OK")
         ground = None
+    floor_mask = parse_floor(payload.get('floor_mask'))
+    if floor_mask is not None and status != 'OK':
+        raise ValueError('floor_mask requires OK status')
     return TerrainFrame(
         sender_boot_id=boot_id,
         sender_start_mono_ns=_nonneg_int(
@@ -282,4 +288,5 @@ def parse_packet(raw: bytes, received_monotonic_s: float | None = None) -> Terra
         obstacles=obstacles,
         proc_ms=_optional(payload.get("proc_ms"), _nonneg_finite, "proc_ms"),
         received_monotonic_s=received_monotonic_s,
+        floor_mask=floor_mask,
     )

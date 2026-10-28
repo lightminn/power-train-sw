@@ -1,0 +1,4 @@
+Xlib:  extension "DRI2" missing on display ":102".
+VISION_MAP_LOCAL_METRICS {"duration_s": 3.0451433079997514, "map_pair_hz": 1.970350618388857, "camera_fps": 15.046703689279527, "cpu_percent": 111.17015478735152, "max_ui_gap_s": 0.046329521000188834, "rss_peak_kib": 406116, "render_ms": 19.46372499969584, "cpu_scope": "test process including synthetic H264 sender encoder; not console-only", "cpu_khz_before": {"min": 1832434, "max": 2856463}, "cpu_khz_after": {"min": 760420, "max": 1703908}, "power_sources_online": {"ucsi-source-psy-USBC000:002": "0", "ucsi-source-psy-USBC000:001": "0", "ADP1": "0"}, "source": "local synthetic SRT + UDP fixtures; no Gateway/L515 hardware"}
+.
+1 passed in 8.20s

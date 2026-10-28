@@ -1,0 +1,69 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________________ test_udp_to_existing_console _________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-kimseon/pytest-21/test_udp_to_existing_console0')
+
+    def test_udp_to_existing_console(tmp_path):
+        from operator_console.app import OperatorConsole, Gst, GLib
+        if not Gtk.init_check()[0]:
+            pytest.skip('display unavailable')
+        Gst.init(None)
+        window = OperatorConsole('127.0.0.1', 51002, 51000, 0, 60, 0, 0,
+            arm_telemetry_port=0, environment_telemetry_port=0,
+            ops_token_file=str(tmp_path / 'absent-token'))
+        sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        def pump_until(predicate):
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                while GLib.MainContext.default().pending():
+                    GLib.MainContext.default().iteration(False)
+                if predicate():
+                    return
+                time.sleep(.01)
+            assert predicate()
+        try:
+            window.show_all()
+            port = window._arm_receiver._socket.getsockname()[1]
+            payload = build_arm_telemetry_payload(sequence=1, stamp_s=0,
+                motors=None, joints=None, source_age_s={},
+                tool_runtime={'tool': normalize_tool(tool()), 'source_age_s': 0})
+            sender.sendto(payload, ('127.0.0.1', port))
+            pump_until(lambda: window._arm_receiver.latest() is not None)
+            window._refresh_health()
+            assert window._stack.get_child_by_name('arm_manual') is window._arm_manual_tab.widget
+            assert window._stack.get_child_by_name('arm_calibration') is window._arm_calibration_tab.widget
+            assert window._arm_manual_tab._state.detected_tool.kind == 'single_gripper'
+            assert window._arm_manual_tab.gate.widgets
+            assert not any(button.get_sensitive() for button in window._arm_manual_tab.gate.widgets)
+            window._refresh_end_effector_summary()
+            assert window._mission_tool_selector.get_active_text() == '단일 그리퍼'
+            assert window._mission_tool_reading.get_text() == '구동부 1개 응답'
+            window._show_end_effector_popup()
+            assert '현재 감지 도구' in window._end_effector_popup_purpose.get_text()
+            time.sleep(1.05)
+            window._refresh_end_effector_summary()
+            assert window._end_effector_popup_values['load'].get_text() == '정보 없음'
+            # A resumed bridge datagram must replace stale tool details; it must not
+            # retain the previous ID5 projection after a tool change/reconnection.
+            resumed = build_arm_telemetry_payload(sequence=2, stamp_s=0,
+                motors=None, joints=None, source_age_s={},
+                tool_runtime={'tool': normalize_tool(tool('dual_motor_gripper', [3, 4])),
+                              'source_age_s': 0})
+            sender.sendto(resumed, ('127.0.0.1', port))
+            pump_until(lambda: window._arm_receiver.latest().sequence == 2)
+            window._refresh_health()
+            window._refresh_end_effector_summary()
+            assert window._mission_tool_selector.get_active_text() == '듀얼 그리퍼'
+>           assert window._arm_manual_tab._state.detected_tool.kind == 'dual_gripper'
+E           AssertionError: assert 'unknown' == 'dual_gripper'
+E
+E             - dual_gripper
+E             + unknown
+
+operator_console/tests/test_tool_binding.py:135: AssertionError
+----------------------------- Captured stderr call -----------------------------
+Xlib:  extension "DRI2" missing on display ":99".
+=========================== short test summary info ============================
+FAILED operator_console/tests/test_tool_binding.py::test_udp_to_existing_console
+1 failed in 3.88s

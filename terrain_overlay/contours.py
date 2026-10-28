@@ -76,6 +76,11 @@ def fit_packet_size(payload: dict, limit: int = MAX_PACKET_BYTES) -> dict:
     """Halve dense polygons, then drop the farthest obstacles until it fits."""
     if encoded_size(payload) <= limit:
         return payload
+    # Optional floor never displaces obstacle or distance information.
+    if 'floor_mask' in payload:
+        payload = {key:value for key,value in payload.items() if key!='floor_mask'}
+        if encoded_size(payload) <= limit:
+            return payload
     obstacles = [
         dict(item, poly=item["poly"][::2] if len(item["poly"]) > THIN_POLY_POINTS else item["poly"])
         for item in payload["obstacles"]

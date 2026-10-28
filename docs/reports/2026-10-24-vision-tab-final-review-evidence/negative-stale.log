@@ -1,0 +1,13 @@
+vision runtime child rc=1
+Xlib:  extension "DRI2" missing on display ":101".
+Traceback (most recent call last):
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 349, in main
+    report = json.dumps(exercise(args.fault, args.record_webm, args.metrics_output), ensure_ascii=False)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 231, in exercise
+    pump_until(lambda: snapshot()['link']=='STALE' and snapshot()['map_state']=='STALE', 'vision disconnect/stale')
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 161, in pump_until
+    raise AssertionError(f'{label}: timed out; {snapshot()}')
+AssertionError: vision disconnect/stale: timed out; {'mapped': True, 'slots_mapped': [True, True, True, True], 'map_state': 'LIVE', 'map_displayed': 19, 'map_rasters': [True, False], 'map_timer': True, 'map_renders': 20, 'map_error': None, 'attitude_timer': True, 'attitude_refreshes': 48, 'link': 'LIVE', 'raw_pitch': None, 'raw_pitch_state': 'STALE', 'packet_age_s': 7.872413388000496, 'raw_label': 'IMU 원시 R 오래됨 / P 오래됨', 'body_label': '차체 자세: 보정 미확인 · 개략도 기울기 미적용', 'raw_source_label': 'UDP :59454 · 패킷 7.9초 전 · 수신 중', 'joints_label': '좌 로커 미수신 · 우 로커 미수신 · 좌 보기 미수신 · 우 보기 미수신', 'source_label': '로커·보기 · 측정 미수신 · UDP :59454 · 출처 미수신', 'joint_states': ['WAITING', 'WAITING', 'WAITING', 'WAITING'], 'joint_values': [None, None, None, None], 'wheel_labels': {'front_left': ['오래됨', '오래됨'], 'front_right': ['오래됨', '오래됨'], 'mid_left': ['오래됨', '오래됨'], 'mid_right': ['오래됨', '오래됨'], 'rear_left': ['오래됨', '오래됨'], 'rear_right': ['오래됨', '오래됨']}, 'wheel_states': ['STALE', 'STALE', 'STALE', 'STALE', 'STALE', 'STALE']}
+
+

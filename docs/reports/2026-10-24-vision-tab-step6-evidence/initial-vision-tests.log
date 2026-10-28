@@ -1,0 +1,70 @@
+........F.                                                               [100%]
+=================================== FAILURES ===================================
+_ test_vision_runtime_negative_controls_reject_the_specific_fault[shutdown-vision worker shutdown: timed out] _
+
+fault = 'shutdown', reason = 'vision worker shutdown: timed out'
+
+    @pytest.mark.skipif(not _toolchain_ready(), reason='needs Xvfb/system GTK/GStreamer')
+    @pytest.mark.parametrize('fault,reason', [
+        ('map', 'vision map/telemetry LIVE: timed out'),
+        ('telemetry', 'vision map/telemetry LIVE: timed out'),
+        ('missing-zero', 'vision missing values fabricated'),
+        ('stale', 'vision disconnect/stale: timed out'),
+        ('recovery', 'vision recovery: timed out'),
+        ('hidden-render', 'vision hidden render continues'),
+        ('duplicate-camera', 'vision duplicate camera/decoder creation'),
+        ('shutdown', 'vision worker shutdown: timed out'),
+        ('drawing-stall', 'vision camera draw stalled'),
+    ])
+    def test_vision_runtime_negative_controls_reject_the_specific_fault(fault, reason):
+        passed, report = runtime_smoke.run_vision_smoke(fault_for_test=fault)
+        assert not passed, report
+>       assert reason in report, report
+E       AssertionError: vision runtime child rc=1
+E         Xlib:  extension "DRI2" missing on display ":99".
+E
+E         (vision_smoke.py:13810): Gtk-CRITICAL **: 13:24:43.534: gtk_range_get_adjustment: assertion 'GTK_IS_RANGE (range)' failed
+E         Traceback (most recent call last):
+E           File "/home/kimseon/power-train-sw-vision/operator_console/app.py", line 2453, in _scroll_operations_to_bottom
+E             adjustment.set_value(max(
+E             ^^^^^^^^^^^^^^^^^^^^
+E         AttributeError: 'NoneType' object has no attribute 'set_value'
+E
+E         (vision_smoke.py:13810): Gtk-CRITICAL **: 13:24:43.550: gtk_range_get_adjustment: assertion 'GTK_IS_RANGE (range)' failed
+E         Traceback (most recent call last):
+E           File "/home/kimseon/power-train-sw-vision/operator_console/app.py", line 2453, in _scroll_operations_to_bottom
+E             adjustment.set_value(max(
+E             ^^^^^^^^^^^^^^^^^^^^
+E         AttributeError: 'NoneType' object has no attribute 'set_value'
+E
+E         (vision_smoke.py:13810): Gtk-CRITICAL **: 13:24:43.550: gtk_range_get_adjustment: assertion 'GTK_IS_RANGE (range)' failed
+E         Traceback (most recent call last):
+E           File "/home/kimseon/power-train-sw-vision/operator_console/app.py", line 2453, in _scroll_operations_to_bottom
+E             adjustment.set_value(max(
+E             ^^^^^^^^^^^^^^^^^^^^
+E         AttributeError: 'NoneType' object has no attribute 'set_value'
+E
+E         (vision_smoke.py:13810): Gtk-CRITICAL **: 13:24:43.550: gtk_range_get_adjustment: assertion 'GTK_IS_RANGE (range)' failed
+E         Traceback (most recent call last):
+E           File "/home/kimseon/power-train-sw-vision/operator_console/app.py", line 2453, in _scroll_operations_to_bottom
+E             adjustment.set_value(max(
+E             ^^^^^^^^^^^^^^^^^^^^
+E         AttributeError: 'NoneType' object has no attribute 'set_value'
+E         Traceback (most recent call last):
+E           File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 275, in main
+E             print(json.dumps(exercise(args.fault), ensure_ascii=False), flush=True)
+E                              ^^^^^^^^^^^^^^^^^^^^
+E           File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 244, in exercise
+E             pump_until(lambda: not maps.worker._thread.is_alive(), 'vision worker shutdown', 2)
+E           File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 128, in pump_until
+E             assert not errors, f'{label}: GTK callback errors: {errors}'
+E                    ^^^^^^^^^^
+E         AssertionError: vision worker shutdown: GTK callback errors: ["AttributeError: 'NoneType' object has no attribute 'set_value'", "AttributeError: 'NoneType' object has no attribute 'set_value'", "AttributeError: 'NoneType' object has no attribute 'set_value'", "AttributeError: 'NoneType' object has no attribute 'set_value'"]
+E
+E
+E       assert 'vision worker shutdown: timed out' in 'vision runtime child rc=1\nXlib:  extension "DRI2" missing on display ":99".\n\n(vision_smoke.py:13810): Gtk-CRITICAL...pe\' object has no attribute \'set_value\'", "AttributeError: \'NoneType\' object has no attribute \'set_value\'"]\n\n'
+
+operator_console/tests/test_runtime_smoke.py:148: AssertionError
+=========================== short test summary info ============================
+FAILED operator_console/tests/test_runtime_smoke.py::test_vision_runtime_negative_controls_reject_the_specific_fault[shutdown-vision worker shutdown: timed out]
+1 failed, 9 passed, 8 deselected in 77.41s (0:01:17)

@@ -13,10 +13,21 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', default='~/.config/powertrain/operator.json')
     parser.add_argument('--smoke-probe-file', default=None)
+    parser.add_argument('--attitude-calibration', default=None)
+    parser.add_argument('--l515-criteria', default=None)
+    parser.add_argument('--l515-criteria-profile', default=None)
+    parser.add_argument('--page', choices=('mission', 'mobility', 'systems', 'terrain_map', 'vision'),
+                        default='mission')
     args = parser.parse_args(argv)
     runtime = None
     try:
         config = load_config(args.config, role='operator')
+        from operator_console.vision_config import resolve_criteria
+        vision_criteria = resolve_criteria(args.l515_criteria, args.l515_criteria_profile,
+            config=config, config_dir=Path(args.config).expanduser().resolve().parent)
+        from operator_console.attitude_calibration import resolve_calibration
+        attitude_calibration = resolve_calibration(args.attitude_calibration,config=config,
+            config_dir=Path(args.config).expanduser().resolve().parent)
         if not Path(config['token_file']).read_text().strip():
             raise ValueError('token_file이 비어 있습니다')
         defaults = dict(d435_port=5002, l515_port=5000, metadata_port=5003,
@@ -50,9 +61,12 @@ def main(argv=None):
             runtime = OperationRuntime(config)
             console = OperatorConsole('127.0.0.1', latency_ms=latency, **ports,
                 terrain_display_delay_ms=terrain_delay, map_display=map_display,
+                vision_criteria=vision_criteria,attitude_calibration=attitude_calibration,
                 ops_token_file=config['token_file'], operation_runtime=runtime,
                 smoke_probe_file=args.smoke_probe_file)
             console.show_all()
+            if args.page != 'mission':
+                console._stack.set_visible_child_name(args.page)
 
             def quit_window(*_args):
                 console.destroy()

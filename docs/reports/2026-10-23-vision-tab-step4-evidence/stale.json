@@ -1,0 +1,204 @@
+{
+  "link_state": "STALE",
+  "packet_age_s": 1.059402050999779,
+  "raw_roll": {
+    "value": null,
+    "state": "WAITING",
+    "age_s": 1.059402050999779,
+    "source": "UDP :41571 · /imu/filtered 유래 · 장착 보정 미확인",
+    "age_basis": "패킷 수신 후"
+  },
+  "raw_pitch": {
+    "value": null,
+    "state": "WAITING",
+    "age_s": 1.059402050999779,
+    "source": "UDP :41571 · /imu/filtered 유래 · 장착 보정 미확인",
+    "age_basis": "패킷 수신 후"
+  },
+  "body_state": "UNVERIFIED",
+  "wheels": [
+    {
+      "name": "front_left",
+      "label": "앞좌",
+      "steer": {
+        "value": null,
+        "state": "STALE",
+        "age_s": 1.059402050999779,
+        "source": "UDP :41571 · wheel_statuses.front_left",
+        "age_basis": "패킷 수신 후"
+      },
+      "speed": {
+        "value": null,
+        "state": "STALE",
+        "age_s": 1.059402050999779,
+        "source": "UDP :41571 · wheel_statuses.front_left",
+        "age_basis": "패킷 수신 후"
+      },
+      "fault": false
+    },
+    {
+      "name": "front_right",
+      "label": "앞우",
+      "steer": {
+        "value": null,
+        "state": "STALE",
+        "age_s": 1.059402050999779,
+        "source": "UDP :41571 · wheel_statuses.front_right",
+        "age_basis": "패킷 수신 후"
+      },
+      "speed": {
+        "value": null,
+        "state": "STALE",
+        "age_s": 1.059402050999779,
+        "source": "UDP :41571 · wheel_statuses.front_right",
+        "age_basis": "패킷 수신 후"
+      },
+      "fault": false
+    },
+    {
+      "name": "mid_left",
+      "label": "중좌",
+      "steer": {
+        "value": null,
+        "state": "WAITING",
+        "age_s": 1.059402050999779,
+        "source": "UDP :41571 · wheel_statuses.mid_left",
+        "age_basis": "패킷 수신 후"
+      },
+      "speed": {
+        "value": null,
+        "state": "STALE",
+        "age_s": 1.059402050999779,
+        "source": "UDP :41571 · wheel_statuses.mid_left",
+        "age_basis": "패킷 수신 후"
+      },
+      "fault": false
+    },
+    {
+      "name": "mid_right",
+      "label": "중우",
+      "steer": {
+        "value": null,
+        "state": "STALE",
+        "age_s": 1.059402050999779,
+        "source": "UDP :41571 · wheel_statuses.mid_right",
+        "age_basis": "패킷 수신 후"
+      },
+      "speed": {
+        "value": null,
+        "state": "STALE",
+        "age_s": 1.059402050999779,
+        "source": "UDP :41571 · wheel_statuses.mid_right",
+        "age_basis": "패킷 수신 후"
+      },
+      "fault": false
+    },
+    {
+      "name": "rear_left",
+      "label": "뒤좌",
+      "steer": {
+        "value": null,
+        "state": "STALE",
+        "age_s": 1.059402050999779,
+        "source": "UDP :41571 · wheel_statuses.rear_left",
+        "age_basis": "패킷 수신 후"
+      },
+      "speed": {
+        "value": null,
+        "state": "STALE",
+        "age_s": 1.059402050999779,
+        "source": "UDP :41571 · wheel_statuses.rear_left",
+        "age_basis": "패킷 수신 후"
+      },
+      "fault": false
+    },
+    {
+      "name": "rear_right",
+      "label": "뒤우",
+      "steer": {
+        "value": null,
+        "state": "STALE",
+        "age_s": 1.059402050999779,
+        "source": "UDP :41571 · wheel_statuses.rear_right",
+        "age_basis": "패킷 수신 후"
+      },
+      "speed": {
+        "value": null,
+        "state": "STALE",
+        "age_s": 1.059402050999779,
+        "source": "UDP :41571 · wheel_statuses.rear_right",
+        "age_basis": "패킷 수신 후"
+      },
+      "fault": true
+    }
+  ],
+  "suspension": [
+    [
+      "좌 로커",
+      {
+        "value": null,
+        "state": "STALE",
+        "age_s": 2.859402050999779,
+        "source": "UDP :41571 · fixture-only",
+        "age_basis": "측정 후"
+      }
+    ],
+    [
+      "우 로커",
+      {
+        "value": null,
+        "state": "STALE",
+        "age_s": 2.859402050999779,
+        "source": "UDP :41571 · fixture-only",
+        "age_basis": "측정 후"
+      }
+    ],
+    [
+      "좌 보기",
+      {
+        "value": null,
+        "state": "STALE",
+        "age_s": 2.859402050999779,
+        "source": "UDP :41571 · fixture-only",
+        "age_basis": "측정 후"
+      }
+    ],
+    [
+      "우 보기",
+      {
+        "value": null,
+        "state": "WAITING",
+        "age_s": 2.859402050999779,
+        "source": "UDP :41571 · fixture-only",
+        "age_basis": "측정 후"
+      }
+    ]
+  ],
+  "suspension_source": "UDP :41571 · fixture-only",
+  "suspension_frame": "urdf_joint",
+  "suspension_age_s": 2.859402050999779,
+  "plane_pitch": {
+    "value": null,
+    "state": "WAITING",
+    "age_s": null,
+    "source": "UDP :35869 · 기준면(차체 기준) · 실제 장착 보정 미확인",
+    "age_basis": "측정 후"
+  },
+  "plane_roll": {
+    "value": null,
+    "state": "WAITING",
+    "age_s": null,
+    "source": "UDP :35869 · 기준면(차체 기준) · 실제 장착 보정 미확인",
+    "age_basis": "측정 후"
+  },
+  "still": {
+    "body_pitch_deg": 3.0,
+    "body_roll_deg": 1.0,
+    "slope_pitch_deg": 6.0,
+    "slope_roll_deg": -2.0,
+    "observed_s": 6855.799346277
+  },
+  "still_age_s": 1.7497526879997167,
+  "map_link_state": "STALE",
+  "comparison": "비교 보류 · 좌표·보정·시각 미확인"
+}

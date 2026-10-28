@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from collections.abc import Mapping
 import json
+import math
 import socket
 import threading
 import time
@@ -104,6 +105,36 @@ class TelemetrySnapshot:
     stuck_candidate: bool | None
     truncated: bool
     received_monotonic_s: float
+    suspension_joints_rad: tuple[tuple[str, float], ...] = ()
+    suspension_age_ms: float | None = None
+    suspension_source: str | None = None
+    suspension_frame: str | None = None
+
+
+def _suspension_joints(payload):
+    raw = payload.get("suspension_joints_rad", {})
+    if raw is None:
+        raw = {}
+    allowed = {"ml_rocker_joint", "mr_rocker_joint", "bl_bogie_joint", "br_bogie_joint"}
+    if not isinstance(raw, dict) or not set(raw).issubset(allowed):
+        raise ValueError("invalid suspension joints")
+    values = []
+    for name, value in raw.items():
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("invalid suspension angle")
+        try:
+            value = float(value)
+        except OverflowError:
+            raise ValueError("invalid suspension angle") from None
+        if not math.isfinite(value) or abs(value) > math.tau:
+            raise ValueError("invalid suspension angle")
+        values.append((name, value))
+    age = _optional_measurement(payload, "suspension_age_ms")
+    if age is not None and age < 0:
+        raise ValueError("invalid suspension age")
+    return tuple(values)
 
 
 def _optional_number(payload: dict[str, Any], name: str) -> float | None:
@@ -112,6 +143,31 @@ def _optional_number(payload: dict[str, Any], name: str) -> float | None:
         return None if value is None else float(value)
     except (TypeError, OverflowError) as exc:
         raise ValueError(f"invalid {name}") from exc
+
+
+def _optional_measurement(payload: dict[str, Any], name: str) -> float | None:
+    """Physical readings used by vision must be finite JSON numbers, never bools."""
+    value = payload.get(name)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"invalid {name}")
+    try:
+        number = float(value)
+    except OverflowError:
+        raise ValueError(f"invalid {name}") from None
+    if not math.isfinite(number):
+        raise ValueError(f"invalid {name}")
+    return number
+
+
+def _optional_source_text(payload: dict[str, Any], name: str) -> str | None:
+    value = payload.get(name)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip() or len(value) > 80 or any(ord(c) < 32 for c in value):
+        raise ValueError(f"invalid {name}")
+    return value.strip()
 
 
 def _optional_int(payload: dict[str, Any], name: str) -> int | None:
@@ -153,9 +209,9 @@ def _wheel_statuses(payload: dict[str, Any]) -> tuple[WheelStatus, ...]:
         try:
             status = WheelStatus(
                 name=str(raw["name"]), mode=str(raw["mode"]),
-                drive_turns_per_s=_optional_number(raw, "drive_turns_per_s"),
+                drive_turns_per_s=_optional_measurement(raw, "drive_turns_per_s"),
                 command_turns_per_s=_optional_number(raw, "command_turns_per_s"),
-                steer_deg=_optional_number(raw, "steer_deg"),
+                steer_deg=_optional_measurement(raw, "steer_deg"),
                 drive_current_a=_optional_number(raw, "drive_current_a"),
                 steer_current_a=_optional_number(raw, "steer_current_a"),
                 stale=_bool_or_default(raw, "stale", False),
@@ -242,8 +298,8 @@ def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> Te
         odometry_source=str(payload.get("odometry_source", "unavailable")),
         x_m=_optional_number(payload, "x_m"), y_m=_optional_number(payload, "y_m"),
         yaw_rad=_optional_number(payload, "yaw_rad"), voltage_v=_optional_number(payload, "voltage_v"),
-        roll_rad=_optional_number(payload, "roll_rad"),
-        pitch_rad=_optional_number(payload, "pitch_rad"),
+        roll_rad=_optional_measurement(payload, "roll_rad"),
+        pitch_rad=_optional_measurement(payload, "pitch_rad"),
         current_a=_optional_number(payload, "current_a"), power_w=_optional_number(payload, "power_w"),
         drive_state=str(payload.get("drive_state", "unavailable")),
         can_state=str(payload.get("can_state", "unavailable")),
@@ -281,6 +337,10 @@ def parse_telemetry(raw: bytes, received_monotonic_s: float | None = None) -> Te
         wheel_axis_error_count=_optional_int(payload, "wheel_axis_error_count"),
         wheel_steer_fault_count=_optional_int(payload, "wheel_steer_fault_count"),
         wheel_statuses=_wheel_statuses(payload),
+        suspension_joints_rad=_suspension_joints(payload),
+        suspension_age_ms=_optional_measurement(payload, "suspension_age_ms"),
+        suspension_source=_optional_source_text(payload, "suspension_source"),
+        suspension_frame=_optional_source_text(payload, "suspension_frame"),
         terrain_path_available=_optional_bool(payload, "terrain_path_available"),
         terrain_path_offset_m=_optional_number(payload, "terrain_path_offset_m"),
         terrain_heading_error_rad=_optional_number(payload, "terrain_heading_error_rad"),
@@ -484,6 +544,10 @@ class LatestTelemetryReceiver:
         self._invalid_packet_count = 0
         self._thread = threading.Thread(target=self._run, name="robot-telemetry", daemon=True)
         self._thread.start()
+
+    @property
+    def port(self) -> int:
+        return self._socket.getsockname()[1]
 
     def _run(self) -> None:
         self._socket.settimeout(0.2)

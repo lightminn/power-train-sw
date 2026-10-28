@@ -1,0 +1,20 @@
+{
+  "result": "861 passed / 11 failed / 3 skipped",
+  "previous": "845 passed / 10 failed / 3 skipped",
+  "failed_ids": [
+    "operator_console/tests/arm_ops/test_arm_ops_boundary.py::test_changes_stay_inside_the_declared_new_paths",
+    "operator_console/tests/arm_ops/test_arm_ops_boundary.py::test_protected_files_are_untouched_since_the_base_commit",
+    "operator_console/tests/arm_ops/test_arm_ops_contract.py::test_every_action_fits_the_params_budget_at_maximum_length[robot_arm_tool_enable]",
+    "operator_console/tests/arm_ops/test_arm_ops_contract.py::test_only_the_fsm_mode_and_tool_actions_are_registered_in_the_ops_contract",
+    "operator_console/tests/arm_ops/test_arm_ops_gtk_adapter.py::test_with_the_real_contract_gate_no_press_can_send_anything",
+    "operator_console/tests/arm_ops/test_arm_ops_policy.py::test_no_motion_without_an_approved_manual_grant[robot_arm_tool_enable]",
+    "operator_console/tests/arm_ops/test_arm_ops_policy.py::test_tool_targets_match_the_arm_ui_contract",
+    "operator_console/tests/arm_ops/test_arm_ops_session.py::test_registered_actions_can_be_read_off_the_real_ops_contract_module",
+    "operator_console/tests/arm_ui/test_arm_ui_boundary.py::test_tab_package_does_not_expand_beyond_the_approved_console_integration",
+    "operator_console/tests/test_runtime_smoke.py::test_console_survives_live_data_on_every_channel",
+    "operator_console/tests/test_tool_binding.py::test_udp_to_existing_console"
+  ],
+  "new_failed_ids": [
+    "operator_console/tests/test_tool_binding.py::test_udp_to_existing_console"
+  ]
+}

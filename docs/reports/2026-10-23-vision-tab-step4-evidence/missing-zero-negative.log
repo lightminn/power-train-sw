@@ -1,0 +1,19 @@
+F
+=================================== FAILURES ===================================
+____ test_missing_imu_and_encoders_never_become_zero_or_calibrated_attitude ____
+
+    def test_missing_imu_and_encoders_never_become_zero_or_calibrated_attitude():
+        tracker=AttitudeTracker()
+        for snapshot in (None,packet()):
+            view=tracker.update(snapshot,None,100.1)
+>           assert view.raw_roll.value is None and view.raw_pitch.value is None
+E           AssertionError: assert (0.0 is None)
+E            +  where 0.0 = Reading(value=0.0, state='LIVE', age_s=0, source='UDP :5005 · /imu/filtered 유래 · 장착 보정 미확인', age_basis='패킷 수신 후').value
+E            +    where Reading(value=0.0, state='LIVE', age_s=0, source='UDP :5005 · /imu/filtered 유래 · 장착 보정 미확인', age_basis='패킷 수신 후') = AttitudeView(link_state='WAITING', packet_age_s=None, raw_roll=Reading(value=0.0, state='LIVE', age_s=0, source='UDP :... 보정 미확인', age_basis='측정 후'), still=None, still_age_s=None, map_link_state='WAITING', comparison='비교 보류 · 좌표·보정·시각 미확인').raw_roll
+
+operator_console/tests/test_vision_attitude.py:28: AssertionError
+=========================== short test summary info ============================
+FAILED operator_console/tests/test_vision_attitude.py::test_missing_imu_and_encoders_never_become_zero_or_calibrated_attitude
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed in 0.03s
+EXPECTED_FAILURE_EXIT: 1
