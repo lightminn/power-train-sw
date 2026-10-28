@@ -4,6 +4,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[2]
 ROBOT_START = ROOT / "scripts/robot-start"
@@ -263,6 +265,46 @@ def test_robot_start_adds_suspension_i2c_overlay_only_when_device_exists(tmp_pat
     assert "-f docker/docker-compose.integrated.yml -f docker/docker-compose.suspension-i2c.yml" in second
     assert second.endswith("dev=/dev/i2c-7")
     assert "powertrain_chassis_telemetry" in second
+
+
+def test_robot_start_adds_caller_opt_in_profiles_on_top_of_the_manifest(tmp_path):
+    # The prepared manifest assigns INTEGRATED_PROFILES= ; sourcing it used to erase
+    # the documented terrain-map/terrain-overlay request given on the command line.
+    binary_dir, log = _fake_path(tmp_path)
+    etc = _ready_robot_tree(tmp_path) / "etc/powertrain"
+    (etc / "integrated-prepared.env").write_text(
+        "POWERTRAIN_INTEGRATED_VERSION=1\nPOWERTRAIN_PROFILE=can-4ws\n"
+        "INTEGRATED_PROFILES=\nINTEGRATED_SERVICES=powertrain_arm_console_bridge\n"
+    )
+    env = _env(tmp_path, binary_dir, log)
+    env["INTEGRATED_PROFILES"] = "terrain-overlay terrain-map"
+    env["INTEGRATED_SERVICES"] = "powertrain_terrain_overlay powertrain_terrain_map"
+
+    result = _run(ROBOT_START, env=env)
+
+    assert result.returncode == 0, result.stderr
+    (line,) = [l for l in log.read_text().splitlines() if l.startswith("docker ")]
+    assert "--profile terrain-overlay --profile terrain-map" in line
+    assert "powertrain_terrain_overlay powertrain_terrain_map" in line
+    assert "powertrain_arm_console_bridge" in line  # prepared services are kept
+
+
+@pytest.mark.parametrize("variable,value", [
+    ("INTEGRATED_SERVICES", "powertrain_autonomy_controller"),
+    ("INTEGRATED_SERVICES", "arm_teleop"),
+    ("INTEGRATED_PROFILES", "terrain-map;id"),
+])
+def test_robot_start_rejects_unsafe_caller_opt_ins(tmp_path, variable, value):
+    binary_dir, log = _fake_path(tmp_path)
+    _ready_robot_tree(tmp_path)
+    env = _env(tmp_path, binary_dir, log)
+    env[variable] = value
+
+    result = _run(ROBOT_START, env=env)
+
+    assert result.returncode != 0
+    docker_calls = log.read_text().splitlines() if log.exists() else []
+    assert not [l for l in docker_calls if l.startswith("docker ")]
 
 
 def test_suspension_overlay_only_passes_the_i2c_device_to_the_observer():

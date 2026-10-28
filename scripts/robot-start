@@ -26,10 +26,25 @@ robot_config="$etc_dir/robot.json"
 [ -d "$run_dir" ] || fail "런타임 디렉터리가 없습니다: $run_dir"
 [ -d "$var_dir" ] || fail "영속 디렉터리가 없습니다: $var_dir"
 
+# Opt-in profiles/services given on the command line (e.g. terrain-map) are added
+# to the prepared ones; sourcing the manifest would otherwise erase them.
+caller_profiles="${INTEGRATED_PROFILES:-}"
+caller_services="${INTEGRATED_SERVICES:-}"
+for item in $caller_profiles $caller_services; do
+  [[ "$item" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || fail "잘못된 프로필/서비스 이름입니다: $item"
+done
+for service in $caller_services; do
+  case "$service" in
+    *autonomy*|*teleop*) fail "미완성 자율주행/팔 텔레옵 서비스는 켤 수 없습니다: $service" ;;
+  esac
+done
+
 # The manifest is written root-owned by robot_prepare.sh and contains only
 # shell-quoted assignments after strict option validation.
 # shellcheck disable=SC1090
 source "$manifest"
+INTEGRATED_PROFILES="${INTEGRATED_PROFILES:-} $caller_profiles"
+INTEGRATED_SERVICES="${INTEGRATED_SERVICES:-} $caller_services"
 [ "${POWERTRAIN_INTEGRATED_VERSION:-}" = 1 ] \
   || fail '지원하지 않는 준비 매니페스트 버전입니다.'
 [ "${POWERTRAIN_PROFILE:-}" = can-4ws ] \
