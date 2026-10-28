@@ -12,6 +12,7 @@ from collections.abc import Callable, Mapping
 
 MAX_TELEMETRY_BYTES = 4096
 MAX_TEXT_CHARS = 256
+_UNSHRINKABLE_TEXT = frozenset({"suspension_source", "suspension_frame"})
 
 
 def parse_component_mask_state(raw: str) -> dict[str, bool]:
@@ -158,7 +159,8 @@ def encode_telemetry_payload(payload: dict[str, object]) -> bytes:
         "degradation_reasons", "degradation_speed_scale",
         "mission_fsm_state", "mission_fsm_reason", "section_fsm_section",
         "section_fsm_phase", "section_fsm_notices", "slip_candidate",
-        "stuck_candidate",
+        "stuck_candidate", "suspension_joints_rad", "suspension_age_ms",
+        "suspension_source", "suspension_frame",
     )
     summary = {key: bounded[key] for key in summary_keys if key in bounded}
     summary["truncated"] = True
@@ -167,7 +169,8 @@ def encode_telemetry_payload(payload: dict[str, object]) -> bytes:
         text_fields = [
             (len(_encoded({key: value})), key, value)
             for key, value in summary.items()
-            if isinstance(value, str) and value
+            # Console rejects empty suspension label strings; they are <=80 chars.
+            if isinstance(value, str) and value and key not in _UNSHRINKABLE_TEXT
         ]
         if not text_fields:
             break
@@ -181,3 +184,100 @@ def encode_telemetry_payload(payload: dict[str, object]) -> bytes:
         "sequence": bounded.get("sequence", 0),
         "truncated": True,
     })
+
+
+class SuspensionTelemetry:
+    """Optional AS5048B rocker/bogie angles for the chassis datagram.
+
+    The blocking I2C reads run in a LatestPollWorker daemon thread; the send
+    timer only reads the cached latest sample.  Any import/config problem
+    disables the fields (never fake zeros) without stopping the sender.
+    """
+
+    def __init__(self, config_path: str | None = None, *, reader_factory=None) -> None:
+        self.status = "disabled"
+        self._worker: LatestPollWorker | None = None
+        self._reader = None
+        self._config = None
+        try:
+            from suspension_encoders.config import load_config
+            from suspension_encoders.reader import (
+                SuspensionEncoderReader,
+                telemetry_fields,
+            )
+            config = load_config(config_path or None)
+            if not config.enabled:
+                self.status = f"disabled in {config.source_path}"
+                return
+            factory = reader_factory or SuspensionEncoderReader
+            reader = factory(config)
+            try:
+                worker = LatestPollWorker(
+                    reader.read_once,
+                    period_s=1.0 / config.read_hz,
+                    name="suspension-encoder-poll",
+                )
+            except BaseException:
+                reader.close()
+                raise
+        except Exception as exc:  # optional sensor: report, never stop the sender
+            self.status = f"unavailable: {type(exc).__name__}: {exc}"
+            return
+        self._telemetry_fields = telemetry_fields
+        self._config = config
+        self._reader = reader
+        self._worker = worker
+        self.status = (
+            f"polling /dev/i2c-{config.i2c_bus} at {config.read_hz:g} Hz "
+            f"({config.source_path})"
+        )
+
+    @property
+    def active(self) -> bool:
+        return self._worker is not None
+
+    def latest_errors(self) -> list[str]:
+        """Per-channel or whole-poll errors of the latest poll, for logging."""
+        if self._worker is None:
+            return []
+        cached = self._worker.latest()
+        if cached.updated_monotonic_s is None:
+            return []  # first poll still pending
+        if cached.value is None:
+            return [cached.error or "no sample"]
+        return [
+            f"{reading.channel.joint}: {reading.error}"
+            for reading in cached.value.readings
+            if reading.error is not None
+        ]
+
+    def fields(self, now_s: float | None = None) -> dict[str, object]:
+        """Fields for this datagram; {} on any problem (never breaks the send).
+
+        The cache is read BEFORE the clock so a sample published by the
+        worker in between can never get a negative age.
+        """
+        if self._worker is None:
+            return {}
+        cached = self._worker.latest()
+        if now_s is None:
+            now_s = time.monotonic()
+        try:
+            return self._telemetry_fields(
+                cached.value,
+                now_s=now_s,
+                max_age_s=self._config.max_age_s,
+                calibrated_frame=self._config.calibrated_frame,
+                publish_unverified=self._config.publish_unverified,
+            )
+        except Exception as exc:
+            self.status = f"field error: {type(exc).__name__}: {exc}"
+            return {}
+
+    def close(self, *, join_timeout_s: float = 1.0) -> bool:
+        if self._worker is None:
+            return True
+        stopped = self._worker.close(join_timeout_s=join_timeout_s)
+        if stopped:
+            self._reader.close()
+        return stopped
