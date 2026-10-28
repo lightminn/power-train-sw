@@ -44,11 +44,25 @@ function smoothCAD(geometry) {
     }
     result.setAttribute('normal',new THREE.BufferAttribute(normals,3));geometry.dispose();return result;
 }
+function nonFiniteNormals(geometry) {
+    const values=geometry.attributes.normal.array;let count=0;
+    for(let i=0;i<values.length;i++)if(!Number.isFinite(values[i]))count++;
+    return count;
+}
+function repairNormals(geometry) {
+    // WebKitGTK 2.54's FTL tier has returned NaN smoothing, drawing whole parts black.
+    // Flat normals keep the part lit; zero normals from degenerate CAD triangles stay allowed.
+    if(!nonFiniteNormals(geometry))return 'ok';
+    geometry.computeVertexNormals();geometry.attributes.normal.needsUpdate=true;
+    return nonFiniteNormals(geometry)?'failed':'repaired';
+}
 let state = {live:false,wheels:{},suspension:{}};
 let lastReceive = 0, selected = null, active = false, frame = null, dirty=true, lastSignature='';
-let renderer, scene, robot, camera, controls, fitBox, fitPoints=[];
-const links = {}, joints = {}, wheelMeshes = [], motorMeshes=[];
-let triangles = 0;
+let renderer, scene, robot, camera, controls, fitBox, fitPoints=[], envelopeBox, envelopePoints=[];
+let framing='tight', tightFit=null, wideFit=null, wideDistance=0;
+const armMeshes=[], defaultDirection=new THREE.Vector3(1.3,1.7,1.0).normalize();
+const links = {}, joints = {}, wheelMeshes = [], motorMeshes=[], normalRepairs={};
+let triangles = 0, framingUpdate=()=>false;
 
 function live() { return state.live && performance.now()-lastReceive <= 1200; }
 function armLive() { return state.arm_live && performance.now()-lastReceive <= 1200; }
@@ -142,6 +156,7 @@ function tick(now) {
                 }
             }
         }
+        if (moving&&framingUpdate()) dirty=true;
         if (now-lastStatus>250) {const fresh=live();refreshStatus();moving=moving||fresh!==wasLive;wasLive=fresh;lastStatus=now;}
         if(moving||dirty)render();
     }
@@ -161,7 +176,7 @@ function receive(value) {
     if(state.arm_live)for(const name of armNames)queueJoint(name,state.arm[name],260);
     const signature=JSON.stringify([state.live,state.roll_rad,state.pitch_rad,state.suspension,state.arm_live,state.arm,Object.entries(state.wheels).map(([name,w])=>[name,w.stale,w.mode,w.drive_axis_error,w.steer_fault,w.steer_deg])]);
     dirty=dirty||signature!==lastSignature;lastSignature=signature;
-    robot.updateMatrixWorld(true);refreshStatus();
+    robot.updateMatrixWorld(true);if(framingUpdate())dirty=true;refreshStatus();
 }
 
 try {
@@ -176,21 +191,31 @@ try {
     controls.minPolarAngle=controls.maxPolarAngle=Math.PI/3;
     controls.mouseButtons={LEFT:THREE.MOUSE.ROTATE,MIDDLE:null,RIGHT:null};
     controls.touches={ONE:THREE.TOUCH.ROTATE,TWO:null};
-    function reset() {
-        if(!fitBox){camera.position.set(1.6,1.8,1.2);controls.target.set(0,0,-.03);controls.update();return;}
-        const sphere=fitBox.getBoundingSphere(new THREE.Sphere());
-        const direction=new THREE.Vector3(1.3,1.7,1.0).normalize();
+    function fitDistance(points,center,direction) {
         const right=new THREE.Vector3().crossVectors(direction,new THREE.Vector3(0,0,1)).normalize();
         const up=new THREE.Vector3().crossVectors(right,direction).normalize();
         const tanV=Math.tan(THREE.MathUtils.degToRad(camera.fov/2)),tanH=tanV*camera.aspect;
         let distance=0;
-        for(const point of fitPoints){const delta=point.clone().sub(sphere.center);distance=Math.max(distance,Math.abs(delta.dot(right))/tanH+delta.dot(direction),Math.abs(delta.dot(up))/tanV+delta.dot(direction));}
-        distance*=1.08;
-        controls.target.copy(sphere.center);
-        camera.position.copy(sphere.center).add(direction.multiplyScalar(distance));
-        controls.minDistance=controls.maxDistance=distance;
-        camera.near=Math.max(.001,distance/100);camera.far=distance*50;camera.updateProjectionMatrix();
-        controls.update();render();
+        for(const point of points){const delta=point.clone().sub(center);distance=Math.max(distance,Math.abs(delta.dot(right))/tanH+delta.dot(direction),Math.abs(delta.dot(up))/tanV+delta.dot(direction));}
+        return distance;
+    }
+    function computeFit(points,box,margin) {
+        const center=box.getBoundingSphere(new THREE.Sphere()).center;
+        return {center,distance:fitDistance(points,center,defaultDirection)*margin};
+    }
+    function placeCamera(fit,direction) {
+        controls.target.copy(fit.center);
+        camera.position.copy(fit.center).add(direction.clone().multiplyScalar(fit.distance));
+        controls.minDistance=controls.maxDistance=fit.distance;
+        camera.near=Math.max(.001,fit.distance/100);camera.far=fit.distance*50;camera.updateProjectionMatrix();
+        controls.update();
+    }
+    function reset() {
+        if(!fitBox){camera.position.set(1.6,1.8,1.2);controls.target.set(0,0,-.03);controls.update();return;}
+        tightFit=computeFit(fitPoints,fitBox,armOnly?1.08:1.02);
+        wideFit=armOnly?tightFit:computeFit(envelopePoints,envelopeBox,1.08);
+        wideDistance=wideFit.distance;
+        placeCamera(framing==='wide'?wideFit:tightFit,defaultDirection);framingUpdate();render();
     }
     reset();
     // A view-relative light rig keeps the reverse side equally readable on orbit.
@@ -226,7 +251,9 @@ try {
         const geometry=new THREE.BufferGeometry();
         geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(buffer,8,vertices*3),3));
         geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(buffer,8+vertices*12,faces*3),1));
-        geometryCache.set(item.mesh,smoothCAD(geometry));
+        const smooth=smoothCAD(geometry),normalStatus=repairNormals(smooth);
+        if(normalStatus!=='ok')normalRepairs[item.mesh]=normalStatus;
+        geometryCache.set(item.mesh,smooth);
     }));
     for(const link of model.links)for(const visual of link.visuals){
         if(!selectedMeshes.has(visual.mesh))continue;
@@ -246,6 +273,7 @@ try {
         const object=new THREE.Mesh(geometry,new THREE.MeshLambertMaterial({color,vertexColors:Boolean(wheel)}));
         object.position.fromArray(visual.xyz);object.scale.fromArray(visual.scale);rpy(object,visual.rpy);
         if(wheel){object.userData.wheel=wheel;wheelMeshes.push(object);}
+        if(armPart(link.name)){geometry.computeBoundingBox();armMeshes.push(object);}
         links[link.name].add(object);triangles+=(geometry.index?geometry.index.count:geometry.attributes.position.count)/3;
     }
     // A small colored hub ring conveys motor health without replacing the CAD motor.
@@ -255,16 +283,19 @@ try {
         ring.userData.wheel=name;joints[prefix+'_wheel_joint'].origin.add(ring);
         motorMeshes.push(ring);triangles+=ring.geometry.index.count/3;
     }
-    const collectFit=()=>robot.traverse(object=>{
+    const collectFit=points=>robot.traverse(object=>{
         if(!object.isMesh)return;object.geometry.computeBoundingBox();const b=object.geometry.boundingBox;
-        for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z])fitPoints.push(new THREE.Vector3(x,y,z).applyMatrix4(object.matrixWorld));
+        for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z])points.push(new THREE.Vector3(x,y,z).applyMatrix4(object.matrixWorld));
     });
-    robot.updateMatrixWorld(true);fitBox=new THREE.Box3().setFromObject(robot);collectFit();
-    // Fit a bounded arm motion envelope once; no automatic zoom while moving.
+    robot.updateMatrixWorld(true);fitBox=new THREE.Box3().setFromObject(robot);collectFit(fitPoints);
+    // Fit a bounded arm motion envelope once; no continuous zoom while moving.
+    // The arm view always uses it; the rover view uses it only while the arm leaves the parked frame.
+    envelopeBox=fitBox.clone();envelopePoints=fitPoints.slice();
     for(const angles of [[.5,-.7,-1.2,.45,.2],[-.5,-.25,-.6,.2,-.2]]){
         armNames.forEach((name,i)=>setJoint(name,angles[i]));robot.updateMatrixWorld(true);
-        fitBox.union(new THREE.Box3().setFromObject(robot));collectFit();
+        envelopeBox.union(new THREE.Box3().setFromObject(robot));collectFit(envelopePoints);
     }
+    if(armOnly){fitBox=envelopeBox;fitPoints=envelopePoints;}else envelopeBox.expandByScalar(.035);
     armNames.forEach(name=>setJoint(name,0));robot.updateMatrixWorld(true);fitBox.expandByScalar(.035);
     reset();
     if(armOnly){document.getElementById('suspension').style.display='none';document.getElementById('footnote').textContent='드래그하여 360° 회전 · 로봇팔 자세';}
@@ -283,10 +314,71 @@ try {
     renderer.domElement.addEventListener('pointercancel',()=>{down=null;});
     renderer.domElement.addEventListener('wheel',event=>event.preventDefault(),{passive:false});
     controls.addEventListener('change',render);
+    controls.addEventListener('end',()=>{if(framingUpdate())render();});
     document.getElementById('reset').onclick=reset;
     document.getElementById('close').onclick=()=>{selected=null;document.getElementById('popup').style.display='none';refreshStatus();render();};
     window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);reset();render();});
+    const tightCamera=new THREE.PerspectiveCamera();
+    function armOutside(view,limit) {
+        // Conservative: any corner of an arm part's bounding box past the frame edge.
+        view.updateMatrixWorld();
+        for(const mesh of armMeshes){
+            const b=mesh.geometry.boundingBox;
+            for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z]){
+                const p=new THREE.Vector3(x,y,z).applyMatrix4(mesh.matrixWorld).project(view);
+                if(Math.abs(p.x)>limit||Math.abs(p.y)>limit||p.z>1)return true;
+            }
+        }
+        return false;
+    }
+    framingUpdate=()=>{
+        // The rover view fills its card with the parked pose and steps out to the
+        // arm envelope only while the measured arm would leave that frame.
+        if(armOnly||!wideFit)return false;
+        robot.updateMatrixWorld(true);
+        const direction=camera.position.clone().sub(controls.target).normalize();
+        tightCamera.copy(camera,false);
+        tightCamera.position.copy(tightFit.center).add(direction.clone().multiplyScalar(tightFit.distance));
+        tightCamera.lookAt(tightFit.center);
+        // Small hysteresis: the parked arm sits about 2 % inside the edge after the 1.02 margin.
+        const next=armOutside(tightCamera,framing==='tight'?1:.99)?'wide':'tight';
+        if(next==='tight'){
+            if(framing==='tight')return false;
+            framing='tight';wideDistance=wideFit.distance;placeCamera(tightFit,direction);return true;
+        }
+        // Wide uses the arm envelope, and steps further out only if the current pose and
+        // tilt still leave the frame. It never steps back in until the arm returns.
+        const corners=[];
+        robot.traverse(o=>{if(!o.isMesh)return;if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();const b=o.geometry.boundingBox;
+            for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z])corners.push(new THREE.Vector3(x,y,z).applyMatrix4(o.matrixWorld));});
+        const needed=Math.max(wideDistance,fitDistance(corners,wideFit.center,direction)*1.04);
+        if(framing==='wide'&&needed<=wideDistance)return false;
+        framing='wide';wideDistance=needed;placeCamera({center:wideFit.center,distance:needed},direction);return true;
+    };
+    const normalFaultMeshes=()=>{let count=0;robot.traverse(o=>{if(o.isMesh&&nonFiniteNormals(o.geometry))count++;});return count;};
     window.rover3d={receive,setActive,
+        framingCheck(){
+            // A raised arm pose that the parked frame cannot hold must widen the view, then return.
+            const pose=[0,-1.3,-2.8,.5,-2.2],saved=armNames.map(name=>joints[name].node.quaternion.clone()),start=framing;
+            armNames.forEach((name,i)=>setJoint(name,pose[i]));robot.updateMatrixWorld(true);
+            const outsideParked=armOutside(camera,1);framingUpdate();
+            const raised=framing,visibleRaised=!armOutside(camera,1);
+            // A harder pose on a tilted body must still fit after stepping further out.
+            const roll=robot.rotation.x,pitch=robot.rotation.y;
+            [-1.5,-1.5,-2.7,0,2].forEach((angle,i)=>setJoint(armNames[i],angle));robot.rotation.x=.3;robot.rotation.y=-.3;
+            framingUpdate();const tilted=framing,visibleTilted=!armOutside(camera,1);
+            robot.rotation.x=roll;robot.rotation.y=pitch;
+            armNames.forEach((name,i)=>joints[name].node.quaternion.copy(saved[i]));framingUpdate();render();
+            return {start,outsideParked,raised,visibleRaised,tilted,visibleTilted,lowered:framing,probeChildren:tightCamera.children.length};
+        },
+        normalSelfTest(){
+            // Negative control: a NaN injected into a displayed part must be counted, then repaired.
+            let mesh=null;robot.traverse(o=>{if(!mesh&&o.isMesh&&o.geometry.attributes.normal.count>3)mesh=o;});
+            const before=normalFaultMeshes(),values=mesh.geometry.attributes.normal.array,saved=values.slice();
+            values[0]=NaN;const injected=normalFaultMeshes(),status=repairNormals(mesh.geometry),repaired=normalFaultMeshes();
+            values.set(saved);mesh.geometry.attributes.normal.needsUpdate=true;
+            return {before,injected,status,repaired,after:normalFaultMeshes()};
+        },
         rotateView(angle){const offset=camera.position.clone().sub(controls.target);offset.applyAxisAngle(new THREE.Vector3(0,0,1),angle);camera.position.copy(controls.target).add(offset);controls.update();render();},
         performanceCheck(){const gl=renderer.getContext(),times=[];for(let i=0;i<30;i++){const start=performance.now();renderer.render(scene,camera);gl.finish();times.push(performance.now()-start);}times.sort((a,b)=>a-b);return {triangles,drawCalls:renderer.info.render.calls,median_ms:times[15],p95_ms:times[28],pixelRatio:renderer.getPixelRatio(),cadMeshRequests:performance.getEntriesByType('resource').filter(r=>r.name.includes('/meshes/')).length,displayMeshRequests:performance.getEntriesByType('resource').filter(r=>r.name.includes('/display-meshes/')).length};},
         interactionCheck(){
@@ -308,7 +400,7 @@ try {
                 fixedDistance:controls.minDistance===controls.maxDistance,twoFingerDisabled:controls.touches.TWO===null,
                 halfTurnDistance:position.distanceTo(halfway),fixedElevation:controls.minPolarAngle===controls.maxPolarAngle};
         },
-        inspect(){robot.updateMatrixWorld(true);return {modelKind:'cad-lod',viewMode:armOnly?'arm':'rover',triangles,displayMeshes:display.meshes.length,zoomEnabled:controls.enableZoom,panEnabled:controls.enablePan,selected,live:live(),armLive:Boolean(armLive()),wheels:wheelMeshes.map(m=>m.userData.wheel),joints:Object.fromEntries(suspensionNames.map(n=>[n,joints[n].node.quaternion.toArray()])),armJoints:Object.fromEntries(armNames.map(n=>[n,joints[n].node.quaternion.toArray()])),armTip:links.arm_link5.localToWorld(new THREE.Vector3(.1115,0,0)).toArray(),frontLeft:links.fl_bl70200s.getWorldPosition(new THREE.Vector3()).toArray(),popup:document.getElementById('wheel-values').textContent};},
+        inspect(){robot.updateMatrixWorld(true);return {modelKind:'cad-lod',viewMode:armOnly?'arm':'rover',triangles,displayMeshes:display.meshes.length,zoomEnabled:controls.enableZoom,panEnabled:controls.enablePan,selected,live:live(),armLive:Boolean(armLive()),wheels:wheelMeshes.map(m=>m.userData.wheel),joints:Object.fromEntries(suspensionNames.map(n=>[n,joints[n].node.quaternion.toArray()])),armJoints:Object.fromEntries(armNames.map(n=>[n,joints[n].node.quaternion.toArray()])),armTip:links.arm_link5.localToWorld(new THREE.Vector3(.1115,0,0)).toArray(),frontLeft:links.fl_bl70200s.getWorldPosition(new THREE.Vector3()).toArray(),normalFaultMeshes:normalFaultMeshes(),normalRepairs,framing,popup:document.getElementById('wheel-values').textContent};},
         selectWheel:showPopup,
         clickWheel(name){const mesh=wheelMeshes.find(m=>m.userData.wheel===name),p=new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3()).project(camera);const e={clientX:(p.x+1)/2*innerWidth,clientY:(1-p.y)/2*innerHeight};pointerDown(e);pointerUp(e);return selected;},
     };
