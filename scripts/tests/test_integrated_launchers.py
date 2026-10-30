@@ -22,10 +22,10 @@ def test_observers_do_not_inherit_image_camera_healthcheck():
         assert services[name].get("healthcheck", {}).get("disable") is True, name
 
 
-def test_gateway_srt_output_rate_defaults_to_30_and_is_overridable():
+def test_gateway_srt_output_rate_defaults_to_15_and_is_overridable():
     import yaml
     services = yaml.safe_load((ROOT / "docker/docker-compose.integrated.yml").read_text())["services"]
-    assert "L515_SRT_FPS=${L515_SRT_FPS:-30}" in services["powertrain_ros"]["environment"]
+    assert "L515_SRT_FPS=${L515_SRT_FPS:-15}" in services["powertrain_ros"]["environment"]
 
 
 def test_terrain_overlay_service_is_opt_in_and_bounded():
