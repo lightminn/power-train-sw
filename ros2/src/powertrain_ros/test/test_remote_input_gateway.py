@@ -598,3 +598,82 @@ def test_ros_wrapper_publishes_one_zero_on_each_fresh_to_stale_edge():
     ]
     assert published["arm"] == published["drive"]
     assert published["bypass"] == [fresh_one, fresh_two]
+
+
+def test_field_mode_stale_input_zeroes_without_latching_and_resumes():
+    gateway = RemoteInputGateway(
+        GatewayConfig(input_timeout_s=0.5, latch_stale_input=False))
+    session_id = _connect_drive(gateway)
+    gateway.submit(_frame(sequence=1, received_s=1.0, deadman=True,
+                          right_trigger=0.7, session_id=session_id))
+    assert gateway.tick(1.0).drive.linear == pytest.approx(0.7)
+
+    stale = gateway.tick(1.500001)
+    assert stale.state == DRIVE
+    _assert_zero(stale)
+
+    gateway.submit(_frame(sequence=2, received_s=1.6, deadman=True,
+                          right_trigger=0.7, session_id=session_id))
+    assert gateway.tick(1.6).drive.linear == pytest.approx(0.7)
+
+
+def test_field_mode_still_latches_the_remote_estop_edge():
+    gateway = RemoteInputGateway(GatewayConfig(latch_stale_input=False))
+    session_id = _connect_drive(gateway)
+    gateway.submit(_frame(sequence=1, received_s=1.0, estop_edge=True,
+                          session_id=session_id))
+    assert gateway.tick(1.0).state == MOTION_HOLD
+    _assert_zero(gateway.tick(1.01))
+
+
+def test_ros_wrapper_field_mode_keeps_zero_flowing_while_stale_but_not_in_hold():
+    source_path = (
+        Path(__file__).resolve().parents[1]
+        / "powertrain_ros"
+        / "teleop_command_node.py"
+    )
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    node_class = next(node for node in tree.body
+                      if isinstance(node, ast.ClassDef) and node.name == "TeleopCommandNode")
+    tick = next(node for node in node_class.body
+                if isinstance(node, ast.FunctionDef) and node.name == "_tick")
+    namespace = {
+        "time": SimpleNamespace(monotonic=lambda: 10.0),
+        "make_status_line": lambda _output: "status",
+        "String": SimpleNamespace,
+        "json": json,
+        "MOTION_HOLD": MOTION_HOLD,
+    }
+    module = ast.Module(body=[tick], type_ignores=[])
+    ast.fix_missing_locations(module)
+    exec(compile(module, str(source_path), "exec"), namespace)
+
+    def output(state, input_fresh, value):
+        return SimpleNamespace(
+            state=state, input_fresh=input_fresh,
+            drive=SimpleNamespace(linear=value, angular=value, source_received_s=None,
+                                  connection_session_id="server-1"),
+            arm=SimpleNamespace(joint_velocity=value, gripper=value))
+
+    fresh = output(DRIVE, True, 0.4)
+    stale_edge = output(DRIVE, False, 0.0)
+    stale_gap = output(DRIVE, False, 0.0)
+    disconnected = output(DISCONNECTED, False, 0.0)
+    held = output(MOTION_HOLD, False, 0.0)
+    outputs = iter((fresh, stale_edge, stale_gap, disconnected, held))
+    published = {"drive": [], "arm": [], "bypass": [], "gateway": []}
+    node = SimpleNamespace(
+        _drain_events=lambda: None,
+        _gateway=SimpleNamespace(tick=lambda _now: next(outputs)),
+        _status_lock=nullcontext(), _input_was_fresh=False, _estop_event=None,
+        _last_frame=None, _latch_stale_input=False,
+        _publish_drive=published["drive"].append,
+        _publish_arm=published["arm"].append,
+        _publish_assist_bypass=published["bypass"].append,
+        pub_gateway_state=SimpleNamespace(publish=published["gateway"].append),
+    )
+    for _ in range(5):
+        namespace["_tick"](node)
+
+    assert published["drive"] == [fresh, stale_edge, stale_gap, disconnected]
+    assert published["arm"] == [fresh, stale_edge]

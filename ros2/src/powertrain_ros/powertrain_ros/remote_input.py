@@ -154,8 +154,10 @@ def _session_id(value):
 class RemoteInputDecoder:
     """Decode one TCP stream while retaining used sessions across reconnects."""
 
-    def __init__(self, *, input_timeout_s=DEFAULT_INPUT_TIMEOUT_S):
+    def __init__(self, *, input_timeout_s=DEFAULT_INPUT_TIMEOUT_S,
+                 partial_close_violation=True):
         self.input_timeout_s = float(input_timeout_s)
+        self.partial_close_violation = bool(partial_close_violation)
         if (
             not math.isfinite(self.input_timeout_s)
             or self.input_timeout_s <= 0.0
@@ -177,7 +179,8 @@ class RemoteInputDecoder:
 
     def end_connection(self):
         results = []
-        if self._buffer and not self._discard_oversize:
+        if (self._buffer and not self._discard_oversize
+                and self.partial_close_violation):
             results.append(_violation("partial record at TCP close"))
         self._active = False
         self._buffer.clear()

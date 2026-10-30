@@ -73,6 +73,10 @@ class FakeSocket:
     def sendall(self, record):
         self.sent.append(record)
 
+    def send(self, record):
+        self.sent.append(bytes(record))
+        return len(record)
+
     def recv(self, _size):
         raise BlockingIOError
 
@@ -656,3 +660,47 @@ def test_authenticated_input_proxy_receives_real_encoded_frame(tmp_path):
         server.close()
         target.shutdown()
         target.server_close()
+
+
+class StallingSocket(FakeSocket):
+    """Accepts a scripted number of bytes per send, like a full send buffer."""
+
+    def __init__(self, budgets):
+        super().__init__()
+        self.budgets = list(budgets)
+        self.stream = bytearray()
+
+    def send(self, record):
+        budget = self.budgets.pop(0) if self.budgets else len(record)
+        if budget == 0:
+            raise BlockingIOError
+        accepted = bytes(record[:budget])
+        self.stream.extend(accepted)
+        return len(accepted)
+
+
+def test_send_buffer_stall_keeps_channel_and_completes_the_partial_record():
+    sock = StallingSocket([10, 0, 0])
+    process = object.__new__(controller.ControllerProcess)
+    process._socket = sock
+    process._outbox = bytearray()
+    process._session_id = "11111111-1111-4111-8111-111111111111"
+    process._sequence = 0
+    dropped = []
+    process._drop_for_retry = lambda now_s, detail: dropped.append(detail)
+
+    encode_frame = controller.encode_frame
+    first = encode_frame(_neutral_sample(), session_id=process._session_id,
+                         sequence=0, client_monotonic_ns=1)
+    process._send(_neutral_sample(), 1, 0.0)      # 10 bytes accepted
+    process._send(_neutral_sample(), 2, 0.01)     # stalled: newer sample skipped
+    process._send(_neutral_sample(), 3, 0.02)     # still stalled
+    process._send(_neutral_sample(), 4, 0.03)     # drains, then sends sample 4
+
+    assert dropped == []
+    assert process._sequence == 2
+    assert bytes(sock.stream[:len(first)]) == first
+    second = encode_frame(_neutral_sample(), session_id=process._session_id,
+                          sequence=1, client_monotonic_ns=4)
+    assert bytes(sock.stream[len(first):]) == second
+    assert process._outbox == bytearray()

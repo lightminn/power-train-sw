@@ -68,6 +68,9 @@ class TeleopCommandNode(Node):
         self.declare_parameter("port", DEFAULT_PORT)
         self.declare_parameter("input_timeout_s", 0.20)
         self.declare_parameter("stopping_timeout_s", 2.0)
+        # Field relaxation switches; defaults keep the latching safety contract.
+        self.declare_parameter("latch_stale_input", True)
+        self.declare_parameter("partial_close_violation", True)
         self.declare_parameter("max_linear", 1.5)
         self.declare_parameter("max_angular", 1.2)
         self.declare_parameter(
@@ -82,8 +85,12 @@ class TeleopCommandNode(Node):
             self.get_parameter("input_timeout_s").value
         )
         self._decoder = RemoteInputDecoder(
-            input_timeout_s=input_timeout_s
+            input_timeout_s=input_timeout_s,
+            partial_close_violation=bool(
+                self.get_parameter("partial_close_violation").value),
         )
+        self._latch_stale_input = bool(
+            self.get_parameter("latch_stale_input").value)
         self._gateway = RemoteInputGateway(
             GatewayConfig(
                 input_timeout_s=input_timeout_s,
@@ -95,6 +102,7 @@ class TeleopCommandNode(Node):
                     self.get_parameter("max_angular").value
                 ),
                 manual_command_format=self._manual_command_format,
+                latch_stale_input=self._latch_stale_input,
             ),
             arm_output_enabled=ARM_OUTPUT_ENABLED,
             # Task 7 will inject qualified physical evidence only after the
@@ -621,6 +629,11 @@ class TeleopCommandNode(Node):
             if input_was_fresh:
                 self._publish_drive(output)
                 self._publish_arm(output)
+            elif (not getattr(self, "_latch_stale_input", True)
+                  and output.state != MOTION_HOLD):
+                # Field mode: keep authority fed with zero so a link gap stops
+                # the wheels without latching the chassis MOTION_HOLD.
+                self._publish_drive(output)
             return
         self._publish_drive(output)
         self._publish_arm(output)

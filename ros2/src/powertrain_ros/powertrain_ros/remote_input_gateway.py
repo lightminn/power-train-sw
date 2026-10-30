@@ -37,6 +37,9 @@ class GatewayConfig:
     max_angular: float = 1.0
     max_joint_velocity: float = 1.0
     manual_command_format: str = "steering"
+    # False (field relaxation): stale input outputs zero without latching
+    # MOTION_HOLD, and driving resumes as soon as fresh input returns.
+    latch_stale_input: bool = True
 
 
 @dataclass(frozen=True)
@@ -373,6 +376,8 @@ class RemoteInputGateway:
         if not self._connected or self._frame is None:
             return self._zero(self._last_reason)
         if not self._frame_is_fresh(now_s):
+            if not self.cfg.latch_stale_input:
+                return self._zero("remote input stale; zero until fresh input")
             return self._enter_hold("remote input stale")
 
         frame = self._frame

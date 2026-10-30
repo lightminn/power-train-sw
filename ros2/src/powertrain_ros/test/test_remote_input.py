@@ -153,6 +153,13 @@ def test_rejects_malformed_oversize_and_partial_records_without_frames():
     _assert_violation(results[0], "partial")
 
 
+
+def test_field_mode_treats_a_record_cut_by_tcp_close_as_plain_disconnect():
+    decoder = RemoteInputDecoder(partial_close_violation=False)
+    decoder.start_connection()
+    assert decoder.feed(_record()[:-1], receive_monotonic_s=1.0) == []
+    assert decoder.end_connection() == []
+
 def test_each_tcp_connection_requires_a_new_random_session():
     old_session = str(uuid.uuid4())
     new_session = str(uuid.uuid4())

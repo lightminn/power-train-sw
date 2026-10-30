@@ -290,6 +290,7 @@ class ControllerProcess:
         self._last_status = None
         self._target = None
         self._socket = None
+        self._outbox = bytearray()
         self._session_id = None
         self._sequence = 0
         self._awaiting_fresh_sample = False
@@ -304,6 +305,7 @@ class ControllerProcess:
     def _close_socket(self):
         sock = self._socket
         self._socket = None
+        self._outbox.clear()
         self._session_id = None
         self._sequence = 0
         self._awaiting_fresh_sample = False
@@ -509,23 +511,35 @@ class ControllerProcess:
         self._next_connect_s = now_s + CONNECT_RETRY_S
 
     def _send(self, sample, now_ns, now_s):
-        record = encode_frame(
-            sample,
-            session_id=self._session_id,
-            sequence=self._sequence,
-            client_monotonic_ns=now_ns,
-        )
         try:
-            self._socket.sendall(record)
-            self._sequence += 1
+            # A Wi-Fi stall fills the send buffer. Keep the unsent tail of the
+            # current record and skip newer samples until it drains, instead
+            # of closing the input channel mid-record.
+            if self._outbox:
+                self._outbox = self._outbox[self._send_some(self._outbox):]
+            if not self._outbox:
+                record = encode_frame(
+                    sample,
+                    session_id=self._session_id,
+                    sequence=self._sequence,
+                    client_monotonic_ns=now_ns,
+                )
+                self._sequence += 1
+                self._outbox = bytearray(record[self._send_some(record):])
             try:
                 reply = self._socket.recv(1024)
             except BlockingIOError:
                 return
             if reply == b"":
                 self._drop_for_retry(now_s, "input channel closed")
-        except (BlockingIOError, OSError) as exc:
+        except OSError as exc:
             self._drop_for_retry(now_s, "input send failed: %s" % exc)
+
+    def _send_some(self, data):
+        try:
+            return self._socket.send(data)
+        except BlockingIOError:
+            return 0
 
     def tick(self):
         if not self.running:
