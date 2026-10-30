@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     environment:
       - POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json
+      # SRT output rate, 30 or 15. The camera, depth and ROS topics stay at their rates.
+      - L515_SRT_FPS=${L515_SRT_FPS:-30}
     entrypoint:
       - /bin/bash
       - -lc
