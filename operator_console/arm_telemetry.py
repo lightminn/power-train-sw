@@ -251,10 +251,15 @@ def arm_panel_summary(
 
 class LatestArmTelemetryReceiver:
     """Latest-only RX-bound UDP receiver for robot-arm observation."""
-    def __init__(self, port: int) -> None:
+    def __init__(self, port: int, *, exclusive: bool = False) -> None:
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._socket.bind(("0.0.0.0", port))
+        if not exclusive:
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            self._socket.bind(("0.0.0.0", port))
+        except OSError:
+            self._socket.close()
+            raise
         self._latest: ArmTelemetrySnapshot | None = None
         self._lock = threading.Lock()
         self._stopping = threading.Event()
