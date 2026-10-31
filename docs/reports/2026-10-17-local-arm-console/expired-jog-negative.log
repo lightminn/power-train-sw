@@ -1,0 +1,18 @@
+......F....                                                              [100%]
+=================================== FAILURES ===================================
+__________ test_invalid_or_stale_jog_does_not_create_lease[changes5] ___________
+
+changes = {'expires_at_s': 9}
+
+    @pytest.mark.parametrize('changes', [dict(axis=1), dict(axis=True),
+        dict(direction=True), dict(direction=0), dict(sequence=-1),
+        dict(expires_at_s=9), dict(expires_at_s=12), dict(expires_at_s=float('nan'))])
+    def test_invalid_or_stale_jog_does_not_create_lease(changes):
+        lease = WristJogLease()
+>       with pytest.raises(ValueError):
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+/ws/extreme-robot/ros2_ws/src/dynamixel_control/test/test_local_wrist_jog.py:26: Failed
+=========================== short test summary info ============================
+FAILED ../../ws/extreme-robot/ros2_ws/src/dynamixel_control/test/test_local_wrist_jog.py::test_invalid_or_stale_jog_does_not_create_lease[changes5]
+1 failed, 10 passed in 0.03s

@@ -16,6 +16,7 @@ command that can never be built.
 """
 from __future__ import annotations
 
+import os
 from typing import Any, Callable
 
 from ..arm_ui.contracts import (
@@ -137,26 +138,32 @@ class ArmOpsCallbackAdapter:
         """
         session = self._session
         return ArmUiCallbacks(
+            coupling_lock_command=self._wrap(session.coupling_lock_command),
             request_tool_change=self._wrap(session.request_tool_change),
             request_control_mode=self._wrap(session.request_mode),
             release_control_mode=self._wrap(session.release_mode),
             # Axis selection is a console-side view change: it moves no joint
             # and therefore has no ops action.  Left unbound on purpose.
-            select_axis=None,
+            select_axis=((lambda _axis: None)
+                         if os.environ.get('ARM_LOCAL_ALL_AXES') == '1' else None),
             jog_start=self._wrap(
                 lambda axis, direction: session.press_axis_jog(axis, direction)
             ),
             jog_stop=self._wrap(session.release_axis_jog),
-            # Speed is carried on the next jog refresh rather than sent as its
-            # own command; until the arm side confirms how speed is expressed
-            # there is nothing honest to send.  See BACKEND_REQUIREMENTS.
-            change_speed=None,
+            # A level change applies to the next bounded bench jog; it moves no motor itself.
+            change_speed=self._wrap(session.change_speed),
             stop_motion=self._wrap(session.stop_motion),
+            set_bench_flag=lambda key, on: K.BENCH_JOG_FLAGS.__setitem__(key, bool(on)),
             resume_hold=self._wrap(session.resume_hold),
             go_home=self._wrap(session.go_home),
             save_pose=self._wrap(session.save_pose),
+            capture_tool_slot=self._wrap(session.capture_tool_slot),
+            start_tool_exchange=self._wrap(session.start_tool_exchange),
+            stop_tool_exchange=self._wrap(session.stop_tool_exchange),
             move_to_pose=self._wrap(session.move_to_pose),
             delete_pose=self._wrap(session.delete_pose),
+            freedrive=self._wrap(session.freedrive),
+            freedrive_release=self._wrap(session.freedrive_release),
             restart_bridge=(self._wrap(session.revalidate_active_tool)
                             if self._restart_bridge is None
                             else self._restart_bridge),
@@ -179,11 +186,8 @@ class ArmOpsCallbackAdapter:
         )
 
 
-UNBOUND_CALLBACKS = ("select_axis", "change_speed")
+UNBOUND_CALLBACKS = ("select_axis",)
 """Callbacks this adapter deliberately leaves ``None``.
 
-``select_axis`` is a view change with no ops meaning.  ``change_speed`` has no
-confirmed arm-side representation yet, and binding it to a guess would put a
-command on the wire whose meaning nobody agreed to.  Both stay disabled in the
-UI as a result, which is the honest rendering of "not connected yet".
+``select_axis`` is a view change with no ops meaning outside the local bench.
 """

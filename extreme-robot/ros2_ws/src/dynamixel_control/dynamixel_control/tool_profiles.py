@@ -8,7 +8,7 @@ import yaml
 
 SUPPORTED_TOOL_TYPES = (
     'spur_1motor_gripper', 'dual_motor_gripper', 'cleaner')
-CONTROL_SCOPES = ('FULL_ROBOT', 'END_EFFECTOR_ONLY')
+CONTROL_SCOPES = ('FULL_ROBOT', 'END_EFFECTOR_ONLY', 'TOOL_CHANGE')
 
 
 def validate_control_scope(value):

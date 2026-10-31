@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import os
 import time
 
 from .arm_ui import contracts as C
@@ -51,6 +52,8 @@ class ArmUiTelemetryBinding:
             tool_key = (kind, ids)
             if tool_key != self._tool_key:
                 self._tool_generation += 1
+            if type(tool.get('tool_context_generation')) is int:
+                self._tool_generation = tool['tool_context_generation']
             # The arm status has no hardware serial number.  This is therefore
             # an observed active-profile fingerprint, not an invented serial.
             profile_id = f"{tool['tool_type']}:{','.join(map(str, ids))}"
@@ -60,7 +63,7 @@ class ArmUiTelemetryBinding:
                 display_name=C.TOOL_KIND_KOREAN[kind],
                 actuator_ids=ids,
                 attached=(False if tool.get("tool_detached") or tool.get("physical_tool_detached")
-                          else None),
+                          else True if tool.get('actuators_discovered') is True else None),
                 generation=self._tool_generation,
             )
             readings = tuple(
@@ -84,6 +87,8 @@ class ArmUiTelemetryBinding:
             )
             diagnostics = C.ToolDiagnostics(
                 motors=readings, generation=self._tool_generation,
+                sync_state={'SYNCHRONIZED': C.SYNC_SYNCED, 'FAULT': C.SYNC_FAULT}.get(
+                    (tool.get('synchronization') or {}).get('state'), C.SYNC_UNKNOWN),
             )
         self._tool_key = tool_key
 
@@ -91,11 +96,13 @@ class ArmUiTelemetryBinding:
         axes = ()
         if joints_age is not None and joints_age <= 1.0:
             axes = tuple(
-                C.AxisState(index=index + 1, name=name,
+                C.AxisState(index=(int(name.rsplit('_', 1)[1])
+                                   if name in {f'arm_joint_{i}' for i in range(1, 6)}
+                                   else index + 1), name=name,
                             angle_deg=math.degrees(position))
                 for index, (name, position) in enumerate(
                     zip(snapshot.joint_names, snapshot.joint_position_rad)
-                )
+                ) if name != 'toolchanger_lock_wheel'
             )
         arm_runtime = snapshot.arm_runtime or {}
         runtime_ages = arm_runtime.get("source_age_s", {})
@@ -125,6 +132,9 @@ class ArmUiTelemetryBinding:
                 and tool.get("read_only") is not True
                 and tool.get("emergency_stop") is not True):
             capabilities.add(C.CAP_GRIPPER_COMMAND)
+            capabilities.update(tool.get('manual_tool_capabilities', []))
+            if 'dual_sync' in tool.get('manual_tool_capabilities', []):
+                capabilities.add(C.CAP_DUAL_SYNC)
         if (link_state == C.LINK_LIVE and ops_link_ready and tool is not None
                 and isinstance(tool.get("dual_calibration"), dict)
                 and tool.get("read_only") is not True):
@@ -135,6 +145,8 @@ class ArmUiTelemetryBinding:
                 and tool.get("calibration_jog_enabled") is True
                 and tool.get("read_only") is not True):
             capabilities.add(C.CAP_TOOL_CALIBRATION)
+        local_wrist = bool(tool and tool.get('manual_coupling_lock') is True
+                           and tool.get('control_scope') == 'FULL_ROBOT')
         block_reasons: list[C.BlockReason] = []
         if tool is not None:
             hardware_error = tool.get("hardware_error")
@@ -148,22 +160,45 @@ class ArmUiTelemetryBinding:
                     code="tool_detached",
                     korean="도구가 분리됨으로 판정됨 — 재연결 후 브릿지 재시작 필요",
                 ))
-            elif (tool.get("motion_allowed") is False
+            elif (not local_wrist and tool.get("motion_allowed") is False
                   and tool.get("tool_enable_allowed") is not True):
                 detail = str(tool.get("reason") or "도구 동작 준비 안 됨")
                 block_reasons.append(C.BlockReason(
                     code="tool_not_ready", korean=f"도구 준비 안 됨 — {detail}",
                 ))
+        lock_age = self._age(snapshot, runtime.get("coupling_lock_age_s"))
+        lock = (runtime.get("coupling_lock") or {}
+                if lock_age is not None and lock_age <= 1.0 else {})
+        if (link_state == C.LINK_LIVE and ops_link_ready and lock.get("enabled") is True
+                and tool is not None and (tool.get("control_scope") == "END_EFFECTOR_ONLY" or local_wrist)
+                and tool.get("read_only") is False and tool.get("emergency_stop") is False):
+            capabilities.add(C.CAP_COUPLING_LOCK)
+        if (local_wrist and link_state == C.LINK_LIVE and ops_link_ready
+                and tool.get('read_only') is False
+                and tool.get('emergency_stop') is False
+                and axes
+                and (os.environ.get('ARM_LOCAL_WRIST_IGNORE_LOCK') == '1'
+                     or (lock.get('state') == 'LOCKED' and lock.get('torque') == 1))):
+            capabilities.add(C.CAP_TELEOP_JOG)
+        pose_list = tool.get('poses') if local_wrist else None
+        if (isinstance(pose_list, list) and link_state == C.LINK_LIVE and ops_link_ready
+                and tool.get('read_only') is False and tool.get('emergency_stop') is False):
+            capabilities.add(C.CAP_TELEOP_POSE)
         return C.ArmUiState(
+            coupling_lock=lock,
+            tool_exchange=dict((tool or {}).get('local_tool_change') or {}),
             link=C.SourceLink(state=link_state, age_s=receive_age),
             detected_tool=identity,
             arm_fsm=runtime_state("fsm_state"),
+            tool_fsm=C.FsmState(raw=tool.get('fsm_state') or '') if tool else C.FsmState(),
             arm_status=runtime_state("arm_status"),
             authority=C.ControlAuthority(
                 granted_mode="MANUAL" if granted else "",
                 status=C.AUTHORITY_GRANTED if granted else C.AUTHORITY_UNKNOWN,
             ),
-            teleop=C.TeleopState(axes=axes),
+            teleop=C.TeleopState(axes=axes, selected_axis=5 if local_wrist else None,
+                                 speed_level=(tool.get('local_jog_speed_level') if tool else None),
+                                 poses=tuple(pose_list or ())),
             diagnostics=diagnostics,
             capabilities=frozenset(capabilities),
             block_reasons=tuple(block_reasons),

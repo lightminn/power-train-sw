@@ -53,6 +53,8 @@ MAX_PARAMS_BYTES = 1200
 
 
 # --- action names -----------------------------------------------------------
+ACTION_LOCK_COMMAND = "robot_arm_lock_command"
+ACTION_LOCK_STOP = "robot_arm_lock_stop"
 ACTION_TOOL_CHANGE = "robot_arm_tool_change"
 ACTION_MODE_REQUEST = "robot_arm_mode_request"
 ACTION_MODE_RELEASE = "robot_arm_mode_release"
@@ -64,6 +66,8 @@ ACTION_HOME = "robot_arm_home"
 ACTION_POSE_SAVE = "robot_arm_pose_save"
 ACTION_POSE_MOVE = "robot_arm_pose_move"
 ACTION_POSE_DELETE = "robot_arm_pose_delete"
+ACTION_FREEDRIVE = "robot_arm_freedrive"
+ACTION_FREEDRIVE_RELEASE = "robot_arm_freedrive_release"
 ACTION_TOOL_COMMAND = "robot_arm_tool_command"
 ACTION_TOOL_ENABLE = "robot_arm_tool_enable"
 ACTION_TOOL_JOG = "robot_arm_tool_jog"
@@ -71,10 +75,18 @@ ACTION_TOOL_JOG_STOP = "robot_arm_tool_jog_stop"
 ACTION_CALIBRATION = "robot_arm_calibration"
 ACTION_CALIBRATION_JOG = "robot_arm_calibration_jog"
 ACTION_CALIBRATION_JOG_STOP = "robot_arm_calibration_jog_stop"
+# Bench end-effector exchange via taught slots (local arm bench only).
+ACTION_EXCHANGE_START = "robot_arm_exchange_start"
+ACTION_EXCHANGE_STOP = "robot_arm_exchange_stop"
+ACTION_SLOT_CAPTURE = "robot_arm_slot_capture"
+EXCHANGE_TOOL_TYPES = ("spur_1motor_gripper", "dual_motor_gripper", "cleaner")
+EXCHANGE_SLOTS = ("1", "2", "3")
+EXCHANGE_POSES = ("seat", "above")   # seated/locked pose, pose 5 cm above it
 
 
 # Actions that command motion and therefore require an approved MANUAL grant.
 MOTION_ACTIONS = frozenset({
+    ACTION_LOCK_COMMAND,
     ACTION_JOG,
     ACTION_JOG_STOP,
     ACTION_RESUME_HOLD,
@@ -86,15 +98,19 @@ MOTION_ACTIONS = frozenset({
     ACTION_TOOL_JOG_STOP,
     ACTION_CALIBRATION_JOG,
     ACTION_CALIBRATION_JOG_STOP,
+    ACTION_EXCHANGE_START,
+    ACTION_SLOT_CAPTURE,
 })
 
 # Actions that end motion.  These are the one category that must stay reachable
 # when everything else is blocked: a stop that needs permission is not a stop.
 STOP_ACTIONS = frozenset({
+    ACTION_LOCK_STOP,
     ACTION_STOP,
     ACTION_JOG_STOP,
     ACTION_TOOL_JOG_STOP,
     ACTION_CALIBRATION_JOG_STOP,
+    ACTION_EXCHANGE_STOP,
 })
 
 # Actions scoped to whichever tool is currently attached.  Each carries the
@@ -202,6 +218,15 @@ def _is_axis(value: Any) -> bool:
     return _is_int(value) and 1 <= value <= 6
 
 
+# Bench-only jog switches ('limits', 'trip') attached to every arm jog refresh.
+# Empty means the backend defaults (both ON).
+BENCH_JOG_FLAGS: dict[str, bool] = {}
+
+
+def _is_bool(value: Any) -> bool:
+    return type(value) is bool
+
+
 def _is_speed_level(value: Any) -> bool:
     return _is_int(value) and 0 <= value <= 10
 
@@ -239,6 +264,13 @@ _JOG_LIFETIME = (
 
 
 ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
+    ACTION_LOCK_STOP: (),
+    ACTION_LOCK_COMMAND: (
+        _spec("command", _in({"SET_ZERO", "ENABLE", "CHANGE"})),
+        _spec("state", _in({"LOCKED", "UNLOCKED"}), required=False),
+        _spec("to", _in({"LOCKED", "UNLOCKED"}), required=False),
+        _spec("direction", lambda v: type(v) is int and v in (-1, 1), required=False),
+    ),
     ACTION_TOOL_CHANGE: (
         _spec("requested_kind", _is_str, note="변경 요청 대상 도구 종류"),
         _spec("observed_tool_generation", _is_generation,
@@ -252,6 +284,8 @@ ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
         _spec("axis", _is_axis),
         _spec("direction", _in(DIRECTIONS)),
         _spec("speed_level", _is_speed_level, required=False),
+        _spec("limits", _is_bool, required=False, note="벤치 전용: 관절 제한"),
+        _spec("trip", _is_bool, required=False, note="벤치 전용: 전류 트립"),
         *_JOG_LIFETIME,
     ),
     ACTION_JOG_STOP: (
@@ -261,10 +295,15 @@ ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
     ),
     ACTION_STOP: (),
     ACTION_RESUME_HOLD: (),
-    ACTION_HOME: (),
+    ACTION_HOME: (_spec("limits", _is_bool, required=False),
+                  _spec("trip", _is_bool, required=False)),
     ACTION_POSE_SAVE: (_spec("name", _is_str),),
-    ACTION_POSE_MOVE: (_spec("name", _is_str),),
+    ACTION_POSE_MOVE: (_spec("name", _is_str),
+                       _spec("limits", _is_bool, required=False),
+                       _spec("trip", _is_bool, required=False)),
     ACTION_POSE_DELETE: (_spec("name", _is_str),),
+    ACTION_FREEDRIVE: (),
+    ACTION_FREEDRIVE_RELEASE: (),
     ACTION_TOOL_COMMAND: (
         _spec("target", _in(TOOL_TARGETS)),
         _spec("command", _in(TOOL_COMMANDS)),
@@ -279,6 +318,7 @@ ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
         _spec("direction", _in(DIRECTIONS)),
         *_TOOL_IDENTITY,
         *_JOG_LIFETIME,
+        _spec("ttl_s", lambda v: type(v) in (int, float) and 0 < v <= 0.6, required=False),
     ),
     ACTION_TOOL_JOG_STOP: (
         _spec("target", _in(TOOL_TARGETS)),
@@ -305,6 +345,16 @@ ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
         _spec("sequence", _is_generation),
         *_TOOL_IDENTITY,
     ),
+    ACTION_EXCHANGE_START: (_spec("tool_type", _in(EXCHANGE_TOOL_TYPES)),
+                            _spec("dry_run", _is_bool, required=False,
+                                  note="도구 없이 이동만 시험: 체결·분리·도구 확인 생략"),
+                            _spec("limits", _is_bool, required=False),
+                            _spec("trip", _is_bool, required=False)),
+    ACTION_EXCHANGE_STOP: (),
+    ACTION_SLOT_CAPTURE: (_spec("slot", _in(EXCHANGE_SLOTS)),
+                          _spec("tool_type", _in(EXCHANGE_TOOL_TYPES)),
+                          _spec("pose", _in(EXCHANGE_POSES)),
+                          _spec("limits", _is_bool, required=False)),
 }
 
 ARM_ACTIONS = frozenset(ACTION_PARAMS)
@@ -340,6 +390,12 @@ def validate_params(action: str, params: Mapping[str, Any]) -> dict[str, Any]:
                 f"{action}: invalid param {spec.name!r}={value!r}"
             )
         result[spec.name] = value
+    if action == ACTION_LOCK_COMMAND:
+        from powertrain_observability.tool_snapshot import validate_lock_command
+        try:
+            validate_lock_command(result)
+        except ValueError as exc:
+            raise ArmParamsError(str(exc)) from exc
     _assert_size(action, result)
     return result
 
@@ -426,6 +482,8 @@ _CONSOLE_ONLY = ("console",)
 PLANNED_ACTIONS: tuple[PlannedAction, ...] = tuple(
     PlannedAction(action=action, roles=_CONSOLE_ONLY, note=note)
     for action, note in (
+        (ACTION_LOCK_COMMAND, "결합 잠금의 기존 수동 벤치 명령"),
+        (ACTION_LOCK_STOP, "결합 잠금 정지"),
         (ACTION_TOOL_CHANGE, "명시적 도구 변경. 완료는 백엔드의 새 활성 도구 상태로 확인한다"),
         (ACTION_MODE_REQUEST, "MANUAL/FSM 제어권 요청. 승인은 별도 상태로 회신되어야 한다"),
         (ACTION_MODE_RELEASE, "제어권 반납"),
@@ -435,8 +493,13 @@ PLANNED_ACTIONS: tuple[PlannedAction, ...] = tuple(
         (ACTION_RESUME_HOLD, "복귀. 현재 자세 유지 의미를 보존해야 한다"),
         (ACTION_HOME, "home. 저장된 자세 의미를 보존해야 한다"),
         (ACTION_POSE_SAVE, "현재 자세 저장"),
+        (ACTION_SLOT_CAPTURE, "도구 슬롯 티칭: 머리가 바닥을 향한 체결 자세 또는 그 5cm 위 자세를 저장"),
+        (ACTION_EXCHANGE_START, "슬롯 기반 도구 교체 시작: 반납→수직 하강/상승→장착→home"),
+        (ACTION_EXCHANGE_STOP, "도구 교체 정지: 팔 유지·결합 잠금 정지"),
         (ACTION_POSE_MOVE, "저장 자세로 이동"),
         (ACTION_POSE_DELETE, "저장 자세 삭제"),
+        (ACTION_FREEDRIVE, "자세 자유 지정: 1~4축 토크 해제(손으로 자세 잡기)"),
+        (ACTION_FREEDRIVE_RELEASE, "자유 지정 해제: 현재 자세 그대로 1~4축 토크 복귀"),
         (ACTION_TOOL_COMMAND, "그리퍼 open/close/stop. 백엔드의 정상 FSM 경로를 사용해야 한다"),
         (ACTION_TOOL_ENABLE, "현재 감지 도구의 프로필에 고정된 actuator 토크 활성화/해제"),
         (ACTION_TOOL_JOG, "그리퍼 누름 조그. deadman"),

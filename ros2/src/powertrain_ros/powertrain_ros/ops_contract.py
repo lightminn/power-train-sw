@@ -117,14 +117,53 @@ ACTIONS = {
     ),
     # Existing arm-stack FSM ingress only.  These do not expose register,
     # torque, calibration, or raw joint-position control through ops.
+    "robot_arm_stop": ActionSpec(
+        _CONSOLE, "publish_local_wrist_disable", ("/arm/local_wrist_jog",),
+    ),
+    "robot_arm_resume_hold": ActionSpec(
+        _CONSOLE, "publish_local_wrist_enable", ("/arm/local_wrist_jog",),
+    ),
+    "robot_arm_pose_save": ActionSpec(_CONSOLE, "publish_local_pose", ("/arm/local_pose",)),
+    "robot_arm_pose_move": ActionSpec(_CONSOLE, "publish_local_pose", ("/arm/local_pose",)),
+    "robot_arm_pose_delete": ActionSpec(_CONSOLE, "publish_local_pose", ("/arm/local_pose",)),
+    "robot_arm_home": ActionSpec(_CONSOLE, "publish_local_pose", ("/arm/local_pose",)),
+    "robot_arm_freedrive": ActionSpec(_CONSOLE, "publish_local_pose", ("/arm/local_pose",)),
+    "robot_arm_freedrive_release": ActionSpec(_CONSOLE, "publish_local_pose", ("/arm/local_pose",)),
+    "robot_arm_slot_capture": ActionSpec(
+        _CONSOLE, "publish_local_tool_change", ("/arm/local_tool_change",)),
+    "robot_arm_exchange_start": ActionSpec(
+        _CONSOLE, "publish_local_tool_change", ("/arm/local_tool_change",)),
+    "robot_arm_exchange_stop": ActionSpec(
+        _CONSOLE, "publish_local_tool_change", ("/arm/local_tool_change",)),
+    "robot_arm_jog": ActionSpec(
+        _CONSOLE, "publish_local_wrist_jog", ("/arm/local_wrist_jog",),
+    ),
+    "robot_arm_jog_stop": ActionSpec(
+        _CONSOLE, "publish_local_wrist_stop", ("/arm/local_wrist_jog",),
+    ),
+    "robot_arm_lock_command": ActionSpec(
+        _CONSOLE, "publish_lock_command", ("/toolchanger/command",),
+    ),
+    "robot_arm_lock_stop": ActionSpec(
+        _CONSOLE, "publish_lock_stop", ("/toolchanger/command",),
+    ),
     "robot_arm_mode_request": ActionSpec(
+        _CONSOLE, "publish_arm_mode", ("/control/mode",),
+    ),
+    "robot_arm_mode_release": ActionSpec(
         _CONSOLE, "publish_arm_mode", ("/control/mode",),
     ),
     "robot_arm_tool_change": ActionSpec(
         _CONSOLE, "publish_tool_change", ("/tool/change",),
     ),
     "robot_arm_tool_command": ActionSpec(
-        _CONSOLE, "publish_tool_fsm", ("/tool/fsm_command",),
+        _CONSOLE, "publish_tool_fsm", ("/tool/manual_command",),
+    ),
+    "robot_arm_tool_jog": ActionSpec(
+        _CONSOLE, "publish_tool_manual", ("/tool/manual_command",),
+    ),
+    "robot_arm_tool_jog_stop": ActionSpec(
+        _CONSOLE, "publish_tool_manual", ("/tool/manual_command",),
     ),
     "robot_arm_tool_enable": ActionSpec(
         _CONSOLE, "publish_tool_torque", ("/dynamixel/torque_request",),

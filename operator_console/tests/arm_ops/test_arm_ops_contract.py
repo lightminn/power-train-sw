@@ -26,19 +26,12 @@ def test_every_action_is_prefixed_to_avoid_the_chassis_vocabulary():
         assert action.startswith("robot_arm_"), action
 
 
-def test_only_the_fsm_mode_and_tool_actions_are_registered_in_the_ops_contract():
-    """The console cannot send any arm command yet — and that is on purpose.
-
-    If this test starts failing, the arm actions have been registered
-    server-side.  That is a real milestone, not a nuisance: update the report's
-    "실연결 전제" section rather than deleting the assertion.
-    """
+def test_manual_actions_are_registered_in_the_ops_contract():
+    """GUI callbacks must have explicit authenticated server-side routes."""
     source = OPS_CONTRACT.read_text(encoding="utf-8")
-    registered = {K.ACTION_MODE_REQUEST, K.ACTION_TOOL_COMMAND}
+    registered = K.ARM_ACTIONS
     for action in sorted(registered):
         assert f'"{action}"' in source
-    for action in sorted(K.ARM_ACTIONS - registered):
-        assert f'"{action}"' not in source
 
 
 def test_unregistered_actions_reports_everything_against_an_empty_registry():
@@ -145,7 +138,8 @@ def _widest_value(spec: K.ParamSpec):
             return candidate
     for candidate in (
         K.MODE_MANUAL, K.TARGET_RIGHT, K.COMMAND_OPEN, K.SCOPE_TOOL,
-        K.STOP_REASON_TOOL_CHANGED, "capture_close", 6, 10, 1,
+        K.STOP_REASON_TOOL_CHANGED, "capture_close", 6, 10, 1, 0.6, False,
+        max(K.EXCHANGE_TOOL_TYPES, key=len), K.EXCHANGE_SLOTS[0], K.EXCHANGE_POSES[0],
     ):
         if spec.check(candidate):
             return candidate
@@ -160,9 +154,10 @@ def test_every_action_fits_the_params_budget_at_maximum_length(action):
     becomes unbuildable — the kind of inconsistency that only shows up with a
     long Korean tool id in the field.
     """
-    params = {
-        spec.name: _widest_value(spec) for spec in K.ACTION_PARAMS[action]
-    }
+    params = (dict(command="CHANGE", to="UNLOCKED", direction=-1)
+              if action == K.ACTION_LOCK_COMMAND else {
+                  spec.name: _widest_value(spec) for spec in K.ACTION_PARAMS[action]
+              })
     validated = K.validate_params(action, params)
 
     encoded = json.dumps(validated, allow_nan=False, separators=(",", ":"))

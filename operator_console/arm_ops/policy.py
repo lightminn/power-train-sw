@@ -37,10 +37,13 @@ from . import contract as K
 # a test pins them together so the UI and the command path can never disagree
 # about what the backend said it supports.
 CAP_TOOL_CHANGE = "tool_change"
+CAP_COUPLING_LOCK = "coupling_lock"
 CAP_CONTROL_MODE = "control_mode"
 CAP_TELEOP_JOG = "teleop_jog"
 CAP_TELEOP_POSE = "teleop_pose"
 CAP_GRIPPER_COMMAND = "gripper_command"
+CAP_TOOL_JOG = 'tool_jog'
+CAP_INDIVIDUAL_TARGETS = 'individual_targets'
 CAP_DUAL_SYNC = "dual_sync"
 CAP_ARM_CALIBRATION = "arm_calibration"
 CAP_TOOL_CALIBRATION = "tool_calibration"
@@ -49,6 +52,7 @@ CAP_DUAL_TOOL_CALIBRATION = "dual_tool_calibration"
 # Which capability each action needs.  A stop action needs none: see rule 2.
 ACTION_CAPABILITY: dict[str, str] = {
     K.ACTION_TOOL_CHANGE: CAP_TOOL_CHANGE,
+    K.ACTION_LOCK_COMMAND: CAP_COUPLING_LOCK,
     K.ACTION_MODE_REQUEST: CAP_CONTROL_MODE,
     K.ACTION_MODE_RELEASE: CAP_CONTROL_MODE,
     K.ACTION_JOG: CAP_TELEOP_JOG,
@@ -57,9 +61,13 @@ ACTION_CAPABILITY: dict[str, str] = {
     K.ACTION_POSE_SAVE: CAP_TELEOP_POSE,
     K.ACTION_POSE_MOVE: CAP_TELEOP_POSE,
     K.ACTION_POSE_DELETE: CAP_TELEOP_POSE,
+    K.ACTION_FREEDRIVE: CAP_TELEOP_POSE,
+    K.ACTION_FREEDRIVE_RELEASE: CAP_TELEOP_POSE,
+    K.ACTION_EXCHANGE_START: CAP_TELEOP_POSE,
+    K.ACTION_SLOT_CAPTURE: CAP_TELEOP_POSE,
     K.ACTION_TOOL_COMMAND: CAP_GRIPPER_COMMAND,
     K.ACTION_TOOL_ENABLE: "tool_enable",
-    K.ACTION_TOOL_JOG: CAP_GRIPPER_COMMAND,
+    K.ACTION_TOOL_JOG: CAP_TOOL_JOG,
     K.ACTION_CALIBRATION: CAP_ARM_CALIBRATION,
     K.ACTION_CALIBRATION_JOG: CAP_TOOL_CALIBRATION,
 }
@@ -138,6 +146,12 @@ def authorize(
     if action in K.STOP_ACTIONS:
         return _stop_decision(context, action, params)
 
+    if action == K.ACTION_LOCK_COMMAND:
+        if CAP_COUPLING_LOCK not in context.capabilities:
+            return _refuse("capability_missing", "잠금 조작 준비 안 됨")
+        if not context.manual_granted:
+            return _refuse("manual_not_granted", "수동 제어권 미승인")
+
     # Rule 1.
     capability = ACTION_CAPABILITY.get(action, "")
     if capability and capability not in context.capabilities \
@@ -181,9 +195,12 @@ def authorize(
     # Tool change is also the bridge's existing re-scan/re-initialization
     # operation.  Let it observe a disconnected/faulted tool so it can report
     # fresh hardware state; it never enables torque or commands motion.
+    # Blocked reasons describe the tool only; arm jog/pose must still work
+    # with the tool detached or not ready.
     if context.blocked_reasons and action not in {
             K.ACTION_TOOL_CHANGE, K.ACTION_MODE_REQUEST, K.ACTION_MODE_RELEASE,
-    }:
+            K.ACTION_LOCK_COMMAND,
+    } and capability not in {CAP_TELEOP_JOG, CAP_TELEOP_POSE}:
         return _refuse("backend_blocked", context.blocked_reasons[0])
 
     return ALLOWED

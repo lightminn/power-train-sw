@@ -33,6 +33,23 @@ def test_projection_reuses_current_tool_only_and_exposes_no_commands():
     assert state.diagnostics.motors[0].actuator_id == 5
 
 
+def test_receiver_projects_authoritative_generation_sync_and_manual_capabilities():
+    from powertrain_observability.tool_snapshot import normalize_tool
+    snapshot = _snapshot(kind='dual_motor_gripper', ids=(3, 4))
+    tool = snapshot.tool_runtime['tool']
+    tool.update(tool_context_generation=9, motion_allowed=True, read_only=False,
+                emergency_stop=False, actuators_discovered=True, fsm_state='READY',
+                manual_tool_capabilities=['tool_jog', 'individual_targets', 'dual_sync'],
+                synchronization={'state': 'SYNCHRONIZED'})
+    snapshot.tool_runtime['tool'] = normalize_tool(tool)
+    state = ArmUiTelemetryBinding().state(snapshot, ops_link_ready=True)
+    assert state.detected_tool.generation == state.diagnostics.generation == 9
+    assert state.detected_tool.attached is True
+    assert state.diagnostics.sync_state == C.SYNC_SYNCED
+    assert state.tool_fsm.raw == 'READY'
+    assert {C.CAP_TOOL_JOG, C.CAP_INDIVIDUAL_TARGETS, C.CAP_DUAL_SYNC} <= state.capabilities
+
+
 def test_tool_generation_changes_only_when_detected_tool_changes():
     binding = ArmUiTelemetryBinding()
     first = binding.state(_snapshot(sequence=1))
@@ -55,3 +72,22 @@ def test_hardware_fault_is_exposed_as_the_operator_block_reason():
 
     assert state.block_reasons[0].code == "tool_hardware_error"
     assert "32" in state.block_reasons[0].korean
+
+
+def test_local_wrist_preserves_axis_five_identity_and_requires_live_lock():
+    from dataclasses import replace
+    snapshot = replace(_snapshot(), joint_names=('arm_joint_5',))
+    snapshot.tool_runtime['tool'].update(manual_coupling_lock=True,
+        control_scope='FULL_ROBOT', read_only=False, emergency_stop=False,
+        motion_allowed=False)
+    snapshot.tool_runtime.update(coupling_lock=dict(enabled=True, state='LOCKED', torque=1),
+                                 coupling_lock_age_s=0)
+    binding = ArmUiTelemetryBinding()
+    state = binding.state(snapshot, ops_link_ready=True)
+    assert state.teleop.axes[0].index == 5
+    assert state.teleop.selected_axis == 5
+    assert C.CAP_TELEOP_JOG in state.capabilities
+    assert C.CAP_COUPLING_LOCK in state.capabilities
+    assert not state.block_reasons
+    snapshot.tool_runtime['coupling_lock']['state'] = 'UNLOCKED'
+    assert C.CAP_TELEOP_JOG not in binding.state(snapshot, ops_link_ready=True).capabilities

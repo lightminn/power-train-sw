@@ -56,6 +56,23 @@ def front_frame(window):
     window._refresh_operation()
 
 
+def test_arm_controls_coexist_with_vision_and_pose_view(console):
+    window, _, _, _ = console
+    tab = window._arm_manual_tab
+    window._stack.set_visible_child_name('arm_manual')
+    pump()
+    assert window._arm_pose.get_mapped()
+    assert window._arm_pad_toggle.get_mapped()
+    assert tab.keyboard.active
+    assert all(owner is window for owner, _ in tab.keyboard._key_handlers)
+    assert window._arm_pad_control._axis_view is tab.keyboard
+    window._stack.set_visible_child_name('vision')
+    pump()
+    assert not tab.keyboard.active
+    assert not window._arm_pose.get_mapped()
+    assert window._vision_panel.get_mapped()
+
+
 def test_integrated_boot_keeps_start_disabled_and_preserves_estop(console):
     window, runner, session, _ = console
     assert not window._operation_panel.start_button.get_sensitive()
