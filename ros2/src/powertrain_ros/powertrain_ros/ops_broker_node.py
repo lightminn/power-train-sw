@@ -17,7 +17,7 @@ import uuid
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
-from std_msgs.msg import Int32MultiArray, String
+from std_msgs.msg import Int32MultiArray, MultiArrayDimension, MultiArrayLayout, String
 from std_srvs.srv import SetBool, Trigger
 
 from powertrain_ros.stop_proof import decode_hardware_stop_proof
@@ -157,8 +157,10 @@ class OpsBrokerNode(Node):
         # ops channel; it never owns a motor or publishes a raw Dynamixel goal.
         self._coupling_lock_pub = self.create_publisher(String, "/toolchanger/command", 10)
         self._local_wrist_pub = self.create_publisher(String, "/arm/local_wrist_jog", 10)
+        self._local_pose_pub = self.create_publisher(String, "/arm/local_pose", 10)
+        self._local_tool_change_pub = self.create_publisher(String, "/arm/local_tool_change", 10)
+        self._tool_manual_pub = self.create_publisher(String, "/tool/manual_command", 10)
         self._arm_mode_pub = self.create_publisher(String, "/control/mode", 10)
-        self._tool_fsm_pub = self.create_publisher(String, "/tool/fsm_command", 10)
         self._tool_change_pub = self.create_publisher(String, "/tool/change", 10)
         self._tool_dual_calibration_pub = self.create_publisher(
             String, "/tool/dual_calibration_command", 10)
@@ -510,6 +512,51 @@ class OpsBrokerNode(Node):
             return client
 
     def _execute(self, order, connection, role):
+        if order.kind == 'publish_tool_manual':
+            from powertrain_observability.tool_snapshot import tool_manual_request
+            try:
+                payload = tool_manual_request(order.action, dict(order.params),
+                    self.get_clock().now().nanoseconds / 1e9)
+                if payload['command'] == 'JOG':
+                    if getattr(order, 'deadline_s', None) is None:
+                        raise ValueError('tool jog requires authenticated clock synchronization')
+                    ttl = min(payload['ttl_s'], order.deadline_s - time.monotonic())
+                    if ttl <= 0:
+                        raise ValueError('tool jog expired before ROS dispatch')
+                    payload.update(ttl_s=ttl, valid_until_s=payload['sent_at_s'] + ttl)
+            except (ValueError, TypeError, KeyError) as exc:
+                self._complete_order(order, connection, role, False, str(exc))
+                return
+            payload['source_id'] = getattr(connection, 'client_key', 'legacy')
+            self._tool_manual_pub.publish(String(data=json.dumps(payload)))
+            self._complete_order(order, connection, role, True, 'published leased tool request; verify feedback')
+            return
+        if order.kind == 'publish_local_pose':
+            from powertrain_observability.tool_snapshot import validate_local_pose_request
+            try:
+                validate_local_pose_request(order.action, dict(order.params))
+            except (ValueError, TypeError) as exc:
+                self._complete_order(order, connection, role, False, str(exc))
+                return
+            command = {'robot_arm_pose_save': 'SAVE', 'robot_arm_pose_move': 'MOVE',
+                       'robot_arm_pose_delete': 'DELETE', 'robot_arm_home': 'HOME',
+                       'robot_arm_freedrive': 'FREEDRIVE',
+                       'robot_arm_freedrive_release': 'FREEDRIVE_RELEASE'}[order.action]
+            self._local_pose_pub.publish(String(data=json.dumps(dict(order.params, command=command))))
+            self._complete_order(order, connection, role, True,
+                                 'published local pose request; verify joint feedback')
+            return
+        if order.kind == 'publish_local_tool_change':
+            from powertrain_observability.tool_snapshot import local_tool_change_request
+            try:
+                payload = local_tool_change_request(order.action, dict(order.params))
+            except (ValueError, TypeError, KeyError) as exc:
+                self._complete_order(order, connection, role, False, str(exc))
+                return
+            self._local_tool_change_pub.publish(String(data=json.dumps(payload)))
+            self._complete_order(order, connection, role, True,
+                                 'published tool change request; verify exchange status')
+            return
         if order.kind in ('publish_local_wrist_disable', 'publish_local_wrist_enable'):
             if order.params:
                 self._complete_order(order, connection, role, False, 'no params allowed')
@@ -524,17 +571,25 @@ class OpsBrokerNode(Node):
                       else "robot_arm_jog_stop")
             try:
                 validate_local_wrist_request(action, dict(order.params))
-                if type(order.params.get('axis')) is not int or order.params['axis'] != 5:
-                    raise ValueError('local wrist bench supports only axis 5')
+                axes = (1, 2, 3, 4, 5) if os.environ.get('ARM_LOCAL_ALL_AXES') == '1' else (5,)
+                if type(order.params.get('axis')) is not int or order.params['axis'] not in axes:
+                    raise ValueError(f'local bench supports only axes {axes}')
+                params = dict(order.params)
                 if action == 'robot_arm_jog':
-                    remaining = order.params['expires_at_s'] - time.monotonic()
+                    # The console may run on another host: use the deadline the
+                    # core converted to this host's monotonic clock.
+                    deadline = getattr(order, 'deadline_s', None)
+                    if deadline is None:
+                        raise ValueError('local wrist jog requires authenticated clock synchronization')
+                    remaining = deadline - time.monotonic()
                     if not 0 < remaining <= 1.0:
                         raise ValueError('expired or foreign-clock local wrist jog')
+                    params['expires_at_s'] = deadline
             except (ValueError, TypeError, KeyError) as exc:
                 self._complete_order(order, connection, role, False, str(exc))
                 return
             self._local_wrist_pub.publish(String(data=json.dumps(dict(
-                order.params, command='JOG' if action == 'robot_arm_jog' else 'STOP'))))
+                params, command='JOG' if action == 'robot_arm_jog' else 'STOP'))))
             self._complete_order(order, connection, role, True,
                                  'published local wrist request; verify joint feedback')
             return
@@ -556,6 +611,8 @@ class OpsBrokerNode(Node):
             return
         if order.kind == "publish_arm_mode":
             mode = order.params.get("mode")
+            if getattr(order, 'action', '') == 'robot_arm_mode_release' and not order.params:
+                mode = 'FSM'
             if mode not in ("MANUAL", "FSM"):
                 self._complete_order(order, connection, role, False, "invalid arm mode")
                 return
@@ -583,9 +640,14 @@ class OpsBrokerNode(Node):
             if tool_type != "cleaner" and params["command"] not in ("open", "close", "stop"):
                 self._complete_order(order, connection, role, False, "unsupported gripper command")
                 return
-            self._tool_fsm_pub.publish(String(data=json.dumps({
-                "tool_type": tool_type, "command": params["command"].upper(),
-            }, separators=(",", ":"), sort_keys=True)))
+            from powertrain_observability.tool_snapshot import tool_manual_request
+            try:
+                payload = tool_manual_request(order.action, params, self.get_clock().now().nanoseconds / 1e9)
+            except (ValueError, TypeError) as exc:
+                self._complete_order(order, connection, role, False, str(exc))
+                return
+            payload['source_id'] = getattr(connection, 'client_key', 'legacy')
+            self._tool_manual_pub.publish(String(data=json.dumps(payload)))
             self._complete_order(order, connection, role, True, "published tool FSM command")
             return
         if order.kind == "publish_tool_change":
@@ -607,7 +669,8 @@ class OpsBrokerNode(Node):
             if tool_type not in ("spur_1motor_gripper", "dual_motor_gripper", "cleaner"):
                 self._complete_order(order, connection, role, False, "unsupported tool change target")
                 return
-            self._tool_change_pub.publish(String(data=tool_type))
+            self._tool_change_pub.publish(String(data=json.dumps(dict(tool_type=tool_type,
+                tool_context_generation=params['observed_tool_generation']))))
             self._complete_order(order, connection, role, True, "published tool re-scan request")
             return
         if order.kind in (
@@ -670,11 +733,14 @@ class OpsBrokerNode(Node):
             ids = {
                 "spur_1motor_gripper": [5],
                 "dual_motor_gripper": [3, 4],
+                "cleaner": [2],
             }.get(tool_type)
             if ids is None:
                 self._complete_order(order, connection, role, False, "unsupported tool torque target")
                 return
             self._tool_torque_pub.publish(Int32MultiArray(
+                layout=MultiArrayLayout(dim=[MultiArrayDimension(
+                    label=f"tool_context:{params['tool_generation']}", size=len(ids), stride=len(ids))]),
                 data=[1 if params["enabled"] else 0, *ids],
             ))
             self._complete_order(order, connection, role, True, "published profile-bound tool torque request")

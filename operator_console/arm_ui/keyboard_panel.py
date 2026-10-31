@@ -18,13 +18,15 @@ single funnel and is idempotent.
 """
 from __future__ import annotations
 
+import dataclasses
+import os
 from typing import Callable
 
 import gi
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
-from gi.repository import Gdk, Gtk  # noqa: E402
+from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from . import contracts as C
 from .widgets import (
@@ -46,7 +48,7 @@ from .widgets import (
 
 # Provisional console-side binding table.  Meaning column, not wire format.
 KEY_BINDINGS: tuple[tuple[str, str], ...] = (
-    ("1 – 6", "축 선택"),
+    ("1 – 6 / 숫자패드", "축 선택"),
     ("↑ / W", "선택 축 + 방향 조그 (누르는 동안)"),
     ("↓ / S", "선택 축 − 방향 조그 (누르는 동안)"),
     ("[ / ]", "명령 속도 감소 / 증가"),
@@ -68,6 +70,11 @@ def _keyval_to_intent(keyval: int) -> tuple[str, object] | None:
     lowered = name.lower()
     if lowered in {"1", "2", "3", "4", "5", "6"}:
         return ("axis", int(lowered))
+    numpad = {"kp_1": 1, "kp_2": 2, "kp_3": 3, "kp_4": 4, "kp_5": 5, "kp_6": 6,
+              "kp_end": 1, "kp_down": 2, "kp_next": 3, "kp_left": 4,
+              "kp_begin": 5, "kp_right": 6}
+    if lowered in numpad:
+        return ("axis", numpad[lowered])
     if lowered in {"up", "w"}:
         return ("jog", +1)
     if lowered in {"down", "s"}:
@@ -97,6 +104,19 @@ def focus_is_text_entry(toplevel: Gtk.Window | None) -> bool:
     return isinstance(
         focused, (Gtk.Entry, Gtk.TextView, Gtk.SearchEntry, Gtk.SpinButton),
     )
+
+
+EXCHANGE_TOOL_LABELS = {
+    "spur_1motor_gripper": "단일 그리퍼",
+    "dual_motor_gripper": "듀얼 그리퍼",
+    "cleaner": "클리너",
+}
+EXCHANGE_STATE_LABELS = {
+    "IDLE": "대기", "MOVE_ABOVE": "슬롯 위로 이동", "DESCEND": "수직 하강",
+    "LOCK": "체결", "UNLOCK": "분리", "ASCEND": "수직 상승",
+    "VERIFY_RELEASED": "분리 확인", "VERIFY_ATTACHED": "장착 확인",
+    "HOME": "기본 자세 복귀", "DONE": "완료", "ABORTED": "중단",
+}
 
 
 class KeyboardTeleopPanel:
@@ -159,6 +179,9 @@ class KeyboardTeleopPanel:
             "home (H)", callbacks.go_home, C.CAP_TELEOP_POSE, callbacks.go_home,
         )
         card.pack(reflow_row([self._stop, self._resume, self._home], columns=3))
+        if (callbacks.set_bench_flag is not None
+                and os.environ.get('ARM_LOCAL_ALL_AXES') == '1'):
+            card.pack(self._bench_switches(callbacks.set_bench_flag))
         card.pack(divider())
 
         self._selected = Metric("선택 축", width_chars=12)
@@ -192,6 +215,30 @@ class KeyboardTeleopPanel:
         self.box.pack_start(card.box, False, False, 0)
 
         self.box.pack_start(self._build_pose_card(), False, False, 0)
+        self.box.pack_start(self._build_exchange_card(), False, False, 0)
+
+    def _bench_switches(self, set_flag: Callable[[str, bool], None]) -> Gtk.Widget:
+        """Bench-only joint-limit / current-trip switches (both start ON)."""
+        row = Gtk.Box(spacing=12)
+        for key, title in (('limits', '관절 제한'), ('trip', '전류 트립')):
+            switch = Gtk.Switch(active=True)
+            switch.connect('notify::active',
+                           lambda w, _p, k=key: set_flag(k, w.get_active()))
+            row.pack_start(label(title, 'arm-metric-label'), False, False, 0)
+            row.pack_start(switch, False, False, 0)
+        row.pack_start(label('OFF 는 눈으로 보며 조작할 때만', 'arm-note', 'status-warn'),
+                       False, False, 0)
+        return row
+
+    @property
+    def selected_axis(self) -> int | None:
+        return self._state.teleop.selected_axis
+
+    def select_axis(self, index: int) -> None:
+        """Select an axis exactly as clicking its toggle does (used by the pad)."""
+        toggle = self._axis_buttons.get(index)
+        if toggle is not None and not toggle.get_active():
+            toggle.set_active(True)
 
     # --- construction helpers ------------------------------------------
     def _wire_axis(self, toggle: Gtk.ToggleButton, index: int) -> None:
@@ -210,6 +257,10 @@ class KeyboardTeleopPanel:
             self.release_all()
             if select is not None:
                 select(index)
+            if os.environ.get('ARM_LOCAL_ALL_AXES') == '1':
+                # Bench-only: the console itself remembers the chosen axis.
+                self._axis_override = index
+                self.update(self._state)
 
         self.tracker.connect(toggle, "toggled", on_toggled)
         self.gate.add(
@@ -256,6 +307,77 @@ class KeyboardTeleopPanel:
         self.gate.add(widget, callback, capability, extra=extra)
         return widget
 
+    def _build_exchange_card(self) -> Gtk.Widget:
+        card = Card(
+            "도구 교체 (슬롯)",
+            "슬롯마다 머리를 바닥으로 향한 ① 체결 자세와 ② 그 5cm 위 자세를 저장합니다. "
+            "교체는 달린 도구를 자기 슬롯에 반납하고 요청 도구를 가져온 뒤 home 자세로 "
+            "돌아갑니다. 두 자세 사이를 모든 축이 함께 움직여 머리 방향을 유지합니다. "
+            "위의 관절 제한·전류 트립 토글이 슬롯 저장과 교체에도 적용됩니다.",
+            accent="teleop",
+            with_badge=False,
+        )
+        self._exchange_tool = Gtk.ComboBoxText()
+        for kind, text in EXCHANGE_TOOL_LABELS.items():
+            self._exchange_tool.append(kind, text)
+        self._exchange_tool.set_active(0)
+        self._exchange_slot = Gtk.ComboBoxText()
+        for slot in ("1", "2", "3"):
+            self._exchange_slot.append(slot, f"슬롯 {slot}")
+        self._exchange_slot.set_active(0)
+        def capture_button(text, pose):
+            return self._simple(
+                text, self._callbacks.capture_tool_slot, C.CAP_TELEOP_POSE,
+                lambda: self._callbacks.capture_tool_slot(
+                    self._exchange_slot.get_active_id(),
+                    self._exchange_tool.get_active_id(), pose),
+            )
+
+        capture_seat = capture_button("① 체결 자세 저장", "seat")
+        capture_above = capture_button("② 5cm 위 자세 저장", "above")
+        start = self._simple(
+            "이 도구로 교체 시작", self._callbacks.start_tool_exchange,
+            C.CAP_TELEOP_POSE,
+            lambda: self._callbacks.start_tool_exchange(
+                self._exchange_tool.get_active_id(), self._exchange_dry_run.get_active()),
+            "arm-danger",
+        )
+        self._exchange_dry_run = Gtk.CheckButton(
+            label="도구 없이 동작만 시험 (체결·분리·도구 확인 생략)")
+        # Stopping must stay reachable whatever the gates say.
+        stop = button("교체 정지", "arm-danger")
+        if self._callbacks.stop_tool_exchange is not None:
+            self.tracker.connect(stop, "clicked",
+                                 lambda _b: self._callbacks.stop_tool_exchange())
+        card.pack(reflow_row([self._exchange_tool, self._exchange_slot], columns=2))
+        card.pack(reflow_row([capture_seat, capture_above], columns=2))
+        card.pack(self._exchange_dry_run)
+        card.pack(reflow_row([start, stop], columns=2))
+        self._exchange_status = label("교체 상태 미수신", "arm-note", wrap=True)
+        card.pack(self._exchange_status)
+        return card.box
+
+    def _refresh_exchange(self, state: C.ArmUiState) -> None:
+        status = state.tool_exchange
+        if not status:
+            self._exchange_status.set_text("교체 상태 미수신")
+            return
+        slots = status.get("slots") or {}
+        parts = [
+            EXCHANGE_STATE_LABELS.get(status.get("state"), str(status.get("state"))),
+            f"단계 {status.get('step', 0)}/{status.get('steps', 0)}",
+            f"슬롯 {status.get('slot') or '-'}",
+            "장착 " + EXCHANGE_TOOL_LABELS.get(status.get("attached_tool"), "없음"),
+            "슬롯표 " + (", ".join(
+                f"{k}:{EXCHANGE_TOOL_LABELS.get(v, v)}"
+                + ("(5cm 위 미저장)" if k in (status.get("incomplete") or []) else "")
+                for k, v in sorted(slots.items())) or "비어 있음"),
+        ]
+        text = " · ".join(parts)
+        if status.get("error"):
+            text += f"\n오류: {status['error']}"
+        self._exchange_status.set_text(text)
+
     def _build_pose_card(self) -> Gtk.Widget:
         card = Card(
             "자세 관리",
@@ -275,6 +397,17 @@ class KeyboardTeleopPanel:
             ),
         )
         card.pack(reflow_row([self._pose_name, self._pose_save], columns=2))
+        self._freedrive = self._simple(
+            "자세 자유 지정", self._callbacks.freedrive, C.CAP_TELEOP_POSE,
+            self._callbacks.freedrive, "arm-danger",
+        )
+        self._freedrive_release = self._simple(
+            "자유 지정 해제", self._callbacks.freedrive_release, C.CAP_TELEOP_POSE,
+            self._callbacks.freedrive_release,
+        )
+        card.pack(reflow_row([self._freedrive, self._freedrive_release], columns=2))
+        card.pack(label("자유 지정 중에는 1~4축 토크가 꺼집니다. 팔을 손으로 받친 뒤 누르세요.",
+                        "arm-note", "status-warn", wrap=True))
         # The save button's own precondition is the entry's text, which no
         # state update touches, so re-gate on every keystroke.
         self.tracker.connect(
@@ -391,6 +524,9 @@ class KeyboardTeleopPanel:
                 toggle.set_active(True)
             return True
         if kind == "jog":
+            if getattr(self, '_release_timer', None):
+                GLib.source_remove(self._release_timer)
+                self._release_timer = None
             if self._key_jog_axis is not None:
                 return True  # auto-repeat: one press, one jog
             enabled, _reason = C.gate(
@@ -439,11 +575,22 @@ class KeyboardTeleopPanel:
             return False
         # Release always runs, even when the press would no longer be allowed:
         # losing permission mid-press must still end the jog.
-        self._stop_jog()
+        if getattr(self, '_release_timer', None):
+            GLib.source_remove(self._release_timer)
+        self._release_timer = GLib.timeout_add(120, self._release_after_grace)
         return True
+
+    def _release_after_grace(self) -> bool:
+        self._release_timer = None
+        self._stop_jog()
+        return False
 
     # --- refresh --------------------------------------------------------
     def update(self, state: C.ArmUiState) -> None:
+        override = getattr(self, '_axis_override', None)
+        if override is not None:
+            state = dataclasses.replace(state, teleop=dataclasses.replace(
+                state.teleop, selected_axis=override))
         previous = self._state
         self._state = state
         # Any loss of permission or freshness ends an in-flight jog.
@@ -453,6 +600,7 @@ class KeyboardTeleopPanel:
             self.release_all()
 
         self.gate.apply(state)
+        self._refresh_exchange(state)
         if (self._active and self._key_jog_axis is not None
                 and C.gate(state, self._callbacks.jog_start, C.CAP_TELEOP_JOG)[0]):
             self._callbacks.jog_start(self._key_jog_axis, self._key_jog_direction)
@@ -494,23 +642,32 @@ class KeyboardTeleopPanel:
             else:
                 self._badge.set("수동 조작 가능", "status-live")
 
-        for child in tuple(self._angles.get_children()):
-            self._angles.remove(child)
-        if teleop.axes:
-            tiles = []
-            for axis in teleop.axes:
-                tile = Metric(f"{axis.index}. {axis.name or '축'}")
-                tile.set(
-                    format_number(axis.angle_deg, "°", 2),
-                    "status-warn" if axis.moving else "status-live",
-                )
-                tiles.append(tile)
-            self._angles.pack_start(metric_grid(tiles, columns=3), False, False, 0)
+        layout = tuple((axis.index, axis.name) for axis in teleop.axes)
+        if layout and layout == getattr(self, '_angle_layout', None):
+            # Same axes as last tick: update text only (widget churn is costly over X11).
+            for axis, tile in zip(teleop.axes, self._angle_tiles):
+                tile.set(format_number(axis.angle_deg, "°", 2),
+                         "status-warn" if axis.moving else "status-live")
         else:
-            self._angles.pack_start(
-                label("축 상태를 수신하지 못했습니다.", "arm-note"), False, False, 0,
-            )
-        self._angles.show_all()
+            self._angle_layout = layout
+            self._angle_tiles = []
+            for child in tuple(self._angles.get_children()):
+                self._angles.remove(child)
+            if teleop.axes:
+                for axis in teleop.axes:
+                    tile = Metric(f"{axis.index}. {axis.name or '축'}")
+                    tile.set(
+                        format_number(axis.angle_deg, "°", 2),
+                        "status-warn" if axis.moving else "status-live",
+                    )
+                    self._angle_tiles.append(tile)
+                self._angles.pack_start(
+                    metric_grid(self._angle_tiles, columns=3), False, False, 0)
+            else:
+                self._angles.pack_start(
+                    label("축 상태를 수신하지 못했습니다.", "arm-note"), False, False, 0,
+                )
+            self._angles.show_all()
 
         current_pose = self._pose_list.get_active_text()
         if tuple(self._pose_names()) != teleop.poses:

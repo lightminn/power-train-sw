@@ -1,45 +1,48 @@
-# overlay.py   사용법: python overlay.py data/obj_50cm
-import os, sys, glob
-import numpy as np, cv2
-from terrain import load_detector
+"""Render detector results over each recorded depth frame.
+
+    python -m lidar_dev.overlay data/obj_50cm      → out_overlay/obj_50cm/*.png
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+from lidar_dev.recording import iter_frames, load_recording, make_detector
 
 
-def render(depth, det, res):
-    gray = (np.clip(depth.astype(np.float32) * det.scale / 5.0, 0, 1) * 255).astype(
-        np.uint8
-    )
-    img = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-    if res["status"] == "OK":
-        img[det.floor_mask] = (
-            0.5 * img[det.floor_mask] + 0.5 * np.array([0, 200, 0])
-        ).astype(np.uint8)
-        img[det.obst_mask] = (0, 0, 255)
-    h, w = img.shape[:2]
-    z = res["zones"]
-    f = lambda v: "-" if v is None else f"{v:.2f}m"
-    ok = res["status"] == "OK"
-    cv2.rectangle(img, (0, 0), (w, 30), (0, 120, 0) if ok else (0, 0, 200), -1)
-    cv2.putText(
-        img,
-        f"{res['status']}   L {f(z['left'])}   C {f(z['center'])}   R {f(z['right'])}",
-        (8, 21),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        (255, 255, 255),
-        2,
-    )
-    for x in (w // 2 - 1,):  # 화면 중앙선 표시용
-        cv2.line(img, (x, 30), (x, h), (255, 255, 255), 1)
-    return img
+def render(depth: np.ndarray, result, depth_scale_m: float) -> np.ndarray:
+    gray = (np.clip(depth.astype(np.float32) * depth_scale_m / 5.0, 0, 1) * 255).astype(np.uint8)
+    image = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    if result.status == "OK":
+        floor, obstacle = result.floor_mask, result.obstacle_mask
+        image[floor] = (0.5 * image[floor] + 0.5 * np.array([0, 200, 0])).astype(np.uint8)
+        image[obstacle] = (0, 0, 255)
+    width = image.shape[1]
+    ok = result.status == "OK"
+    cv2.rectangle(image, (0, 0), (width, 30), (0, 120, 0) if ok else (0, 0, 200), -1)
+    fmt = lambda value: "-" if value is None else f"{value:.2f}m"  # noqa: E731
+    zones = result.zones
+    label = (f"{result.status} {result.reason or result.ground_state or ''}  "
+             f"L {fmt(zones['left'])}  C {fmt(zones['center'])}  R {fmt(zones['right'])}")
+    cv2.putText(image, label, (8, 21), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+    return image
+
+
+def main(argv=None) -> int:
+    folder = Path((argv or sys.argv[1:])[0])
+    recording = load_recording(folder)
+    detector = make_detector(recording)
+    out = Path("out_overlay") / folder.name
+    out.mkdir(parents=True, exist_ok=True)
+    for path, depth, rx_s in iter_frames(recording):
+        result = detector.process(depth, rx_s)
+        cv2.imwrite(str(out / path.name), render(depth, result, recording.depth_scale_m))
+    print("저장:", out)
+    return 0
 
 
 if __name__ == "__main__":
-    folder = sys.argv[1]
-    det = load_detector(folder)
-    out = os.path.join("out_overlay", os.path.basename(folder.rstrip("/")))
-    os.makedirs(out, exist_ok=True)
-    for p in sorted(glob.glob(os.path.join(folder, "depth", "*.png"))):
-        depth = cv2.imread(p, cv2.IMREAD_UNCHANGED)
-        res = det.process(depth)
-        cv2.imwrite(os.path.join(out, os.path.basename(p)), render(depth, det, res))
-    print("저장:", out)
+    raise SystemExit(main())

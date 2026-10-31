@@ -56,6 +56,23 @@ def front_frame(window):
     window._refresh_operation()
 
 
+def test_arm_controls_coexist_with_vision_and_pose_view(console):
+    window, _, _, _ = console
+    tab = window._arm_manual_tab
+    window._stack.set_visible_child_name('arm_manual')
+    pump()
+    assert window._arm_pose.get_mapped()
+    assert window._arm_pad_toggle.get_mapped()
+    assert tab.keyboard.active
+    assert all(owner is window for owner, _ in tab.keyboard._key_handlers)
+    assert window._arm_pad_control._axis_view is tab.keyboard
+    window._stack.set_visible_child_name('vision')
+    pump()
+    assert not tab.keyboard.active
+    assert not window._arm_pose.get_mapped()
+    assert window._vision_panel.get_mapped()
+
+
 def test_integrated_boot_keeps_start_disabled_and_preserves_estop(console):
     window, runner, session, _ = console
     assert not window._operation_panel.start_button.get_sensitive()
@@ -87,7 +104,7 @@ def test_recovery_window_exposes_existing_ops_without_hiding_drive_controls(
         window._stack.child_get_property(page, 'name')
         for page in window._stack.get_children()
     ] == [
-        'mission', 'mobility', 'systems', 'arm_manual', 'arm_calibration',
+        'mission', 'mobility', 'systems', 'terrain_map', 'vision', 'arm_manual', 'arm_calibration',
     ]
     assert window._ops_panel._action_buttons['estop_reset'].get_mapped()
     assert window._ops_panel._action_buttons['us100_enable'].get_mapped()
@@ -171,9 +188,12 @@ def test_integrated_controls_use_scoped_dark_theme(console):
                 Gtk.StateFlags.NORMAL
             )
         )
-    assert max(
-        panel_background.red, panel_background.green, panel_background.blue,
-    ) < 0.20
+    from operator_console.themes import theme_tokens
+    expected = Gdk.RGBA()
+    expected.parse(theme_tokens()['surface'])
+    assert (panel_background.red, panel_background.green, panel_background.blue) == pytest.approx(
+        (expected.red, expected.green, expected.blue)
+    )
 
 
 def test_integrated_console_fits_1366_by_768_laptop_view(console):
@@ -282,12 +302,16 @@ def test_latest_start_outcome_remains_visible_after_connection_loss(console):
     assert '연결 대기' in window._operation_panel.connection_label.get_text()
 
 
-def test_integrated_entrypoint_forwards_environment_port(monkeypatch, tmp_path):
+@pytest.mark.parametrize('criteria_channel', ['config', 'cli'])
+def test_integrated_entrypoint_forwards_environment_port(monkeypatch, tmp_path, criteria_channel):
+    from operator_console.vision_config import DEFAULT_CRITERIA
     token = tmp_path / 'token'
     token.write_text('fixture-token')
     config = {
         'token_file': str(token),
         'environment_telemetry_port': 15008,
+        'l515_criteria': str(DEFAULT_CRITERIA),
+        'l515_criteria_profile': 'B_stop20',
     }
     captured = {}
 
@@ -326,8 +350,14 @@ def test_integrated_entrypoint_forwards_environment_port(monkeypatch, tmp_path):
     monkeypatch.setattr(app.Gtk, 'main', lambda: None)
     monkeypatch.setattr(app, '_add_unix_signal_watch', lambda *_args: None)
 
-    assert integrated_entrypoint.main(['--config', str(tmp_path / 'operator.json')]) == 0
+    args = ['--config', str(tmp_path / 'operator.json')]
+    if criteria_channel == 'cli':
+        args += ['--l515-criteria', str(DEFAULT_CRITERIA), '--l515-criteria-profile', 'A_no_stop']
+    assert integrated_entrypoint.main(args) == 0
     assert captured['console_kwargs']['environment_telemetry_port'] == 15008
+    assert captured['console_kwargs']['vision_criteria'].profile == (
+        'A_no_stop' if criteria_channel == 'cli' else 'B_stop20'
+    )
     assert captured['shown'] is True
     assert captured['runtime_closed'] == 1
 

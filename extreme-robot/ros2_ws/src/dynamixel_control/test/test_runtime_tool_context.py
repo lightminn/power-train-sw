@@ -29,6 +29,7 @@ def test_bridge_mock_dual_spur_cleaner_dual_reuses_existing_contexts():
     profile_path = Path(__file__).parents[1] / 'config/tool_profiles.yaml'
     bridge = SimpleNamespace(
         control_scope='FULL_ROBOT',
+        _tool_context_generation=0,
         tool_type='cleaner', mock_mode=True, emergency_stop_active=False,
         tool_detached=False, _gripper_goal_active=False, tool_fsm=None,
         tool_ids=[], torque_enabled_ids=set(), active_ids=set(), tool_discovered=True,
@@ -37,6 +38,7 @@ def test_bridge_mock_dual_spur_cleaner_dual_reuses_existing_contexts():
         get_parameter=lambda _: SimpleNamespace(value=str(profile_path)),
         get_logger=lambda: SimpleNamespace(info=lambda _: None))
     bridge.set_allowlist = lambda ids: setattr(bridge, '_fsm_allowlist', set(ids))
+    bridge._clear_runtime_sessions = lambda: None
     bridge._release_current_tool_for_switch = (
         lambda requested: setattr(bridge, 'tool_motion_allowed', False))
     bridge._required_tool_modes = lambda profile: namespace['_required_tool_modes'](bridge, profile)
@@ -127,6 +129,7 @@ def test_cleaner_torque_off_sample_passes_explicit_enable_readiness_gate():
          namespace)
     bridge = SimpleNamespace(
         control_scope='END_EFFECTOR_ONLY', tool_type='cleaner',
+        _lock_ready=lambda: True,
         tool_selection=SimpleNamespace(valid=True),
         tool_profile={'calibrated': True, 'actuator_ids': [2]},
         tool_discovered=True, read_only=False, emergency_stop_active=False,

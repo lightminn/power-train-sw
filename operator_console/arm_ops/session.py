@@ -72,6 +72,7 @@ class ArmCommandSession:
         self._audit_sink = audit_sink
         self._audits: list[P.PolicyAudit] = []
         self._submitted: list[K.ArmOpsRequest] = []
+        self.speed_level = 5
 
     # --- state ------------------------------------------------------------
     @property
@@ -257,7 +258,7 @@ class ArmCommandSession:
         return self._issue(K.ACTION_RESUME_HOLD, intent="복귀")
 
     def go_home(self) -> CommandOutcome:
-        return self._issue(K.ACTION_HOME, intent="home")
+        return self._issue(K.ACTION_HOME, dict(K.BENCH_JOG_FLAGS), intent="home")
 
     def save_pose(self, name: str) -> CommandOutcome:
         return self._issue(
@@ -265,7 +266,29 @@ class ArmCommandSession:
 
     def move_to_pose(self, name: str) -> CommandOutcome:
         return self._issue(
-            K.ACTION_POSE_MOVE, {"name": str(name)}, intent="자세 이동")
+            K.ACTION_POSE_MOVE, {"name": str(name), **K.BENCH_JOG_FLAGS}, intent="자세 이동")
+
+    def capture_tool_slot(self, slot: str, tool_type: str, pose: str = "seat") -> CommandOutcome:
+        params = {"slot": str(slot), "tool_type": str(tool_type), "pose": str(pose)}
+        if "limits" in K.BENCH_JOG_FLAGS:
+            params["limits"] = K.BENCH_JOG_FLAGS["limits"]
+        return self._issue(K.ACTION_SLOT_CAPTURE, params, intent="슬롯 저장")
+
+    def start_tool_exchange(self, tool_type: str, dry_run: bool = False) -> CommandOutcome:
+        params = {"tool_type": str(tool_type), **K.BENCH_JOG_FLAGS}
+        if dry_run:
+            params["dry_run"] = True
+        return self._issue(K.ACTION_EXCHANGE_START, params,
+                           intent="도구 교체 동작 시험" if dry_run else "도구 교체")
+
+    def stop_tool_exchange(self) -> CommandOutcome:
+        return self._issue(K.ACTION_EXCHANGE_STOP, intent="도구 교체 정지")
+
+    def freedrive(self) -> CommandOutcome:
+        return self._issue(K.ACTION_FREEDRIVE, intent="자세 자유 지정")
+
+    def freedrive_release(self) -> CommandOutcome:
+        return self._issue(K.ACTION_FREEDRIVE_RELEASE, intent="자유 지정 해제")
 
     def delete_pose(self, name: str) -> CommandOutcome:
         return self._issue(
@@ -348,8 +371,13 @@ class ArmCommandSession:
         self, axis: int, direction: int, *, speed_level: int | None = None,
     ) -> CommandOutcome:
         return self._press(
-            J.arm_axis_channel(axis), direction, speed_level=speed_level,
+            J.arm_axis_channel(axis), direction,
+            speed_level=self.speed_level if speed_level is None else speed_level,
         )
+
+    def change_speed(self, delta):
+        self.speed_level = max(0, min(10, self.speed_level + int(delta)))
+        return CommandOutcome(accepted=True, action=K.ACTION_JOG)
 
     def release_axis_jog(self, axis: int) -> CommandOutcome:
         return self._release(J.arm_axis_channel(axis))
@@ -359,6 +387,11 @@ class ArmCommandSession:
 
     def release_tool_jog(self, target: str) -> CommandOutcome:
         return self._release(self._tool_channel(target))
+
+    def soft_stop_tool(self, target: str) -> CommandOutcome:
+        self._registry.release(self._tool_channel(target), now=float(self._clock()),
+                               reason=K.STOP_REASON_EXPLICIT, force=True)
+        return CommandOutcome(accepted=True, action=K.ACTION_TOOL_JOG_STOP)
 
     def press_calibration_jog(self, target: str, direction: int) -> CommandOutcome:
         return self._press(self._calibration_channel(target), direction)

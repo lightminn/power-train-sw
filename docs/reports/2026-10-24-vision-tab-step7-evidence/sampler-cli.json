@@ -1,0 +1,198 @@
+{
+  "status": "complete",
+  "reason": null,
+  "scope": "process CPU/RSS/environment only; not FPS/draw/latency/hardware acceptance",
+  "pid": 26009,
+  "process_start_ticks": 582160,
+  "requested_s": 1.1,
+  "elapsed_s": 1.1029931670000224,
+  "cpu_percent_mean": 99.98470733904682,
+  "rss_kib_max": 9180.0,
+  "environment_before": {
+    "power": {
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+      "/sys/class/power_supply/ADP1/online": "1"
+    },
+    "power_type": {
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+      "/sys/class/power_supply/BAT1/type": "Battery",
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+      "/sys/class/power_supply/ADP1/type": "Mains"
+    },
+    "frequency_khz": {
+      "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "3700826",
+      "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1616376",
+      "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "2522780",
+      "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "4719176",
+      "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400000",
+      "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "3701351",
+      "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1704888",
+      "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "4634851"
+    },
+    "temperature_mdeg": {
+      "/sys/class/thermal/thermal_zone2/temp": "30050",
+      "/sys/class/thermal/thermal_zone0/temp": "33000",
+      "/sys/class/thermal/thermal_zone7/temp": "74000",
+      "/sys/class/thermal/thermal_zone5/temp": "73050",
+      "/sys/class/thermal/thermal_zone3/temp": "32050",
+      "/sys/class/thermal/thermal_zone1/temp": "20000",
+      "/sys/class/thermal/thermal_zone8/temp": "38000",
+      "/sys/class/thermal/thermal_zone6/temp": "73000",
+      "/sys/class/thermal/thermal_zone4/temp": "27050"
+    },
+    "temperature_type": {
+      "/sys/class/thermal/thermal_zone2/type": "SNS1",
+      "/sys/class/thermal/thermal_zone0/type": "acpitz",
+      "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+      "/sys/class/thermal/thermal_zone5/type": "TCPU",
+      "/sys/class/thermal/thermal_zone3/type": "SNS2",
+      "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+      "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+      "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+      "/sys/class/thermal/thermal_zone4/type": "SNS3"
+    }
+  },
+  "samples": [
+    {
+      "timestamp_utc": "2026-10-24T05:06:34.149196+00:00",
+      "elapsed_s": 1.0029666899999938,
+      "cpu_percent": 99.70420852162161,
+      "rss_kib": 9180.0,
+      "threads": 1,
+      "environment": {
+        "power": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+          "/sys/class/power_supply/ADP1/online": "1"
+        },
+        "power_type": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+          "/sys/class/power_supply/BAT1/type": "Battery",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+          "/sys/class/power_supply/ADP1/type": "Mains"
+        },
+        "frequency_khz": {
+          "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "400000",
+          "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "400000",
+          "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "400000",
+          "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "400000",
+          "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400000",
+          "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "400000",
+          "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "3590126",
+          "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "4700047"
+        },
+        "temperature_mdeg": {
+          "/sys/class/thermal/thermal_zone2/temp": "30050",
+          "/sys/class/thermal/thermal_zone0/temp": "33000",
+          "/sys/class/thermal/thermal_zone7/temp": "85000",
+          "/sys/class/thermal/thermal_zone5/temp": "84050",
+          "/sys/class/thermal/thermal_zone3/temp": "32050",
+          "/sys/class/thermal/thermal_zone1/temp": "20000",
+          "/sys/class/thermal/thermal_zone8/temp": "38000",
+          "/sys/class/thermal/thermal_zone6/temp": "84000",
+          "/sys/class/thermal/thermal_zone4/temp": "27050"
+        },
+        "temperature_type": {
+          "/sys/class/thermal/thermal_zone2/type": "SNS1",
+          "/sys/class/thermal/thermal_zone0/type": "acpitz",
+          "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+          "/sys/class/thermal/thermal_zone5/type": "TCPU",
+          "/sys/class/thermal/thermal_zone3/type": "SNS2",
+          "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+          "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+          "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+          "/sys/class/thermal/thermal_zone4/type": "SNS3"
+        },
+        "thermal_throttle_counts": {
+          "/sys/devices/system/cpu/cpu7/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu7/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu5/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu5/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu3/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu3/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu1/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu1/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu6/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu6/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu4/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu4/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu2/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu2/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu0/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu0/thermal_throttle/package_throttle_count": 0
+        }
+      }
+    },
+    {
+      "timestamp_utc": "2026-10-24T05:06:34.240355+00:00",
+      "elapsed_s": 1.1001682449996224,
+      "cpu_percent": 102.879012584091,
+      "rss_kib": 9180.0,
+      "threads": 1,
+      "environment": {
+        "power": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+          "/sys/class/power_supply/ADP1/online": "1"
+        },
+        "power_type": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+          "/sys/class/power_supply/BAT1/type": "Battery",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+          "/sys/class/power_supply/ADP1/type": "Mains"
+        },
+        "frequency_khz": {
+          "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "400779",
+          "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1750559",
+          "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "400000",
+          "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1049725",
+          "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "3674693",
+          "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "3664144",
+          "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "3599056",
+          "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "4700094"
+        },
+        "temperature_mdeg": {
+          "/sys/class/thermal/thermal_zone2/temp": "30050",
+          "/sys/class/thermal/thermal_zone0/temp": "33000",
+          "/sys/class/thermal/thermal_zone7/temp": "85000",
+          "/sys/class/thermal/thermal_zone5/temp": "84050",
+          "/sys/class/thermal/thermal_zone3/temp": "32050",
+          "/sys/class/thermal/thermal_zone1/temp": "20000",
+          "/sys/class/thermal/thermal_zone8/temp": "38000",
+          "/sys/class/thermal/thermal_zone6/temp": "84000",
+          "/sys/class/thermal/thermal_zone4/temp": "27050"
+        },
+        "temperature_type": {
+          "/sys/class/thermal/thermal_zone2/type": "SNS1",
+          "/sys/class/thermal/thermal_zone0/type": "acpitz",
+          "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+          "/sys/class/thermal/thermal_zone5/type": "TCPU",
+          "/sys/class/thermal/thermal_zone3/type": "SNS2",
+          "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+          "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+          "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+          "/sys/class/thermal/thermal_zone4/type": "SNS3"
+        },
+        "thermal_throttle_counts": {
+          "/sys/devices/system/cpu/cpu7/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu7/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu5/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu5/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu3/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu3/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu1/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu1/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu6/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu6/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu4/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu4/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu2/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu2/thermal_throttle/package_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu0/thermal_throttle/core_throttle_count": 0,
+          "/sys/devices/system/cpu/cpu0/thermal_throttle/package_throttle_count": 0
+        }
+      }
+    }
+  ]
+}

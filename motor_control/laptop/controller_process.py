@@ -50,6 +50,30 @@ class PadReading:
     sample: ClientInput | None
     detail: str
     buttons_released: bool = False
+    tool_buttons: tuple = ()
+    tool_mapping: str = ''
+
+
+def tool_button_mapping(name):
+    name = str(name).lower()
+    if any(token in name for token in ('xbox', 'x-box', 'xinput', '360')):
+        return {'open': 2, 'close': 1, 'stop': 0, 'disable': 3}
+    if any(token in name for token in ('dualsense', 'ps5', 'wireless controller')):
+        return {'open': 3, 'close': 1, 'stop': 0, 'disable': 2}
+    return {}
+
+
+def arm_button_mapping(name):
+    """Bumpers select the arm axis; both supported pads number L1/R1 as 4/5."""
+    return {'axis_prev': 4, 'axis_next': 5} if tool_button_mapping(name) else {}
+
+
+def hat_actions(hat):
+    """D-pad up/down jog the selected arm axis, left/right change jog speed."""
+    x, y = hat
+    return tuple(action for action, active in (
+        ('jog_plus', y > 0), ('jog_minus', y < 0),
+        ('speed_down', x < 0), ('speed_up', x > 0)) if active)
 
 
 def is_neutral(sample, *, buttons_released=False):
@@ -232,8 +256,17 @@ class PygamePadSource:
                 not self._joystick.get_button(index)
                 for index in range(button_count)
             )
+            name = getattr(self._joystick, 'get_name', lambda: '')()
+            tool_mapping = tool_button_mapping(name)
+            mapping = {**tool_mapping, **arm_button_mapping(name)}
+            hat = (self._joystick.get_hat(0)
+                   if tool_mapping and self._joystick.get_numhats() > 0 else (0, 0))
             return PadReading(
-                True, sample, "gamepad connected", buttons_released
+                True, sample, "gamepad connected", buttons_released and hat == (0, 0),
+                tuple(action for action, index in mapping.items()
+                      if index < button_count and self._joystick.get_button(index))
+                + hat_actions(hat),
+                ('known' if tool_mapping else ''),
             )
         except Exception as exc:
             self._drop()
@@ -300,6 +333,10 @@ class ControllerProcess:
         self._pending_generation = None
         self._connector_lock = threading.Lock()
         self._connect_results = queue.Queue(maxsize=8)
+        self._arm_control = False
+        self._awaiting_neutral = False
+        self._tool_buttons = ()
+        self._tool_mapping = ''
 
     def _close_socket(self):
         sock = self._socket
@@ -460,6 +497,11 @@ class ControllerProcess:
                 state = command.get("state")
                 if self.haptic_arbiter is not None and isinstance(state, dict):
                     self.haptic_arbiter.feed_ops_state(state, received_s=now_s)
+            elif op == 'arm_control' and type(command.get('enabled')) is bool:
+                self._last_parent_s = now_s
+                if self._arm_control and not command['enabled']:
+                    self._awaiting_neutral = True
+                self._arm_control = command['enabled']
             else:
                 self._last_connect_error = "unknown command"
         if batch.eof and self.running:
@@ -476,6 +518,9 @@ class ControllerProcess:
             ),
             "input_connected": self._socket is not None,
             "detail": _safe_detail(detail),
+            'arm_control': self._arm_control,
+            'tool_buttons': list(self._tool_buttons) if self._arm_control else [],
+            'tool_mapping': self._tool_mapping,
         }
 
     def _emit_status(
@@ -497,7 +542,7 @@ class ControllerProcess:
         if (
             force
             or status != self._last_status
-            or now_s - self._last_status_s >= STATUS_INTERVAL_S
+            or now_s - self._last_status_s >= (0.1 if self._arm_control else STATUS_INTERVAL_S)
         ):
             self.status_writer(status)
             self._last_status = status
@@ -541,6 +586,8 @@ class ControllerProcess:
 
         now_ns = int(self.monotonic_ns())
         reading = self.pad_source.poll(now_ns=now_ns)
+        self._tool_buttons = reading.tool_buttons
+        self._tool_mapping = reading.tool_mapping
         if not reading.connected or reading.sample is None:
             if self._socket is not None or self._pending_generation is not None:
                 self._cancel_connection()
@@ -555,7 +602,10 @@ class ControllerProcess:
             status_sample = None
             status_buttons_released = False
         elif self._socket is not None:
-            self._send(reading.sample, now_ns, now_s)
+            if self._awaiting_neutral and is_neutral(reading.sample, buttons_released=reading.buttons_released):
+                self._awaiting_neutral = False
+            self._send(ClientInput() if self._arm_control or self._awaiting_neutral else reading.sample,
+                       now_ns, now_s)
 
         if (
             self._target is not None

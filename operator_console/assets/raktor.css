@@ -1,0 +1,474 @@
+/* Raktor-inspired control room. Native GTK CSS; no telemetry or ops changes.
+ * Colours come from themes.py. Sand annotates the UI, never safety state.
+ * Keep explicit semantic tones and readable disabled/unknown states. */
+window {
+  background: @app_bg;
+  color: @text_main;
+  font-family: "Manrope", "SUIT Variable", "Noto Sans CJK KR", sans-serif;
+}
+window label { color: @text_main; }
+window .topbar {
+  background: @header_bg;
+  border: none;
+  padding: 10px 24px 6px;
+  min-height: 0;
+}
+window .brand-mark {
+  color: @primary;
+  background: @surface_soft;
+  border: 1px solid @border;
+  border-radius: 12px;
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 28px;
+  font-weight: 400;
+}
+window .topbar .brand { color: @text_main; font-size: 18px; font-weight: 700; }
+window .topbar .eyebrow { color: @text_muted; font-size: 8px; letter-spacing: 1.7px; }
+window .health-strip { margin: 0 14px; }
+window .status-item { padding: 5px 0; }
+window .topbar .status-chip { color: @text_muted; font-size: 10px; font-weight: 500; }
+window .topbar .status-chip.status-live { color: @success; }
+window .topbar .status-chip.status-camera-live { color: @ai_cyan; }
+window .topbar .status-chip.status-warn { color: @warning; }
+window .topbar .status-chip.status-bad { color: @danger; }
+window .status-dot { min-width: 6px; min-height: 6px; border-radius: 99px; background: @offline; font-size: 1px; padding: 0; }
+window .status-dot.status-live { background: @success; }
+window .status-dot.status-camera-live { background: @ai_cyan; }
+window .status-dot.status-warn { background: @warning; }
+window .status-dot.status-bad { background: @danger; }
+window .global-estop {
+  background-image: none;
+  background-color: #9F433D;
+  border: 1px solid #C76B60;
+  border-radius: 10px;
+  padding: 3px 14px;
+  box-shadow: none;
+}
+window .global-estop:hover { background: #B75046; }
+window .global-estop:active { background: #80362F; }
+window .global-estop:disabled { background: #653834; border-color: #85504A; opacity: 1; }
+window .estop-symbol { background: transparent; border-color: #C99087; min-width: 20px; min-height: 20px; font-size: 12px; }
+window .estop-title { color: #FFF0E9; font-size: 11px; font-weight: 700; }
+window .estop-subtitle { color: #E0B5AE; font-size: 7px; }
+window .top-warning {
+  background: #302721;
+  border: 1px solid #514334;
+  border-left: 2px solid @warning;
+  color: #DDC39B;
+  border-radius: 6px;
+  padding: 5px 10px;
+  margin-top: 9px;
+  font-size: 10px;
+  font-weight: 500;
+}
+window .top-alert { background: #3A2824; color: #F0C0AE; border-radius: 6px; }
+window .nav {
+  background: @header_bg;
+  border-bottom: 1px solid @divider;
+  padding: 6px 24px 12px;
+}
+window .nav stackswitcher { background: transparent; border: none; padding: 0; }
+window .nav button, window .nav button:focus {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  min-height: 32px;
+  padding: 1px 18px;
+  margin-right: 5px;
+  box-shadow: none;
+  outline-offset: 2px;
+  font-size: 11px;
+}
+window .nav button label { color: @text_muted; font-weight: 500; }
+window .nav button:hover { background: @surface_soft; border-color: @border; }
+window .nav button:hover label { color: @text_main; }
+window .nav button:checked, window .nav button:checked:focus {
+  background: @surface_selected;
+  border: 1px solid #526867;
+  box-shadow: inset 0 -2px @primary;
+}
+window .nav button:checked label { color: @primary; font-weight: 700; }
+window .nav button.ops-settings-button { background: @surface; border: 1px solid @border; padding: 1px 14px; }
+window .nav button.ops-settings-button label { color: @text_secondary; }
+window .page { background: @app_bg; padding: 16px 18px 0; }
+window .video-card { background: @video_stage; border: 1px solid @border; border-radius: 12px; }
+window .camera-standby-background { background: @video_stage; }
+window .camera-placeholder-title { color: @text_main; font-size: 14px; font-weight: 500; }
+window .camera-placeholder-detail { color: @text_muted; font-size: 10px; }
+window .main-camera-label { background: @video_overlay; border: 1px solid @border; border-radius: 7px; padding: 8px 11px; }
+window .camera-name { color: @text_main; font-size: 11px; font-weight: 600; }
+window .camera-connection-label { color: @text_muted; font-size: 9px; }
+window .video-card .status-dot, window .main-camera-label .status-dot { font-size: 1px; min-width: 6px; min-height: 6px; }
+window .pip-frame { background: @video_stage; border: 1px solid @border_strong; border-radius: 10px; box-shadow: 0 10px 28px rgba(0,0,0,.24); }
+window .pip-frame .video-card { border-radius: 9px; border: none; }
+window .pip-frame .video-overlay { background: @video_overlay; border-bottom: 1px solid @border; }
+window .pip-swap-button { background: @surface_raised; border: 1px solid @border_strong; border-radius: 6px; }
+window .pip-swap-button label { color: @primary; font-weight: 500; font-size: 9px; }
+window .pip-swap-button:hover { background: @surface_selected; }
+
+/* A single inset telemetry dock, with quiet cards and a clear tool action. */
+window .mission-rail { background: @header_bg; border: 1px solid @border; border-radius: 12px; padding: 14px; box-shadow: none; }
+window .rail-kicker { color: @text_muted; font-size: 8px; letter-spacing: 1.4px; font-weight: 500; }
+window .rail-heading-ko { color: @text_main; font-size: 16px; font-weight: 600; padding: 2px 0 4px; }
+window .mission-rail .rail-data-row { background: @surface; border: 1px solid @divider; border-radius: 9px; padding: 12px; }
+window .mission-rail .rail-data-label { color: @text_muted; font-size: 10px; font-weight: 500; padding-bottom: 6px; }
+window .mission-rail .rail-data-value { color: @text_main; font-size: 12px; font-weight: 500; }
+window .mission-rail .rail-data-perception { color: @ai_cyan; }
+window .mission-rail .end-effector-summary { background: @surface; border: 1px solid @border; border-radius: 10px; padding: 12px; box-shadow: none; }
+window .end-effector-summary-title { color: @text_main; font-size: 12px; font-weight: 600; }
+window .end-effector-summary-state { border-radius: 5px; font-size: 9px; padding: 3px 6px; font-weight: 600; }
+window .end-effector-summary-state.status-live { background: #253D35; color: @success; }
+window .end-effector-summary-state.status-warn { background: #403525; color: @warning; }
+window .end-effector-summary-state.status-muted { background: @surface_raised; color: @text_muted; }
+window .end-effector-summary-purpose { color: @text_secondary; font-size: 10px; }
+window .end-effector-summary-reading { color: @ai_cyan; font-size: 12px; font-weight: 600; }
+window .end-effector-summary .end-effector-arm-label { color: @text_muted; font-size: 9px; font-weight: 500; }
+window .end-effector-summary .end-effector-arm-value { color: @text_main; font-size: 11px; font-weight: 500; }
+window .end-effector-selector button, window .end-effector-summary combobox button {
+  background: @surface_soft; border: 1px solid @border_strong; border-radius: 7px; padding: 5px 9px;
+}
+window .end-effector-selector button label, window .end-effector-summary combobox button label { color: @text_main; font-size: 11px; font-weight: 500; }
+window .end-effector-summary button.end-effector-detail-button { background: @primary; border: 1px solid @primary; border-radius: 7px; padding: 5px 8px; }
+window .end-effector-summary button.end-effector-detail-button label { color: @app_bg; font-weight: 600; font-size: 10px; }
+window .end-effector-summary button.end-effector-detail-button:hover { background: @primary_hover; }
+window .mission-rail .display-options { background: transparent; border: none; border-top: 1px solid @divider; border-radius: 0; padding: 10px 0 0; }
+window .mission-rail .display-options-title { color: @text_muted; font-size: 9px; font-weight: 500; padding-bottom: 4px; }
+window .mission-rail .display-option, window .mission-rail .display-option label { color: @text_secondary; font-size: 10px; }
+window .mission-rail .display-option check, window .event-filter check { background: @surface; border: 1px solid @border_strong; border-radius: 4px; min-width: 13px; min-height: 13px; }
+window .mission-rail .display-option check:checked, window .event-filter check:checked { background: @primary; color: @app_bg; border-color: @primary; }
+
+/* Shared cards: restrained neutral surfaces replace the multicolour chrome. */
+window .competition-status-page, window .system-status-dashboard, window .mobility-dashboard,
+window .ops-settings-shell, window.ops-settings-window, window .arm-ui, window .arm-ui scrolledwindow { background: @app_bg; }
+window .system-status-title, window .mobility-title, window .arm-ui .arm-page-title { color: @text_main; font-weight: 600; }
+window .system-status-subtitle, window .mobility-subtitle, window .arm-ui .arm-page-subtitle { color: @text_secondary; }
+window .system-decision, window .mobility-story {
+  background-image: linear-gradient(115deg, rgba(169,203,195,.08), rgba(169,203,195,0));
+  background-color: @surface;
+  border: 1px solid @border;
+  border-left: 2px solid @primary;
+  border-radius: 11px;
+  padding: 18px;
+}
+window .system-decision-kicker, window .mobility-kicker, window .mobility-story-kicker { color: @primary; font-weight: 500; font-size: 9px; letter-spacing: 1.2px; }
+window .system-decision-title, window .mobility-story-title { color: @text_main; font-weight: 600; }
+window .system-decision-detail, window .mobility-story-detail { color: @text_secondary; }
+window .mobility-story-action { background: @surface_raised; border-color: @border_strong; color: @text_main; font-weight: 500; }
+window .mobility-live-pill, window .system-overall-chip { border-radius: 8px; }
+window .system-section, window .mobility-card, window .arm-ui .arm-card {
+  background: @surface;
+  border: 1px solid @border;
+  border-radius: 11px;
+  box-shadow: none;
+  padding: 16px;
+}
+window .system-section-title, window .mobility-panel-title, window .arm-ui .arm-card-title { color: @text_main; font-weight: 600; font-size: 15px; }
+window .system-section-description, window .arm-ui .arm-card-description { color: @text_muted; font-size: 10px; }
+window .system-section-summary, window .mobility-coordination-summary { color: @text_main; font-weight: 500; font-size: 18px; }
+window .system-section-action, window .mobility-coordination-detail { color: @text_secondary; }
+window .system-section-details { color: @text_muted; border-color: @divider; }
+window .system-metric, window .arm-ui .arm-metric { background: @surface_soft; border: 1px solid @divider; border-radius: 7px; }
+window .system-metric-label, window .arm-ui .arm-metric-label, window .detail-metric-title, window .power-metric-title { color: @text_muted; font-weight: 500; }
+window .system-metric-value, window .arm-ui .arm-metric-value, window .detail-metric-value, window .power-metric-value { color: @text_main; font-weight: 500; }
+window .mobility-stage-title { color: @text_secondary; font-weight: 500; }
+window .mobility-value { color: @text_secondary; }
+window .mobility-primary-value { color: @text_main; font-weight: 500; }
+window .mobility-technical-expander, window .arm-ui expander { color: @text_muted; border-color: @divider; }
+window .mobility-rover-stage, window .mobility-wheel-grid, window .mobility-faults { background: @video_stage; border-color: @border; }
+window .mobility-evidence-bar { background: @surface; border: 1px solid @border; border-left: 2px solid @primary; }
+window .mobility-evidence-title { color: @text_main; font-weight: 500; }
+window .mobility-evidence-metrics, window .mobility-recovery-hint { color: @text_muted; }
+window .mobility-evidence-rule { color: @ai_cyan; }
+window .mobility-source-chip { color: @ai_cyan; background: @surface_raised; border-radius: 5px; font-weight: 500; }
+window .mobility-wheel-value { color: @text_secondary; }
+
+/* State colour always retains the same meaning across every page. */
+window .system-overall-chip.status-live, window .system-section-badge.status-live,
+window .sensor-status.status-live, window .mobility-live-pill.status-live,
+window .arm-ui .arm-badge.status-live, window .mobility-story-action.status-live { color: @success; background: #253D35; border-color: #385C4C; }
+window .system-overall-chip.status-warn, window .system-section-badge.status-warn,
+window .sensor-status.status-warn, window .mobility-live-pill.status-warn,
+window .arm-ui .arm-badge.status-warn, window .mobility-story-action.status-warn { color: @warning; background: #403525; border-color: #6A5533; }
+window .system-overall-chip.status-bad, window .system-section-badge.status-bad,
+window .sensor-status.status-bad, window .arm-ui .arm-badge.status-bad,
+window .mobility-story-action.status-bad { color: @danger; background: #432D2C; border-color: #6B4541; }
+window .system-overall-chip.status-muted, window .system-section-badge.status-muted,
+window .sensor-status.status-muted, window .mobility-live-pill.status-muted,
+window .arm-ui .arm-badge.status-muted { color: @text_secondary; background: @surface_raised; border-color: @border_strong; }
+window .mobility-story-title.status-live, window .mobility-primary-value.status-live,
+window .mobility-wheel-value.status-live, window .mobility-decision.status-live,
+window .arm-ui .arm-metric-value.status-live { color: @success; }
+window .mobility-story-title.status-warn, window .mobility-primary-value.status-warn,
+window .mobility-decision.status-warn, window .arm-ui .arm-metric-value.status-warn { color: @warning; }
+window .mobility-story-title.status-bad, window .mobility-primary-value.status-bad,
+window .mobility-wheel-value.status-bad, window .mobility-decision.status-bad,
+window .arm-ui .arm-metric-value.status-bad { color: @danger; }
+window .mobility-story-title.status-muted, window .mobility-primary-value.status-muted,
+window .mobility-decision.status-muted, window .arm-ui .arm-metric-value.status-muted { color: @text_muted; }
+
+window .sensor-tile { background: @surface; border: 1px solid @border; border-radius: 10px; box-shadow: none; }
+window .sensor-tile-name, window .sensor-group-title { color: @text_secondary; font-weight: 500; }
+window .sensor-tile-value { color: @text_main; font-weight: 500; }
+window .sensor-tile-note, window .sensor-group-description, window .sensor-diagnostic-note { color: @text_muted; }
+window .sensor-group-chip { background: @surface_raised; color: @ai_cyan; border-radius: 5px; }
+window .soc-progress trough { background: @surface_raised; }
+window .soc-progress progress { background: @primary; }
+window .competition-standby, window .standby-hero, window .standby-source-card { background: @surface; border: 1px solid @border; box-shadow: none; }
+window .competition-standby .standby-kicker { color: @primary; }
+window .competition-standby .standby-title, window .competition-standby .standby-source-name { color: @text_main; font-weight: 600; }
+window .competition-standby .standby-description { color: @text_secondary; }
+window .competition-standby .standby-note, window .competition-standby .standby-source-endpoint,
+window .competition-standby .standby-source-state { color: @text_muted; }
+window.end-effector-popup, window .end-effector-popup-shell, window .environment-dashboard { background: @app_bg; }
+window .end-effector-popup-heading, window .environment-title { color: @text_main; font-weight: 600; }
+window .end-effector-popup-purpose, window .environment-subtitle { color: @text_secondary; }
+window.end-effector-popup .end-effector-detail-button { background: @surface_raised; border-color: @border_strong; }
+window.end-effector-popup .end-effector-detail-button label { color: @text_main; }
+window .end-effector-popup-card, window .environment-summary, window .sensor-group { background: @surface; border: 1px solid @border; border-radius: 10px; }
+window .end-effector-popup-label { color: @text_muted; font-weight: 500; }
+window .end-effector-popup-value { color: @text_main; font-weight: 500; }
+window .environment-summary { color: @text_secondary; font-weight: 500; }
+window .environment-connection.status-live { background: #253D35; color: @success; }
+window .environment-connection.status-warn { background: #403525; color: @warning; }
+window .environment-connection.status-muted { background: @surface_raised; color: @text_muted; }
+window .sensor-overall-block.status-live { background: #253D35; border-color: #385C4C; }
+window .sensor-overall-block.status-warn { background: #403525; border-color: #6A5533; }
+window .sensor-overall-block.status-bad { background: #432D2C; border-color: #6B4541; }
+window .sensor-overall-block.status-muted { background: @surface_raised; border-color: @border_strong; }
+window .sensor-overall-count.status-live, window .sensor-overall-caption.status-live { color: @success; }
+window .sensor-overall-count.status-warn, window .sensor-overall-caption.status-warn { color: @warning; }
+window .sensor-overall-count.status-bad, window .sensor-overall-caption.status-bad { color: @danger; }
+window .sensor-overall-count.status-muted, window .sensor-overall-caption.status-muted { color: @text_muted; }
+
+/* Existing controls retain visible focus and disabled states. */
+window .integrated-operation, window .ops-settings-panel { background: @surface; border-color: @border; }
+window .ops-settings-panel > border { border: 1px solid @border; border-radius: 10px; }
+window .ops-settings-panel expander { color: @text_secondary; }
+window.ops-settings-window .section-title { color: @text_main; font-size: 18px; font-weight: 600; }
+window .integrated-operation label, window .ops-settings-panel label, window .arm-ui label { color: @text_main; }
+window .integrated-operation button, window .ops-settings-panel button,
+window .mobility-control-button, window .arm-ui button { background: @surface_raised; border: 1px solid @border_strong; border-radius: 7px; box-shadow: none; }
+window .integrated-operation button label, window .ops-settings-panel button label,
+window .mobility-control-button label, window .arm-ui button label { color: @text_main; font-weight: 500; }
+window .integrated-operation button:hover, window .ops-settings-panel button:hover,
+window .mobility-control-button:hover, window .arm-ui button:hover { background: @surface_selected; border-color: @primary; }
+window .arm-ui button.arm-primary { background: @primary_soft; border-color: #6C8260; }
+window .arm-ui button.arm-primary label { color: @primary; }
+window .arm-ui button.arm-danger { background: #432D2C; border-color: #6B4541; }
+window .arm-ui button.arm-danger label { color: @danger; }
+window .integrated-operation button:disabled, window .ops-settings-panel button:disabled,
+window .mobility-control-button:disabled, window .arm-ui button:disabled,
+window .arm-ui button.arm-primary:disabled, window .arm-ui button.arm-danger:disabled {
+  background: #142126; border: 1px solid @divider; opacity: 1;
+}
+window .integrated-operation button:disabled label, window .ops-settings-panel button:disabled label,
+window .mobility-control-button:disabled label, window .arm-ui button:disabled label,
+window .arm-ui button.arm-primary:disabled label, window .arm-ui button.arm-danger:disabled label { color: @text_muted; }
+window .arm-ui button.arm-axis:checked { background: @surface_selected; border-color: @primary; }
+window .arm-ui button.arm-axis:checked label { color: @primary; }
+window .arm-ui entry, window .arm-ui treeview, window .arm-ui list, window .arm-ui list row { background: @surface_soft; color: @text_main; border-color: @border_strong; }
+window .arm-ui list row:selected { background: @surface_selected; }
+window .arm-ui .arm-note, window .arm-ui .arm-mono { color: @text_secondary; }
+window .arm-ui .arm-note.status-warn { color: @warning; }
+window .arm-ui .arm-note.status-bad { color: @danger; }
+window .arm-ui .arm-divider { background: @divider; }
+window .arm-ui .arm-shortcut { background: @surface_raised; border-color: @border; color: @text_secondary; }
+window .arm-ui .arm-reason { background: #302B22; border-color: #514734; color: @warning; }
+window .arm-ui .arm-reason label { color: @warning; }
+
+window .event-expander, window .event-drawer-panel, window .event-card,
+window .event-card text, window .event-operation-list, window .event-operation-row { background: @header_bg; color: @text_secondary; border-color: @divider; }
+window .event-expander { border: none; border-top: 1px solid @divider; border-radius: 0; padding: 4px 10px; margin-top: 8px; }
+window .event-expander:hover, window .event-operation-row:hover { background: @surface; }
+window .event-collapse, window .developer-toggle { color: @text_secondary; }
+window .event-status-title, window .event-status-message { color: @text_secondary; font-size: 10px; }
+window .event-operation-message { color: @text_main; }
+window .event-operation-module { color: @ai_cyan; }
+window .event-operation-time, window .event-operation-technical { color: @text_muted; }
+window .event-operation-level.event-level-error { color: @danger; }
+window .event-operation-level.event-level-warning { color: @warning; }
+window .event-operation-level.event-level-info { color: @ai_cyan; }
+window .event-column-header, window .developer-box, window .event-operation-raw { background: @surface; border-color: @border; }
+window .event-column-title, window .event-filter label, window .developer-box label { color: @text_secondary; }
+menu, menuitem { background: @surface; color: @text_main; border-color: @border; }
+menuitem label { color: @text_main; }
+menuitem:hover, menuitem:hover label { background: @surface_selected; color: @primary; }
+window scrollbar slider, window .arm-ui scrollbar slider { background: @border_strong; border-radius: 9px; }
+window .muted { color: @text_muted; }
+
+/* Match laptop logical pixels as well as presentation-sized displays. */
+window.viewport-compact .topbar { padding: 8px 12px 5px; }
+window.viewport-compact .topbar .brand { font-size: 14px; }
+window.viewport-compact .brand-mark { min-width: 32px; min-height: 32px; font-size: 22px; border-radius: 8px; }
+window.viewport-compact .topbar .eyebrow { font-size: 7px; letter-spacing: 1px; }
+window.viewport-compact .health-strip { margin: 0; }
+window.viewport-compact .topbar .status-chip { font-size: 9px; }
+window.viewport-compact .nav { padding: 5px 12px 8px; }
+window.viewport-compact .nav button, window.viewport-compact .nav button.ops-settings-button { min-height: 28px; padding: 0 8px; font-size: 9px; }
+window.viewport-compact .page { padding: 8px 9px 0; }
+window.viewport-compact .mission-rail { padding: 10px; }
+window.viewport-compact .rail-heading-ko { font-size: 15px; padding-bottom: 3px; }
+window.viewport-compact .mission-rail .rail-data-row, window.viewport-compact .mission-rail .end-effector-summary { padding: 9px; }
+window.viewport-compact .mission-rail .rail-data-value { font-size: 11px; }
+window.viewport-compact .mission-rail .display-options { padding-top: 9px; }
+window.viewport-spacious .topbar { padding: 12px 26px 6px; }
+window.viewport-spacious .nav { padding: 6px 26px 13px; }
+window.viewport-spacious .nav button { min-height: 34px; padding: 1px 22px; font-size: 11px; }
+window.viewport-spacious .page { padding: 14px 20px 0; }
+window.viewport-spacious .mission-rail .rail-data-value { font-size: 13px; }
+
+/* Immersive mission composition: one compact command bar, full-width vision,
+ * and three translucent telemetry tiles anchored underneath it. */
+window label, window button, window entry, window textview {
+  font-family: "Manrope", "SUIT Variable", "Noto Sans CJK KR", sans-serif;
+}
+window .topbar, window.viewport-compact .topbar, window.viewport-spacious .topbar {
+  background: @app_bg; padding: 15px 26px 9px;
+}
+window .brand-mark, window.viewport-compact .brand-mark {
+  background: transparent; border: none; color: @primary;
+  min-width: 28px; min-height: 34px; font-size: 30px; border-radius: 0;
+}
+window .topbar .brand, window.viewport-compact .topbar .brand {
+  font-family: "Manrope"; font-size: 24px; font-weight: 600; letter-spacing: 1px;
+}
+window .topbar .eyebrow, window.viewport-compact .topbar .eyebrow {
+  font-size: 7px; letter-spacing: 1.9px; color: @text_muted;
+}
+window .nav, window.viewport-compact .nav, window.viewport-spacious .nav {
+  background: transparent; border: none; padding: 0;
+}
+window .nav button, window.viewport-compact .nav button, window.viewport-spacious .nav button {
+  border-radius: 6px; padding: 1px 17px; min-height: 34px; font-size: 12px;
+  margin: 0 2px; border: 1px solid transparent;
+}
+window .nav button label { font-weight: 400; color: @text_secondary; }
+window .nav button:checked, window .nav button:checked:focus {
+  background-image: linear-gradient(160deg, #3B5058, #2A3D46);
+  background-color: @surface_selected; border-color: #425861;
+  box-shadow: none;
+}
+window .nav button:checked label { color: #F0F3EC; font-weight: 500; }
+window .nav button.ops-settings-button, window.viewport-compact .nav button.ops-settings-button {
+  background: @surface; border-color: @border; margin-left: 8px; padding: 0 12px;
+}
+window .global-estop { border-radius: 7px; }
+window .top-warning { font-size: 10px; padding: 5px 10px; margin-top: 10px; }
+window .page, window.viewport-compact .page, window.viewport-spacious .page {
+  padding: 10px 24px 0;
+}
+window .mission-intro { padding: 4px 3px 17px; }
+window .mission-heading { font-size: 25px; font-weight: 400; letter-spacing: -.6px; }
+window .mission-caption { color: @text_muted; font-size: 11px; padding: 6px 0 0; }
+window .health-strip, window.viewport-compact .health-strip { margin: 0; }
+window .health-strip .status-chip { font-size: 10px; font-weight: 400; }
+window .status-item { padding: 0; }
+window .video-card { border-radius: 12px; border-color: #3B5058; }
+window .camera-placeholder-title { font-size: 19px; font-weight: 400; letter-spacing: -.3px; color: #D7E2DB; }
+window .camera-placeholder-detail { font-size: 11px; color: #9AAFB4; padding-top: 2px; }
+window .main-camera-label {
+  background: rgba(35,53,62,.80); border-color: rgba(158,183,185,.18);
+  border-radius: 7px; padding: 8px 12px;
+}
+window .camera-name { font-size: 11px; font-weight: 500; }
+window .camera-connection-label { font-size: 10px; }
+window .pip-frame { border-color: #536A70; border-radius: 9px; box-shadow: 0 8px 25px rgba(5,15,19,.25); }
+window .pip-frame .camera-placeholder-title { font-size: 11px; }
+window .pip-frame .camera-placeholder-detail { font-size: 8px; }
+window .mission-rail, window.viewport-compact .mission-rail {
+  background: transparent; border: none; border-radius: 0; padding: 0;
+}
+window .rail-kicker { color: @primary; font-size: 8px; letter-spacing: 1.5px; padding-left: 3px; }
+window .rail-heading-ko, window.viewport-compact .rail-heading-ko {
+  color: @text_muted; font-size: 10px; font-weight: 400; padding: 0;
+}
+window .mission-rail .display-options, window.viewport-compact .mission-rail .display-options {
+  border: none; padding: 0 3px; background: transparent;
+}
+window .mission-rail .display-options-title { font-size: 9px; padding: 0; }
+window .mission-rail .display-option label { font-size: 10px; }
+window .mission-rail .rail-data-row, window .mission-rail .end-effector-summary,
+window.viewport-compact .mission-rail .rail-data-row, window.viewport-compact .mission-rail .end-effector-summary {
+  background-image: linear-gradient(150deg, rgba(70,94,104,.27), rgba(32,49,58,.20));
+  background-color: @surface;
+  border: 1px solid #3C5059; border-top: 1px solid #62716B;
+  border-radius: 9px; padding: 15px 17px;
+}
+window .mission-rail .mission-perception-card {
+  background-image: linear-gradient(135deg, rgba(194,128,67,.12), rgba(32,49,58,.12));
+  border-top-color: #B59269;
+}
+window .mission-rail .end-effector-summary { border-top-color: #6D9390; }
+window .mission-rail .rail-data-label { color: #AABCC0; font-size: 8px; font-weight: 400; letter-spacing: 1.4px; padding: 0; }
+window .mission-card-title, window .end-effector-summary-title { font-size: 17px; font-weight: 500; color: #E6EDE5; padding: 1px 0; }
+window .mission-rail .rail-data-value, window.viewport-spacious .mission-rail .rail-data-value {
+  font-size: 12px; font-weight: 400; color: @text_secondary;
+}
+window .mission-rail .rail-data-perception { color: @primary; font-size: 20px; padding-top: 8px; }
+window .mission-card-note { font-size: 10px; color: @text_muted; padding-top: 12px; }
+window .end-effector-summary-state { font-size: 9px; font-weight: 400; padding: 3px 7px; }
+window .end-effector-summary-purpose { font-size: 10px; }
+window .end-effector-summary-reading { font-size: 11px; font-weight: 400; }
+window .end-effector-summary .end-effector-arm-label { font-size: 8px; }
+window .end-effector-summary .end-effector-arm-value { font-size: 10px; }
+window .end-effector-summary combobox button {
+  background: rgba(24,39,48,.62); border-color: @border_strong; border-radius: 6px; padding: 4px 9px;
+}
+window .end-effector-summary button.end-effector-detail-button {
+  background: #3B4E51; border: 1px solid #65746B; padding: 4px 10px; border-radius: 6px;
+}
+window .end-effector-summary button.end-effector-detail-button label { color: @primary; font-weight: 500; font-size: 10px; }
+window .event-expander { margin-top: 7px; padding: 6px 25px; background: @app_bg; }
+window .event-status-title, window .event-status-message { font-size: 9px; }
+window .system-status-title, window .mobility-title, window .arm-ui .arm-page-title { font-weight: 400; letter-spacing: -.5px; }
+window .system-section, window .mobility-card, window .arm-ui .arm-card {
+  background-image: linear-gradient(135deg, rgba(70,94,104,.12), rgba(32,49,58,0));
+  border-radius: 9px;
+}
+window .system-section-title, window .mobility-panel-title, window .arm-ui .arm-card-title { font-weight: 500; }
+window .system-decision-title, window .mobility-story-title { font-weight: 500; }
+window.viewport-compact .topbar { padding: 10px 17px 7px; }
+window.viewport-compact .topbar .brand { font-size: 20px; }
+window.viewport-compact .nav button { padding: 0 9px; font-size: 10px; }
+window.viewport-compact .page { padding: 7px 14px 0; }
+window.viewport-compact .mission-intro { padding-bottom: 12px; }
+window.viewport-compact .mission-heading { font-size: 21px; }
+window.viewport-compact .mission-caption { font-size: 10px; }
+window.viewport-compact .health-strip .status-chip { font-size: 9px; }
+window.viewport-compact .mission-rail .rail-data-row, window.viewport-compact .mission-rail .end-effector-summary { padding: 11px 13px; }
+window.viewport-compact .mission-rail .rail-data-value { font-size: 11px; }
+window.viewport-compact .mission-rail .rail-data-perception { font-size: 17px; }
+
+/* GTK 3's tracked labels can double their preferred line height after a
+ * font-map change. Keep native text sizing predictable at every density. */
+window label { letter-spacing: 0; }
+window .topbar .brand, window.viewport-compact .topbar .brand,
+window .topbar .eyebrow, window.viewport-compact .topbar .eyebrow,
+window .mission-heading, window .rail-kicker, window .mission-rail .rail-data-label {
+  letter-spacing: 0;
+}
+window .camera-placeholder-title { letter-spacing: 0; }
+window .nav button, window.viewport-compact .nav button, window.viewport-spacious .nav button { min-width: 0; }
+window .mission-rail .rail-data-value, window.viewport-spacious .mission-rail .rail-data-value { font-size: 14px; }
+window .mission-rail .rail-data-perception, window.viewport-spacious .mission-rail .rail-data-perception { font-size: 20px; }
+window.viewport-compact .mission-rail .rail-data-value { font-size: 12px; }
+window.viewport-compact .mission-rail .rail-data-perception { font-size: 17px; }
+
+/* Dense remote-operation layout. */
+window .mission-intro, window.viewport-compact .mission-intro { padding: 2px 3px 5px; }
+window .mission-rail, window.viewport-compact .mission-rail { padding: 6px; }
+window .mission-rail .rail-data-row, window .mission-rail .end-effector-summary { padding: 8px; }
+window .soc-progress trough, window .soc-progress progress { min-height: 20px; }
+window .soc-progress text { font-size: 18px; }
+
+window .system-metric-value.power-soc-value { font-size: 32px; font-weight: 700; color: @primary; }
+
+/* Camera-first proportions, with two equal telemetry cards. */
+window .mission-rail, window.viewport-compact .mission-rail { padding: 0; }
+window .mission-rail .rail-data-row, window .mission-rail .end-effector-summary,
+window.viewport-compact .mission-rail .rail-data-row, window.viewport-compact .mission-rail .end-effector-summary { padding: 8px 12px; }
+window .mission-card-title, window .end-effector-summary-title { font-size: 14px; }
+window .mission-rail .rail-data-value, window.viewport-spacious .mission-rail .rail-data-value { font-size: 12px; }
+window .page, window.viewport-spacious .page { padding: 8px 16px 0; }
+window .event-expander { margin-top: 3px; padding: 4px 16px; }

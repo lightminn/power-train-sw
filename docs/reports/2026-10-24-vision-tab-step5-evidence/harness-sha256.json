@@ -1,0 +1,5 @@
+{
+  "operator_console/tests/vision_benchmark.py": "ca9f1c5d566edee972c0397fe190139906107d9a1ea4fe072717203cfa12c3e2",
+  "docs/reports/2026-10-24-vision-tab-step5-evidence/baseline-harness.py": "70afa9dca99b225c1466982de9ef0fe8f200b3b3173bac7e0986931f8d296ab8",
+  "note": "Historical battery-phase harness hashes, captured before AC instrumentation and boundary detection refinements."
+}

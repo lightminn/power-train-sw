@@ -50,6 +50,7 @@ class CouplingLockPanel:
             ('zero_locked', '현재 위치를 결합 영점으로', 'SET_ZERO', {'state': 'LOCKED'}),
             ('zero_unlocked', '현재 위치를 분리 영점으로', 'SET_ZERO', {'state': 'UNLOCKED'}),
             ('enable', '잠금 모터 활성화', 'ENABLE', {}),
+            ('disable', '잠금 모터 비활성화', 'STOP', {}),
             ('stop', '잠금 정지', 'STOP', {}),
             ('attach', '도구 결합', 'CHANGE', {'to': 'LOCKED'}),
             ('detach', '도구 해제', 'CHANGE', {'to': 'UNLOCKED'}),
@@ -61,6 +62,7 @@ class CouplingLockPanel:
             self.tracker.connect(widget, 'clicked',
                                  lambda _w, k=key, c=command, o=options: self._send(k, c, o))
         card.pack(reflow_row([self.buttons[k] for k in ('attach', 'detach', 'stop')], columns=3))
+        card.pack(reflow_row([self.buttons[k] for k in ('enable', 'disable')], columns=2))
         card.pack(metric_grid(tuple(self.metrics.values()), columns=3))
         card.pack(label('결합 센서가 없습니다. 위치 도달과 잠금 절차만으로 판단하며, '
                         '도구가 빠지거나 떨어져도 감지하지 못합니다.', 'arm-reason', wrap=True))
@@ -69,7 +71,7 @@ class CouplingLockPanel:
         setup = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         setup.pack_start(row, False, False, 0)
         setup.pack_start(reflow_row([self.buttons[k] for k in
-                                    ('zero_locked', 'zero_unlocked', 'enable')], columns=3),
+                                    ('zero_locked', 'zero_unlocked')], columns=2),
                          False, False, 0)
         advanced.add(setup)
         card.pack(advanced)
@@ -81,7 +83,7 @@ class CouplingLockPanel:
         state, lock = self._state, self._state.coupling_lock
         if self._callback is None:
             return False, '미연결 · 잠금 명령 경로 없음'
-        if key == 'stop':
+        if key in ('stop', 'disable'):
             # The authenticated backend still enforces read-only mode. A stale
             # display or lost MANUAL grant must not prevent asking it to stop.
             return True, ''
@@ -90,6 +92,10 @@ class CouplingLockPanel:
             return allowed, reason
         if not lock:
             return False, '잠금 상태 미수신 또는 갱신 지연'
+        if lock.get('two_point'):
+            # Bench two-point lock: record anytime, move to a recorded point from anywhere.
+            # Unrecorded points rotate 22.5 degrees from the current position.
+            return True, ''
         if key.startswith('zero_') or key == 'enable':
             if lock.get('torque') != 0:
                 return False, '잠금 모터 토크OFF 필요'
@@ -113,7 +119,9 @@ class CouplingLockPanel:
         lock = state.coupling_lock
         for key, value in (
                 ('state', display(lock.get('state'))),
-                ('zero', '미설정' if lock.get('zero_tick') is None else
+                ('zero', (f"잠김 {display(lock.get('locked_tick'))} · 열림 "
+                          f"{display(lock.get('unlocked_tick'))}") if lock.get('two_point') else
+                 '미설정' if lock.get('zero_tick') is None else
                  f"{lock['zero_tick']} · {display(lock.get('zero_state'))}"),
                 ('position', display(lock.get('position'))),
                 ('sequence', display(lock.get('sequence_state'))),

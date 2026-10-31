@@ -185,6 +185,7 @@ class JogRegistry:
         *,
         now: float,
         reason: str = K.STOP_REASON_EXPLICIT,
+        force: bool = False,
     ) -> PendingStop | None:
         """End one hold.  Returns the stop intent, or ``None`` if not held.
 
@@ -192,7 +193,7 @@ class JogRegistry:
         caller may fail to deliver it, and this registry is what remembers.
         """
         active = self._active.pop(channel, None)
-        if active is None:
+        if active is None and not force:
             return None
         return self._queue_stop(channel, reason, now)
 
@@ -274,7 +275,11 @@ class JogRegistry:
         params["direction"] = active.direction
         if active.speed_level is not None:
             params["speed_level"] = active.speed_level
+        if active.channel.action == K.ACTION_JOG:
+            params.update(K.BENCH_JOG_FLAGS)
         params["expires_at_s"] = float(now) + self._ttl_s
+        if active.channel.action == K.ACTION_TOOL_JOG:
+            params['ttl_s'] = min(0.6, self._ttl_s)
         params["sequence"] = active.sequence
         return K.ArmOpsRequest(
             action=active.channel.action,

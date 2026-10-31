@@ -33,6 +33,23 @@ def test_projection_reuses_current_tool_only_and_exposes_no_commands():
     assert state.diagnostics.motors[0].actuator_id == 5
 
 
+def test_receiver_projects_authoritative_generation_sync_and_manual_capabilities():
+    from powertrain_observability.tool_snapshot import normalize_tool
+    snapshot = _snapshot(kind='dual_motor_gripper', ids=(3, 4))
+    tool = snapshot.tool_runtime['tool']
+    tool.update(tool_context_generation=9, motion_allowed=True, read_only=False,
+                emergency_stop=False, actuators_discovered=True, fsm_state='READY',
+                manual_tool_capabilities=['tool_jog', 'individual_targets', 'dual_sync'],
+                synchronization={'state': 'SYNCHRONIZED'})
+    snapshot.tool_runtime['tool'] = normalize_tool(tool)
+    state = ArmUiTelemetryBinding().state(snapshot, ops_link_ready=True)
+    assert state.detected_tool.generation == state.diagnostics.generation == 9
+    assert state.detected_tool.attached is True
+    assert state.diagnostics.sync_state == C.SYNC_SYNCED
+    assert state.tool_fsm.raw == 'READY'
+    assert {C.CAP_TOOL_JOG, C.CAP_INDIVIDUAL_TARGETS, C.CAP_DUAL_SYNC} <= state.capabilities
+
+
 def test_tool_generation_changes_only_when_detected_tool_changes():
     binding = ArmUiTelemetryBinding()
     first = binding.state(_snapshot(sequence=1))

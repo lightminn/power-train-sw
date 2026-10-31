@@ -17,12 +17,15 @@ class DualMotorGripperFSM(ToolFSM):
         self.state = ToolState.READY
         return self.state
 
-    def command(self, command):
+    def command(self, command, target='both'):
         command = str(command).strip().upper()
+        selected = {'left': (3,), 'right': (4,), 'both': (3, 4)}.get(target)
+        if selected is None:
+            raise ToolCommandError('invalid dual gripper target')
         if command in ('STOP', 'DISABLE'):
-            return self.stop()
+            return self.stop(selected)
         if command == 'HOLD':
-            return self.hold()
+            return self.hold(selected)
         jog = command in ('JOG_OPEN', 'JOG_CLOSE')
         endpoint_command = command.removeprefix('JOG_') if jog else command
         if endpoint_command not in ('OPEN', 'CLOSE'):
@@ -33,9 +36,9 @@ class DualMotorGripperFSM(ToolFSM):
         if self.state not in allowed:
             raise ToolCommandError(f'{command} unavailable in {self.state.name}')
         endpoints = self._validated_targets()
-        targets = endpoints[endpoint_command.lower()]
+        targets = {i: endpoints[endpoint_command.lower()][i] for i in selected}
         positions = {}
-        for dxl_id in self.actuator_ids:
+        for dxl_id in selected:
             if self.bridge.read_hardware_error(dxl_id) != 0:
                 raise ToolCommandError(f'ID{dxl_id} hardware error')
             if self.bridge.read_torque(dxl_id) != 1:
@@ -48,9 +51,9 @@ class DualMotorGripperFSM(ToolFSM):
             # Read actual positions every tick, so stalled motion cannot accrue
             # a queue of distant targets. Never alter calibration or profiles.
             spans = {i: endpoints['open'][i] - endpoints['close'][i]
-                     for i in self.actuator_ids}
+                     for i in selected}
             fractions = {i: (positions[i] - endpoints['close'][i]) / spans[i]
-                         for i in self.actuator_ids}
+                         for i in selected}
             if any(not 0 <= value <= 1 for value in fractions.values()):
                 raise ToolCommandError('jog position outside motor endpoints')
             if max(fractions.values()) - min(fractions.values()) > 0.05:
@@ -63,11 +66,13 @@ class DualMotorGripperFSM(ToolFSM):
             targets = {i: max(min(endpoints['open'][i], endpoints['close'][i]),
                               min(max(endpoints['open'][i], endpoints['close'][i]),
                                   round(positions[i] + delta * spans[i])))
-                       for i in self.actuator_ids}
+                       for i in selected}
         opening = endpoint_command == 'OPEN'
         self.state = ToolState.OPENING if opening else ToolState.CLOSING
         try:
-            if jog:
+            if len(selected) == 1:
+                self.bridge.goal_position(selected[0], targets[selected[0]])
+            elif jog:
                 self.bridge.start_dual_jog(targets)
             else:
                 self.bridge.command_dual_targets(targets)
@@ -75,7 +80,7 @@ class DualMotorGripperFSM(ToolFSM):
             # Only explicit STOP/DISABLE or a safety/fault path may turn torque
             # off; do not route successful OPEN/CLOSE through stop().
             if not jog:
-                for dxl_id in self.actuator_ids:
+                for dxl_id in selected:
                     if self.bridge.read_torque(dxl_id) != 1:
                         raise ToolCommandError(
                             f'actual ID{dxl_id} Torque Enable dropped after command')
@@ -85,11 +90,14 @@ class DualMotorGripperFSM(ToolFSM):
             self.state = ToolState.OPEN if opening else ToolState.CLOSED
         return self.state
 
-    def hold(self):
+    def hold(self, selected=(3, 4)):
         if self.state not in (ToolState.OPENING, ToolState.CLOSING):
             raise ToolCommandError(f'HOLD unavailable in {self.state.name}')
         try:
-            self.bridge.hold_dual_position()
+            if len(selected) == 1:
+                self.bridge.goal_position(selected[0], self.bridge.read_position(selected[0]))
+            else:
+                self.bridge.hold_dual_position()
         except Exception as exc:
             return self._motion_fault(exc)
         self.state = ToolState.READY
@@ -107,16 +115,16 @@ class DualMotorGripperFSM(ToolFSM):
         self.state = ToolState.STOPPED
         return self.state
 
-    def stop(self):
+    def stop(self, selected=(3, 4)):
         errors = []
-        for dxl_id in self.actuator_ids:
+        for dxl_id in selected:
             try:
                 self.bridge.set_torque(dxl_id, False)
             except Exception as exc:
                 errors.append(f'ID{dxl_id}: {exc}')
         if errors:
             return self._fault('; '.join(errors))
-        self.state = ToolState.STOPPED
+        self.state = ToolState.STOPPED if len(selected) == 2 else ToolState.READY
         return self.state
 
     def _validated_targets(self):

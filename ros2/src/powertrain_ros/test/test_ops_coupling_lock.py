@@ -8,13 +8,14 @@ from powertrain_ros.ops_broker_node import OpsBrokerNode
 from powertrain_ros.ops_contract import ACTIONS, ROLE_CONSOLE
 
 
-def dispatch(kind, params):
+def dispatch(kind, params, *, authenticated=True):
     published, outcomes = [], []
     broker = SimpleNamespace(
         _local_wrist_pub=SimpleNamespace(publish=lambda m: published.append(json.loads(m.data))),
         _coupling_lock_pub=SimpleNamespace(publish=lambda m: published.append(json.loads(m.data))),
         _complete_order=lambda *args: outcomes.append(args[-2:]))
-    order = SimpleNamespace(kind=kind, params=params)
+    order = SimpleNamespace(kind=kind, params=params,
+                            deadline_s=params.get('expires_at_s') if authenticated else None)
     OpsBrokerNode._execute(broker, order, None, ROLE_CONSOLE)
     return published, outcomes
 
@@ -69,6 +70,14 @@ def test_local_wrist_jog_is_axis_five_only_and_rejects_expired_commands():
 def test_local_wrist_stop_can_publish_without_a_motion_deadline():
     params = dict(axis=5, sequence=2, reason='explicit')
     assert dispatch('publish_local_wrist_stop', params)[0] == [dict(params, command='STOP')]
+
+
+def test_local_wrist_jog_requires_authenticated_clock_synchronization():
+    import time
+    params = dict(axis=5, direction=1, sequence=1, expires_at_s=time.monotonic() + .6)
+    published, outcomes = dispatch('publish_local_wrist_jog', params, authenticated=False)
+    assert not published and outcomes[0][0] is False
+    assert 'authenticated clock synchronization' in outcomes[0][1]
 
 
 def test_lock_joint_message_does_not_replace_the_arm_joint_feedback():

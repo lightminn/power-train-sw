@@ -146,6 +146,80 @@ services:
         exec ros2 run powertrain_ros arm_console_bridge --ros-args -p console_host:=127.0.0.1
     restart: unless-stopped
 
+  # L515 terrain obstacle outlines → operator console UDP :5009. Operator
+  # visual aid only (no control/safety input). Opt-in profile: not part of
+  # scripts/robot-start until the two-encoder load check (spec §7.3-2) passes.
+  powertrain_terrain_overlay:
+    healthcheck:
+      disable: true
+    profiles: [terrain-overlay]
+    image: powertrain-sw:ros
+    container_name: powertrain_terrain_overlay
+    network_mode: host
+    ipc: host
+    cpus: 1.0
+    mem_limit: 512m
+    environment:
+      - PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros
+      - POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json
+      - OMP_NUM_THREADS=1
+      - OPENBLAS_NUM_THREADS=1
+    volumes:
+      - ../:/workspace:ro
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
+    working_dir: /workspace
+    entrypoint: [/bin/bash, -lc]
+    command:
+      - |
+        set -e
+        test -f /workspace/ros2/install/setup.bash
+        source /opt/ros/humble/setup.bash
+        source /workspace/ros2/install/setup.bash
+        set -u
+        exec ros2 run powertrain_ros terrain_overlay --ros-args -p operator_host:=127.0.0.1 -p operator_port:=5009
+    restart: unless-stopped
+
+  # L515 2.5D terrain map → operator console UDP :5010 (spec 2026-10-17-l515-terrain-map-design §8).
+  # Operator visual aid only: subscribes to /l515/* and /wheel_states, publishes nothing to ROS.
+  # Opt-in profile: not part of scripts/robot-start until the field load check (spec §7.3-3) passes.
+  powertrain_terrain_map:
+    healthcheck:
+      disable: true
+    profiles: [terrain-map]
+    image: powertrain-sw:ros
+    container_name: powertrain_terrain_map
+    network_mode: host
+    ipc: host
+    cpus: 1.0
+    mem_limit: 768m
+    environment:
+      - PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros
+      - POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json
+      - OMP_NUM_THREADS=1
+      - OPENBLAS_NUM_THREADS=1
+    volumes:
+      - ../:/workspace:ro
+      - type: bind
+        source: /run/powertrain
+        target: /run/powertrain
+        bind:
+          create_host_path: false
+    working_dir: /workspace
+    entrypoint: [/bin/bash, -lc]
+    command:
+      - |
+        set -e
+        test -f /workspace/ros2/install/setup.bash
+        source /opt/ros/humble/setup.bash
+        source /workspace/ros2/install/setup.bash
+        set -u
+        exec ros2 run powertrain_ros terrain_map --ros-args -p operator_host:=127.0.0.1 -p operator_port:=5010
+    restart: unless-stopped
+
   powertrain_session:
     image: powertrain-sw:ros
     container_name: powertrain_session
