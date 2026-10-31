@@ -34,6 +34,7 @@ from operator_console.arm_ops import (
     ArmOpsCallbackAdapter,
     ContractGatedTransport,
 )
+from operator_console.arm_ops.jog import JogRegistry
 from operator_console.arm_ops.contract import (
     ACTION_MODE_REQUEST,
     ACTION_CALIBRATION,
@@ -3496,6 +3497,9 @@ class OpsPanel(Gtk.Frame):
         self._emit(message)
         self._latest_ack_text = ack_korean(status, detail)
         self._refresh_status_line()
+        sink = getattr(self, '_external_ack_sink', None)
+        if sink is not None:
+            sink(request_id, action, status, detail)
         if (
             status == "OUTCOME_UNKNOWN"
             or status.startswith("FINAL_") and status != "FINAL_SUCCESS"
@@ -4252,9 +4256,13 @@ class OperatorConsole(Gtk.Window):
         self._arm_ops_adapter = ArmOpsCallbackAdapter(
             ArmCommandSession(
                 clock=time.monotonic,
+                registry=JogRegistry(initial_sequence=int(time.monotonic() * 1000000)),
                 transport=ContractGatedTransport(
                     submit_fn=self._ops_panel.submit_external,
                     registered_actions=frozenset({
+                        "robot_arm_lock_command", "robot_arm_lock_stop",
+                        "robot_arm_jog", "robot_arm_jog_stop",
+                        "robot_arm_stop", "robot_arm_resume_hold",
                         ACTION_MODE_REQUEST, ACTION_TOOL_CHANGE,
                         ACTION_TOOL_COMMAND,
                         ACTION_TOOL_ENABLE,
@@ -4265,6 +4273,10 @@ class OperatorConsole(Gtk.Window):
             ),
             outcome_sink=self._report_arm_command_outcome,
         )
+        from operator_console.arm_ops.contract import ArmOpsAck
+        self._ops_panel._external_ack_sink = lambda rid, action, status, detail: (
+            self._arm_ops_adapter.session.on_ack(ArmOpsAck(
+                request_id=rid, action=action, status=status, detail=detail)))
         arm_callbacks = self._arm_ops_adapter.callbacks()
         self._arm_manual_tab = ArmManualTab(arm_callbacks)
         self._arm_calibration_tab = ArmCalibrationTab(arm_callbacks)
@@ -5516,10 +5528,21 @@ class OperatorConsole(Gtk.Window):
             "main_video": self._main_video._name,
             "rover_l515_width": self._l515._rover_status_overlay.get_size_request()[0],
             "rover_d435_width": self._d435._rover_status_overlay.get_size_request()[0],
+            "arm_lock_state": arm_ui_state.coupling_lock.get("state"),
+            "arm_lock_motion_disabled": not any(
+                widget.get_sensitive() for key, widget
+                in self._arm_manual_tab.coupling_lock.buttons.items() if key != "stop"
+            ),
             "arm_ui_detected_tool": arm_ui_state.detected_tool.kind,
             "arm_ui_actions_disabled": not any(
                 widget.get_sensitive()
                 for widget in self._arm_manual_tab.gate.widgets
+                # Authority requests and read-only re-scan are recovery actions.
+                if widget not in (self._arm_manual_tab._manual_button,
+                                  self._arm_manual_tab._fsm_button,
+                                  self._arm_manual_tab._release_button,
+                                  self._arm_manual_tab._change_button,
+                                  self._arm_manual_tab._restart_button)
             ),
         })
         return True

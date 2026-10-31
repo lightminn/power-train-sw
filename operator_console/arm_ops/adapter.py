@@ -137,6 +137,7 @@ class ArmOpsCallbackAdapter:
         """
         session = self._session
         return ArmUiCallbacks(
+            coupling_lock_command=self._wrap(session.coupling_lock_command),
             request_tool_change=self._wrap(session.request_tool_change),
             request_control_mode=self._wrap(session.request_mode),
             release_control_mode=self._wrap(session.release_mode),

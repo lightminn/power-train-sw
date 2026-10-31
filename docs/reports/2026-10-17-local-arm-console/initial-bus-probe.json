@@ -1,0 +1,54 @@
+{
+  "1": {
+    "model": 1060,
+    "firmware": 50,
+    "mode": 1,
+    "torque": 0,
+    "error": 0,
+    "position": 3052,
+    "goal": 3053,
+    "min_position": 0,
+    "max_position": 4095,
+    "profile_velocity": 0,
+    "profile_acceleration": 0,
+    "pwm_limit": 885,
+    "temperature": 32,
+    "voltage": 122
+  },
+  "11": {
+    "offline": true,
+    "comm": -3001,
+    "error": 0
+  },
+  "14": {
+    "offline": true,
+    "comm": -3001,
+    "error": 0
+  },
+  "13": {
+    "offline": true,
+    "comm": -3001,
+    "error": 0
+  },
+  "12": {
+    "offline": true,
+    "comm": -3001,
+    "error": 0
+  },
+  "16": {
+    "model": 1060,
+    "firmware": 50,
+    "mode": 3,
+    "torque": 0,
+    "error": 0,
+    "position": 2639,
+    "goal": 2639,
+    "min_position": 0,
+    "max_position": 4095,
+    "profile_velocity": 0,
+    "profile_acceleration": 0,
+    "pwm_limit": 885,
+    "temperature": 31,
+    "voltage": 123
+  }
+}
