@@ -118,6 +118,10 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
   부팅마다 1970년이 되므로 `powertrain-clock` 서비스로 시각을 이어 간다. node15(뒤왼쪽)는 이날
   `CURRENT_LIMIT_VIOLATION`이 세 번 났고 원인은 미확인이다.
   `docs/reports/2026-10-30-field-teleop-stability.md`를 따른다.
+- **AS5048B 서스펜션 엔코더 배선(2026-11-02)** — 젯슨 40핀 3/5번이 `/dev/i2c-7`임을 실물로
+  확인했고 0x40~0x43 네 개가 각각 응답·자석 감지했다. 모듈 하나의 3V3이 빠지면 버스 전체가
+  멈춘다. 관절 대응·부호·영점·`verified`는 남았다. 같은 날 젯슨 부하와 25 W 모드의 CPU 상한
+  1344 MHz(하드웨어 최대 1728 MHz)도 기록했다. `docs/reports/2026-11-02-encoders-and-jetson-load.md`.
 - **USB 스키드 조향 레이어**(2026-08-05 작성, **실기 주행 확인 후 2026-08-24 main 병합**) —
   `DriveOdriveUsbAxis` USB 다보드 구동 → `skid_geometry()` → 애커만↔스키드 런타임 전환
   → ops 액션 `steer_mode_skid` → 콘솔 배지 → 젯슨 원클릭 배포 스크립트.
