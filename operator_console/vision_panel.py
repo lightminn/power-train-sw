@@ -77,6 +77,7 @@ class VisionPanel(Gtk.Box):
                           (self.camera_slot, self.top_slot, self.oblique_slot, panel)],
             map_state=maps.state, map_displayed=maps.displayed_count,
             map_rasters=[maps.top.raster is not None, maps.oblique.raster is not None],
+            map_messages=[maps.top.message, maps.oblique.message],
             map_timer=maps._timer is not None, map_renders=maps.worker.render_count,
             map_error=maps.worker.last_error,
             attitude_timer=panel._timer is not None, attitude_refreshes=panel.refresh_count,

@@ -17,6 +17,10 @@ from .terrain_map_panel import REASON_TEXT, note_and_legend
 from .vision_render import LINK_LOST_S, MapRenderWorker, MapSettings
 
 
+def _epoch(status):
+    return None if status is None else (status.session_key, status.map_epoch)
+
+
 class MapCanvas(Gtk.DrawingArea):
     def __init__(self):
         super().__init__()
@@ -158,6 +162,7 @@ class VisionMaps:
         self._drag = None
         self._serial = -1
         self.images = None
+        self._oblique_epoch = None  # map epoch of the Oblique raster on screen
         self.state = "WAITING"
         self.displayed_count = 0
         self._timer = None
@@ -270,13 +275,20 @@ class VisionMaps:
         if serial != self._serial and images is not None:
             self._serial, self.images = serial, images
             self.top.set_raster(images.top)
-            self.oblique.set_raster(images.oblique)
+            epoch = _epoch(images.status)
+            if images.oblique is not None:
+                self.oblique.set_raster(images.oblique)
+                self._oblique_epoch = epoch
+            elif epoch != self._oblique_epoch:
+                self.oblique.set_raster(None)
+            # Otherwise a link/pose gap keeps the last Oblique frame on screen;
+            # it is never re-projected, and the banner labels it as held.
             self.top_detail.set_text(images.top_note)
             self.oblique_detail.set_text(images.oblique_note)
             self.displayed_count += 1
         st = self.worker.latest_status()
         if st is not None and self.images is not None and self.images.status is not None and (
-                (st.session_key,st.map_epoch)!=(self.images.status.session_key,self.images.status.map_epoch)):
+                _epoch(st) != _epoch(self.images.status)):
             self.top.set_raster(None)
             self.oblique.set_raster(None)
         age = None if st is None or st.received_s is None else max(0,time.monotonic()-st.received_s)
@@ -298,11 +310,10 @@ class VisionMaps:
         if st is not None and st.status != "OK":
             status += " · " + REASON_TEXT.get(st.reason, st.reason or st.status)
         self.top.set_message("지도 처리 오류: "+error if error else status)
+        held = self.oblique.raster is not None and (
+            self.state != "LIVE" or st is None or st.pose is None or st.status != "OK")
         self.oblique.set_message("지도 처리 오류: "+error if error else
-            status + (" · 현재 투영 보류" if self.state != "LIVE" else ""))
-        if self.state != "LIVE" or st is None or st.pose is None or st.status!="OK":
-            # Withdraw the live pose projection immediately, before the next 2 Hz result.
-            self.oblique.set_raster(None)
+            status + (" · 직전 화면 유지" if held else ""))
         return True
 
     def close(self, *_):

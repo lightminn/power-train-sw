@@ -224,9 +224,23 @@ def test_vision_maps_live_stale_recovery_hidden_and_controls(console):
                 window.get_allocated_width(),window.get_allocated_height())
             pixbuf.savev(str(out/'vision-maps.png'),'png',[],[])
         assert pump_until(lambda:maps.state=='STALE',timeout_s=2)
-        assert maps.oblique.raster is None
+        held=maps.oblique.raster
+        assert held is not None and '직전 화면 유지' in maps.oblique.message
         assert maps.top.raster is not None
         assert '수신 끊김' in maps.top.message
+        assert maps._poll()
+        assert maps.oblique.raster is held  # a link gap never re-projects or blanks it
+        # A different map epoch is a different map: the held frame must go.
+        serial,images,_=maps.worker.latest()
+        status=replace(images.status,map_epoch=images.status.map_epoch+1)
+        latest,latest_status=maps.worker.latest,maps.worker.latest_status
+        maps.worker.latest=lambda:(serial+1,replace(images,oblique=None,status=status),None)
+        maps.worker.latest_status=lambda:status
+        try:
+            maps._poll()
+            assert maps.oblique.raster is None
+        finally:
+            maps.worker.latest,maps.worker.latest_status=latest,latest_status
         assert pump_until(live)
         old=maps.settings.scale
         maps._scroll(maps.top,SimpleNamespace(direction=Gdk.ScrollDirection.UP))

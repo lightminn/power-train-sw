@@ -240,7 +240,8 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
             phase = 'cut'
             pump_until(lambda: snapshot()['link']=='STALE' and snapshot()['map_state']=='STALE', 'vision disconnect/stale')
             p = snapshot()
-            assert not p['map_rasters'][1], 'vision stale oblique remains live'
+            assert p['map_rasters'][1], 'vision stale oblique blanked instead of held'
+            assert '직전 화면 유지' in p['map_messages'][1], 'vision held oblique not labelled'
             assert 'LIVE' not in p['wheel_states'], 'vision stale wheel values remain live'
             assert p['raw_pitch_state']=='STALE' and '오래됨' in p['raw_label'], 'vision stale raw pitch not hidden'
             assert p['wheel_labels']['front_left']==['오래됨','오래됨'], 'vision stale wheel labels'
