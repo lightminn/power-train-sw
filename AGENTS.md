@@ -108,6 +108,27 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
   인수(래치·복구 0)까지 통과했다. 실트래픽·D0·송신 순서 인수와 node15/16 적용은 남았다.
   motor_gui `odrive_can` 트랙과 `can_drive_test.py`는 setpoint를 300 ms 넘게 끊으면 만료된다.
   `docs/reports/2026-10-21-mks-can-patch4.md`를 따른다.
+- **node11/12 보드 flash 복구·patch4(2026-10-29)** — serial `335233643235` 보드는 CAN·USB 모두
+  무응답이었다. ROM DFU에서 application 섹터 1의 14바이트가 읽을 때마다 비트가 바뀌었고
+  NVM은 안정적이었다. 섹터 1 안의 차이만 허용하는 사전조건으로 application만 patch4로 다시
+  쓰고, 30회 읽기 대조·NVM 보존·부팅 뒤 USB 읽기 전용 인수(설정 로드, node 11/12, 양축
+  IDLE·오류0·캘리)를 통과했다. CAN에서 10모터가 모두 보인다. 섹터 1 재열화는 추적 대상이다.
+  같은 날 Jetson `can0` 송신 장애는 ADM3053 VIO 선이 3V3 대신 5V 핀에 꽂힌 배선 오류였고,
+  3V3으로 옮긴 뒤 ERROR-ACTIVE·송수신 오류 0으로 해결됐다.
+  `docs/reports/2026-10-29-mks-board1-flash-recovery.md`를 따른다.
+- **node15/16 patch4(2026-10-29)** — serial `337733643235` 보드도 patch3에서 patch4로 갱신해
+  구동 보드 세 장이 모두 patch4다. 원본 1 MiB·NVM 보존, 설정 307개 대조, 버스 연결 상태 USB
+  읽기 전용 인수를 통과했다. 세 보드 patch4 상태의 실트래픽·D0 만료·송신 순서 인수는 남았다.
+  `docs/reports/2026-10-29-mks-node15-16-patch4.md`를 따른다.
+- **현장 원격주행 안정화(2026-10-30, 통합 브랜치 `deploy/jetson-field-20261028`)** — 노트북
+  5 GHz 링크(ch36/80 MHz) 지연이 평균 113~427 ms·최대 1.3 s여서 0.2 s 입력 끊김 고정이 주행을
+  수 초마다 풀었다. 노트북을 로봇 AP 2.4 GHz `ZETIN-ROBOT`에 붙이면 평균 2 ms·최대 9 ms였다.
+  통합 compose는 입력 끊김 때 정지만 하고 고정하지 않으며(`latch_stale_input=false`,
+  `partial_close_violation=false`, `input_timeout_s=0.5`, 원격 E-stop 엣지는 그대로 고정),
+  L515 SRT 송출 기본값은 15 fps다(카메라·깊이·ROS 주기는 그대로). 젯슨 RTC는 백업이 없어
+  부팅마다 1970년이 되므로 `powertrain-clock` 서비스로 시각을 이어 간다. node15(뒤왼쪽)는 이날
+  `CURRENT_LIMIT_VIOLATION`이 세 번 났고 원인은 미확인이다.
+  `docs/reports/2026-10-30-field-teleop-stability.md`를 따른다.
 - **USB 스키드 조향 레이어**(2026-08-05 작성, **실기 주행 확인 후 2026-08-24 main 병합**) —
   `DriveOdriveUsbAxis` USB 다보드 구동 → `skid_geometry()` → 애커만↔스키드 런타임 전환
   → ops 액션 `steer_mode_skid` → 콘솔 배지 → 젯슨 원클릭 배포 스크립트.
@@ -313,8 +334,10 @@ python -m pytest motor_control -q
 - node13/14(2026-09-09)와 node15/16(2026-09-10)은 원본 **0.5.1 unreleased** 백업 후
   초기 patch1 이후 두 보드 모두 **0.5.1-dev·CAN patch3**으로 갱신했다(2026-09-10).
   **node13/14는 2026-10-21 patch4로 갱신**했다(USB 인수까지, 실트래픽 인수 전 —
-  `docs/reports/2026-10-21-mks-can-patch4.md`). node15/16은 patch3이다.
-  node11/12 firmware는 USB 미확인·패치 미적용이다. 도구·프로토콜 검토용
+  `docs/reports/2026-10-21-mks-can-patch4.md`).
+  **node11/12는 2026-10-29 flash 복구와 함께 patch4로 갱신**했다(USB 인수까지 —
+  `docs/reports/2026-10-29-mks-board1-flash-recovery.md`). **node15/16도 같은 날 patch4로
+  갱신**했다(`docs/reports/2026-10-29-mks-node15-16-patch4.md`). 도구·프로토콜 검토용
   fw-v0.5.6과 실물 firmware를 혼동하지 않는다. MKS 배포 소스와 설치 바이너리의 동일성은
   별도 확인 대상이다. 폐루프 진입 전
   `input_pos = 현재위치`(위치모드) 또는 `input_vel = 0`(속도모드)로 점프 방지.
