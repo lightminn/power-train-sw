@@ -1,0 +1,15 @@
+{
+  "step": "program",
+  "serial": "335233643235",
+  "started_at": "2026-10-29T02:30:56.120866+00:00",
+  "image_sha256": "15462f7f64745b03d1347fccda8091cd34b795056fefee64f87e794dc8a4b3fc",
+  "image_bytes": 251868,
+  "backup_nvm_sha256": "86b374e8a3416d6a949a90e1350a5beb11478f516f0781ca08f1ee31e37442e0",
+  "precondition_diff": [
+    "0x8006ff2",
+    "0x80078ab"
+  ],
+  "readback_unstable_addresses": [],
+  "program_verified": true,
+  "finished_at": "2026-10-29T02:32:41.510207+00:00"
+}

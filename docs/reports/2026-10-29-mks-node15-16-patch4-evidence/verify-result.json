@@ -1,0 +1,83 @@
+{
+  "serial": "337733643235",
+  "started_at": "2026-10-28T18:08:00.309424+00:00",
+  "operations": [],
+  "candidate_sha256": "15462f7f64745b03d1347fccda8091cd34b795056fefee64f87e794dc8a4b3fc",
+  "original_sha256": "c7654dd87e4b425e0e97aa13d7a8017ecd6575156af2ba1dffc9abdaf464fdd8",
+  "after_axes": [
+    {
+      "current_state": 1,
+      "requested_state": 0,
+      "error": 0,
+      "encoder.pos_estimate": 0.04987508803606033,
+      "encoder.vel_estimate": 0.0,
+      "can_recovery_latched": false,
+      "can_recovery_in_progress": false
+    },
+    {
+      "current_state": 1,
+      "requested_state": 0,
+      "error": 0,
+      "encoder.pos_estimate": -0.033222224563360214,
+      "encoder.vel_estimate": 0.0,
+      "can_recovery_latched": false,
+      "can_recovery_in_progress": false
+    }
+  ],
+  "after_config_diff": [],
+  "can_after_boot": {
+    "reliability_patch": 4,
+    "hal_error": 0,
+    "last_hal_error": 0,
+    "hal_error_history": 0,
+    "recovery_count": 0,
+    "recovery_failure_count": 0,
+    "tx_drop_count": 0,
+    "tx_error_count": 0,
+    "lec_error_count": 0,
+    "rx_overrun_count": 0,
+    "bus_off_count": 0,
+    "error_passive_count": 0,
+    "error_warning_count": 0
+  },
+  "can_after_3s": {
+    "reliability_patch": 4,
+    "hal_error": 0,
+    "last_hal_error": 0,
+    "hal_error_history": 0,
+    "recovery_count": 0,
+    "recovery_failure_count": 0,
+    "tx_drop_count": 0,
+    "tx_error_count": 0,
+    "lec_error_count": 0,
+    "rx_overrun_count": 0,
+    "bus_off_count": 0,
+    "error_passive_count": 0,
+    "error_warning_count": 0
+  },
+  "axes_after_3s": [
+    {
+      "current_state": 1,
+      "requested_state": 0,
+      "error": 0,
+      "encoder.pos_estimate": 0.04987508803606033,
+      "encoder.vel_estimate": 0.0,
+      "can_recovery_latched": false,
+      "can_recovery_in_progress": false
+    },
+    {
+      "current_state": 1,
+      "requested_state": 0,
+      "error": 0,
+      "encoder.pos_estimate": -0.033222224563360214,
+      "encoder.vel_estimate": 0.0,
+      "can_recovery_latched": false,
+      "can_recovery_in_progress": false
+    }
+  ],
+  "deadline_counts": [
+    0,
+    0
+  ],
+  "accepted": true
+}
