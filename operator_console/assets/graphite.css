@@ -60,18 +60,16 @@ window .system-metric, window .arm-ui .arm-metric, window .sensor-tile,
 window .mobility-faults, window .end-effector-popup-card {
   background: @surface_soft; background-image: none; border: 1px solid @border; border-radius: 10px;
 }
-window .mobility-control-button, window .arm-ui button,
+window .arm-ui button,
 window .ops-settings-panel button, window .end-effector-detail-button {
   background: @surface_raised; background-image: none; border: 1px solid @border;
   border-radius: 18px; box-shadow: none;
 }
 window .arm-ui button.arm-primary { background: @primary; border-color: @primary; }
 window .arm-ui button.arm-primary label { color: @app_bg; }
-window .mobility-control-button:not(:disabled) { background: @primary_soft; border-color: @success_border; }
-window .mobility-control-button:not(:disabled) label { color: @primary; }
-window .mobility-control-button:hover, window .arm-ui button:hover { background: @surface_selected; border-color: @primary; }
+window .arm-ui button:hover { background: @surface_selected; border-color: @primary; }
 window .arm-ui button.arm-primary:not(:disabled):hover { background: @primary_hover; border-color: @primary_hover; }
-window .mobility-control-button:disabled, window .arm-ui button:disabled,
+window .arm-ui button:disabled,
 window .arm-ui button.arm-primary:disabled, window .ops-settings-panel button:disabled {
   background: @surface_soft; border-color: @border; opacity: 1;
 }
@@ -89,6 +87,20 @@ window .arm-ui entry, window .arm-ui treeview, window .arm-ui list, window .arm-
 window .system-status-title, window .mobility-title, window .arm-ui .arm-page-title { color: @text_main; }
 window .system-section-title, window .mobility-panel-title, window .arm-ui .arm-card-title { color: @text_main; }
 window .power-soc-value, window .power-voltage-value { color: @primary; }
+window .system-section .soc-progress { margin: 12px 0 4px; min-height: 22px; }
+window .systems-scroll, window .systems-scroll viewport { background: @app_bg; }
+window .terrain-map-page { background: @app_bg; }
+window .terrain-map-title { color: @text_main; font-size: 23px; font-weight: 600; }
+window .terrain-map-stage { background: @video_stage; border: 1px solid @border; border-radius: 13px; padding: 5px; }
+window .terrain-map-page button { background: @surface_raised; background-image: none; color: @text_main; border: 1px solid @border; border-radius: 18px; box-shadow: none; min-height: 30px; padding: 3px 12px; }
+window .terrain-map-page button label { color: @text_main; }
+window .terrain-map-page button:checked { background: @primary; border-color: @primary; }
+window .terrain-map-page button:checked label { color: @app_bg; }
+window .terrain-map-page button:disabled { background: @surface_soft; border-color: @border; opacity: 1; }
+window .terrain-map-page button:disabled label { color: @text_muted; }
+window .vision-page .vision-card { background: @surface; border-color: @border; }
+window .vision-page .vision-card > border { border: 1px solid @border; border-radius: 13px; }
+window .vision-page paned > separator { background: @divider; min-width: 4px; min-height: 4px; }
 
 /* Keep small camera labels, selectors and state badges in the same palette. */
 window .main-camera-label { background: @video_overlay; border-color: @border_strong; }

@@ -14,6 +14,7 @@ gi.require_version("PangoCairo", "1.0")
 from gi.repository import Gdk, GLib, Gtk, Pango, PangoCairo  # noqa: E402
 
 from .terrain_map_panel import REASON_TEXT, note_and_legend
+from .themes import theme_tokens
 from .vision_render import LINK_LOST_S, MapRenderWorker, MapSettings
 
 
@@ -55,11 +56,14 @@ class MapCanvas(Gtk.DrawingArea):
 
     def _draw(self, _widget, cr):
         w, h = self.get_allocated_width(), self.get_allocated_height()
-        cr.set_source_rgb(.07, .085, .10)
+        color = theme_tokens()["video_stage"].lstrip("#")
+        cr.set_source_rgb(*(int(color[i:i+2], 16) / 255 for i in (0, 2, 4)))
         cr.paint()
         if self.surface is not None:
             cr.save()
-            cr.scale(w/self.raster.width, h/self.raster.height)
+            scale = min(w/self.raster.width, h/self.raster.height)
+            cr.translate((w-self.raster.width*scale)/2, (h-self.raster.height*scale)/2)
+            cr.scale(scale, scale)
             cr.set_source_surface(self.surface, 0, 0)
             cr.paint()
             cr.restore()
@@ -153,11 +157,12 @@ class VisionMaps:
         reset.set_tooltip_text("로버 따라가기와 기본 표시 범위로 복구")
         reset.connect("clicked", self.reset_view)
         self.controls.pack_start(reset, False, False, 0)
-        self.provenance = Gtk.Label(label=f"{criteria.version} · {criteria.profile} · {criteria.sha256[:8]}", xalign=0)
+        self.provenance = Gtk.Label(label=f"표시 기준 · {criteria.profile}", xalign=0)
         self.provenance.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
         self.provenance.set_max_width_chars(1)
         self.provenance.set_hexpand(True)
         self.provenance.set_tooltip_text(f"{criteria.path}\nSHA256 {criteria.sha256}\nTop은 송신 기준, Oblique는 표시 기준을 사용합니다.\n관측 기록이며 주행 허가가 아닙니다.")
+        self.provenance.get_style_context().add_class("vision-map-provenance")
         self.controls.pack_start(self.provenance, True, True, 0)
         self._drag = None
         self._serial = -1
@@ -166,6 +171,7 @@ class VisionMaps:
         self.state = "WAITING"
         self.displayed_count = 0
         self._timer = None
+        self._visibility_idle = None
         self._closed = False
         for canvas in (self.top, self.oblique):
             canvas.connect("size-allocate", self._resize)
@@ -177,14 +183,16 @@ class VisionMaps:
         self.top.connect("button-press-event", self._press)
         self.top.connect("button-release-event", lambda *_: setattr(self,"_drag",None) or True)
         self.top.connect("motion-notify-event", self._motion)
-        self.top_slot.connect("map", self._mapped)
-        self.top_slot.connect("unmap", self._unmapped)
+        for slot in (self.top_slot, self.oblique_slot):
+            slot.connect("map", self._queue_visibility)
+            slot.connect("unmap", self._queue_visibility)
         self.top_slot.connect("destroy", self.close)
 
     def _resize(self, *_):
+        width = max(self.top.get_allocated_width(), self.oblique.get_allocated_width())
+        height = max(self.top.get_allocated_height(), self.oblique.get_allocated_height())
         settings = replace(self.settings,
-            top_size=(self.top.get_allocated_width(),self.top.get_allocated_height()),
-            oblique_size=(self.oblique.get_allocated_width(),self.oblique.get_allocated_height()))
+            top_size=(width,height), oblique_size=(width,height))
         if settings != self.settings:
             self.settings = settings
             self.worker.configure(settings)
@@ -196,6 +204,18 @@ class VisionMaps:
         self.worker.configure(self.settings, active=True)
         if self._timer is None:
             self._timer = GLib.timeout_add(100, self._poll)
+
+    def _queue_visibility(self, *_):
+        if self._visibility_idle is None:
+            self._visibility_idle = GLib.idle_add(self._sync_visibility)
+
+    def _sync_visibility(self):
+        self._visibility_idle = None
+        if any(slot.get_mapped() for slot in (self.top_slot, self.oblique_slot)):
+            self._mapped()
+        else:
+            self._unmapped()
+        return False
 
     def _unmapped(self, *_):
         self.worker.configure(active=False)
@@ -262,10 +282,11 @@ class VisionMaps:
         if self._drag is None:
             return False
         x,y,(cx,cy) = self._drag
-        ratio = (self.top.raster.width/self.top.get_allocated_width()
+        scale = (min(self.top.get_allocated_width()/self.top.raster.width,
+                     self.top.get_allocated_height()/self.top.raster.height)
                  if self.top.raster is not None else 1.0)
         raster_height = self.top.raster.height if self.top.raster is not None else self.top.get_allocated_height()
-        mpp = max(.01,3.2/max(1,raster_height))*self.settings.scale*ratio
+        mpp = max(.01,3.2/max(1,raster_height))*self.settings.scale/max(scale, .001)
         self.settings = replace(self.settings, center=(cx-(event.x-x)*mpp,cy+(event.y-y)*mpp))
         self.worker.configure(self.settings)
         return True
@@ -285,6 +306,8 @@ class VisionMaps:
             # it is never re-projected, and the banner labels it as held.
             self.top_detail.set_text(images.top_note)
             self.oblique_detail.set_text(images.oblique_note)
+            self.top_detail.set_tooltip_text(images.top_note)
+            self.oblique_detail.set_tooltip_text(images.oblique_note)
             self.displayed_count += 1
         st = self.worker.latest_status()
         if st is not None and self.images is not None and self.images.status is not None and (
@@ -299,26 +322,31 @@ class VisionMaps:
             self.oblique.set_raster(None)
         self._set_state(self.state)
         if age is None:
-            status = f"지도 미수신 · UDP :{self.receiver.port}"
+            status = "지도 데이터 대기 중"
         elif age <= LINK_LOST_S:
-            # Packets arrive faster than the 2 Hz raster. Keep the live banner
-            # stable so its 100 ms health poll does not repaint both maps.
-            status = f"수신 중 · UDP :{self.receiver.port} · 0.5초 이내"
+            status = ""
         else:
             shown_age = math.floor(age * 2) / 2
-            status = f"수신 끊김 · 과거 관측 · UDP :{self.receiver.port} · {shown_age:.1f}초 전"
+            status = f"지도 갱신 중단 · {shown_age:.1f}초 전 관측"
         if st is not None and st.status != "OK":
-            status += " · " + REASON_TEXT.get(st.reason, st.reason or st.status)
+            reason = REASON_TEXT.get(st.reason, st.reason or st.status)
+            status = f"{status} · {reason}" if status else reason
+        if not status and self.top.raster is None:
+            status = "지도 생성 중"
         self.top.set_message("지도 처리 오류: "+error if error else status)
         held = self.oblique.raster is not None and (
             self.state != "LIVE" or st is None or st.pose is None or st.status != "OK")
         self.oblique.set_message("지도 처리 오류: "+error if error else
-            status + (" · 직전 화면 유지" if held else ""))
+            (status + " · 직전 화면 유지" if held and status else
+             "직전 관측 화면 유지" if held else status))
         return True
 
     def close(self, *_):
         if self._closed:
             return
         self._closed = True
+        if self._visibility_idle is not None:
+            GLib.source_remove(self._visibility_idle)
+            self._visibility_idle = None
         self._unmapped()
         self.worker.close()

@@ -2673,7 +2673,7 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
             panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
             panel.set_hexpand(True)
             panel.set_vexpand(False)
-            panel.set_size_request(-1, 250)
+            panel.set_size_request(-1, 285)
             _style(panel, "system-section", f"system-section-{key}")
             section_header = Gtk.Box(spacing=8)
             title_label = Gtk.Label(label=title_text)

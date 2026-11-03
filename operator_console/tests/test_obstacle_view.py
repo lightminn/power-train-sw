@@ -43,7 +43,7 @@ def parsed_chassis():
 
 @requires_gtk
 def test_obstacle_zones_replace_legacy_summary_when_live():
-    dashboard = MobilityDashboard(lambda _action: None)
+    dashboard = MobilityDashboard()
     obstacle = parse_obstacle_telemetry(
         json.dumps(obstacle_payload()).encode(), received_monotonic_s=10.0,
     )
@@ -68,7 +68,7 @@ def test_failure_is_never_presented_as_no_obstacle(state, expected):
         json.dumps(obstacle_payload(state, zones=zones)).encode(),
         received_monotonic_s=10.0,
     )
-    dashboard = MobilityDashboard(lambda _action: None)
+    dashboard = MobilityDashboard()
     dashboard.update(parsed_chassis(), ops_state=None, obstacle=obstacle, now_s=10.1)
     assert expected in dashboard._terrain[1]["path"].get_text()
     assert "인지 불가" in dashboard._terrain[1]["geometry"].get_text()
@@ -79,7 +79,7 @@ def test_stale_result_clears_previous_distance():
     obstacle = parse_obstacle_telemetry(
         json.dumps(obstacle_payload()).encode(), received_monotonic_s=10.0,
     )
-    dashboard = MobilityDashboard(lambda _action: None)
+    dashboard = MobilityDashboard()
     dashboard.update(parsed_chassis(), ops_state=None, obstacle=obstacle, now_s=11.0)
     labels = dashboard._terrain[1]
     assert labels["path"].get_text() == "장애물 인지 갱신 지연"

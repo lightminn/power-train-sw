@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 import time
 from pathlib import Path
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 
 import gi
 
@@ -572,13 +572,12 @@ class RoverCoordinationGraphic(Gtk.DrawingArea):
 
 
 class MobilityDashboard(Gtk.Box):
-    """Read-only live surface plus shortcuts into the existing safe ops flow."""
+    """Read-only live surface for six-wheel coordination."""
 
-    def __init__(self, action_sink: Callable[[str], None], *, input_source="LIVE") -> None:
+    def __init__(self, *, input_source="LIVE") -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.set_border_width(18)
         _style(self, "mobility-dashboard")
-        self._action_sink = action_sink
         self._input_source = input_source
         provider = Gtk.CssProvider()
         provider.load_from_path(str(Path(__file__).parent / "assets" / "mobility-fit.css"))
@@ -702,15 +701,13 @@ class MobilityDashboard(Gtk.Box):
         lower.set_column_homogeneous(True)
         motors = self._build_motor_card()
         faults = self._build_fault_card()
-        controls = self._build_control_card()
         status_column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         status_column.pack_start(summary, False, False, 0)
         status_column.pack_start(faults, True, True, 0)
         lower.attach(motors, 0, 0, 2, 1)
         lower.attach(status_column, 2, 0, 1, 1)
-        lower.attach(controls, 0, 1, 3, 1)
         self._lower_grid = lower
-        self._lower_cards = (motors, status_column, controls)
+        self._lower_cards = (motors, status_column)
         self._compact_layout: bool | None = None
         self.pack_start(lower, True, True, 0)
         self.connect("size-allocate", self._on_size_allocated)
@@ -730,19 +727,17 @@ class MobilityDashboard(Gtk.Box):
         if compact:
             for index, card in enumerate(self._summary_cards):
                 self._summary_grid.attach(card, index % 2, index // 2, 1, 1)
-            motors, faults, controls = self._lower_cards
+            motors, faults = self._lower_cards
             self._lower_grid.set_column_homogeneous(False)
             self._lower_grid.attach(motors, 0, 0, 1, 1)
             self._lower_grid.attach(faults, 0, 1, 1, 1)
-            self._lower_grid.attach(controls, 0, 2, 1, 1)
         else:
             for index, card in enumerate(self._summary_cards):
                 self._summary_grid.attach(card, index % 2, index // 2, 1, 1)
-            motors, faults, controls = self._lower_cards
+            motors, faults = self._lower_cards
             self._lower_grid.set_column_homogeneous(True)
             self._lower_grid.attach(motors, 0, 0, 2, 1)
             self._lower_grid.attach(faults, 2, 0, 1, 1)
-            self._lower_grid.attach(controls, 0, 1, 3, 1)
         self._summary_grid.show_all()
         self._lower_grid.show_all()
 
@@ -862,49 +857,16 @@ class MobilityDashboard(Gtk.Box):
         self._faults.set_line_wrap(True)
         self._faults.set_selectable(True)
         _style(self._faults, "mobility-faults")
-        card.pack_start(heading, False, False, 0)
+        heading_row = Gtk.Box(spacing=8)
+        heading_row.pack_start(heading, True, True, 0)
+        self._authority = Gtk.Label(label="권한 · 정보 없음")
+        self._authority.set_ellipsize(Pango.EllipsizeMode.END)
+        _style(self._authority, "role-sub")
+        heading_row.pack_end(self._authority, False, False, 0)
+        card.pack_start(heading_row, False, False, 0)
         card.pack_start(self._fault_summary, False, False, 0)
         card.pack_start(self._recovery_hint, False, False, 0)
         card.pack_start(self._faults, True, True, 0)
-        return card
-
-    def _build_control_card(self) -> Gtk.Box:
-        card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        _style(card, "system-card", "mobility-card", "mobility-control-card")
-        top = Gtk.Box(spacing=10)
-        title = Gtk.Label(label="시연 조작")
-        title.set_xalign(0.0)
-        _style(title, "mobility-panel-title")
-        self._authority = Gtk.Label(label="권한 · 정보 없음")
-        _style(self._authority, "role-sub")
-        top.pack_start(title, True, True, 0)
-        top.pack_end(self._authority, False, False, 0)
-        card.pack_start(top, False, False, 0)
-        buttons = Gtk.Box(spacing=8)
-        for action, text in (
-            ("authority_manual", "수동 운용"),
-            ("authority_auto", "협조구동"),
-            ("authority_idle", "안전 대기"),
-            ("steer_mode_skid", "조향 모드"),
-            ("__settings__", "복구 · 설정"),
-            ("__terrain_preview__", "지형 보기"),
-        ):
-            button = Gtk.Button(label=text)
-            button.set_hexpand(True)
-            button.connect(
-                "clicked", lambda _button, selected=action: self._action_sink(selected)
-            )
-            _style(button, "mobility-control-button")
-            buttons.pack_start(button, True, True, 0)
-        card.pack_start(buttons, True, True, 0)
-        note = Gtk.Label(
-            label=("속도·방향은 승인된 DualSense 경로만 사용합니다. "
-                   "모든 모드 전환은 토큰 인증·상태 재검증·확인을 거칩니다.")
-        )
-        note.set_xalign(0.0)
-        note.set_line_wrap(True)
-        _style(note, "muted")
-        card.set_tooltip_text(note.get_text())
         return card
 
     @staticmethod

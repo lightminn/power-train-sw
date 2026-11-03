@@ -140,8 +140,7 @@ def _update_competition_dashboard(
 def test_mobility_dashboard_shows_terrain_attitude_motor_and_fsms():
     payload = _chassis_payload(1)
     snapshot = _parsed(parse_telemetry, payload)
-    actions = []
-    dashboard = MobilityDashboard(actions.append)
+    dashboard = MobilityDashboard()
 
     dashboard.update(
         snapshot,
@@ -166,7 +165,7 @@ def test_mobility_dashboard_shows_terrain_attitude_motor_and_fsms():
 @requires_gtk
 def test_mobility_dashboard_hides_stale_measurements_and_holds_operation():
     payload = _chassis_payload(1)
-    dashboard = MobilityDashboard(lambda _action: None)
+    dashboard = MobilityDashboard()
 
     dashboard.update(
         _parsed(parse_telemetry, payload, received_monotonic_s=8.0),
@@ -238,7 +237,7 @@ def test_rover_graphic_orbits_360_and_selects_known_wheels_only():
 
 @requires_gtk
 def test_mobility_dashboard_reflows_cards_instead_of_squeezing_them():
-    dashboard = MobilityDashboard(lambda _action: None)
+    dashboard = MobilityDashboard()
 
     dashboard._on_size_allocated(dashboard, type("Allocation", (), {"width": 900})())
     assert dashboard._summary_grid.child_get_property(

@@ -191,7 +191,8 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
             window._stack.set_visible_child_name('vision')
             pump_until(lambda: panel.view is not None and maps._timer is not None, 'vision creation')
             p = snapshot()
-            assert all(p['slots_mapped']), 'vision four slots not mapped'
+            assert (p['slots_mapped'][0] and p['slots_mapped'][3]
+                    and sum(p['slots_mapped'][1:3]) == 1), 'vision camera/map/attitude layout not mapped'
             assert p['map_state']=='WAITING' and p['link']=='WAITING', 'vision initial missing data state'
             assert p['raw_pitch'] is None and p['joint_values']==[None]*4, 'vision missing values fabricated'
             assert p['joints_label'].count('미수신')==4, 'vision missing encoders not labelled'
@@ -217,6 +218,17 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
             assert p['joint_values']==[None]*4 and p['joint_states']==['WAITING']*4, 'vision encoder missing values'
             assert window._terrain_canvas.view().obstacles, 'vision terrain overlay not aligned/live'
             record('live')
+            window._vision_panel.map_settings.set_active(True)
+            pump_until(lambda: maps.controls.get_mapped(), 'map settings opened')
+            window._vision_panel.map_settings.set_active(False)
+            pump_until(lambda: not maps.controls.get_mapped(), 'map settings closed')
+            window._vision_panel.map_stack.set_visible_child_name('oblique')
+            pump_until(lambda: window._vision_panel.oblique_slot.get_mapped()
+                       and maps._timer is not None and maps.oblique.raster is not None,
+                       'oblique view switch')
+            window._vision_panel.map_stack.set_visible_child_name('top')
+            pump_until(lambda: window._vision_panel.top_slot.get_mapped()
+                       and maps._timer is not None, 'top view switch')
             window._vision_panel.show_terrain.set_active(False)
             assert not window._show_terrain.get_active() and not window._terrain_canvas._enabled
             window._show_terrain.set_active(True)

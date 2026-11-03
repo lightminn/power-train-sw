@@ -100,9 +100,8 @@ def test_vision_roundtrip_keeps_single_decoder_and_restores_layout(console, monk
             user_initiated=True,
         )
         assert pump_until(lambda: window._l515._last_frame_monotonic > before)
-        assert all(slot.get_mapped() for slot in (
-            page.camera_slot, page.top_slot, page.oblique_slot, page.attitude_slot,
-        ))
+        assert page.camera_slot.get_mapped() and page.attitude_slot.get_mapped()
+        assert page.top_slot.get_mapped() != page.oblique_slot.get_mapped()
         before = window._l515._last_frame_monotonic
         # Leaving for a third page must restore mission even before returning to it.
         window._stack.set_visible_child_name("systems")
@@ -124,7 +123,7 @@ def test_vision_roundtrip_keeps_single_decoder_and_restores_layout(console, monk
 def test_vision_overlay_toggle_shares_mission_state(console):
     window = console
     page = window._vision_panel
-    window._open_mobility_action("__terrain_preview__")
+    window._stack.set_visible_child_name("vision")
     assert window._stack.get_visible_child_name() == "vision"
     assert not hasattr(window, "_lidar_preview_window")
     assert not hasattr(window, "_obstacle_receiver")
@@ -227,7 +226,7 @@ def test_vision_maps_live_stale_recovery_hidden_and_controls(console):
         held=maps.oblique.raster
         assert held is not None and '직전 화면 유지' in maps.oblique.message
         assert maps.top.raster is not None
-        assert '수신 끊김' in maps.top.message
+        assert '지도 갱신 중단' in maps.top.message
         assert maps._poll()
         assert maps.oblique.raster is held  # a link gap never re-projects or blanks it
         # A different map epoch is a different map: the held frame must go.
