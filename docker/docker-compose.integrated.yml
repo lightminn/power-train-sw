@@ -254,3 +254,23 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+
+  # Field stopgap (2026-11-03): clear MOTOR_FAILED (e.g. node15 CURRENT_LIMIT_VIOLATION)
+  # on IDLE drive axes so the operator can start driving again. Never re-arms and never
+  # clears ESTOP_REQUESTED or the CAN recovery latch. Opt-in profile, not in robot-start.
+  powertrain_odrive_autoclear:
+    healthcheck:
+      disable: true
+    profiles: [odrive-autoclear]
+    image: powertrain-sw:ros
+    container_name: powertrain_odrive_autoclear
+    network_mode: host
+    environment:
+      - PYTHONPATH=/workspace/motor_control
+    volumes:
+      - ../:/workspace:ro
+    working_dir: /workspace
+    entrypoint: [/bin/bash, -lc]
+    command:
+      - exec python3 -u -m drive.bl70200.odrive_auto_clear --channel can0
+    restart: unless-stopped
