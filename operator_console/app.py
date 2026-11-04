@@ -4757,8 +4757,7 @@ class OperatorConsole(Gtk.Window):
         _style(arm_pose_title, "arm-card-title")
         arm_pose_card.pack_start(arm_pose_title, False, False, 0)
         arm_pose_card.pack_start(self._arm_pose, True, True, 0)
-        self._arm_manual_tab._page.pack_start(arm_pose_card, False, False, 0)
-        self._arm_manual_tab._page.reorder_child(arm_pose_card, 2)
+        self._arm_manual_tab.pose_slot.pack_start(arm_pose_card, True, True, 0)
         def hide_arm_copy(widget):
             if isinstance(widget, Gtk.Label) and any(
                 widget.get_style_context().has_class(name)

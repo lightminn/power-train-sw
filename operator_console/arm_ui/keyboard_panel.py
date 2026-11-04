@@ -212,10 +212,11 @@ class KeyboardTeleopPanel:
         )
         shortcuts.add(shortcut_box)
         card.pack(shortcuts)
-        self.box.pack_start(card.box, False, False, 0)
-
+        # The teleop and slot-exchange cards are placed by the manual tab's
+        # workspace row; ``box`` keeps the pose list.
+        self.teleop_card = card.box
         self.box.pack_start(self._build_pose_card(), False, False, 0)
-        self.box.pack_start(self._build_exchange_card(), False, False, 0)
+        self.exchange_card = self._build_exchange_card()
 
     def _bench_switches(self, set_flag: Callable[[str, bool], None]) -> Gtk.Widget:
         """Bench-only switches: joint limits start ON, current trip starts OFF
