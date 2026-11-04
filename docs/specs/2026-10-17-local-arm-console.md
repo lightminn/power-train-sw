@@ -129,6 +129,12 @@ Qt `robot_manual_gui`는 이번 조작 화면으로 사용하지 않는다.
 3. **`/sys/bus/usb-serial/devices/ttyUSB0/latency_timer`를 1로** 쓴다(재연결·재부팅 시 16으로 복귀).
 4. 브리지(`--params-file /session/session.yaml`, `PYTHONUNBUFFERED=1`) → ops 브로커
    (`port:=29001`, `ARM_LOCAL_ALL_AXES=1`; 19001은 운영 스택이 사용) → `arm_console_bridge`.
+   **한 번에 띄우기(2026-11-04):** 노트북에서
+   `ssh -Y -C -o ServerAliveInterval=5 zetin@jetson-orin.local '~/power-train-sw-pr12/scripts/start_jetson_arm_bench.sh'`.
+   꺼진 컨테이너·브리지·브로커·미러를 올린 뒤 콘솔을 실행한다(4~5단계). 브리지는 기동 시 한 번만
+   서보를 찾으므로, 로봇 전원 재투입 직후처럼 서보보다 먼저 떠서 `startup torque read failed`가
+   남은 브리지는 SIGKILL로 교체해 최대 5회 재시도한다. 콘솔을 닫아도 브리지는 유지한다
+   (정상 종료는 팔 토크를 끈다).
 5. 콘솔은 Jetson 호스트에서 `ssh -Y -C -o ServerAliveInterval=5` 로 띄운다.
    `ARM_LOCAL_ALL_AXES=1 ARM_LOCAL_WRIST_IGNORE_LOCK=1`, `--ops-port 29001`.
    Jetson 호스트에 gst-libav가 없으면 이미지의 `libgstlibav.so`와 누락 라이브러리를
