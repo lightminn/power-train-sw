@@ -26,7 +26,8 @@ def bridge():
                and n.name == 'MoveItDynamixelBridge')
     names = {'_local_pose_command', '_local_freedrive', '_local_pose_watch',
              '_hold_local_pose', '_restore_jog_profile', '_pose_profile',
-             '_require_manual_lock_arm_stopped', '_toolchanger_command',
+             '_require_manual_lock_arm_stopped', '_require_no_manual_arm_command',
+             '_toolchanger_command',
              '_toolchanger_command_locked', '_toolchanger_snapshot', '_local_wrist_command',
              '_hold_local_wrist', '_wrist_lock_ok', '_local_wrist_deadman'}
     methods = [n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name in names]

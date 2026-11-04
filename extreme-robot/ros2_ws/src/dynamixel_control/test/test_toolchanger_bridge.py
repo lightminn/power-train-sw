@@ -75,27 +75,29 @@ def test_unknown_change_target_is_rejected_without_lock_write():
     assert 'LOCKED or UNLOCKED' in replies[-1]['command_error']
 
 
-def test_opt_in_full_robot_manual_lock_requires_stationary_arm():
+def test_opt_in_full_robot_manual_lock_accepts_any_arm_position():
     bridge, io, replies = _bridge('OFF', scope='FULL_ROBOT')
     bridge.manual_coupling_lock = True
-    checked = []
-    bridge._require_manual_lock_arm_stopped = lambda: checked.append(True)
+    bridge._require_no_manual_arm_command = (
+        lambda: MoveItDynamixelBridge._require_no_manual_arm_command(bridge))
+    def stationary_gate():
+        raise AssertionError('manual lock must not require a settled arm')
+    bridge._require_manual_lock_arm_stopped = stationary_gate
     bridge._poll_toolchanger = lambda: None
     _send(bridge, {'command': 'CHANGE', 'to': 'UNLOCKED', 'direction': -1})
-    assert checked == [True]
     assert bridge.lock_sequence.state == 'MOVING'
 
 
-def test_moving_arm_rejects_lock_without_motor_write():
+def test_active_arm_command_rejects_lock_without_motor_write():
     bridge, io, replies = _bridge('OFF', scope='FULL_ROBOT')
     bridge.manual_coupling_lock = True
-    def reject():
-        raise RuntimeError('arm must be stationary')
-    bridge._require_manual_lock_arm_stopped = reject
+    bridge._wrist_jog = SimpleNamespace(deadline=1.0)
+    bridge._require_no_manual_arm_command = (
+        lambda: MoveItDynamixelBridge._require_no_manual_arm_command(bridge))
     before = list(io.writes)
     _send(bridge, {'command': 'CHANGE', 'to': 'UNLOCKED', 'direction': -1})
     assert io.writes == before
-    assert 'stationary' in replies[-1]['command_error']
+    assert 'jog' in replies[-1]['command_error']
 
 
 def test_stationary_gate_reads_live_arm_velocity_error_and_pending_goal():
@@ -105,6 +107,8 @@ def test_stationary_gate_reads_live_arm_velocity_error_and_pending_goal():
     bridge = SimpleNamespace(mock_mode=False, active_ids={16},
                              _bus_lock=threading.RLock(),
                              _read_register=lambda motor, address, *args, **kwargs: registers[address])
+    bridge._require_no_manual_arm_command = (
+        lambda: MoveItDynamixelBridge._require_no_manual_arm_command(bridge))
     check = lambda: MoveItDynamixelBridge._require_manual_lock_arm_stopped(bridge)
     check()
     for address, value in ((70, 32), (128, 1), (116, 2538)):

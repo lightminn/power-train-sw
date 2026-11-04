@@ -3386,12 +3386,16 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                     or not self._wrist_lock_ok()):
                 self._hold_local_wrist()
 
-    def _require_manual_lock_arm_stopped(self):
+    def _require_no_manual_arm_command(self):
         """Manual coupling changes must not overlap an outstanding arm move."""
         if getattr(self, '_pose_move', None) is not None:
             raise LockError('wait for pose move to finish before moving the coupling lock')
         if getattr(getattr(self, '_wrist_jog', None), 'deadline', None) is not None:
             raise LockError('release wrist jog before moving the coupling lock')
+
+    def _require_manual_lock_arm_stopped(self):
+        """Tool-change paths also need the arm settled at its commanded goal."""
+        self._require_no_manual_arm_command()
         if self.mock_mode:
             return
         arm_ids = ARM_IDS.intersection(self.active_ids)
@@ -3439,7 +3443,9 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                         or self.control_mode != 'MANUAL'):
                     raise LockError('lock commands require writable MANUAL END_EFFECTOR_ONLY')
                 if self.control_scope == 'FULL_ROBOT':
-                    self._require_manual_lock_arm_stopped()
+                    # Maintenance: manual lock commands are accepted at any arm
+                    # position; only an active jog or pose move still blocks them.
+                    self._require_no_manual_arm_command()
                 if command == 'SET_ZERO':
                     self.toolchanger.capture_zero(request.get('state'))
                     points_file = self.get_parameter('toolchanger_points_file').value
