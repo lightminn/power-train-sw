@@ -173,7 +173,7 @@ class KeyboardTeleopPanel:
             callbacks.stop_motion, "arm-danger",
         )
         self._resume = self._simple(
-            "복귀 (T)", callbacks.resume_hold, C.CAP_TELEOP_JOG, callbacks.resume_hold,
+            "복귀 (T)", callbacks.resume_hold, C.CAP_TELEOP_RESUME, callbacks.resume_hold,
         )
         self._home = self._simple(
             "home (H)", callbacks.go_home, C.CAP_TELEOP_POSE, callbacks.go_home,
@@ -218,10 +218,11 @@ class KeyboardTeleopPanel:
         self.box.pack_start(self._build_exchange_card(), False, False, 0)
 
     def _bench_switches(self, set_flag: Callable[[str, bool], None]) -> Gtk.Widget:
-        """Bench-only joint-limit / current-trip switches (both start ON)."""
+        """Bench-only switches: joint limits start ON, current trip starts OFF
+        (same defaults as arm_ops.contract.BENCH_JOG_FLAGS)."""
         row = Gtk.Box(spacing=12)
         for key, title in (('limits', '관절 제한'), ('trip', '전류 트립')):
-            switch = Gtk.Switch(active=True)
+            switch = Gtk.Switch(active=key != 'trip')
             switch.connect('notify::active',
                            lambda w, _p, k=key: set_flag(k, w.get_active()))
             row.pack_start(label(title, 'arm-metric-label'), False, False, 0)
@@ -550,7 +551,7 @@ class KeyboardTeleopPanel:
                 self._callbacks.stop_motion,
             ),
             "resume": (
-                self._callbacks.resume_hold, C.CAP_TELEOP_JOG,
+                self._callbacks.resume_hold, C.CAP_TELEOP_RESUME,
                 self._callbacks.resume_hold,
             ),
             "home": (

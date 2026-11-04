@@ -91,3 +91,16 @@ def test_local_wrist_preserves_axis_five_identity_and_requires_live_lock():
     assert not state.block_reasons
     snapshot.tool_runtime['coupling_lock']['state'] = 'UNLOCKED'
     assert C.CAP_TELEOP_JOG not in binding.state(snapshot, ops_link_ready=True).capabilities
+
+
+def test_resume_stays_available_while_the_e_stop_latch_blocks_jog():
+    from dataclasses import replace
+    snapshot = replace(_snapshot(), joint_names=('arm_joint_5',))
+    snapshot.tool_runtime['tool'].update(manual_coupling_lock=True,
+        control_scope='FULL_ROBOT', read_only=False, emergency_stop=True,
+        motion_allowed=False)
+    snapshot.tool_runtime.update(coupling_lock=dict(enabled=True, state='LOCKED', torque=1),
+                                 coupling_lock_age_s=0)
+    state = ArmUiTelemetryBinding().state(snapshot, ops_link_ready=True)
+    assert C.CAP_TELEOP_JOG not in state.capabilities
+    assert C.CAP_TELEOP_RESUME in state.capabilities

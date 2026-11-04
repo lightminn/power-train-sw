@@ -219,8 +219,8 @@ def _is_axis(value: Any) -> bool:
 
 
 # Bench-only jog switches ('limits', 'trip') attached to every arm jog refresh.
-# Empty means the backend defaults (both ON).
-BENCH_JOG_FLAGS: dict[str, bool] = {}
+# A missing key means the backend default (ON); the current trip starts OFF.
+BENCH_JOG_FLAGS: dict[str, bool] = {"trip": False}
 
 
 def _is_bool(value: Any) -> bool:

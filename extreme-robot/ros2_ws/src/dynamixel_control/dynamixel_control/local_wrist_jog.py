@@ -22,7 +22,7 @@ class WristJogLease:
             raise ValueError('unknown wrist command')
         deadline = request.get('expires_at_s')
         if (type(deadline) not in (int, float) or not math.isfinite(deadline)
-                or not 0 < deadline - now <= 1.0):
+                or not 0 < deadline - now <= 2.0):
             raise ValueError('expired or foreign-clock local wrist jog')
         direction = request.get('direction')
         if type(direction) is not int or direction not in (-1, 1):

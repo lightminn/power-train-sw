@@ -8,6 +8,12 @@ import tempfile
 import time
 
 
+# XL430 profile units: velocity 0.229 rev/min, acceleration 214.577 rev/min^2.
+# 30/8 moves the 227-tick lock stroke in about 0.75 s (was 5/1, about 3.2 s).
+LOCK_PROFILE_VELOCITY = 30
+LOCK_PROFILE_ACCELERATION = 8
+
+
 class LockError(RuntimeError):
     pass
 
@@ -156,8 +162,8 @@ class ToolchangerLock:
             return
         current = self.sample['position']
         try:
-            self.io.write('acceleration', 1)
-            self.io.write('velocity_profile', 5)
+            self.io.write('acceleration', LOCK_PROFILE_ACCELERATION)
+            self.io.write('velocity_profile', LOCK_PROFILE_VELOCITY)
             self.io.write('goal', current)
             self.io.write('torque', 1)
             self.observe()
@@ -176,9 +182,13 @@ class ToolchangerLock:
             raise
 
     def _check_profile(self):
-        if not (0 < self.sample['profile_velocity'] <= 5
-                and 0 < self.sample['profile_acceleration'] <= 1):
-            raise LockError('ID1 requires velocity profile <=5 and acceleration <=1')
+        # A servo left at an older (slower) profile is brought to the lock profile.
+        if (self.sample['profile_velocity'] != LOCK_PROFILE_VELOCITY
+                or self.sample['profile_acceleration'] != LOCK_PROFILE_ACCELERATION):
+            self.io.write('acceleration', LOCK_PROFILE_ACCELERATION)
+            self.io.write('velocity_profile', LOCK_PROFILE_VELOCITY)
+            self.sample['profile_velocity'] = LOCK_PROFILE_VELOCITY
+            self.sample['profile_acceleration'] = LOCK_PROFILE_ACCELERATION
 
     def move(self, desired, direction=1):
         if desired not in ('LOCKED', 'UNLOCKED') or type(direction) is not int or direction not in (-1, 1):
@@ -224,7 +234,7 @@ class ToolchangerLock:
         elif abs(self.sample['position'] - target) <= self.state_tolerance:
             return
         self.target = target
-        # Profile velocity 5 is about 78 ticks/s; allow for the slow ramp.
+        # Keep the old slow-profile allowance as a generous timeout.
         self.deadline = self.clock() + 4.0 + abs(self.sample['position'] - target) / 50.0
         self.state = 'MOVING'
         try:

@@ -294,3 +294,15 @@ def test_pose_and_lock_callbacks_take_turns_without_stopping_normal_motion():
     assert b.toolchanger.target is None and b.toolchanger.state == 'UNLOCKED'
     send(b, 'HOME')
     assert b._pose_move is not None
+
+
+def test_resume_clears_the_e_stop_latch_and_reenables_the_wrist():
+    b = bridge()
+    b.manual_coupling_lock, b.local_jog_all_axes = True, True
+    b.local_wrist_lock_gate = False
+    b.emergency_stop_active = True
+    b._enable_torque = lambda dxl_id, joint: True
+    b._local_wrist_command(SimpleNamespace(data=json.dumps({'command': 'ENABLE'})))
+    assert b.emergency_stop_active is False
+    assert 16 in b.torque_enabled_ids
+    assert not b.warnings

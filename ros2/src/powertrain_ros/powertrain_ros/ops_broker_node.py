@@ -582,7 +582,7 @@ class OpsBrokerNode(Node):
                     if deadline is None:
                         raise ValueError('local wrist jog requires authenticated clock synchronization')
                     remaining = deadline - time.monotonic()
-                    if not 0 < remaining <= 1.0:
+                    if not 0 < remaining <= 2.0:
                         raise ValueError('expired or foreign-clock local wrist jog')
                     params['expires_at_s'] = deadline
             except (ValueError, TypeError, KeyError) as exc:

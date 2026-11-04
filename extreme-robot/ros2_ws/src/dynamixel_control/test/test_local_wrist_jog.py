@@ -20,7 +20,7 @@ def test_deadman_expires_and_stop_invalidates_older_jogs():
 
 @pytest.mark.parametrize('changes', [dict(axis=1), dict(axis=True),
     dict(direction=True), dict(direction=0), dict(sequence=-1),
-    dict(expires_at_s=9), dict(expires_at_s=12), dict(expires_at_s=float('nan'))])
+    dict(expires_at_s=9), dict(expires_at_s=12.5), dict(expires_at_s=float("nan"))])
 def test_invalid_or_stale_jog_does_not_create_lease(changes):
     lease = WristJogLease()
     with pytest.raises(ValueError):

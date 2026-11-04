@@ -71,6 +71,7 @@ CAP_TOOL_CHANGE = "tool_change"
 CAP_COUPLING_LOCK = "coupling_lock"
 CAP_CONTROL_MODE = "control_mode"
 CAP_TELEOP_JOG = "teleop_jog"
+CAP_TELEOP_RESUME = "teleop_resume"
 CAP_TELEOP_POSE = "teleop_pose"
 CAP_GRIPPER_COMMAND = "gripper_command"
 CAP_TOOL_JOG = 'tool_jog'
@@ -87,6 +88,7 @@ CAP_DUAL_TOOL_CALIBRATION = "dual_tool_calibration"
 MANUAL_GRANT_REQUIRED = frozenset({
     CAP_TOOL_JOG, CAP_INDIVIDUAL_TARGETS,
     CAP_TELEOP_JOG,
+    CAP_TELEOP_RESUME,
     CAP_TELEOP_POSE,
     CAP_GRIPPER_COMMAND,
     CAP_DUAL_SYNC,

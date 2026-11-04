@@ -7,6 +7,10 @@ import time
 
 from .arm_ui import contracts as C
 
+# Feeds older than this are STALE and block commands (stops excepted).
+# 3 s instead of 1 s so short telemetry hiccups do not freeze an attended arm.
+LIVE_AGE_S = 3.0
+
 
 _TOOL_KINDS = {
     "spur_1motor_gripper": C.TOOL_SINGLE_GRIPPER,
@@ -38,10 +42,10 @@ class ArmUiTelemetryBinding:
         if snapshot is None:
             return C.default_state()
         receive_age = max(0.0, time.monotonic() - snapshot.received_monotonic_s)
-        link_state = C.LINK_LIVE if receive_age <= 1.0 else C.LINK_STALE
+        link_state = C.LINK_LIVE if receive_age <= LIVE_AGE_S else C.LINK_STALE
         runtime = snapshot.tool_runtime or {}
         tool_age = self._age(snapshot, runtime.get("source_age_s"))
-        tool = runtime.get("tool") if tool_age is not None and tool_age <= 1.0 else None
+        tool = runtime.get("tool") if tool_age is not None and tool_age <= LIVE_AGE_S else None
         if tool is None:
             identity = C.ToolIdentity(generation=self._tool_generation)
             tool_key = None
@@ -94,7 +98,7 @@ class ArmUiTelemetryBinding:
 
         joints_age = self._age(snapshot, snapshot.joints_age_s)
         axes = ()
-        if joints_age is not None and joints_age <= 1.0:
+        if joints_age is not None and joints_age <= LIVE_AGE_S:
             axes = tuple(
                 C.AxisState(index=(int(name.rsplit('_', 1)[1])
                                    if name in {f'arm_joint_{i}' for i in range(1, 6)}
@@ -110,11 +114,11 @@ class ArmUiTelemetryBinding:
         def runtime_state(key):
             value = arm_runtime.get(key)
             age = self._age(snapshot, runtime_ages.get(key))
-            return C.FsmState(raw=value) if value and age is not None and age <= 1.0 else C.FsmState()
+            return C.FsmState(raw=value) if value and age is not None and age <= LIVE_AGE_S else C.FsmState()
 
         manual = arm_runtime.get("control_mode")
         manual_age = self._age(snapshot, runtime_ages.get("control_mode"))
-        granted = manual == "MANUAL" and manual_age is not None and manual_age <= 1.0
+        granted = manual == "MANUAL" and manual_age is not None and manual_age <= LIVE_AGE_S
         capabilities = set()
         if link_state == C.LINK_LIVE and ops_link_ready:
             capabilities.add(C.CAP_CONTROL_MODE)
@@ -168,7 +172,7 @@ class ArmUiTelemetryBinding:
                 ))
         lock_age = self._age(snapshot, runtime.get("coupling_lock_age_s"))
         lock = (runtime.get("coupling_lock") or {}
-                if lock_age is not None and lock_age <= 1.0 else {})
+                if lock_age is not None and lock_age <= LIVE_AGE_S else {})
         if (link_state == C.LINK_LIVE and ops_link_ready and lock.get("enabled") is True
                 and tool is not None and (tool.get("control_scope") == "END_EFFECTOR_ONLY" or local_wrist)
                 and tool.get("read_only") is False and tool.get("emergency_stop") is False):
@@ -180,6 +184,10 @@ class ArmUiTelemetryBinding:
                 and (os.environ.get('ARM_LOCAL_WRIST_IGNORE_LOCK') == '1'
                      or (lock.get('state') == 'LOCKED' and lock.get('torque') == 1))):
             capabilities.add(C.CAP_TELEOP_JOG)
+        if (local_wrist and link_state == C.LINK_LIVE and ops_link_ready
+                and tool.get('read_only') is False and axes):
+            # Resume stays available during an E-stop latch: it is what clears it.
+            capabilities.add(C.CAP_TELEOP_RESUME)
         pose_list = tool.get('poses') if local_wrist else None
         if (isinstance(pose_list, list) and link_state == C.LINK_LIVE and ops_link_ready
                 and tool.get('read_only') is False and tool.get('emergency_stop') is False):

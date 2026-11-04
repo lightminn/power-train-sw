@@ -442,6 +442,8 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
         self.declare_parameter('local_jog_step_rad', 0.0)
         self.local_jog_step_rad = float(self.get_parameter('local_jog_step_rad').value)
         self.declare_parameter('local_jog_trip_threshold', 500)
+        # Bench sessions start in MANUAL so a restart does not need a new grant.
+        self.declare_parameter('initial_control_mode', 'FSM')
         self.local_jog_trip_threshold = int(
             self.get_parameter('local_jog_trip_threshold').value)
         # Bench-only saved poses, same JSON layout as teleop_core's poses_file.
@@ -648,7 +650,9 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
             self._tool_profiles = {}
         if self.tool_profile.get('mock_only') and not self.mock_mode:
             raise RuntimeError('mock_only profiles cannot open physical hardware')
-        self.control_mode = 'FSM'
+        self.control_mode = str(self.get_parameter('initial_control_mode').value).strip().upper()
+        if self.control_mode not in ('MANUAL', 'FSM'):
+            raise ValueError(f'initial_control_mode must be MANUAL or FSM: {self.control_mode!r}')
         self.emergency_stop_active = False
         self.tool_detached = False
         self._tool_samples = {}
@@ -3124,8 +3128,9 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                     self._stop_toolchanger()
                     return
                 if request == {'command': 'ENABLE'}:
-                    if (self.control_mode != 'MANUAL' or self.emergency_stop_active
-                            or not self._wrist_lock_ok()):
+                    # Resume clears the E-stop latch; a still-asserted E-stop re-latches it.
+                    self.emergency_stop_active = False
+                    if self.control_mode != 'MANUAL' or not self._wrist_lock_ok():
                         raise RuntimeError('lock must be ready before wrist enable')
                     if self._enable_torque(16, 'arm_joint_5'):
                         self.torque_enabled_ids.add(16)

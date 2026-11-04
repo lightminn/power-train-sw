@@ -37,7 +37,7 @@ from . import contract as K
 # Provisional. A hold must be refreshed at least this often or the backend
 # stops it.  Long enough to survive one missed round trip, short enough that an
 # unnoticed freeze does not keep a joint moving.
-DEFAULT_JOG_TTL_S = 0.6
+DEFAULT_JOG_TTL_S = 1.0
 # Provisional.  Must stay comfortably below the TTL so one lost refresh does
 # not end an intended hold.
 DEFAULT_REFRESH_INTERVAL_S = 0.2

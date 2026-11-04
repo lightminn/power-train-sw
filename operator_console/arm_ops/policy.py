@@ -40,6 +40,7 @@ CAP_TOOL_CHANGE = "tool_change"
 CAP_COUPLING_LOCK = "coupling_lock"
 CAP_CONTROL_MODE = "control_mode"
 CAP_TELEOP_JOG = "teleop_jog"
+CAP_TELEOP_RESUME = "teleop_resume"
 CAP_TELEOP_POSE = "teleop_pose"
 CAP_GRIPPER_COMMAND = "gripper_command"
 CAP_TOOL_JOG = 'tool_jog'
@@ -56,7 +57,7 @@ ACTION_CAPABILITY: dict[str, str] = {
     K.ACTION_MODE_REQUEST: CAP_CONTROL_MODE,
     K.ACTION_MODE_RELEASE: CAP_CONTROL_MODE,
     K.ACTION_JOG: CAP_TELEOP_JOG,
-    K.ACTION_RESUME_HOLD: CAP_TELEOP_JOG,
+    K.ACTION_RESUME_HOLD: CAP_TELEOP_RESUME,
     K.ACTION_HOME: CAP_TELEOP_POSE,
     K.ACTION_POSE_SAVE: CAP_TELEOP_POSE,
     K.ACTION_POSE_MOVE: CAP_TELEOP_POSE,
@@ -200,7 +201,7 @@ def authorize(
     if context.blocked_reasons and action not in {
             K.ACTION_TOOL_CHANGE, K.ACTION_MODE_REQUEST, K.ACTION_MODE_RELEASE,
             K.ACTION_LOCK_COMMAND,
-    } and capability not in {CAP_TELEOP_JOG, CAP_TELEOP_POSE}:
+    } and capability not in {CAP_TELEOP_JOG, CAP_TELEOP_RESUME, CAP_TELEOP_POSE}:
         return _refuse("backend_blocked", context.blocked_reasons[0])
 
     return ALLOWED

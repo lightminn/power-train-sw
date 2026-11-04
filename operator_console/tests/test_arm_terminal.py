@@ -125,7 +125,7 @@ def test_auto_repeat_does_not_increase_motor_refresh_rate(client):
         clock[0] += .02
     jogs = [p for action, p, _ in c._ops.calls if action == K.ACTION_JOG]
     assert 4 <= len(jogs) <= 6
-    assert all(p['expires_at_s'] - 100 <= 1.6 for p in jogs)
+    assert all(p['expires_at_s'] - 100 <= 2.0 for p in jogs)
 
 
 def test_lost_authority_requires_a_new_press_after_a_release(client):
