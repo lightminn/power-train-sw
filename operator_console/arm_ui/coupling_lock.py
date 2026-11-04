@@ -64,8 +64,6 @@ class CouplingLockPanel:
         card.pack(reflow_row([self.buttons[k] for k in ('attach', 'detach', 'stop')], columns=3))
         card.pack(reflow_row([self.buttons[k] for k in ('enable', 'disable')], columns=2))
         card.pack(metric_grid(tuple(self.metrics.values()), columns=3))
-        card.pack(label('결합 센서가 없습니다. 위치 도달과 잠금 절차만으로 판단하며, '
-                        '도구가 빠지거나 떨어져도 감지하지 못합니다.', 'arm-reason', wrap=True))
         card.pack(self.reason)
         advanced = Gtk.Expander(label='영점 · 회전 방향 · 잠금 모터 준비')
         setup = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
