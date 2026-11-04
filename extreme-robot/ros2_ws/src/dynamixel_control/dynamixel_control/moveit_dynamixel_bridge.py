@@ -30,6 +30,7 @@ from dynamixel_control.tool_profiles import (
 from dynamixel_control import calib_math
 from dynamixel_control import joint_limits
 from dynamixel_control import bus_lock
+from dynamixel_control.dynamixel_position_node import _set_ftdi_latency
 from dynamixel_control.gripper_presets import DEFAULT_GRIPPER, get_preset
 from dynamixel_control.calibration_session import CalibrationSession
 from dynamixel_control.dual_manual_recovery import (
@@ -480,6 +481,10 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
         self.declare_parameter("auto_tool_detection", True)
         self.declare_parameter("tool_detection_confirmations", 2)
         self.declare_parameter("tool_detection_period_s", 0.5)
+        # With the tool latched as removed and no candidate answering, a full
+        # ping scan runs only this often (each missing ID costs a timeout).
+        self.declare_parameter("tool_detection_absent_period_s", 2.0)
+        self.declare_parameter("ftdi_latency_timer", 1)
         self.declare_parameter("control_scope", "FULL_ROBOT")
         self.declare_parameter("toolchanger_dock_file", "")
         # Explicit, ID5-only bench path.  It bypasses GUI/FSM ownership
@@ -563,6 +568,8 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
             self.get_parameter('auto_tool_detection').value)
         self.tool_detection_confirmations = int(
             self.get_parameter('tool_detection_confirmations').value)
+        self.tool_detection_absent_period_s = float(
+            self.get_parameter('tool_detection_absent_period_s').value)
         self.tool_detection_period_s = float(
             self.get_parameter('tool_detection_period_s').value)
         if self.tool_detection_confirmations < 1:
@@ -711,6 +718,10 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
         # (bus_lock 모듈 docstring 참고). fd 는 살려둬야 잠금이 유지된다.
         self._bus_lock_fd = None if self.mock_mode else bus_lock.acquire(
             DEVICENAME, self.get_logger())
+
+        latency = int(self.get_parameter("ftdi_latency_timer").value)
+        if not self.mock_mode and latency > 0:
+            _set_ftdi_latency(DEVICENAME, latency, self.get_logger())
 
         self.port_handler = PortHandler(DEVICENAME)
         self.packet_handler = PacketHandler(PROTOCOL_VERSION)
@@ -2810,8 +2821,22 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                 return False
         return self._arm_fsm_state in ToolManager.SAFE_CHANGE_STATES
 
+    def _absent_tool_scan_due(self):
+        """Throttle full scans while the removed tool's bus stays silent."""
+        period = getattr(self, 'tool_detection_absent_period_s', 0.0)
+        if (period <= 0 or not getattr(self, '_physical_tool_detached', False)
+                or self._bus_tool_identity.last_present_ids):
+            return True
+        now = time.monotonic()
+        if now - getattr(self, '_last_absent_tool_scan', -math.inf) < period:
+            return False
+        self._last_absent_tool_scan = now
+        return True
+
     def _poll_physical_tool(self):
         """Run at most one bounded detector pass; never strand the next tick."""
+        if getattr(self, '_bus_tool_identity', None) is not None and not self._absent_tool_scan_due():
+            return
         guard = getattr(self, '_auto_detection_lock', None)
         if guard is None:  # object-level test doubles construct no ROS node
             guard = self._auto_detection_lock = threading.Lock()

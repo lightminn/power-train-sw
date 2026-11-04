@@ -51,6 +51,8 @@ Qt `robot_manual_gui`는 이번 조작 화면으로 사용하지 않는다.
 | 브리지 | `toolchanger_two_point` | true | 볼락 2점 방식(아래 2.5) |
 | 브리지 | `toolchanger_points_file` | `/session/lock_points.json` | 볼락 기록 위치 |
 | 브리지 | `toolchanger_state_tolerance_ticks` | 20 | 볼락 상태 판정·도달 허용오차 |
+| 브리지 | `ftdi_latency_timer` | 1 | 기동 시 USB FTDI 지연을 직접 설정한다(2026-11-04). ⚠️ SDK 패킷 시간초과를 1ms 기준으로 줄이면 5축 SyncRead가 시간초과돼 빈 `/joint_states`가 나간다(실측, 되돌림) |
+| 브리지 | `tool_detection_absent_period_s` | 2.0 | 도구 탈거가 확정되고 후보 ID가 하나도 응답하지 않으면 전체 ping 검사를 이 주기로만 한다(2026-11-04) |
 | 브로커 env | `ARM_LOCAL_ALL_AXES=1` | | 1~5축 조그·자세·자유지정 액션 허용 |
 | 콘솔 env | `ARM_LOCAL_ALL_AXES=1` | | 축 선택, 제한/트립 토글 표시 |
 | 콘솔 env | `ARM_LOCAL_WRIST_IGNORE_LOCK=1` | | 볼락 미준비여도 조그 버튼 활성 |

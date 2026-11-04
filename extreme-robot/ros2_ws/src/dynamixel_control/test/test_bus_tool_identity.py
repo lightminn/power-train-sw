@@ -251,3 +251,24 @@ def test_manual_full_robot_without_fsm_uses_stationary_arm_proof():
     bridge._require_manual_lock_arm_stopped = lambda: None
     bridge._poll_physical_tool()
     assert bridge._switches == ['spur_1motor_gripper']
+
+
+def test_silent_bus_after_removal_rescans_only_every_absent_period(monkeypatch):
+    import dynamixel_control.moveit_dynamixel_bridge as module
+    clock = [10.0]
+    monkeypatch.setattr(module.time, 'monotonic', lambda: clock[0])
+    bridge = object.__new__(MoveItDynamixelBridge)
+    bridge._bus_tool_identity = BusToolIdentityProvider(PROFILES, lambda actuator_id: False)
+    bridge.tool_detection_absent_period_s = 2.0
+    bridge._physical_tool_detached = False
+    assert bridge._absent_tool_scan_due()          # a fitted tool is always watched
+    bridge._physical_tool_detached = True
+    assert bridge._absent_tool_scan_due()          # first scan after removal
+    clock[0] += 0.5
+    assert not bridge._absent_tool_scan_due()
+    clock[0] += 1.6
+    assert bridge._absent_tool_scan_due()
+    bridge._bus_tool_identity.last_present_ids = frozenset({5})
+    clock[0] += 0.1
+    assert bridge._absent_tool_scan_due()          # an answering ID is confirmed at full rate
+
