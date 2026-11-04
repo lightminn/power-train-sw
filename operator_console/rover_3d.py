@@ -37,6 +37,19 @@ ARM_JOINT_LIMITS = {
     "axis5_rotation": (-math.pi, math.pi),
 }
 
+# Bench bridge joints -> CAD joints: (CAD name, sign, bridge angle at CAD zero).
+# The arm URDF shares the CAD joint origins and axes, but the bridge calibration
+# has its own zero; joints 2/3 count upward as positive (CAD: -pi..0) and
+# joint 4 turns opposite to the CAD axis (operator-checked 2026-11-04).
+# Zeros are the 2026-11-04 bench pose the operator matched to the CAD zero pose.
+BRIDGE_TO_CAD = {
+    "arm_joint_1": ("arm_J1_yaw", 1.0, -0.48627190975974827),
+    "arm_joint_2": ("arm_J2_shoulder", -1.0, -0.4705181274331538),
+    "arm_joint_3": ("arm_J3_elbow", -1.0, -0.21225130208615678),
+    "arm_joint_4": ("arm4_rotation", -1.0, 0.0015339807878856412),
+    "arm_joint_5": ("axis5_rotation", 1.0, -2.146039122252012),
+}
+
 
 def _finite(value):
     if value is None or isinstance(value, bool):
@@ -72,17 +85,35 @@ def rover_state(snapshot: TelemetrySnapshot | None, *, now_s=None) -> dict:
 
 
 def arm_state(snapshot: ArmTelemetrySnapshot | None, *, now_s=None):
-    """Accept named CAD angles only, with source age independent of chassis."""
-    result = dict(arm_live=False, arm={})
+    """Accept CAD angles (or mapped bridge angles), with source age independent of chassis."""
+    result = dict(arm_live=False, arm={}, tool_attached=False)
     if snapshot is None:
         return result
     now = time.monotonic() if now_s is None else now_s
     elapsed = now - snapshot.received_monotonic_s
+    # Draw the gripper only while the bridge sees its actuators on the bus.
+    runtime = snapshot.tool_runtime or {}
+    tool = runtime.get("tool") or {}
+    tool_age = runtime.get("source_age_s")
+    result["tool_attached"] = bool(
+        _finite(tool_age) is not None and math.isfinite(elapsed)
+        and 0 <= tool_age + elapsed <= 3
+        and tool.get("actuators_discovered") is True
+        and not tool.get("tool_detached") and not tool.get("physical_tool_detached"))
     age = snapshot.joints_age_s
     if age is None or not math.isfinite(age) or not math.isfinite(elapsed) or age < 0 or elapsed < 0 or age + elapsed > 1:
         return result
     for name, angle in zip(snapshot.joint_names, snapshot.joint_position_rad):
-        bounds = ARM_JOINT_LIMITS.get(name)
+        bounds = None
+        if name in BRIDGE_TO_CAD:
+            name, sign, zero = BRIDGE_TO_CAD[name]
+            angle = sign * (angle - zero)
+            bounds = ARM_JOINT_LIMITS[name]
+            # The matched zero sits on the CAD limit; a real joint just past it
+            # is drawn at the limit instead of dropping out of the view.
+            if math.isfinite(angle):
+                angle = min(max(angle, bounds[0]), bounds[1])
+        bounds = bounds or ARM_JOINT_LIMITS.get(name)
         if bounds and math.isfinite(angle) and bounds[0] <= angle <= bounds[1]:
             result["arm"][name] = angle
     result["arm_live"] = bool(result["arm"])
@@ -144,7 +175,12 @@ class Rover3DView(Gtk.Box):
 
     def _start(self):
         try:
-            gi.require_version("WebKit2", "4.1")
+            try:
+                gi.require_version("WebKit2", "4.1")
+            except ValueError:
+                # The Jetson host ships only the libsoup2 build (4.0); its API
+                # is the same for this view.
+                gi.require_version("WebKit2", "4.0")
             from gi.repository import WebKit2
             if not (ASSET_ROOT / "model.json").is_file():
                 raise RuntimeError("3D 모델 파일이 없습니다")
@@ -233,7 +269,10 @@ class Rover3DView(Gtk.Box):
     def _send(self):
         if self._busy or self._closed or not self._ready:
             return
-        state = json.dumps(dict(self._latest, **self._latest_arm, input_source=self._input_source), allow_nan=False, separators=(",", ":"))
+        arm = dict(self._latest_arm)
+        if self._input_source == "TEST":
+            arm["tool_attached"] = True  # the dummy demo has no tool feed
+        state = json.dumps(dict(self._latest, **arm, input_source=self._input_source), allow_nan=False, separators=(",", ":"))
         now = time.monotonic()
         if state == self._last_sent and now-self._last_sent_at < 0.5:
             return
