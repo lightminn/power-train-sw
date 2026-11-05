@@ -6203,6 +6203,7 @@ class OperatorConsole(Gtk.Window):
                                   self._arm_manual_tab._fsm_button,
                                   self._arm_manual_tab._release_button,
                                   self._arm_manual_tab._change_button,
+                                  self._arm_manual_tab._rescan_button,
                                   self._arm_manual_tab._restart_button)
             ),
         })
