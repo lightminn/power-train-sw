@@ -1,0 +1,5 @@
+2026-11-05 19:13:06,414 INFO Created a socket
+2026-11-05 19:13:06,414 INFO listening on vcan77 nodes=[11, 12, 13, 14, 15, 16] mask=0x840
+2026-11-05 19:13:07,143 WARNING node15 motor.error=0x1000
+2026-11-05 19:13:07,145 WARNING node15 axis.error=0x40 motor.error=0x1000 IDLE -> Clear_Errors (#1)
+2026-11-05 19:13:08,734 INFO stopped

@@ -1,0 +1,1187 @@
+{
+  "result": "PASS",
+  "case": "stale_seq_rejected",
+  "installed_chassis_module": "/tmp/ws/install/powertrain_ros/lib/python3.10/site-packages/powertrain_ros/chassis_node.py",
+  "safety": {
+    "mode": "IDLE",
+    "can_recovery": {
+      "state": "IDLE",
+      "reason": "explicit arm",
+      "count": 0,
+      "required_nodes": []
+    },
+    "estop_latched": false,
+    "active_estop_sources": [],
+    "estop_source": "",
+    "estop_detail": "",
+    "component_mask": {
+      "drive": true,
+      "steer": true,
+      "us100": true,
+      "robot_arm": true
+    },
+    "demo_mode": true,
+    "disarm_seq": 1,
+    "disarm_cause": "demo_fault",
+    "disarm_detail": "rear_left:node15:0x40",
+    "steering_mode": "ackermann",
+    "steering_available": true,
+    "drive_transport": "can",
+    "hardware_stop_proof": {
+      "source": "chassis_can",
+      "valid": true,
+      "stopped": true,
+      "node_ids": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ],
+      "max_feedback_age_ms": 60.81573912501335
+    },
+    "stamp_s": 121240.717040996
+  },
+  "gateway": {
+    "state": "DRIVE",
+    "input_fresh": true,
+    "input_received_s": 121240.72692565,
+    "connection_session_id": "f98d3d2423af4469a9b507fd9f2355c8",
+    "neutral": true,
+    "stamp_s": 121240.7353764
+  },
+  "ops_replies": [
+    {
+      "detail": "role=console broker_boot_id=ad2107dbd5534a5a9c35d4f1dcc33684 clock_sync=ready",
+      "request_id": "hello",
+      "state_revision": 2247434034,
+      "status": "FINAL_SUCCESS"
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "IDLE",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.018760624006972648,
+        "gateway": 0.03271738700277638,
+        "safety": 0.015499644010560587,
+        "wheels": 9.9
+      },
+      "gateway_input_fresh": false,
+      "gateway_neutral": false,
+      "gateway_state": "DISCONNECTED",
+      "push": "ops_state",
+      "revision": 2247434034,
+      "stamp_s": 121238.834836615,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": false
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.01877755598980002,
+        "gateway": 0.03269220399670303,
+        "safety": 0.21551270999771077,
+        "wheels": 9.9
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 2247434035,
+      "stamp_s": 121239.034854249,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": false
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.018458731996361166,
+        "gateway": 0.03296295698964968,
+        "safety": 0.19826242899580393,
+        "wheels": 0.2586021236202214
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": false,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 2247434036,
+      "stamp_s": 121239.235071348,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.018482879997463897,
+        "gateway": 0.03287185900262557,
+        "safety": 0.19816269099828787,
+        "wheels": 0.31836035996093415
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 2247434037,
+      "stamp_s": 121239.435010021,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.018867367994971573,
+        "gateway": 0.03284910100046545,
+        "safety": 0.19754396000644192,
+        "wheels": 0.25822612762567587
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 2247434037,
+      "stamp_s": 121239.634943069,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.01873623501160182,
+        "gateway": 0.032758934001321904,
+        "safety": 0.17776926200895105,
+        "wheels": 0.23845494967827108
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 2247434037,
+      "stamp_s": 121239.834849059,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.018640926005900837,
+        "gateway": 0.03271697000309359,
+        "safety": 0.15803856700949837,
+        "wheels": 0.21870348071388435
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 2247434037,
+      "stamp_s": 121240.034877332,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.018806876003509387,
+        "gateway": 0.03278361100819893,
+        "safety": 0.1573925480042817,
+        "wheels": 0.2185328889027005
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 2247434037,
+      "stamp_s": 121240.234888391,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "detail": "another stop happened since",
+      "request_id": "4f7374a3-8605-4a7d-9d47-f62c7a047a34",
+      "state_revision": 2247434037,
+      "status": "FINAL_REJECTED"
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.018854957990697585,
+        "gateway": 0.03279642800043803,
+        "safety": 0.13818097599141765,
+        "wheels": 0.19779470846697222
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 2247434037,
+      "stamp_s": 121240.434928079,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.018759736005449668,
+        "gateway": 0.03277816099580377,
+        "safety": 0.13769036000303458,
+        "wheels": 0.19812838068173733
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 2247434037,
+      "stamp_s": 121240.634835947,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    }
+  ],
+  "can": {
+    "states": {
+      "11": 1,
+      "12": 1,
+      "13": 1,
+      "14": 1,
+      "15": 1,
+      "16": 1
+    },
+    "velocities": {
+      "11": 0.0,
+      "12": 0.0,
+      "13": 0.0,
+      "14": 0.0,
+      "15": 0.0,
+      "16": 0.0
+    },
+    "errors": {
+      "11": 0,
+      "12": 0,
+      "13": 0,
+      "14": 0,
+      "15": 0,
+      "16": 0
+    },
+    "commands": [
+      {
+        "stamp_s": 121239.098589661,
+        "node": 11,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.098783076,
+        "node": 11,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.09880506,
+        "node": 11,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.09887078,
+        "node": 12,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.098887108,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.09890378,
+        "node": 12,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.09893384,
+        "node": 13,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.098949056,
+        "node": 13,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.098973386,
+        "node": 13,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.099010595,
+        "node": 14,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.099027311,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.099043178,
+        "node": 14,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.099101083,
+        "node": 15,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.099115867,
+        "node": 15,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.09913049,
+        "node": 15,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.099159152,
+        "node": 16,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.099173821,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.099188283,
+        "node": 16,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.116454851,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.116505982,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.116584867,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.116605202,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.116639299,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.116708439,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.136715285,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.136758574,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.136774453,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.136846319,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.13688224,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.13691255,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.156284826,
+        "node": 11,
+        "command": 13,
+        "value": -4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          192,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.15636167,
+        "node": 12,
+        "command": 13,
+        "value": 4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          64,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.156376955,
+        "node": 13,
+        "command": 13,
+        "value": -4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          192,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.156391959,
+        "node": 14,
+        "command": 13,
+        "value": 4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          64,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.156449034,
+        "node": 15,
+        "command": 13,
+        "value": -4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          192,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.156477216,
+        "node": 16,
+        "command": 13,
+        "value": 4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          64,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.158078293,
+        "node": 15,
+        "command": 3,
+        "value": null,
+        "payload": []
+      },
+      {
+        "stamp_s": 121239.160164538,
+        "node": 15,
+        "command": 24,
+        "value": null,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.174928967,
+        "node": 11,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.176458539,
+        "node": 11,
+        "command": 7,
+        "value": 1,
+        "payload": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.176516077,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.176527825,
+        "node": 12,
+        "command": 7,
+        "value": 1,
+        "payload": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.176566102,
+        "node": 13,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.176580914,
+        "node": 13,
+        "command": 7,
+        "value": 1,
+        "payload": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.176606317,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.176620639,
+        "node": 14,
+        "command": 7,
+        "value": 1,
+        "payload": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.176644788,
+        "node": 15,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.176659252,
+        "node": 15,
+        "command": 7,
+        "value": 1,
+        "payload": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.176700846,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121239.176710383,
+        "node": 16,
+        "command": 7,
+        "value": 1,
+        "payload": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  }
+}

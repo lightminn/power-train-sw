@@ -51,6 +51,10 @@ _ENCODER_PERIOD_SLOTS = 3
 _IQ_PERIOD_SLOTS = 60
 
 
+
+class NoClearArmRefused(RuntimeError):
+    """A no-clear arm found an axis error; a refused start, not a fault."""
+
 class CanFeedbackScheduler:
     """Coordinate one bounded six-axis query set per chassis control cycle.
 
@@ -334,18 +338,29 @@ class DriveOdriveCan(DriveActuator):
                 f"can0 열기 실패({e}). 먼저 'bash scripts/can_setup.sh' 실행하세요."
             ) from e
 
-    def arm(self, *, recovery_guard=None) -> None:
-        """velocity-control + passthrough 로 폐루프 진입(input_vel=0 점프 방지)."""
+    def arm(self, *, recovery_guard=None, clear_errors=True) -> None:
+        """velocity-control + passthrough 로 폐루프 진입(input_vel=0 점프 방지).
+
+        ``clear_errors=False`` (demo auto-start) never sends CLEAR_ERRORS; the
+        caller has verified axis_error == 0, and a fault arriving afterwards
+        makes the firmware refuse closed loop instead of being cleared.
+        """
         # Drain pre-request replies so timestamp-less injected doubles cannot
         # reuse cached state8 as evidence of this request either.
         self._drain_available()
+        if recovery_guard is None and not clear_errors:
+            health = self.health_state()
+            if health["heartbeat_stale"] or health["axis_error"] != 0:
+                raise NoClearArmRefused(
+                    "node%s axis_error=0x%X stale=%s" % (
+                        self._node_id, health["axis_error"], health["heartbeat_stale"]))
         if recovery_guard is not None and not recovery_guard(self.health_state()):
             raise RuntimeError("CAN recovery evidence changed before clear_errors")
         self._arm_heartbeat_sequence = self._heartbeat_sequence
         guarded_generation = (self._can_recovery_generation
                               if recovery_guard is not None and self._axis_error == 0x4000
                               else None)
-        if recovery_guard is None:
+        if recovery_guard is None and clear_errors:
             self._send(_CLEAR_ERRORS, bytes(8))
         # Automatic recovery never sends CLEAR_ERRORS. Patch3 combines its
         # eligibility/generation check, clear, zero and arm in one atomic

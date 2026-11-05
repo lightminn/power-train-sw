@@ -249,3 +249,45 @@ def test_fresh_estop_after_arm_ack_compensates_and_never_resets(make_service):
     wait_for(lambda: service.snapshot()["status"] == "REJECTED")
     assert broker.actions == ["authority_manual", "arm", "disarm", "authority_idle"]
     assert broker.state["estop_latched"] is True
+
+
+class DemoBroker(Broker):
+    def __init__(self, initial=None, reject=None):
+        super().__init__(initial or state(demo_mode=True, disarm_seq=4), reject)
+        self.params = []
+
+    def submit(self, action, **kwargs):
+        self.params.append(kwargs.get("params"))
+        if action == "demo_auto_arm" and kwargs.get("params", {}).get("expect_disarm_seq") != self.state.get("disarm_seq"):
+            self.responses.append(dict(request_id=str(len(self.actions)), status="FINAL_REJECTED", detail="seq"))
+            self.actions.append(action)
+            return str(len(self.actions) - 1)
+        if action == "demo_auto_arm":
+            self.state["chassis_mode"] = "ARMED"
+        return super().submit(action, **kwargs)
+
+
+def test_auto_start_uses_compare_and_arm_without_clearing_holds(make_service):
+    broker = DemoBroker()
+    service = make_service(broker)
+    assert service.start(auto=dict(expect_disarm_seq=4))["status"] == "PENDING"
+    wait_for(lambda: service.snapshot()["status"] != "PENDING")
+    assert service.snapshot()["status"] == "SUCCEEDED"
+    assert broker.actions == ["authority_manual", "demo_auto_arm"]
+    assert broker.params[-1] == {"expect_disarm_seq": 4}
+
+
+@pytest.mark.parametrize("changes,reason", [
+    (dict(demo_mode=False), "시연 모드"),
+    (dict(authority_mode="MOTION_HOLD"), "HOLD"),
+    (dict(gateway_state="MOTION_HOLD"), "HOLD"),
+    (dict(disarm_seq=5), "다른 정지"),
+])
+def test_auto_start_refuses_without_any_command(make_service, changes, reason):
+    broker = DemoBroker(state(**dict(dict(demo_mode=True, disarm_seq=4), **changes)))
+    service = make_service(broker)
+    service.start(auto=dict(expect_disarm_seq=4))
+    wait_for(lambda: service.snapshot()["status"] != "PENDING")
+    assert service.snapshot()["status"] == "REJECTED"
+    assert reason in service.snapshot()["detail"]
+    assert broker.actions == []

@@ -418,6 +418,37 @@ L515 2.5D 지형 지도는 `terrain_map_port`(기본 `5010`)로 받고, 표시 �
 켠 뒤 **로버를 1초 정지**해야 지도가 쌓이기 시작하고(자이로 바이어스 학습), 지도 작성은 0.5 m/s 이하를 권장한다.
 지도는 지나온 관측 기록이며 주행 제어·안전 판정에 쓰이지 않는다. 사용법·파라미터는 `terrain_map/README.md`.
 
+## 시연 모드 (선택, 기본 꺼짐)
+
+시연 중 당장 위험하지 않은 정지로 주행이 자주 풀리지 않게 하는 opt-in 모드다. 설계·남는 위험은
+[`docs/specs/2026-11-06-demo-mode.md`](specs/2026-11-06-demo-mode.md), 검증은
+[`docs/reports/2026-11-06-demo-mode.md`](reports/2026-11-06-demo-mode.md). **로봇을 눈으로 보며 운전할 때만** 쓴다.
+
+| 스위치 | 바뀌는 것 |
+|---|---|
+| 로봇 `POWERTRAIN_DEMO_MODE=true` | ① 주행 중 구동축이 IDLE이고 축 오류가 MOTOR_FAILED(0x40)·워치독 만료(0x800)뿐이면 E-stop 고정 대신 정지(주행 해제)만 한다. 60초 안 세 번째부터는 다시 고정(`demo_fault_stop_budget`). ② 자동 해제 서비스 `powertrain_demo_autoclear`가 모터 오류를 먼저 조회해 CURRENT_LIMIT_VIOLATION(0x1000)뿐일 때만 축 오류를 지운다(축마다 60초에 3회). 기존 `odrive-autoclear`는 함께 켤 수 없다. ③ 로봇팔 상태 없이 운전 시작(`arm_gate_mode=arm_absent_field`) |
+| 콘솔 설정 `"demo_mode": true` | 전방 영상 없이도 손으로 운전 시작 가능. 헤더에 시연 배너 |
+| 둘 다 켬 | 통신 끊김(세션 만료) 뒤 재연결, 또는 ①의 시연 정지 뒤 콘솔이 **자동으로 운전 시작**을 다시 한다(1.5초 유지, 전방 영상 필요, 스틱 중립 필요). 다시 무장할 때 오류를 지우지 않는다 |
+
+자동 재개는 다음 때 취소되고 사람이 다시 시작해야 한다: 주행 해제, 콘솔·패드 E-stop, 로봇 E-stop, 모든
+HOLD, 패드 프로세스 재시작, 로봇 재부팅, 끊긴 지 120초, 설명할 수 없는 다른 정지. E-stop은 어떤 경우에도
+자동으로 풀리지 않는다.
+
+젯슨 호스트에서 켜기(끄려면 변수 없이 다시 실행한다 — 시연 자동 해제도 같이 멈춘다):
+
+```bash
+cd ~/power-train-sw-integrated
+POWERTRAIN_DEMO_MODE=true ./scripts/robot-start
+```
+
+✅ 기대 출력: `robot-start WARN: 시연 모드 — …` 한 줄과 마지막 줄
+`robot-start PASS: profile=can-4ws, session=:9002, input=:9000, ops=:9001, demo=true`.
+컨테이너는 `unless-stopped`라 재부팅 뒤에도 **마지막 `robot-start`의 설정**으로 돌아온다.
+
+노트북: `~/.config/powertrain/operator.json`(현장 설정 파일)에 `"demo_mode": true`를 넣고 콘솔을 다시 연다
+(직접 실행할 때는 `python3 -m operator_console --demo-mode`). 배너에 "로봇 시연 모드 켜짐"이 보여야 자동
+재개가 동작한다.
+
 ## 문제 확인
 
 | 표시/증상 | 확인할 항목 |

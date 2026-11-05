@@ -165,6 +165,20 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
   래치가 없을 때만 모터 오류 조회 요청과 Clear_Errors를 연달아 보낸다(응답을 기다리지 않으므로
   motor.error 로그는 응답이 잡힐 때만 남는다). 재무장은 하지 않는다. 단위 시험만 있고 실물 동작 기록은
   아직 없다.
+- **시연 모드(2026-11-06, opt-in, 기본 꺼짐)** — 로봇 `POWERTRAIN_DEMO_MODE=true scripts/robot-start`:
+  구동축이 IDLE이고 축 오류가 0x40·0x800뿐이면 E-stop 고정 대신 주행 해제만 한다(60초 안 세 번째부터 고정),
+  `powertrain_demo_autoclear`(프로필 `demo`, 기존 `odrive-autoclear`와 동시 금지)가 motor.error가 0x1000뿐일 때만
+  지우고, 로봇팔 게이트는 `arm_absent_field`다. 콘솔 `"demo_mode": true`는 영상 없이 수동 시작을 허용한다. 둘 다
+  켜면 세션 끊김·시연 정지 뒤 콘솔이 비교-후-무장(`demo_auto_arm`, CLEAR_ERRORS 없음)으로 자동 재개한다.
+  E-stop·HOLD·운용자 정지는 자동 재개하지 않는다. vcan 설치 인수 5건 통과, 실차 확인 전이다.
+  운용은 `docs/integrated-operation.md` "시연 모드", 설계·검증은 `docs/specs/2026-11-06-demo-mode.md`·
+  `docs/reports/2026-11-06-demo-mode.md`.
+- ⚠️ **chassis_node 시계 영역 불일치(2026-11-06 발견, 미수정)** — `_tick_authority`가 게이트웨이의
+  `source_received_s`(CLOCK_MONOTONIC)를 rclpy STEADY_TIME(CLOCK_MONOTONIC_RAW)과 비교해, NTP 보정이 쌓인
+  호스트에서는 주행 중에도 수동 입력이 "신선하지 않음"이 되어 호스트 CAN 자동 재개 경로가 돌지 않는다
+  (노트북 실측 −0.197 s). 11-06 젯슨 실측 차이는 10 µs(가동 2.5시간, NTP 미동기)라 지금 젯슨에서는 그 경로가
+  돌고 있을 가능성이 높다 — 위 "보류"는 코드로 강제되지 않는다. 시계를 고칠 때 CAN 자동 재개 허용 게이트를 함께 둔다. 시연 정지(D1)는 이
+  신선도에 의존하지 않게 했다. 근거는 `docs/reports/2026-11-06-demo-mode.md`.
 - **USB 스키드 조향 레이어**(2026-08-05 작성, **실기 주행 확인 후 2026-08-24 main 병합**) —
   `DriveOdriveUsbAxis` USB 다보드 구동 → `skid_geometry()` → 애커만↔스키드 런타임 전환
   → ops 액션 `steer_mode_skid` → 콘솔 배지 → 젯슨 원클릭 배포 스크립트.

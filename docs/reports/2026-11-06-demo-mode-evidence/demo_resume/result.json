@@ -1,0 +1,3467 @@
+{
+  "result": "PASS",
+  "case": "demo_resume",
+  "installed_chassis_module": "/tmp/ws/install/powertrain_ros/lib/python3.10/site-packages/powertrain_ros/chassis_node.py",
+  "safety": {
+    "mode": "ARMED",
+    "can_recovery": {
+      "state": "IDLE",
+      "reason": "explicit arm",
+      "count": 0,
+      "required_nodes": []
+    },
+    "estop_latched": false,
+    "active_estop_sources": [],
+    "estop_source": "",
+    "estop_detail": "",
+    "component_mask": {
+      "drive": true,
+      "steer": true,
+      "us100": true,
+      "robot_arm": true
+    },
+    "demo_mode": true,
+    "disarm_seq": 1,
+    "disarm_cause": "demo_fault",
+    "disarm_detail": "rear_left:node15:0x40",
+    "steering_mode": "ackermann",
+    "steering_available": true,
+    "drive_transport": "can",
+    "hardware_stop_proof": {
+      "source": "chassis_can",
+      "valid": true,
+      "stopped": true,
+      "node_ids": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ],
+      "max_feedback_age_ms": 59.95733404159546
+    },
+    "stamp_s": 121226.562167973
+  },
+  "gateway": {
+    "state": "DRIVE",
+    "input_fresh": true,
+    "input_received_s": 121226.674574978,
+    "connection_session_id": "4b3ebdefb5b54e638d9be410c4db73a7",
+    "neutral": false,
+    "stamp_s": 121226.681116234
+  },
+  "ops_replies": [
+    {
+      "detail": "role=console broker_boot_id=76a57244864e41da9ddc3dc7f086f63a clock_sync=ready",
+      "request_id": "hello",
+      "state_revision": 851210980,
+      "status": "FINAL_SUCCESS"
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.0007601559918839484,
+        "gateway": 0.02748871099902317,
+        "safety": 0.19427379500120878,
+        "wheels": 9.9
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 851210981,
+      "stamp_s": 121225.041977534,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": false
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.00080527899262961,
+        "gateway": 0.027441243000794202,
+        "safety": 0.17887419999169651,
+        "wheels": 0.23981775120773818
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": false,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 851210982,
+      "stamp_s": 121225.24193394,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.0005946010060142726,
+        "gateway": 0.027436468008090742,
+        "safety": 0.16002155499882065,
+        "wheels": 0.2798899623739999
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 851210983,
+      "stamp_s": 121225.441908735,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.00035516500065568835,
+        "gateway": 0.027496837006765418,
+        "safety": 0.1599486430059187,
+        "wheels": 0.2203428744978737
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 851210983,
+      "stamp_s": 121225.64193823,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.0004662420105887577,
+        "gateway": 0.027604243005043827,
+        "safety": 0.13989052599936258,
+        "wheels": 0.2002027451962931
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 851210983,
+      "stamp_s": 121225.842101267,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.0007420680049108341,
+        "gateway": 0.02756188399507664,
+        "safety": 0.139743609004654,
+        "wheels": 0.200307835417334
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 851210983,
+      "stamp_s": 121226.042049096,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "IDLE",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.0007171280012698844,
+        "gateway": 0.027481473007355817,
+        "safety": 0.11943186999997124,
+        "wheels": 0.18060958936985116
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 851210983,
+      "stamp_s": 121226.2419166,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "detail": "accepted",
+      "request_id": "77f88fbb-cc43-4354-9e7a-09760777c952",
+      "state_revision": 851210983,
+      "status": "PENDING"
+    },
+    {
+      "detail": "published demo auto arm; verify chassis mode",
+      "request_id": "77f88fbb-cc43-4354-9e7a-09760777c952",
+      "state_revision": 851210983,
+      "status": "FINAL_SUCCESS"
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "ARMED",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.0005197940045036376,
+        "gateway": 0.027470670000184327,
+        "safety": 0.0994464379909914,
+        "wheels": 0.15597033854282927
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 851210984,
+      "stamp_s": 121226.441976649,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    },
+    {
+      "active_estop_sources": [],
+      "authority_mode": "TELEOP",
+      "chassis_mode": "ARMED",
+      "component_mask": {
+        "drive": true,
+        "robot_arm": true,
+        "steer": true,
+        "us100": true
+      },
+      "drive_transport": "can",
+      "estop_detail": "",
+      "estop_latched": false,
+      "estop_source": "",
+      "field_age_s": {
+        "authority": 0.0007694480009377003,
+        "gateway": 0.027464230006444268,
+        "safety": 0.07970096801000182,
+        "wheels": 0.1396583020541584
+      },
+      "gateway_input_fresh": true,
+      "gateway_neutral": true,
+      "gateway_state": "DRIVE",
+      "push": "ops_state",
+      "revision": 851210984,
+      "stamp_s": 121226.641905647,
+      "steering_available": true,
+      "steering_mode": "ackermann",
+      "wheels_stopped": true
+    }
+  ],
+  "can": {
+    "states": {
+      "11": 8,
+      "12": 8,
+      "13": 8,
+      "14": 8,
+      "15": 8,
+      "16": 8
+    },
+    "velocities": {
+      "11": -4.610514163970947,
+      "12": 4.610514163970947,
+      "13": -4.610514163970947,
+      "14": 4.610514163970947,
+      "15": -4.610514163970947,
+      "16": 4.610514163970947
+    },
+    "errors": {
+      "11": 0,
+      "12": 0,
+      "13": 0,
+      "14": 0,
+      "15": 0,
+      "16": 0
+    },
+    "commands": [
+      {
+        "stamp_s": 121225.144472556,
+        "node": 11,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.145905462,
+        "node": 11,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.145942708,
+        "node": 11,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146013577,
+        "node": 12,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146038719,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146060364,
+        "node": 12,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146145377,
+        "node": 13,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146166093,
+        "node": 13,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146186502,
+        "node": 13,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146225469,
+        "node": 14,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146257432,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146277841,
+        "node": 14,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146316858,
+        "node": 15,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146341836,
+        "node": 15,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.14636143,
+        "node": 15,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146435714,
+        "node": 16,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146455138,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.146474466,
+        "node": 16,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.161780694,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.161839472,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.16186242,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.161969645,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.162024163,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.162081136,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.181777589,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.181901701,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.181924283,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.18194528,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.18205044,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.182089087,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.201743919,
+        "node": 11,
+        "command": 13,
+        "value": -4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          192,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.201802238,
+        "node": 12,
+        "command": 13,
+        "value": 4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          64,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.201872552,
+        "node": 13,
+        "command": 13,
+        "value": -4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          192,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.201893132,
+        "node": 14,
+        "command": 13,
+        "value": 4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          64,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.201956573,
+        "node": 15,
+        "command": 13,
+        "value": -4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          192,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.202039392,
+        "node": 16,
+        "command": 13,
+        "value": 4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          64,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.204341756,
+        "node": 15,
+        "command": 3,
+        "value": null,
+        "payload": []
+      },
+      {
+        "stamp_s": 121225.21908091,
+        "node": 15,
+        "command": 24,
+        "value": null,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.219664027,
+        "node": 11,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.221757248,
+        "node": 11,
+        "command": 7,
+        "value": 1,
+        "payload": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.221827639,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.221841407,
+        "node": 12,
+        "command": 7,
+        "value": 1,
+        "payload": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.221885721,
+        "node": 13,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.221897661,
+        "node": 13,
+        "command": 7,
+        "value": 1,
+        "payload": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.221920996,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.221933288,
+        "node": 14,
+        "command": 7,
+        "value": 1,
+        "payload": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.221954737,
+        "node": 15,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.221967065,
+        "node": 15,
+        "command": 7,
+        "value": 1,
+        "payload": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.222006942,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121225.222019201,
+        "node": 16,
+        "command": 7,
+        "value": 1,
+        "payload": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.285846259,
+        "node": 11,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.28587925,
+        "node": 11,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.285892403,
+        "node": 11,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.285940053,
+        "node": 12,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.285952223,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.285964058,
+        "node": 12,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.285987315,
+        "node": 13,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.28601371,
+        "node": 13,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.286024347,
+        "node": 13,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.286046412,
+        "node": 14,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.286057359,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.286068362,
+        "node": 14,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.286108071,
+        "node": 15,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.286119175,
+        "node": 15,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.286130413,
+        "node": 15,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.286163586,
+        "node": 16,
+        "command": 11,
+        "value": null,
+        "payload": [
+          2,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.286175637,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.286186566,
+        "node": 16,
+        "command": 7,
+        "value": 8,
+        "payload": [
+          8,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.301601707,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.301655362,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.30172852,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.301749705,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.30178589,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.301854886,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.32157354,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.321634579,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.321654917,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.321740855,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.321780927,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.321814661,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.341867765,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.342017228,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.342039084,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.34205855,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.342136125,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.342181908,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.362158909,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.362234268,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.362316633,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.362338523,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.362376251,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.362448017,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.381727108,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.382110726,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.38213316,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.382227073,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.382267721,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.382304599,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.401668751,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.401764813,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.401779437,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.401817748,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.401885862,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.401909366,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.421766193,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.421826637,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.421910423,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.421932668,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.421969026,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.422055612,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.441883656,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.441944395,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.441965281,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.442060294,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.442102108,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.44213596,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.461774743,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.461894923,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.461915942,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.461934975,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.462012896,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.462047724,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.481842915,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.481906528,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.481989072,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.48201947,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.482058467,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.482134981,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.50203662,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.50208448,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.502110401,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.50219732,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.50224622,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.502305874,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.521630419,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.521724242,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.521737261,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.521748762,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.521803269,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.521826859,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.54174737,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.541798653,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.541880587,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.541898134,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.541927735,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.541980136,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.561552577,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.561605137,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.561619848,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.561667555,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.561704654,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.561731639,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.581773964,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.582159555,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.582180736,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.582199234,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.582266644,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.582300146,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.601670722,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.601708566,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.601773694,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.601786849,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.601930301,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.601973547,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.621645863,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.621686612,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.621699384,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.621764814,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.621790903,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.621911204,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.641517966,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.641607567,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.641620851,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.641642574,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.641691435,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.641714058,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.661997773,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.662067683,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.66217407,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.662232286,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.662280314,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.66235104,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.681803896,
+        "node": 11,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.681870126,
+        "node": 12,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.681892918,
+        "node": 13,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.682163106,
+        "node": 14,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.682214117,
+        "node": 15,
+        "command": 13,
+        "value": -0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          128,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.682252577,
+        "node": 16,
+        "command": 13,
+        "value": 0.0,
+        "payload": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.70181018,
+        "node": 11,
+        "command": 13,
+        "value": -4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          192,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.701906082,
+        "node": 12,
+        "command": 13,
+        "value": 4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          64,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.701919276,
+        "node": 13,
+        "command": 13,
+        "value": -4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          192,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.701931392,
+        "node": 14,
+        "command": 13,
+        "value": 4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          64,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.70198494,
+        "node": 15,
+        "command": 13,
+        "value": -4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          192,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "stamp_s": 121226.702019961,
+        "node": 16,
+        "command": 13,
+        "value": 4.610514163970947,
+        "payload": [
+          85,
+          137,
+          147,
+          64,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  }
+}

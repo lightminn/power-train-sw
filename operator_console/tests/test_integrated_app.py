@@ -390,3 +390,79 @@ def test_integrated_entrypoint_rejects_invalid_environment_port_before_runtime(
     assert integrated_entrypoint.main(['--config', str(tmp_path / 'operator.json')]) == 2
     assert runtime_started == []
     assert 'environment_telemetry_port' in capsys.readouterr().err
+
+
+# Demo mode (docs/specs/2026-11-06-demo-mode.md §1, D2).
+def test_console_estop_cancels_the_demo_drive_intent(console):
+    window, runner, _session, _child = console
+    cancelled = []
+    runner.cancel_drive_intent = lambda note="": cancelled.append(note)
+    window._ops_panel.trigger_estop()
+    assert cancelled and "E-stop" in cancelled[0]
+
+
+def test_demo_banner_is_hidden_by_default_and_shows_robot_state(console):
+    window, _runner, _session, _child = console
+    panel = window._operation_panel
+    assert not panel.demo_label.get_visible()
+    panel.refresh(dict(connected=True, host="h", demo_mode=True, robot_demo_mode=False,
+                       auto_resume=dict(intent=False, note="")), False)
+    assert panel.demo_label.get_visible()
+    text = panel.demo_label.get_text()
+    assert "시연 모드" in text and "로봇 시연 모드 꺼짐" in text
+    panel.refresh(dict(connected=True, host="h", demo_mode=True, robot_demo_mode=True,
+                       auto_resume=dict(intent=True, note="주행 의도 기억 중")), False)
+    assert "주행 의도 기억 중" in panel.demo_label.get_text()
+    panel.refresh(dict(connected=True, host="h", demo_mode=False), False)
+    assert not panel.demo_label.get_visible()
+
+
+@pytest.mark.parametrize('argv,config_value,expected', [
+    ([], None, None), (['--demo-mode'], None, True), ([], True, True),
+])
+def test_integrated_entrypoint_demo_switch(monkeypatch, tmp_path, argv, config_value, expected):
+    token = tmp_path / 'token'
+    token.write_text('fixture-token')
+    config = {'token_file': str(token)}
+    if config_value is not None:
+        config['demo_mode'] = config_value
+    captured = {}
+
+    class FakeRuntime:
+        def __init__(self, received):
+            captured['config'] = received
+        def close(self):
+            pass
+
+    class FakeLock:
+        def __init__(self, _path):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+
+    class FakeConsole:
+        def __init__(self, *args, **kwargs):
+            pass
+        def show_all(self):
+            pass
+        def destroy(self):
+            pass
+
+    monkeypatch.setattr(integrated_entrypoint, 'load_config', lambda *_a, **_k: config)
+    monkeypatch.setattr(integrated_entrypoint, 'OperationRuntime', FakeRuntime)
+    monkeypatch.setattr(integrated_entrypoint, 'ConsoleInstanceLock', FakeLock)
+    monkeypatch.setattr(app, 'OperatorConsole', FakeConsole)
+    monkeypatch.setattr(app.Gtk, 'main', lambda: None)
+    monkeypatch.setattr(app, '_add_unix_signal_watch', lambda *_args: None)
+    assert integrated_entrypoint.main(['--config', str(tmp_path / 'o.json'), *argv]) == 0
+    assert captured['config'].get('demo_mode') is expected
+
+
+def test_integrated_entrypoint_rejects_non_bool_demo_mode(monkeypatch, tmp_path):
+    token = tmp_path / 'token'
+    token.write_text('fixture-token')
+    monkeypatch.setattr(integrated_entrypoint, 'load_config',
+                        lambda *_a, **_k: {'token_file': str(token), 'demo_mode': 'yes'})
+    assert integrated_entrypoint.main(['--config', str(tmp_path / 'o.json')]) == 2

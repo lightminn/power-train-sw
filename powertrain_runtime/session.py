@@ -104,6 +104,10 @@ class SessionServer:
         self._lease = None
         self._cleanup_pending = False
         self._stop_result = {'status': 'IDLE'}
+        # Why the robot last stopped driving (demo auto-resume needs it):
+        # revoke = lease/channel loss, operator = console stop, service = shutdown.
+        self._stop_seq = 0
+        self._stop_cause = ''
         self._started = False
         for kind in ('session', 'input', 'ops'):
             setattr(self, f'{kind}_port', config.get(f'{kind}_port', {'session': 9002, 'input': 9000, 'ops': 9001}[kind]))
@@ -222,7 +226,8 @@ class SessionServer:
         return {**state, 'connected': lease is not None, 'robot_id': self.robot_id,
                 'boot_id': self.boot_id, 'lease_id': lease['id'] if lease else None,
                 'ticket': lease['ticket'] if lease else None,
-                'input_port': self.input_port, 'ops_port': self.ops_port}
+                'input_port': self.input_port, 'ops_port': self.ops_port,
+                'stop_seq': self._stop_seq, 'stop_cause': self._stop_cause}
 
     def _control(self, conn, peer):
         hello = _read(conn)
@@ -266,16 +271,27 @@ class SessionServer:
                 elif op == 'start':
                     started = self._lease['start_at']
                     self._lease['start_at'] = None
-                    result = (self._call(self.on_start) if started is not None and time.monotonic() - started >= 1.5
-                              else {'status': 'REJECTED', 'reason': 'start requires a 1.5 second hold'})
+                    auto = request.get('auto')
+                    if started is None or time.monotonic() - started < 1.5:
+                        result = {'status': 'REJECTED', 'reason': 'start requires a 1.5 second hold'}
+                    elif auto is None:
+                        result = self._call(self.on_start)
+                    elif (not isinstance(auto, dict) or type(auto.get('expect_stop_seq')) is not int
+                          or auto['expect_stop_seq'] != self._stop_seq):
+                        result = {'status': 'REJECTED', 'reason': 'auto start: robot stopped again since the decision'}
+                    else:
+                        result = self._call(lambda: self.on_start(
+                            auto={'expect_disarm_seq': auto.get('expect_disarm_seq')}))
                 elif op == 'start_cancel':
                     self._lease['start_at'] = None
                     result = {'status': 'SUCCEEDED'}
                 elif op == 'stop':
                     self._lease['start_at'] = None
+                    self._stop_seq += 1
+                    self._stop_cause = 'operator'
                     result = self._call(self.on_stop)
                 elif op == 'release':
-                    result = self._revoke(close_control=False)
+                    result = self._revoke(close_control=False, cause='operator')
                     _send(conn, {**result, 'connected': False})
                     return
                 else:
@@ -367,10 +383,12 @@ class SessionServer:
         if self.config.get('destination_file') is not None:
             Path(self.config['destination_file']).unlink(missing_ok=True)
 
-    def _revoke(self, close_control=True):
+    def _revoke(self, close_control=True, cause='revoke'):
         lease = self._lease
         if lease is None:
             return self._stop_result
+        self._stop_seq += 1
+        self._stop_cause = cause
         # Keep ownership until the stop request and channel cleanup both finish.
         for pair in list(lease['channels'].values()):
             for sock in pair:
@@ -398,7 +416,7 @@ class SessionServer:
     def close(self):
         self._done.set()
         with self._lock:
-            result = self._revoke()
+            result = self._revoke(cause='service')
             for sock in list(self._sockets) + self._listeners:
                 _close(sock)
             workers = list(self._workers)

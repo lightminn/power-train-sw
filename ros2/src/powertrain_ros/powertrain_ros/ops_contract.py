@@ -91,6 +91,11 @@ ACTIONS = {
         emergency_roles=_CTRL_EMERGENCY,
     ),
     "disarm": ActionSpec(_CONSOLE, "service", ("/chassis_node/disarm",)),
+    # Demo auto-resume: compare-and-arm without CLEAR_ERRORS
+    # (params {"expect_disarm_seq": int}; docs/specs/2026-11-06-demo-mode.md).
+    "demo_auto_arm": ActionSpec(
+        _CONSOLE, "publish_demo_auto_arm", ("/chassis_node/demo_auto_arm",),
+    ),
     "arm_lock_override": ActionSpec(
         _CONSOLE, "service_setbool",
         ("/chassis_node/arm_lock_override",),

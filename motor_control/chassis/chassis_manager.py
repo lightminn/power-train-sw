@@ -77,6 +77,12 @@ class ChassisConfig:
     skid_track_gain: float = 1.0              # 스키드 유효 윤거 배수(>1 이 보정 방향)
     steer_settle_deg: float = 3.0             # 전환 전 조향 0° 수렴 허용 오차
     steer_settle_timeout_s: float = 3.0       # 수렴 대기 상한 — 넘으면 전환 취소
+    # 시연 모드(docs/specs/2026-11-06-demo-mode.md D1): IDLE 구동축의 마스크 안 오류는
+    # E-stop 래치 대신 정상 정지(disarm). 오류 해제·재무장은 하지 않는다.
+    demo_fault_stop: bool = False
+    demo_fault_mask: int = 0x40 | 0x800       # MOTOR_FAILED | WATCHDOG_TIMER_EXPIRED
+    demo_fault_stops_per_window: int = 2      # 창 안 세 번째부터 E-stop 래치
+    demo_fault_window_s: float = 60.0
 
 
 @dataclass(frozen=True)
@@ -278,6 +284,10 @@ class ChassisManager:
         self._interlock = SafetyInterlock(clock=self._now)
         self._can_recovery = CanRecovery()
         self._can_resume_intent = False
+        self._disarm_seq = 0
+        self._disarm_cause = ""
+        self._disarm_detail = ""
+        self._demo_stop_times = []
         self._manual_input_active = False
         self._manual_received_s = None
         self._manual_connection_session_id = None
@@ -597,7 +607,26 @@ class ChassisManager:
             c.connect()
         self.mode = "IDLE"
 
-    def arm(self, *, _recovery_guards=None, _arm_budget_s=.150) -> bool:
+    def arm_no_clear(self, *, expect_disarm_seq: int) -> bool:
+        """Demo auto-start: arm only if no disarm happened since the caller's
+        decision and every drive axis reports zero error; never CLEAR_ERRORS."""
+        if self.mode != "IDLE" or self._interlock.snapshot().estop_latched:
+            return False
+        if expect_disarm_seq != self._disarm_seq or not self._all_can_drives():
+            return False
+        self._begin_drive_feedback_cycle()
+        for corner in self.corners.values():
+            if not corner._drive_enabled:
+                continue
+            corner.drive.poll_feedback()
+            health = corner.drive.state()
+            # A drive that does not report axis_error cannot prove "no error".
+            if (health.get("heartbeat_stale", False) or health.get("stale", False)
+                    or type(health.get("axis_error")) is not int or health["axis_error"] != 0):
+                return False
+        return self.arm(_clear_errors=False)
+
+    def arm(self, *, _recovery_guards=None, _arm_budget_s=.150, _clear_errors=True) -> bool:
         if self.mode != "IDLE" or self._interlock.snapshot().estop_latched:
             return False
         if self._qualification_gate is not None:
@@ -623,13 +652,23 @@ class ChassisManager:
         # One wall-time budget for all six requests and confirmations. Never
         # wait once per axis in the single ROS executor (input TTL is 300 ms).
         deadline = time.monotonic() + min(.150, _arm_budget_s)
+        # Demo mode never clears drive errors on any start (spec D1): only the
+        # single-owner demo auto-clear may clear, and only allowed causes.
+        no_clear = (not _clear_errors or self.cfg.demo_fault_stop) and self._all_can_drives()
         self._begin_drive_feedback_cycle()
+        from corner_module.drive_odrive_can import NoClearArmRefused
         for name, c in self.corners.items():
             try:
-                if _recovery_guards is None:
-                    c.arm()
-                else:
+                if _recovery_guards is not None:
                     c.arm(drive_recovery_guard=_recovery_guards[name])
+                elif no_clear:
+                    c.arm(drive_clear_errors=False)
+                else:
+                    c.arm()
+            except NoClearArmRefused as exc:
+                logger.warning("start refused (no-clear arm): %s: %s", name, exc)
+                self.disarm(cause="arm_refused", detail="%s:%s" % (name, exc))
+                return False
             except BaseException as exc:
                 detail = f"{name}: {type(exc).__name__}: {exc}"
                 self.estop("arm_failure", detail)
@@ -821,7 +860,13 @@ class ChassisManager:
             restart_count=max(0, int(health.restart_count)),
         )
 
-    def disarm(self) -> None:
+    def _bump_disarm_seq(self, cause, detail) -> None:
+        self._disarm_seq += 1
+        self._disarm_cause = str(cause)
+        self._disarm_detail = str(detail)
+
+    def disarm(self, cause: str = "command", detail: str = "") -> None:
+        self._bump_disarm_seq(cause, detail)
         self._can_resume_intent = False
         if self._can_recovery.pending:
             self._can_recovery.cancel("disarm")
@@ -843,6 +888,8 @@ class ChassisManager:
             self.mode = "IDLE"
 
     def estop(self, source="manual", detail="") -> None:
+        # Any E-stop invalidates an earlier compare-and-arm (demo D2).
+        self._bump_disarm_seq("estop", "%s:%s" % (source, detail))
         self._can_resume_intent = False
         if self._can_recovery.pending:
             self._can_recovery.cancel("estop:" + str(source))
@@ -869,6 +916,9 @@ class ChassisManager:
             return False
         if safety.active_estop_sources:
             return False
+        # A reset is a new boundary too: a delayed demo_auto_arm from before it
+        # must never arm across it.
+        self._bump_disarm_seq("estop_reset", "")
 
         # EXTRACTION re-arms corners while deliberately preserving the latch.
         # Return them to FAULT first so the established reset_fault path still
@@ -1138,6 +1188,51 @@ class ChassisManager:
         if not self._manual_input_fresh():
             self._cancel_can_recovery("manual_input_expired_during_arm")
 
+    def _all_can_drives(self) -> bool:
+        from corner_module.drive_odrive_can import DriveOdriveCan
+        return all(isinstance(c.drive, DriveOdriveCan)
+                   for c in self.corners.values() if c._drive_enabled)
+
+    @staticmethod
+    def _other_drive_fault(states) -> bool:
+        """A fresh drive sample that is faulted but not CAN-recovery eligible."""
+        return any(CanRecovery.fresh(s) and (
+            (s["axis_error"] != 0 and not CanRecovery.eligible(s))
+            or (s["axis_state"] != 8 and not CanRecovery.eligible(s))) for s in states)
+
+    def _demo_fault_stop(self, checked, safety) -> bool:
+        """Demo D1: stop (no latch) when every faulted drive axis is IDLE with
+        only masked errors. Returns True when it handled the tick."""
+        if not self.cfg.demo_fault_stop or safety.hold_sources or self._can_recovery.pending:
+            return False
+        if any(steer.get("stale", False) for _, steer in checked.values()):
+            return False
+        faulted = []
+        for name, (drive, _steer) in checked.items():
+            # Every axis, including healthy-looking ones, must have fresh feedback.
+            if not CanRecovery.fresh(drive):
+                return False
+            if drive.get("axis_state") == 8 and drive.get("axis_error", 0) == 0:
+                continue
+            if (drive.get("axis_state") != 1
+                    or drive.get("axis_error", 0) & ~self.cfg.demo_fault_mask):
+                return False
+            faulted.append((name, drive))
+        if not faulted:
+            return False
+        now = self._now()
+        recent = [t for t in self._demo_stop_times if now - t < self.cfg.demo_fault_window_s]
+        detail = ",".join("%s:node%s:0x%X" % (name, drive.get("node_id"), drive.get("axis_error", 0))
+                          for name, drive in faulted)
+        if len(recent) >= self.cfg.demo_fault_stops_per_window:
+            self._demo_stop_times = recent
+            self.estop("demo_fault_stop_budget", detail)
+            return True
+        self._demo_stop_times = recent + [now]
+        logger.warning("demo fault stop (no latch): %s", detail)
+        self.disarm(cause="demo_fault", detail=detail)
+        return True
+
     # ── 50Hz 루프 ─────────────────────────────────────────────────────
     def tick(self) -> None:
         self._begin_drive_feedback_cycle()
@@ -1175,7 +1270,22 @@ class ChassisManager:
             return
 
         checked = None
-        if (self._can_recovery.pending or self._manual_input_fresh()) and self._can_recovery_capable():
+        recovery_preflight = ((self._can_recovery.pending or self._manual_input_fresh())
+                              and self._can_recovery_capable())
+        if (not recovery_preflight and self.cfg.demo_fault_stop
+                and self._can_recovery_capable()):
+            # Demo D1 must not depend on manual-input freshness: the node's
+            # steady clock (CLOCK_MONOTONIC_RAW) and the gateway's source stamp
+            # (CLOCK_MONOTONIC) can disagree. CAN recovery stays gated as before.
+            try:
+                demo_checked = self._can_preflight()
+            except Exception as exc:
+                self.estop("can_recovery_preflight", str(exc))
+                return
+            if (self._other_drive_fault(pair[0] for pair in demo_checked.values())
+                    and self._demo_fault_stop(demo_checked, safety)):
+                return
+        if recovery_preflight:
             try:
                 checked = self._can_preflight()
             except Exception as exc:
@@ -1188,11 +1298,11 @@ class ChassisManager:
             states = [pair[0] for pair in checked.values()]
             interrupted = any(not CanRecovery.fresh(s) or CanRecovery.eligible(s)
                               for s in states)
-            other_fault = any(CanRecovery.fresh(s) and (
-                (s["axis_error"] != 0 and not CanRecovery.eligible(s))
-                or (s["axis_state"] != 8 and not CanRecovery.eligible(s))) for s in states)
+            other_fault = self._other_drive_fault(states)
             if interrupted and not other_fault and not safety.hold_sources:
                 self._begin_can_recovery("CAN feedback interrupted", checked)
+                return
+            if other_fault and self._demo_fault_stop(checked, safety):
                 return
             if other_fault or any(steer.get("stale", False) for _, steer in checked.values()):
                 self.estop("can_preflight_fault", "drive/steering not healthy before dispatch")
@@ -1532,6 +1642,10 @@ class ChassisManager:
             return dict(health_state())
         return dict(actuator.state())
 
+    def disarm_info(self) -> dict:
+        return {"disarm_seq": self._disarm_seq, "disarm_cause": self._disarm_cause,
+                "disarm_detail": self._disarm_detail}
+
     def state(self) -> dict:
         return {
             "mode": self.mode,
@@ -1541,6 +1655,9 @@ class ChassisManager:
             "can_recovery": self.can_recovery_state(),
             "safety": self._interlock.snapshot(),
             "last_estop_error": self._last_estop_error,
+            "disarm_seq": self._disarm_seq,
+            "disarm_cause": self._disarm_cause,
+            "disarm_detail": self._disarm_detail,
             "corners": {n: c.state() for n, c in self.corners.items()},
         }
 

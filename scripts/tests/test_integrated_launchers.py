@@ -250,7 +250,8 @@ def test_robot_start_is_idempotent_no_build_and_needs_no_operator_ip(tmp_path):
 
     assert first.returncode == second.returncode == 0, first.stderr + second.stderr
     commands = log.read_text(encoding="utf-8")
-    docker_lines = [line for line in commands.splitlines() if line.startswith("docker ")]
+    docker_lines = [line for line in commands.splitlines()
+                    if line.startswith("docker ") and " up " in line]
     assert len(docker_lines) == 2
     for line in docker_lines:
         assert "compose -f docker/docker-compose.jetson.yml -f docker/docker-compose.integrated.yml" in line
@@ -297,7 +298,8 @@ def test_robot_start_adds_suspension_i2c_overlay_only_when_device_exists(tmp_pat
     present = _run(ROBOT_START, env=env)
     assert present.returncode == 0, present.stderr
 
-    first, second = [line for line in log.read_text().splitlines() if line.startswith("docker ")]
+    first, second = [line for line in log.read_text().splitlines()
+                     if line.startswith("docker ") and " up " in line]
     assert "suspension-i2c" not in first and first.endswith("dev=none")
     assert "-f docker/docker-compose.integrated.yml -f docker/docker-compose.suspension-i2c.yml" in second
     assert second.endswith("dev=/dev/i2c-7")
@@ -320,7 +322,7 @@ def test_robot_start_adds_caller_opt_in_profiles_on_top_of_the_manifest(tmp_path
     result = _run(ROBOT_START, env=env)
 
     assert result.returncode == 0, result.stderr
-    (line,) = [l for l in log.read_text().splitlines() if l.startswith("docker ")]
+    (line,) = [l for l in log.read_text().splitlines() if l.startswith("docker ") and " up " in l]
     assert "--profile terrain-overlay --profile terrain-map" in line
     assert "powertrain_terrain_overlay powertrain_terrain_map" in line
     assert "powertrain_arm_console_bridge" in line  # prepared services are kept
@@ -607,3 +609,69 @@ def test_effective_integrated_stack_recovers_after_docker_restart():
                 "powertrain_pdist80b_telemetry", "powertrain_session")
     actual = {name: services[name].get("restart") for name in required}
     assert actual == dict.fromkeys(required, "unless-stopped"), actual
+
+
+# Demo mode switch (docs/specs/2026-11-06-demo-mode.md §1).
+def _demo_run(tmp_path, **extra_env):
+    binary_dir, log = _fake_path(tmp_path)
+    _write_executable(
+        binary_dir / "docker",
+        "#!/bin/sh\nprintf 'docker %s demo=%s\\n' \"$*\" "
+        "\"${POWERTRAIN_DEMO_MODE:-unset}\" >>\"$FAKE_COMMAND_LOG\"\n",
+    )
+    _ready_robot_tree(tmp_path)
+    env = _env(tmp_path, binary_dir, log)
+    env.pop("POWERTRAIN_DEMO_MODE", None)
+    env.update(extra_env)
+    result = _run(ROBOT_START, env=env)
+    lines = [l for l in log.read_text().splitlines() if l.startswith("docker ")] if log.exists() else []
+    return result, lines
+
+
+def test_robot_start_default_is_not_demo_and_stops_the_demo_autoclear(tmp_path):
+    result, lines = _demo_run(tmp_path)
+    assert result.returncode == 0, result.stderr
+    stop, up = lines
+    assert "stop powertrain_demo_autoclear" in stop and "--profile demo" in stop
+    assert "up -d --no-build" in up and up.endswith("demo=false")
+    assert "powertrain_demo_autoclear" not in up and "--profile demo" not in up
+
+
+def test_robot_start_demo_stops_field_autoclear_before_starting_demo_services(tmp_path):
+    result, lines = _demo_run(tmp_path, POWERTRAIN_DEMO_MODE="true")
+    assert result.returncode == 0, result.stderr
+    stop, up = lines
+    assert "stop powertrain_odrive_autoclear" in stop
+    assert "--profile demo" in up and "powertrain_demo_autoclear" in up
+    assert up.endswith("demo=true")
+    assert "powertrain_odrive_autoclear" not in up
+    assert "시연 모드" in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("extra", [
+    dict(POWERTRAIN_DEMO_MODE="true", INTEGRATED_PROFILES="odrive-autoclear"),
+    dict(POWERTRAIN_DEMO_MODE="true", INTEGRATED_SERVICES="powertrain_odrive_autoclear"),
+    dict(INTEGRATED_PROFILES="demo"),
+    dict(INTEGRATED_SERVICES="powertrain_demo_autoclear"),
+    dict(POWERTRAIN_DEMO_MODE="yes"),
+])
+def test_robot_start_rejects_mixed_or_invalid_demo_requests(tmp_path, extra):
+    result, lines = _demo_run(tmp_path, **extra)
+    assert result.returncode != 0
+    assert lines == []
+
+
+def test_demo_switch_reaches_chassis_launch_and_demo_autoclear_is_opt_in():
+    import yaml
+    services = yaml.safe_load((ROOT / "docker/docker-compose.integrated.yml").read_text())["services"]
+    chassis = services["powertrain_chassis"]
+    assert "POWERTRAIN_DEMO_MODE=${POWERTRAIN_DEMO_MODE:-false}" in chassis["environment"]
+    command = chassis["command"][0]
+    assert "demo_mode:=$$DEMO_MODE" in command
+    # the switch is read before powertrain.env is sourced so that file cannot flip it
+    assert command.index("DEMO_MODE=") < command.index("powertrain.env")
+    demo = services["powertrain_demo_autoclear"]
+    assert demo["profiles"] == ["demo"]
+    assert "--motor-allow 0x1000" in demo["command"][0]
+    assert "--mask 0x840" in demo["command"][0]
+    assert services["powertrain_odrive_autoclear"]["profiles"] == ["odrive-autoclear"]

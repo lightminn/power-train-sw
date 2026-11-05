@@ -55,6 +55,16 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
+                "demo_mode",
+                default_value="false",
+                choices=["true", "false"],
+                description=(
+                    "Demo profile (docs/specs/2026-11-06-demo-mode.md): drive "
+                    "MOTOR_FAILED/watchdog stops disarm instead of latching, "
+                    "arm_gate_mode becomes arm_absent_field"
+                ),
+            ),
+            DeclareLaunchArgument(
                 "arm_override_ttl_s",
                 default_value="30.0",
                 description=(
@@ -90,6 +100,10 @@ def generate_launch_description():
             SetParameter(
                 name="arm_gate_mode",
                 value=LaunchConfiguration("arm_gate_mode"),
+            ),
+            SetParameter(
+                name="demo_mode",
+                value=ParameterValue(LaunchConfiguration("demo_mode"), value_type=bool),
             ),
             SetParameter(
                 name="arm_override_ttl_s",
