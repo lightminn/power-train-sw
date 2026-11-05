@@ -260,6 +260,14 @@ class ChassisNode(Node):
             30.0,
             descriptor=read_only_safety_parameter,
         )
+        # Demo mode (docs/specs/2026-11-06-demo-mode.md): drive-axis MOTOR_FAILED /
+        # watchdog stops disarm instead of latching, the arm gate runs without
+        # the robot arm, and the console may compare-and-arm after a demo stop.
+        self.declare_parameter(
+            "demo_mode",
+            False,
+            descriptor=read_only_safety_parameter,
+        )
         self.declare_parameter(
             "mission_contract_owner",
             MISSION_OWNER_CHASSIS,
@@ -336,6 +344,12 @@ class ChassisNode(Node):
         self._arm_gate_mode = validate_arm_gate_mode(
             self.get_parameter("arm_gate_mode").value
         )
+        self._demo_mode = self.get_parameter("demo_mode").value is True
+        if self._demo_mode:
+            self._arm_gate_mode = ARM_GATE_ABSENT_FIELD
+            self.get_logger().warning(
+                "DEMO MODE ACTIVE: drive MOTOR_FAILED/watchdog stops disarm "
+                "instead of latching; arm_gate_mode=arm_absent_field")
         self._arm_override_ttl_s = float(
             self.get_parameter("arm_override_ttl_s").value
         )
@@ -377,6 +391,7 @@ class ChassisNode(Node):
             steering_mode=steering_mode,
             skid_track_gain=float(self.get_parameter("skid_track_gain").value),
             manual_max_omega_rad_s=float(self.get_parameter("manual_max_angular").value),
+            demo_fault_stop=self._demo_mode,
         )
         self._section_floor_v_m_s = (
             cfg.min_drive_turns_per_s * 2.0 * math.pi * 0.10
@@ -467,6 +482,9 @@ class ChassisNode(Node):
             "/teleop/estop",
             self._on_teleop_estop,
             teleop_estop_qos,
+        )
+        self.create_subscription(
+            String, "/chassis_node/demo_auto_arm", self._on_demo_auto_arm, 10
         )
         if self._can_session is not None:
             from chassis.telemetry import CanBusStatsSampler
@@ -1896,6 +1914,9 @@ class ChassisNode(Node):
                 "component_mask": dict(
                     getattr(safety, "component_mask", {})
                 ),
+                "demo_mode": bool(getattr(self, "_demo_mode", False)),
+                **(self.cm.disarm_info() if hasattr(self.cm, "disarm_info")
+                   else {"disarm_seq": 0, "disarm_cause": "", "disarm_detail": ""}),
                 **steering_state_fields(
                     self.cm, getattr(self, "_drive_transport", "can")),
                 "hardware_stop_proof": (
@@ -2320,6 +2341,32 @@ class ChassisNode(Node):
             response.message = "arm rejected: mode=%s" % self.cm.mode
         self.get_logger().info("arm request: %s" % response.message)
         return response
+
+    def _on_demo_auto_arm(self, msg):
+        """Compare-and-arm without CLEAR_ERRORS from the ops broker (demo D2)."""
+        if not self._demo_mode:
+            self.get_logger().warning("demo auto arm ignored: demo_mode is off")
+            return
+        try:
+            payload = json.loads(msg.data)
+            seq = payload["expect_disarm_seq"]
+            if set(payload) != {"expect_disarm_seq"} or type(seq) is not int:
+                raise ValueError
+        except (TypeError, ValueError, KeyError):
+            self.get_logger().error("invalid demo auto arm payload; ignored")
+            return
+        authority = getattr(getattr(self, "_authority", None), "mode", None)
+        if authority != "TELEOP" or not getattr(self, "_gateway_input_ok", False):
+            # The broker checked this too; recheck here so a HOLD that began
+            # in between is never armed across.
+            self.get_logger().warning(
+                "demo auto arm refused: authority=%s gateway_ok=%s"
+                % (authority, getattr(self, "_gateway_input_ok", False)))
+            return
+        armed = self.cm.arm_no_clear(expect_disarm_seq=seq)
+        self._refresh_safety_baseline()
+        self.get_logger().info("demo auto arm (expect_disarm_seq=%d): %s mode=%s"
+                               % (seq, "armed" if armed else "rejected", self.cm.mode))
 
     def _srv_disarm(self, _request, response):
         self.cm.disarm()

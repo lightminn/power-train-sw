@@ -39,12 +39,32 @@ for service in $caller_services; do
   esac
 done
 
+# Demo mode (docs/specs/2026-11-06-demo-mode.md) is a per-start host switch,
+# read before the manifest so a prepared file cannot turn it on.
+caller_demo="${POWERTRAIN_DEMO_MODE:-false}"
+case "$caller_demo" in
+  true|false) ;;
+  *) fail "POWERTRAIN_DEMO_MODE는 true 또는 false여야 합니다: $caller_demo" ;;
+esac
+
 # The manifest is written root-owned by robot_prepare.sh and contains only
 # shell-quoted assignments after strict option validation.
 # shellcheck disable=SC1090
 source "$manifest"
 INTEGRATED_PROFILES="${INTEGRATED_PROFILES:-} $caller_profiles"
 INTEGRATED_SERVICES="${INTEGRATED_SERVICES:-} $caller_services"
+export POWERTRAIN_DEMO_MODE="$caller_demo"
+# Only one auto-clear service may own the drive axes: the demo one comes with
+# the demo switch and is never requested by name, the field one never in demo.
+for item in $INTEGRATED_PROFILES $INTEGRATED_SERVICES; do
+  case "$item" in
+    demo|powertrain_demo_autoclear)
+      fail "시연 자동 해제는 POWERTRAIN_DEMO_MODE=true로만 켭니다: $item" ;;
+    odrive-autoclear|powertrain_odrive_autoclear)
+      [ "$POWERTRAIN_DEMO_MODE" = false ] \
+        || fail "시연 모드에서는 기존 자동 해제를 함께 켤 수 없습니다: $item" ;;
+  esac
+done
 [ "${POWERTRAIN_INTEGRATED_VERSION:-}" = 1 ] \
   || fail '지원하지 않는 준비 매니페스트 버전입니다.'
 [ "${POWERTRAIN_PROFILE:-}" = can-4ws ] \
@@ -152,6 +172,17 @@ elif [ -n "$suspension_device" ]; then
     "$suspension_device" >&2
 fi
 
+if [ "$POWERTRAIN_DEMO_MODE" = true ]; then
+  # Stop the field auto-clear first so two clearers never run together.
+  "${compose[@]}" --profile odrive-autoclear stop powertrain_odrive_autoclear
+  compose+=(--profile demo)
+  services+=(powertrain_demo_autoclear)
+  printf 'robot-start WARN: 시연 모드 — 구동축 MOTOR_FAILED·워치독 정지는 래치 대신 정지, 로봇팔 게이트 없음\n' >&2
+else
+  # Turning the demo switch off must also stop the demo auto-clear.
+  "${compose[@]}" --profile demo stop powertrain_demo_autoclear
+fi
+
 "${compose[@]}" up -d --no-build "${services[@]}"
 
 if [ -n "${OPTIONAL_COMPOSE_FILE:-}" ]; then
@@ -168,4 +199,5 @@ if [ -n "${OPTIONAL_COMPOSE_FILE:-}" ]; then
   "${optional[@]}" up -d --no-build "${optional_services[@]}"
 fi
 
-printf 'robot-start PASS: profile=can-4ws, session=:9002, input=:9000, ops=:9001\n'
+printf 'robot-start PASS: profile=can-4ws, session=:9002, input=:9000, ops=:9001, demo=%s\n' \
+  "$POWERTRAIN_DEMO_MODE"

@@ -1431,6 +1431,7 @@ window.viewport-spacious .mobility-card {{ padding: 15px 16px; }}
   padding: 6px 18px;
 }}
 .integrated-operation label {{ color: #DDE8F3; }}
+.integrated-operation label.demo-banner {{ color: #FFE590; font-weight: bold; }}
 .integrated-operation button {{
   background: #173353;
   color: #DDE8F3;
@@ -3454,9 +3455,11 @@ class OpsPanel(Gtk.Frame):
         clock: Callable[[], float] = time.monotonic,
         client_factory: Callable | None = None,
         integrated: bool = False,
+        on_estop: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(label="조작 (토큰 인증)")
         self._event_sink = event_sink
+        self._on_estop = on_estop
         self._alert_sink = alert_sink or (lambda _message: None)
         self._clock = clock
         self._client: ConsoleOpsClient | None = None
@@ -3671,6 +3674,10 @@ class OpsPanel(Gtk.Frame):
         _button: Gtk.Button,
         action: PanelAction,
     ) -> None:
+        if action.action == "estop" and self._on_estop is not None:
+            # Demo D2: an E-stop press must end any remembered driving intent,
+            # even when the request never reaches the robot.
+            self._on_estop()
         flow = self._flow
         if flow is None:
             self._emit(f"{action.action}: rejected — panel disabled")
@@ -3989,6 +3996,12 @@ class IntegratedOperationPanel(Gtk.Box):
         self.outcome_label = Gtk.Label(label="최근 조작: 없음", xalign=0)
         self._latest_outcome = None
         status = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        # Demo mode banner (docs/specs/2026-11-06-demo-mode.md §1); hidden otherwise.
+        self.demo_label = Gtk.Label(xalign=0)
+        self.demo_label.set_no_show_all(True)
+        self.demo_label.set_ellipsize(Pango.EllipsizeMode.END)
+        _style(self.demo_label, "demo-banner")
+        status.pack_start(self.demo_label, False, False, 0)
         readiness = Gtk.Box(spacing=16)
         for label in (self.connection_label, self.pad_label, self.video_label):
             label.set_ellipsize(Pango.EllipsizeMode.END)
@@ -4045,6 +4058,16 @@ class IntegratedOperationPanel(Gtk.Box):
 
     def refresh(self, state: dict, front_live: bool) -> None:
         connected = state.get("connected", False)
+        if state.get("demo_mode"):
+            auto = state.get("auto_resume") or {}
+            robot = ("로봇 시연 모드 켜짐" if state.get("robot_demo_mode")
+                     else "로봇 시연 모드 꺼짐 · 자동 재개 없음")
+            note = auto.get("note") or ""
+            self.demo_label.set_text("시연 모드 · 끊김 뒤 자동 재개 · 로봇을 눈으로 보며 운전 · "
+                                     + robot + (" · " + note if note else ""))
+            self.demo_label.show()
+        else:
+            self.demo_label.hide()
         self.connection_label.set_text(
             f"로봇: {state.get('host')} · 연결됨" if connected else "로봇: 연결 대기")
         pad = state.get("pad", {})
@@ -4336,7 +4359,8 @@ class OperatorConsole(Gtk.Window):
             ops_token_file,
             event_sink=self._add_event,
             alert_sink=self._show_alert,
-            **({"client_factory": operation_runtime.make_ops_client, "integrated": True}
+            **({"client_factory": operation_runtime.make_ops_client, "integrated": True,
+                "on_estop": lambda: operation_runtime.cancel_drive_intent("콘솔 E-stop")}
                if operation_runtime is not None else {}),
         )
         if operation_runtime is not None:

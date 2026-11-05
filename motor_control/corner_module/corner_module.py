@@ -33,14 +33,16 @@ class CornerModule:
         self.drive.connect()
         self.mode = "IDLE"
 
-    def arm(self, *, drive_recovery_guard=None) -> None:
+    def arm(self, *, drive_recovery_guard=None, drive_clear_errors=True) -> None:
         if self._steer_enabled:
             self.steer.arm()
         if self._drive_enabled:
-            if drive_recovery_guard is None:
-                self.drive.arm()
-            else:
+            if drive_recovery_guard is not None:
                 self.drive.arm(recovery_guard=drive_recovery_guard)
+            elif not drive_clear_errors:
+                self.drive.arm(clear_errors=False)
+            else:
+                self.drive.arm()
         # 점프 방지: 조향 목표=현재 실제각, 구동 목표=0
         if self._steer_enabled:
             self._steer_target = self.steer.state()["actual_deg"]

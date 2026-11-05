@@ -72,12 +72,12 @@ class SessionClient:
             self.snapshot = {'connected': False}
             raise SessionError('paired robot unavailable or lease rejected')
 
-    def request(self, op):
+    def request(self, op, **fields):
         with self._lock:
             if self._socket is None:
                 raise SessionError('not connected')
             try:
-                _send(self._socket, {'op': op})
+                _send(self._socket, {**fields, 'op': op})
                 snapshot = _read(self._socket)
                 self.snapshot = snapshot
                 return dict(snapshot)

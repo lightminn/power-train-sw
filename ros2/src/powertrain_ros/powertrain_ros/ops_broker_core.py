@@ -41,6 +41,11 @@ class OpsState:
     steering_mode: str | None = None
     steering_available: bool = False
     drive_transport: str | None = None
+    # Demo mode (docs/specs/2026-11-06-demo-mode.md): robot switch and the
+    # chassis disarm counter/cause the console uses to allow auto-resume.
+    demo_mode: bool = False
+    disarm_seq: int = 0
+    disarm_cause: str = ""
 
 
 @dataclass(frozen=True)
@@ -372,6 +377,36 @@ class OpsBrokerCore:
                     or state.component_mask.get("drive") is not True
                     or state.component_mask.get("steer") is not True):
                 return self._reject(request_id, "steering origin requires IDLE and stopped CAN motors")
+
+        if action == "demo_auto_arm":
+            # Demo auto-resume compare-and-arm (docs/specs/2026-11-06-demo-mode.md
+            # D2): only a robot already in demo mode, stopped, unlatched, at the
+            # disarm counter the console saw, with a released neutral stick.
+            params = request["params"]
+            expected = params.get("expect_disarm_seq")
+            if set(params) != {"expect_disarm_seq"} or type(expected) is not int:
+                return self._reject(request_id, "invalid demo auto arm params")
+            for key in ("safety", "wheels", "gateway", "authority"):
+                age = state.field_age_s.get(key)
+                if type(age) not in (int, float) or not 0 <= age <= oc.OPS_STATE_STALE_S:
+                    return self._reject(request_id, "stale state; retry")
+            if not state.demo_mode:
+                return self._reject(request_id, "robot is not in demo mode")
+            if state.estop_latched:
+                return self._reject(request_id, "E-stop latched")
+            if state.disarm_seq != expected:
+                return self._reject(request_id, "another stop happened since")
+            # Never arm across a HOLD: manual authority and a driving gateway only.
+            if state.authority_mode != "TELEOP" or state.gateway_state != "DRIVE":
+                return self._reject(
+                    request_id, "demo auto arm requires TELEOP authority and DRIVE gateway")
+            if not (state.chassis_mode == "IDLE" and state.wheels_stopped
+                    and state.gateway_neutral and state.gateway_input_fresh):
+                return self._reject(
+                    request_id,
+                    "demo auto arm requires IDLE, stopped wheels "
+                    "and released neutral input",
+                )
 
         if emergency:
             phase = request.get("phase")

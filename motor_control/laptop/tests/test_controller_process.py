@@ -914,3 +914,28 @@ def test_estop_pressed_before_arm_mode_is_still_delivered_in_arm_mode():
         process.tick()
     assert [json.loads(r)['estop_edge'] for r in sock.sent].count(True) == 1
     assert process._estop_pending_id == pending  # not replaced by the tool button
+
+
+def test_status_counts_chassis_estop_presses_for_demo_auto_resume():
+    # docs/specs/2026-11-06-demo-mode.md D2: the console cancels a remembered
+    # driving intent on any pad E-stop press, even an unacknowledged one.
+    statuses = []
+    pad = FakePadSource(_neutral_sample())
+    reader = FakeCommandReader(controller.CommandBatch(
+        ({'op': 'arm_control', 'enabled': False},), False, ()))
+    process = controller.ControllerProcess(command_reader=reader, pad_source=pad,
+        status_writer=statuses.append, clock=FakeClock(), monotonic_ns=lambda: 0)
+    process.tick()
+    assert statuses[-1]["estop_events"] == 0
+    pad.sample = _neutral_sample(estop_edge=True)
+    process.tick()
+    assert statuses[-1]["estop_events"] == 1
+    pad.sample = _neutral_sample()
+    process.tick()
+    assert statuses[-1]["estop_events"] == 1
+    # In arm mode the circle button is "tool close", not a chassis E-stop.
+    reader.batches.append(controller.CommandBatch(({'op': 'arm_control', 'enabled': True},), False, ()))
+    pad.sample = _neutral_sample(estop_edge=True)
+    process.tick()
+    assert statuses[-1]["estop_events"] == 1
+    process.close()

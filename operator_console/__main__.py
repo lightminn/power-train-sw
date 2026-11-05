@@ -18,10 +18,16 @@ def main(argv=None):
     parser.add_argument('--l515-criteria-profile', default=None)
     parser.add_argument('--page', choices=('mission', 'mobility', 'systems', 'terrain_map', 'vision'),
                         default='mission')
+    parser.add_argument('--demo-mode', action='store_true',
+                        help='시연 모드: 영상 없이 운전 시작, 로봇도 시연 모드면 끊김 뒤 자동 재개')
     args = parser.parse_args(argv)
     runtime = None
     try:
         config = load_config(args.config, role='operator')
+        if type(config.get('demo_mode', False)) is not bool:
+            raise ValueError('demo_mode: true 또는 false가 필요합니다')
+        if args.demo_mode:
+            config = dict(config, demo_mode=True)
         from operator_console.vision_config import resolve_criteria
         vision_criteria = resolve_criteria(args.l515_criteria, args.l515_criteria_profile,
             config=config, config_dir=Path(args.config).expanduser().resolve().parent)

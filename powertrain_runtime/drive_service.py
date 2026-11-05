@@ -91,13 +91,16 @@ class ManualDriveService:
             result["start_blocker"] = start_blocker(self._state, age)
             return result
 
-    def start(self):
+    def start(self, auto=None):
+        """Manual start, or a demo auto-resume when ``auto`` carries the
+        console's ``expect_disarm_seq`` (docs/specs/2026-11-06-demo-mode.md D2)."""
         with self._lock:
             if self._closed.is_set():
                 return dict(status="REJECTED", action="start", detail="운용 서비스 종료됨")
             if self._result["status"] == "PENDING":
                 return dict(status="REJECTED", action="start", detail="이전 조작 처리 중")
             self._cancel.clear()
+            self._auto = dict(auto) if auto else None
             self._pending = "start"
             self._result = dict(status="PENDING", action="start", detail="운전 시작 확인 중")
             result = dict(self._result)
@@ -148,7 +151,7 @@ class ManualDriveService:
                 raise DriveRejected(reason)
             return deepcopy(self._state)
 
-    def _command(self, action, *, gate=False):
+    def _command(self, action, *, gate=False, params=None):
         self._check_cancel()
         self._pump()
         if gate:
@@ -156,7 +159,8 @@ class ManualDriveService:
         # Never queue an offline mutation that might replay after reconnect.
         if self._client.sock is None:
             raise DriveUnknown("조작 채널 연결 없음")
-        request_id = self._client.submit(action)
+        request_id = (self._client.submit(action) if params is None
+                      else self._client.submit(action, params=params))
         deadline = self._clock() + self._timeout
         while self._clock() < deadline:
             self._check_cancel()
@@ -213,6 +217,24 @@ class ManualDriveService:
         current = self._state_now(allow_hold=True)
         if current["chassis_mode"] == "ARMED":
             raise DriveRejected("이미 주행 활성 상태입니다")
+        auto = getattr(self, "_auto", None)
+        if auto is not None:
+            # Demo auto-resume: never clear a hold, never use the error-clearing
+            # arm, and refuse if any stop happened after the console decided.
+            if current.get("demo_mode") is not True:
+                raise DriveRejected("자동 재개 거부: 로봇 시연 모드 아님")
+            if "MOTION_HOLD" in (current["authority_mode"], current["gateway_state"]):
+                raise DriveRejected("자동 재개 거부: HOLD 원인 확인 필요")
+            expected = auto.get("expect_disarm_seq")
+            if type(expected) is not int or current.get("disarm_seq") != expected:
+                raise DriveRejected("자동 재개 거부: 그 사이 다른 정지 발생")
+            if current["authority_mode"] != "TELEOP":
+                self._command("authority_manual", gate=True)
+                self._wait_state(lambda s: s["authority_mode"] == "TELEOP")
+            self._arm_attempted = True
+            self._command("demo_auto_arm", gate=True, params={"expect_disarm_seq": expected})
+            self._wait_state(lambda s: s["authority_mode"] == "TELEOP" and s["chassis_mode"] == "ARMED")
+            return
         if "MOTION_HOLD" in (current["authority_mode"], current["gateway_state"]):
             self._command("clear_transient_hold", gate=True)
             self._wait_state(lambda s: s["gateway_state"] == "DRIVE" and s["authority_mode"] != "MOTION_HOLD", recovering_hold=True)

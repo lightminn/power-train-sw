@@ -442,3 +442,52 @@ def test_ops_state_push_serializes_estop_source_and_detail():
     payload = json.loads(sent[0][1])
     assert payload["estop_source"] == "corner_fault"
     assert payload["estop_detail"] == "front_left stale"
+
+
+def test_chassis_safety_state_carries_demo_mode_and_disarm_counter():
+    published = []
+    safety = SimpleNamespace(estop_latched=False, active_estop_sources=(),
+                             first_source="", first_detail="", component_mask={})
+    node = SimpleNamespace(
+        _last_safety_state_publish_s=None, _demo_mode=True,
+        cm=SimpleNamespace(mode="IDLE", safety_snapshot=lambda: safety,
+                           disarm_info=lambda: dict(disarm_seq=7, disarm_cause="demo_fault",
+                                                    disarm_detail="rear_left:node15:0x40")),
+        pub_safety_state=SimpleNamespace(publish=published.append),
+    )
+    _PUBLISH_SAFETY_STATE(node, 10.0)
+    payload = json.loads(published[0].data)
+    assert payload["demo_mode"] is True
+    assert (payload["disarm_seq"], payload["disarm_cause"]) == (7, "demo_fault")
+
+
+def _demo_safety(**fields):
+    payload = {"stamp_s": time.monotonic(), "estop_latched": False,
+               "active_estop_sources": [], "mode": "IDLE"}
+    payload.update(fields)
+    return SimpleNamespace(data=json.dumps(payload))
+
+
+def test_safety_state_demo_fields_reach_ops_state_and_bump_revision():
+    node = _broker_harness()
+    _ON_SAFETY(node, _demo_safety(demo_mode=True, disarm_seq=1, disarm_cause="command"))
+    first = _OPS_STATE(node)
+    _ON_SAFETY(node, _demo_safety(demo_mode=True, disarm_seq=2, disarm_cause="demo_fault"))
+    second = _OPS_STATE(node)
+    assert (first.demo_mode, first.disarm_seq, first.disarm_cause) == (True, 1, "command")
+    assert (second.disarm_seq, second.disarm_cause) == (2, "demo_fault")
+    assert second.revision == first.revision + 1
+
+
+@pytest.mark.parametrize("fields", [
+    {}, {"demo_mode": "yes", "disarm_seq": True, "disarm_cause": 3},
+    {"demo_mode": 1, "disarm_seq": -1, "disarm_cause": "x" * 200},
+])
+def test_safety_state_demo_fields_default_when_missing_or_malformed(fields):
+    node = _broker_harness()
+    _ON_SAFETY(node, _demo_safety(**fields))
+    state = _OPS_STATE(node)
+    assert state.demo_mode is False
+    assert state.disarm_seq == 0
+    assert state.disarm_cause == ""
+    assert state.chassis_mode == "IDLE"   # the rest of the update is kept

@@ -74,7 +74,9 @@ class BrokerHandler(socketserver.BaseRequestHandler):
                                                "arm": dict(chassis_mode="ARMED"),
                                                "disarm": dict(chassis_mode="IDLE"),
                                                "authority_idle": dict(authority_mode="IDLE")}
-                                    if hasattr(server, "execute"):
+                                    if hasattr(server, "execute_order"):
+                                        server.execute_order(order)
+                                    elif hasattr(server, "execute"):
                                         server.execute(order.action)
                                     else:
                                         server.state = replace(server.state, revision=server.state.revision+1, **changes.get(order.action, {}))
@@ -197,3 +199,96 @@ def test_robot_service_module_starts_and_stops_through_actual_entrypoint(tmp_pat
         broker.done.set()
         broker.shutdown()
         broker.server_close()
+
+
+def _demo_broker(token):
+    broker = socketserver.ThreadingTCPServer(("127.0.0.1", 0), BrokerHandler)
+    broker.daemon_threads = True
+    broker.lock = threading.Lock()
+    broker.done = threading.Event()
+    broker.actions = []
+    broker.state = OpsState(revision=1, authority_mode="IDLE", chassis_mode="IDLE",
+        gateway_state="DRIVE", gateway_input_fresh=True, gateway_neutral=True,
+        estop_latched=False, active_estop_sources=(), wheels_stopped=True,
+        field_age_s=dict(authority=0., gateway=0., safety=0., wheels=0.),
+        demo_mode=True, disarm_seq=0, disarm_cause="")
+
+    def execute_order(order):
+        state = broker.state
+        changes = {"authority_manual": dict(authority_mode="TELEOP"),
+                   "authority_idle": dict(authority_mode="IDLE"),
+                   "arm": dict(chassis_mode="ARMED"),
+                   "disarm": dict(chassis_mode="IDLE", disarm_seq=state.disarm_seq + 1,
+                                  disarm_cause="command")}.get(order.action, {})
+        if order.action == "demo_auto_arm" and order.params.get("expect_disarm_seq") == state.disarm_seq:
+            changes = dict(chassis_mode="ARMED")
+        broker.state = replace(state, revision=state.revision + 1, **changes)
+
+    broker.execute_order = execute_order
+    broker.core = OpsBrokerCore({token.read_text(): "console"}, clock=time.monotonic,
+                                state_provider=lambda: broker.state)
+    threading.Thread(target=broker.serve_forever, daemon=True).start()
+    return broker
+
+
+def _demo_stack(tmp_path):
+    token = tmp_path / "console.token"
+    token.write_text("integration-private-console-token")
+    broker = _demo_broker(token)
+    drive = ManualDriveService(lambda: OpsChannelClient("127.0.0.1", broker.server_address[1], token.read_text()), timeout_s=1)
+    config = dict(robot_id="fixture", token_file=str(token), host="127.0.0.1", session_port=0,
+                  input_port=0, ops_port=0, ops_target_port=broker.server_address[1], input_target_port=broker.server_address[1],
+                  destination_file=str(tmp_path / "session.json"), lease_timeout_s=1.)
+    server = SessionServer(config, drive.start, drive.stop, drive.snapshot).start()
+    runtime = OperationRuntime(dict(robot_id="fixture", token_file=str(token), hosts=["127.0.0.1"],
+                                    session_port=server.session_port, demo_mode=True), supervisor=FakePadBoundary())
+    return broker, drive, server, runtime
+
+
+def _keep_video_until(runtime, predicate, timeout=6):
+    end = time.monotonic() + timeout
+    while time.monotonic() < end and not predicate():
+        runtime.set_front_live(True)
+        time.sleep(.03)
+    return predicate()
+
+
+def _close_stack(broker, drive, server, runtime):
+    runtime.close()
+    server.close()
+    drive.close()
+    broker.done.set()
+    broker.shutdown()
+    broker.server_close()
+
+
+def test_demo_auto_resume_after_session_revoke_uses_compare_and_arm(tmp_path):
+    broker, drive, server, runtime = _demo_stack(tmp_path)
+    try:
+        assert _keep_video_until(runtime, lambda: runtime.snapshot().get("ready"))
+        assert runtime.begin_start()
+        assert _keep_video_until(runtime, lambda: broker.state.chassis_mode == "ARMED")
+        assert _keep_video_until(runtime, lambda: runtime.snapshot()["auto_resume"]["intent"])
+        with server._lock:
+            server._revoke()
+        assert _keep_video_until(runtime, lambda: "demo_auto_arm" in broker.actions, timeout=8), broker.actions
+        assert broker.state.chassis_mode == "ARMED"
+        assert broker.actions.count("arm") == 1
+        assert "clear_transient_hold" not in broker.actions
+    finally:
+        _close_stack(broker, drive, server, runtime)
+
+
+def test_demo_operator_stop_cancels_auto_resume(tmp_path):
+    broker, drive, server, runtime = _demo_stack(tmp_path)
+    try:
+        assert _keep_video_until(runtime, lambda: runtime.snapshot().get("ready"))
+        assert runtime.begin_start()
+        assert _keep_video_until(runtime, lambda: broker.state.chassis_mode == "ARMED")
+        runtime.stop()
+        assert _keep_video_until(runtime, lambda: broker.state.chassis_mode == "IDLE")
+        _keep_video_until(runtime, lambda: False, timeout=3)
+        assert "demo_auto_arm" not in broker.actions
+        assert not runtime.snapshot()["auto_resume"]["intent"]
+    finally:
+        _close_stack(broker, drive, server, runtime)

@@ -48,6 +48,9 @@ _SEMANTIC_FIELDS = (
     "steering_mode",
     "steering_available",
     "drive_transport",
+    "demo_mode",
+    "disarm_seq",
+    "disarm_cause",
 )
 
 
@@ -176,6 +179,8 @@ class OpsBrokerNode(Node):
             String, "/tool/calibration_command", 10)
         self._arm_calibration_pub = self.create_publisher(
             String, "/arm/calibration_command", 10)
+        self._demo_auto_arm_pub = self.create_publisher(
+            String, "/chassis_node/demo_auto_arm", 10)
         self._tool_torque_pub = self.create_publisher(
             Int32MultiArray, "/dynamixel/torque_request", 10,
         )
@@ -275,6 +280,15 @@ class OpsBrokerNode(Node):
             # clock later catches up; only a newly received valid sample can.
             if not 0 <= time.monotonic() - stamp_s <= .5:
                 steering_mode, steering_available, drive_transport = None, False, None
+            # Optional demo-mode fields; malformed values fall back to the
+            # conservative defaults (no demo, no counted stop).
+            demo_mode = decoded.get("demo_mode") is True
+            disarm_seq = decoded.get("disarm_seq")
+            if type(disarm_seq) is not int or disarm_seq < 0:
+                disarm_seq = 0
+            disarm_cause = decoded.get("disarm_cause")
+            if disarm_cause not in ("command", "demo_fault", "arm_refused", "estop", "estop_reset"):
+                disarm_cause = ""
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
             self.get_logger().warning(
                 "invalid /chassis/safety_state ignored: %s" % exc
@@ -290,6 +304,9 @@ class OpsBrokerNode(Node):
             self._fields["steering_mode"] = steering_mode
             self._fields["steering_available"] = steering_available
             self._fields["drive_transport"] = drive_transport
+            self._fields["demo_mode"] = demo_mode
+            self._fields["disarm_seq"] = disarm_seq
+            self._fields["disarm_cause"] = disarm_cause
             self._stamps["safety"] = stamp_s
             self._fields["wheels_stopped"] = stopped
             self._stamps["wheels"] = (
@@ -353,6 +370,9 @@ class OpsBrokerNode(Node):
                 "drive_transport": (
                     self._fields["drive_transport"] if steering_fresh else None
                 ),
+                "demo_mode": self._fields["demo_mode"] is True,
+                "disarm_seq": self._fields["disarm_seq"] or 0,
+                "disarm_cause": self._fields["disarm_cause"] or "",
             }
             semantic = tuple(values[name] for name in _SEMANTIC_FIELDS)
             if semantic != self._last_semantic:
@@ -618,6 +638,17 @@ class OpsBrokerNode(Node):
             self._coupling_lock_pub.publish(String(data=json.dumps(params)))
             self._complete_order(order, connection, role, True,
                                  "published lock request; verify lock status")
+            return
+        if order.kind == "publish_demo_auto_arm":
+            params = dict(order.params)
+            seq = params.get("expect_disarm_seq")
+            if set(params) != {"expect_disarm_seq"} or type(seq) is not int or seq < 0:
+                self._complete_order(order, connection, role, False,
+                                     "invalid demo auto arm params")
+                return
+            self._demo_auto_arm_pub.publish(String(data=json.dumps({"expect_disarm_seq": seq})))
+            self._complete_order(order, connection, role, True,
+                                 "published demo auto arm; verify chassis mode")
             return
         if order.kind == "publish_arm_mode":
             mode = order.params.get("mode")

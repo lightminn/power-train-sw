@@ -333,6 +333,9 @@ class ControllerProcess:
         self._estop_pending_id = None
         self._estop_carried_with_id = False
         self._estop_carried_without_id = False
+        # Pad E-stop presses seen by this process; the console cancels a
+        # demo auto-resume intent when it changes (2026-11-06 demo spec D2).
+        self._estop_events = 0
         self._server_epoch = None
         self._reply_buffer = bytearray()
         self._last_connect_error = None
@@ -536,6 +539,7 @@ class ControllerProcess:
             'arm_control': self._arm_control,
             'tool_buttons': list(self._tool_buttons) if self._arm_control else [],
             'tool_mapping': self._tool_mapping,
+            'estop_events': self._estop_events,
         }
 
     def _emit_status(
@@ -668,6 +672,7 @@ class ControllerProcess:
             self._estop_pending_id = secrets.randbits(63) or 1
             self._estop_carried_with_id = False
             self._estop_carried_without_id = False
+            self._estop_events += 1
         status_sample = reading.sample
         status_buttons_released = reading.buttons_released
         if self._awaiting_fresh_sample:
