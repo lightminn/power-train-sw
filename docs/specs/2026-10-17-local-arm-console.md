@@ -49,6 +49,7 @@ Qt `robot_manual_gui`는 이번 조작 화면으로 사용하지 않는다.
 | 브리지 | `local_pose_joint_speeds_deg_s` | [37, 16, 15, 15] | 자세 이동 관절 속도(1~4축). 서보 Velocity Limit 으로 상한. 2026-11-06 2축을 30(실제 ≈19.5°/s)→16으로 낮추고, 1축은 사용자 지시로 조그 8단 상당(실측 10단 ≈46°/s 기준 37)으로 올림. 이제 1축이 가장 빠르다 |
 | 브리지 | `local_pose_joint_delays_s` | [0, 0, 0, 1.0] | 자세 이동 시작 후 축별 출발 지연(4축 1초) |
 | 브리지 | `arm_goal_pwm` | `["arm_joint_1:800"]` | 축별 Goal PWM 상한(1~885). 서보 RAM 값이라 브리지 기동 때마다 쓴다. 서보를 재부팅하면 885로 돌아가므로 브리지를 다시 띄운다. 2026-11-06 1축 과부하 뒤 추가(정상 이동 최대 718) |
+| 브리지 | `tool_auto_lock_on_attach` | `true` | 분리됐던 도구의 ID가 확인되면 볼락을 `도구 결합`과 같은 경로로 잠근다. 도구 프로필 검사 전에 판단하며, 커플러가 비어 있던 뒤의 장착에만 걸리고 수동 모드·E-stop 해제·팔 정지·ID1 응답을 기다린다. 슬롯 교체 시퀀스 중에는 그 시퀀스가 잠금을 소유한다 |
 | 브리지 | `toolchanger_two_point` | true | 볼락 2점 방식(아래 2.5) |
 | 브리지 | `toolchanger_points_file` | `/session/lock_points.json` | 볼락 기록 위치 |
 | 브리지 | `toolchanger_state_tolerance_ticks` | 20 | 볼락 상태 판정·도달 허용오차 |

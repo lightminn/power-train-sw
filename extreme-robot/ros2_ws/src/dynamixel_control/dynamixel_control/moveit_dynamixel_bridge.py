@@ -561,6 +561,12 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
             self.get_parameter('gear_ratios').value)
         for reason in errors:
             self.get_logger().warn(f"gear_ratios: {reason} — 무시")
+        # Bench: lock the coupling as soon as a removed tool's motor answers again.
+        self.declare_parameter('tool_auto_lock_on_attach', False)
+        self.tool_auto_lock_on_attach = bool(
+            self.get_parameter('tool_auto_lock_on_attach').value)
+        self._auto_lock_armed = False  # a tool is absent, the next one counts
+        self._auto_lock_pending = False
         # Goal PWM caps the force a stuck joint can apply. It lives in servo RAM,
         # so it is written at every startup; a servo reboot needs a bridge restart.
         self.declare_parameter('arm_goal_pwm', EMPTY_STR_ARRAY)
@@ -2910,6 +2916,7 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
         self._auto_detection_in_progress = True
         try:
             self._poll_physical_tool_once()
+            self._run_auto_lock()
         except Exception as exc:
             # Detection must fail closed in status, not kill the timer or
             # prevent the following observation from retrying.
@@ -2918,6 +2925,33 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
         finally:
             self._auto_detection_in_progress = False
             guard.release()
+
+    def _run_auto_lock(self):
+        """Lock the coupling after a tool attach, once the arm allows it.
+
+        Only the absent-to-present edge arms this, so an operator unlocking a
+        fitted tool is not relocked. It waits for MANUAL, no E-stop, a live ID1
+        and no arm command; a slot exchange owns the lock itself and cancels it.
+        """
+        if not getattr(self, '_auto_lock_pending', False):
+            return
+        if self._tc_running() or self.toolchanger is None:
+            self._auto_lock_pending = False
+            return
+        if self.read_only or self.control_mode != 'MANUAL' or self.emergency_stop_active:
+            return
+        if self.toolchanger.sample is None:  # ID1 silent: wait, it recovers on its own
+            return
+        try:
+            self._require_no_manual_arm_command()
+        except LockError:
+            return
+        self._auto_lock_pending = False
+        if self.toolchanger.state == 'LOCKED':
+            return
+        self.get_logger().info('tool attached: locking coupling automatically')
+        self._toolchanger_command(String(data=json.dumps(
+            {'command': 'CHANGE', 'to': 'LOCKED', 'direction': 1})))
 
     def _poll_physical_tool_once(self):
         """Fail closed on detach, then switch only after a stable new signature."""
@@ -2947,6 +2981,10 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                 return
             try:
                 self._physical_tool_detached = True
+                # A different tool found here (bridge restart) was never absent.
+                self._auto_lock_armed = detected is None and getattr(
+                    self, 'tool_auto_lock_on_attach', False)
+                self._auto_lock_pending = False
                 self.tool_discovered = False
                 self._tool_detection_reason = provider.last_reason or (
                     f'physical tool changed: {self.tool_type}->{detected}')
@@ -2967,7 +3005,13 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
 
         if detected is None:
             self._tool_detection_reason = provider.last_reason
+            self._auto_lock_armed = getattr(self, 'tool_auto_lock_on_attach', False)
+            self._auto_lock_pending = False
             return
+        # Ahead of the switch: a tool whose profile is rejected is still fitted.
+        if getattr(self, '_auto_lock_armed', False):
+            self._auto_lock_armed = False
+            self._auto_lock_pending = True
         # A stable, supported signature is physical evidence that a replacement
         # tool is now fitted.  It is safe to retire the *tool-detached* latch
         # here: torque stays off until the new profile/configuration succeeds.
@@ -3129,6 +3173,11 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                 and not any(self._probe_tool_id(i) for i in self.tool_ids)):
             return
         self._stop_tool('coupling lock transition')
+        if not self.mock_mode:
+            # A tool fitted at bridge startup has no sample yet, and the
+            # FULL_ROBOT stop path does not refresh one.
+            with self._bus_lock:
+                self._readback_tool_torque()
         if any(self._tool_samples.get(i, {}).get('torque_state') != 'OFF'
                for i in self.tool_ids):
             raise LockError('selected tool torque OFF is not confirmed')

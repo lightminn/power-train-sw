@@ -7,6 +7,7 @@
     read_only: false
     control_scope: FULL_ROBOT
     manual_coupling_lock: true
+    tool_auto_lock_on_attach: true
     initial_control_mode: MANUAL
     tool_type: spur_1motor_gripper
     toolchanger_enabled: true
