@@ -32,6 +32,9 @@ _TOP_LEVEL_FIELDS = {
     "estop_edge",
     "assist_bypass",
 }
+# Schema 3 = schema 2 + server-issued input epoch echo + per-press E-stop event id.
+_V3_FIELDS = _TOP_LEVEL_FIELDS | {"input_epoch", "estop_id"}
+MAX_ESTOP_ID = 2**63 - 1
 _AXIS_FIELDS = {
     "left_x",
     "right_y",
@@ -70,6 +73,10 @@ class RemoteInputFrame:
     assist_bypass: bool
     received_monotonic_s: float
     input_timeout_s: float = DEFAULT_INPUT_TIMEOUT_S
+    # Schema 3 only: last server input epoch the client had seen (None = schema 2).
+    input_epoch: int | None = None
+    # Schema 3 only: E-stop event id carried with estop_edge (0 = none).
+    estop_id: int = 0
 
     def is_fresh(self, now_s: float) -> bool:
         """Use only Jetson-local receive age for the safety decision."""
@@ -250,9 +257,17 @@ class RemoteInputDecoder:
             return _violation("malformed JSON")
 
         try:
-            _exact_fields(payload, _TOP_LEVEL_FIELDS, "record")
+            version = (
+                payload.get("schema_version")
+                if isinstance(payload, dict) else None
+            )
+            _exact_fields(
+                payload,
+                _V3_FIELDS if version == 3 else _TOP_LEVEL_FIELDS,
+                "record",
+            )
             version = _strict_int(payload["schema_version"], "schema_version")
-            if version != SCHEMA_VERSION:
+            if version not in (SCHEMA_VERSION, 3):
                 raise ValueError("unrecognized schema_version: %s" % version)
             session_id = _session_id(payload["session_id"])
             sequence = _strict_int(payload["sequence"], "sequence")
@@ -276,6 +291,17 @@ class RemoteInputDecoder:
                 payload["assist_bypass"],
                 "assist_bypass",
             )
+            input_epoch = None
+            estop_id = 0
+            if version == 3:
+                input_epoch = _strict_int(payload["input_epoch"], "input_epoch")
+                estop_id = _strict_int(payload["estop_id"], "estop_id")
+                if estop_id > MAX_ESTOP_ID:
+                    raise ValueError("estop_id must be <= %d" % MAX_ESTOP_ID)
+                if (estop_id != 0) != estop_edge:
+                    raise ValueError(
+                        "estop_id must be nonzero exactly when estop_edge is true"
+                    )
 
             axes = payload["axes"]
             _exact_fields(axes, _AXIS_FIELDS, "axes")
@@ -339,5 +365,7 @@ class RemoteInputDecoder:
                 assist_bypass=assist_bypass,
                 received_monotonic_s=received_s,
                 input_timeout_s=self.input_timeout_s,
+                input_epoch=input_epoch,
+                estop_id=estop_id,
             )
         )

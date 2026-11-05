@@ -37,9 +37,11 @@ def _frame(
     estop_edge=False,
     assist_bypass=False,
     session_id=None,
+    input_epoch=None,
+    estop_id=0,
 ):
     return RemoteInputFrame(
-        schema_version=2,
+        schema_version=2 if input_epoch is None else 3,
         session_id=session_id or str(uuid.uuid4()),
         sequence=sequence,
         client_monotonic_ns=0,
@@ -57,6 +59,8 @@ def _frame(
         assist_bypass=assist_bypass,
         received_monotonic_s=received_s,
         input_timeout_s=0.20,
+        input_epoch=input_epoch,
+        estop_id=estop_id,
     )
 
 
@@ -76,11 +80,11 @@ def _assert_exclusive(output):
     assert not (drive_nonzero and arm_nonzero)
 
 
-def _connect_drive(gateway, session_id=None):
+def _connect_drive(gateway, session_id=None, at_s=0.0):
     session_id = session_id or str(uuid.uuid4())
     gateway.begin_connection()
-    gateway.submit(_frame(session_id=session_id))
-    output = gateway.tick(0.0)
+    gateway.submit(_frame(session_id=session_id, received_s=at_s))
+    output = gateway.tick(at_s)
     assert output.state == DRIVE
     _assert_zero(output)
     return session_id
@@ -603,7 +607,7 @@ def test_ros_wrapper_publishes_one_zero_on_each_fresh_to_stale_edge():
 def test_field_mode_stale_input_zeroes_without_latching_and_resumes():
     gateway = RemoteInputGateway(
         GatewayConfig(input_timeout_s=0.5, latch_stale_input=False))
-    session_id = _connect_drive(gateway)
+    session_id = _connect_drive(gateway, at_s=0.98)
     gateway.submit(_frame(sequence=1, received_s=1.0, deadman=True,
                           right_trigger=0.7, session_id=session_id))
     assert gateway.tick(1.0).drive.linear == pytest.approx(0.7)
@@ -613,7 +617,8 @@ def test_field_mode_stale_input_zeroes_without_latching_and_resumes():
     _assert_zero(stale)
 
     gateway.submit(_frame(sequence=2, received_s=1.6, deadman=True,
-                          right_trigger=0.7, session_id=session_id))
+                          right_trigger=0.7, session_id=session_id,
+                          input_epoch=gateway.input_epoch))
     assert gateway.tick(1.6).drive.linear == pytest.approx(0.7)
 
 
@@ -677,3 +682,135 @@ def test_ros_wrapper_field_mode_keeps_zero_flowing_while_stale_but_not_in_hold()
 
     assert published["drive"] == [fresh, stale_edge, stale_gap, disconnected]
     assert published["arm"] == [fresh, stale_edge]
+
+
+def _field_gateway():
+    return RemoteInputGateway(
+        GatewayConfig(input_timeout_s=0.5, latch_stale_input=False))
+
+
+def _drive(sequence, received_s, session_id, **kw):
+    return _frame(sequence=sequence, received_s=received_s, deadman=True,
+                  right_trigger=0.7, session_id=session_id, **kw)
+
+
+def test_field_mode_late_pre_stall_record_never_restarts_driving():
+    gateway = _field_gateway()
+    session_id = _connect_drive(gateway, at_s=0.98)
+    gateway.submit(_drive(1, 1.0, session_id, input_epoch=0))
+    assert gateway.tick(1.0).drive.linear == pytest.approx(0.7)
+    _assert_zero(gateway.tick(1.500001))
+    assert gateway.input_epoch == 1
+    # A forward record created before the stall completes late: fresh by
+    # receive time, but it carries the pre-stall epoch.
+    gateway.submit(_drive(2, 1.6, session_id, input_epoch=0))
+    _assert_zero(gateway.tick(1.6))
+    # Schema 2 records cannot prove they were made after the stall either.
+    gateway.submit(_drive(3, 1.62, session_id))
+    _assert_zero(gateway.tick(1.62))
+    gateway.submit(_drive(4, 1.64, session_id, input_epoch=1))
+    assert gateway.tick(1.64).drive.linear == pytest.approx(0.7)
+
+
+def test_field_mode_post_stall_epoch_expires_by_server_clock():
+    gateway = _field_gateway()
+    session_id = _connect_drive(gateway, at_s=0.98)
+    gateway.submit(_drive(1, 1.0, session_id, input_epoch=0))
+    gateway.tick(1.0)
+    gateway.tick(1.500001)
+    assert gateway.input_epoch == 1
+    gateway.tick(1.76)  # still recovering: re-issue so the client gets a fresh one
+    assert gateway.input_epoch == 2
+    # Made right after epoch 1 was seen, then delayed again past the timeout.
+    gateway.submit(_drive(2, 2.05, session_id, input_epoch=1))
+    _assert_zero(gateway.tick(2.05))
+    gateway.submit(_drive(3, 2.06, session_id, input_epoch=2))
+    assert gateway.tick(2.06).drive.linear == pytest.approx(0.7)
+
+
+def test_field_mode_receive_gap_enters_recovery_even_if_no_tick_saw_it():
+    gateway = _field_gateway()
+    session_id = _connect_drive(gateway, at_s=0.98)
+    gateway.submit(_drive(1, 1.0, session_id, input_epoch=0))
+    gateway.tick(1.0)
+    gateway.tick(1.49)
+    gateway.submit(_drive(2, 1.52, session_id, input_epoch=0))
+    output = gateway.tick(1.52)
+    _assert_zero(output)
+    assert output.state == DRIVE
+    assert gateway.input_epoch == 1
+
+
+def test_latch_mode_receive_gap_latches_hold_even_if_no_tick_saw_it():
+    gateway = RemoteInputGateway(GatewayConfig(input_timeout_s=0.5))
+    session_id = _connect_drive(gateway, at_s=0.98)
+    gateway.submit(_drive(1, 1.0, session_id))
+    gateway.tick(1.0)
+    gateway.tick(1.49)
+    gateway.submit(_drive(2, 1.52, session_id))
+    output = gateway.tick(1.52)
+    assert output.state == MOTION_HOLD
+    _assert_zero(output)
+
+
+@pytest.mark.parametrize("latch", [True, False])
+def test_hold_clear_requires_input_made_after_the_clear(latch):
+    gateway = RemoteInputGateway(
+        GatewayConfig(input_timeout_s=0.5, latch_stale_input=latch))
+    session_id = _connect_drive(gateway, at_s=0.98)
+    gateway.submit(_frame(sequence=1, received_s=1.0, estop_edge=True,
+                          estop_id=7, input_epoch=0, session_id=session_id))
+    assert gateway.tick(1.0).state == MOTION_HOLD
+    assert gateway.clear_hold()
+    gateway.tick(1.01)
+    required = gateway.input_epoch
+    assert required >= 1
+    # Buffered pre-clear neutral then forward must not re-arm and drive.
+    gateway.submit(_frame(sequence=2, received_s=1.02, input_epoch=0,
+                          session_id=session_id))
+    _assert_zero(gateway.tick(1.02))
+    gateway.submit(_drive(3, 1.03, session_id, input_epoch=0))
+    _assert_zero(gateway.tick(1.03))
+    gateway.submit(_frame(sequence=4, received_s=1.04, input_epoch=required,
+                          session_id=session_id))
+    assert gateway.tick(1.04).state == DRIVE
+    gateway.submit(_drive(5, 1.05, session_id, input_epoch=required))
+    assert gateway.tick(1.05).drive.linear == pytest.approx(0.7)
+
+
+def test_estop_edge_in_a_pre_stall_record_still_latches():
+    gateway = _field_gateway()
+    session_id = _connect_drive(gateway, at_s=0.98)
+    gateway.submit(_drive(1, 1.0, session_id, input_epoch=0))
+    gateway.tick(1.0)
+    gateway.tick(1.500001)
+    gateway.submit(_frame(sequence=2, received_s=1.6, estop_edge=True,
+                          estop_id=5, input_epoch=0, session_id=session_id))
+    assert gateway.tick(1.6).state == MOTION_HOLD
+
+
+def test_new_connection_ends_recovery_and_needs_only_neutral():
+    gateway = _field_gateway()
+    session_id = _connect_drive(gateway, at_s=0.98)
+    gateway.submit(_drive(1, 1.0, session_id, input_epoch=0))
+    gateway.tick(1.0)
+    gateway.tick(1.500001)
+    new_session = str(uuid.uuid4())
+    gateway.begin_connection()
+    gateway.submit(_frame(sequence=0, received_s=2.0, session_id=new_session))
+    assert gateway.tick(2.0).state == DRIVE
+    gateway.submit(_drive(1, 2.02, new_session))
+    assert gateway.tick(2.02).drive.linear == pytest.approx(0.7)
+
+
+def test_latch_mode_handled_gap_does_not_relatch_after_hold_clear():
+    gateway = RemoteInputGateway(GatewayConfig(input_timeout_s=0.5))
+    session_id = _connect_drive(gateway, at_s=0.98)
+    gateway.submit(_drive(1, 1.0, session_id))
+    gateway.tick(1.0)
+    assert gateway.tick(1.6).state == MOTION_HOLD
+    assert gateway.clear_hold()
+    gateway.tick(1.61)
+    gateway.submit(_frame(sequence=2, received_s=1.65, session_id=session_id,
+                          input_epoch=gateway.input_epoch))
+    assert gateway.tick(1.65).state == DRIVE

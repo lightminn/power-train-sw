@@ -339,7 +339,9 @@ def test_reconnect_resets_adapter_and_first_wire_frame_uses_fresh_sample():
         assert first_wire["sequence"] == 0
         assert first_wire["deadman"] is False
         assert first_wire["axes"]["right_trigger"] == 0.0
-        assert first_wire["estop_edge"] is False
+        # The E-stop pressed before the connection is delivered (pending event);
+        # axes and deadman still come from the fresh post-reset sample.
+        assert first_wire["estop_edge"] is True
 
         pad.sample = held
         pad.sample_after_reset = released
@@ -352,7 +354,8 @@ def test_reconnect_resets_adapter_and_first_wire_frame_uses_fresh_sample():
         assert second_wire["session_id"] == "session-two"
         assert second_wire["sequence"] == 0
         assert second_wire["deadman"] is False
-        assert second_wire["estop_edge"] is False
+        assert second_wire["axes"]["right_trigger"] == 0.0
+        assert second_wire["estop_edge"] is True
         assert pad.reset_count == 2
     finally:
         process.close()
@@ -686,6 +689,11 @@ def test_send_buffer_stall_keeps_channel_and_completes_the_partial_record():
     process._outbox = bytearray()
     process._session_id = "11111111-1111-4111-8111-111111111111"
     process._sequence = 0
+    process._estop_pending_id = None
+    process._estop_carried_with_id = False
+    process._estop_carried_without_id = False
+    process._server_epoch = None
+    process._reply_buffer = bytearray()
     dropped = []
     process._drop_for_retry = lambda now_s, detail: dropped.append(detail)
 
@@ -704,3 +712,137 @@ def test_send_buffer_stall_keeps_channel_and_completes_the_partial_record():
                           sequence=1, client_monotonic_ns=4)
     assert bytes(sock.stream[len(first):]) == second
     assert process._outbox == bytearray()
+
+
+class ScriptedSocket(FakeSocket):
+    """Scripted send budgets (None = all) and queued status replies."""
+
+    def __init__(self):
+        super().__init__()
+        self.budgets = []
+        self.replies = []
+        self.stream = bytearray()
+
+    def send(self, record):
+        budget = self.budgets.pop(0) if self.budgets else None
+        if budget == 0:
+            raise BlockingIOError
+        accepted = bytes(record if budget is None else record[:budget])
+        self.stream.extend(accepted)
+        return len(accepted)
+
+    def recv(self, _size):
+        if self.replies:
+            return self.replies.pop(0)
+        raise BlockingIOError
+
+    def records(self):
+        return [json.loads(line) for line in bytes(self.stream).splitlines()
+                if line.endswith(b"}")]
+
+
+def _scripted_process(pad, *sockets):
+    clock = FakeClock()
+    remaining = iter(sockets)
+    reader = FakeCommandReader(controller.CommandBatch((_connect_command(),), False, ()))
+    process = controller.ControllerProcess(
+        command_reader=reader,
+        pad_source=pad,
+        open_channel=lambda *_args: next(remaining),
+        status_writer=lambda _status: None,
+        clock=clock,
+        monotonic_ns=lambda: int(clock.now * 1_000_000_000),
+        session_id_factory=iter(("session-%d" % i for i in range(10))).__next__,
+    )
+    return process, reader
+
+
+def _press_estop(process, pad):
+    pad.sample = _neutral_sample(estop_edge=True)
+    process.tick()
+    pad.sample = _neutral_sample()
+
+
+def test_encode_frame_schema_3_carries_epoch_and_estop_id():
+    from motor_control.laptop.remote_operation_client import encode_frame
+    v3 = json.loads(encode_frame(_neutral_sample(estop_edge=True), session_id="s",
+                                 sequence=0, client_monotonic_ns=1,
+                                 input_epoch=3, estop_id=42))
+    assert (v3["schema_version"], v3["input_epoch"], v3["estop_id"]) == (3, 3, 42)
+    v2 = json.loads(encode_frame(_neutral_sample(), session_id="s", sequence=0,
+                                 client_monotonic_ns=1))
+    assert v2["schema_version"] == 2 and "input_epoch" not in v2
+
+
+def test_estop_pressed_during_a_send_stall_is_still_delivered():
+    pad = FakePadSource(_neutral_sample())
+    sock = ScriptedSocket()
+    process, _ = _scripted_process(pad, sock)
+    try:
+        _drive_until(process, lambda: bool(sock.stream))
+        sock.budgets = [5, 0, 0]
+        process.tick()                 # partial record, outbox pending
+        _press_estop(process, pad)     # stalled: this sample is skipped
+        process.tick()                 # still stalled
+        process.tick()                 # drains and encodes a new record
+        process.tick()
+        estops = [r for r in sock.records() if r["estop_edge"]]
+        assert len(estops) == 1
+    finally:
+        process.close()
+
+
+def test_status_epoch_switches_to_schema_3_and_ack_clears_the_estop():
+    pad = FakePadSource(_neutral_sample())
+    sock = ScriptedSocket()
+    process, _ = _scripted_process(pad, sock)
+    try:
+        _drive_until(process, lambda: bool(sock.stream))
+        sock.replies.append(b"S DRIVE +0.000 +0.000\nG 5 0\n")
+        process.tick()
+        process.tick()
+        assert sock.records()[-1]["schema_version"] == 3
+        assert sock.records()[-1]["input_epoch"] == 5
+        _press_estop(process, pad)
+        process.tick()
+        estops = [r for r in sock.records() if r["estop_edge"]]
+        assert len(estops) == 1 and estops[0]["estop_id"] != 0
+        first_id = estops[0]["estop_id"]
+        sock.replies.append(b"G 5 %d\n" % first_id)
+        process.tick()
+        assert process._estop_pending_id is None
+        _press_estop(process, pad)
+        process.tick()
+        estops = [r for r in sock.records() if r["estop_edge"]]
+        assert len(estops) == 2 and estops[1]["estop_id"] not in (0, first_id)
+    finally:
+        process.close()
+
+
+def test_unacknowledged_estop_is_resent_on_the_next_connection_then_with_id():
+    pad = FakePadSource(_neutral_sample())
+    first, second = ScriptedSocket(), ScriptedSocket()
+    process, reader = _scripted_process(pad, first, second)
+    try:
+        _drive_until(process, lambda: bool(first.stream))
+        _press_estop(process, pad)
+        process.tick()
+        assert [r["estop_edge"] for r in first.records()].count(True) == 1
+        reader.batches.append(controller.CommandBatch((_connect_command(),), False, ()))
+        _drive_until(process, lambda: bool(second.stream))
+        process.tick()
+        sent = second.records()
+        assert sent[0]["estop_edge"] is True and sent[0]["schema_version"] == 2
+        assert [r["estop_edge"] for r in sent].count(True) == 1
+        # Negotiated: the schema-2 carry had no id, so resend once with one.
+        second.replies.append(b"G 2 0\n")
+        process.tick()
+        process.tick()
+        with_id = [r for r in second.records() if r.get("estop_id")]
+        assert len(with_id) == 1 and with_id[0]["schema_version"] == 3
+        second.replies.append(b"G 2 %d\n" % with_id[0]["estop_id"])
+        process.tick()
+        process.tick()
+        assert process._estop_pending_id is None
+    finally:
+        process.close()
