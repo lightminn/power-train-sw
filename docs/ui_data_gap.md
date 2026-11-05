@@ -1,6 +1,6 @@
 # Operator Console UI 데이터 공백
 
-2026-07-29 작성 후 2026-08-02 PDIST80B 플래그 정본을 반영했다.
+2026-07-29 작성 후 2026-08-02 PDIST80B 플래그 정본과 2026-11-05 로봇팔 :5007 도구·모드 미러를 반영했다.
 `operator_console` 파서, 실제 UDP 발행 코드, ROS 메시지 미러와 테스트 계약을
 대조한 결과다. `구현 가능 여부`가 `불가` 또는 `부분`인
 항목은 화면 완성도를 위해 0이나 임의 값을 만들지 않는다.
@@ -24,10 +24,10 @@
 | 관절각 | 관절명, rad | Arm UDP :5007 `joints.names`, `joints.position_rad` | 가능 | 없음 | 로봇팔팀 확인 |
 | Dynamixel 전류 | raw current와 단위 스케일 | :5007 `dynamixel[].current` | 부분(기본 그래프 제외) | 모델별 A/mA 변환 스케일 | 로봇팔팀 확인 |
 | Dynamixel 온도 | ℃ | :5007 `dynamixel[].temperature_c` | 가능 | 현 55/65℃ 임계값의 모델·설정 근거 확정 | 로봇팔팀 확인 |
-| Arm Mode | master/slave, teleop, auto, idle | 데이터 소스 없음 | 불가 | arm mode enum | 광민 확인 |
-| End-Effector ID | 실시간 도구 ID | 데이터 소스 없음 | 불가 | tool id, display name | 로봇팔팀 확인 |
-| Tool Attached | 체결 상태 | 데이터 소스 없음 | 불가 | attached/locked 상태 | 로봇팔팀 확인 |
-| 작업 완료 | arm task completion | 직접 필드 없음 | 불가 | task state 또는 done bool | 광민 확인 |
+| Arm Mode | master/slave, teleop, auto, idle | Arm UDP :5007 `arm_runtime.control_mode`(`/control/mode_status`, `/tool/status` 보완)·`fsm_state` | 부분 | master/slave·teleop 구분 enum 계약 | 광민 확인 |
+| End-Effector ID | 실시간 도구 ID | :5007 `tool_runtime.tool.tool_type`·`actuator_ids`(`/tool/status`) | 부분 | 환경 센서 모듈은 `tool_type`으로 오지 않음 | 로봇팔팀 확인 |
+| Tool Attached | 체결 상태 | :5007 `tool_runtime.tool.tool_detached`·`physical_tool_detached`, `tool_runtime.coupling_lock`(`/toolchanger/status`) | 부분 | 기계 체결 확인(`mechanically_confirmed`) 실기 근거 — 콘솔은 "기계 체결 미확인"으로 표시 | 로봇팔팀 확인 |
+| 작업 완료 | arm task completion | :5007 `arm_runtime.arm_status`(`/arm_status`의 `status` 문자열) | 부분 | 완료 의미가 정의된 task state 또는 done bool | 광민 확인 |
 | Object Class | class name | YOLO UDP :5003 `detections[].class_name` | 가능 | 한글 표시명 사전 | 광민 확인 |
 | Confidence | 0..1 | :5003 `detections[].confidence` | 가능 | 없음 | 광민 확인 |
 | Bounding Box | xywh | :5003 `detections[].bbox_xywh` | 가능 | 영상 capture sequence 동기 HIL | 광민 확인 |

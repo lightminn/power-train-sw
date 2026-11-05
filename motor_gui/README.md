@@ -33,7 +33,15 @@ python3 -m motor_gui.backend.server --track can
 | --- | --- | --- | --- |
 | `usb` | odrive lib | 명시한 serial의 axis0 또는 axis1 | 양축 IDLE에서만 |
 | `can` | python-can can0 | ODrive(node11) + AK(id1) 동시 | X (USB 전용) |
+| `ak` | python-can can0 | AK(id1) 단독 | X |
+| `odrive_can` | python-can can0 | ODrive(node11) 단독 | X (USB 전용) |
 | `fake` | 시뮬 | odrive+ak 슈퍼셋 | (noop) |
+
+⚠️ 구동 보드 세 장이 모두 CAN patch4다. `can`·`odrive_can` 트랙은 setpoint를 명령할 때 한 번만
+보내므로, CAN으로 폐루프에 넣은 축은 마지막 setpoint 뒤 300 ms(그 CAN 세션에서 setpoint를 아직 하나도
+받지 않았으면 폐루프 진입 뒤 500 ms)가 지나면 보드가
+`WATCHDOG_TIMER_EXPIRED`(0x800)로 IDLE에 떨어뜨린다. 고장으로 오진하지 않는다
+(`firmware/mks_odrive/README.md` D0).
 
 ## CAN·USB 소유권과 정비
 

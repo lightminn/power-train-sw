@@ -9,7 +9,7 @@ It creates no socket pathname, and the Gateway accepts only same-UID peers using
 
 Run the managed Gateway in `powertrain_ros`, then attach up to eight concurrent dashboards (the
 control server's configured `max_clients`). On a fresh checkout the container entrypoint builds
-the three ROS packages before starting the Gateway; it also rebuilds when a source file is newer
+the four ROS packages (`robot_arm_msgs`, `powertrain_msgs`, `dynamixel_control`, `powertrain_ros`) before starting the Gateway; it also rebuilds when a source file is newer
 than the installed workspace:
 
 ```bash
@@ -33,8 +33,14 @@ The container uses `restart: on-failure:5` to bound consecutive short startup fa
 retries. Docker resets that retry counter after roughly 10 seconds of healthy runtime, so a later
 crash gets a new retry budget. An acknowledged `Shift+Q` produces exit status 0 and stays stopped.
 Start it again explicitly with `docker compose ... up -d powertrain_ros`.
+The field integrated overlay (`docker/docker-compose.integrated.yml`) instead sets
+`restart: unless-stopped` and replaces the entrypoint with a check for an already prepared ROS
+install space (no build), so there the Gateway returns after power-up and also after `Shift+Q`;
+use `docker compose ... stop powertrain_ros` to keep it stopped.
 
-Receive the fixed 1280×720×30 stream on the driving laptop:
+Receive the fixed 1280×720 stream on the driving laptop. The SRT send rate is 30 fps by default;
+`L515_SRT_FPS=15|30` selects it while capture, Depth and ROS rates stay unchanged, and the field
+integrated overlay defaults to 15:
 
 ```bash
 gst-launch-1.0 srtsrc uri="srt://JETSON_IP:5000?mode=caller&latency=60" ! \

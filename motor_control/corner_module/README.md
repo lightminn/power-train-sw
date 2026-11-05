@@ -13,13 +13,15 @@
 - `drive_odrive_can.py` — 현재 10모터 차체용 ODrive CAN 구동 드라이버
 - `drive_odrive_usb.py` — 무명 보드 선택 때문에 실행이 차단된 레거시 USB 드라이버
 - `drive_odrive_usb_axis.py` — registry serial/axis/node로 연결하는 USB 스키드 드라이버; CAN과 모터 소유권 공유
+- `null_steer.py` — 조향 모터가 없는 중간 바퀴용 no-op 조향(`NullSteer`, 항상 0°)
+- `can_watchdog.py` — CAN TX 정지 복구 워치독(모터 소유자 조율, 자동 재무장 없음)
 - `fake.py` — 무하드웨어 테스트 더블
 - `teleop_dualsense.py` — 레거시 실행은 하드스톱; 순수 입력·안전 헬퍼만 유지
 
 ## 단위와 현재 CAN
 
 조향은 출력축 도(°), 구동은 turns/s입니다.
-`v = turns/s × 2π × 0.1` 로 m/s를 계산합니다.
+`v = turns/s × 2π × 0.10356`(`chassis/kinematics.py`의 `wheel_radius_m`)로 m/s를 계산합니다.
 
 실차 차체 경로는 단일 `can0` 500 kbps에서 AK45-36 조향 4개(ID 1–4)와
 ODrive 구동 6개(node 11–16)를 개별 제어합니다. 이 README의 단일 코너

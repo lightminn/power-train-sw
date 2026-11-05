@@ -6,6 +6,15 @@
 patch4의 설계와 검토 기록은 [patch4 설계](../../docs/specs/2026-10-15-mks-can-patch4.md),
 구현 순서와 검증 로그는 [patch4 계획](../../docs/plans/2026-10-15-mks-can-patch4.md)을 따른다.
 
+**적용 상태**: 구동 보드 세 장(node 11/12·13/14·15/16)이 모두 0.5.1-dev·patch4다
+(13/14는 2026-10-21, 11/12는 2026-10-29 flash 섹터 1 복구와 함께, 15/16은 2026-10-29).
+세 보드 모두 USB 인수까지이며 실트래픽·D0 만료·송신 순서 인수는 남았다. 이 디렉터리는
+빌드까지만 다룬다. 실물 flash는 `tools/mks_dfu.py`(application만 교체, NVM 보존)를 쓰는
+보고서별 단계 스크립트로 단계마다 새 프로세스에서 수행했다:
+[node13/14](../../docs/reports/2026-10-21-mks-can-patch4.md),
+[node11/12](../../docs/reports/2026-10-29-mks-board1-flash-recovery.md),
+[node15/16](../../docs/reports/2026-10-29-mks-node15-16-patch4.md).
+
 ## 소스 준비와 실행 시험
 
 필요 도구: Python 3, GNU patch, C++17 g++. 소스 준비는 네트워크를 사용하지 않는다.
