@@ -11,7 +11,8 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 session="$HOME/${ARM_SESSION:-pr12-arm-session}"
 container="${ARM_CONTAINER:-arm_pr12_jetson}"
 ros_env='source /opt/ros/humble/setup.bash && source /session/runtime/install/setup.bash &&
-export PYTHONPATH=/usr/lib/python3/dist-packages:${PYTHONPATH:-} PYTHONUNBUFFERED=1'
+export PYTHONPATH=/usr/lib/python3/dist-packages:/session/python:/ws:/ws/motor_control:${PYTHONPATH:-} &&
+export PYTHONUNBUFFERED=1'
 
 say() { echo "[arm-bench] $*"; }
 inside() { docker exec "$container" bash -c "$1"; }
