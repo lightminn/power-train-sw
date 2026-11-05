@@ -183,19 +183,24 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
             def live():
                 p = snapshot()
                 return (p['map_state']=='LIVE' and p['map_rasters']==[True,True]
-                        and p['link']=='LIVE' and p['raw_pitch_state']=='LIVE'
                         and window._l515.last_frame_age_s is not None
                         and window._l515.last_frame_age_s < .5
                         and bool(window._terrain_canvas.view().obstacles)
                         and window._terrain_canvas._floor_layer.surface is not None)
             window._stack.set_visible_child_name('vision')
-            pump_until(lambda: panel.view is not None and maps._timer is not None, 'vision creation')
+            pump_until(lambda: maps._timer is not None, 'vision creation')
             p = snapshot()
-            assert (p['slots_mapped'][0] and p['slots_mapped'][3]
-                    and sum(p['slots_mapped'][1:3]) == 1), 'vision camera/map/attitude layout not mapped'
-            assert p['map_state']=='WAITING' and p['link']=='WAITING', 'vision initial missing data state'
-            assert p['raw_pitch'] is None and p['joint_values']==[None]*4, 'vision missing values fabricated'
-            assert p['joints_label'].count('미수신')==4, 'vision missing encoders not labelled'
+            assert (p['slots_mapped'][0] and not p['slots_mapped'][3]
+                    and sum(p['slots_mapped'][1:3]) == 1), 'vision camera/map layout not mapped'
+            assert p['map_state']=='WAITING' and p['link'] is None, 'vision initial missing data state'
+            window._stack.set_visible_child_name('mobility')
+            pump_until(lambda: panel.view is not None, 'mobility attitude creation')
+            p = snapshot()
+            assert p['slots_mapped'][3] and p['link']=='WAITING', 'mobility attitude layout not mapped'
+            assert p['raw_pitch'] is None and p['joint_values']==[None]*4, 'missing values fabricated'
+            assert p['joints_label'].count('미수신')==4, 'missing encoders not labelled'
+            window._stack.set_visible_child_name('vision')
+            pump_until(lambda: maps._timer is not None, 'vision map return')
             record('missing')
             if record_webm:
                 import gi
@@ -210,13 +215,17 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
                     f'filesink location={json.dumps(str(record_webm))}')
                 recorder.set_state(Gst.State.PLAYING)
             source_id = GLib.timeout_add(80, feed)
-            pump_until(live, 'vision map/telemetry LIVE')
+            pump_until(live, 'vision map LIVE')
+            window._stack.set_visible_child_name('mobility')
+            pump_until(lambda: panel.view is not None and panel.view.link_state=='LIVE', 'mobility attitude LIVE')
             p = snapshot()
             assert abs(p['raw_pitch']-19.5)<1e-6, 'vision applied unverified pitch correction'
             assert '보정 미확인' in p['body_label'], 'vision body correction provenance missing'
             assert p['wheel_labels']['front_left']==['-12.5','+0.12'], 'vision wheel feedback not displayed'
             assert p['joint_values']==[None]*4 and p['joint_states']==['WAITING']*4, 'vision encoder missing values'
             assert window._terrain_canvas.view().obstacles, 'vision terrain overlay not aligned/live'
+            window._stack.set_visible_child_name('vision')
+            pump_until(live, 'vision map return')
             record('live')
             window._vision_panel.map_settings.set_active(True)
             pump_until(lambda: maps.controls.get_mapped(), 'map settings opened')
@@ -234,6 +243,7 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
             window._show_terrain.set_active(True)
             assert window._vision_panel.show_terrain.get_active() and window._terrain_canvas._enabled
             phase = 'encoders'
+            window._stack.set_visible_child_name('mobility')
             pump_until(lambda: snapshot()['joint_states'][:2]==['LIVE']*2, 'vision encoder fixture')
             p = snapshot()
             assert p['joint_values']==[0., math.degrees(.02), None, None], 'vision actual zero/partial missing'
@@ -248,17 +258,22 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
             assert p['joints_label'].count('오래됨')==2, 'vision old measurement labels'
             record('aged')
             phase = 'live'
+            window._stack.set_visible_child_name('vision')
             pump_until(live, 'vision before disconnect')
             phase = 'cut'
-            pump_until(lambda: snapshot()['link']=='STALE' and snapshot()['map_state']=='STALE', 'vision disconnect/stale')
+            pump_until(lambda: snapshot()['map_state']=='STALE', 'vision disconnect/stale')
             p = snapshot()
             assert p['map_rasters'][1], 'vision stale oblique blanked instead of held'
             assert '직전 화면 유지' in p['map_messages'][1], 'vision held oblique not labelled'
+            window._stack.set_visible_child_name('mobility')
+            pump_until(lambda: snapshot()['link']=='STALE', 'mobility attitude stale')
+            p = snapshot()
             assert 'LIVE' not in p['wheel_states'], 'vision stale wheel values remain live'
             assert p['raw_pitch_state']=='STALE' and '오래됨' in p['raw_label'], 'vision stale raw pitch not hidden'
             assert p['wheel_labels']['front_left']==['오래됨','오래됨'], 'vision stale wheel labels'
             record('disconnected')
             phase = 'recover'
+            window._stack.set_visible_child_name('vision')
             pump_until(live, 'vision recovery')
             assert snapshot()['joint_states']==['WAITING']*4, 'vision recovery resurrected missing encoder'
             record('recovered')
@@ -277,6 +292,9 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
                 window._stack.set_visible_child_name(target)
                 assert window._l515.get_parent() is original_parent, 'vision camera parent not restored'
                 assert window._swap_button.get_sensitive(), 'vision swap button not restored'
+                pump_until(lambda: maps._timer is None and panel._timer is None
+                           and not window._vision_panel.get_mapped(),
+                           'vision hidden before counting')
                 count = maps.worker.render_count; updates = panel.refresh_count
                 received = window._chassis_receiver.latest().sequence
                 map_sequence = window._map_receiver.snapshot(time.monotonic()).status.sequence

@@ -441,10 +441,10 @@ label {{ color: {text_main}; }}
 .vision-page-title {{ font-size: 22px; font-weight: 700; }}
 .vision-card {{ background: {surface}; border: 1px solid {border}; border-radius: 13px; padding: 8px; }}
 .vision-card > label {{ color: {text_secondary}; font-weight: 800; }}
-.vision-page .vision-attitude .vision-attitude-heading {{ color: {text_main}; background: {surface_soft}; border-radius: 7px; padding: 6px 8px; }}
-.vision-page .vision-attitude .vision-attitude-section {{ color: {primary}; border-bottom: 1px solid {divider}; padding: 4px 0 2px 0; }}
-.vision-page .vision-attitude .vision-attitude-source,
-.vision-page .vision-attitude .vision-attitude-table-head {{ color: {text_muted}; }}
+.vision-attitude .vision-attitude-heading {{ color: {text_main}; background: {surface_soft}; border-radius: 7px; padding: 6px 8px; }}
+.vision-attitude .vision-attitude-section {{ color: {primary}; border-bottom: 1px solid {divider}; padding: 4px 0 2px 0; }}
+.vision-attitude .vision-attitude-source,
+.vision-attitude .vision-attitude-table-head {{ color: {text_muted}; }}
 .vision-chassis-sketch {{ background: {surface_soft}; border: 1px solid {border}; border-radius: 8px; }}
 .vision-attitude .vision-value-live {{ color: {text_main}; }}
 .vision-attitude .vision-value-stale {{ color: {warning}; }}
@@ -1188,6 +1188,11 @@ window, .console-shell, .page {{
 .mission-rail .rail-data-row {{ padding: 7px 9px; }}
 .mission-rail .rail-data-value {{ font-size: 13px; }}
 .mission-rail .rail-data-drive {{ font-size: 12px; }}
+.mission-drive-decision {{ border-top: 1px solid #2A4963; padding-top: 5px; }}
+.mission-drive-decision .mobility-panel-title {{ color: #70C7F2; font-size: 11px; }}
+.mission-drive-decision .mobility-decision {{ font-size: 12px; }}
+.mission-drive-decision .mobility-faults {{ padding: 4px 6px; font-size: 10px; }}
+.mission-drive-decision .mission-decision-details {{ color: #D6E2EC; font-size: 10px; }}
 .mission-rail .rail-data-perception {{ color: #62BDE8; }}
 .technology-marker {{ background: #4B8BEA; }}
 .technology-vision .technology-marker {{ background: #55B9DE; }}
@@ -4155,6 +4160,7 @@ class OperatorConsole(Gtk.Window):
         display_options.set_no_show_all(True)
         display_options.hide()
         self._display_options = display_options
+        self._compact_pip: bool | None = None
         videos.connect("size-allocate", self._on_video_area_allocated)
         self._videos = videos
         self._pip_frame = pip_frame
@@ -4461,18 +4467,17 @@ class OperatorConsole(Gtk.Window):
             technology.pack_start(row, False, False, 0)
         self._rail_technology = technology
 
-        # Keep the complete telemetry surface in a shallow horizontal dock;
-        # display switches remain pinned in its heading rather than scrolling.
+        # Keep the two visible telemetry cards in a responsive dock or rail.
         rail_data = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         rail_data.set_homogeneous(True)
         rail_data.set_no_show_all(False)
         self._mission_metrics = {}
         self._mission_metric_rows: dict[str, Gtk.Box] = {}
-        # Live video remains the primary view. Related telemetry shares three
-        # shallow cards instead of taking a full-height camera side rail.
+        # The perception summary is retained for its receiver path but hidden
+        # while the active operator surface shows drive and tool status.
         for key, heading in (
             ("drive", "01  /  MOBILITY"),
-            ("perception", "02  /  PERCEPTION"),
+            ("perception", "PERCEPTION"),
         ):
             row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
             _style(row, "rail-data-row", f"mission-{key}-card")
@@ -4487,23 +4492,27 @@ class OperatorConsole(Gtk.Window):
             row_value.set_max_width_chars(38)
             _style(row_value, "rail-data-value", f"rail-data-{key}")
             row.pack_start(row_heading, False, False, 0)
+            row_body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
             card_title = Gtk.Label(label="주행 상태" if key == "drive" else "인식 대상")
             card_title.set_xalign(0.0)
             _style(card_title, "mission-card-title")
-            row.pack_start(card_title, False, False, 0)
-            row.pack_start(row_value, False, False, 0)
+            row_body.pack_start(card_title, False, False, 0)
+            row_body.pack_start(row_value, False, False, 0)
+            if key == "drive":
+                row_body.pack_start(self._mobility.decision_card, False, False, 0)
             if key == "perception":
                 perception_note = Gtk.Label(label="작업 카메라 · RGB-D 인식")
                 perception_note.set_xalign(0.0)
                 _style(perception_note, "mission-card-note")
-                row.pack_end(perception_note, False, False, 0)
+                row_body.pack_end(perception_note, False, False, 0)
+            row.pack_start(row_body, True, False, 0)
             rail_data.pack_start(row, True, True, 0)
             self._mission_metrics[key] = row_value
             self._mission_metric_rows[key] = row
 
         tool_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         _style(tool_row, "end-effector-summary")
-        tool_kicker = Gtk.Label(label="03  /  MANIPULATOR")
+        tool_kicker = Gtk.Label(label="02  /  MANIPULATOR")
         tool_kicker.set_xalign(0.0)
         _style(tool_kicker, "rail-data-label")
         tool_row.pack_start(tool_kicker, False, False, 0)
@@ -4566,19 +4575,21 @@ class OperatorConsole(Gtk.Window):
         self._mission_tool_detail.connect(
             "clicked", lambda _button: self._show_end_effector_popup(),
         )
-        tool_row.pack_start(tool_header, False, False, 0)
+        tool_body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        tool_body.pack_start(tool_header, False, False, 0)
         tool_selection = Gtk.Box(spacing=10)
         self._mission_tool_selector.set_hexpand(True)
         tool_selection.pack_start(self._mission_tool_selector, True, True, 0)
         tool_selection.pack_end(self._mission_tool_detail, False, False, 0)
-        tool_row.pack_start(tool_selection, False, False, 0)
+        tool_body.pack_start(tool_selection, False, False, 0)
         self._mission_tool_purpose.set_ellipsize(Pango.EllipsizeMode.END)
         self._mission_tool_purpose.set_line_wrap(False)
         self._mission_tool_purpose.set_no_show_all(True)
         self._mission_tool_purpose.hide()
-        tool_row.pack_start(self._mission_tool_purpose, False, False, 0)
-        tool_row.pack_start(self._mission_tool_reading, False, False, 0)
-        tool_row.pack_start(arm_summary_grid, False, False, 0)
+        tool_body.pack_start(self._mission_tool_purpose, False, False, 0)
+        tool_body.pack_start(self._mission_tool_reading, False, False, 0)
+        tool_body.pack_start(arm_summary_grid, False, False, 0)
+        tool_row.pack_start(tool_body, True, False, 0)
         rail_data.pack_start(tool_row, True, True, 0)
         self._mission_metric_rows["tool"] = tool_row
         rail_data.show_all()
@@ -4592,16 +4603,19 @@ class OperatorConsole(Gtk.Window):
         rail_scroll.set_policy(
             Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC,
         )
+        rail_scroll.set_overlay_scrolling(False)
         rail_scroll.set_propagate_natural_width(False)
         rail_scroll.set_min_content_height(100)
         rail_scroll.set_propagate_natural_height(True)
-        rail_scroll.set_max_content_height(180)
+        rail_scroll.set_max_content_height(220)
         rail_scroll.add(rail_data)
         rail.pack_start(rail_scroll, False, False, 0)
         self._mission_rail_scroll = rail_scroll
         mission_body.pack_start(videos, True, True, 0)
         mission_body.pack_end(rail, False, False, 0)
         self._mission_body = mission_body
+        self._mission_side_rail: bool | None = None
+        self._mission_card_heights: tuple[int, int] | None = None
         mission_page.pack_start(mission_body, True, True, 0)
         mission_event_expander, self._mission_event_latest = (
             self._make_event_expander(self._mission_events)
@@ -4697,6 +4711,7 @@ class OperatorConsole(Gtk.Window):
             criteria=vision_criteria,
             calibration=attitude_calibration,
         )
+        self._mobility.set_attitude_panel(self._vision_panel.attitude_slot)
         stack.add_titled(self._vision_panel, "vision", "비전")
         # The arm tabs use exactly the existing authenticated ops connection.
         # Only the two ingress paths implemented by the existing arm FSM are
@@ -5210,6 +5225,7 @@ class OperatorConsole(Gtk.Window):
             "작업 카메라": "작업 화면",
         }.get(selected._name, selected._name))
         self._videos.show_all()
+        self._on_video_area_allocated(self._videos, self._videos.get_allocation())
         self._add_event("VIDEO", f"main view changed: {selected._name}")
         return True
 
@@ -5513,16 +5529,76 @@ class OperatorConsole(Gtk.Window):
         pip_width = min(pip_width, max(160, int(allocation.height * 0.66 * 848 / 480)))
         pip_height = int(round(pip_width * 480 / 848))
         self._pip_slot.set_slot_size(pip_width, pip_height)
+        compact_pip = pip_width < 260
+        if compact_pip != self._compact_pip:
+            self._compact_pip = compact_pip
+            self._swap_button.set_label("전환" if compact_pip else "화면 전환")
+            self._swap_button.set_size_request(54 if compact_pip else 88, 28)
+        secondary = self._d435 if self._main_video is self._l515 else self._l515
+        if secondary._header_state.get_visible() == compact_pip:
+            secondary._header_state.set_visible(not compact_pip)
 
     def _on_mission_body_allocated(
         self, _widget: Gtk.Box, allocation: Gdk.Rectangle,
     ) -> None:
-        # Horizontal telemetry dock: keep the stage flexible and the full
-        # existing data/control surface reachable on laptop-height displays.
-        self._mission_rail.set_size_request(-1, -1)
-        self._mission_rail_scroll.set_max_content_height(
-            180 if allocation.height < 550 else 190
+        # Choose the arrangement that gives the 16:9 camera feed more visible
+        # pixels after reserving space for telemetry. Reflow is stable because
+        # the mission body's outer allocation does not depend on orientation.
+        rail_width = min(390, max(330, round(allocation.width * .29)))
+        dock_height = 180 if allocation.height < 550 else 190
+        def video_area(width: int, height: int) -> float:
+            fitted_width = min(width, height * 16 / 9)
+            return fitted_width * min(height, width * 9 / 16)
+        side = (
+            allocation.width >= 900
+            and video_area(allocation.width - rail_width - 10, allocation.height)
+                >= video_area(allocation.width, allocation.height - dock_height - 10) * 1.05
         )
+        if side != self._mission_side_rail:
+            self._mission_side_rail = side
+            self._mission_body.set_orientation(
+                Gtk.Orientation.HORIZONTAL if side else Gtk.Orientation.VERTICAL)
+            self._rail_data.set_orientation(
+                Gtk.Orientation.VERTICAL if side else Gtk.Orientation.HORIZONTAL)
+            self._rail_data.set_homogeneous(not side)
+            self._rail_data.set_valign(
+                Gtk.Align.FILL)
+            for card in self._rail_data.get_children():
+                self._rail_data.set_child_packing(
+                    card, not side or card is self._mission_metric_rows["drive"],
+                    True, 0, Gtk.PackType.START)
+            self._mission_rail.set_hexpand(not side)
+            self._mission_rail.set_vexpand(side)
+            self._mission_rail_scroll.set_vexpand(side)
+            self._mission_rail.set_child_packing(
+                self._mission_rail_scroll, side, side, 0, Gtk.PackType.START)
+        self._mission_rail.set_size_request(
+            rail_width if side else -1, -1)
+        drive_share = .53 if allocation.height < 550 else .62
+        # The rail scroller loses 8 px to its frame; reserve that plus the
+        # 10 px card gap so GTK can honor both card height requests exactly.
+        card_space = max(0, allocation.height - 18)
+        card_heights = (
+            (round(card_space * drive_share),
+             card_space - round(card_space * drive_share))
+            if side else (-1, -1)
+        )
+        if card_heights != self._mission_card_heights:
+            self._mission_card_heights = card_heights
+            # Apply size requests after GTK finishes the current allocation.
+            # Changing them inside size-allocate leaves stale preferred sizes
+            # when a window is resized from compact to full screen.
+            def apply_card_heights() -> bool:
+                if self._mission_card_heights == card_heights:
+                    for name, height in zip(("drive", "tool"), card_heights):
+                        self._mission_metric_rows[name].set_size_request(-1, height)
+                    self._rail_data.queue_resize()
+                    self._mission_rail_scroll.queue_resize()
+                    self._mission_body.queue_resize()
+                return False
+            GLib.idle_add(apply_card_heights)
+        self._mission_rail_scroll.set_max_content_height(
+            -1 if side else dock_height)
 
     def _on_window_allocated(
         self, _widget: Gtk.Window, allocation: Gdk.Rectangle,
@@ -5842,9 +5918,7 @@ class OperatorConsole(Gtk.Window):
             if chassis_state != "LIVE" or chassis_snapshot is None
             else (
                 f'경로  |  {mobility_values["path"]}\n'
-                f'제어  |  {mobility_values["control"]}\n'
-                f'자세  |  {mobility_values["attitude"]}\n'
-                f'바퀴  |  {mobility_values["motors"]}'
+                f'제어  |  {mobility_values["control"]}'
             )
         )
         self._sync_overlay_rail(metadata)

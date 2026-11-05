@@ -8,6 +8,8 @@ import pytest
 
 
 @pytest.mark.parametrize("case", [
+    "test_mission_layout_reflows_with_window_height",
+    "test_system_cards_fill_available_height",
     "test_vision_roundtrip_keeps_single_decoder_and_restores_layout[False]",
     "test_vision_roundtrip_keeps_single_decoder_and_restores_layout[True]",
     "test_vision_overlay_toggle_shares_mission_state",

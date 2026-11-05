@@ -200,6 +200,11 @@ class LatestMapReceiver:
                                self._last_rx_s,
                                tuple(self._trajectory), self.invalid_packet_count, self.rejected_packet_count)
 
+    def latest_status(self):
+        """Read the received status while map rendering is paused on another tab."""
+        with self._lock:
+            return self._status
+
     def close(self) -> None:
         self._stopping.set()
         self._socket.close()

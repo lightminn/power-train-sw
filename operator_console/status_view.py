@@ -2696,9 +2696,7 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
         ) -> Gtk.Box:
             panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
             panel.set_hexpand(True)
-            panel.set_vexpand(False)
-            # Let the summary and its visible readings determine card height.
-            # A fixed 285 px card left a large empty well on laptop displays.
+            panel.set_vexpand(True)
             _style(panel, "system-section", f"system-section-{key}")
             section_header = Gtk.Box(spacing=8)
             title_label = Gtk.Label(label=title_text)
@@ -2743,10 +2741,13 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
             # Detailed source descriptions belong inside the collapsed metrics,
             # not on the judge-facing summary surface.
             description_label.set_no_show_all(True)
-            panel.pack_start(summary_label, False, False, 4)
-            panel.pack_start(action_label, False, False, 0)
-            panel.pack_start(headline, False, False, 4)
+            body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            body.pack_start(summary_label, False, False, 4)
+            body.pack_start(action_label, False, False, 0)
+            body.pack_start(headline, False, False, 4)
+            panel.pack_start(body, True, False, 0)
             panel.pack_end(details, False, False, 0)
+            panel._summary_body = body
             self._system_badges[key] = badge
             self._system_summaries[key] = summary_label
             self._system_actions[key] = action_label
@@ -2755,7 +2756,7 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
         columns = Gtk.Grid(column_spacing=12, row_spacing=0)
         columns.set_column_homogeneous(True)
         columns.set_hexpand(True)
-        columns.set_vexpand(False)
+        columns.set_vexpand(True)
         power = section(
             "power", "전원",
             "계측값, 배터리 상태와 보호 상태",
@@ -2774,8 +2775,8 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
             soc_parent.remove(self._soc_bar)
         self._soc_bar.set_show_text(True)
         self._soc_bar.set_no_show_all(False)
-        power.pack_start(self._soc_bar, False, False, 0)
-        power.reorder_child(self._soc_bar, 3)
+        power._summary_body.pack_start(self._soc_bar, False, False, 0)
+        power._summary_body.reorder_child(self._soc_bar, 2)
         communication = section(
             "communication", "통신",
             "로봇 상태, 영상, 인식 결과와 조작 채널의 최신 수신 상태",
@@ -2803,7 +2804,7 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
         columns.attach(power, 0, 0, 1, 1)
         columns.attach(communication, 1, 0, 1, 1)
         columns.attach(safety, 2, 0, 1, 1)
-        self.pack_start(columns, False, False, 0)
+        self.pack_start(columns, True, True, 0)
 
     @staticmethod
     def _value_or_information(value: str) -> str:
