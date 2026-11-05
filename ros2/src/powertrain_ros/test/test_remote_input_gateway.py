@@ -93,10 +93,11 @@ def _connect_drive(gateway, session_id=None, at_s=0.0):
 @pytest.mark.parametrize(
     "left_x,right_trigger,left_trigger,linear,angular,front_sign",
     [
-        (0.25, 0.5, 0.0, 0.75, -0.3, -1),
-        (-0.25, 0.5, 0.0, 0.75, 0.3, 1),
-        (0.25, 0.0, 0.5, -0.75, -0.3, 1),
-        (-0.25, 0.0, 0.5, -0.75, 0.3, -1),
+        # 2026-11-06 operator request: LT drives forward, RT reverses.
+        (0.25, 0.5, 0.0, -0.75, -0.3, 1),
+        (-0.25, 0.5, 0.0, -0.75, 0.3, -1),
+        (0.25, 0.0, 0.5, 0.75, -0.3, -1),
+        (-0.25, 0.0, 0.5, 0.75, 0.3, 1),
     ],
 )
 def test_drive_stick_direction_uses_rep103_before_four_wheel_steering(
@@ -123,7 +124,7 @@ def test_drive_stick_direction_uses_rep103_before_four_wheel_steering(
         assert wheels[name].steer_deg * front_sign < 0
 
 
-@pytest.mark.parametrize("rt,lt,speed", [(0.0, 0.0, 0.0), (0.5, 0.0, 0.75), (0.0, 0.5, -0.75)])
+@pytest.mark.parametrize("rt,lt,speed", [(0.0, 0.0, 0.0), (0.5, 0.0, -0.75), (0.0, 0.5, 0.75)])
 @pytest.mark.parametrize("left_x,steering", [(0.6, -0.6), (-0.6, 0.6)])
 def test_default_manual_steering_is_unchanged_at_stop_forward_and_reverse(rt, lt, speed, left_x, steering):
     gateway = RemoteInputGateway(GatewayConfig(max_linear=1.5))
@@ -154,7 +155,7 @@ def test_30hz_drive_stops_on_stale_and_hold_clear_never_restores_command():
                 sequence=sequence,
                 received_s=now_s,
                 deadman=True,
-                right_trigger=0.7,
+                left_trigger=0.7,
                 left_x=-0.2,
                 session_id=session_id,
             )
@@ -181,7 +182,7 @@ def test_assist_bypass_is_unmodified_only_while_input_is_fresh():
             sequence=1,
             received_s=0.01,
             deadman=True,
-            right_trigger=0.4,
+            left_trigger=0.4,
             assist_bypass=True,
             session_id=session_id,
         )
@@ -204,7 +205,7 @@ def test_deadman_release_and_estop_edge_zero_on_the_next_tick():
             sequence=1,
             received_s=0.01,
             deadman=True,
-            right_trigger=0.5,
+            left_trigger=0.5,
             left_x=0.5,
             session_id=session_id,
         )
@@ -239,7 +240,7 @@ def test_reconnect_requires_neutral_and_never_restores_mode_or_nonzero():
             sequence=1,
             received_s=0.01,
             deadman=True,
-            right_trigger=0.8,
+            left_trigger=0.8,
             session_id=old_session,
         )
     )
@@ -253,7 +254,7 @@ def test_reconnect_requires_neutral_and_never_restores_mode_or_nonzero():
         _frame(
             received_s=0.02,
             deadman=True,
-            right_trigger=0.8,
+            left_trigger=0.8,
             mode="ARM",
             mode_chord=True,
             session_id=new_session,
@@ -609,7 +610,7 @@ def test_field_mode_stale_input_zeroes_without_latching_and_resumes():
         GatewayConfig(input_timeout_s=0.5, latch_stale_input=False))
     session_id = _connect_drive(gateway, at_s=0.98)
     gateway.submit(_frame(sequence=1, received_s=1.0, deadman=True,
-                          right_trigger=0.7, session_id=session_id))
+                          left_trigger=0.7, session_id=session_id))
     assert gateway.tick(1.0).drive.linear == pytest.approx(0.7)
 
     stale = gateway.tick(1.500001)
@@ -617,7 +618,7 @@ def test_field_mode_stale_input_zeroes_without_latching_and_resumes():
     _assert_zero(stale)
 
     gateway.submit(_frame(sequence=2, received_s=1.6, deadman=True,
-                          right_trigger=0.7, session_id=session_id,
+                          left_trigger=0.7, session_id=session_id,
                           input_epoch=gateway.input_epoch))
     assert gateway.tick(1.6).drive.linear == pytest.approx(0.7)
 
@@ -691,7 +692,7 @@ def _field_gateway():
 
 def _drive(sequence, received_s, session_id, **kw):
     return _frame(sequence=sequence, received_s=received_s, deadman=True,
-                  right_trigger=0.7, session_id=session_id, **kw)
+                  left_trigger=0.7, session_id=session_id, **kw)
 
 
 def test_field_mode_late_pre_stall_record_never_restarts_driving():

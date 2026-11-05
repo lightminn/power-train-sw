@@ -357,8 +357,10 @@ class RemoteInputGateway:
         if not frame.deadman:
             self._last_reason = "drive deadman released"
             return self._zero(self._last_reason, fresh=True)
+        # 2026-11-06 operator request: LT drives forward, RT reverses (the arm
+        # gripper below keeps its RT-open/LT-close mapping).
         linear = (
-            frame.axes.right_trigger - frame.axes.left_trigger
+            frame.axes.left_trigger - frame.axes.right_trigger
         ) * self.cfg.max_linear
         # Steering is independent of speed, including at zero and in reverse.
         # SDL stick-right is positive; our wheel-frame steering is left-positive.

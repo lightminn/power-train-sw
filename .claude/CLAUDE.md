@@ -465,7 +465,8 @@ python -m pytest motor_control -q
   `teleop_dualsense.py`(유선), `teleop_server.py`(무선. `--skid-usb`로 USB 스키드).
   - **수동 애커만 조향**: 기본 `/teleop/drive_command`는 속도와 정규화 조향을
     독립 전달한다. L1을 누른 상태에서 L스틱만 움직이면 구동 0으로 조향하고,
-    RT/LT 전후진에도 동일 스틱은 동일 조향각이다. 회전 중심은 고정 중간축에 둔다.
+    LT 전진/RT 후진(2026-11-06 운전자 요청으로 바꿈, 게이트웨이 `remote_input_gateway.py`. 팔 모드 그리퍼는
+    RT 열기/LT 닫기 그대로)에도 동일 스틱은 동일 조향각이다. 회전 중심은 고정 중간축에 둔다.
     `manual_command_format=twist`는 명시적 레거시이며 보조주행 `assist_enabled`는
     이 레거시에서만 지원한다. 새 메시지와 ROS 노드를 함께 재빌드한다.
   - **min_drive_turns_per_s는 2026-07-17 D3/D4로 기본값 전면 0 = 폐지.** 저속 코깅 대응은
