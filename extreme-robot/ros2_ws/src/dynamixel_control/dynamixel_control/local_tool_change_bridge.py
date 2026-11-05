@@ -28,6 +28,10 @@ class LocalToolChangeBridge:
         self.declare_parameter('local_tool_change_rise_m', 0.05)
         self.declare_parameter('local_tool_change_step_m', 0.005)
         self.declare_parameter('local_tool_change_speed_mps', 0.01)
+        # ID3 raw tick (0..4095) for returning the rack gripper; -1 skips the step.
+        self.declare_parameter('local_tool_change_gripper_tick', -1)
+        self._tc_gripper_tick = int(
+            self.get_parameter('local_tool_change_gripper_tick').value)
         self._tc_configure(
             str(self.get_parameter('local_tool_slots_file').value), list(JOINT_CONFIG),
             float(self.get_parameter('local_tool_change_rise_m').value),
@@ -53,13 +57,15 @@ class LocalToolChangeBridge:
         self._tc_stream = None
         self._tc_goals = {}
         self._tc_lock_desired = None
+        self._tc_tool_goal = None
         self._tc_error = ''
         self._tc_was_running = False
         self._tool_change = BenchToolChange(
             move=self._tc_move, arrived=self._tc_arrived, lock=self._tc_lock,
             lock_state=self._tc_lock_state, attached_tool=self._tc_attached_tool,
             hold=self._tc_hold, stop_lock=self._stop_toolchanger,
-            permission=self._tc_permission, clock=clock)
+            permission=self._tc_permission, tool_tick=self._tc_tool_tick,
+            tool_tick_arrived=self._tc_tool_tick_arrived, clock=clock)
 
     def _tc_running(self):
         change = getattr(self, '_tool_change', None)
@@ -118,7 +124,9 @@ class LocalToolChangeBridge:
         self._tc_stationary_pose()
         steps = plan(self._tc_store.data, self._tc_attached_tool(), tool_type, home,
                      rise_m=self._tc_rise_m, step_m=self._tc_step_m, dry_run=dry_run,
-                     limits=limits)
+                     limits=limits,
+                     tick_tools=('dual_motor_gripper',)
+                     if getattr(self, '_tc_gripper_tick', -1) >= 0 else ())
         self._tc_trip = trip
         self._tool_change.start(steps)
         self._tc_was_running = True
@@ -198,6 +206,35 @@ class LocalToolChangeBridge:
                 return False
         return True
 
+    def _tc_tool_tick(self, _tool):
+        """Drive ID3 to the remembered tick with ID4 limp; it holds there until unlock.
+
+        A hot swap power-cycles the servo and loses its turn count, so only the
+        tick within one turn is remembered and the nearest such position is used.
+        """
+        if self._read_register(3, 11, 1, 'gripper mode') != 4:
+            raise RuntimeError('ID3 must be in extended position mode 4')
+        if self._read_register(3, 70, 1, 'gripper hardware error') != 0:
+            raise RuntimeError('ID3 hardware error')
+        self._write_register(4, 64, 1, 0, 'ID4 torque off')
+        if self._read_register(4, 64, 1, 'ID4 torque readback') != 0:
+            raise RuntimeError('ID4 torque did not turn OFF')
+        self._write_register(3, 64, 1, 0, 'ID3 torque off')
+        profile = self.tool_profile
+        self._write_register(3, 100, 2, int(profile['goal_pwm']), 'ID3 goal PWM')
+        self._write_register(3, 108, 4, int(profile['profile_acceleration']), 'ID3 acceleration')
+        self._write_register(3, 112, 4, int(profile['profile_velocity']), 'ID3 velocity')
+        present = self._read_register(3, 132, 4, 'ID3 present', signed=True)
+        self._write_register(3, 116, 4, present & 0xffffffff, 'ID3 goal sync')
+        self._write_register(3, 64, 1, 1, 'ID3 torque on')
+        goal = present + (self._tc_gripper_tick - present + 2048) % 4096 - 2048
+        self._write_register(3, 116, 4, goal & 0xffffffff, 'ID3 goal')
+        self._tc_tool_goal = goal
+
+    def _tc_tool_tick_arrived(self):
+        present = self._read_register(3, 132, 4, 'ID3 present', signed=True)
+        return abs(present - self._tc_tool_goal) <= 20
+
     def _tc_lock(self, desired):
         self._require_manual_lock_arm_stopped()
         self._prepare_tool_for_lock()
@@ -223,6 +260,9 @@ class LocalToolChangeBridge:
     def _tc_hold(self):
         from dynamixel_control.moveit_dynamixel_bridge import JOINT_CONFIG
         self._tc_stream = None
+        if self._tc_tool_goal is not None:
+            self._tc_tool_goal = None
+            self._write_register(3, 64, 1, 0, 'ID3 torque off')
         for config in JOINT_CONFIG.values():
             if config['id'] in self.active_ids:
                 position = self._read_register(config['id'], 132, 4,

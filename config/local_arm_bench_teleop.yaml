@@ -39,3 +39,4 @@
     local_tool_change_rise_m: 0.05
     local_tool_change_step_m: 0.005
     local_tool_change_speed_mps: 0.01
+    local_tool_change_gripper_tick: 126

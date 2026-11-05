@@ -127,12 +127,14 @@ class ToolSlotStore:
 
 
 def plan(slots, attached_tool, desired_tool, home, *, rise_m, step_m, dry_run=False,
-         limits=True):
+         limits=True, tick_tools=()):
     """Ordered steps; each is (name, payload).
 
     ``rise_m``/``step_m`` only set how many waypoints split the taught rise.
     ``dry_run`` rehearses the arm motion only: no coupling move and no tool
     detection check, for benches without a tool or coupling lock.
+    ``tick_tools`` go to their remembered motor tick before being lowered into
+    their slot; a tool being fetched is not on the bus yet, so only a return can.
     """
     by_tool = {slot['tool_type']: key for key, slot in slots['slots'].items()}
     if desired_tool not in by_tool:
@@ -153,6 +155,9 @@ def plan(slots, attached_tool, desired_tool, home, *, rise_m, step_m, dry_run=Fa
         path = joint_path(slot['seat'], slot['above'], count, limits=limits)
         steps.extend([
             ('MOVE_ABOVE', dict(slot=slot_id, poses=[path[-1]])),
+            *([('TOOL_TICK', dict(slot=slot_id, tool=slot['tool_type']))]
+              if lock == 'UNLOCK' and not dry_run and slot['tool_type'] in tick_tools
+              else []),
             ('DESCEND', dict(slot=slot_id, poses=path[-2::-1])),
             *([] if dry_run else [(lock, dict(slot=slot_id))]),
             ('ASCEND', dict(slot=slot_id, poses=path[1:])),
@@ -178,20 +183,23 @@ class BenchToolChange:
     'LOCKED'/'UNLOCKED', ``lock_state()`` returns 'MOVING', 'DONE' or an error
     string, ``attached_tool()`` reports the detected tool or None, ``hold()``
     freezes the arm, ``stop_lock()`` stops the coupling, ``permission()`` raises
-    when manual control is no longer granted.
+    when manual control is no longer granted, ``tool_tick(tool)`` starts the tool
+    motor toward its remembered tick and ``tool_tick_arrived()`` reports it there.
     """
 
     STEP_TIMEOUT_S = dict(MOVE_ABOVE=20.0, DESCEND=15.0, ASCEND=15.0, HOME=20.0,
-                          LOCK=10.0, UNLOCK=10.0, VERIFY_RELEASED=5.0,
+                          LOCK=10.0, UNLOCK=10.0, TOOL_TICK=10.0, VERIFY_RELEASED=5.0,
                           VERIFY_ATTACHED=5.0)
 
     def __init__(self, *, move, arrived, lock, lock_state, attached_tool, hold,
-                 stop_lock, permission, clock=time.monotonic):
+                 stop_lock, permission, tool_tick=None, tool_tick_arrived=None,
+                 clock=time.monotonic):
         self._move, self._arrived = move, arrived
         self._lock, self._lock_state = lock, lock_state
         self._attached_tool = attached_tool
         self._hold, self._stop_lock = hold, stop_lock
         self._permission = permission
+        self._tool_tick, self._tool_tick_arrived = tool_tick, tool_tick_arrived
         self._clock = clock
         self.state, self.error = 'IDLE', ''
         self.steps, self.index = [], -1
@@ -226,6 +234,9 @@ class BenchToolChange:
                     self._advance()
                 elif status != 'MOVING':
                     raise RuntimeError(f'{name} failed: {status}')
+            elif name == 'TOOL_TICK':
+                if self._tool_tick_arrived():
+                    self._advance()
             elif name == 'VERIFY_RELEASED':
                 if self._attached_tool() is None:
                     self._advance()
@@ -248,6 +259,8 @@ class BenchToolChange:
         self._deadline = self._clock() + self.STEP_TIMEOUT_S[name]
         if name in ('LOCK', 'UNLOCK'):
             self._lock('LOCKED' if name == 'LOCK' else 'UNLOCKED')
+        elif name == 'TOOL_TICK':
+            self._tool_tick(payload['tool'])
         elif 'poses' in payload:
             self._move(payload['poses'], vertical=name in ('DESCEND', 'ASCEND'))
 
