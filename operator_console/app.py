@@ -4503,7 +4503,7 @@ class OperatorConsole(Gtk.Window):
 
         tool_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         _style(tool_row, "end-effector-summary")
-        tool_kicker = Gtk.Label(label="02  /  MANIPULATOR")
+        tool_kicker = Gtk.Label(label="03  /  MANIPULATOR")
         tool_kicker.set_xalign(0.0)
         _style(tool_kicker, "rail-data-label")
         tool_row.pack_start(tool_kicker, False, False, 0)

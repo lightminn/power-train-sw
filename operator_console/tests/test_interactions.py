@@ -256,7 +256,7 @@ def test_mobility_dashboard_reflows_cards_instead_of_squeezing_them():
     ) == 1
     assert dashboard._lower_grid.child_get_property(
         dashboard._lower_cards[1], "left-attach",
-    ) == 2
+    ) == 3
 
 
 @requires_gtk
@@ -390,6 +390,41 @@ def test_competition_summary_can_be_ready_with_fully_healthy_fixtures():
     dashboard = _update_competition_dashboard()
 
     assert dashboard._system_overall.get_text() == '●  운용 준비 완료'
+
+
+@requires_gtk
+def test_power_card_promotes_soc_without_repeating_it_in_headline_metrics():
+    dashboard = _update_competition_dashboard()
+
+    assert dashboard._system_summaries['power'].get_text() == '배터리 잔량'
+    assert dashboard._soc_bar.get_text() == 'SoC 80%'
+    assert dashboard._system_values['power_voltage'].get_text() != '정보 없음'
+    assert dashboard._system_values['power_discharge'].get_text() != '정보 없음'
+    assert 'power_soc' not in dashboard._system_values
+    assert dashboard._soc_bar.get_show_text()
+
+
+@requires_gtk
+def test_power_card_keeps_soc_bar_visible_when_live_source_has_no_soc():
+    power_payload, chassis_payload, arm_payload, metadata_payload = (
+        _healthy_competition_fixtures()
+    )
+    power_payload['pdist_soc_percent'] = None
+    dashboard = CompetitionStatusDashboard()
+    dashboard.update(
+        power=_parsed(parse_telemetry, power_payload),
+        chassis=_parsed(parse_telemetry, chassis_payload),
+        arm=_parsed(parse_arm_telemetry, arm_payload),
+        metadata=_parsed(parse_metadata, metadata_payload),
+        front_video_state='LIVE', work_video_state='LIVE',
+        front_fps=30.0, work_fps=30.0,
+        control_link_ready=True,
+        now_s=10.0,
+    )
+
+    assert dashboard._soc_bar.get_visible()
+    assert dashboard._soc_bar.get_text() == 'SoC 정보 없음'
+    assert dashboard._soc_bar.get_fraction() == 0.0
 
 
 @requires_gtk

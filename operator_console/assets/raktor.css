@@ -469,6 +469,7 @@ window .mission-rail, window.viewport-compact .mission-rail { padding: 0; }
 window .mission-rail .rail-data-row, window .mission-rail .end-effector-summary,
 window.viewport-compact .mission-rail .rail-data-row, window.viewport-compact .mission-rail .end-effector-summary { padding: 8px 12px; }
 window .mission-card-title, window .end-effector-summary-title { font-size: 14px; }
-window .mission-rail .rail-data-value, window.viewport-spacious .mission-rail .rail-data-value { font-size: 12px; }
+window .mission-rail .rail-data-value, window.viewport-spacious .mission-rail .rail-data-value { font-size: 14px; }
+window.viewport-compact .mission-rail .rail-data-value { font-size: 12px; }
 window .page, window.viewport-spacious .page { padding: 8px 16px 0; }
 window .event-expander { margin-top: 3px; padding: 4px 16px; }

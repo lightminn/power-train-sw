@@ -704,8 +704,8 @@ class MobilityDashboard(Gtk.Box):
         status_column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         status_column.pack_start(summary, False, False, 0)
         status_column.pack_start(faults, True, True, 0)
-        lower.attach(motors, 0, 0, 2, 1)
-        lower.attach(status_column, 2, 0, 1, 1)
+        lower.attach(motors, 0, 0, 3, 1)
+        lower.attach(status_column, 3, 0, 2, 1)
         self._lower_grid = lower
         self._lower_cards = (motors, status_column)
         self._compact_layout: bool | None = None
@@ -736,8 +736,8 @@ class MobilityDashboard(Gtk.Box):
                 self._summary_grid.attach(card, index % 2, index // 2, 1, 1)
             motors, faults = self._lower_cards
             self._lower_grid.set_column_homogeneous(True)
-            self._lower_grid.attach(motors, 0, 0, 2, 1)
-            self._lower_grid.attach(faults, 2, 0, 1, 1)
+            self._lower_grid.attach(motors, 0, 0, 3, 1)
+            self._lower_grid.attach(faults, 3, 0, 2, 1)
         self._summary_grid.show_all()
         self._lower_grid.show_all()
 
@@ -755,6 +755,12 @@ class MobilityDashboard(Gtk.Box):
         for index, key in enumerate(keys):
             label = Gtk.Label(label="정보 없음")
             label.set_xalign(0.0)
+            if index == 0:
+                # The operator decision is the important reading in each card.
+                # Give it two lines before truncating on laptop-width screens.
+                label.set_line_wrap(True)
+                label.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+                label.set_lines(2)
             label.set_ellipsize(Pango.EllipsizeMode.END)
             _style(label, "mobility-value")
             if index == 0:
@@ -962,8 +968,13 @@ class MobilityDashboard(Gtk.Box):
                 "장애물 인지 정상" if nearest is None else f"최근접 장애물 {nearest:.2f} m"
             )
             terrain["confidence"].set_text(
-                f"L515 실시간 · 순번 {obstacle.sequence} · "
-                + (f"처리 {obstacle.processing_ms:.0f} ms" if obstacle.processing_ms is not None else "처리시간 정보 없음")
+                "L515 · " + (
+                    f"처리 {obstacle.processing_ms:.0f} ms"
+                    if obstacle.processing_ms is not None else "처리시간 정보 없음"
+                )
+            )
+            terrain["confidence"].set_tooltip_text(
+                f"L515 실시간 수신 · 순번 {obstacle.sequence}"
             )
             terrain["geometry"].set_text(
                 f"좌 · {zone_text('left')}  |  중앙 · {zone_text('center')}  |  우 · {zone_text('right')}"
@@ -980,8 +991,11 @@ class MobilityDashboard(Gtk.Box):
             )
             confidence = snapshot.terrain_confidence
             terrain["confidence"].set_text(
-                f"L515  |  단차 · 경사 · 장애물  |  신뢰도 {confidence * 100:.0f}%"
+                f"L515 · 신뢰도 {confidence * 100:.0f}%"
                 if confidence is not None else "지형 정보 대기"
+            )
+            terrain["confidence"].set_tooltip_text(
+                "L515 지형 판단: 단차 · 경사 · 장애물"
             )
             terrain["geometry"].set_text(
                 "오프셋 {} · 방향 {}".format(
