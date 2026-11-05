@@ -168,6 +168,11 @@ ACTIONS = {
     "robot_arm_tool_enable": ActionSpec(
         _CONSOLE, "publish_tool_torque", ("/dynamixel/torque_request",),
     ),
+    # Bench recovery: SIGKILL + relaunch of the arm bridge (servos keep their
+    # torque). Refused unless the broker was given arm_bridge_restart_command.
+    "robot_arm_bridge_restart": ActionSpec(
+        _CONSOLE, "run_arm_bridge_restart", ("scripts/restart_arm_bridge.sh",),
+    ),
     "robot_arm_calibration": ActionSpec(
         _CONSOLE, "publish_tool_calibration", ("/tool/dual_calibration_command",),
     ),

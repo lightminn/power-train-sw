@@ -46,6 +46,7 @@ CAP_GRIPPER_COMMAND = "gripper_command"
 CAP_TOOL_JOG = 'tool_jog'
 CAP_INDIVIDUAL_TARGETS = 'individual_targets'
 CAP_DUAL_SYNC = "dual_sync"
+CAP_BRIDGE_RESTART = "bridge_restart"
 CAP_ARM_CALIBRATION = "arm_calibration"
 CAP_TOOL_CALIBRATION = "tool_calibration"
 CAP_DUAL_TOOL_CALIBRATION = "dual_tool_calibration"
@@ -71,6 +72,7 @@ ACTION_CAPABILITY: dict[str, str] = {
     K.ACTION_TOOL_JOG: CAP_TOOL_JOG,
     K.ACTION_CALIBRATION: CAP_ARM_CALIBRATION,
     K.ACTION_CALIBRATION_JOG: CAP_TOOL_CALIBRATION,
+    K.ACTION_BRIDGE_RESTART: CAP_BRIDGE_RESTART,
 }
 
 
@@ -165,6 +167,13 @@ def authorize(
         extra = _calibration_capability(context, params)
         if extra is not None:
             return extra
+
+    # The bridge restart is the recovery for a bridge that stopped reporting, so
+    # it cannot wait for a LIVE feed. It still needs ops state for the wire.
+    if action == K.ACTION_BRIDGE_RESTART:
+        if context.state_revision is None:
+            return _refuse("no_ops_state", "ops 상태 미수신 — 명령을 만들 수 없음")
+        return ALLOWED
 
     # Rule 3.
     if not context.link_live:

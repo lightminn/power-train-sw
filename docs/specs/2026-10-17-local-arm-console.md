@@ -54,6 +54,7 @@ Qt `robot_manual_gui`는 이번 조작 화면으로 사용하지 않는다.
 | 브리지 | `ftdi_latency_timer` | 1 | 기동 시 USB FTDI 지연을 직접 설정한다(2026-11-04). ⚠️ SDK 패킷 시간초과를 1ms 기준으로 줄이면 5축 SyncRead가 시간초과돼 빈 `/joint_states`가 나간다(실측, 되돌림) |
 | 브리지 | `tool_detection_absent_period_s` | 2.0 | 도구 탈거가 확정되고 후보 ID가 하나도 응답하지 않으면 전체 ping 검사를 이 주기로만 한다(2026-11-04) |
 | 브리지 | `arm_joint_limits_file` | `/session/arm_joint_limits.json` | GUI 가동범위 캘리브레이션(2.9) 저장 파일. 기동 시 `joint_limits.py` 1~4축 값을 덮어쓴다. 비우면 탭 비활성 |
+| 브로커 | `arm_bridge_restart_command` | `bash /ws/scripts/restart_arm_bridge.sh` | 콘솔 `브릿지 재시작` 버튼이 실행하는 명령(2.10). 비우면 거부 |
 | 브로커 env | `ARM_LOCAL_ALL_AXES=1` | | 1~5축 조그·자세·자유지정 액션 허용 |
 | 콘솔 env | `ARM_LOCAL_ALL_AXES=1` | | 축 선택, 제한/트립 토글 표시 |
 | 콘솔 env | `ARM_LOCAL_WRIST_IGNORE_LOCK=1` | | 볼락 미준비여도 조그 버튼 활성 |
@@ -105,6 +106,7 @@ Qt `robot_manual_gui`는 이번 조작 화면으로 사용하지 않는다.
 | `robot_arm_freedrive` / `robot_arm_freedrive_release` | `/arm/local_pose` FREEDRIVE/FREEDRIVE_RELEASE |
 | `robot_arm_lock_command` / `robot_arm_lock_stop` | `/toolchanger/command` |
 | `robot_arm_calibration` (scope=arm, step=range) | `/arm/calibration_command` measure/verify/apply_temporary/save |
+| `robot_arm_bridge_restart` | 브로커가 `arm_bridge_restart_command` 실행 |
 
 콘솔의 액션은 세 곳이 모두 맞아야 나간다: `arm_ops/contract.py`(파라미터 명세·설명),
 `ops_contract.ACTIONS`(브로커), `app.py`의 `registered_actions`(콘솔 게이트).
@@ -234,6 +236,14 @@ STOP만 브리지에 도착했다. 조그가 안 움직이면 브로커가 이 �
    (끝까지 밀지 않았다는 신호 — `measure_joint_limits.py`의 2026-08-07 교훈).
 3. `임시 적용` = 실행 중인 브리지의 관절 제한에 즉시 반영. 브리지를 재시작하면 사라진다.
 4. `저장` = `arm_joint_limits_file`에 기록. 다음 기동부터 `joint_limits.py` 값을 덮어쓴다.
+
+### 2.10 브릿지 재시작 버튼 (2026-11-05)
+
+`로봇팔 수동조작` 탭 제어권 카드의 `브릿지 재시작`은 브로커가 `scripts/restart_arm_bridge.sh`를 실행한다.
+SIGKILL로 브리지를 끝내고 다시 띄우므로 서보 토크와 자세는 유지되고, 진행 중인 조그·자세 이동·교체는 멈춘다.
+브리지가 서보보다 먼저 떠서 팔을 못 찾았을 때의 복구용이며, 팔 상태가 끊겨도 누를 수 있다(ops 연결만 필요).
+기존의 같은 도구 재탐색은 `도구 재탐색` 버튼으로 분리했다. 런처(`start_jetson_arm_bench.sh`)가 브로커에
+`arm_bridge_restart_command`를 넘기며, 이 파라미터 없이 떠 있던 예전 브로커는 런처가 교체한다.
 
 ## 3. 회귀 점검표 (GUI 갱신 때마다)
 

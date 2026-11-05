@@ -26,21 +26,11 @@ docker start "$container" >/dev/null || { say "컨테이너 $container 시작 �
 
 # The bridge looks for the servos only once at startup. One started before
 # servo power (e.g. right after a robot power cycle) never recovers, so it is
-# replaced. SIGKILL keeps the servo torque as it is.
+# replaced. scripts/restart_arm_bridge.sh uses SIGKILL, which keeps servo torque.
+restart_script=/ws/scripts/restart_arm_bridge.sh
 bridge_ok() {
     inside 'grep -q "MoveIt Dynamixel bridge started" /session/bridge-rt.log 2>/dev/null &&
             ! grep -q "startup torque read failed" /session/bridge-rt.log'
-}
-start_bridge() {
-    inside 'pkill -9 -f "[m]oveit_dynamixel_bridge"; sleep 1
-            if [ -f /session/bridge-rt.log ]; then mv /session/bridge-rt.log /session/bridge-rt.log.prev; fi'
-    spawn bridge-rt "ros2 run dynamixel_control moveit_dynamixel_bridge --ros-args --params-file /session/session.yaml"
-    for _ in $(seq 1 30); do
-        sleep 1
-        inside 'grep -q "MoveIt Dynamixel bridge started" /session/bridge-rt.log 2>/dev/null' && return 0
-        running "[m]oveit_dynamixel_bridge" || return 1
-    done
-    return 1
 }
 
 if running "[m]oveit_dynamixel_bridge" && bridge_ok; then
@@ -49,7 +39,7 @@ else
     ok=0
     for attempt in 1 2 3 4 5; do
         say "브리지 기동 ($attempt/5)"
-        if start_bridge && bridge_ok; then ok=1; break; fi
+        if docker exec "$container" bash "$restart_script"; then ok=1; break; fi
         say "서보 응답 없음. 서보 전원을 확인한다. 3초 뒤 재시도"
         sleep 3
     done
@@ -57,10 +47,14 @@ else
     else say "⚠️ 브리지가 서보를 찾지 못했다. 콘솔은 띄우지만 팔은 미수신 상태다."; fi
 fi
 
-if ! running "[o]ps_broker"; then
+# The console's "브릿지 재시작" button needs a broker that knows the restart
+# command; an older broker without it is replaced.
+if ! running "[o]ps_broker.*arm_bridge_restart_command"; then
+    inside 'pkill -f "[o]ps_broker"' || true
     say "ops 브로커 기동"
     spawn ops-rt "env ARM_LOCAL_ALL_AXES=1 ros2 run powertrain_ros ops_broker --ros-args \
--p host:=127.0.0.1 -p port:=29001 -p token_dir:=/session"
+-p host:=127.0.0.1 -p port:=29001 -p token_dir:=/session \
+-p 'arm_bridge_restart_command:=bash $restart_script'"
 fi
 if ! running "[a]rm_console_bridge"; then
     say "콘솔 미러 기동"

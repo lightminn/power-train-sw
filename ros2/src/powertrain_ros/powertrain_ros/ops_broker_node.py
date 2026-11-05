@@ -9,7 +9,9 @@ import errno
 import json
 import math
 import os
+import shlex
 import socket
+import subprocess
 import threading
 import time
 import uuid
@@ -96,6 +98,12 @@ class OpsBrokerNode(Node):
         self.declare_parameter("host", "0.0.0.0")
         self.declare_parameter("port", oc.DEFAULT_PORT)
         self.declare_parameter("token_dir", "/etc/powertrain")
+        # Bench only: command that SIGKILLs and relaunches the arm bridge in this
+        # container (scripts/restart_arm_bridge.sh). Empty = action refused.
+        self.declare_parameter("arm_bridge_restart_command", "")
+        self._arm_bridge_restart_command = str(
+            self.get_parameter("arm_bridge_restart_command").value)
+        self._arm_bridge_restart_proc = None
         self._host = str(
             host_override
             if host_override is not None
@@ -730,6 +738,31 @@ class OpsBrokerNode(Node):
             publisher.publish(String(data=json.dumps(
                 request, separators=(",", ":"), sort_keys=True)))
             self._complete_order(order, connection, role, True, "published tool calibration command")
+            return
+        if order.kind == "run_arm_bridge_restart":
+            if order.params:
+                self._complete_order(order, connection, role, False, "no params allowed")
+                return
+            if not self._arm_bridge_restart_command:
+                self._complete_order(order, connection, role, False,
+                                     "bridge restart not configured on this broker")
+                return
+            previous = self._arm_bridge_restart_proc
+            if previous is not None and previous.poll() is None:
+                self._complete_order(order, connection, role, False,
+                                     "bridge restart already running")
+                return
+            try:
+                self._arm_bridge_restart_proc = subprocess.Popen(
+                    shlex.split(self._arm_bridge_restart_command),
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, start_new_session=True)
+            except OSError as exc:
+                self._complete_order(order, connection, role, False,
+                                     f"bridge restart failed to start: {exc}")
+                return
+            self._complete_order(order, connection, role, True,
+                                 "bridge restart started; verify arm feedback")
             return
         if order.kind == "publish_tool_torque":
             params = dict(order.params)

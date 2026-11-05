@@ -4760,7 +4760,7 @@ class OperatorConsole(Gtk.Window):
                         "robot_arm_pose_delete", "robot_arm_home",
                         "robot_arm_freedrive", "robot_arm_freedrive_release",
                         "robot_arm_slot_capture", "robot_arm_exchange_start",
-                        "robot_arm_exchange_stop",
+                        "robot_arm_exchange_stop", "robot_arm_bridge_restart",
                         ACTION_MODE_REQUEST, "robot_arm_mode_release", ACTION_TOOL_CHANGE,
                         ACTION_TOOL_COMMAND,
                         "robot_arm_tool_jog", "robot_arm_tool_jog_stop",

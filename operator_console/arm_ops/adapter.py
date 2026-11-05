@@ -164,9 +164,10 @@ class ArmOpsCallbackAdapter:
             delete_pose=self._wrap(session.delete_pose),
             freedrive=self._wrap(session.freedrive),
             freedrive_release=self._wrap(session.freedrive_release),
-            restart_bridge=(self._wrap(session.revalidate_active_tool)
+            restart_bridge=(self._wrap(session.restart_bridge)
                             if self._restart_bridge is None
                             else self._restart_bridge),
+            rescan_tool=self._wrap(session.revalidate_active_tool),
             set_tool_enabled=self._wrap(session.set_tool_enabled),
             tool_command=self._wrap(session.tool_command),
             tool_jog_start=self._wrap(session.press_tool_jog),

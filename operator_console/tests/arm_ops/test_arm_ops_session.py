@@ -133,6 +133,7 @@ def test_registered_actions_can_be_read_off_the_real_ops_contract_module():
             K.ACTION_FREEDRIVE, K.ACTION_FREEDRIVE_RELEASE,
             K.ACTION_TOOL_JOG, K.ACTION_TOOL_JOG_STOP, K.ACTION_MODE_RELEASE,
             K.ACTION_SLOT_CAPTURE, K.ACTION_EXCHANGE_START, K.ACTION_EXCHANGE_STOP,
+            K.ACTION_BRIDGE_RESTART,
         })
 
 

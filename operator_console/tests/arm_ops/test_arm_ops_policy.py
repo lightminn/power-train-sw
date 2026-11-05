@@ -381,3 +381,12 @@ def test_context_is_frozen_so_a_decision_cannot_be_edited_underneath():
     with pytest.raises(Exception):
         context.granted_mode = K.MODE_MANUAL       # type: ignore[misc]
     assert replace(context, granted_mode="").manual_granted is False
+
+
+def test_bridge_restart_needs_only_its_capability_and_ops_state():
+    stale = granted_context(link_live=False, granted_mode="",
+                            capabilities=frozenset({P.CAP_BRIDGE_RESTART}),
+                            blocked_reasons=("tool_detached",))
+    assert P.authorize(stale, K.ACTION_BRIDGE_RESTART)
+    assert not P.authorize(replace(stale, capabilities=frozenset()), K.ACTION_BRIDGE_RESTART)
+    assert not P.authorize(replace(stale, state_revision=None), K.ACTION_BRIDGE_RESTART)

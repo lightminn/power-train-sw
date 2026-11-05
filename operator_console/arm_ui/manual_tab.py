@@ -333,6 +333,18 @@ class ArmManualTab:
         )
         section.pack_start(self._tool_enable_button, False, False, 0)
 
+        rescan = self._callbacks.rescan_tool
+        self._rescan_button = button("도구 재탐색")
+        if rescan is not None:
+            self.tracker.connect(
+                self._rescan_button, "clicked", lambda _b: rescan(),
+            )
+        self.gate.add(
+            self._rescan_button, rescan, C.CAP_TOOL_CHANGE,
+            hint="현재 도구를 재탐색하고 bridge의 도구 FSM을 다시 초기화합니다",
+        )
+        section.pack_start(self._rescan_button, False, False, 0)
+
         restart = self._callbacks.restart_bridge
         self._restart_button = button("브릿지 재시작", "arm-danger")
         if restart is not None:
@@ -341,7 +353,8 @@ class ArmManualTab:
             )
         self.gate.add(
             self._restart_button, restart, C.CAP_BRIDGE_RESTART,
-            hint="현재 도구를 재탐색하고 bridge의 도구 FSM을 다시 초기화합니다",
+            hint=("브리지 프로세스를 강제 종료 후 다시 띄웁니다. 서보 토크와 자세는 유지되고 "
+                  "진행 중인 조그·자세 이동·교체는 멈춥니다. 서보를 못 찾은 브리지 복구용"),
         )
         section.pack_start(self._restart_button, False, False, 0)
 

@@ -284,6 +284,10 @@ class ArmCommandSession:
     def stop_tool_exchange(self) -> CommandOutcome:
         return self._issue(K.ACTION_EXCHANGE_STOP, intent="도구 교체 정지")
 
+    def restart_bridge(self) -> CommandOutcome:
+        """SIGKILL and relaunch the arm bridge (servos keep their torque)."""
+        return self._issue(K.ACTION_BRIDGE_RESTART, intent="브릿지 재시작")
+
     def freedrive(self) -> CommandOutcome:
         return self._issue(K.ACTION_FREEDRIVE, intent="자세 자유 지정")
 

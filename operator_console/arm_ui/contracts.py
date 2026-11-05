@@ -412,7 +412,8 @@ class ArmUiCallbacks:
     start_tool_exchange: Callback = None          # (tool_type: str, dry_run: bool) bench-only
     stop_tool_exchange: Callback = None           # () bench-only
     # 도구 조작
-    restart_bridge: Callback = None               # () bridge supervisor restart
+    restart_bridge: Callback = None               # () SIGKILL + relaunch the arm bridge
+    rescan_tool: Callback = None                  # () re-scan / re-initialize the active tool
     set_tool_enabled: Callback = None             # (enabled: bool) active tool only
     tool_command: Callback = None                 # (target: str, command: str)
     tool_jog_start: Callback = None               # (target: str, direction: int)
@@ -488,9 +489,8 @@ def gate(
         return False, "브릿지 연결 또는 ops 연결 대기 중"
     if capability and capability not in state.capabilities and not state.developer_mode:
         return False, "지원하지 않음 — 백엔드가 이 기능을 보고하지 않음"
-    # This invokes the bridge's existing same-tool re-scan/re-initialization
-    # ingress. It is not a motion command, so it may recover a stale tool
-    # state before normal LIVE telemetry resumes.
+    # The bridge restart is the recovery for a bridge that stopped reporting
+    # (e.g. it started before servo power), so it cannot wait for LIVE state.
     if capability == CAP_BRIDGE_RESTART:
         return True, ""
     if not is_live(state):

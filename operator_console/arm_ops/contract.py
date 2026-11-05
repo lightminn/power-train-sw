@@ -79,6 +79,8 @@ ACTION_CALIBRATION_JOG_STOP = "robot_arm_calibration_jog_stop"
 ACTION_EXCHANGE_START = "robot_arm_exchange_start"
 ACTION_EXCHANGE_STOP = "robot_arm_exchange_stop"
 ACTION_SLOT_CAPTURE = "robot_arm_slot_capture"
+# Bench recovery: SIGKILL + relaunch the arm bridge process (servos keep torque).
+ACTION_BRIDGE_RESTART = "robot_arm_bridge_restart"
 EXCHANGE_TOOL_TYPES = ("spur_1motor_gripper", "dual_motor_gripper", "cleaner")
 EXCHANGE_SLOTS = ("1", "2", "3")
 EXCHANGE_POSES = ("seat", "above")   # seated/locked pose, pose 5 cm above it
@@ -351,6 +353,7 @@ ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
                             _spec("limits", _is_bool, required=False),
                             _spec("trip", _is_bool, required=False)),
     ACTION_EXCHANGE_STOP: (),
+    ACTION_BRIDGE_RESTART: (),
     ACTION_SLOT_CAPTURE: (_spec("slot", _in(EXCHANGE_SLOTS)),
                           _spec("tool_type", _in(EXCHANGE_TOOL_TYPES)),
                           _spec("pose", _in(EXCHANGE_POSES)),
@@ -496,6 +499,7 @@ PLANNED_ACTIONS: tuple[PlannedAction, ...] = tuple(
         (ACTION_SLOT_CAPTURE, "도구 슬롯 티칭: 머리가 바닥을 향한 체결 자세 또는 그 5cm 위 자세를 저장"),
         (ACTION_EXCHANGE_START, "슬롯 기반 도구 교체 시작: 반납→수직 하강/상승→장착→home"),
         (ACTION_EXCHANGE_STOP, "도구 교체 정지: 팔 유지·결합 잠금 정지"),
+        (ACTION_BRIDGE_RESTART, "팔 브리지 프로세스 강제 재시작(서보 토크 유지). 서보를 못 찾은 브리지 복구용"),
         (ACTION_POSE_MOVE, "저장 자세로 이동"),
         (ACTION_POSE_DELETE, "저장 자세 삭제"),
         (ACTION_FREEDRIVE, "자세 자유 지정: 1~4축 토크 해제(손으로 자세 잡기)"),

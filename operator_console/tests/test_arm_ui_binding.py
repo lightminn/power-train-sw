@@ -124,3 +124,11 @@ def test_no_arm_calibration_report_means_no_capability():
     assert C.CAP_ARM_CALIBRATION not in state.capabilities
     assert state.calibration.arm_steps == ()
 
+
+def test_bridge_restart_is_offered_without_live_arm_state():
+    from dataclasses import replace
+    stale = replace(_snapshot(), received_monotonic_s=time.monotonic() - 30.0)
+    state = ArmUiTelemetryBinding().state(stale, ops_link_ready=True,
+                                          bridge_restart_ready=True)
+    assert state.link.state != C.LINK_LIVE
+    assert C.gate(state, lambda: None, C.CAP_BRIDGE_RESTART) == (True, "")

@@ -143,10 +143,19 @@ def test_configured_bridge_restart_is_exposed_without_becoming_an_ops_action():
     assert transport.actions == ()
 
 
-def test_default_bridge_restart_revalidates_the_observed_tool():
+def test_default_bridge_restart_is_the_ops_restart_action():
     _clock, transport, adapter = build_adapter()
 
     outcome = adapter.callbacks().restart_bridge()
+
+    assert not outcome  # the fixture backend does not report bridge_restart
+    assert outcome.action == K.ACTION_BRIDGE_RESTART
+
+
+def test_rescan_tool_revalidates_the_observed_tool():
+    _clock, transport, adapter = build_adapter()
+
+    outcome = adapter.callbacks().rescan_tool()
 
     assert outcome
     assert transport.accepted[-1].action == K.ACTION_TOOL_CHANGE
@@ -272,7 +281,7 @@ def test_the_pure_core_imports_without_gtk():
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "25"
+    assert result.stdout.strip() == "26"
 
 
 def test_the_adapter_is_still_reachable_from_the_package_root():

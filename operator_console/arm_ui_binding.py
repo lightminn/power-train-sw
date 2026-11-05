@@ -167,7 +167,7 @@ class ArmUiTelemetryBinding:
             elif tool.get("physical_tool_detached") or tool.get("tool_detached"):
                 block_reasons.append(C.BlockReason(
                     code="tool_detached",
-                    korean="도구가 분리됨으로 판정됨 — 재연결 후 브릿지 재시작 필요",
+                    korean="도구가 분리됨으로 판정됨 — 재연결 후 도구 재탐색 필요",
                 ))
             elif (not local_wrist and tool.get("motion_allowed") is False
                   and tool.get("tool_enable_allowed") is not True):
