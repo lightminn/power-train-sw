@@ -29,6 +29,9 @@ class ToolchangerLock:
     locked_tick = None
     unlocked_tick = None
     state_tolerance = 20
+    # Wider window for LOCKED only, for a coupling that seats short of the taught
+    # tick. Kept separate so it cannot widen UNLOCKED into the same band.
+    locked_tolerance = None
     # (state, tick) assumed after an uncalibrated 22.5-degree move.
     assumed = None
 
@@ -53,6 +56,11 @@ class ToolchangerLock:
         if state not in ('LOCKED', 'UNLOCKED'):
             raise LockError('zero state must be LOCKED or UNLOCKED')
 
+    def _window(self, tick):
+        if tick == self.locked_tick and self.locked_tolerance is not None:
+            return self.locked_tolerance
+        return self.state_tolerance
+
     def observe(self):
         try:
             sample = self.io.read()
@@ -65,7 +73,7 @@ class ToolchangerLock:
             self.sample = sample
             self.observed_at = self.clock()
             if self.target is not None:
-                window = self.state_tolerance if self.two_point else self.tolerance
+                window = self._window(self.target) if self.two_point else self.tolerance
                 if (abs(sample['position'] - self.target) <= window
                         and sample['velocity'] == 0 and sample['torque'] == 1):
                     self.target = self.deadline = None
@@ -77,7 +85,7 @@ class ToolchangerLock:
             if self.two_point:
                 position = sample['position']
                 if (self.locked_tick is not None
-                        and abs(position - self.locked_tick) <= self.state_tolerance):
+                        and abs(position - self.locked_tick) <= self._window(self.locked_tick)):
                     self.state = 'LOCKED'
                 elif (self.unlocked_tick is not None
                         and abs(position - self.unlocked_tick) <= self.state_tolerance):
@@ -231,7 +239,7 @@ class ToolchangerLock:
             if not 0 <= target <= 4095:
                 target = position - direction * self.step_ticks
             self.assumed = (desired, target)
-        elif abs(self.sample['position'] - target) <= self.state_tolerance:
+        elif abs(self.sample['position'] - target) <= self._window(target):
             return
         self.target = target
         # Keep the old slow-profile allowance as a generous timeout.

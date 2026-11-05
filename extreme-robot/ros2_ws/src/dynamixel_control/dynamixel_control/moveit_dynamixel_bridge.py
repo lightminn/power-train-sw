@@ -508,6 +508,7 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
         self.declare_parameter('toolchanger_two_point', False)
         self.declare_parameter('toolchanger_points_file', '')
         self.declare_parameter('toolchanger_state_tolerance_ticks', 20)
+        self.declare_parameter('toolchanger_locked_tolerance_ticks', -1)  # -1: same as above
         # 0이면 결합 부하 프록시를 끈다. 실측 전에는 기본값을 쓰지 않는다.
         self.declare_parameter('toolchanger_coupling_load_threshold', 0)
         self.declare_parameter('toolchanger_mock_load', 0)
@@ -832,6 +833,10 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                 self.toolchanger.zero_tick = None
                 self.toolchanger.state_tolerance = int(
                     self.get_parameter('toolchanger_state_tolerance_ticks').value)
+                locked_tolerance = int(
+                    self.get_parameter('toolchanger_locked_tolerance_ticks').value)
+                if locked_tolerance >= 0:
+                    self.toolchanger.locked_tolerance = locked_tolerance
                 points_file = self.get_parameter('toolchanger_points_file').value
                 if points_file and Path(points_file).exists():
                     self.toolchanger.load_points(points_file)
