@@ -357,7 +357,9 @@ class RemoteInputGateway:
         if not frame.deadman:
             self._last_reason = "drive deadman released"
             return self._zero(self._last_reason, fresh=True)
-        # 2026-11-06 operator request: LT drives forward, RT reverses (the arm
+        # 2026-11-06 operator request: RT must move the robot toward the camera.
+        # Software +v currently moves it away from the camera (drive sign is
+        # reversed vs. the real robot), so speed is (LT - RT) here (the arm
         # gripper below keeps its RT-open/LT-close mapping).
         linear = (
             frame.axes.left_trigger - frame.axes.right_trigger

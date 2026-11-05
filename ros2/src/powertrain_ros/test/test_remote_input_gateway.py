@@ -93,7 +93,7 @@ def _connect_drive(gateway, session_id=None, at_s=0.0):
 @pytest.mark.parametrize(
     "left_x,right_trigger,left_trigger,linear,angular,front_sign",
     [
-        # 2026-11-06 operator request: LT drives forward, RT reverses.
+        # 2026-11-06: RT moves toward the camera, which is software -v (see gateway).
         (0.25, 0.5, 0.0, -0.75, -0.3, 1),
         (-0.25, 0.5, 0.0, -0.75, 0.3, -1),
         (0.25, 0.0, 0.5, 0.75, -0.3, -1),
