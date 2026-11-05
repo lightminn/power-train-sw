@@ -24,9 +24,8 @@ if pgrep -f "[o]perator_console.app --host 127.0.0.1 --ops-host 127.0.0.1 --ops-
 fi
 docker start "$container" >/dev/null || { say "컨테이너 $container 시작 실패"; exit 1; }
 
-# The bridge looks for the servos only once at startup. One started before
-# servo power (e.g. right after a robot power cycle) never recovers, so it is
-# replaced. scripts/restart_arm_bridge.sh uses SIGKILL, which keeps servo torque.
+# The bridge looks for the servos only once at startup, so one that missed them
+# never recovers and is replaced. scripts/restart_arm_bridge.sh uses SIGKILL, which keeps servo torque.
 restart_script=/ws/scripts/restart_arm_bridge.sh
 bridge_ok() {
     inside 'grep -q "MoveIt Dynamixel bridge started" /session/bridge-rt.log 2>/dev/null &&
@@ -40,7 +39,7 @@ else
     for attempt in 1 2 3 4 5; do
         say "브리지 기동 ($attempt/5)"
         if docker exec "$container" bash "$restart_script"; then ok=1; break; fi
-        say "서보 응답 없음. 서보 전원을 확인한다. 3초 뒤 재시도"
+        say "서보 응답 없음. 서보 전원·배선을 확인한다. 3초 뒤 재시도"
         sleep 3
     done
     if [ "$ok" = 1 ]; then say "브리지 정상: 팔 5축 토크 확인"

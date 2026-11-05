@@ -728,16 +728,18 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                 "scripts/measure_joint_limits.py 로 재측정해 확정할 것."
             )
 
+        # latency_timer 는 잠금이 장치를 열기 **전에** 쓴다. 열린 tty 에 쓰면 버스가
+        # 약 0.25초 끊겨 기동 시 서보 탐색이 전부 실패한다(2026-11-06 실측).
+        latency = int(self.get_parameter("ftdi_latency_timer").value)
+        if not self.mock_mode and latency > 0:
+            _set_ftdi_latency(DEVICENAME, latency, self.get_logger())
+
         # ⚠️ 포트를 열기 **전에** 배타 잠금. 이 브릿지와 position_node 는 같은
         # /dev/ttyUSB0 을 잡으므로 "동시에 띄우지 말 것"이 계약인데, 지금까지는
         # 규율로만 지켜졌고 어기면 축 하나만 조용히 빠지는 형태로 망가졌다
         # (bus_lock 모듈 docstring 참고). fd 는 살려둬야 잠금이 유지된다.
         self._bus_lock_fd = None if self.mock_mode else bus_lock.acquire(
             DEVICENAME, self.get_logger())
-
-        latency = int(self.get_parameter("ftdi_latency_timer").value)
-        if not self.mock_mode and latency > 0:
-            _set_ftdi_latency(DEVICENAME, latency, self.get_logger())
 
         self.port_handler = PortHandler(DEVICENAME)
         self.packet_handler = PacketHandler(PROTOCOL_VERSION)

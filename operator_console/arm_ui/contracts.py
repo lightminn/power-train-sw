@@ -490,7 +490,7 @@ def gate(
     if capability and capability not in state.capabilities and not state.developer_mode:
         return False, "지원하지 않음 — 백엔드가 이 기능을 보고하지 않음"
     # The bridge restart is the recovery for a bridge that stopped reporting
-    # (e.g. it started before servo power), so it cannot wait for LIVE state.
+    # (e.g. it missed the servos at startup), so it cannot wait for LIVE state.
     if capability == CAP_BRIDGE_RESTART:
         return True, ""
     if not is_live(state):
