@@ -61,6 +61,8 @@ ACTION_MODE_RELEASE = "robot_arm_mode_release"
 ACTION_JOG = "robot_arm_jog"
 ACTION_JOG_STOP = "robot_arm_jog_stop"
 ACTION_STOP = "robot_arm_stop"
+# Latches the arm bridge E-stop: every axis holds, cleared by resume.
+ACTION_EMERGENCY_STOP = "robot_arm_emergency_stop"
 ACTION_RESUME_HOLD = "robot_arm_resume_hold"
 ACTION_HOME = "robot_arm_home"
 ACTION_POSE_SAVE = "robot_arm_pose_save"
@@ -109,6 +111,7 @@ MOTION_ACTIONS = frozenset({
 STOP_ACTIONS = frozenset({
     ACTION_LOCK_STOP,
     ACTION_STOP,
+    ACTION_EMERGENCY_STOP,
     ACTION_JOG_STOP,
     ACTION_TOOL_JOG_STOP,
     ACTION_CALIBRATION_JOG_STOP,
@@ -297,6 +300,7 @@ ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
         _spec("sequence", _is_generation),
     ),
     ACTION_STOP: (),
+    ACTION_EMERGENCY_STOP: (),
     ACTION_RESUME_HOLD: (),
     ACTION_HOME: (_spec("limits", _is_bool, required=False),
                   _spec("trip", _is_bool, required=False)),
@@ -493,6 +497,7 @@ PLANNED_ACTIONS: tuple[PlannedAction, ...] = tuple(
         (ACTION_MODE_RELEASE, "제어권 반납"),
         (ACTION_JOG, "누름 조그의 시작과 최신값 갱신. deadman — expires_at_s 경과 시 정지"),
         (ACTION_JOG_STOP, "명시적 조그 종료. 사유를 포함한다"),
+        (ACTION_EMERGENCY_STOP, "팔 비상정지 래치: 전 축 현재 위치 유지·도구·볼락 정지. 복귀로 해제"),
         (ACTION_STOP, "정지. 기존 stop 의미(토크 해제)를 보존해야 한다"),
         (ACTION_RESUME_HOLD, "복귀. 현재 자세 유지 의미를 보존해야 한다"),
         (ACTION_HOME, "home. 저장된 자세 의미를 보존해야 한다"),

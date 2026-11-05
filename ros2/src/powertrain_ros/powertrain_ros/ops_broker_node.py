@@ -19,7 +19,7 @@ import uuid
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
-from std_msgs.msg import Int32MultiArray, MultiArrayDimension, MultiArrayLayout, String
+from std_msgs.msg import Bool, Int32MultiArray, MultiArrayDimension, MultiArrayLayout, String
 from std_srvs.srv import SetBool, Trigger
 
 from powertrain_ros.stop_proof import decode_hardware_stop_proof
@@ -174,6 +174,7 @@ class OpsBrokerNode(Node):
             String, "/tool/dual_calibration_command", 10)
         self._tool_single_calibration_pub = self.create_publisher(
             String, "/tool/calibration_command", 10)
+        self._arm_emergency_pub = self.create_publisher(Bool, "/tool/emergency_stop", 10)
         self._arm_calibration_pub = self.create_publisher(
             String, "/arm/calibration_command", 10)
         self._tool_torque_pub = self.create_publisher(
@@ -738,6 +739,10 @@ class OpsBrokerNode(Node):
             publisher.publish(String(data=json.dumps(
                 request, separators=(",", ":"), sort_keys=True)))
             self._complete_order(order, connection, role, True, "published tool calibration command")
+            return
+        if order.kind == "publish_arm_emergency_stop":
+            self._arm_emergency_pub.publish(Bool(data=True))
+            self._complete_order(order, connection, role, True, "published arm E-stop")
             return
         if order.kind == "run_arm_bridge_restart":
             if order.params:

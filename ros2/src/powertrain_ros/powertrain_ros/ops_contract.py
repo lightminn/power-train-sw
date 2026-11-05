@@ -120,6 +120,9 @@ ACTIONS = {
     "robot_arm_stop": ActionSpec(
         _CONSOLE, "publish_local_wrist_disable", ("/arm/local_wrist_jog",),
     ),
+    "robot_arm_emergency_stop": ActionSpec(
+        _CONSOLE, "publish_arm_emergency_stop", ("/tool/emergency_stop",),
+    ),
     "robot_arm_resume_hold": ActionSpec(
         _CONSOLE, "publish_local_wrist_enable", ("/arm/local_wrist_jog",),
     ),
