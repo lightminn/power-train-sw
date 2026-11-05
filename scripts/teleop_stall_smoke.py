@@ -79,7 +79,7 @@ def check(cond, label):
         raise SystemExit(1)
 
 neutral = ClientInput()
-forward = ClientInput(deadman=True, right_trigger=0.7)
+forward = ClientInput(deadman=True, left_trigger=0.7)   # LT = forward
 stream(neutral, 0.3)
 if not legacy:
     check(last["G"] is not None, "server sends G line")
