@@ -277,6 +277,25 @@ def _parse_gear_ratios(entries):
     return out, errors
 
 
+def _parse_goal_pwms(entries):
+    """`["arm_joint_1:750"]` -> ({joint: pwm}, errors). 1..885 only (XM/XL PWM limit)."""
+    values, errors = {}, []
+    for entry in entries:
+        if not entry:
+            continue
+        joint, _, raw = entry.partition(':')
+        try:
+            value = int(raw)
+        except ValueError:
+            errors.append(f'{entry!r}: PWM is not an integer')
+            continue
+        if joint not in JOINT_CONFIG or not 1 <= value <= 885:
+            errors.append(f'{entry!r}: needs a known arm joint and 1..885')
+            continue
+        values[joint] = value
+    return values, errors
+
+
 def _parse_centers(entries):
     """`["arm_joint_2:1627", …]` → `({이름: tick}, [오류 사유])`."""
     out, errors = {}, []
@@ -542,6 +561,13 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
             self.get_parameter('gear_ratios').value)
         for reason in errors:
             self.get_logger().warn(f"gear_ratios: {reason} — 무시")
+        # Goal PWM caps the force a stuck joint can apply. It lives in servo RAM,
+        # so it is written at every startup; a servo reboot needs a bridge restart.
+        self.declare_parameter('arm_goal_pwm', EMPTY_STR_ARRAY)
+        self.arm_goal_pwm, errors = _parse_goal_pwms(
+            self.get_parameter('arm_goal_pwm').value)
+        for reason in errors:
+            self.get_logger().warn(f"arm_goal_pwm: {reason} — 무시")
         self.add_on_set_parameters_callback(self._on_set_parameters)
         self.gripper_joints = list(self.get_parameter("gripper_joints").value)
         self.gripper_ids = list(self.get_parameter("gripper_ids").value)
@@ -1123,6 +1149,8 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
             "/joint_states",
             10,
         )
+        # Bench diagnostic: Present PWM(124) already sits inside the SyncRead block.
+        self.arm_pwm_pub = self.create_publisher(String, '/arm/present_pwm', 10)
         # MoveIt/robot_state_publisher의 로봇 모델은 launch 시점에 고정된다.
         # 런타임에 교체된 도구 조인트를 /joint_states에 섞으면 모델에
         # 없는 이름으로 move_group이 종료할 수 있다. 도구 피드백은 별도 토픽과
@@ -1183,6 +1211,19 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
         )
 
     # ------------------------------------------------------------------ helpers
+    def _write_arm_goal_pwm(self, dxl_id):
+        for joint, value in getattr(self, 'arm_goal_pwm', {}).items():
+            if JOINT_CONFIG[joint]['id'] != dxl_id:
+                continue
+            result, error = self.packet_handler.write2ByteTxRx(
+                self.port_handler, dxl_id, ADDR_GOAL_PWM, value)
+            readback, read_result, read_error = self.packet_handler.read2ByteTxRx(
+                self.port_handler, dxl_id, ADDR_GOAL_PWM)
+            if result or error or read_result or read_error or readback != value:
+                raise RuntimeError(
+                    f'ID {dxl_id} Goal PWM not applied: wanted {value}, read {readback}')
+            self.get_logger().info(f'Goal PWM: {joint} id={dxl_id} -> {value}')
+
     def _write_motion_profile(self, dxl_id, label, velocity=None):
         """Profile Acceleration/Velocity 설정 — 토크 인가 **전에** 호출한다.
 
@@ -2132,6 +2173,7 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                     self._write_register(
                         dxl_id, ADDR_GOAL_POSITION, 4, present & 0xFFFFFFFF, "adopt goal")
                     self._write_motion_profile(dxl_id, label, velocity)
+                    self._write_arm_goal_pwm(dxl_id)
                     self.get_logger().info(f"Adopted holding servo: {label} -> id {dxl_id}")
                     return True
                 if torque != TORQUE_DISABLE:
@@ -2162,6 +2204,7 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                         f"Present->Goal readback mismatch: "
                         f"present={present}, goal={goal_readback}")
                 self._write_motion_profile(dxl_id, label, velocity)
+                self._write_arm_goal_pwm(dxl_id)
                 self._write_register(
                     dxl_id, ADDR_TORQUE_ENABLE, 1,
                     TORQUE_ENABLE, "startup torque enable")
@@ -5288,6 +5331,7 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
         # 팔 관절: position(rad) + address-126 feedback(raw signed).
         # 주소 126의 의미는 실제 장착 모터 control table로 확인해야 한다.
         arm_fault = False
+        present_pwm = {}
         for joint_name, config in JOINT_CONFIG.items():
             dxl_id = config["id"]
             if dxl_id not in self.active_ids:
@@ -5305,6 +5349,9 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
             velocity = to_signed(self.group_sync_read.getData(dxl_id, 128, 4), 4)
             msg.velocity.append(velocity * VELOCITY_LSB_TO_RAD_S
                                 * config['direction'] / self._joint_gear_ratio(joint_name))
+            present_pwm[joint_name] = to_signed(self.group_sync_read.getData(dxl_id, 124, 2), 2)
+        if present_pwm and getattr(self, 'arm_pwm_pub', None) is not None:
+            self.arm_pwm_pub.publish(String(data=json.dumps(present_pwm)))
         if getattr(self, '_range_cal', None) is not None:
             self._range_cal.observe(msg.name, msg.position)
         if self.control_scope == 'TOOL_CHANGE':

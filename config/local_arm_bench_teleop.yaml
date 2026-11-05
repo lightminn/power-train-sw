@@ -28,8 +28,10 @@
     toolchanger_two_point: true
     toolchanger_points_file: /session/lock_points.json
     toolchanger_state_tolerance_ticks: 20
-    local_pose_joint_speeds_deg_s: [10.0, 30.0, 15.0, 15.0]
+    local_pose_joint_speeds_deg_s: [37.0, 16.0, 15.0, 15.0]
     local_pose_joint_delays_s: [0.0, 0.0, 0.0, 1.0]
+    # 1축이 걸렸을 때 내는 힘의 상한(885=무제한). 2026-11-06 과부하 2회 뒤 설정, 정상 이동 최대 718.
+    arm_goal_pwm: ["arm_joint_1:800"]
     # Slot-based end-effector exchange (spec §2.8). Slots are taught from the GUI.
     local_tool_slots_file: /session/tool_slots.json
     local_tool_change_rise_m: 0.05
