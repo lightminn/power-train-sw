@@ -22,6 +22,8 @@
     local_wrist_lock_gate: false
     local_jog_all_axes: true
     local_poses_file: /session/arm_poses.json
+    # GUI 가동범위 캘리브레이션(1~4축) 저장 파일. 기동 시 joint_limits.py 값을 덮어쓴다.
+    arm_joint_limits_file: /session/arm_joint_limits.json
     local_jog_step_rad: 0.14
     toolchanger_two_point: true
     toolchanger_points_file: /session/lock_points.json

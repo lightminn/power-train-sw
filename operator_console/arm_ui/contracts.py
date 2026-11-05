@@ -94,6 +94,7 @@ MANUAL_GRANT_REQUIRED = frozenset({
     CAP_DUAL_SYNC,
     CAP_TOOL_ENABLE,
     CAP_COUPLING_LOCK,
+    CAP_ARM_CALIBRATION,
 })
 
 # Actions that belong to a calibration session and therefore stay live while

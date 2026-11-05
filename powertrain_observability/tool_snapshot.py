@@ -39,6 +39,23 @@ def _exchange_status(value):
     return out
 
 
+def _arm_calibration_status(value):
+    """Bench GUI joint-range calibration progress (bridge ArmRangeCalibration)."""
+    if value.get('status') not in ('IDLE', 'RUNNING', 'DONE', 'FAILED'):
+        raise ValueError('invalid arm calibration status')
+    out = {'status': value['status']}
+    for key in ('recording', 'applied', 'saved'):
+        if type(value.get(key)) is not bool:
+            raise ValueError('invalid arm calibration flag')
+        out[key] = value[key]
+    for key in ('measured', 'verified', 'detail'):
+        item = value.get(key) or ''
+        if not isinstance(item, str):
+            raise ValueError('invalid arm calibration text')
+        out[key] = item[:240]
+    return out
+
+
 def normalize_tool(value):
     if not isinstance(value, dict) or value.get('tool_type') not in TOOL_LABELS:
         raise ValueError('invalid tool type')
@@ -91,6 +108,9 @@ def normalize_tool(value):
     exchange = value.get('local_tool_change')
     if isinstance(exchange, dict):
         out['local_tool_change'] = _exchange_status(exchange)
+    arm_calibration = value.get('arm_calibration')
+    if isinstance(arm_calibration, dict):
+        out['arm_calibration'] = _arm_calibration_status(arm_calibration)
     dual_calibration = value.get('dual_calibration')
     if isinstance(dual_calibration, dict):
         out['dual_calibration'] = {

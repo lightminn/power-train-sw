@@ -166,6 +166,8 @@ class OpsBrokerNode(Node):
             String, "/tool/dual_calibration_command", 10)
         self._tool_single_calibration_pub = self.create_publisher(
             String, "/tool/calibration_command", 10)
+        self._arm_calibration_pub = self.create_publisher(
+            String, "/arm/calibration_command", 10)
         self._tool_torque_pub = self.create_publisher(
             Int32MultiArray, "/dynamixel/torque_request", 10,
         )
@@ -685,6 +687,17 @@ class OpsBrokerNode(Node):
                 scope = "tool"
                 action = "jog" if order.kind == "publish_tool_calibration_jog" else "hold"
                 target = params.get("target")
+            if (order.kind == "publish_tool_calibration" and scope == "arm"):
+                if target != "range" or action not in (
+                        "measure", "verify", "apply_temporary", "save"):
+                    self._complete_order(order, connection, role, False,
+                                         "only arm range measure/verify/apply_temporary/save")
+                    return
+                self._arm_calibration_pub.publish(String(data=json.dumps(
+                    {"step": target, "action": action}, sort_keys=True)))
+                self._complete_order(order, connection, role, True,
+                                     "published arm range calibration; verify status")
+                return
             if scope != "tool" or not isinstance(action, str) or not isinstance(target, str):
                 self._complete_order(order, connection, role, False, "invalid tool calibration params")
                 return

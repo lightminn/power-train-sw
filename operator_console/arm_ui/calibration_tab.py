@@ -150,7 +150,8 @@ class _ArmStepRow:
                  if item.key == self._prerequisite),
                 None,
             )
-            if earlier is None or earlier.status != C.STEP_DONE:
+            # A script-only earlier step (supported=False) does not hold this one back.
+            if earlier is None or (earlier.supported and earlier.status != C.STEP_DONE):
                 return "이전 단계 미완료"
         if step is None:
             return "단계 상태 미수신"

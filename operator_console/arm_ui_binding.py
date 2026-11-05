@@ -149,6 +149,11 @@ class ArmUiTelemetryBinding:
                 and tool.get("calibration_jog_enabled") is True
                 and tool.get("read_only") is not True):
             capabilities.add(C.CAP_TOOL_CALIBRATION)
+        arm_calibration = tool.get('arm_calibration') if tool else None
+        if (link_state == C.LINK_LIVE and ops_link_ready
+                and isinstance(arm_calibration, dict)
+                and tool.get("read_only") is not True):
+            capabilities.add(C.CAP_ARM_CALIBRATION)
         local_wrist = bool(tool and tool.get('manual_coupling_lock') is True
                            and tool.get('control_scope') == 'FULL_ROBOT')
         block_reasons: list[C.BlockReason] = []
@@ -208,7 +213,38 @@ class ArmUiTelemetryBinding:
                                  speed_level=(tool.get('local_jog_speed_level') if tool else None),
                                  poses=tuple(pose_list or ())),
             diagnostics=diagnostics,
+            calibration=_arm_calibration_state(arm_calibration),
             capabilities=frozenset(capabilities),
             block_reasons=tuple(block_reasons),
             developer_mode=bool(developer_mode),
         )
+
+
+_RANGE_STATUS = {'IDLE': C.STEP_IDLE, 'RUNNING': C.STEP_RUNNING,
+                 'DONE': C.STEP_DONE, 'FAILED': C.STEP_FAILED}
+
+
+def _arm_calibration_state(report):
+    """Bridge range-calibration report -> the tab's three ordered steps.
+
+    Only the range step runs from the GUI. Gear ratio and zero stay script-only
+    because changing them shifts every saved pose, slot and the 3D mapping.
+    """
+    if not isinstance(report, dict):
+        return C.CalibrationState()
+    script_only = '저장 자세·슬롯·3D 영점이 함께 어긋나 GUI에서 지원하지 않습니다 — scripts/{}'
+    return C.CalibrationState(arm_steps=(
+        C.CalibrationStep(key='gear_ratio', title='기어비', supported=False,
+                          detail=script_only.format('measure_gear_ratio.py')),
+        C.CalibrationStep(key='zero', title='영점', supported=False,
+                          detail=script_only.format('measure_zero_offset.py')),
+        C.CalibrationStep(
+            key='range', title='가동범위',
+            status=_RANGE_STATUS.get(report.get('status'), C.STEP_IDLE),
+            measured=str(report.get('measured') or ''),
+            verified=str(report.get('verified') or ''),
+            applied_temporarily=report.get('applied') is True,
+            saved=report.get('saved') is True,
+            detail=str(report.get('detail') or ''),
+        ),
+    ))

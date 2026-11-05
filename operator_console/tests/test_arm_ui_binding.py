@@ -104,3 +104,23 @@ def test_resume_stays_available_while_the_e_stop_latch_blocks_jog():
     state = ArmUiTelemetryBinding().state(snapshot, ops_link_ready=True)
     assert C.CAP_TELEOP_JOG not in state.capabilities
     assert C.CAP_TELEOP_RESUME in state.capabilities
+
+
+def test_range_calibration_is_the_only_gui_arm_step():
+    snapshot = _snapshot()
+    snapshot.tool_runtime['tool'].update(read_only=False, arm_calibration={
+        'status': 'DONE', 'recording': False, 'measured': '1축 -16.0°~+16.0°',
+        'verified': '', 'applied': False, 'saved': False, 'detail': '측정 완료.'})
+    state = ArmUiTelemetryBinding().state(snapshot, ops_link_ready=True)
+    assert C.CAP_ARM_CALIBRATION in state.capabilities
+    steps = {step.key: step for step in state.calibration.arm_steps}
+    assert not steps['gear_ratio'].supported and not steps['zero'].supported
+    assert steps['range'].supported and steps['range'].status == C.STEP_DONE
+    assert steps['range'].measured.startswith('1축')
+
+
+def test_no_arm_calibration_report_means_no_capability():
+    state = ArmUiTelemetryBinding().state(_snapshot(), ops_link_ready=True)
+    assert C.CAP_ARM_CALIBRATION not in state.capabilities
+    assert state.calibration.arm_steps == ()
+

@@ -53,6 +53,7 @@ Qt `robot_manual_gui`는 이번 조작 화면으로 사용하지 않는다.
 | 브리지 | `toolchanger_state_tolerance_ticks` | 20 | 볼락 상태 판정·도달 허용오차 |
 | 브리지 | `ftdi_latency_timer` | 1 | 기동 시 USB FTDI 지연을 직접 설정한다(2026-11-04). ⚠️ SDK 패킷 시간초과를 1ms 기준으로 줄이면 5축 SyncRead가 시간초과돼 빈 `/joint_states`가 나간다(실측, 되돌림) |
 | 브리지 | `tool_detection_absent_period_s` | 2.0 | 도구 탈거가 확정되고 후보 ID가 하나도 응답하지 않으면 전체 ping 검사를 이 주기로만 한다(2026-11-04) |
+| 브리지 | `arm_joint_limits_file` | `/session/arm_joint_limits.json` | GUI 가동범위 캘리브레이션(2.9) 저장 파일. 기동 시 `joint_limits.py` 1~4축 값을 덮어쓴다. 비우면 탭 비활성 |
 | 브로커 env | `ARM_LOCAL_ALL_AXES=1` | | 1~5축 조그·자세·자유지정 액션 허용 |
 | 콘솔 env | `ARM_LOCAL_ALL_AXES=1` | | 축 선택, 제한/트립 토글 표시 |
 | 콘솔 env | `ARM_LOCAL_WRIST_IGNORE_LOCK=1` | | 볼락 미준비여도 조그 버튼 활성 |
@@ -103,6 +104,7 @@ Qt `robot_manual_gui`는 이번 조작 화면으로 사용하지 않는다.
 | `robot_arm_pose_save` / `_move` / `_delete` / `robot_arm_home` | `/arm/local_pose` SAVE/MOVE/DELETE/HOME |
 | `robot_arm_freedrive` / `robot_arm_freedrive_release` | `/arm/local_pose` FREEDRIVE/FREEDRIVE_RELEASE |
 | `robot_arm_lock_command` / `robot_arm_lock_stop` | `/toolchanger/command` |
+| `robot_arm_calibration` (scope=arm, step=range) | `/arm/calibration_command` measure/verify/apply_temporary/save |
 
 콘솔의 액션은 세 곳이 모두 맞아야 나간다: `arm_ops/contract.py`(파라미터 명세·설명),
 `ops_contract.ACTIONS`(브로커), `app.py`의 `registered_actions`(콘솔 게이트).
@@ -219,6 +221,19 @@ STOP만 브리지에 도착했다. 조그가 안 움직이면 브로커가 이 �
   틀렸다: 2·3·4축을 모두 + 부호로 바꾼 추정이 실기에서 머리를 약 90° 돌렸고, URDF 부호로 되돌려도
   실측 5cm 쌍을 맞추려면 2·3축 영점이 약 −23°/−35° 어긋나야 했다. 부호는 URDF 값이 맞고(실측 쌍 차이
   2.6°), 위치는 티칭으로만 정한다. 결합 판정은 자동 감지(ID 응답)라 기계적 체결 증명이 아니다.
+
+### 2.9 GUI 가동범위 캘리브레이션 (2026-11-05)
+
+`로봇팔·도구 캘리브레이션` 탭 → `로봇팔` → `3. 가동범위`. 1~4축만 대상이다(5축 조그 제한은 별도 영점±114 tick).
+기어비·영점 행은 `지원하지 않음`이다 — 영점을 바꾸면 저장 자세·슬롯 티칭·3D 영점 매핑이 함께
+어긋나므로 `scripts/measure_*.py`로만 한다. 모든 단계는 수동 제어권(MANUAL)이 필요하고, 측정은 서보를 움직이지 않는다.
+
+1. `측정` = 기록 시작. 각 축을 양쪽 하드스톱까지 **천천히** 움직인다(`자세 자유 지정`으로 손으로, 또는 관절 제한 OFF 조그).
+   `측정`을 한 번 더 누르면 종료한다. 5° 미만으로 움직인 축은 측정에서 빠지고 기존 범위를 유지한다.
+2. `검증` = 하드스톱에서 2° 여유를 뺀 범위로 바꾸고, 저장 자세가 하나라도 새 범위 밖이면 실패한다
+   (끝까지 밀지 않았다는 신호 — `measure_joint_limits.py`의 2026-08-07 교훈).
+3. `임시 적용` = 실행 중인 브리지의 관절 제한에 즉시 반영. 브리지를 재시작하면 사라진다.
+4. `저장` = `arm_joint_limits_file`에 기록. 다음 기동부터 `joint_limits.py` 값을 덮어쓴다.
 
 ## 3. 회귀 점검표 (GUI 갱신 때마다)
 

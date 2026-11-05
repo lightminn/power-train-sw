@@ -29,6 +29,7 @@ from dynamixel_control.tool_profiles import (
     load_profiles, ToolProfileError, validate_control_scope)
 from dynamixel_control import calib_math
 from dynamixel_control import joint_limits
+from dynamixel_control import arm_range_calibration
 from dynamixel_control import bus_lock
 from dynamixel_control.dynamixel_position_node import _set_ftdi_latency
 from dynamixel_control.gripper_presets import DEFAULT_GRIPPER, get_preset
@@ -464,6 +465,21 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
         self.local_poses_file = str(self.get_parameter('local_poses_file').value)
         self._local_poses = self._load_local_poses()
         self._pose_move = None
+        # GUI range calibration for joints 1-4 (bench). Saved limits override
+        # joint_limits.py at startup so a restart keeps what the operator measured.
+        self.declare_parameter('arm_joint_limits_file', '')
+        limits_file = str(self.get_parameter('arm_joint_limits_file').value)
+        self._range_cal = (arm_range_calibration.ArmRangeCalibration(limits_file)
+                           if limits_file else None)
+        if limits_file:
+            try:
+                changed = arm_range_calibration.apply_saved(
+                    limits_file, joint_limits.JOINT_LIMITS)
+                if changed:
+                    self.get_logger().info(
+                        f'saved GUI joint limits loaded for {changed} from {limits_file}')
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                self.get_logger().error(f'saved joint limits ignored: {exc}')
         self.declare_parameter('toolchanger_enabled', True)
         self.declare_parameter('toolchanger_position_tolerance_ticks', 4)
         self.declare_parameter('toolchanger_zero_tick', -1)
@@ -1095,6 +1111,10 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                                      callback_group=self._command_group)
             self.create_timer(0.1, self._local_pose_watch,
                               callback_group=self._command_group)
+            if self._range_cal is not None:
+                self.create_subscription(String, '/arm/calibration_command',
+                                         self._arm_calibration_command, 10,
+                                         callback_group=self._command_group)
             self._init_local_tool_change()
         self.joint_state_pub = self.create_publisher(
             JointState,
@@ -3218,6 +3238,26 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                 self._hold_local_wrist()
                 self.get_logger().warn(f'local wrist jog rejected: {exc}')
 
+    def _arm_calibration_command(self, msg):
+        """GUI range calibration: measure / verify / apply_temporary / save.
+
+        Nothing here moves a servo; measuring only records what the joints read.
+        Changing the live limits or the saved file needs the MANUAL grant.
+        """
+        try:
+            request = json.loads(msg.data)
+            if not isinstance(request, dict) or request.get('step') != 'range':
+                raise ValueError('only the range step is supported')
+            if self.control_mode != 'MANUAL':
+                raise ValueError('MANUAL control required')
+            self._range_cal.handle(str(request.get('action')),
+                                   joint_limits.JOINT_LIMITS, self._local_poses)
+            self.get_logger().info(
+                f"arm range calibration {request.get('action')}: {self._range_cal.detail}")
+        except (ValueError, TypeError, OSError) as exc:
+            self._range_cal.detail = f'거부: {exc}'
+            self.get_logger().warn(f'arm range calibration rejected: {exc}')
+
     # arm_joint_5 stays out of saved poses, as in teleop_core (POSE_EXCLUDED_NAMES).
     LOCAL_POSE_EXCLUDED = ('arm_joint_5',)
 
@@ -3891,6 +3931,8 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
             'poses': (sorted(self._local_poses)
                       if self.local_jog_all_axes and self.local_poses_file else None),
             'local_jog_speed_level': getattr(self, '_local_speed_level', 5),
+            'arm_calibration': (self._range_cal.snapshot()
+                                if getattr(self, '_range_cal', None) else None),
             'local_tool_change': (self._tc_snapshot()
                                   if getattr(self, '_tool_change', None) else None),
             'read_only': self.read_only, 'mock_mode': self.mock_mode,
@@ -5261,6 +5303,8 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
             velocity = to_signed(self.group_sync_read.getData(dxl_id, 128, 4), 4)
             msg.velocity.append(velocity * VELOCITY_LSB_TO_RAD_S
                                 * config['direction'] / self._joint_gear_ratio(joint_name))
+        if getattr(self, '_range_cal', None) is not None:
+            self._range_cal.observe(msg.name, msg.position)
         if self.control_scope == 'TOOL_CHANGE':
             self._change_arm_fault = arm_fault
 
