@@ -661,8 +661,10 @@ class ControllerProcess:
             return True
 
         self._accept_connect_results(now_s)
-        if reading.sample.estop_edge:
+        if reading.sample.estop_edge and not self._arm_control:
             # New press, new event id: supersedes any earlier unacknowledged one.
+            # In arm mode the circle button is "tool close", not a chassis
+            # E-stop; a press made before arm mode stays pending and is sent.
             self._estop_pending_id = secrets.randbits(63) or 1
             self._estop_carried_with_id = False
             self._estop_carried_without_id = False

@@ -889,3 +889,28 @@ def test_unacknowledged_estop_is_resent_on_the_next_connection_then_with_id():
         assert process._estop_pending_id is None
     finally:
         process.close()
+
+
+def test_estop_pressed_before_arm_mode_is_still_delivered_in_arm_mode():
+    # In arm mode the circle button is "tool close", so it must not start a
+    # chassis E-stop; an E-stop pressed earlier in drive mode must still go out.
+    clock = FakeClock()
+    pad = FakePadSource(ClientInput(estop_edge=True))
+    reader = FakeCommandReader(
+        controller.CommandBatch((), False, ()),
+        controller.CommandBatch(({'op': 'arm_control', 'enabled': True},), False, ()))
+    process = controller.ControllerProcess(command_reader=reader, pad_source=pad,
+        status_writer=lambda _: None, clock=clock, monotonic_ns=lambda: 0)
+    process.tick()  # drive mode, not connected yet: the press stays pending
+    pending = process._estop_pending_id
+    assert pending is not None
+    pad.sample = ClientInput()
+    sock = FakeSocket()
+    process._socket, process._session_id = sock, 'test'
+    process.tick()  # arm mode now on
+    assert json.loads(sock.sent[-1])['estop_edge'] is True
+    pad.sample = ClientInput(estop_edge=True)  # circle = tool close in arm mode
+    for _ in range(3):
+        process.tick()
+    assert [json.loads(r)['estop_edge'] for r in sock.sent].count(True) == 1
+    assert process._estop_pending_id == pending  # not replaced by the tool button
