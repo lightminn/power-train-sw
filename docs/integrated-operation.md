@@ -434,20 +434,27 @@ L515 2.5D 지형 지도는 `terrain_map_port`(기본 `5010`)로 받고, 표시 �
 HOLD, 패드 프로세스 재시작, 로봇 재부팅, 끊긴 지 120초, 설명할 수 없는 다른 정지. E-stop은 어떤 경우에도
 자동으로 풀리지 않는다.
 
-젯슨 호스트에서 켜기(끄려면 변수 없이 다시 실행한다 — 시연 자동 해제도 같이 멈춘다):
+**한 번에 켜고 끄기 — 노트북 터미널**(로봇 쪽은 ssh로 함께 바꾼다):
 
 ```bash
-cd ~/power-train-sw-integrated
-POWERTRAIN_DEMO_MODE=true ./scripts/robot-start
+cd ~/ZETIN/robotics/power-train-sw          # 노트북 체크아웃
+scripts/console-demo-mode on --robot 192.168.8.106    # 켜기
+scripts/console-demo-mode off --robot 192.168.8.106   # 끄기
+scripts/console-demo-mode status --robot 192.168.8.106
 ```
 
-✅ 기대 출력: `robot-start WARN: 시연 모드 — …` 한 줄과 마지막 줄
-`robot-start PASS: profile=can-4ws, session=:9002, input=:9000, ops=:9001, demo=true`.
-컨테이너는 `unless-stopped`라 재부팅 뒤에도 **마지막 `robot-start`의 설정**으로 돌아온다.
+✅ 기대 출력: 젯슨 쪽 `robot-start PASS: … demo=true`(끄면 `demo=false`)와
+`robot demo=true demo_autoclear=on odrive_autoclear=off`, 콘솔 설정마다 `…operator.json: demo_mode=true`,
+마지막 줄 "콘솔을 다시 열어야 바뀐 설정이 적용됩니다." — **콘솔을 닫았다 다시 연다.**
 
-노트북: `~/.config/powertrain/operator.json`(현장 설정 파일)에 `"demo_mode": true`를 넣고 콘솔을 다시 연다
-(직접 실행할 때는 `python3 -m operator_console --demo-mode`). 배너에 "로봇 시연 모드 켜짐"이 보여야 자동
-재개가 동작한다.
+- 로봇 쪽만: 젯슨 호스트에서 `cd ~/power-train-sw-integrated && scripts/demo-mode on|off|status`.
+  지금 떠 있는 선택 서비스(지형 지도·오버레이·팔 브리지)는 그대로 두고 `robot-start`를 다시 실행한다. 기존 자동 해제
+  `odrive-autoclear`는 시연 중 내려 두었다가 끄면 다시 올린다. 차체 컨테이너가 새로 뜨므로 **주행 중(ARMED)이거나
+  차체 상태를 못 읽으면 거부**한다(`--force`는 로봇이 멈춘 것을 눈으로 확인했을 때만).
+- 콘솔 쪽만: `scripts/console-demo-mode on|off` — `~/.config/powertrain/`의 `operator.json`·`operator-demo.json` 중
+  있는 것을 모두 바꾼다(`--config 경로`로 하나만 지정). 직접 실행할 때는 `python3 -m operator_console --demo-mode`도 된다.
+- 컨테이너는 `unless-stopped`라 재부팅 뒤에도 **마지막 전환 상태**로 돌아온다.
+- 배너에 "로봇 시연 모드 켜짐"이 보여야 자동 재개가 동작한다.
 
 ## 문제 확인
 

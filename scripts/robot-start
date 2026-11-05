@@ -51,8 +51,19 @@ esac
 # shell-quoted assignments after strict option validation.
 # shellcheck disable=SC1090
 source "$manifest"
-INTEGRATED_PROFILES="${INTEGRATED_PROFILES:-} $caller_profiles"
-INTEGRATED_SERVICES="${INTEGRATED_SERVICES:-} $caller_services"
+case "${ROBOT_START_EXACT_OPT_INS:-0}" in
+  1)
+    # scripts/demo-mode re-runs the stack with exactly the opt-ins running now;
+    # the prepared lists must not re-add a service someone stopped on purpose.
+    INTEGRATED_PROFILES="$caller_profiles"
+    INTEGRATED_SERVICES="$caller_services"
+    ;;
+  0)
+    INTEGRATED_PROFILES="${INTEGRATED_PROFILES:-} $caller_profiles"
+    INTEGRATED_SERVICES="${INTEGRATED_SERVICES:-} $caller_services"
+    ;;
+  *) fail "ROBOT_START_EXACT_OPT_INS는 0 또는 1이어야 합니다" ;;
+esac
 export POWERTRAIN_DEMO_MODE="$caller_demo"
 # Only one auto-clear service may own the drive axes: the demo one comes with
 # the demo switch and is never requested by name, the field one never in demo.
