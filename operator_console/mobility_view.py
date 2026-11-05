@@ -704,8 +704,8 @@ class MobilityDashboard(Gtk.Box):
         status_column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         status_column.pack_start(summary, False, False, 0)
         status_column.pack_start(faults, True, True, 0)
-        lower.attach(motors, 0, 0, 2, 1)
-        lower.attach(status_column, 2, 0, 1, 1)
+        lower.attach(motors, 0, 0, 3, 1)
+        lower.attach(status_column, 3, 0, 2, 1)
         self._lower_grid = lower
         self._lower_cards = (motors, status_column)
         self._compact_layout: bool | None = None
@@ -736,8 +736,8 @@ class MobilityDashboard(Gtk.Box):
                 self._summary_grid.attach(card, index % 2, index // 2, 1, 1)
             motors, faults = self._lower_cards
             self._lower_grid.set_column_homogeneous(True)
-            self._lower_grid.attach(motors, 0, 0, 2, 1)
-            self._lower_grid.attach(faults, 2, 0, 1, 1)
+            self._lower_grid.attach(motors, 0, 0, 3, 1)
+            self._lower_grid.attach(faults, 3, 0, 2, 1)
         self._summary_grid.show_all()
         self._lower_grid.show_all()
 
@@ -755,6 +755,12 @@ class MobilityDashboard(Gtk.Box):
         for index, key in enumerate(keys):
             label = Gtk.Label(label="정보 없음")
             label.set_xalign(0.0)
+            if index == 0:
+                # The operator decision is the important reading in each card.
+                # Give it two lines before truncating on laptop-width screens.
+                label.set_line_wrap(True)
+                label.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+                label.set_lines(2)
             label.set_ellipsize(Pango.EllipsizeMode.END)
             _style(label, "mobility-value")
             if index == 0:
@@ -837,8 +843,8 @@ class MobilityDashboard(Gtk.Box):
         return card
 
     def _build_fault_card(self) -> Gtk.Box:
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
-        _style(card, "system-card", "mobility-card")
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        _style(card, "mission-drive-decision")
         heading = Gtk.Label(label="운용 판단 · 안전복구")
         heading.set_xalign(0.0)
         _style(heading, "mobility-panel-title")
@@ -866,8 +872,30 @@ class MobilityDashboard(Gtk.Box):
         card.pack_start(heading_row, False, False, 0)
         card.pack_start(self._fault_summary, False, False, 0)
         card.pack_start(self._recovery_hint, False, False, 0)
-        card.pack_start(self._faults, True, True, 0)
-        return card
+        card.pack_start(self._faults, False, False, 0)
+        self._fault_details = Gtk.Label(xalign=0.0)
+        self._fault_details.set_line_wrap(True)
+        self._fault_details.set_selectable(True)
+        _style(self._fault_details, "mission-decision-details")
+        self._fault_expander = Gtk.Expander(label="오류 상세")
+        self._fault_expander.set_no_show_all(True)
+        self._fault_expander.add(self._fault_details)
+        card.pack_start(self._fault_expander, False, False, 0)
+        self.decision_card = card
+
+        attitude_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
+        _style(attitude_card, "system-card", "mobility-card")
+        attitude_heading = Gtk.Label(label="차체 자세 · 측정 상태", xalign=0.0)
+        _style(attitude_heading, "mobility-panel-title")
+        attitude_card.pack_start(attitude_heading, False, False, 0)
+        self._attitude_scroll = Gtk.ScrolledWindow()
+        self._attitude_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        attitude_card.pack_start(self._attitude_scroll, True, True, 0)
+        return attitude_card
+
+    def set_attitude_panel(self, panel: Gtk.Widget) -> None:
+        self._attitude_scroll.add(panel)
+        panel.show_all()
 
     @staticmethod
     def _set_tone(label: Gtk.Label, tone: str) -> None:
@@ -875,6 +903,20 @@ class MobilityDashboard(Gtk.Box):
         for candidate in ("status-live", "status-warn", "status-bad", "status-muted"):
             context.remove_class(candidate)
         context.add_class(tone)
+
+    def _set_faults(self, faults: tuple[str, ...]) -> None:
+        details = "활성 오류가 없습니다" if not faults else "\n".join(f"• {fault}" for fault in faults)
+        self._faults.set_tooltip_text(details)
+        self._fault_details.set_text(details)
+        if faults:
+            self._fault_expander.show()
+        else:
+            self._fault_expander.set_expanded(False)
+            self._fault_expander.hide()
+        self._faults.set_text(
+            "활성 오류가 없습니다" if not faults else
+            f"• {faults[0]}" + (f" 외 {len(faults) - 1}건" if len(faults) > 1 else "")
+        )
 
     def _show_story(self, snapshot: TelemetrySnapshot | None) -> dict[str, str]:
         story = mobility_story_values(snapshot)
@@ -917,7 +959,7 @@ class MobilityDashboard(Gtk.Box):
             )
             self._fault_summary.set_text("운용 보류 · 최신 상태 확인 필요")
             self._set_tone(self._fault_summary, "status-warn")
-            self._faults.set_text("\n".join(f"• {fault}" for fault in faults))
+            self._set_faults(faults)
             self._rover_graphic.set_state(None, ops_state)
             self._update_authority(ops_state)
             return
@@ -962,8 +1004,13 @@ class MobilityDashboard(Gtk.Box):
                 "장애물 인지 정상" if nearest is None else f"최근접 장애물 {nearest:.2f} m"
             )
             terrain["confidence"].set_text(
-                f"L515 실시간 · 순번 {obstacle.sequence} · "
-                + (f"처리 {obstacle.processing_ms:.0f} ms" if obstacle.processing_ms is not None else "처리시간 정보 없음")
+                "L515 · " + (
+                    f"처리 {obstacle.processing_ms:.0f} ms"
+                    if obstacle.processing_ms is not None else "처리시간 정보 없음"
+                )
+            )
+            terrain["confidence"].set_tooltip_text(
+                f"L515 실시간 수신 · 순번 {obstacle.sequence}"
             )
             terrain["geometry"].set_text(
                 f"좌 · {zone_text('left')}  |  중앙 · {zone_text('center')}  |  우 · {zone_text('right')}"
@@ -980,8 +1027,11 @@ class MobilityDashboard(Gtk.Box):
             )
             confidence = snapshot.terrain_confidence
             terrain["confidence"].set_text(
-                f"L515  |  단차 · 경사 · 장애물  |  신뢰도 {confidence * 100:.0f}%"
+                f"L515 · 신뢰도 {confidence * 100:.0f}%"
                 if confidence is not None else "지형 정보 대기"
+            )
+            terrain["confidence"].set_tooltip_text(
+                "L515 지형 판단: 단차 · 경사 · 장애물"
             )
             terrain["geometry"].set_text(
                 "오프셋 {} · 방향 {}".format(
@@ -1093,10 +1143,7 @@ class MobilityDashboard(Gtk.Box):
         self._set_tone(
             self._fault_summary, "status-live" if not faults else "status-warn",
         )
-        self._faults.set_text(
-            "활성 오류가 없습니다" if not faults
-            else "\n".join(f"• {fault}" for fault in faults)
-        )
+        self._set_faults(faults)
         self._rover_graphic.set_state(snapshot, ops_state)
         self._update_authority(ops_state)
 

@@ -222,6 +222,30 @@ def communication_badge_state(
     return "정보 없음", "status-muted"
 
 
+def status_attention_items(
+    *, safety_state: str, drive_state: str, drive_reason: str,
+    power_state: str, power_reason: str,
+    communication_values: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Put stop conditions first, then the specific missing source channels."""
+    issues: list[str] = []
+    if safety_state == "비상정지":
+        issues.append("비상정지 상태 확인")
+    elif safety_state != "정상":
+        issues.append("안전 상태 확인")
+    if drive_state != "정상" and safety_state != "비상정지":
+        issues.append(drive_reason if drive_reason not in {"", "정보 없음"} else "주행 상태 확인")
+    if power_state != "정상":
+        issues.append(power_reason if power_reason else "전원 상태 확인")
+    for name, value in zip(
+        ("로봇", "전원", "전방 영상", "작업 영상", "인식", "조작"),
+        communication_values, strict=True,
+    ):
+        if value not in {"실시간 수신", "정상", "연결됨"}:
+            issues.append(f"{name} {value}")
+    return tuple(dict.fromkeys(issues))
+
+
 def safety_badge_state(
     *,
     chassis: object | None,
@@ -2672,8 +2696,7 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
         ) -> Gtk.Box:
             panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
             panel.set_hexpand(True)
-            panel.set_vexpand(False)
-            panel.set_size_request(-1, 285)
+            panel.set_vexpand(True)
             _style(panel, "system-section", f"system-section-{key}")
             section_header = Gtk.Box(spacing=8)
             title_label = Gtk.Label(label=title_text)
@@ -2698,8 +2721,14 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
             _style(action_label, "system-section-action")
             grid = Gtk.Grid(column_spacing=8, row_spacing=8)
             grid.set_column_homogeneous(True)
+            headline = Gtk.Grid(column_spacing=8, row_spacing=8)
+            headline.set_column_homogeneous(True)
             for index, spec in enumerate(metrics):
-                grid.attach(metric(*spec), index % 2, index // 2, 1, 1)
+                reading = metric(*spec)
+                if index < 2:
+                    headline.attach(reading, index, 0, 1, 1)
+                else:
+                    grid.attach(reading, (index - 2) % 2, (index - 2) // 2, 1, 1)
             details = Gtk.Expander(label="측정값 상세 보기")
             details.set_expanded(False)
             detail_scroll = Gtk.ScrolledWindow()
@@ -2712,9 +2741,13 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
             # Detailed source descriptions belong inside the collapsed metrics,
             # not on the judge-facing summary surface.
             description_label.set_no_show_all(True)
-            panel.pack_start(summary_label, False, False, 4)
-            panel.pack_start(action_label, False, False, 0)
+            body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            body.pack_start(summary_label, False, False, 4)
+            body.pack_start(action_label, False, False, 0)
+            body.pack_start(headline, False, False, 4)
+            panel.pack_start(body, True, False, 0)
             panel.pack_end(details, False, False, 0)
+            panel._summary_body = body
             self._system_badges[key] = badge
             self._system_summaries[key] = summary_label
             self._system_actions[key] = action_label
@@ -2723,12 +2756,11 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
         columns = Gtk.Grid(column_spacing=12, row_spacing=0)
         columns.set_column_homogeneous(True)
         columns.set_hexpand(True)
-        columns.set_vexpand(False)
+        columns.set_vexpand(True)
         power = section(
             "power", "전원",
             "계측값, 배터리 상태와 보호 상태",
             (
-                ("power_soc", "배터리 잔량"),
                 ("power_voltage", "입력전압"),
                 ("power_discharge", "방전전류"),
                 ("power_charge", "충전전류"),
@@ -2741,8 +2773,10 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
         soc_parent = self._soc_bar.get_parent()
         if isinstance(soc_parent, Gtk.Container):
             soc_parent.remove(self._soc_bar)
+        self._soc_bar.set_show_text(True)
         self._soc_bar.set_no_show_all(False)
-        power.pack_start(self._soc_bar, False, False, 0)
+        power._summary_body.pack_start(self._soc_bar, False, False, 0)
+        power._summary_body.reorder_child(self._soc_bar, 2)
         communication = section(
             "communication", "통신",
             "로봇 상태, 영상, 인식 결과와 조작 채널의 최신 수신 상태",
@@ -2770,30 +2804,7 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
         columns.attach(power, 0, 0, 1, 1)
         columns.attach(communication, 1, 0, 1, 1)
         columns.attach(safety, 2, 0, 1, 1)
-        self.pack_start(columns, False, False, 0)
-
-        diagnostics = Gtk.Expander(label="고급 진단 · 원본 채널 및 누락 필드")
-        diagnostics.set_expanded(False)
-        diagnostic_body = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL, spacing=8,
-        )
-        diagnostic_body.set_border_width(10)
-        missing = Gtk.Label(
-            label=("현재 계약 미포함: 전압 다중 PID 편차, 알람 누적 횟수, "
-                   "개별 분배 출력 상태 · 값은 추정하지 않습니다")
-        )
-        missing.set_xalign(0.0)
-        missing.set_line_wrap(True)
-        _style(missing, "system-diagnostic-note")
-        self._developer.set_no_show_all(False)
-        diagnostic_body.pack_start(missing, False, False, 0)
-        diagnostic_body.pack_start(self._developer, False, False, 0)
-        diagnostic_scroll = Gtk.ScrolledWindow()
-        diagnostic_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
-        diagnostic_scroll.set_propagate_natural_width(False)
-        diagnostic_scroll.add(diagnostic_body)
-        diagnostics.add(diagnostic_scroll)
-        self.pack_end(diagnostics, False, False, 0)
+        self.pack_start(columns, True, True, 0)
 
     @staticmethod
     def _value_or_information(value: str) -> str:
@@ -2818,13 +2829,21 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
         chassis_fresh = self._fresh(chassis, now_s)
         arm_fresh = self._fresh(arm, now_s)
         metadata_fresh = metadata_status_fresh(metadata, now_s)
+        # The shared detail view hides its bar when SoC is absent.  Keep the
+        # operator card's SoC location visible with an honest missing state.
+        if not power_fresh or getattr(power, "pdist_soc_percent", None) is None:
+            self._soc_bar.set_fraction(0.0)
+            self._soc_bar.set_text(
+                "SoC 수신 지연" if power is not None and not power_fresh
+                else "SoC 정보 없음"
+            )
+            self._soc_bar.show()
 
         for target, source in (
             ("power_voltage", "voltage"),
             ("power_discharge", "discharge"),
             ("power_charge", "charge"),
             ("power_watts", "power"),
-            ("power_soc", "soc"),
             ("power_operating", "operating"),
             ("power_rs485", "rs485"),
         ):
@@ -2905,18 +2924,12 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
         )
         self._set_badge("safety", safety_state, safety_tone)
 
-        drive_state, _drive_reason = drive_card_state(
+        drive_state, drive_reason = drive_card_state(
             chassis, fresh=chassis_fresh,
         )
 
-        self._system_summaries["power"].set_text(
-            "공급 정상"
-            if power_state == "정상" else
-            "확인 필요"
-            if power is not None else "정보 없음"
-        )
+        self._system_summaries["power"].set_text("배터리 잔량")
         self._system_actions["power"].set_text(
-            f"잔량  |  {self._system_values['power_soc'].get_text()}    "
             f"보호  |  {power_reason or self._system_values['power_protection'].get_text()}"
             if power is not None else "배터리 정보 수신 대기"
         )
@@ -2970,6 +2983,7 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
             self._system_overall.set_text("●  운용 준비 완료")
             overall_context.add_class("status-live")
             self._system_decision_title.set_text("시연 가능")
+            self._system_decision_detail.set_tooltip_text(None)
             self._system_decision_detail.set_text(
                 "전원 정상  ·  통신 정상  ·  안전 정상"
             )
@@ -2977,16 +2991,27 @@ class CompetitionStatusDashboard(RobotStatusDashboard):
             self._system_overall.set_text("●  확인 필요한 항목 있음")
             overall_context.add_class("status-warn")
             self._system_decision_title.set_text("시연 보류")
-            self._system_decision_detail.set_text(
-                f"전원 {power_state} · 통신 {communication_state} · 안전 {safety_state}"
+            issues = status_attention_items(
+                safety_state=safety_state,
+                drive_state=drive_state,
+                drive_reason=drive_reason,
+                power_state=power_state,
+                power_reason=power_reason,
+                communication_values=communication_values,
             )
+            visible = " · ".join(issues[:3])
+            remaining = len(issues) - 3
+            self._system_decision_detail.set_text(
+                visible + (f" · 외 {remaining}건" if remaining > 0 else "")
+            )
+            self._system_decision_detail.set_tooltip_text(" · ".join(issues))
         else:
             self._system_overall.set_text("●  상태 정보 수신 대기")
             overall_context.add_class("status-muted")
+            self._system_decision_detail.set_tooltip_text(None)
             self._system_decision_title.set_text(
                 "상태 수신 대기"
             )
             self._system_decision_detail.set_text(
                 "전원 정보 없음  ·  통신 정보 없음  ·  안전 정보 없음"
             )
-        self._developer.show()
