@@ -63,7 +63,7 @@ class _ToolPanelBase:
             tracker=self.tracker,
         )
         self.gate.add(
-            held, start, C.CAP_GRIPPER_COMMAND,
+            held, start, C.CAP_INDIVIDUAL_TARGETS if target in ('left', 'right') else C.CAP_TOOL_JOG,
             hint="누르는 동안만 조그 의도를 전달합니다",
         )
         self.holds.append(held)
@@ -77,7 +77,8 @@ class _ToolPanelBase:
             self.tracker.connect(
                 widget, "clicked", lambda _b: send(target, command),
             )
-        self.gate.add(widget, send, C.CAP_GRIPPER_COMMAND)
+        self.gate.add(widget, send,
+                      C.CAP_INDIVIDUAL_TARGETS if target in ('left', 'right') else C.CAP_GRIPPER_COMMAND)
         return widget
 
     def release_holds(self) -> None:

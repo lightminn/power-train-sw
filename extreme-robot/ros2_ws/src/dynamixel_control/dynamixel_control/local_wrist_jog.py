@@ -8,9 +8,9 @@ class WristJogLease:
         self.deadline = None
         self._last_deadline = float('-inf')
 
-    def accept(self, request, now):
-        if request.get('axis') != 5 or type(request.get('axis')) is not int:
-            raise ValueError('local wrist jog supports only axis 5')
+    def accept(self, request, now, axes=(5,)):
+        if request.get('axis') not in axes or type(request.get('axis')) is not int:
+            raise ValueError(f'local jog supports only axes {axes}')
         sequence = request.get('sequence')
         if type(sequence) is not int or sequence < 0:
             raise ValueError('invalid wrist sequence')
@@ -22,7 +22,7 @@ class WristJogLease:
             raise ValueError('unknown wrist command')
         deadline = request.get('expires_at_s')
         if (type(deadline) not in (int, float) or not math.isfinite(deadline)
-                or not 0 < deadline - now <= 1.0):
+                or not 0 < deadline - now <= 2.0):
             raise ValueError('expired or foreign-clock local wrist jog')
         direction = request.get('direction')
         if type(direction) is not int or direction not in (-1, 1):

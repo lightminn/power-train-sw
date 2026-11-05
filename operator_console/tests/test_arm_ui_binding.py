@@ -33,6 +33,23 @@ def test_projection_reuses_current_tool_only_and_exposes_no_commands():
     assert state.diagnostics.motors[0].actuator_id == 5
 
 
+def test_receiver_projects_authoritative_generation_sync_and_manual_capabilities():
+    from powertrain_observability.tool_snapshot import normalize_tool
+    snapshot = _snapshot(kind='dual_motor_gripper', ids=(3, 4))
+    tool = snapshot.tool_runtime['tool']
+    tool.update(tool_context_generation=9, motion_allowed=True, read_only=False,
+                emergency_stop=False, actuators_discovered=True, fsm_state='READY',
+                manual_tool_capabilities=['tool_jog', 'individual_targets', 'dual_sync'],
+                synchronization={'state': 'SYNCHRONIZED'})
+    snapshot.tool_runtime['tool'] = normalize_tool(tool)
+    state = ArmUiTelemetryBinding().state(snapshot, ops_link_ready=True)
+    assert state.detected_tool.generation == state.diagnostics.generation == 9
+    assert state.detected_tool.attached is True
+    assert state.diagnostics.sync_state == C.SYNC_SYNCED
+    assert state.tool_fsm.raw == 'READY'
+    assert {C.CAP_TOOL_JOG, C.CAP_INDIVIDUAL_TARGETS, C.CAP_DUAL_SYNC} <= state.capabilities
+
+
 def test_tool_generation_changes_only_when_detected_tool_changes():
     binding = ArmUiTelemetryBinding()
     first = binding.state(_snapshot(sequence=1))
@@ -74,3 +91,44 @@ def test_local_wrist_preserves_axis_five_identity_and_requires_live_lock():
     assert not state.block_reasons
     snapshot.tool_runtime['coupling_lock']['state'] = 'UNLOCKED'
     assert C.CAP_TELEOP_JOG not in binding.state(snapshot, ops_link_ready=True).capabilities
+
+
+def test_resume_stays_available_while_the_e_stop_latch_blocks_jog():
+    from dataclasses import replace
+    snapshot = replace(_snapshot(), joint_names=('arm_joint_5',))
+    snapshot.tool_runtime['tool'].update(manual_coupling_lock=True,
+        control_scope='FULL_ROBOT', read_only=False, emergency_stop=True,
+        motion_allowed=False)
+    snapshot.tool_runtime.update(coupling_lock=dict(enabled=True, state='LOCKED', torque=1),
+                                 coupling_lock_age_s=0)
+    state = ArmUiTelemetryBinding().state(snapshot, ops_link_ready=True)
+    assert C.CAP_TELEOP_JOG not in state.capabilities
+    assert C.CAP_TELEOP_RESUME in state.capabilities
+
+
+def test_range_calibration_is_the_only_gui_arm_step():
+    snapshot = _snapshot()
+    snapshot.tool_runtime['tool'].update(read_only=False, arm_calibration={
+        'status': 'DONE', 'recording': False, 'measured': '1축 -16.0°~+16.0°',
+        'verified': '', 'applied': False, 'saved': False, 'detail': '측정 완료.'})
+    state = ArmUiTelemetryBinding().state(snapshot, ops_link_ready=True)
+    assert C.CAP_ARM_CALIBRATION in state.capabilities
+    steps = {step.key: step for step in state.calibration.arm_steps}
+    assert not steps['gear_ratio'].supported and not steps['zero'].supported
+    assert steps['range'].supported and steps['range'].status == C.STEP_DONE
+    assert steps['range'].measured.startswith('1축')
+
+
+def test_no_arm_calibration_report_means_no_capability():
+    state = ArmUiTelemetryBinding().state(_snapshot(), ops_link_ready=True)
+    assert C.CAP_ARM_CALIBRATION not in state.capabilities
+    assert state.calibration.arm_steps == ()
+
+
+def test_bridge_restart_is_offered_without_live_arm_state():
+    from dataclasses import replace
+    stale = replace(_snapshot(), received_monotonic_s=time.monotonic() - 30.0)
+    state = ArmUiTelemetryBinding().state(stale, ops_link_ready=True,
+                                          bridge_restart_ready=True)
+    assert state.link.state != C.LINK_LIVE
+    assert C.gate(state, lambda: None, C.CAP_BRIDGE_RESTART) == (True, "")

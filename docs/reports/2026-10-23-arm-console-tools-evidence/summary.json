@@ -1,0 +1,24 @@
+{
+  "installed_packages_built": 4,
+  "operation_checks": 36,
+  "targeted_tests_passed": 173,
+  "full_suite_result": "4 failed, 880 passed, 3 skipped in 68.73s (0:01:08)",
+  "full_suite_failures": [
+    "FAILED operator_console/tests/arm_ops/test_arm_ops_boundary.py::test_protected_files_are_untouched_since_the_base_commit",
+    "FAILED operator_console/tests/arm_ops/test_arm_ops_boundary.py::test_changes_stay_inside_the_declared_new_paths",
+    "FAILED operator_console/tests/arm_ops/test_arm_ops_gtk_adapter.py::test_with_the_real_contract_gate_no_press_can_send_anything",
+    "FAILED operator_console/tests/arm_ui/test_arm_ui_boundary.py::test_tab_package_does_not_expand_beyond_the_approved_console_integration"
+  ],
+  "negative_control_failures": 3,
+  "physical_hardware_tested": false,
+  "merged": false,
+  "source_sha256": {
+    "operator_console/app.py": "5d177a6cb4041cfa9e69c2319a0e15f0da2993b0c3d7b105a1fa5ebcf5aad1c4",
+    "operator_console/arm_pad.py": "c20876b3c23b86688d49382c84b2eae043f8bbeab6152015d54e309b9770ee81",
+    "motor_control/laptop/controller_process.py": "797fa84a589ca570293d1e0c84440065f79665aa1ad54cf0d4f112ab25fa8d9e",
+    "ros2/src/powertrain_ros/powertrain_ros/ops_broker_core.py": "c98bd1220047cccc3c81561f4099ac562ca24e9c86a69e8f7a21c30b293f6b7b",
+    "ros2/src/powertrain_ros/powertrain_ros/ops_broker_node.py": "f839ad28ea9a08d6685f79da246e1a1c9d5224a1914d64527c83fcab5104d542",
+    "extreme-robot/ros2_ws/src/dynamixel_control/dynamixel_control/moveit_dynamixel_bridge.py": "ea796c8a8c86295d3b07db8de73c9f079ce8d06a71ee295184d66bd2cf541f16",
+    "extreme-robot/ros2_ws/src/dynamixel_control/dynamixel_control/tool_manual_control.py": "7c35f59ab27245b5a4644085d976b62e322fe15d30e079296f53ccc7a6d5332e"
+  }
+}

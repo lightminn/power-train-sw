@@ -29,22 +29,36 @@ class SingleMotorGripperFSM(ToolFSM):
             return self.stop()
         if command == 'DISABLE':
             return self.disable()
-        if command not in ('OPEN', 'CLOSE'):
+        if command == 'HOLD':
+            if self.bridge.read_torque(5) == 1:
+                self.bridge.goal_position(5, self.bridge.read_position(5))
+                self.state = ToolState.READY
+            return self.state
+        jog = command in ('JOG_OPEN', 'JOG_CLOSE')
+        endpoint_command = command.removeprefix('JOG_') if jog else command
+        if endpoint_command not in ('OPEN', 'CLOSE'):
             raise ToolCommandError(f'unsupported single-motor command {command}')
         if self.state == ToolState.CALIBRATION_REQUIRED:
             raise ToolCommandError('calibration required; OPEN/CLOSE blocked')
         if self.state not in (ToolState.READY, ToolState.OPEN, ToolState.CLOSED):
             raise ToolCommandError(f'{command} unavailable in {self.state.name}')
         targets = self._validated_targets()
-        target = targets[command.lower()]
+        target = targets[endpoint_command.lower()]
         if self.bridge.read_torque(5) != 1:
             raise ToolCommandError('actual ID5 Torque Enable is OFF')
-        self.state = ToolState.OPENING if command == 'OPEN' else ToolState.CLOSING
+        if jog:
+            position = self.bridge.read_position(5)
+            low, high = sorted((targets['open'], targets['close']))
+            if position is None or not low <= position <= high:
+                raise ToolCommandError('ID5 jog position outside endpoints')
+            delta = max(-100, min(100, target - position))
+            target = position + delta
+        self.state = ToolState.OPENING if endpoint_command == 'OPEN' else ToolState.CLOSING
         try:
             self.bridge.goal_position(5, target)
         except Exception as exc:
             return self._fault(exc)
-        self.state = ToolState.OPEN if command == 'OPEN' else ToolState.CLOSED
+        self.state = ToolState.OPEN if endpoint_command == 'OPEN' else ToolState.CLOSED
         return self.state
 
     def stop(self):

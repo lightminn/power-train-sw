@@ -41,6 +41,7 @@ class ControllerSupervisor:
         self._connection = None
         self._ops = None
         self._state = {}
+        self._arm_control = False
         self._received = 0
         self._closed = threading.Event()
         self._thread = threading.Thread(target=self._run, name="controller-supervisor", daemon=True)
@@ -53,6 +54,10 @@ class ControllerSupervisor:
     def set_ops_state(self, state):
         with self._lock:
             self._ops = deepcopy(state)
+
+    def set_arm_control(self, enabled):
+        with self._lock:
+            self._arm_control = bool(enabled)
 
     def snapshot(self):
         with self._lock:
@@ -78,10 +83,15 @@ class ControllerSupervisor:
         os.set_blocking(child.stdout.fileno(), False)
         buffer = bytearray()
         sent_lease = None
+        sent_arm_control = None
         next_heartbeat = 0
         while not self._closed.is_set() and child.poll() is None:
             with self._lock:
                 connection, ops = deepcopy(self._connection), deepcopy(self._ops)
+                arm_control = self._arm_control
+            if arm_control != sent_arm_control:
+                self._send(child, dict(op='arm_control', enabled=arm_control))
+                sent_arm_control = arm_control
             lease = None if connection is None else connection["lease_id"]
             if lease != sent_lease:
                 self._send(child, dict(op="disconnect"))
@@ -162,6 +172,7 @@ class OperationRuntime:
         self._front_live = False
         self._front_seen = 0
         self._holding = False
+        self._arm_control = False
         self._cancel_requested = False
         self._stop_requested = False
         self._begin_at = None
@@ -174,7 +185,9 @@ class OperationRuntime:
             result.update(holding=self._holding, session_generation=self._session_generation)
             pad = self._child.snapshot()
             reason = None
-            if not self._state.get("connected") or time.monotonic() - self._session_seen > .5:
+            if self._arm_control:
+                reason = '팔 패드 조작 중 · 차체 주행 입력 차단'
+            elif not self._state.get("connected") or time.monotonic() - self._session_seen > .5:
                 reason = "로봇 연결 대기"
             elif not pad.get("pad_connected") or pad.get("age_s", 9) > 1:
                 reason = pad.get("detail") or "패드 연결 대기"
@@ -200,6 +213,17 @@ class OperationRuntime:
     def set_front_live(self, live):
         with self._lock:
             self._front_live, self._front_seen = bool(live), time.monotonic()
+
+    def set_arm_control(self, enabled):
+        with self._lock:
+            if enabled and (self._state.get('ops_state') or {}).get('chassis_mode') == 'ARMED':
+                return False
+            self._arm_control = bool(enabled)
+            if enabled:
+                self._holding = False
+                self._cancel_requested = True
+        self._child.set_arm_control(enabled)
+        return True
 
     def begin_start(self):
         with self._lock:

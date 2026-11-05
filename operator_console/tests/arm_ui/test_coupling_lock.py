@@ -94,7 +94,7 @@ def test_zero_capture_requires_torque_off_and_enable_requires_a_zero():
 
 @pytest.mark.parametrize('age,scope,read_only,ops,expected', [
     (0., 'END_EFFECTOR_ONLY', False, True, True),
-    (2., 'END_EFFECTOR_ONLY', False, True, False),
+    (3.5, 'END_EFFECTOR_ONLY', False, True, False),
     (0., 'FULL_ROBOT', False, True, False),
     (0., 'TOOL_CHANGE', False, True, False),
     (0., 'END_EFFECTOR_ONLY', True, True, False),

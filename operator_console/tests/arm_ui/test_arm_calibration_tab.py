@@ -291,3 +291,21 @@ def test_dispose_removes_handlers():
     assert tab.tracker.handler_count == 0
     assert tab.tracker.source_count == 0
     assert tab.tool_area.target_tracker.handler_count == 0
+
+
+def test_a_script_only_earlier_step_does_not_block_range():
+    callbacks, _calls = recording_callbacks()
+    tab = ArmCalibrationTab(callbacks)
+    try:
+        state = replace(fixtures.single_gripper(), calibration=C.CalibrationState(arm_steps=(
+            C.CalibrationStep(key="gear_ratio", title="기어비", supported=False),
+            C.CalibrationStep(key="zero", title="영점", supported=False),
+            C.CalibrationStep(key="range", title="가동범위", status=C.STEP_IDLE),
+        )))
+        tab.update_state(state)
+        range_row = next(row for row in tab._arm_rows if row.key == "range")
+        assert range_row._blocked(state, C.ACTION_MEASURE) == ""
+        zero_row = next(row for row in tab._arm_rows if row.key == "zero")
+        assert zero_row._blocked(state, C.ACTION_MEASURE) == "지원하지 않음"
+    finally:
+        tab.dispose()

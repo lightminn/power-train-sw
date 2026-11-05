@@ -40,9 +40,13 @@ CAP_TOOL_CHANGE = "tool_change"
 CAP_COUPLING_LOCK = "coupling_lock"
 CAP_CONTROL_MODE = "control_mode"
 CAP_TELEOP_JOG = "teleop_jog"
+CAP_TELEOP_RESUME = "teleop_resume"
 CAP_TELEOP_POSE = "teleop_pose"
 CAP_GRIPPER_COMMAND = "gripper_command"
+CAP_TOOL_JOG = 'tool_jog'
+CAP_INDIVIDUAL_TARGETS = 'individual_targets'
 CAP_DUAL_SYNC = "dual_sync"
+CAP_BRIDGE_RESTART = "bridge_restart"
 CAP_ARM_CALIBRATION = "arm_calibration"
 CAP_TOOL_CALIBRATION = "tool_calibration"
 CAP_DUAL_TOOL_CALIBRATION = "dual_tool_calibration"
@@ -54,16 +58,21 @@ ACTION_CAPABILITY: dict[str, str] = {
     K.ACTION_MODE_REQUEST: CAP_CONTROL_MODE,
     K.ACTION_MODE_RELEASE: CAP_CONTROL_MODE,
     K.ACTION_JOG: CAP_TELEOP_JOG,
-    K.ACTION_RESUME_HOLD: CAP_TELEOP_JOG,
+    K.ACTION_RESUME_HOLD: CAP_TELEOP_RESUME,
     K.ACTION_HOME: CAP_TELEOP_POSE,
     K.ACTION_POSE_SAVE: CAP_TELEOP_POSE,
     K.ACTION_POSE_MOVE: CAP_TELEOP_POSE,
     K.ACTION_POSE_DELETE: CAP_TELEOP_POSE,
+    K.ACTION_FREEDRIVE: CAP_TELEOP_POSE,
+    K.ACTION_FREEDRIVE_RELEASE: CAP_TELEOP_POSE,
+    K.ACTION_EXCHANGE_START: CAP_TELEOP_POSE,
+    K.ACTION_SLOT_CAPTURE: CAP_TELEOP_POSE,
     K.ACTION_TOOL_COMMAND: CAP_GRIPPER_COMMAND,
     K.ACTION_TOOL_ENABLE: "tool_enable",
-    K.ACTION_TOOL_JOG: CAP_GRIPPER_COMMAND,
+    K.ACTION_TOOL_JOG: CAP_TOOL_JOG,
     K.ACTION_CALIBRATION: CAP_ARM_CALIBRATION,
     K.ACTION_CALIBRATION_JOG: CAP_TOOL_CALIBRATION,
+    K.ACTION_BRIDGE_RESTART: CAP_BRIDGE_RESTART,
 }
 
 
@@ -159,6 +168,13 @@ def authorize(
         if extra is not None:
             return extra
 
+    # The bridge restart is the recovery for a bridge that stopped reporting, so
+    # it cannot wait for a LIVE feed. It still needs ops state for the wire.
+    if action == K.ACTION_BRIDGE_RESTART:
+        if context.state_revision is None:
+            return _refuse("no_ops_state", "ops 상태 미수신 — 명령을 만들 수 없음")
+        return ALLOWED
+
     # Rule 3.
     if not context.link_live:
         return _refuse("link_not_live", "상태 미수신 — 명령을 만들 수 없음")
@@ -189,10 +205,12 @@ def authorize(
     # Tool change is also the bridge's existing re-scan/re-initialization
     # operation.  Let it observe a disconnected/faulted tool so it can report
     # fresh hardware state; it never enables torque or commands motion.
+    # Blocked reasons describe the tool only; arm jog/pose must still work
+    # with the tool detached or not ready.
     if context.blocked_reasons and action not in {
             K.ACTION_TOOL_CHANGE, K.ACTION_MODE_REQUEST, K.ACTION_MODE_RELEASE,
             K.ACTION_LOCK_COMMAND,
-    }:
+    } and capability not in {CAP_TELEOP_JOG, CAP_TELEOP_RESUME, CAP_TELEOP_POSE}:
         return _refuse("backend_blocked", context.blocked_reasons[0])
 
     return ALLOWED

@@ -50,6 +50,7 @@ class ExecutionOrder:
     kind: str
     targets: tuple
     params: dict
+    deadline_s: float = None
 
 
 @dataclass(frozen=True)
@@ -214,13 +215,14 @@ class OpsBrokerCore:
         self._cache_put(key, fingerprint, None, response)
         return Decision(response=response)
 
-    def _accept_order(self, key, role, request, spec):
+    def _accept_order(self, key, role, request, spec, deadline_s=None):
         self._order_generation += 1
         pending_key = key + (self._order_generation,)
         fingerprint = self._request_fingerprint(role, request)
         order = ExecutionOrder(
             pending_key=pending_key, action=request["action"], kind=spec.kind,
             targets=tuple(spec.target), params=dict(request["params"]),
+            deadline_s=deadline_s,
         )
         self._pending_requests[pending_key] = (key, fingerprint)
         self._latest_requests[key] = pending_key
@@ -330,7 +332,17 @@ class OpsBrokerCore:
                 request_id, "busy: mutation in flight"
             )
             return self._cache_direct_response(key, fingerprint, response)
-        return self._accept_order(key, role, request, spec)
+        deadline_s = None
+        if request['action'] in ('robot_arm_tool_jog', 'robot_arm_jog'):
+            expiry = request['params'].get('expires_at_s')
+            if type(expiry) not in (int, float) or not math.isfinite(expiry):
+                return self._cache_direct_response(key, fingerprint,
+                    self._reject(request_id, 'invalid tool jog deadline'))
+            deadline_s = expiry + offset_s
+            if deadline_s <= float(self._clock()):
+                return self._cache_direct_response(key, fingerprint,
+                    self._reject(request_id, 'tool jog expired'))
+        return self._accept_order(key, role, request, spec, deadline_s=deadline_s)
 
     def _authorize(self, role, request, spec):
         """일반 인가. 반환: False(일반)/True(비상 경로)/bytes(거부)."""

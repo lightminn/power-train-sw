@@ -71,8 +71,11 @@ CAP_TOOL_CHANGE = "tool_change"
 CAP_COUPLING_LOCK = "coupling_lock"
 CAP_CONTROL_MODE = "control_mode"
 CAP_TELEOP_JOG = "teleop_jog"
+CAP_TELEOP_RESUME = "teleop_resume"
 CAP_TELEOP_POSE = "teleop_pose"
 CAP_GRIPPER_COMMAND = "gripper_command"
+CAP_TOOL_JOG = 'tool_jog'
+CAP_INDIVIDUAL_TARGETS = 'individual_targets'
 CAP_TOOL_ENABLE = "tool_enable"
 CAP_BRIDGE_RESTART = "bridge_restart"
 CAP_DUAL_SYNC = "dual_sync"
@@ -83,12 +86,15 @@ CAP_DUAL_TOOL_CALIBRATION = "dual_tool_calibration"
 # Actions that additionally require an approved MANUAL grant.  Requesting the
 # grant itself must stay available, or the operator can never get one.
 MANUAL_GRANT_REQUIRED = frozenset({
+    CAP_TOOL_JOG, CAP_INDIVIDUAL_TARGETS,
     CAP_TELEOP_JOG,
+    CAP_TELEOP_RESUME,
     CAP_TELEOP_POSE,
     CAP_GRIPPER_COMMAND,
     CAP_DUAL_SYNC,
     CAP_TOOL_ENABLE,
     CAP_COUPLING_LOCK,
+    CAP_ARM_CALIBRATION,
 })
 
 # Actions that belong to a calibration session and therefore stay live while
@@ -354,6 +360,8 @@ class ArmUiState:
     diagnostics: ToolDiagnostics = field(default_factory=ToolDiagnostics)
     calibration: CalibrationState = field(default_factory=CalibrationState)
     coupling_lock: dict = field(default_factory=dict)
+    # Bridge-reported bench slot exchange status (state/step/slot/slots/error).
+    tool_exchange: dict = field(default_factory=dict)
     capabilities: frozenset[str] = frozenset()
     # True only for the preview fixtures.  Panels render a visible banner so a
     # screenshot of fake data can never be mistaken for a live arm.
@@ -388,6 +396,7 @@ class ArmUiCallbacks:
     release_control_mode: Callback = None         # ()
     # 키보드 텔레옵
     select_axis: Callback = None                  # (axis_index: int)
+    set_bench_flag: Callback = None               # (key: str, on: bool) bench-only
     jog_start: Callback = None                    # (axis_index: int, direction: int)
     jog_stop: Callback = None                     # (axis_index: int)
     change_speed: Callback = None                 # (delta: int)  -1 = '[', +1 = ']'
@@ -397,8 +406,14 @@ class ArmUiCallbacks:
     save_pose: Callback = None                    # (name: str)
     move_to_pose: Callback = None                 # (name: str)
     delete_pose: Callback = None                  # (name: str)
+    freedrive: Callback = None                    # () bench-only
+    freedrive_release: Callback = None            # () bench-only
+    capture_tool_slot: Callback = None            # (slot, tool_type, pose: seat|above) bench-only
+    start_tool_exchange: Callback = None          # (tool_type: str, dry_run: bool) bench-only
+    stop_tool_exchange: Callback = None           # () bench-only
     # 도구 조작
-    restart_bridge: Callback = None               # () bridge supervisor restart
+    restart_bridge: Callback = None               # () SIGKILL + relaunch the arm bridge
+    rescan_tool: Callback = None                  # () re-scan / re-initialize the active tool
     set_tool_enabled: Callback = None             # (enabled: bool) active tool only
     tool_command: Callback = None                 # (target: str, command: str)
     tool_jog_start: Callback = None               # (target: str, direction: int)
@@ -474,9 +489,8 @@ def gate(
         return False, "브릿지 연결 또는 ops 연결 대기 중"
     if capability and capability not in state.capabilities and not state.developer_mode:
         return False, "지원하지 않음 — 백엔드가 이 기능을 보고하지 않음"
-    # This invokes the bridge's existing same-tool re-scan/re-initialization
-    # ingress. It is not a motion command, so it may recover a stale tool
-    # state before normal LIVE telemetry resumes.
+    # The bridge restart is the recovery for a bridge that stopped reporting
+    # (e.g. it started before servo power), so it cannot wait for LIVE state.
     if capability == CAP_BRIDGE_RESTART:
         return True, ""
     if not is_live(state):
@@ -495,8 +509,10 @@ def gate(
     # asking the bridge to re-scan it.  Those are the recovery paths which can
     # make the tool ready again; only motion/torque controls need the ready
     # condition below.
+    # Tool readiness never gates the arm joints: they move without a tool.
     if (state.block_reasons and capability not in {
             CAP_CONTROL_MODE, CAP_TOOL_CHANGE, CAP_BRIDGE_RESTART, CAP_COUPLING_LOCK,
+            CAP_TELEOP_JOG, CAP_TELEOP_POSE,
     }):
         return False, state.block_reasons[0].korean
     return True, ""

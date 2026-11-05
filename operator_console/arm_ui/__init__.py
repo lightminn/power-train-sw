@@ -33,9 +33,6 @@ Preview:  ``/usr/bin/python3 -m operator_console.arm_ui``
 """
 from __future__ import annotations
 
-from .calibration_tab import TAB_NAME as ARM_CALIBRATION_TAB_NAME
-from .calibration_tab import TAB_TITLE as ARM_CALIBRATION_TAB_TITLE
-from .calibration_tab import ArmCalibrationTab
 from .contracts import (
     ArmUiCallbacks,
     ArmUiState,
@@ -54,10 +51,30 @@ from .contracts import (
     default_state,
     gate,
 )
-from .manual_tab import TAB_NAME as ARM_MANUAL_TAB_NAME
-from .manual_tab import TAB_TITLE as ARM_MANUAL_TAB_TITLE
-from .manual_tab import ArmManualTab
-from .styling import install_arm_ui_css
+# State contracts are also used by the terminal client, which has no GTK.
+_LAZY = {
+    "ARM_CALIBRATION_TAB_NAME": ("calibration_tab", "TAB_NAME"),
+    "ARM_CALIBRATION_TAB_TITLE": ("calibration_tab", "TAB_TITLE"),
+    "ArmCalibrationTab": ("calibration_tab", "ArmCalibrationTab"),
+    "ARM_MANUAL_TAB_NAME": ("manual_tab", "TAB_NAME"),
+    "ARM_MANUAL_TAB_TITLE": ("manual_tab", "TAB_TITLE"),
+    "ArmManualTab": ("manual_tab", "ArmManualTab"),
+    "install_arm_ui_css": ("styling", "install_arm_ui_css"),
+}
+
+
+def __getattr__(name):
+    if name not in _LAZY:
+        raise AttributeError(name)
+    from importlib import import_module
+    module, attribute = _LAZY[name]
+    value = getattr(import_module(f".{module}", __name__), attribute)
+    globals()[name] = value
+    return value
+
+
+def __dir__():
+    return sorted(set(globals()) | set(_LAZY))
 
 __all__ = [
     "ARM_CALIBRATION_TAB_NAME",

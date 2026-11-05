@@ -1,0 +1,2 @@
+CONSOLE-RUNTIME-SMOKE: PASS
+PASS · 31 ticks on 5 channels · LIVE+STALE observed on arm, chassis, environment, metadata, telemetry · invalid steering mode held disabled · arm tabs observed safely disabled · no automatic camera swap observed · no tracebacks

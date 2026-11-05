@@ -2,6 +2,8 @@
 
 Layout, top to bottom:
 
+* 작업 영역 — fills the visible height: 로봇팔 자세(``pose_slot``, filled by
+  the console) over 키보드 텔레옵 | 도구 결합 잠금 over 도구 교체(슬롯).
 * 도구 — the detected tool and the change candidate, kept visually and
   functionally apart.  Choosing a candidate changes nothing on the robot; only
   ``변경 요청`` reports the intent, and completion is shown only once the
@@ -23,7 +25,7 @@ from __future__ import annotations
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk  # noqa: E402
+from gi.repository import GLib, Gtk  # noqa: E402
 
 from .. import labels as console_labels
 from . import contracts as C
@@ -104,6 +106,28 @@ class ArmManualTab:
         self._fixture_banner.set_no_show_all(True)
         page.pack_start(self._fixture_banner, False, False, 0)
 
+        self.keyboard = KeyboardTeleopPanel(self._callbacks)
+        self.coupling_lock = CouplingLockPanel(self._callbacks)
+        # Operator workspace, sized to the visible page height:
+        #   arm pose (3D)   | coupling lock
+        #   keyboard teleop | slot tool exchange
+        # Everything else follows below and is reached by scrolling.
+        # Starts stacked so a narrow window never scrolls sideways;
+        # _fit_workspace switches to two columns on a wide one.
+        self._workspace = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=11)
+        self._workspace.set_homogeneous(False)
+        left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=11)
+        # The console packs its 3D arm-pose card here; it takes the spare height.
+        self.pose_slot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        left.pack_start(self.pose_slot, True, True, 0)
+        left.pack_start(self.keyboard.teleop_card, False, False, 0)
+        right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=11)
+        right.pack_start(self.coupling_lock.box, False, False, 0)
+        right.pack_start(self.keyboard.exchange_card, True, True, 0)
+        self._workspace.pack_start(left, True, True, 0)
+        self._workspace.pack_start(right, True, True, 0)
+        page.pack_start(self._workspace, False, False, 0)
+
         # A FlowBox, not a two-column Box: at narrow widths the cards stack
         # instead of forcing the whole page to scroll sideways.
         top = reflow(2)
@@ -111,18 +135,11 @@ class ArmManualTab:
         top.set_column_spacing(11)
         self.tool_panels = ToolPanelStack(self._callbacks)
         top.add(self._build_tool_card())
-        # Keep the active tool's controls beside its identity.  The operator
-        # should not have to scan below teleop to tell which tool is moving.
-        controls = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=11)
-        controls.pack_start(self.tool_panels.stack, False, False, 0)
-        self.coupling_lock = CouplingLockPanel(self._callbacks)
-        controls.pack_start(self.coupling_lock.box, False, False, 0)
-        top.add(controls)
+        top.add(self.tool_panels.stack)
         page.pack_start(top, False, False, 0)
 
         page.pack_start(self._build_state_card(), False, False, 0)
 
-        self.keyboard = KeyboardTeleopPanel(self._callbacks)
         page.pack_start(self.keyboard.box, False, False, 0)
 
         self.diagnostics = ToolDiagnosticsPanel()
@@ -131,11 +148,33 @@ class ArmManualTab:
         self._page = page
         self.widget = scrolled(page)
         style(self.widget, ARM_UI_STYLE_CLASS)
+        self._workspace_layout = (False, -1)
+        self.tracker.connect(self.widget, "size-allocate", self._fit_workspace)
         # A tab switch unmaps the page; that must end any hold in flight.
         self.tracker.connect(page, "unmap", lambda _w: self._on_unmap())
         self.tracker.connect(page, "map", lambda _w: self.keyboard.set_active(True))
 
         self.update_state(self._state)
+
+    def _fit_workspace(self, _scroller, allocation) -> None:
+        """On a wide window, lay the four cards out 2x2 in the visible height."""
+        offset = self._workspace.translate_coordinates(self._page, 0, 0)
+        if offset is None:
+            return
+        wide = allocation.width >= 900
+        # 14 px page border below the workspace; never squeeze it below 560 px.
+        height = max(560, allocation.height - offset[1] - 14) if wide else -1
+        if (wide, height) != self._workspace_layout:
+            self._workspace_layout = (wide, height)
+            # Re-layout inside size-allocate would re-enter it; defer.
+            GLib.idle_add(self._apply_workspace_layout, wide, height)
+
+    def _apply_workspace_layout(self, wide: bool, height: int) -> bool:
+        self._workspace.set_orientation(
+            Gtk.Orientation.HORIZONTAL if wide else Gtk.Orientation.VERTICAL)
+        self._workspace.set_homogeneous(wide)
+        self._workspace.set_size_request(-1, height)
+        return False
 
     # --- construction ---------------------------------------------------
     def _build_header(self) -> Gtk.Widget:
@@ -294,6 +333,18 @@ class ArmManualTab:
         )
         section.pack_start(self._tool_enable_button, False, False, 0)
 
+        rescan = self._callbacks.rescan_tool
+        self._rescan_button = button("도구 재탐색")
+        if rescan is not None:
+            self.tracker.connect(
+                self._rescan_button, "clicked", lambda _b: rescan(),
+            )
+        self.gate.add(
+            self._rescan_button, rescan, C.CAP_TOOL_CHANGE,
+            hint="현재 도구를 재탐색하고 bridge의 도구 FSM을 다시 초기화합니다",
+        )
+        section.pack_start(self._rescan_button, False, False, 0)
+
         restart = self._callbacks.restart_bridge
         self._restart_button = button("브릿지 재시작", "arm-danger")
         if restart is not None:
@@ -302,7 +353,8 @@ class ArmManualTab:
             )
         self.gate.add(
             self._restart_button, restart, C.CAP_BRIDGE_RESTART,
-            hint="현재 도구를 재탐색하고 bridge의 도구 FSM을 다시 초기화합니다",
+            hint=("브리지 프로세스를 강제 종료 후 다시 띄웁니다. 서보 토크와 자세는 유지되고 "
+                  "진행 중인 조그·자세 이동·교체는 멈춥니다. 서보를 못 찾은 브리지 복구용"),
         )
         section.pack_start(self._restart_button, False, False, 0)
 

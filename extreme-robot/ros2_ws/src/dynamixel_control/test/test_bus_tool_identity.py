@@ -88,6 +88,7 @@ def _bridge(observations):
     bridge._tool_detection_reason = ''
     bridge.tool_type = 'dual_motor_gripper'
     bridge.control_scope = 'END_EFFECTOR_ONLY'
+    bridge.control_mode = 'FSM'
     bridge._arm_fsm_state = None
     bridge._gripper_goal_active = False
     bridge.tool_discovered = True
@@ -235,3 +236,39 @@ def test_full_robot_waits_for_safe_arm_state_before_switch():
     bridge._arm_fsm_state = 'STOWED_LOCKED'
     bridge._poll_physical_tool()
     assert bridge._switches == ['spur_1motor_gripper']
+
+
+def test_manual_full_robot_without_fsm_uses_stationary_arm_proof():
+    from dynamixel_control.toolchanger_lock import LockError
+    bridge = _bridge([None, None, 'spur_1motor_gripper', 'spur_1motor_gripper', 'spur_1motor_gripper'])
+    bridge.control_scope, bridge.control_mode = 'FULL_ROBOT', 'MANUAL'
+    def moving():
+        raise LockError('pose is still moving')
+    bridge._require_manual_lock_arm_stopped = moving
+    for _ in range(4):
+        bridge._poll_physical_tool()
+    assert not bridge._switches
+    bridge._require_manual_lock_arm_stopped = lambda: None
+    bridge._poll_physical_tool()
+    assert bridge._switches == ['spur_1motor_gripper']
+
+
+def test_silent_bus_after_removal_rescans_only_every_absent_period(monkeypatch):
+    import dynamixel_control.moveit_dynamixel_bridge as module
+    clock = [10.0]
+    monkeypatch.setattr(module.time, 'monotonic', lambda: clock[0])
+    bridge = object.__new__(MoveItDynamixelBridge)
+    bridge._bus_tool_identity = BusToolIdentityProvider(PROFILES, lambda actuator_id: False)
+    bridge.tool_detection_absent_period_s = 2.0
+    bridge._physical_tool_detached = False
+    assert bridge._absent_tool_scan_due()          # a fitted tool is always watched
+    bridge._physical_tool_detached = True
+    assert bridge._absent_tool_scan_due()          # first scan after removal
+    clock[0] += 0.5
+    assert not bridge._absent_tool_scan_due()
+    clock[0] += 1.6
+    assert bridge._absent_tool_scan_due()
+    bridge._bus_tool_identity.last_present_ids = frozenset({5})
+    clock[0] += 0.1
+    assert bridge._absent_tool_scan_due()          # an answering ID is confirmed at full rate
+

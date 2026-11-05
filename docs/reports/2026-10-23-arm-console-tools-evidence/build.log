@@ -1,0 +1,12 @@
+Starting >>> robot_arm_msgs
+Starting >>> powertrain_msgs
+Finished <<< powertrain_msgs [0.82s]
+Finished <<< robot_arm_msgs [0.86s]
+Starting >>> dynamixel_control
+Starting >>> powertrain_ros
+Finished <<< powertrain_ros [2.73s]
+Finished <<< dynamixel_control [2.80s]
+
+Summary: 4 packages finished [4.07s]
+/validation/install/dynamixel_control
+Runtime ready. Source this overlay last: /validation/install/setup.bash

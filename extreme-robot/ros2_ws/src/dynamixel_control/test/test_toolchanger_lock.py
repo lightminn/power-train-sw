@@ -2,14 +2,15 @@
 
 import pytest
 
-from dynamixel_control.toolchanger_lock import LockError, ToolchangerLock
+from dynamixel_control.toolchanger_lock import (
+    LOCK_PROFILE_ACCELERATION, LOCK_PROFILE_VELOCITY, LockError, ToolchangerLock)
 
 
 class IO:
     def __init__(self, position=2048):
         self.sample = dict(model=1060, mode=3, drive_mode=0, error=0, position=position,
-                           velocity=0, torque=0, profile_velocity=5,
-                           profile_acceleration=1)
+                           velocity=0, torque=0, profile_velocity=LOCK_PROFILE_VELOCITY,
+                           profile_acceleration=LOCK_PROFILE_ACCELERATION)
         self.writes = []
         self.follow = True
 
@@ -22,6 +23,10 @@ class IO:
             self.sample['position'] = value
         elif field == 'torque':
             self.sample['torque'] = value
+        elif field == 'velocity_profile':
+            self.sample['profile_velocity'] = value
+        elif field == 'acceleration':
+            self.sample['profile_acceleration'] = value
 
 
 def calibrated(position=2048, state='LOCKED'):
@@ -126,18 +131,23 @@ def test_stale_feedback_and_wrong_index_fail_closed():
     assert not lock.ready
 
 
-def test_enabled_motor_with_unbounded_profile_cannot_move():
-    lock, io = calibrated()
-    io.sample['profile_velocity'] = 0
-    before = list(io.writes)
-    with pytest.raises(LockError):
+def test_unbounded_or_old_profile_is_replaced_before_the_goal_write():
+    for velocity, acceleration in ((0, 0), (5, 1)):
+        lock, io = calibrated()
+        io.sample['profile_velocity'] = velocity
+        io.sample['profile_acceleration'] = acceleration
+        before = len(io.writes)
         lock.move('UNLOCKED')
-    assert io.writes == before
+        assert io.writes[before:before + 2] == [
+            ('acceleration', LOCK_PROFILE_ACCELERATION),
+            ('velocity_profile', LOCK_PROFILE_VELOCITY)]
+        assert io.writes[-1][0] == 'goal'
 
 
 def test_enable_synchronizes_goal_before_torque():
     lock, io = calibrated()
-    assert io.writes == [('acceleration', 1), ('velocity_profile', 5),
+    assert io.writes == [('acceleration', LOCK_PROFILE_ACCELERATION),
+                         ('velocity_profile', LOCK_PROFILE_VELOCITY),
                          ('goal', 2048), ('torque', 1)]
     assert lock.snapshot()['mechanically_confirmed'] is False
 

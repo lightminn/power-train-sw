@@ -7,6 +7,7 @@ const prefixes = {front_left:'fl',front_right:'fr',mid_left:'cl',mid_right:'cr',
 const suspensionNames = ['ml_rocker_joint','mr_rocker_joint','bl_bogie_joint','br_bogie_joint'];
 const armNames=['arm_J1_yaw','arm_J2_shoulder','arm_J3_elbow','arm4_rotation','axis5_rotation'];
 const armOnly=new URLSearchParams(location.search).get('view')==='arm';
+const gripperParts=new Set(['finger_lower','finger_upper','pinion_A','pinion_B']),gripperMeshes=[];
 const armPart=name=>name.startsWith('arm_link')||name==='tool_link'||name.startsWith('finger')||name.startsWith('pinion');
 const finite = value => typeof value === 'number' && Number.isFinite(value);
 const number = (value, suffix='', digits=2) => finite(value) ? value.toFixed(digits)+suffix : '미연결';
@@ -21,6 +22,39 @@ document.addEventListener('keydown',event=>{
 },{capture:true});
 for(const type of ['gesturestart','gesturechange','gestureend'])
     document.addEventListener(type,event=>event.preventDefault(),{capture:true,passive:false});
+function gripperFaceMask(geometry) {
+    // arm_link5 is one CAD mesh: wrist, arm-side ball lock and the attached gripper.
+    // Its gripper parts are the connected pieces that start past x=50 mm and reach
+    // beyond the arm-side lock housing (x=61 mm); mark their faces.
+    const positions=geometry.attributes.position,indices=geometry.index.array,ids=new Map(),parent=[];
+    const vertex=new Uint32Array(positions.count);
+    for(let i=0;i<positions.count;i++){
+        const key=[positions.getX(i),positions.getY(i),positions.getZ(i)].map(value=>Math.round(value*1e3)).join(',');
+        if(!ids.has(key)){ids.set(key,parent.length);parent.push(parent.length);}
+        vertex[i]=ids.get(key);
+    }
+    const find=node=>{while(parent[node]!==node){parent[node]=parent[parent[node]];node=parent[node];}return node;};
+    for(let i=0;i<indices.length;i+=3)for(let j=1;j<3;j++)parent[find(vertex[indices[i+j]])]=find(vertex[indices[i]]);
+    const low=new Map(),high=new Map();
+    for(let i=0;i<positions.count;i++){
+        const root=find(vertex[i]),x=positions.getX(i);
+        low.set(root,Math.min(low.has(root)?low.get(root):Infinity,x));high.set(root,Math.max(high.has(root)?high.get(root):-Infinity,x));
+    }
+    const mask=new Uint8Array(indices.length/3);
+    for(let face=0;face<mask.length;face++){const root=find(vertex[indices[face*3]]);mask[face]=low.get(root)>50&&high.get(root)>61?1:0;}
+    return mask;
+}
+function faceSubset(geometry,mask,wanted) {
+    // Non-indexed geometry keeps one triangle per three vertices, in index order.
+    const part=new THREE.BufferGeometry();
+    for(const [name,attribute] of Object.entries(geometry.attributes)){
+        const stride=attribute.itemSize*3,values=[];
+        for(let face=0;face<mask.length;face++)if(mask[face]===wanted)
+            for(let k=0;k<stride;k++)values.push(attribute.array[face*stride+k]);
+        part.setAttribute(name,new THREE.BufferAttribute(new Float32Array(values),attribute.itemSize));
+    }
+    return part;
+}
 function smoothCAD(geometry) {
     // Smooth small tessellation seams while retaining real panel/bracket edges.
     const positions=geometry.attributes.position,indices=geometry.index.array;
@@ -174,7 +208,8 @@ function receive(value) {
         for (const name of suspensionNames) queueJoint(name,state.suspension[name]);
     }
     if(state.arm_live)for(const name of armNames)queueJoint(name,state.arm[name],260);
-    const signature=JSON.stringify([state.live,state.roll_rad,state.pitch_rad,state.suspension,state.arm_live,state.arm,Object.entries(state.wheels).map(([name,w])=>[name,w.stale,w.mode,w.drive_axis_error,w.steer_fault,w.steer_deg])]);
+    for(const mesh of gripperMeshes)mesh.visible=state.tool_attached===true;
+    const signature=JSON.stringify([state.live,state.roll_rad,state.pitch_rad,state.suspension,state.arm_live,state.arm,state.tool_attached,Object.entries(state.wheels).map(([name,w])=>[name,w.stale,w.mode,w.drive_axis_error,w.steer_fault,w.steer_deg])]);
     dirty=dirty||signature!==lastSignature;lastSignature=signature;
     robot.updateMatrixWorld(true);if(framingUpdate())dirty=true;refreshStatus();
 }
@@ -241,7 +276,7 @@ try {
     if(armOnly)display.meshes=display.meshes.filter(item=>armPart(item.link));
     const selectedMeshes=new Set(display.meshes.map(item=>item.mesh));
     const wheelNames=Object.fromEntries(Object.entries(prefixes).map(([name,prefix])=>[prefix+'_bl70200s',name]));
-    const geometryCache=new Map();
+    const geometryCache=new Map(),gripperMasks=new Map();
     await Promise.all(display.meshes.map(async item=>{
         const response=await fetch('./display-meshes/'+item.mesh);
         if(!response.ok)throw new Error('표시 모델을 읽을 수 없습니다: '+item.mesh);
@@ -251,6 +286,7 @@ try {
         const geometry=new THREE.BufferGeometry();
         geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(buffer,8,vertices*3),3));
         geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(buffer,8+vertices*12,faces*3),1));
+        if(item.link==='arm_link5')gripperMasks.set(item.mesh,gripperFaceMask(geometry));
         const smooth=smoothCAD(geometry),normalStatus=repairNormals(smooth);
         if(normalStatus!=='ok')normalRepairs[item.mesh]=normalStatus;
         geometryCache.set(item.mesh,smooth);
@@ -270,11 +306,17 @@ try {
             }
             geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));color=0xffffff;
         }
-        const object=new THREE.Mesh(geometry,new THREE.MeshLambertMaterial({color,vertexColors:Boolean(wheel)}));
-        object.position.fromArray(visual.xyz);object.scale.fromArray(visual.scale);rpy(object,visual.rpy);
-        if(wheel){object.userData.wheel=wheel;wheelMeshes.push(object);}
-        if(armPart(link.name)){geometry.computeBoundingBox();armMeshes.push(object);}
-        links[link.name].add(object);triangles+=(geometry.index?geometry.index.count:geometry.attributes.position.count)/3;
+        const mask=gripperMasks.get(visual.mesh);
+        const parts=mask?[[faceSubset(geometry,mask,0),false],[faceSubset(geometry,mask,1),true]]
+            :[[geometry,gripperParts.has(link.name)]];
+        for(const [part,gripper] of parts){
+            const object=new THREE.Mesh(part,new THREE.MeshLambertMaterial({color,vertexColors:Boolean(wheel)}));
+            object.position.fromArray(visual.xyz);object.scale.fromArray(visual.scale);rpy(object,visual.rpy);
+            if(wheel){object.userData.wheel=wheel;wheelMeshes.push(object);}
+            if(armPart(link.name)){part.computeBoundingBox();armMeshes.push(object);}
+            if(gripper){object.visible=false;gripperMeshes.push(object);}
+            links[link.name].add(object);triangles+=(part.index?part.index.count:part.attributes.position.count)/3;
+        }
     }
     // A small colored hub ring conveys motor health without replacing the CAD motor.
     for(const [name,prefix] of Object.entries(armOnly?{}:prefixes)){
