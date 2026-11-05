@@ -42,7 +42,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
         "--page",
-        choices=("mission", "mobility", "systems", "environment"),
+        choices=("mission", "mobility", "systems", "environment", "arm_manual"),
         default="systems",
     )
     parser.add_argument(

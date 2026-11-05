@@ -37,6 +37,7 @@ from . import contract as K
 # a test pins them together so the UI and the command path can never disagree
 # about what the backend said it supports.
 CAP_TOOL_CHANGE = "tool_change"
+CAP_COUPLING_LOCK = "coupling_lock"
 CAP_CONTROL_MODE = "control_mode"
 CAP_TELEOP_JOG = "teleop_jog"
 CAP_TELEOP_POSE = "teleop_pose"
@@ -49,6 +50,7 @@ CAP_DUAL_TOOL_CALIBRATION = "dual_tool_calibration"
 # Which capability each action needs.  A stop action needs none: see rule 2.
 ACTION_CAPABILITY: dict[str, str] = {
     K.ACTION_TOOL_CHANGE: CAP_TOOL_CHANGE,
+    K.ACTION_LOCK_COMMAND: CAP_COUPLING_LOCK,
     K.ACTION_MODE_REQUEST: CAP_CONTROL_MODE,
     K.ACTION_MODE_RELEASE: CAP_CONTROL_MODE,
     K.ACTION_JOG: CAP_TELEOP_JOG,
@@ -138,6 +140,12 @@ def authorize(
     if action in K.STOP_ACTIONS:
         return _stop_decision(context, action, params)
 
+    if action == K.ACTION_LOCK_COMMAND:
+        if CAP_COUPLING_LOCK not in context.capabilities:
+            return _refuse("capability_missing", "잠금 조작 준비 안 됨")
+        if not context.manual_granted:
+            return _refuse("manual_not_granted", "수동 제어권 미승인")
+
     # Rule 1.
     capability = ACTION_CAPABILITY.get(action, "")
     if capability and capability not in context.capabilities \
@@ -183,6 +191,7 @@ def authorize(
     # fresh hardware state; it never enables torque or commands motion.
     if context.blocked_reasons and action not in {
             K.ACTION_TOOL_CHANGE, K.ACTION_MODE_REQUEST, K.ACTION_MODE_RELEASE,
+            K.ACTION_LOCK_COMMAND,
     }:
         return _refuse("backend_blocked", context.blocked_reasons[0])
 

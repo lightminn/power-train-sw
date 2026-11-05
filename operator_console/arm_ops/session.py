@@ -199,6 +199,11 @@ class ArmCommandSession:
             accepted=True, action=request.action, request_id=str(request_id),
         )
 
+    def coupling_lock_command(self, command: str, options: dict) -> CommandOutcome:
+        if command == "STOP":
+            return self._issue(K.ACTION_LOCK_STOP, {})
+        return self._issue(K.ACTION_LOCK_COMMAND, {"command": command, **options})
+
     def request_tool_change(self, kind: str) -> CommandOutcome:
         return self._issue(
             K.ACTION_TOOL_CHANGE,

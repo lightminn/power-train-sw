@@ -55,3 +55,22 @@ def test_hardware_fault_is_exposed_as_the_operator_block_reason():
 
     assert state.block_reasons[0].code == "tool_hardware_error"
     assert "32" in state.block_reasons[0].korean
+
+
+def test_local_wrist_preserves_axis_five_identity_and_requires_live_lock():
+    from dataclasses import replace
+    snapshot = replace(_snapshot(), joint_names=('arm_joint_5',))
+    snapshot.tool_runtime['tool'].update(manual_coupling_lock=True,
+        control_scope='FULL_ROBOT', read_only=False, emergency_stop=False,
+        motion_allowed=False)
+    snapshot.tool_runtime.update(coupling_lock=dict(enabled=True, state='LOCKED', torque=1),
+                                 coupling_lock_age_s=0)
+    binding = ArmUiTelemetryBinding()
+    state = binding.state(snapshot, ops_link_ready=True)
+    assert state.teleop.axes[0].index == 5
+    assert state.teleop.selected_axis == 5
+    assert C.CAP_TELEOP_JOG in state.capabilities
+    assert C.CAP_COUPLING_LOCK in state.capabilities
+    assert not state.block_reasons
+    snapshot.tool_runtime['coupling_lock']['state'] = 'UNLOCKED'
+    assert C.CAP_TELEOP_JOG not in binding.state(snapshot, ops_link_ready=True).capabilities

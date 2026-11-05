@@ -32,7 +32,8 @@ def runtime(monkeypatch, tmp_path, request):
     # Honour ROS_DOMAIN_ID (174 in the isolated mock invocation).  A fixed
     # domain bypassed the test environment and could collide with a lingering
     # Fast DDS shared-memory participant during process teardown.
-    rclpy.init(args=['--ros-args', '-p', 'mock_mode:=true', '-p',
+    # This fixture represents the legacy tool without the ID1 coupling motor.
+    rclpy.init(args=['--ros-args', '-p', 'toolchanger_enabled:=false', '-p', 'mock_mode:=true', '-p',
                      'control_scope:=END_EFFECTOR_ONLY', '-p',
                      f'tool_type:={start_tool}', '-p',
                      f'tool_profile_file:={profile}'])

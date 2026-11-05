@@ -114,6 +114,7 @@ class JogRegistry:
     def __init__(
         self,
         *,
+        initial_sequence: int = 0,
         ttl_s: float = DEFAULT_JOG_TTL_S,
         refresh_interval_s: float = DEFAULT_REFRESH_INTERVAL_S,
     ) -> None:
@@ -123,7 +124,7 @@ class JogRegistry:
         self._refresh_interval_s = float(refresh_interval_s)
         self._active: dict[JogChannel, _ActiveJog] = {}
         self._pending_stops: list[PendingStop] = []
-        self._sequence = 0
+        self._sequence = int(initial_sequence)
 
     # --- introspection --------------------------------------------------
     @property

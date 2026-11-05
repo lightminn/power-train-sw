@@ -14,7 +14,7 @@ from operator_console.arm_ops import policy as P
 
 
 ALL_CAPS = frozenset({
-    P.CAP_TOOL_CHANGE, P.CAP_CONTROL_MODE, P.CAP_TELEOP_JOG, P.CAP_TELEOP_POSE,
+    P.CAP_COUPLING_LOCK, P.CAP_TOOL_CHANGE, P.CAP_CONTROL_MODE, P.CAP_TELEOP_JOG, P.CAP_TELEOP_POSE,
     P.CAP_GRIPPER_COMMAND, P.CAP_DUAL_SYNC, P.CAP_ARM_CALIBRATION,
     P.CAP_TOOL_CALIBRATION, P.CAP_DUAL_TOOL_CALIBRATION,
 })
@@ -318,6 +318,7 @@ def test_capability_tokens_match_the_arm_ui_contract_exactly():
     command that can never be built."""
     from operator_console.arm_ui import contracts as ui
 
+    assert P.CAP_COUPLING_LOCK == ui.CAP_COUPLING_LOCK
     assert P.CAP_TOOL_CHANGE == ui.CAP_TOOL_CHANGE
     assert P.CAP_CONTROL_MODE == ui.CAP_CONTROL_MODE
     assert P.CAP_TELEOP_JOG == ui.CAP_TELEOP_JOG
@@ -328,7 +329,7 @@ def test_capability_tokens_match_the_arm_ui_contract_exactly():
     assert P.CAP_TOOL_CALIBRATION == ui.CAP_TOOL_CALIBRATION
     assert P.CAP_DUAL_TOOL_CALIBRATION == ui.CAP_DUAL_TOOL_CALIBRATION
     assert ALL_CAPS == frozenset({
-        ui.CAP_TOOL_CHANGE, ui.CAP_CONTROL_MODE, ui.CAP_TELEOP_JOG,
+        ui.CAP_COUPLING_LOCK, ui.CAP_TOOL_CHANGE, ui.CAP_CONTROL_MODE, ui.CAP_TELEOP_JOG,
         ui.CAP_TELEOP_POSE, ui.CAP_GRIPPER_COMMAND, ui.CAP_DUAL_SYNC,
         ui.CAP_ARM_CALIBRATION, ui.CAP_TOOL_CALIBRATION,
         ui.CAP_DUAL_TOOL_CALIBRATION,

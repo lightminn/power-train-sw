@@ -28,6 +28,7 @@ from gi.repository import Gtk  # noqa: E402
 from .. import labels as console_labels
 from . import contracts as C
 from .keyboard_panel import KeyboardTeleopPanel
+from .coupling_lock import CouplingLockPanel
 from .styling import ARM_UI_STYLE_CLASS, install_arm_ui_css
 from .tool_panels import ToolDiagnosticsPanel, ToolPanelStack
 from .widgets import (
@@ -112,7 +113,11 @@ class ArmManualTab:
         top.add(self._build_tool_card())
         # Keep the active tool's controls beside its identity.  The operator
         # should not have to scan below teleop to tell which tool is moving.
-        top.add(self.tool_panels.stack)
+        controls = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=11)
+        controls.pack_start(self.tool_panels.stack, False, False, 0)
+        self.coupling_lock = CouplingLockPanel(self._callbacks)
+        controls.pack_start(self.coupling_lock.box, False, False, 0)
+        top.add(controls)
         page.pack_start(top, False, False, 0)
 
         page.pack_start(self._build_state_card(), False, False, 0)
@@ -360,6 +365,7 @@ class ArmManualTab:
         self.keyboard.update(state)
         self.tool_panels.update(state)
         self.diagnostics.update(state)
+        self.coupling_lock.update(state)
         self._page.show_all()
         self._fixture_banner.set_visible(state.is_fixture)
         if state.developer_mode:
@@ -498,6 +504,7 @@ class ArmManualTab:
 
     def dispose(self) -> None:
         """Release holds, drop handlers and timers.  Idempotent."""
+        self.coupling_lock.dispose()
         self.keyboard.set_active(False)
         self.keyboard.dispose()
         self.tool_panels.dispose()

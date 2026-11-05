@@ -20,12 +20,12 @@ def normalize_tool(value):
     out = {'tool_type': value['tool_type'], 'actuator_ids': ids, 'actuators': []}
     for key in ('actuators_discovered', 'tool_detached', 'physical_tool_detached',
                 'mock_mode', 'motion_allowed', 'tool_enable_allowed', 'read_only',
-                'emergency_stop', 'calibration_jog_enabled'):
+                'emergency_stop', 'calibration_jog_enabled', 'manual_coupling_lock'):
         item = value.get(key)
         if item is not None and type(item) is not bool:
             raise ValueError('invalid tool flag')
         out[key] = item
-    for key in ('control_mode', 'fsm_state', 'reason'):
+    for key in ('control_mode', 'fsm_state', 'reason', 'control_scope'):
         item = value.get(key)
         if item is not None and (not isinstance(item, str) or len(item) > 160):
             raise ValueError('invalid tool status text')
@@ -78,7 +78,15 @@ def parse_runtime(value):
     if age is not None and (type(age) not in (int, float) or not math.isfinite(age) or age < 0):
         raise ValueError('invalid tool age')
     tool = value.get('tool')
-    return {'source_age_s': age, 'tool': None if tool is None else normalize_tool(tool)}
+    result = {'source_age_s': age, 'tool': None if tool is None else normalize_tool(tool)}
+    if 'coupling_lock' in value:
+        result['coupling_lock'] = normalize_lock(value['coupling_lock'])
+        lock_age = value.get('coupling_lock_age_s')
+        if lock_age is not None and (type(lock_age) not in (int, float)
+                or not math.isfinite(lock_age) or lock_age < 0):
+            raise ValueError('invalid lock age')
+        result['coupling_lock_age_s'] = lock_age
+    return result
 
 
 def parse_arm_runtime(value):
@@ -101,3 +109,75 @@ def parse_arm_runtime(value):
             raise ValueError('invalid arm runtime age')
         result['source_age_s'][key] = age
     return result
+
+
+def validate_lock_command(value):
+    """Only the existing manual lock vocabulary may cross the ops channel."""
+    if not isinstance(value, dict):
+        raise ValueError('invalid lock command')
+    command = value.get('command')
+    if not isinstance(command, str):
+        raise ValueError('invalid lock command')
+    keys = {'STOP': {'command'}, 'ENABLE': {'command'},
+            'SET_ZERO': {'command', 'state'},
+            'CHANGE': {'command', 'to', 'direction'}}.get(command)
+    if keys is None or set(value) != keys:
+        raise ValueError('invalid lock command fields')
+    if command == 'SET_ZERO' and value['state'] not in ('LOCKED', 'UNLOCKED'):
+        raise ValueError('invalid lock zero state')
+    if command == 'CHANGE' and (
+            value['to'] not in ('LOCKED', 'UNLOCKED')
+            or type(value['direction']) is not int or value['direction'] not in (-1, 1)):
+        raise ValueError('invalid lock transition')
+    return dict(value)
+
+
+def normalize_lock(value):
+    """Bound status independently from the tool, which may be detached."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError('invalid lock status')
+    result = {}
+    for key in ('enabled', 'mechanically_confirmed'):
+        item = value.get(key)
+        if item is not None and type(item) is not bool:
+            raise ValueError('invalid lock flag')
+        result[key] = item
+    for key in ('zero_tick', 'position', 'torque', 'coupling_peak_load'):
+        item = value.get(key)
+        if item is not None and (type(item) not in (int, float) or not math.isfinite(item)):
+            raise ValueError('invalid lock feedback')
+        result[key] = item
+    for key in ('state', 'zero_state', 'sequence_state', 'coupling_proxy',
+                'error', 'sequence_error', 'command_error'):
+        item = value.get(key)
+        if item is not None and (not isinstance(item, str) or len(item) > 160):
+            raise ValueError('invalid lock status text')
+        result[key] = item
+    return result
+
+
+def validate_local_wrist_request(action, params):
+    """The local bench accepts only axis 5, with bounded jog lifetime metadata."""
+    stop = action == 'robot_arm_jog_stop'
+    required = ({'axis', 'sequence', 'reason'} if stop else
+                {'axis', 'sequence', 'direction', 'expires_at_s'})
+    allowed = required if stop else required | {'speed_level'}
+    if not required <= params.keys() or not params.keys() <= allowed:
+        raise ValueError('invalid local wrist parameters')
+    if type(params['axis']) is not int or params['axis'] != 5:
+        raise ValueError('local wrist bench supports only axis 5')
+    if type(params['sequence']) is not int or params['sequence'] < 0:
+        raise ValueError('invalid wrist sequence')
+    if stop:
+        if not isinstance(params['reason'], str) or not 1 <= len(params['reason']) <= 64:
+            raise ValueError('invalid wrist stop reason')
+    else:
+        if type(params['direction']) is not int or params['direction'] not in (-1, 1):
+            raise ValueError('invalid wrist direction')
+        if type(params['expires_at_s']) not in (int, float) or not math.isfinite(params['expires_at_s']):
+            raise ValueError('invalid wrist deadline')
+        if 'speed_level' in params and (type(params['speed_level']) is not int
+                                       or not 0 <= params['speed_level'] <= 10):
+            raise ValueError('invalid wrist speed level')

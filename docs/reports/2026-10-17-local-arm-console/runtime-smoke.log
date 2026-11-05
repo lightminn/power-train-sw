@@ -1,0 +1,2 @@
+CONSOLE-RUNTIME-SMOKE: PASS
+31 ticks on 5 channels; LIVE+STALE observed; no tracebacks.

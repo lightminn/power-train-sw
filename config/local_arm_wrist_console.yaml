@@ -1,0 +1,17 @@
+/**:
+  ros__parameters:
+    mock_mode: false
+    read_only: false
+    control_scope: FULL_ROBOT
+    manual_coupling_lock: true
+    tool_type: spur_1motor_gripper
+    toolchanger_enabled: true
+    toolchanger_position_tolerance_ticks: 4
+    toolchanger_zero_tick: 3051
+    toolchanger_zero_state: LOCKED
+    centers: ["arm_joint_5:2525"]
+    arm_profile_velocity: 3
+    profile_acceleration: 2
+    gripper_auto_recover: false
+    auto_tool_detection: false
+    keyboard_shortcuts_enabled: false

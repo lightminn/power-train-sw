@@ -709,6 +709,7 @@ def test_rotary_failure_path_always_attempts_torque_off():
 
 def configured_arm_test_bridge():
     bridge = object.__new__(bridge_module.MoveItDynamixelBridge)
+    bridge.control_scope = "FULL_ROBOT"
     bridge.integrated_test_mode = True
     bridge.random_demo_enabled = False
     bridge.read_only = False

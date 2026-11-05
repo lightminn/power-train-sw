@@ -29,7 +29,8 @@ def test_mock_runtime_dual_spur_cleaner_round_trip(monkeypatch, tmp_path):
         direction=-1, profile_velocity=30)
     profile_file = tmp_path / 'mock_tool_profiles.yaml'
     profile_file.write_text(yaml.safe_dump(profiles))
-    rclpy.init(args=['--ros-args', '-p', 'mock_mode:=true', '-p', 'read_only:=false',
+    # This fixture represents the legacy tool without the ID1 coupling motor.
+    rclpy.init(args=['--ros-args', '-p', 'toolchanger_enabled:=false', '-p', 'mock_mode:=true', '-p', 'read_only:=false',
                      '-p', 'tool_type:=dual_motor_gripper', '-p',
                      'control_scope:=END_EFFECTOR_ONLY', '-p',
                      f'tool_profile_file:={profile_file}'])

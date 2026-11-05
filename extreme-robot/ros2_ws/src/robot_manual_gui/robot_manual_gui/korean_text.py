@@ -181,6 +181,29 @@ TEXT.update({
     'Output mapping: waiting for ID5 feedback': '출력 각도 변환: 모터 5의 위치 정보 대기 중',
 })
 
+# 모터1 결합 잠금 패널. 상태값은 프로토콜 문자열이므로 표시 단계에서만 번역한다.
+TEXT.update({
+    'Toolchanger lock': '도구 결합 잠금',
+    'Estimated from the zero reference, not a coupling sensor':
+        '영점 기준 추정값입니다. 결합 센서로 확인한 값이 아닙니다',
+    'Toolchanger command requested: ': '결합 잠금 명령 요청: ',
+    'Lock motor position': '잠금 모터 위치 (위치 단위)',
+    'Lock state': '잠금 상태', 'Zero reference': '영점 기준',
+    'Change sequence': '교체 시퀀스', 'Coupling proxy': '결합 추정 (부하)',
+    'Lock error': '잠금 오류', 'Rotation direction': '회전 방향',
+    'FORWARD 22.5 deg': '정방향 22.5°', 'REVERSE 22.5 deg': '역방향 22.5°',
+    'SET ZERO AS LOCKED': '현재 위치를 결합 영점으로',
+    'SET ZERO AS UNLOCKED': '현재 위치를 분리 영점으로',
+    'LOCK MOTOR ENABLE': '잠금 모터 활성화',
+    'LOCK MOTOR STOP': '잠금 모터 정지',
+    'COUPLE TOOL': '도구 결합', 'RELEASE TOOL': '도구 분리',
+    'UNCALIBRATED': '영점 미설정', 'UNLOCKED': '분리됨', 'LOCKED': '결합됨',
+    'MOVING': '이동 중', 'CONFIRMED': '확인됨', 'UNCHANGED': '변화 없음',
+    'TOOL_STOP': '도구 정지 중', 'NOT_ENGAGED': '결합 추정 실패',
+    'ENGAGED': '결합 추정됨', 'RELEASED': '분리 완료', 'DISABLED': '사용 안 함',
+    'UNAVAILABLE': '값 없음',
+})
+
 _PATTERN = re.compile('|'.join(re.escape(key) for key in sorted(TEXT, key=len, reverse=True)))
 
 

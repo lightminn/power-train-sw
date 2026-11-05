@@ -31,7 +31,8 @@ def test_full_robot_shared_buttons_preserve_arm_and_fsm(monkeypatch, tmp_path):
         direction=-1, profile_velocity=30)
     fixture = tmp_path / 'mock_profiles.yaml'
     fixture.write_text(yaml.safe_dump(profiles))
-    rclpy.init(args=['--ros-args', '-p', 'mock_mode:=true', '-p', 'read_only:=false',
+    # This fixture represents the legacy tool without the ID1 coupling motor.
+    rclpy.init(args=['--ros-args', '-p', 'toolchanger_enabled:=false', '-p', 'mock_mode:=true', '-p', 'read_only:=false',
         '-p', 'tool_type:=dual_motor_gripper', '-p', 'control_scope:=FULL_ROBOT',
         '-p', 'dry_run_mode:=true', '-p', 'sensor_mock_mode:=true',
         '-p', f'tool_profile_file:={fixture}'])

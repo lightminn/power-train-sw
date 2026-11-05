@@ -26,6 +26,7 @@ class GuiSignals(QObject):
     control_mode = pyqtSignal(str)
     arm_status = pyqtSignal(str)
     contact_status = pyqtSignal(bool)
+    toolchanger_status = pyqtSignal(dict)
     log = pyqtSignal(str)
     gripper_state = pyqtSignal(bool, str)
 
@@ -90,6 +91,9 @@ class ManualGuiNode(Node):
         self.create_subscription(
             Bool, '/sensors/contact_status',
             lambda msg: self.signals.contact_status.emit(bool(msg.data)), 10)
+        self.create_subscription(
+            String, '/toolchanger/status',
+            lambda msg: self.signals.toolchanger_status.emit(json.loads(msg.data)), 10)
 
         self.arm_pub = self.create_publisher(
             JointTrajectory, '/arm_controller/joint_trajectory', 10)
@@ -109,6 +113,8 @@ class ManualGuiNode(Node):
             String, '/tool/manual_recovery_jog', 10)
         self.dual_calibration_pub = self.create_publisher(
             String, '/tool/dual_calibration_command', 10)
+        self.toolchanger_pub = self.create_publisher(
+            String, '/toolchanger/command', 10)
         self.gripper = ActionClient(
             self, FollowJointTrajectory,
             '/gripper_controller/follow_joint_trajectory')
@@ -557,6 +563,25 @@ class ManualGuiNode(Node):
         context = self._runtime_request_context()
         data = json.dumps({'command': command, **context}) if context else command
         self.cleaner_direction_pub.publish(String(data=data))
+        return True
+
+    def command_toolchanger(self, command, **values):
+        """잠금 명령을 ops 경로 그대로 보낸다. 최종 게이트는 브리지가 쥔다."""
+        name = str(command).upper()
+        if name not in ('SET_ZERO', 'ENABLE', 'CHANGE', 'STOP'):
+            return False
+        if self.read_only:
+            self.signals.log.emit('Toolchanger command blocked: GUI is read-only')
+            return False
+        # STOP은 어느 상태에서도 막지 않는다. 나머지는 벤치 경로에서만 허용한다.
+        if name != 'STOP' and (self.control_mode != 'MANUAL'
+                               or self.control_scope != 'END_EFFECTOR_ONLY'):
+            self.signals.log.emit(
+                'Toolchanger command blocked: lock changes require '
+                'MANUAL END_EFFECTOR_ONLY')
+            return False
+        self.toolchanger_pub.publish(
+            String(data=json.dumps(dict(command=name, **values))))
         return True
 
     def emergency_stop(self):

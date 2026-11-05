@@ -68,6 +68,7 @@ GRIPPER_TOOL_KINDS = frozenset({TOOL_SINGLE_GRIPPER, TOOL_DUAL_GRIPPER})
 # exists".  Absent token => the control is drawn disabled with a reason.  The
 # skeleton never infers a capability from the presence of a callback.
 CAP_TOOL_CHANGE = "tool_change"
+CAP_COUPLING_LOCK = "coupling_lock"
 CAP_CONTROL_MODE = "control_mode"
 CAP_TELEOP_JOG = "teleop_jog"
 CAP_TELEOP_POSE = "teleop_pose"
@@ -87,6 +88,7 @@ MANUAL_GRANT_REQUIRED = frozenset({
     CAP_GRIPPER_COMMAND,
     CAP_DUAL_SYNC,
     CAP_TOOL_ENABLE,
+    CAP_COUPLING_LOCK,
 })
 
 # Actions that belong to a calibration session and therefore stay live while
@@ -351,6 +353,7 @@ class ArmUiState:
     teleop: TeleopState = field(default_factory=TeleopState)
     diagnostics: ToolDiagnostics = field(default_factory=ToolDiagnostics)
     calibration: CalibrationState = field(default_factory=CalibrationState)
+    coupling_lock: dict = field(default_factory=dict)
     capabilities: frozenset[str] = frozenset()
     # True only for the preview fixtures.  Panels render a visible banner so a
     # screenshot of fake data can never be mistaken for a live arm.
@@ -378,6 +381,7 @@ class ArmUiCallbacks:
     """
 
     # 도구
+    coupling_lock_command: Callback = None       # (command: str, options: dict)
     request_tool_change: Callback = None          # (kind: str)
     # 제어권
     request_control_mode: Callback = None         # (mode: str)  MANUAL | FSM
@@ -461,6 +465,10 @@ def gate(
     """
     if callback is None:
         return False, "미연결 — 명령 경로가 연결되지 않음"
+    if capability == CAP_COUPLING_LOCK and capability not in state.capabilities:
+        return False, "잠금 조작 준비 안 됨 · 인증 연결·수동 벤치 범위 확인 필요"
+    if capability == CAP_COUPLING_LOCK and not has_manual_grant(state):
+        return False, "수동 제어권 미승인"
     if (capability == CAP_BRIDGE_RESTART
             and capability not in state.capabilities):
         return False, "브릿지 연결 또는 ops 연결 대기 중"
@@ -488,7 +496,7 @@ def gate(
     # make the tool ready again; only motion/torque controls need the ready
     # condition below.
     if (state.block_reasons and capability not in {
-            CAP_CONTROL_MODE, CAP_TOOL_CHANGE, CAP_BRIDGE_RESTART,
+            CAP_CONTROL_MODE, CAP_TOOL_CHANGE, CAP_BRIDGE_RESTART, CAP_COUPLING_LOCK,
     }):
         return False, state.block_reasons[0].korean
     return True, ""

@@ -109,6 +109,7 @@ class KeyboardTeleopPanel:
         self._state = C.default_state()
         self._active = False
         self._key_jog_axis: int | None = None
+        self._key_jog_direction = None
         self._key_handlers: list[tuple[Gtk.Window, int]] = []
         # Guards the exclusive axis toggles against re-entrant "toggled"
         # signals while the panel is writing them from state.
@@ -317,11 +318,13 @@ class KeyboardTeleopPanel:
         if axis is None or start is None:
             return
         self._key_jog_axis = axis
+        self._key_jog_direction = direction
         start(axis, direction)
 
     def _stop_jog(self) -> None:
         axis = self._key_jog_axis
         self._key_jog_axis = None
+        self._key_jog_direction = None
         stop = self._callbacks.jog_stop
         if axis is not None and stop is not None:
             stop(axis)
@@ -450,6 +453,9 @@ class KeyboardTeleopPanel:
             self.release_all()
 
         self.gate.apply(state)
+        if (self._active and self._key_jog_axis is not None
+                and C.gate(state, self._callbacks.jog_start, C.CAP_TELEOP_JOG)[0]):
+            self._callbacks.jog_start(self._key_jog_axis, self._key_jog_direction)
         teleop = state.teleop
         self._suppress_axis_signal = True
         for index, toggle in self._axis_buttons.items():
