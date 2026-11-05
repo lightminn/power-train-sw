@@ -219,11 +219,11 @@ class KeyboardTeleopPanel:
         self.exchange_card = self._build_exchange_card()
 
     def _bench_switches(self, set_flag: Callable[[str, bool], None]) -> Gtk.Widget:
-        """Bench-only switches: joint limits start ON, current trip starts OFF
+        """Bench-only switches: both start OFF
         (same defaults as arm_ops.contract.BENCH_JOG_FLAGS)."""
         row = Gtk.Box(spacing=12)
         for key, title in (('limits', '관절 제한'), ('trip', '전류 트립')):
-            switch = Gtk.Switch(active=key != 'trip')
+            switch = Gtk.Switch(active=False)
             switch.connect('notify::active',
                            lambda w, _p, k=key: set_flag(k, w.get_active()))
             row.pack_start(label(title, 'arm-metric-label'), False, False, 0)

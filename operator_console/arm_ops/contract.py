@@ -221,8 +221,9 @@ def _is_axis(value: Any) -> bool:
 
 
 # Bench-only jog switches ('limits', 'trip') attached to every arm jog refresh.
-# A missing key means the backend default (ON); the current trip starts OFF.
-BENCH_JOG_FLAGS: dict[str, bool] = {"trip": False}
+# A missing key means the backend default (ON), so both are sent OFF explicitly:
+# a person watches the arm on the bench, and saved poses sit outside joint_limits.
+BENCH_JOG_FLAGS: dict[str, bool] = {"limits": False, "trip": False}
 
 
 def _is_bool(value: Any) -> bool:
