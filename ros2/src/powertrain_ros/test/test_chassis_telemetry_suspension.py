@@ -30,6 +30,8 @@ class _FakeBus:
 
 def _write_config(tmp_path, **changes):
     data = json.loads(DEFAULT_CONFIG.read_text(encoding="utf-8"))
+    for channel in data["channels"]:      # independent of the tracked bench zeros
+        channel.update(zero_counts=0, verified=False)
     data.update(changes)
     path = tmp_path / "suspension.json"
     path.write_text(json.dumps(data), encoding="utf-8")
@@ -63,7 +65,7 @@ def test_worker_publishes_fresh_valid_channels_only(tmp_path):
             "ml_rocker_joint", "mr_rocker_joint", "br_bogie_joint",
         }
         assert 0.0 <= fields["suspension_age_ms"] <= 500.0
-        assert fields["suspension_frame"].startswith("UNCALIBRATED")
+        assert fields["suspension_frame"].startswith("urdf_joint?")
         assert fields["suspension_source"] == "AS5048B /dev/i2c-7 0x40,0x41,0x43"
         assert any("bl_bogie_joint" in error for error in telemetry.latest_errors())
         decoded = json.loads(chassis_telemetry.encode_telemetry_payload(
@@ -75,15 +77,18 @@ def test_worker_publishes_fresh_valid_channels_only(tmp_path):
     assert bus.closed
 
 
-def test_tracked_default_config_sends_nothing_until_channels_are_verified(tmp_path):
+def test_tracked_config_sends_only_channels_with_a_bench_zero(tmp_path):
+    # 2026-11-06: bench zeros for ml/mr rocker and br bogie; bl bogie has no
+    # zero (magnet missing) and must never reach the console 3D view.
     bus = _FakeBus({0x40: 100, 0x41: 200, 0x42: 300, 0x43: 400})
     telemetry = SuspensionTelemetry(str(DEFAULT_CONFIG), reader_factory=_factory(bus))
     try:
         assert telemetry.active
-        deadline = time.monotonic() + 0.3
-        while time.monotonic() < deadline:
-            assert telemetry.fields() == {}
-            time.sleep(0.02)
+        fields = _wait_fields(telemetry)
+        assert set(fields["suspension_joints_rad"]) == {
+            "ml_rocker_joint", "mr_rocker_joint", "br_bogie_joint",
+        }
+        assert fields["suspension_frame"].startswith("urdf_joint?")
         assert telemetry.latest_errors() == []
     finally:
         assert telemetry.close(join_timeout_s=1.0)
