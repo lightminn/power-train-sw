@@ -117,7 +117,26 @@ GUI의 **`브릿지 재시작`** 버튼을 누르거나 런처를 다시 실행�
 3. `검증` → 하드스톱에서 2° 여유를 뺀다. 저장 자세가 새 범위 밖이면 **실패**(끝까지 안 민 것) → 다시 측정.
 4. `임시 적용`(지금 실행 중인 브리지에만) → 확인 후 `저장`(`/session/arm_joint_limits.json`, 다음 기동부터).
 
-### 2.6 제어권 카드의 복구 버튼
+### 2.6 GUI 없이 터미널·Python으로 조작 (`operator_console.arm_terminal`)
+
+GUI 대신 터미널 화면(curses)이나 파이썬 코드로 같은 기능을 쓴다. 정본: [`docs/specs/2026-10-31-headless-arm-control.md`](specs/2026-10-31-headless-arm-control.md).
+GTK·ROS·Dynamixel SDK가 필요 없고, **브리지·브로커·미러는 떠 있어야 한다**(같은 인증 ops 경로를 쓴다).
+⚠️ 같은 UDP 수신 포트(15707)를 쓰므로 **GUI를 먼저 끈다**(4.3의 "GUI만 끄기", 브리지는 유지). 둘을 동시에 띄우면 터미널이 시작을 거부한다.
+
+**어디서: 젯슨 호스트** (`ssh zetin@jetson-orin.local` 후)
+```bash
+cd ~/power-train-sw-pr12
+python3 -m operator_console.arm_terminal --host 127.0.0.1 --port 29001 \
+    --token-file ~/pr12-arm-session/ops_console.token --telemetry-port 15707 --bench --ignore-lock
+```
+✅ 상태·각도·볼락·자세 목록과 단축키가 보이는 터미널 화면. 연결만으로는 아무것도 보내지 않는다 → `a`로 MANUAL 요청.
+- 키: `1`~`5` 축(6 도구), `↑/W`·`↓/S` 조그, `[`/`]` 속도, `H` home, `L` 관절 제한, `Y` 전류 트립, `Space`(명령 입력 중엔 `Ctrl+X`) 정지, `q` 종료(정지 후 종료).
+- `:` 뒤 명령 + Enter: `save/move/delete 이름`, `freedrive`/`release`, `lock`/`unlock`/`lock-stop`, `capture 1 single seat`, `exchange single [dry-run]`, `tool open|close|stop`, `limits on|off`, `trip on|off` 등(전체 목록은 정본 명세).
+- 터미널은 키 떼기를 알 수 없어 마지막 입력 0.15초 뒤 조그를 놓은 것으로 본다.
+- 파이썬: `from operator_console.arm_terminal import ArmTerminalClient` → `with ArmTerminalClient("127.0.0.1", 29001, 토큰경로) as arm:` 안에서 `arm.command("manual")`, `arm.wait_until(조건)`, 누르는 동안 `arm.jog(축, ±1)` 반복(예제는 정본 명세 "Python API").
+- 끝나면 GUI를 다시 쓰려면 1.2 명령을 다시 실행한다(브리지가 정상이면 그대로 두고 GUI만 띄운다).
+
+### 2.7 제어권 카드의 복구 버튼
 
 - **`도구 재탐색`**: 같은 도구를 다시 찾고 도구 FSM을 초기화한다(도구를 다시 꽂은 뒤).
 - **`브릿지 재시작`**(§2.10): 브리지 프로세스를 강제로 끄고 다시 띄운다. **서보 토크·자세는 유지**되고,
@@ -218,6 +237,7 @@ rsync -a --relative <변경 파일들> $J:power-train-sw-pr12/
 | 브로커(명령 검증·전달) | `ros2/src/powertrain_ros/powertrain_ros/ops_broker_node.py`, `ops_contract.py` |
 | 브리지(서보 소유) | `extreme-robot/ros2_ws/src/dynamixel_control/dynamixel_control/moveit_dynamixel_bridge.py` 외 `local_wrist_jog.py`·`toolchanger_lock.py`·`arm_range_calibration.py`·`joint_limits.py` |
 | 상태 투영(필드 화이트리스트) | `powertrain_observability/tool_snapshot.py` — 새 상태 필드는 여기 통과시켜야 GUI에 도착한다 |
+| GUI 없는 터미널·Python 클라이언트 | `operator_console/arm_terminal.py` (가상 검증: `scripts/verify_arm_terminal_mock.py`) |
 | 기동 | `scripts/start_jetson_arm_bench.sh`, `scripts/restart_arm_bridge.sh` |
 
 새 ops 액션은 세 곳을 함께 고친다: `arm_ops/contract.py`, `ops_contract.ACTIONS`, `app.py`의 `registered_actions`.
