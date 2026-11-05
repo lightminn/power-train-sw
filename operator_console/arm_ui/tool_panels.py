@@ -105,14 +105,14 @@ class _ToolPanelBase:
 
 
 class SingleGripperPanel(_ToolPanelBase):
-    """단일 그리퍼: one actuator, one open/close axis."""
+    """굴삭기: one actuator, one open/close axis."""
 
     kind = C.TOOL_SINGLE_GRIPPER
 
     def __init__(self, callbacks: C.ArmUiCallbacks) -> None:
         super().__init__(callbacks)
         card = Card(
-            "단일 그리퍼 조작",
+            "굴삭기 조작",
             "열기 · 닫기 · 정지와 전용 조그. 토크 인가가 필요한 보정 조작은 "
             "캘리브레이션 탭에 있습니다.",
             accent="gripper",
@@ -167,14 +167,14 @@ class SingleGripperPanel(_ToolPanelBase):
 
 
 class DualGripperPanel(_ToolPanelBase):
-    """듀얼 그리퍼: two actuators addressed separately, plus a synced jog."""
+    """랙앤피니언 그리퍼: two actuators addressed separately, plus a synced jog."""
 
     kind = C.TOOL_DUAL_GRIPPER
 
     def __init__(self, callbacks: C.ArmUiCallbacks) -> None:
         super().__init__(callbacks)
         card = Card(
-            "듀얼 그리퍼 조작",
+            "랙앤피니언 그리퍼 조작",
             "좌·우를 개별 지령하고, 동기 조그는 별도 경로로 전달합니다. "
             "동기화 판정은 백엔드 값을 그대로 표시합니다.",
             accent="gripper",

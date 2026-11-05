@@ -3,8 +3,8 @@ import math
 import os
 
 TOOL_LABELS = {
-    'spur_1motor_gripper': '단일 그리퍼',
-    'dual_motor_gripper': '듀얼 그리퍼',
+    'spur_1motor_gripper': '굴삭기',
+    'dual_motor_gripper': '랙앤피니언 그리퍼',
     'cleaner': '청소 모듈',
 }
 
@@ -257,7 +257,7 @@ def validate_local_pose_request(action, params):
             raise ValueError(f'invalid {flag} flag')
 
 
-EXCHANGE_TOOL_TYPES = ('spur_1motor_gripper', 'dual_motor_gripper', 'cleaner')
+EXCHANGE_TOOL_TYPES = ('spur_1motor_gripper', 'dual_motor_gripper')
 
 
 def local_tool_change_request(action, params):

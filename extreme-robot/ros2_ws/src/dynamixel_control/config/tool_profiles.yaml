@@ -1,7 +1,10 @@
 tool_profiles:
   spur_1motor_gripper:
+    # Now the excavator (shown as 굴삭기), which took over ID5 on 2026-11-06.
+    # The ticks below belong to the retired spur gripper, so motion stays
+    # refused until the excavator's own endpoints are calibrated.
     backend: gripper
-    calibrated: true
+    calibrated: false
     actuator_ids: [5]
     joint_names: [gripper_drive_joint]
     # Endpoint-only manual calibration (effort/grasp calibration remains pending).

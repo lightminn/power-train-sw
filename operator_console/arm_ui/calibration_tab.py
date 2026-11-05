@@ -246,7 +246,7 @@ class _ToolCalibrationArea:
         self.card.pack(self._targets)
 
         sync_row = Gtk.Box(spacing=8)
-        sync_row.pack_start(label("듀얼 동기화 결과", "arm-metric-label"), False, False, 0)
+        sync_row.pack_start(label("랙앤피니언 동기화 결과", "arm-metric-label"), False, False, 0)
         self._sync_badge = Badge()
         sync_row.pack_start(self._sync_badge.label, False, False, 0)
         self._sync_note = label("", "arm-note")

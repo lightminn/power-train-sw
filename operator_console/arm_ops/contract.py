@@ -83,7 +83,7 @@ ACTION_EXCHANGE_STOP = "robot_arm_exchange_stop"
 ACTION_SLOT_CAPTURE = "robot_arm_slot_capture"
 # Bench recovery: SIGKILL + relaunch the arm bridge process (servos keep torque).
 ACTION_BRIDGE_RESTART = "robot_arm_bridge_restart"
-EXCHANGE_TOOL_TYPES = ("spur_1motor_gripper", "dual_motor_gripper", "cleaner")
+EXCHANGE_TOOL_TYPES = ("spur_1motor_gripper", "dual_motor_gripper")
 EXCHANGE_SLOTS = ("1", "2", "3")
 EXCHANGE_POSES = ("seat", "above")   # seated/locked pose, pose 5 cm above it
 

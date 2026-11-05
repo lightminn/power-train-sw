@@ -107,9 +107,8 @@ def focus_is_text_entry(toplevel: Gtk.Window | None) -> bool:
 
 
 EXCHANGE_TOOL_LABELS = {
-    "spur_1motor_gripper": "단일 그리퍼",
-    "dual_motor_gripper": "듀얼 그리퍼",
-    "cleaner": "클리너",
+    "spur_1motor_gripper": "굴삭기",
+    "dual_motor_gripper": "랙앤피니언 그리퍼",
 }
 EXCHANGE_STATE_LABELS = {
     "IDLE": "대기", "MOVE_ABOVE": "슬롯 위로 이동", "DESCEND": "수직 하강",

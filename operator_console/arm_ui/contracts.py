@@ -42,8 +42,8 @@ TOOL_ENVIRONMENT_SENSOR = "environment_sensor"
 
 TOOL_KIND_KOREAN = {
     TOOL_UNKNOWN: "감지 대기",
-    TOOL_SINGLE_GRIPPER: "단일 그리퍼",
-    TOOL_DUAL_GRIPPER: "듀얼 그리퍼",
+    TOOL_SINGLE_GRIPPER: "굴삭기",
+    TOOL_DUAL_GRIPPER: "랙앤피니언 그리퍼",
     TOOL_CLEANER: "청소 모듈",
     TOOL_ENVIRONMENT_SENSOR: "환경 센서 모듈",
 }
@@ -53,8 +53,6 @@ TOOL_KIND_KOREAN = {
 SELECTABLE_TOOL_KINDS = (
     TOOL_SINGLE_GRIPPER,
     TOOL_DUAL_GRIPPER,
-    TOOL_CLEANER,
-    TOOL_ENVIRONMENT_SENSOR,
 )
 
 # Kinds that carry an existing end-effector FSM control panel.  The cleaner is

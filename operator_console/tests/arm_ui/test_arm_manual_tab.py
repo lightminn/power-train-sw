@@ -190,10 +190,10 @@ def test_state_updates_do_not_overwrite_the_operator_candidate():
     tab = ArmManualTab(callbacks)
     try:
         tab.update_state(fixtures.single_gripper())
-        tab._candidate.set_active_id(C.TOOL_CLEANER)
+        tab._candidate.set_active_id(C.TOOL_SINGLE_GRIPPER)
         tab.update_state(fixtures.dual_gripper())
 
-        assert tab._candidate.get_active_id() == C.TOOL_CLEANER
+        assert tab._candidate.get_active_id() == C.TOOL_SINGLE_GRIPPER
     finally:
         tab.dispose()
 

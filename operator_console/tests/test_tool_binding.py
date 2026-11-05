@@ -66,11 +66,11 @@ def test_real_gtk_selection_stale_and_candidate():
             [row[0] for row in status_selector.get_model()].index(name)),
     )
     assert refresh_tool(w, snapshot(tool()))
-    assert selector.get_active_text() == '단일 그리퍼'
+    assert selector.get_active_text() == '굴삭기'
     assert w.state == '감지됨'
     assert '기계 체결 미확인' in w._end_effector_popup_values['attachment'].get_text()
     refresh_tool(w, snapshot(tool('dual_motor_gripper', [3, 4])))
-    assert selector.get_active_text() == '듀얼 그리퍼'
+    assert selector.get_active_text() == '랙앤피니언 그리퍼'
     assert 'ID 5:' not in w._end_effector_popup_values['load'].get_text()
     selector.set_active(2)  # Explicit candidate must survive further observations.
     refresh_tool(w, snapshot(tool()))
@@ -117,7 +117,7 @@ def test_udp_to_existing_console(tmp_path):
         assert window._arm_manual_tab.gate.widgets
         assert not any(button.get_sensitive() for button in window._arm_manual_tab.gate.widgets)
         window._refresh_end_effector_summary()
-        assert window._mission_tool_selector.get_active_text() == '단일 그리퍼'
+        assert window._mission_tool_selector.get_active_text() == '굴삭기'
         assert window._mission_tool_reading.get_text() == '구동부 1개 응답'
         window._show_end_effector_popup()
         assert '현재 감지 도구' in window._end_effector_popup_purpose.get_text()
@@ -145,7 +145,7 @@ def test_udp_to_existing_console(tmp_path):
         pump_until(lambda: window._arm_receiver.latest().sequence >= 2)
         window._refresh_health()
         window._refresh_end_effector_summary()
-        assert window._mission_tool_selector.get_active_text() == '듀얼 그리퍼'
+        assert window._mission_tool_selector.get_active_text() == '랙앤피니언 그리퍼'
         assert window._arm_manual_tab._state.detected_tool.kind == 'dual_gripper'
         assert window._mission_tool_reading.get_text() == '구동부 2개 응답'
         assert 'ID 5:' not in window._end_effector_popup_values['load'].get_text()
