@@ -133,8 +133,8 @@ def telemetry_fields(
     """Console fields for the latest poll; {} when no channel is usable.
 
     Only channels valid in the latest poll with ``0 <= age <= max_age_s`` are
-    included, and (unless ``publish_unverified``) only verified channels with a
-    captured zero.  ``suspension_age_ms`` is the age of the oldest included
+    included, only channels with a captured zero, and (unless
+    ``publish_unverified``) only verified ones.  ``suspension_age_ms`` is the age of the oldest included
     sample, so a group age never refreshes a stale channel.  The result is
     checked against the console contract; any violation drops the whole
     suspension group instead of letting the console reject the datagram.
@@ -144,6 +144,9 @@ def telemetry_fields(
     included = [
         reading for reading in sample.readings
         if reading.ok
+        # A channel without a captured zero never goes out: its chip-relative
+        # angle means nothing and the console 3D view applies any angle.
+        and calibration_state(reading.channel) != STATE_RAW
         and (publish_unverified or calibration_state(reading.channel) == STATE_VERIFIED)
         and 0.0 <= now_s - reading.sampled_monotonic_s <= max_age_s
     ]

@@ -52,7 +52,11 @@ def test_capture_zero_reports_missing_and_moving_channels():
 @pytest.fixture
 def config_copy(tmp_path, monkeypatch):
     path = tmp_path / "suspension_encoders.json"
-    path.write_text(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    # CLI behaviour is tested from an uncalibrated copy of the tracked file.
+    data = json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
+    for channel in data["channels"]:
+        channel.update(zero_counts=None, verified=False)
+    path.write_text(json.dumps(data), encoding="utf-8")
     bus = FakeAs5048bBus({0x40: 10, 0x41: 20, 0x42: 30, 0x43: 40})
     monkeypatch.setattr(reader_module, "LinuxI2cBus", lambda number: bus)
     monkeypatch.setattr(cli.time, "sleep", lambda s: None)

@@ -29,6 +29,10 @@ def _config(**channel_overrides):
     })
 
 
+ALL_ZEROED = {j: {"zero_counts": 0} for j in
+              ("ml_rocker_joint", "mr_rocker_joint", "bl_bogie_joint", "br_bogie_joint")}
+
+
 class Clock:
     def __init__(self, now=100.0):
         self.now = now
@@ -56,11 +60,13 @@ def console_accepts(payload):
     json.dumps(payload, allow_nan=False)
 
 
-def test_tracked_default_config_is_valid_and_uncalibrated():
+def test_tracked_default_config_is_valid_and_unverified():
     config = load_config(DEFAULT_CONFIG_PATH)
     assert config.i2c_bus == 7
     assert [hex(c.address) for c in config.channels] == ["0x40", "0x41", "0x42", "0x43"]
-    assert all(c.zero_counts is None and not c.verified for c in config.channels)
+    # 2026-11-06 bench zeros (flat ground); nothing is verified yet.
+    assert not any(c.verified for c in config.channels)
+    assert config.publish_unverified is True
     # CAD-derived signs from the Isaac archive encoder config.
     assert [c.sign for c in config.channels] == [1, -1, 1, -1]
 
@@ -101,7 +107,7 @@ def test_cof_channel_is_invalid_and_omitted_from_telemetry():
     bus = FakeAs5048bBus({0x40: 10, 0x41: 20, 0x42: 30, 0x43: 40})
     bus.set_angle(0x41, 20, diag=0x03)
     clock = Clock()
-    sample = SuspensionEncoderReader(_config(), bus=bus, clock=clock).read_once()
+    sample = SuspensionEncoderReader(_config(**ALL_ZEROED), bus=bus, clock=clock).read_once()
     fields = telemetry_fields(sample, now_s=clock.now, max_age_s=0.5, publish_unverified=True)
     assert set(fields["suspension_joints_rad"]) == {"ml_rocker_joint", "bl_bogie_joint", "br_bogie_joint"}
     console_accepts(fields)
@@ -117,7 +123,7 @@ def test_no_usable_channel_means_no_suspension_keys_at_all():
 def test_stale_channels_are_dropped_and_age_is_oldest_included():
     bus = FakeAs5048bBus({0x40: 10, 0x41: 20, 0x42: 30, 0x43: 40})
     clock = Clock(100.0)
-    reader = SuspensionEncoderReader(_config(), bus=bus, clock=clock)
+    reader = SuspensionEncoderReader(_config(**ALL_ZEROED), bus=bus, clock=clock)
     readings = []
     for index, channel in enumerate(reader.config.channels):
         clock.now = 100.0 + 0.1 * index
@@ -145,14 +151,11 @@ def test_frame_label_tracks_the_least_calibrated_included_channel():
         return fields["suspension_frame"]
 
     all_zero = {j: {"zero_counts": 5} for j in ("ml_rocker_joint", "mr_rocker_joint", "bl_bogie_joint", "br_bogie_joint")}
-    assert frame(_config()) == FRAME_UNCALIBRATED
     assert frame(_config(**all_zero)) == FRAME_UNVERIFIED
     verified = {j: {"zero_counts": 5, "verified": True} for j in all_zero}
     assert frame(_config(**verified)) == "urdf_joint"
+    # A channel without a zero is never on the wire, so it cannot downgrade the label.
     mixed = dict(verified, br_bogie_joint={"zero_counts": None, "verified": True})
-    assert frame(_config(**mixed)) == FRAME_UNCALIBRATED
-    # A missing uncalibrated channel no longer downgrades the label.
-    bus.remove(0x43)
     assert frame(_config(**mixed)) == "urdf_joint"
 
 
@@ -231,7 +234,7 @@ def test_sample_newer_than_now_is_never_sent_with_negative_age():
 def test_contract_violation_drops_the_group_not_the_datagram():
     bus = FakeAs5048bBus({0x40: 10})
     clock = Clock()
-    sample = SuspensionEncoderReader(_config(), bus=bus, clock=clock).read_once()
+    sample = SuspensionEncoderReader(_config(**ALL_ZEROED), bus=bus, clock=clock).read_once()
     assert telemetry_fields(sample, now_s=clock.now, max_age_s=0.5, publish_unverified=True,
                             calibrated_frame="x") != {}
     verified = _config(ml_rocker_joint={"zero_counts": 0, "verified": True})
@@ -251,3 +254,18 @@ def test_sample_time_is_the_start_of_the_transfer():
     reading = SuspensionEncoderReader(_config(), bus=bus, clock=clock).read_channel(_config().channels[0])
     assert reading.sampled_monotonic_s == 100.0
     assert clock.now == 102.0
+
+
+def test_publish_unverified_never_sends_a_channel_without_a_zero():
+    # A chip-relative raw angle means nothing and the console 3D view applies
+    # whatever it receives, so even the bench opt-in needs a captured zero.
+    bus = FakeAs5048bBus({0x40: 10, 0x41: 20, 0x42: 30, 0x43: 40})
+    clock = Clock()
+    config = _config(ml_rocker_joint={"zero_counts": 10}, br_bogie_joint={"zero_counts": 40})
+    sample = SuspensionEncoderReader(config, bus=bus, clock=clock).read_once()
+    fields = telemetry_fields(sample, now_s=clock.now, max_age_s=0.5, publish_unverified=True)
+    assert set(fields["suspension_joints_rad"]) == {"ml_rocker_joint", "br_bogie_joint"}
+    assert fields["suspension_frame"] == FRAME_UNVERIFIED
+    console_accepts(fields)
+    sample = SuspensionEncoderReader(_config(), bus=bus, clock=clock).read_once()
+    assert telemetry_fields(sample, now_s=clock.now, max_age_s=0.5, publish_unverified=True) == {}
