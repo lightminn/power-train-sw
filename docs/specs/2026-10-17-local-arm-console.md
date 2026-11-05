@@ -130,13 +130,14 @@ Qt `robot_manual_gui`는 이번 조작 화면으로 사용하지 않는다.
    `/ws`에서 `bash scripts/build_arm_console_runtime.sh /session/runtime`을 실행하고
    `source /session/runtime/install/setup.bash`를 마지막에 적용한다.
    이 스크립트는 `extreme-robot`의 브리지와 공유 메시지·브로커만 빌드해 동명 패키지 혼입을 막는다.
-3. **`/sys/bus/usb-serial/devices/ttyUSB0/latency_timer`를 1로** 쓴다(재연결·재부팅 시 16으로 복귀).
+3. **`/sys/bus/usb-serial/devices/ttyUSB0/latency_timer`를 1로** 쓴다(재연결·재부팅 시 16으로 복귀). 브리지가 기동 시 직접 쓴다.
+   ⚠️ 장치가 열린 상태에서 쓰면 버스가 약 0.25초 끊긴다. 잠금·포트 열기 전에 써야 한다(2026-11-06 실측: 잠금→쓰기→열기 전부 실패, 쓰기→잠금→열기 전부 정상).
 4. 브리지(`--params-file /session/session.yaml`, `PYTHONUNBUFFERED=1`) → ops 브로커
    (`port:=29001`, `ARM_LOCAL_ALL_AXES=1`; 19001은 운영 스택이 사용) → `arm_console_bridge`.
    **한 번에 띄우기(2026-11-04):** 노트북에서
    `ssh -Y -C -o ServerAliveInterval=5 zetin@jetson-orin.local '~/power-train-sw-pr12/scripts/start_jetson_arm_bench.sh'`.
    꺼진 컨테이너·브리지·브로커·미러를 올린 뒤 콘솔을 실행한다(4~5단계). 브리지는 기동 시 한 번만
-   서보를 찾으므로, 로봇 전원 재투입 직후처럼 서보보다 먼저 떠서 `startup torque read failed`가
+   서보를 찾으므로, 서보를 하나도 못 읽어 `startup torque read failed`가
    남은 브리지는 SIGKILL로 교체해 최대 5회 재시도한다. 콘솔을 닫아도 브리지는 유지한다
    (정상 종료는 팔 토크를 끈다).
 5. 콘솔은 Jetson 호스트에서 `ssh -Y -C -o ServerAliveInterval=5` 로 띄운다.
@@ -241,7 +242,7 @@ STOP만 브리지에 도착했다. 조그가 안 움직이면 브로커가 이 �
 
 `로봇팔 수동조작` 탭 제어권 카드의 `브릿지 재시작`은 브로커가 `scripts/restart_arm_bridge.sh`를 실행한다.
 SIGKILL로 브리지를 끝내고 다시 띄우므로 서보 토크와 자세는 유지되고, 진행 중인 조그·자세 이동·교체는 멈춘다.
-브리지가 서보보다 먼저 떠서 팔을 못 찾았을 때의 복구용이며, 팔 상태가 끊겨도 누를 수 있다(ops 연결만 필요).
+브리지가 기동 때 팔을 못 찾았을 때의 복구용이며, 팔 상태가 끊겨도 누를 수 있다(ops 연결만 필요).
 기존의 같은 도구 재탐색은 `도구 재탐색` 버튼으로 분리했다. 런처(`start_jetson_arm_bench.sh`)가 브로커에
 `arm_bridge_restart_command`를 넘기며, 이 파라미터 없이 떠 있던 예전 브로커는 런처가 교체한다.
 
