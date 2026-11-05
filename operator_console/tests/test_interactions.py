@@ -19,6 +19,7 @@ from operator_console.mobility_view import (
     MobilityDashboard,
     RoverCoordinationGraphic,
     active_faults,
+    drive_block_reasons,
     mission_mobility_values,
     mobility_story_values,
 )
@@ -222,6 +223,91 @@ def test_mobility_story_prioritises_decision_and_response_over_raw_values():
     assert story["judgement"] == "슬립·접지 저하 후보"
     assert "6륜 출력 재분배" in story["control"]
     assert story["result"] == "저속 통과 시도 중"
+
+
+def _drive_blocked_payload():
+    """현장에서 재현한 상태: 비상정지 + CAN 무응답 + 여섯 바퀴 모두 통신 지연."""
+    _, payload, _, _ = _healthy_competition_fixtures()
+    payload.update(
+        drive_state="ESTOP/ESTOP",
+        can_state="UNHEALTHY · AK 0/4 · ODrive 0/6 · bus WARN,PASSIVE",
+        safety_estop_required=True,
+    )
+    for wheel in payload["wheel_statuses"]:
+        wheel["stale"] = True
+    return payload
+
+
+@pytest.mark.parametrize(
+    ("overrides", "all_wheels_stale", "reason"),
+    [
+        ({"drive_state": "ESTOP/ESTOP"}, False, "비상정지"),
+        ({"safety_estop_required": True}, False, "비상정지"),
+        ({"can_state": "UNHEALTHY · AK 3/4 · ODrive 6/6"}, False, "CAN 이상"),
+        ({}, True, "바퀴 0/6 정상"),
+    ],
+)
+def test_mobility_story_never_reports_driveable_while_drive_is_blocked(
+    overrides, all_wheels_stale, reason,
+):
+    _, payload, _, _ = _healthy_competition_fixtures()
+    payload.update(overrides)
+    if all_wheels_stale:
+        for wheel in payload["wheel_statuses"]:
+            wheel["stale"] = True
+
+    story = mobility_story_values(_parsed(parse_telemetry, payload))
+
+    assert story["result"] == "주행 불가"
+    assert story["tone"] == "status-bad"
+    assert story["title"] == f"주행 불가 · {reason}"
+    assert reason in story["detail"]
+
+
+def test_drive_block_reasons_lists_every_cause_strongest_first():
+    snapshot = _parsed(parse_telemetry, _drive_blocked_payload())
+
+    assert drive_block_reasons(snapshot) == (
+        "비상정지", "CAN 이상", "바퀴 0/6 정상",
+    )
+    assert drive_block_reasons(None) == ()
+
+
+def test_drive_is_not_called_blocked_without_a_received_blocking_fact():
+    _, payload, _, _ = _healthy_competition_fixtures()
+    assert drive_block_reasons(_parsed(parse_telemetry, payload)) == ()
+    assert (
+        mobility_story_values(_parsed(parse_telemetry, payload))["result"]
+        == "주행 지속 가능"
+    )
+
+    # 정보가 없는 CAN은 이상이 아니다. 없는 사실을 지어 주행 불가로 단정하지 않는다.
+    payload["can_state"] = "UNAVAILABLE · no CAN_HEALTH from chassis owner"
+    assert drive_block_reasons(_parsed(parse_telemetry, payload)) == ()
+
+    # 일부 바퀴 이상은 지금처럼 조건부로 남는다.
+    payload = _chassis_payload(1)
+    assert drive_block_reasons(_parsed(parse_telemetry, payload)) == ()
+    assert (
+        mobility_story_values(_parsed(parse_telemetry, payload))["result"]
+        == "조건부 주행 가능"
+    )
+
+
+@requires_gtk
+def test_mobility_dashboard_shows_blocked_drive_on_every_status_card():
+    dashboard = MobilityDashboard()
+
+    dashboard.update(
+        _parsed(parse_telemetry, _drive_blocked_payload()),
+        ops_state={"authority_mode": "IDLE"},
+        now_s=10.0,
+    )
+
+    assert dashboard._story_title.get_text() == "주행 불가 · 비상정지"
+    assert dashboard._traction[1]["contact"].get_text() == "주행 중지 · 점검 요청"
+    assert dashboard._fsm[1]["controller"].get_text() == "주행 불가"
+    assert dashboard._fsm[1]["drive"].get_text() == "실시간 상태 · 주행 불가"
 
 
 @requires_gtk
