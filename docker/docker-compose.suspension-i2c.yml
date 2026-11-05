@@ -1,0 +1,9 @@
+# Optional overlay: hand the AS5048B suspension-encoder I2C bus to the
+# read-only chassis telemetry observer (config/suspension_encoders.json).
+# scripts/robot-start adds this file ONLY when the configured /dev/i2c-N
+# exists, so an absent or unwired bus never blocks the base integrated stack.
+# The container stays non-privileged; only this one character device is passed.
+services:
+  powertrain_chassis_telemetry:
+    devices:
+      - "${POWERTRAIN_SUSPENSION_I2C_DEVICE:?set by scripts/robot-start}:${POWERTRAIN_SUSPENSION_I2C_DEVICE:?set by scripts/robot-start}"

@@ -13,7 +13,7 @@
 
 ODrive 는 **캐스케이드 P-PI 제어기**다. GUI 의 튜닝 입력칸(또는 `gain_sweep.py`)으로
 게인을 바꿔가며 **위치 스텝 응답**을 보고, **정착 오차 / 한계진동(움찔) / 트립** 세 지표로
-최적값을 고른다. 잔차가 pos_gain 으로 안 줄면 그건 **코깅**이니 anticogging 캘리로 잡는다.
+최적값을 고른다. 잔차가 pos_gain 으로 안 줄면 그건 **코깅**이다(fw0.5.1 에선 anticogging 을 쓰지 않고 잔차를 수용, 6장 ⚠).
 
 ---
 
@@ -72,19 +72,19 @@ input_pos ─►[POS_FILTER: input_filter_bandwidth]─► pos_setpoint
 
 ### (A) GUI 라이브 튜닝 — 사람이 직접
 1. Jetson 컨테이너에서 서버 기동: `python3 -m motor_gui.backend.server --track usb --usb-serial <SERIAL> --usb-axis 1 --usb-node 12`
-   (CAN: 먼저 `bash scripts/can_setup.sh`, 그 후 `--track can`)
+   (CAN: 먼저 `bash scripts/can_setup.sh`, 그 후 `--track can`. ⚠️ patch4 보드는 CAN 폐루프에서
+   setpoint가 300 ms 넘게 끊기면 0x800으로 IDLE이 된다 — `motor_gui/README.md` 참고)
 2. 노트북 브라우저 `http://jetson-orin.local:8000`.
 3. **폐루프 진입** → (원하는 물리 위치로 둔 뒤) **영점 설정** → 제어 모드 `position`.
 4. 튜닝 칸(현재값 prefill 됨)에서 값 바꿔 Enter → **plot 으로 응답 비교**.
-5. 목표값 0↔step 왕복하며 정착·움찔 관찰. 만족스러우면 그 값을 baseline 으로 반영(7장).
-6. 잔차가 남으면 **anticogging 캘리** 버튼 1회 (폐루프 position 상태에서, 모터가 한 바퀴
-   천천히 스윕하며 코깅맵 생성 → 이후 정밀 정착).
+5. 목표값 0↔step 왕복하며 정착·움찔 관찰. 만족스러우면 그 값을 프로파일로 반영(7장).
+6. 잔차가 남으면 코깅이다. GUI 에는 anticogging 캘리 버튼이 없다(아래 ⚠ 참고).
 
 ### (B) 자동 스윕 — `gain_sweep.py`
 정량 비교가 필요할 때. 위 안전원칙대로 서버 종료 + 모터 자유회전 후:
 ```bash
 docker compose -f docker/docker-compose.jetson.yml exec -T powertrain \
-  bash -lc "cd /workspace && python3 motor_gui/tools/gain_sweep.py --track usb --usb-serial <SERIAL> --usb-axis 1 --usb-node 12 --step 2.0 --bw 50"
+  bash -lc "cd /workspace && python3 -m motor_gui.tools.gain_sweep --track usb --usb-serial <SERIAL> --usb-axis 1 --usb-node 12 --step 2.0 --bw 50"
 ```
 - 파일 상단 `COMBOS` 리스트를 그 모터에 맞게 편집.
 - 출력 표에서 `OK`(오차·진동 모두 작음) 또는 `잔차`가 가장 작은 조합 선택.
@@ -114,8 +114,8 @@ docker compose -f docker/docker-compose.jetson.yml exec -T powertrain \
     0.5 → 트립.
   - `pos_gain` 8→60 올려도 잔차 0.077→0.18 로 **오히려 증가 = 코깅 detent** (anticogging 필요).
   - `input_filter_bandwidth` 2.0(odrive_can_setup 의 비전추종용)은 점대점에 너무 느림 → 50~75.
-- **확정 baseline (`DEFAULT_TUNABLES`)**: pos_gain=8, vel_gain=0.015, vel_integrator_gain=0,
-  input_filter_bandwidth=50, vel_limit=5, current_lim=10. 잔차 ~0.08turn 은 실용 한계로 수용.
+- **확정값 (`TUNABLE_PROFILES["x2212"]`, 선택 시에만 적용)**: pos_gain=8, vel_gain=0.015, vel_integrator_gain=0,
+  input_filter_bandwidth=50, vel_limit=50, current_lim=10. 잔차 ~0.08turn 은 실용 한계로 수용.
 
 > ⚠️ **anticogging 캘리는 이 fw(0.5.1)에서 쓰지 말 것.** `start_anticogging_calibration` 이
 > 불완전하게 끝나며 `controller.config.anticogging.anticogging_enabled=True` + 무효 맵 상태로
@@ -147,27 +147,27 @@ docker compose -f docker/docker-compose.jetson.yml exec -T powertrain \
    b. vel_integrator_gain 0 부터 → 움찔 없는 최대 (보통 0).
    c. pos_gain 스윕 → 잔차 최소 & 진동 없는 값. (잔차가 안 줄면 코깅 → 다음)
    d. input_filter_bandwidth 로 점대점 응답 속도 조정(50~75).
-5. **anticogging 캘리**(폐루프 position) → 잔차 제거. NVM 저장.
-6. **baseline 반영**: `motor_gui/backend/transport/base.py` 의 `DEFAULT_TUNABLES` 를 그 모터
-   최적값으로 수정. (현재는 단일 전역 dict = X2212 기준. 여러 모터를 동시에 운용하려면
-   트랙/모터별 baseline 으로 분기하도록 확장 필요 — 지금은 USB=X2212 전제.)
+5. 잔차가 코깅이면 anticogging 은 fw0.5.1 에서 쓰지 않는다(6장 ⚠). NVM 저장.
+6. **프로파일 반영**: `motor_gui/backend/transport/base.py` 의 `TUNABLE_PROFILES` 에 그 모터
+   최적값을 추가·수정한다(현재 `x2212`·`bl70200`). 어떤 프로파일도 자동 적용되지 않으며,
+   GUI 에서 사용자가 명시적으로 고른 뒤에만 하드웨어에 쓴다.
 7. 이 문서 6장에 그 모터 실측 결과를 추가.
 
 ---
 
 ## 8. 코드 지도 (어디를 보면 되나)
 
-- 게인/한계/모드/영점/anticogging 적용: `motor_gui/backend/transport/usb_odrive.py`
-  (`apply()` 의 set_gain/set_limit/set_mode/set_origin/anticogging), CAN 은 `can_bus.py`.
-- baseline 기본값 + UI 메타(tunables/inputs/signal_meta): `transport/base.py`
-  (`DEFAULT_TUNABLES`, `ODRIVE_TUNABLES_USB/CAN`, `SIGNAL_META`).
-- startup baseline 적용 + prefill: `backend/worker.py` (`_apply_baseline`, `tunables()`).
-- 튜닝 입력칸 prefill / 영점 / anticogging 버튼: `frontend/app.js` (`controlPanel`).
+- 게인/한계/모드/영점 적용: `motor_gui/backend/transport/usb_odrive.py`
+  (`apply()` 의 set_gain/set_limit/set_mode/set_origin), CAN 은 `can_bus.py`·`odrive_can_device.py`.
+- 프로파일 값 + UI 메타(tunables/inputs/signal_meta): `transport/base.py`
+  (`TUNABLE_PROFILES`, `ODRIVE_TUNABLES_USB/CAN`, `SIGNAL_META`).
+- 프로파일 명시 적용 + prefill: `backend/worker.py` (`apply_profile`, `tunables()`).
+- 튜닝 입력칸 prefill / 영점 / 프로파일 선택: `frontend/app.js` (`controlPanel`, `tunableProfilePanel`).
 - 스윕 도구: `motor_gui/tools/gain_sweep.py` (COMBOS 편집 + `--track`).
 
 ## 9. 핵심 함정 (다시 강조)
 - 스윕 콤보마다 clear_errors + 폐루프 재진입 안 하면 트립 후 전부 0 으로 나온다.
 - ODrive USB 는 한 프로세스 점유 — 서버와 스윕 동시 실행 불가.
-- 잔차를 pos_gain 으로만 잡으려 하지 말 것 — 코깅이면 anticogging.
+- 잔차를 pos_gain 으로만 잡으려 하지 말 것 — 코깅이면 fw0.5.1 에선 잔차 수용(anticogging 금지).
 - vel_integrator_gain 은 마찰 큰 모터에서 움찔 주범 — 의심되면 0 부터.
 - fw 별 속성 경로 다름(예 fw0.5.1 은 `axis.fet_thermistor`) — transport 가 robust 하게 resolve.

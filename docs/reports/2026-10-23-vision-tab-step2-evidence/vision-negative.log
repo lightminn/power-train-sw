@@ -1,0 +1,47 @@
+F
+=================================== FAILURES ===================================
+____ test_vision_roundtrip_keeps_single_decoder_and_restores_layout[False] _____
+
+console = <app.OperatorConsole object at 0x7a98ea16ee40 (operator_console+app+OperatorConsole at 0x12cf6c70)>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7a98ea150d70>
+work_camera_main = False
+
+    @pytest.mark.parametrize("work_camera_main", [False, True])
+    def test_vision_roundtrip_keeps_single_decoder_and_restores_layout(console, monkeypatch,
+                                                                     work_camera_main):
+        window = console
+        if work_camera_main:
+            assert window.swap_camera_views(window._d435, user_initiated=True)
+        main = window._main_video
+        parent = window._l515.get_parent()
+        pipeline = window._l515._pipeline
+        sink = window._l515._sink
+        video_widget = window._l515._video_widget
+        overlay_parent = window._terrain_canvas.get_parent()
+        receiver = window._map_receiver
+        page = window._vision_panel
+        assert page.map_receiver is receiver
+        assert page.chassis_receiver is window._chassis_receiver
+
+        def unexpected_pipeline(*args, **kwargs):
+            pytest.fail("tab navigation must not create a decoder or SRT connection")
+
+        monkeypatch.setattr(Gst, "parse_launch", unexpected_pipeline)
+        for _ in range(3):
+            before = window._l515._last_frame_monotonic
+            window._stack.set_visible_child_name("vision")
+>           assert window._l515.get_parent() is page.camera_slot
+E           assert <Gtk.Overlay object at 0x7a98ea161a00 (GtkOverlay at 0x12e4be50)> is <Gtk.Box object at 0x7a98ea14b640 (GtkBox at 0x132dcd30)>
+E            +  where <Gtk.Overlay object at 0x7a98ea161a00 (GtkOverlay at 0x12e4be50)> = gi.FunctionInfo(get_parent, bound=<app.VideoPanel object at 0x7a98ea1629c0 (operator_console+app+VideoPanel at 0x1310e2b0)>)()
+E            +    where gi.FunctionInfo(get_parent, bound=<app.VideoPanel object at 0x7a98ea1629c0 (operator_console+app+VideoPanel at 0x1310e2b0)>) = <app.VideoPanel object at 0x7a98ea1629c0 (operator_console+app+VideoPanel at 0x1310e2b0)>.get_parent
+E            +      where <app.VideoPanel object at 0x7a98ea1629c0 (operator_console+app+VideoPanel at 0x1310e2b0)> = <app.OperatorConsole object at 0x7a98ea16ee40 (operator_console+app+OperatorConsole at 0x12cf6c70)>._l515
+E            +  and   <Gtk.Box object at 0x7a98ea14b640 (GtkBox at 0x132dcd30)> = <vision_panel.VisionPanel object at 0x7a98ea1900c0 (operator_console+vision_panel+VisionPanel at 0x132da3a0)>.camera_slot
+
+operator_console/tests/_vision_gtk_e2e.py:78: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+Xlib:  extension "DRI2" missing on display ":101".
+=========================== short test summary info ============================
+FAILED operator_console/tests/_vision_gtk_e2e.py::test_vision_roundtrip_keeps_single_decoder_and_restores_layout[False]
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed in 1.86s
+EXPECTED_FAILURE_EXIT: 1

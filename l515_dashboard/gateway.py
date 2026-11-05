@@ -379,6 +379,8 @@ class Gateway:
                         "mode": getattr(getattr(stream, "mode", None), "value", None),
                         "sent": getattr(stream, "sent", 0),
                         "dropped": getattr(stream, "dropped", 0),
+                        "skipped": getattr(stream, "skipped", 0),
+                        "target_fps": getattr(stream, "target_fps", None),
                         "input_color": getattr(stream, "input_color", 0),
                         "effective_fps": getattr(stream, "effective_fps", 0.0),
                         "submitted_rate_hz": getattr(stream, "submitted_rate_hz", 0.0),

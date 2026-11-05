@@ -1,0 +1,557 @@
+{
+  "original_file": "vision-tab-task.md",
+  "original_sha256": "0a753b5ebb0d3bb95f5e05b974f350fa9e88c7f46588b44dbfb3a454d86e3be1",
+  "count": 110,
+  "items": [
+    {
+      "id": "1.01",
+      "requirement": "lightminn/power-train-sw, feat/l515-terrain-map에서 새 브랜치",
+      "review": "로컬 확인: agent/vision-tab-20261023, merge-base a40ea17"
+    },
+    {
+      "id": "1.02",
+      "requirement": "PR 대상도 feat/l515-terrain-map",
+      "review": "확인: Draft PR #20. main 대상 아님"
+    },
+    {
+      "id": "1.03",
+      "requirement": "PR #19 병합·main 미반영 상태 기준",
+      "review": "시작 기준 a40ea17 및 PR19 기록 보존; main을 새 기준으로 섞지 않음"
+    },
+    {
+      "id": "1.04",
+      "requirement": "기존 탭·기능·실제 데이터 범위 먼저 정리",
+      "review": "완료: 1단계 audit와 2단계 Graphite 이식 보고서"
+    },
+    {
+      "id": "1.05",
+      "requirement": "광민 지도·도현 화면 기능 재사용/중복 최소화",
+      "review": "로컬 확인: MapRenderer/live_map/Pango/VideoPanel/TerrainCanvas/Graphite 자산 재사용"
+    },
+    {
+      "id": "1.06",
+      "requirement": "네 화면 동시 표시 유지",
+      "review": "로컬 GTK/SRT/UDP 실행·합성 영상에서 확인"
+    },
+    {
+      "id": "1.07",
+      "requirement": "terrain_map/ 수정 금지",
+      "review": "기준 a40ea17 대비 변경 0"
+    },
+    {
+      "id": "1.08",
+      "requirement": "operator_console/terrain.py 수정 금지",
+      "review": "기준 대비 변경 0"
+    },
+    {
+      "id": "1.09",
+      "requirement": "operator_console/terrain_map.py 수정 금지",
+      "review": "기준 대비 변경 0"
+    },
+    {
+      "id": "1.10",
+      "requirement": "operator_console/terrain_map_panel.py 수정 금지",
+      "review": "기준 대비 변경 0"
+    },
+    {
+      "id": "1.11",
+      "requirement": "mobility_view 수정 전 협의",
+      "review": "승인된 노트북 파일을 그대로 복사했고 이후 수정 0; 승인본 SHA256 일치"
+    },
+    {
+      "id": "1.12",
+      "requirement": "채팅: 전체 디자인은 승인한 노트북 GUI 버전",
+      "review": "Graphite 틀/기존 탭/3D 자산 적용; 당시 스크린샷 및 import 해시 보존"
+    },
+    {
+      "id": "1.13",
+      "requirement": "기존 작업·사용자 미커밋 변경 보존",
+      "review": "별도 worktree 사용; 원래 두 사용자 작업트리를 reset/clean/stash하지 않음"
+    },
+    {
+      "id": "2.01",
+      "requirement": "live_overlay 배치/동작·10/22 보고서 참고",
+      "review": "설계·1~3단계 기록에 반영"
+    },
+    {
+      "id": "2.02",
+      "requirement": "live_overlay.py 로봇 실행 금지/Gateway 단독 소유",
+      "review": "준수: 로봇 실행·직접 카메라 SDK 접근 없음"
+    },
+    {
+      "id": "2.03",
+      "requirement": "tmap_local_grid 재사용",
+      "review": "Oblique worker에서 기존 함수 호출"
+    },
+    {
+      "id": "2.04",
+      "requirement": "classify_heights/filter_hazards/cell_colors 재사용",
+      "review": "기존 함수를 그대로 호출; 정책/필터 단위검사"
+    },
+    {
+      "id": "2.05",
+      "requirement": "top_image/oblique_image 렌더링 참고",
+      "review": "Top은 요청대로 MapRenderer, Oblique는 oblique_image 재사용"
+    },
+    {
+      "id": "2.06",
+      "requirement": "gm_features 오버레이·한글 캐시 참고",
+      "review": "공유 TerrainCanvas 유지, bounded Pango layout cache 사용"
+    },
+    {
+      "id": "2.07",
+      "requirement": "criteria.py/v0.2 기준값 처리",
+      "review": "load_criteria 재사용, 파일 유효성·프로필 검사"
+    },
+    {
+      "id": "2.08",
+      "requirement": "기존 terrain/map/map_panel/app.Stack 연결",
+      "review": "기존 receiver 전달·새 Stack page·공유 위젯 이동"
+    },
+    {
+      "id": "2.09",
+      "requirement": "cv2 (a)/(b) 선택·시스템 Python 실행",
+      "review": "(a) 운용 PC 사용자 영역 OpenCV-headless 설치, /usr/bin/python3 실기동 확인"
+    },
+    {
+      "id": "2.10",
+      "requirement": "lidar_dev package/script import 호환",
+      "review": "import 경로만 호환 수정, 지도 알고리즘 변경 없음"
+    },
+    {
+      "id": "2.11",
+      "requirement": "한글은 KText 직접 적용 대신 PangoCairo 캐시",
+      "review": "구현·캐시 상한/재사용/음성 대조 확인"
+    },
+    {
+      "id": "3.01",
+      "requirement": "비전은 받기 전용/콘솔 카메라 직접 열기 금지",
+      "review": "준수: 새 센서 접근·송신/제어 경로 추가 없음"
+    },
+    {
+      "id": "3.02",
+      "requirement": "L515 :5000·terrain :5009 기존 수신",
+      "review": "기존 VideoPanel/TerrainCanvas/receiver 공유"
+    },
+    {
+      "id": "3.03",
+      "requirement": "기존 실시간 화면과 연결·디코더 공유",
+      "review": "새 비전 연결 0; 로컬 pipeline factory 총 2(L515+D435) 검사"
+    },
+    {
+      "id": "3.04",
+      "requirement": "gtksink 포함 전체 L515 widget reparent",
+      "review": "진입 이동/퇴장 원복; MAIN/PiP 두 출발 상태 검사"
+    },
+    {
+      "id": "3.05",
+      "requirement": "D435 MAIN 상태의 진입 처리",
+      "review": "D435 MAIN/비전/복귀/재전환 GTK 실행 검사 통과"
+    },
+    {
+      "id": "3.06",
+      "requirement": "tee/추가 gtksink 금지",
+      "review": "소스 및 생성 수 검사, 추가 디코더 고장 검출"
+    },
+    {
+      "id": "3.07",
+      "requirement": ":5010 기존 _map_receiver 재사용/새 소켓 금지",
+      "review": "동일 인스턴스 전달; 합성 연결·종료/포트 회수 검사"
+    },
+    {
+      "id": "3.08",
+      "requirement": ":5005 기존 _chassis_receiver 사용",
+      "review": "동일 telemetry snapshot 읽기"
+    },
+    {
+      "id": "3.09",
+      "requirement": "roll_rad/pitch_rad/wheel steer_deg/drive_turns_per_s/stale",
+      "review": "실제 피드백 필드 연결; 명령값 대체 없음"
+    },
+    {
+      "id": "3.10",
+      "requirement": "출처/유효 여부/마지막 갱신 age",
+      "review": "UI source/age 상태 모델, 결측 None 유지"
+    },
+    {
+      "id": "3.11",
+      "requirement": "미수신·오래됨·끊김·복구 구분",
+      "review": "실제 GTK 합성 단계 missing/live/aged/disconnected/recovered 검사"
+    },
+    {
+      "id": "3.12",
+      "requirement": "map LIVE/STALE 0.5초 기준",
+      "review": "LINK_LOST_S=0.5 공유 기준; 위젯/모델 검사"
+    },
+    {
+      "id": "3.13",
+      "requirement": "실제 Gateway 충돌/카메라 중복 연결 없음",
+      "review": "로컬 구조/생성 수 확인; 실제 Gateway 연결은 미검증"
+    },
+    {
+      "id": "4.01",
+      "requirement": "카메라·Top·Oblique·자세 한 화면",
+      "review": "2×2 구성, mapped slot 네 개 동시 검사"
+    },
+    {
+      "id": "4.02",
+      "requirement": "카메라 장애물 오버레이",
+      "review": "기존 polygon overlay 공유; 합성 정합 확인"
+    },
+    {
+      "id": "4.03",
+      "requirement": "카메라 바닥 영역 오버레이",
+      "review": "**외부 대기/미충족**: :5009에 바닥 영역 mask/polygon 없음. 바닥 상태 배지만 구현"
+    },
+    {
+      "id": "4.04",
+      "requirement": "overlay on/off·공유 여부 PR 기록",
+      "review": "두 탭 동일 상태 공유, GTK toggle 검사·PR 기재"
+    },
+    {
+      "id": "4.05",
+      "requirement": "영상/overlay 좌표 정합",
+      "review": "합성 좌표 및 widget overlay 확인; **물리 타깃 정합 미검증**"
+    },
+    {
+      "id": "4.06",
+      "requirement": "표시 지연 및 0–400 ms 옵션/선택값 기록",
+      "review": "기존 옵션 유지, 현재 0 ms 명시; **실기 지연 맞춤 미검증**"
+    },
+    {
+      "id": "4.07",
+      "requirement": "지도 로버 위치/방향 화살표",
+      "review": "두 지도 모두 표시, stale/current 구분; no pose 추정 금지 검사"
+    },
+    {
+      "id": "4.08",
+      "requirement": "자세 별도 패널",
+      "review": "raw IMU·차체 보정 상태·wheel·encoder·정지 기록 패널"
+    },
+    {
+      "id": "4.09",
+      "requirement": "확대/축소 ×1.2",
+      "review": "scroll/버튼 동일 1.2 동작, 합성 GTK 검사"
+    },
+    {
+      "id": "4.10",
+      "requirement": "따라가기·끌면 해제",
+      "review": "follow 상태/drag 동작 검사"
+    },
+    {
+      "id": "4.11",
+      "requirement": "상태·색상 범례 용어 일치",
+      "review": "note_and_legend 재사용·선택 기준값 정보 병기"
+    },
+    {
+      "id": "4.12",
+      "requirement": "기존 렌더링으로 높낮이·장애물 가독성",
+      "review": "MapRenderer shading/기존 Oblique 분류·색상; 합성 이미지 확인, 실제 지형 가독성 미검증"
+    },
+    {
+      "id": "4.13",
+      "requirement": "Top 순수 numpy MapRenderer 그대로 사용",
+      "review": "작업 스레드 전용 instance/cache; 기존 MapPanel 무수정"
+    },
+    {
+      "id": "4.14",
+      "requirement": "기준값 CLI + 통합 JSON + L515_CRITERIA",
+      "review": "우선순위 CLI>JSON>env>default, 상대경로·null fallback 검사"
+    },
+    {
+      "id": "4.15",
+      "requirement": "현재 v0.2 사용",
+      "review": "기본 v0.2/A_no_stop, 외부 경로 지정 가능"
+    },
+    {
+      "id": "4.16",
+      "requirement": "10/26 파일 코드 수정 없이 교체",
+      "review": "외부 파일 교체 후 재시작·버전/hash 변경 검사; 최종 파일 자체는 미수령"
+    },
+    {
+      "id": "4.17",
+      "requirement": "trench_depth_m 없으면 step_up_m 보수 대체",
+      "review": "기존 live_map 규칙 유지·정책 단위검사"
+    },
+    {
+      "id": "4.18",
+      "requirement": "버전/프로필/SHA256 화면 표시",
+      "review": "선택값·hash 표시; 설정 오류 명시적 실패"
+    },
+    {
+      "id": "5.01",
+      "requirement": "기존 자세 기능 참고·간단한 차체 그림·roll/pitch",
+      "review": "기존 그래픽 표현 참고; 비전 별도 단순 그림/원시 수치"
+    },
+    {
+      "id": "5.02",
+      "requirement": "실제 바퀴 조향각·속도 연결",
+      "review": "wheel_statuses의 수신값·stale·fault 표시"
+    },
+    {
+      "id": "5.03",
+      "requirement": "Hall 저속 <0.3 rev/s 주의는 표시 단서만",
+      "review": "문구 표시; 저속을 0으로 보정/지령 대체하지 않음"
+    },
+    {
+      "id": "5.04",
+      "requirement": "rocker/bogie/source/age 자리",
+      "review": "네 관절 슬롯·출처·측정 age 존재"
+    },
+    {
+      "id": "5.05",
+      "requirement": "선택 parser 필드/이름·단위·부호 PR 기록",
+      "review": "suspension_joints_rad 네 키, age_ms/source/frame 명시; 부호/영점은 제안·미합의로 구분"
+    },
+    {
+      "id": "5.06",
+      "requirement": "AS5048B 실제 경로 없음 명시",
+      "review": "**미연결**: 송신부 없음. 인터페이스 준비만 요구 범위 완료"
+    },
+    {
+      "id": "5.07",
+      "requirement": "없으면 미수신, 0/추정 금지",
+      "review": "누락/명시적 null/부분 누락 검사; 값 0 자체는 유효 측정으로 구분"
+    },
+    {
+      "id": "5.08",
+      "requirement": "L515 장착 pitch를 차체 기울기로 표시 금지",
+      "review": "원시 IMU(L515 기준)와 차체 보정 미확인 분리"
+    },
+    {
+      "id": "5.09",
+      "requirement": "imu_tilt→filtered→telemetry 원시 경로 확인",
+      "review": "소스 조사·4단계 보고서; 생산자 좌표 보정 변경 없음"
+    },
+    {
+      "id": "5.10",
+      "requirement": "19.5°/URDF15°/옛 지도20° 차이 확인",
+      "review": "**외부 대기**: 자료 불일치 기록, 광민·도현 합의 없음"
+    },
+    {
+      "id": "5.11",
+      "requirement": "좌표/부호/영점/장착각 반영 방식 합의",
+      "review": "**외부 대기**: 확정 없이 보정 자세 활성화하지 않음"
+    },
+    {
+      "id": "5.12",
+      "requirement": "19.5° 일괄 차감 금지",
+      "review": "준수: 수신 rad→표시 ° 변환만 수행"
+    },
+    {
+      "id": "5.13",
+      "requirement": "협조구동 raw Roll/Pitch 수정 금지·PR 설명",
+      "review": "파일 원본 유지, PR 명시"
+    },
+    {
+      "id": "5.14",
+      "requirement": "plane_tilt age 1 s 초과 숨김",
+      "review": "모델/위젯 검사, map link stale와 별도 판정"
+    },
+    {
+      "id": "5.15",
+      "requirement": "gravity는 정지 측정·n초 전, 실시간 자세처럼 금지",
+      "review": "기록 분리/age 증가/epoch 전환/주행 중 기록 유지 구분 검사"
+    },
+    {
+      "id": "5.16",
+      "requirement": "지도 정지 기울기와 telemetry 차이 확인",
+      "review": "**외부 대기·미검증**: 두 출처를 분리 표시하나 좌표/시각/장착 보정 확정 전 숫자 차이를 유효 비교로 계산하지 않음"
+    },
+    {
+      "id": "6.01",
+      "requirement": "GTK에서 무거운 지도 계산/이미지 생성 금지",
+      "review": "비전 worker에서 계산·BGRA 준비, GTK는 raster/cairo 표시"
+    },
+    {
+      "id": "6.02",
+      "requirement": "Top/Oblique 각각 약 2 Hz",
+      "review": "PERIOD_S=.5, 최신 한 쌍만 게시; 합성 600초 개별 paint count 추가 측정"
+    },
+    {
+      "id": "6.03",
+      "requirement": "기존 20–30 ms 비용 고려",
+      "review": "viewport/격자/타일/caches 상한, render_ms 기록"
+    },
+    {
+      "id": "6.04",
+      "requirement": "GIL 영향/메인 정지 실측, 필요 시 process",
+      "review": "worker thread 사용·heartbeat/draw/sink 별도 계측. 현재 제어된 합성 시험으로 무조건 fork 전환 근거 없음; 과거 8.20초 draw 원인은 미해결"
+    },
+    {
+      "id": "6.05",
+      "requirement": "OPENBLAS_NUM_THREADS=1, numpy 이전",
+      "review": "package __init__에서 지정; runtime BLAS thread 1 확인"
+    },
+    {
+      "id": "6.06",
+      "requirement": "service/python -m/gui_up 모든 실행 경로",
+      "review": "service Environment·package entry·안내 명령 반영 및 검사"
+    },
+    {
+      "id": "6.07",
+      "requirement": "한글 캐시/메모리 상한",
+      "review": "widget당 Pango LRU 상한/파기 시 해제; cache 음성 대조"
+    },
+    {
+      "id": "6.08",
+      "requirement": "비전 숨김 렌더/갱신 중지",
+      "review": "map worker condition 대기, UI timer 해제; hidden-render 고장 검출"
+    },
+    {
+      "id": "6.09",
+      "requirement": "숨김 중 수신 계속",
+      "review": "UDP sequence 진행·복귀 시 최신값 표시 확인"
+    },
+    {
+      "id": "6.10",
+      "requirement": "영상 sync=false 유지",
+      "review": "기존 sink flag 유지·실제 pipeline 검사"
+    },
+    {
+      "id": "6.11",
+      "requirement": "누적 대신 최신 프레임",
+      "review": "raw queue max-size-buffers=1/leaky downstream; overload 검사"
+    },
+    {
+      "id": "6.12",
+      "requirement": "지도 처리와 영상 수신/표시 분리",
+      "review": "map worker와 기존 Gst streaming; receive/decode 생성 추가 없음"
+    },
+    {
+      "id": "6.13",
+      "requirement": "모든 영역 켠 FPS/지연/CPU/RSS 비교",
+      "review": "5단계 AC 동일 합성 조건 전후 자료; 실제 camera→screen 지연·실기 전후는 미검증"
+    },
+    {
+      "id": "6.14",
+      "requirement": "같은 조건 최적화 전/후 비교",
+      "review": "AC 20초 pair 보존; 작은 CPU 차이를 개선율로 주장하지 않음"
+    },
+    {
+      "id": "6.15",
+      "requirement": "AC 연결·CPU 클럭 동시 기록",
+      "review": "5단계/이번 600초 power·주파수·온도 표본; 새 PID sampler는 thermal throttle 누계도 수집"
+    },
+    {
+      "id": "6.16",
+      "requirement": "발열 clock 제한과 프로그램 병목 구분",
+      "review": "지표 분리 수집; 8.20초 기록의 원인을 발열/GIL/Wayland 중 하나로 단정하지 않음"
+    },
+    {
+      "id": "6.17",
+      "requirement": "오래 켜도 끊기지 않음",
+      "review": "합성 600초 추가 결과는 아래; **실기 미검증·이전 정지 원인 미해결**"
+    },
+    {
+      "id": "7.01",
+      "requirement": "runtime_smoke에 비전/지도/telemetry 연결",
+      "review": "기본 검사에 포함, --vision-only도 제공"
+    },
+    {
+      "id": "7.02",
+      "requirement": "생성/정상/오래됨/끊김/복구",
+      "review": "별도 실제 GTK/SRT/UDP child 단계 단언"
+    },
+    {
+      "id": "7.03",
+      "requirement": "지정 시스템 Python/pytest 경로",
+      "review": "/usr/bin/python3·PYTHONPATH 지정, 실제 전체 실행 기록"
+    },
+    {
+      "id": "7.04",
+      "requirement": "변경 전 기준선·기존 실패 분리",
+      "review": "최초 771 pass/11 fail/3 skip 및 단계별 실패 ID 비교 보존"
+    },
+    {
+      "id": "7.05",
+      "requirement": "일부러 고장 넣어 FAIL 확인",
+      "review": "9종 각각 특정 원인 검출; 650 ms 정지는 신규 관찰 JSON에도 확인"
+    },
+    {
+      "id": "7.06",
+      "requirement": "실제 Gateway+L515 600초",
+      "review": "**미검증**: 접속 이름 해석 실패, 합성 600초로 완료 대체 금지"
+    },
+    {
+      "id": "7.07",
+      "requirement": "실제 camera FPS 기존 탭과 동일",
+      "review": "합성 동일 약 15fps; 실제 비교 미검증"
+    },
+    {
+      "id": "7.08",
+      "requirement": "실제 화면 >0.5초 정지 없음",
+      "review": "합성 통제 조건 관찰; 과거 8.20초 1회 미해결·실기 미검증"
+    },
+    {
+      "id": "7.09",
+      "requirement": "실제 두 지도 각각 2Hz",
+      "review": "합성 개별 paint 확인; 실제 미검증"
+    },
+    {
+      "id": "7.10",
+      "requirement": "실제 콘솔 CPU PR 기록",
+      "review": "합성/실기 구분; 실제 CPU 아직 미측정, 수집 도구·절차 준비"
+    },
+    {
+      "id": "7.11",
+      "requirement": "opt-in 두 서비스 켜는 명령 PR",
+      "review": "이번 검토에서 정확한 공백 구분 profiles/services 명령 추가; 로봇 미실행"
+    },
+    {
+      "id": "7.12",
+      "requirement": "기존 탭·PiP·카메라 왕복 회귀",
+      "review": "로컬 GTK 정상/기존 fail ID 비교; 실제 탭 성능 미검증"
+    },
+    {
+      "id": "7.13",
+      "requirement": "카메라 중복 연결·Gateway 충돌 금지",
+      "review": "로컬 생성 수/음성 대조 확인; 실제 충돌 없음은 미검증"
+    },
+    {
+      "id": "7.14",
+      "requirement": "미수신을 측정값처럼 금지",
+      "review": "결측/오래된 encoder/잘못된 값/원시 자세 구분 및 0 조작 고장 검출"
+    },
+    {
+      "id": "7.15",
+      "requirement": "PR 현재 GUI·재사용·범위",
+      "review": "PR 본문/1~4단계 보고서/보존 해시"
+    },
+    {
+      "id": "7.16",
+      "requirement": "PR 실행·필요 데이터",
+      "review": "manual/integrated 명령·포트·criteria·encoder 계약 명시"
+    },
+    {
+      "id": "7.17",
+      "requirement": "PR 동작 영상·성능",
+      "review": "합성 WebM/PNG·AC 비교·미검증 표시; 실제 영상 없음"
+    },
+    {
+      "id": "7.18",
+      "requirement": "PR 미연결·실기 미수행 명시",
+      "review": "floor mask/AS5048B/보정/실기/이전 정지 별도 명시·Draft 유지"
+    },
+    {
+      "id": "7.19",
+      "requirement": "채팅: 우선순위·한두 작업 단위·다음 요청 시 진행",
+      "review": "단계 1~7 순차 기록, 이번은 사용자 요청 최종 검토 범위"
+    },
+    {
+      "id": "7.20",
+      "requirement": "채팅: 저장하고 재개",
+      "review": "전 단계 커밋·별도 worktree·계획 파일·Draft PR로 인계; 이번 결과도 커밋/원격 저장"
+    },
+    {
+      "id": "7.21",
+      "requirement": "채팅: 남은 단계 수는 간단히 답변",
+      "review": "실제 완료/미완료 기준은 본 문서; “7단계뿐=다른 요구 전부 완료”로 해석하지 않음"
+    },
+    {
+      "id": "7.22",
+      "requirement": "기본 smoke/전체 pytest green 여부",
+      "review": "전체 green 아님: 기존 arm 관련 10개 실패를 유지하고 새 실패와 구분"
+    }
+  ]
+}

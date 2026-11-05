@@ -1,0 +1,9 @@
+[Unit]
+Description=Record the current time every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,15 @@
+{
+  "env": "1",
+  "pools": [
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 1,
+      "prefix": "libscipy_openblas",
+      "filepath": "/home/kimseon/.local/lib/python3.12/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+      "version": "0.3.34.106.0",
+      "threading_layer": "pthreads",
+      "architecture": "Haswell"
+    }
+  ]
+}

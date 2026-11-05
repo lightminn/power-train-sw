@@ -1,0 +1,103 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+________ test_robot_prepare_builds_once_and_writes_explicit_can_profile ________
+
+tmp_path = PosixPath('/tmp/pytest-of-kimseon/pytest-4/test_robot_prepare_builds_once0')
+
+    def test_robot_prepare_builds_once_and_writes_explicit_can_profile(tmp_path):
+        binary_dir, log = _fake_path(tmp_path)
+        _, etc = _prepared_tree(tmp_path)
+        env = _env(tmp_path, binary_dir, log)
+
+        result = _run(
+            ROBOT_PREPARE,
+            "--robot-id",
+            "zetin-rover-1",
+            "--token-file",
+            "/etc/powertrain/operator_console.token",
+            "--drive-ops-token-file",
+            "/etc/powertrain/ops_console.token",
+            env=env,
+        )
+
+        assert result.returncode == 0, result.stderr
+        config = json.loads((etc / "robot.json").read_text(encoding="utf-8"))
+        assert config == {
+            "robot_id": "zetin-rover-1",
+            "token_file": "/etc/powertrain/operator_console.token",
+            "host": "0.0.0.0",
+            "session_port": 9002,
+            "input_port": 9000,
+            "ops_port": 9001,
+            "input_target_port": 19000,
+            "ops_target_port": 19001,
+            "destination_file": "/run/powertrain/operator-session.json",
+            "lease_timeout_s": 2.0,
+            "ops_token_file": "/etc/powertrain/ops_console.token",
+        }
+        manifest = (etc / "integrated-prepared.env").read_text(encoding="utf-8")
+        assert "POWERTRAIN_PROFILE=can-4ws" in manifest
+        dropin = (
+            tmp_path
+            / "target/etc/systemd/system/powertrain-bringup-preflight.service.d/integrated-repo.conf"
+        ).read_text(encoding="utf-8")
+        assert f"WorkingDirectory={ROOT}" in dropin
+        assert f"PYTHONPATH={ROOT}/ros2/src/powertrain_ros" in dropin
+        commands = log.read_text(encoding="utf-8")
+        assert "docker compose -f docker/docker-compose.jetson.yml -f docker/docker-compose.integrated.yml build" in commands
+>       assert "colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros" in commands
+E       AssertionError: assert 'colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros' in 'systemctl is-enabled --quiet powertrain-chassis-telemetry.service\nsystemctl is-active --quiet powertrain-chassis-tel...; cd /workspace/ros2; colcon build --packages-select robot_arm_msgs powertrain_msgs dynamixel_control powertrain_ros\n'
+
+scripts/tests/test_integrated_launchers.py:302: AssertionError
+______ test_robot_prepare_reuses_existing_images_but_rebuilds_ros_source _______
+
+tmp_path = PosixPath('/tmp/pytest-of-kimseon/pytest-4/test_robot_prepare_reuses_exis0')
+
+    def test_robot_prepare_reuses_existing_images_but_rebuilds_ros_source(tmp_path):
+        binary_dir, log = _fake_path(tmp_path)
+        _, etc = _prepared_tree(tmp_path)
+        result = _run(
+            ROBOT_PREPARE, "--robot-id", "zetin-rover-1",
+            "--token-file", "/etc/powertrain/ops_console.token",
+            "--use-existing-images", env=_env(tmp_path, binary_dir, log),
+        )
+        assert result.returncode == 0, result.stderr
+        assert (etc / "robot.json").exists()
+        commands = log.read_text()
+        assert "docker image inspect powertrain-sw:jetson powertrain-sw:ros" in commands
+>       assert "colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros" in commands
+E       AssertionError: assert 'colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros' in 'docker image inspect powertrain-sw:jetson powertrain-sw:ros\nsystemctl is-enabled --quiet powertrain-chassis-telemetr...; cd /workspace/ros2; colcon build --packages-select robot_arm_msgs powertrain_msgs dynamixel_control powertrain_ros\n'
+
+scripts/tests/test_integrated_launchers.py:318: AssertionError
+_____ test_console_installer_refuses_legacy_restart_service_until_replaced _____
+
+tmp_path = PosixPath('/tmp/pytest-of-kimseon/pytest-4/test_console_installer_refuses0')
+
+    def test_console_installer_refuses_legacy_restart_service_until_replaced(tmp_path):
+        binary_dir, log = _fake_path(tmp_path, legacy=True)
+        home = tmp_path / "home"
+        home.mkdir()
+        token = home / "paired.token"
+        token.write_text("paired-secret\n")
+        env = _env(tmp_path, binary_dir, log)
+
+        refused = _run(
+            CONSOLE_INSTALLER,
+            "--robot-id", "zetin-rover-1",
+            "--host", "jetson-orin.local",
+            "--token-file", str(token),
+            "--console-python", "/usr/bin/python3",
+            "--controller-python", sys.executable,
+            env=env,
+        )
+        assert refused.returncode != 0
+>       assert "--replace-legacy" in refused.stderr
+E       AssertionError: assert '--replace-legacy' in 'integrated console install FAIL: controller Python lacks pygame: /usr/bin/python3\n'
+E        +  where 'integrated console install FAIL: controller Python lacks pygame: /usr/bin/python3\n' = CompletedProcess(args=['bash', '/tmp/powertrain-vision-step5-baseline/scripts/install_integrated_console.sh', '--robot... returncode=1, stdout='', stderr='integrated console install FAIL: controller Python lacks pygame: /usr/bin/python3\n').stderr
+
+scripts/tests/test_integrated_launchers.py:383: AssertionError
+=========================== short test summary info ============================
+FAILED scripts/tests/test_integrated_launchers.py::test_robot_prepare_builds_once_and_writes_explicit_can_profile
+FAILED scripts/tests/test_integrated_launchers.py::test_robot_prepare_reuses_existing_images_but_rebuilds_ros_source
+FAILED scripts/tests/test_integrated_launchers.py::test_console_installer_refuses_legacy_restart_service_until_replaced
+3 failed in 0.56s

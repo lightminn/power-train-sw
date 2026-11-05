@@ -21,15 +21,26 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
 
 ---
 
-## 2. 현재 상태 (2026-09-10 Jetson 검증 반영)
+## 2. 현재 상태 (2026-11-05 최종 제출 전 문서 점검 반영)
+
+이 섹션이 **유일한 현재 상태 선언**이다. 예전 문서·보고서에 남아 있는 날짜별
+"CURRENT STATE OVERRIDE" 문구는 전부 **역사적 기록**이지 현재 권위가 아니다.
+
+### 현장 배포 기준
+
+- 젯슨 실행 코드는 통합 브랜치 `deploy/jetson-field-20261028`이다. `scripts/deploy_branch_to_jetson.sh`
+  (git bundle)로 젯슨 `~/power-train-sw-integrated`(compose project `docker`)에 올리고
+  (⚠️ 스크립트 기본 대상은 팀원 체크아웃 `~/power-train-sw`라 `JETSON_REPO=/home/zetin/power-train-sw-integrated`를
+  반드시 준다)
+  `scripts/robot-start`로 기동한다. `terrain-map`·`terrain-overlay`·`arm-d435`·`odrive-autoclear`는
+  opt-in compose 프로필이다. 11-02 재부팅 뒤 운용 컨테이너 10개가 `unless-stopped`로 자동 복귀했다
+  (`docs/reports/2026-10-30-field-teleop-stability.md`). main과 통합 브랜치의 병합 여부는 작업마다 확인한다.
+- 젯슨 접속: 로봇 AP 유선 192.168.8.106 · Wi-Fi `ZETIN_5G` 192.168.50.98 · USB-C 192.168.55.1.
+  현장에서는 노트북을 로봇 AP 2.4 GHz `ZETIN-ROBOT`에 붙인다(5 GHz 링크 지연으로 주행이 풀렸다).
 
 ### 2026-10-11 사용자 지정 Isaac 전달본 보관 예외
 
 사용자가 이 저장소를 지정하여 `simulation/jetin_rover_description/`에 2026-10-10 검증 완료 전달본을 보관한다. 이는 별도 Isaac 저장소 정책의 제한된 보관 예외이며, 기존 실차 제어 코드·50kg 기하 기준·폐기된 `powertrain_sim/`은 변경하지 않는다. 이 전달본의 CAD 질량은 80.8357kg이며 실차 설정의 대체 정본이 아니다. 사용법과 검증 범위는 `simulation/README.md` 및 `docs/reports/2026-10-11-jetin-isaac-archive.md`를 따른다.
-
-
-이 섹션이 **유일한 현재 상태 선언**이다. 예전 문서·보고서에 남아 있는 날짜별
-"CURRENT STATE OVERRIDE" 문구는 전부 **역사적 기록**이지 현재 권위가 아니다.
 
 ### 구현·검증 기록 (실기 재검증일과 구분)
 
@@ -81,22 +92,72 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
 - **MKS 두 번째 보드 적용(2026-09-10)** — USB serial `337733643235`의 node15/16에도
   동일 patch1을 적용했다. 원본 flash1MiB를 두 번 읽어 보존하고 application768KiB만
   교체했으며 NVM256KiB·저장 설정307개·캘리브레이션이 유지됐다. 자세한 검증 범위는
-  `docs/reports/2026-09-10-mks-second-board.md`를 따른다. node11/12는 아직 미적용이다.
+  `docs/reports/2026-09-10-mks-second-board.md`를 따른다. 당시 node11/12는 미적용이었다(10-29 patch4, 아래).
 - **CAN 통신 복구 후 자동 재개(2026-09-10)** — node13/14·15/16을 최종 patch3으로
   갱신했다. 보드가 CAN 자동 복구 출처·세대를 제공하고, 호스트가 6축 정지·통신 안정·
   전체 상태를 검증하고 guarded RESUME 후 새 패드 입력부터 전달한다. 비상정지·주행해제·입력 단절·
   기타 모터 오류는 자동 해제하지 않는다. 호스트1151건·젯슨 ROS231건·펌웨어 소스86건·
   설치 ROS/TCP/vcan7개 시나리오를 통과했다. 두 보드 application 읽기 검증·NVM/설정/
-  캘리 보존·실물 IDLE 거부 시험을 통과했으며 비영속도 실주행은 별도다. node11/12는
-  패치 미적용이므로 그 축의 소실은 자동 재개 대상이 아니다.
+  캘리 보존·실물 IDLE 거부 시험을 통과했으며 비영속도 실주행은 별도다. 당시 node11/12는
+  패치 미적용이라 자동 재개 대상이 아니었다. 지금은 세 보드가 patch4이지만, patch4 설계
+  (`docs/specs/2026-10-15-mks-can-patch4.md` D4)가 젯슨 송신 경로의 같은 ID 프레임 순서 보존
+  실측을 자동 재개의 인수 게이트로 두므로 그 실측 전에는 호스트 자동 재개에 의존하는 운용을 보류한다.
   `docs/reports/2026-09-10-can-auto-resume.md`를 따른다.
 - **MKS CAN patch4 node13/14 적용(2026-10-21)** — 정보성 CAN 오류는 계수만 하고 정지하지
   않는다. CAN 소유 CLOSED_LOOP 축은 마지막으로 수락한 setpoint 뒤 300 ms를 넘기면 만료되고,
   그 CAN 세션에서 setpoint를 아직 하나도 받지 않았으면 폐루프 진입 뒤 500 ms 유예를 쓴다.
   원본 1 MiB 백업 뒤 application만 교체하고 NVM·설정307개·캘리 보존, 버스 단선 상태 USB
-  인수(래치·복구 0)까지 통과했다. 실트래픽·D0·송신 순서 인수와 node15/16 적용은 남았다.
+  인수(래치·복구 0)까지 통과했다. 실트래픽·D0·송신 순서 인수는 남았다(node15/16 적용은 아래 10-29).
   motor_gui `odrive_can` 트랙과 `can_drive_test.py`는 setpoint를 300 ms 넘게 끊으면 만료된다.
   `docs/reports/2026-10-21-mks-can-patch4.md`를 따른다.
+- **node11/12 보드 flash 복구·patch4(2026-10-29)** — serial `335233643235` 보드는 CAN·USB 모두
+  무응답이었다. ROM DFU에서 application 섹터 1의 14바이트가 읽을 때마다 비트가 바뀌었고
+  NVM은 안정적이었다. 섹터 1 안의 차이만 허용하는 사전조건으로 application만 patch4로 다시
+  쓰고, 30회 읽기 대조·NVM 보존·부팅 뒤 USB 읽기 전용 인수(설정 로드, node 11/12, 양축
+  IDLE·오류0·캘리)를 통과했다. CAN에서 10모터가 모두 보인다. 섹터 1 재열화는 추적 대상이다.
+  같은 날 Jetson `can0` 송신 장애는 ADM3053 VIO 선이 3V3 대신 5V 핀에 꽂힌 배선 오류였고,
+  3V3으로 옮긴 뒤 ERROR-ACTIVE·송수신 오류 0으로 해결됐다.
+  `docs/reports/2026-10-29-mks-board1-flash-recovery.md`를 따른다.
+- **node15/16 patch4(2026-10-29)** — serial `337733643235` 보드도 patch3에서 patch4로 갱신해
+  구동 보드 세 장이 모두 patch4다. 원본 1 MiB·NVM 보존, 설정 307개 대조, 버스 연결 상태 USB
+  읽기 전용 인수를 통과했다. 세 보드 patch4 상태의 실트래픽·D0 만료·송신 순서 인수는 남았다.
+  `docs/reports/2026-10-29-mks-node15-16-patch4.md`를 따른다.
+- **현장 원격주행 안정화(2026-10-30, 통합 브랜치 `deploy/jetson-field-20261028`)** — 노트북
+  5 GHz 링크(ch36/80 MHz) 지연이 평균 113~427 ms·최대 1.3 s여서 0.2 s 입력 끊김 고정이 주행을
+  수 초마다 풀었다. 노트북을 로봇 AP 2.4 GHz `ZETIN-ROBOT`에 붙이면 평균 2 ms·최대 9 ms였다.
+  통합 compose는 입력 끊김 때 정지만 하고 고정하지 않으며(`latch_stale_input=false`,
+  `partial_close_violation=false`, `input_timeout_s=0.5`, 원격 E-stop 엣지는 그대로 고정),
+  L515 SRT 송출 기본값은 15 fps다(카메라·깊이·ROS 주기는 그대로). 젯슨 RTC는 백업이 없어
+  부팅마다 1970년이 되므로 `powertrain-clock` 서비스로 시각을 이어 간다. node15(뒤왼쪽)는 이날
+  `CURRENT_LIMIT_VIOLATION`이 세 번 났고 원인은 미확인이다.
+  `docs/reports/2026-10-30-field-teleop-stability.md`를 따른다.
+- **AS5048B 서스펜션 엔코더 배선(2026-11-02)** — 젯슨 40핀 3/5번이 `/dev/i2c-7`임을 실물로
+  확인했고 0x40~0x43 네 개가 각각 응답·자석 감지했다. 모듈 하나의 3V3이 빠지면 버스 전체가
+  멈춘다. 관절 대응·부호·영점·`verified`는 남았다. 같은 날 젯슨 부하와 25 W 모드의 CPU 상한
+  1344 MHz(하드웨어 최대 1728 MHz)도 기록했다. `docs/reports/2026-11-02-encoders-and-jetson-load.md`.
+- **현장 원격주행 안전 결함 수정(2026-11-05, `fix/field-safety-20261105`)** — 정체 중 패드 E-stop 유실,
+  고정 해제 모드에서 정체 뒤 늦게 온 옛 명령으로 재출발(1.05 m/s 재현), 영상 워치독 미도달, compose `TELEOP_*`
+  미전달, 비전 스모크 거짓 PASS를 고쳤다. 상태 회신 `G <input_epoch> <estop_ack_id>`와 레코드 schema 3을 더해
+  만료·HOLD 해제 뒤에는 서버가 발급한 새 세대를 실은 입력만 쓰고, E-stop은 ID 확인까지 보존한다. 설치 엔트리포인트
+  스모크(`scripts/teleop_stall_smoke.py`) PASS·수정 전 노드 음성 대조 FAIL, Codex 설계·구현 검토 수렴.
+  젯슨 배포·실차 확인은 남았다. `docs/reports/2026-11-05-field-safety-fixes.md`를 따른다.
+- **L515 지형 지도(2026-10-18~21)** — 순수 코어 `terrain_map/` + `ros2 run powertrain_ros terrain_map`
+  (UDP :5010 → 콘솔 "지형 지도", compose 프로필 `terrain-map`). 장착 피치 기본 15° 하향, 자세는
+  바퀴·IMU를 쓴다. 시각 오도메트리(VO) 트랙은 2026-10-21 보류했다(재개 조건은
+  `docs/specs/2026-10-19-terrain-map-vo-pose-design.md` §10). 호스트·ROS·설치 스모크·로컬 배포 격리
+  게이트는 통과했고 실기 항목은 `docs/plans/2026-10-18-l515-terrain-map-field-checklist.md`에 남아 있다.
+  운용자 시각 보조 전용이며 주행 제어·정지·안전 판정에 쓰지 않는다. 정본은 `terrain_map/README.md`.
+- **L515 지형 오버레이·`lidar_dev`(2026-10-17~22)** — `terrain_overlay/` + `terrain_overlay` 노드
+  (UDP :5009, 프로필 `terrain-overlay`)가 장애물 윤곽을 콘솔 영상에 겹친다(시각 보조 전용).
+  `lidar_dev/`는 L515 기록·평가·실시간 오버레이 시험대다(`docs/reports/2026-10-22-l515-live-overlay.md`).
+- **운용 콘솔 비전 탭(2026-10-23~11-03)** — 공유 L515 영상·두 지형 지도·자세를 한 탭에 모으고
+  (PR #20, 통합 브랜치에 포함) 협조구동 3D 표시를 고쳤다(PR #21). 현장 절차는
+  `docs/reports/2026-10-24-vision-tab-field-runbook.md`.
+- **구동축 MOTOR_FAILED 자동 해제(2026-11-04, opt-in)** — `motor_control/drive/bl70200/odrive_auto_clear.py`,
+  compose 프로필 `odrive-autoclear`. 하트비트 축 오류가 MOTOR_FAILED(0x40)뿐이고 IDLE이며 CAN 복구
+  래치가 없을 때만 모터 오류 조회 요청과 Clear_Errors를 연달아 보낸다(응답을 기다리지 않으므로
+  motor.error 로그는 응답이 잡힐 때만 남는다). 재무장은 하지 않는다. 단위 시험만 있고 실물 동작 기록은
+  아직 없다.
 - **USB 스키드 조향 레이어**(2026-08-05 작성, **실기 주행 확인 후 2026-08-24 main 병합**) —
   `DriveOdriveUsbAxis` USB 다보드 구동 → `skid_geometry()` → 애커만↔스키드 런타임 전환
   → ops 액션 `steer_mode_skid` → 콘솔 배지 → 젯슨 원클릭 배포 스크립트.
@@ -122,22 +183,31 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
 - SW 연결: autonomy 전용 Compose는 의도적으로 idle이며 배포 발행 경로가 아니다.
   receiver feedback은 노트북 송신·정책 코어까지 있고 Jetson 수신·프로파일 적용은 미연결이다.
   부팅 자격 게이트는 기본 OFF이며 실드라이버의 자격 증거 연결·검증이 필요하다.
-- 벤치/HIL: 마운트 각도, 프로파일 프리셋, NumPy를 포함한 전체 파이프라인 장시간 부하,
+- 벤치/HIL: L515 장착 위치 실측, 프로파일 프리셋, NumPy를 포함한 전체 파이프라인 장시간 부하,
   원격 영상 E2E, 지상 제동·최종 `stop_mm`, USB 스키드의 지연·안전·오도메트리 커미셔닝.
 - 캘리 NVM: 운용 정본에는 node 11/12의 전원사이클 3회 직진입과 나머지 4축의 전원
   재인가 후 재캘리 없는 운용이 기록돼 있다. **13/14는 9/9 USB 플래그 직접 대조와
-  수정 firmware 적용 후 전원 재인가1회를 확인**했다. 13~16의 동일한3회 반복시험과
-  15/16의 USB 플래그 직접 대조는 아직 미완료다.
+  수정 firmware 적용 후 전원 재인가1회를 확인**했다. 11/12는 10-29 USB 인수에서 양축
+  calibrated·`pre_calibrated` 유지를 확인했다. 13~16의 동일한3회 반복시험과
+  15/16의 USB 캘리 플래그 직접 대조는 아직 미완료다.
+- MKS patch4: 세 보드 모두 USB 인수까지다. 실트래픽·D0 만료·송신 순서 인수
+  (`docs/plans/2026-10-15-mks-can-patch4.md` Task 10), node11/12 application 섹터 1 재열화 추적,
+  node15 `CURRENT_LIMIT_VIOLATION`(10-30) 원인 규명이 남았다.
+- AS5048B: 관절 대응·부호·영점 확인 뒤 `config/suspension_encoders.json`의 `verified`를 켠다.
+  그 전에는 콘솔로 각도를 보내지 않는다(`publish_unverified`는 벤치 전용).
+- L515 지형 지도: 실기 체크리스트(장착값 실측, 5 m/90° 주행, 자원 10분, 젯슨 격리 게이트, 녹화→재생).
 - 팀 계약: 로봇팔 실 인식 이벤트 토픽, `MISSION_STOP` 잠금 해제 순서,
-  `ARRIVED_* → arm work → DONE → resume` 전체 핸드셰이크 1회.
+  `ARRIVED_* → arm work → 같은 mission_id의 fresh STOWED_LOCKED/CARRYING_LOCKED → resume`
+  전체 핸드셰이크 1회(contract-v2, `motor_control/chassis/mission.py` — `DONE`은 진단용으로만 받는다).
 - 지상 측정(오도메트리 5 m/90°, `stop_mm`)은 조립·운용 조건 확인 후 수행한다.
 
 ### 브랜치·동기화
 
 - `main`의 동기 여부는 작업마다 확인한다. 특정 날짜의 동기 상태를 상시 사실로 쓰지 않는다.
 - `feat/l515-aligned-depth-slam`은 팀원 작업이므로 손대지 않는다.
-- `agent/operator-console-live-telemetry`의 **PR #4는 9/8 확인 시 OPEN/DRAFT**다.
-  환경 센싱 SSH JSONL → UDP :5008 → 콘솔 탭은 이 PR의 기능이며 현재 main에 없다.
+- PR #4(환경 센싱 SSH JSONL → UDP :5008 → 콘솔 탭)는 2026-09-09 main에 병합됐다.
+- 열린 PR·draft PR 목록은 `gh pr list`로 그때그때 확인한다. draft PR #15(지형 오버레이)와
+  #20(비전 탭)의 내용은 통합 브랜치에 이미 들어가 있다.
 
 ⚠️ **작업 착수 전 GitHub와 젯슨 로컬 체크아웃을 둘 다 확인한다.** 팀원이 젯슨에서 직접
 작업하고 안 올렸을 수 있다. "머지했다"는 구두 정보는 실제로 검증한다.
@@ -168,22 +238,31 @@ power-train-sw/
 │
 ├── ros2/               ★ ROS2 워크스페이스 — **얇은 어댑터 층**
 │   └── src/
-│       ├── powertrain_ros/    노드 22종 (chassis · us100_safety · odometry · imu_tilt ·
+│       ├── powertrain_ros/    엔트리포인트 24종 (chassis · us100_safety · odometry · imu_tilt ·
 │       │                      autonomy_controller · lane_follower · lead_follower ·
 │       │                      section_supervisor · ops_broker · arm_console_bridge ·
-│       │                      pdist80b_monitor · l515_cloud · mission · … )
+│       │                      pdist80b_monitor · chassis_telemetry · terrain_map ·
+│       │                      terrain_overlay · l515_cloud · mission · … )
 │       ├── powertrain_msgs/   SafetyVerdict · WheelState · WheelStates
-│       └── robot_arm_msgs/    벤더링 사본 (정본 = 로봇팔팀 ksp118/extreme-robot)
+│       ├── robot_arm_msgs/    벤더링 사본 (정본 = 로봇팔팀 ksp118/extreme-robot)
+│       └── dynamixel_control/ · robot_manual_gui/   로봇팔팀 패키지
 │
 ├── powertrain_autonomy/       WP6 자율주행 **순수 코어** — 지형 추정·컨트롤러.
 │                              ROS·rclpy·하드웨어·시뮬 분기 없음. powertrain_ros를 import 안 함
 ├── powertrain_observability/  진단 이벤트·헬스 순수 코어
 ├── remote_video/              원격 영상 **수신측** 계약
+├── powertrain_runtime/        통합 연결 세션·인증 프록시·운전 시작 절차 (하드웨어 직접 소유 없음)
+├── terrain_map/               L515 2.5D 지형 지도 순수 코어 (노드 terrain_map, UDP :5010)
+├── terrain_overlay/           L515 지형 장애물 윤곽 순수 코어 (노드 terrain_overlay, UDP :5009)
+├── lidar_dev/                L515 기록·평가·실시간 오버레이 시험대 (오프라인 도구)
 │
 ├── operator_console/   운용 PC GTK 콘솔 — SRT 2화면 + UDP 텔레메트리.
 │                       헌장: **관측 수신 전용**, 조작은 게이트된 ops 채널(:9001) 경유만
 ├── l515_dashboard/     L515 Gateway(카메라 단일 소유) + 소켓 전용 Textual 대시보드
 ├── motor_gui/          웹 모터 진단·튜닝 GUI (FastAPI + 트랜스포트 추상화)
+├── firmware/mks_odrive/  MKS ODrive CAN 패치 재현 소스·빌드 (세 보드 patch4)
+├── extreme-robot/     로봇팔·인식 팀 소스 (자체 Docker·ros2_ws, docs/extreme-robot-integration.md)
+├── simulation/        Isaac 전달본 보관 (실차 설정 정본 아님, §2)
 │
 ├── powertrain_sim/     ⛔ MuJoCo 시뮬 — 폐기·읽기전용 (§2 참조)
 ├── parameter_calc/     ⛔ 기하 최적화 — 트랙 종료 (§2 참조). 상세는 parameter_calc/CLAUDE.md
@@ -256,6 +335,10 @@ python -m pytest motor_control -q
 `tests/test_environment_manifest.py`·`test_fixture_class_contracts.py`의
 `procedural-dev-0/analytic` 체크섬 불일치.
 
+이 기준선은 8/24 이후 전체를 다시 재지 않았다(11-05 확인). 그 뒤 생긴 `terrain_map`·`terrain_overlay`·
+`lidar_dev`·`powertrain_runtime` 시험과 각 스위트에 늘어난 시험은 위 수치에 없다. 기능별 최신 통과
+수는 해당 `docs/reports/` 기록을 본다.
+
 ---
 
 ## 5. 완료 선언 규칙 — 실행·실전 경로 검증 필수 (2026-07-18 사용자 지시)
@@ -302,11 +385,16 @@ python -m pytest motor_control -q
 - node13/14(2026-09-09)와 node15/16(2026-09-10)은 원본 **0.5.1 unreleased** 백업 후
   초기 patch1 이후 두 보드 모두 **0.5.1-dev·CAN patch3**으로 갱신했다(2026-09-10).
   **node13/14는 2026-10-21 patch4로 갱신**했다(USB 인수까지, 실트래픽 인수 전 —
-  `docs/reports/2026-10-21-mks-can-patch4.md`). node15/16은 patch3이다.
-  node11/12 firmware는 USB 미확인·패치 미적용이다. 도구·프로토콜 검토용
+  `docs/reports/2026-10-21-mks-can-patch4.md`).
+  **node11/12는 2026-10-29 flash 복구와 함께 patch4로 갱신**했다(USB 인수까지 —
+  `docs/reports/2026-10-29-mks-board1-flash-recovery.md`). **node15/16도 같은 날 patch4로
+  갱신**했다(`docs/reports/2026-10-29-mks-node15-16-patch4.md`). 도구·프로토콜 검토용
   fw-v0.5.6과 실물 firmware를 혼동하지 않는다. MKS 배포 소스와 설치 바이너리의 동일성은
   별도 확인 대상이다. 폐루프 진입 전
   `input_pos = 현재위치`(위치모드) 또는 `input_vel = 0`(속도모드)로 점프 방지.
+- **서스펜션 엔코더**: AS5048B ×4(I2C 0x40~0x43, 젯슨 40핀 3/5번 = `/dev/i2c-7`), 설정
+  `config/suspension_encoders.json`. 관절 대응·부호는 임시값이고 영점·`verified`는 미확정이다.
+- **L515 장착**: 피치 15° 하향(URDF 실차 장착, 지형 지도 기본값). 장착 위치는 실측 전이다.
 
 ---
 
@@ -322,6 +410,7 @@ python -m pytest motor_control -q
   CAN 다축: `can_calibrate_all.py`(node 11~16 일괄 풀캘리 — **이 명령은 RAM만 갱신하며
   NVM 저장은 하지 않는다**), `can_drive_test.py`(6축 동시 주행). 벤치 전용 USB 직결 텔레옵:
   `dualsense_usb_teleop.py`(⚠️ 안전 게이팅 전무 — 바퀴 들고 쓸 것).
+  정지 축 MOTOR_FAILED 자동 해제: `odrive_auto_clear.py`(compose 프로필 `odrive-autoclear`, opt-in).
   - ⚠️ **구동 장착 방향(2026-09-09 실주행 관찰로 교정)**: 각 보드 M1축 = node 12/14/16 =
     로봇 오른쪽 바퀴라는 배선 규약은 유지한다. 운전자 관찰에서 기존 좌+/우− 지령이 후진했다.
     현재 전진은 **좌(11/13/15)− / 우(12/14/16)+**이며 CAN/USB 실기 빌더가 좌측만 반전한다.
@@ -402,6 +491,13 @@ DDS(host network)로 통신한다. 같은 colcon 빌드에 두 워크스페이�
   ultrafast/3 threads에 alignment 억제, raw Depth는 deadline 기반 10 Hz, Depth/오버레이
   SRT는 best effort. 감독 재시작은 Compose로 프로세스를 교체하며, RSUSB 파이프라인을
   in-process로 재사용하지 않는다.
+
+### `terrain_map/` · `terrain_overlay/` · `lidar_dev/`
+
+L515 깊이로 만든 지형 지도(:5010)와 장애물 윤곽(:5009)은 **운용자 시각 보조 전용**이다 —
+주행 제어·정지·속도 제한·안전 판정에 연결하지 않는다. 사용법·파라미터 정본은 각 README,
+설계는 `docs/specs/2026-10-17-l515-terrain-map-design.md`·`docs/specs/2026-10-17-l515-terrain-overlay-design.md`.
+`lidar_dev/`는 오프라인 기록·평가 도구라 운용 스택에 들어가지 않는다.
 
 ### `operator_console/`
 

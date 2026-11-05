@@ -1,0 +1,4482 @@
+{
+  "source": "synthetic 2x1280x720@15 SRT + 3 map tiles/12.5Hz + chassis/overlay UDP",
+  "scope": "console process; source/encoders in separate child, excluded from CPU/RSS",
+  "latency_scope": "sink buffer running-time lateness; NOT camera-to-screen latency",
+  "revision": "930da9f1954350b45ff1d4d5ee5c12d7852baba1",
+  "openblas_num_threads": "1",
+  "numpy_runtime": "2.5.4",
+  "machine_before": {
+    "power": {
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "0",
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+      "/sys/class/power_supply/ADP1/online": "0"
+    },
+    "frequency_khz": {
+      "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1720360",
+      "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1815770",
+      "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1358368",
+      "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "793465",
+      "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1700541",
+      "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1807275",
+      "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "400221",
+      "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2800000"
+    },
+    "temperature_mdeg": {
+      "/sys/class/thermal/thermal_zone2/temp": "32050",
+      "/sys/class/thermal/thermal_zone0/temp": "35000",
+      "/sys/class/thermal/thermal_zone7/temp": "40000",
+      "/sys/class/thermal/thermal_zone5/temp": "39050",
+      "/sys/class/thermal/thermal_zone3/temp": "33050",
+      "/sys/class/thermal/thermal_zone1/temp": "20000",
+      "/sys/class/thermal/thermal_zone8/temp": "39000",
+      "/sys/class/thermal/thermal_zone6/temp": "37000",
+      "/sys/class/thermal/thermal_zone4/temp": "26050"
+    }
+  },
+  "phases": [
+    {
+      "page": "mission",
+      "duration_s": 20.023163839000063,
+      "cpu_percent": 134.57344954904815,
+      "rss_kib_max": 256300.0,
+      "rss_kib_end": 256300.0,
+      "rss_peak_kib": 255424,
+      "camera_sink_fps": 14.982647218601679,
+      "camera_draw_hz": 14.583109959438968,
+      "camera_draw_gap_s_max": 0.10991368799989232,
+      "camera_sink_gap_s_max": 0.14104759200006356,
+      "sink_lateness_s_max": 0.036050918,
+      "camera_frame_age_s_max": 0.12428916700002901,
+      "ui_gap_s_max": 0.1246775780000462,
+      "map_pair_hz": 0.0,
+      "map_worker_render_count": 0,
+      "render_ms_mean": null,
+      "overlay_state": "LIVE",
+      "map_state": "WAITING",
+      "window_size": [
+        1152,
+        783
+      ],
+      "map_sizes": [
+        [
+          480,
+          180
+        ],
+        [
+          480,
+          180
+        ]
+      ],
+      "map_worker_error": null,
+      "machine": {
+        "power": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "0",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+          "/sys/class/power_supply/ADP1/online": "0"
+        },
+        "frequency_khz": {
+          "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1799965",
+          "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1799532",
+          "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1443746",
+          "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "2074390",
+          "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1796310",
+          "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1787016",
+          "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1423492",
+          "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "400000"
+        },
+        "temperature_mdeg": {
+          "/sys/class/thermal/thermal_zone2/temp": "32050",
+          "/sys/class/thermal/thermal_zone0/temp": "41000",
+          "/sys/class/thermal/thermal_zone7/temp": "40000",
+          "/sys/class/thermal/thermal_zone5/temp": "39050",
+          "/sys/class/thermal/thermal_zone3/temp": "35050",
+          "/sys/class/thermal/thermal_zone1/temp": "20000",
+          "/sys/class/thermal/thermal_zone8/temp": "39000",
+          "/sys/class/thermal/thermal_zone6/temp": "39000",
+          "/sys/class/thermal/thermal_zone4/temp": "25050"
+        }
+      }
+    },
+    {
+      "page": "vision",
+      "duration_s": 20.016994038999997,
+      "cpu_percent": 132.5198189464276,
+      "rss_kib_max": 309456.0,
+      "rss_kib_end": 309456.0,
+      "rss_peak_kib": 308432,
+      "camera_sink_fps": 14.987265291456685,
+      "camera_draw_hz": 20.482595898324135,
+      "camera_draw_gap_s_max": 0.11535147900008269,
+      "camera_sink_gap_s_max": 0.13481650299991088,
+      "sink_lateness_s_max": 0.037396747,
+      "camera_frame_age_s_max": 0.12403898699994897,
+      "ui_gap_s_max": 0.07283445599989591,
+      "map_pair_hz": 1.9983020388608912,
+      "map_worker_render_count": 40,
+      "render_ms_mean": 15.875131840421043,
+      "overlay_state": "LIVE",
+      "map_state": "LIVE",
+      "window_size": [
+        1152,
+        783
+      ],
+      "map_sizes": [
+        [
+          518,
+          115
+        ],
+        [
+          518,
+          115
+        ]
+      ],
+      "map_worker_error": null,
+      "machine": {
+        "power": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "0",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+          "/sys/class/power_supply/ADP1/online": "0"
+        },
+        "frequency_khz": {
+          "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1482734",
+          "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1481066",
+          "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1499969",
+          "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1238344",
+          "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1467744",
+          "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1486030",
+          "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1499984",
+          "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1098122"
+        },
+        "temperature_mdeg": {
+          "/sys/class/thermal/thermal_zone2/temp": "32050",
+          "/sys/class/thermal/thermal_zone0/temp": "38000",
+          "/sys/class/thermal/thermal_zone7/temp": "39000",
+          "/sys/class/thermal/thermal_zone5/temp": "38050",
+          "/sys/class/thermal/thermal_zone3/temp": "35050",
+          "/sys/class/thermal/thermal_zone1/temp": "20000",
+          "/sys/class/thermal/thermal_zone8/temp": "38000",
+          "/sys/class/thermal/thermal_zone6/temp": "38000",
+          "/sys/class/thermal/thermal_zone4/temp": "26050"
+        }
+      }
+    },
+    {
+      "page": "mission",
+      "duration_s": 20.102386591999903,
+      "cpu_percent": 133.7379567294719,
+      "rss_kib_max": 311024.0,
+      "rss_kib_end": 311024.0,
+      "rss_peak_kib": 310096,
+      "camera_sink_fps": 14.97334650403093,
+      "camera_draw_hz": 14.47589313180399,
+      "camera_draw_gap_s_max": 0.11362681399998564,
+      "camera_sink_gap_s_max": 0.13580816199998935,
+      "sink_lateness_s_max": 0.0330241,
+      "camera_frame_age_s_max": 0.10923373699995409,
+      "ui_gap_s_max": 0.11450222100006613,
+      "map_pair_hz": 0.0,
+      "map_worker_render_count": 0,
+      "render_ms_mean": null,
+      "overlay_state": "LIVE",
+      "map_state": "WAITING",
+      "window_size": [
+        1152,
+        783
+      ],
+      "map_sizes": [
+        [
+          518,
+          115
+        ],
+        [
+          518,
+          115
+        ]
+      ],
+      "map_worker_error": null,
+      "machine": {
+        "power": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "0",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+          "/sys/class/power_supply/ADP1/online": "0"
+        },
+        "frequency_khz": {
+          "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1778326",
+          "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1768067",
+          "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "399769",
+          "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "627676",
+          "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400000",
+          "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1726688",
+          "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1114299",
+          "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2731466"
+        },
+        "temperature_mdeg": {
+          "/sys/class/thermal/thermal_zone2/temp": "32050",
+          "/sys/class/thermal/thermal_zone0/temp": "42000",
+          "/sys/class/thermal/thermal_zone7/temp": "44000",
+          "/sys/class/thermal/thermal_zone5/temp": "43050",
+          "/sys/class/thermal/thermal_zone3/temp": "36050",
+          "/sys/class/thermal/thermal_zone1/temp": "20000",
+          "/sys/class/thermal/thermal_zone8/temp": "38000",
+          "/sys/class/thermal/thermal_zone6/temp": "41000",
+          "/sys/class/thermal/thermal_zone4/temp": "26050"
+        }
+      }
+    }
+  ],
+  "timeline": [
+    {
+      "t": 901.67306244,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 36,
+      "draws": 44,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 901.931373308,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 39,
+      "draws": 48,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 902.183502121,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 42,
+      "draws": 52,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 902.418061217,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 46,
+      "draws": 55,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 902.621240521,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 49,
+      "draws": 58,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 902.878010895,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 54,
+      "draws": 62,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 903.133535305,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 58,
+      "draws": 66,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 903.358151328,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 60,
+      "draws": 69,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 903.615647946,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 64,
+      "draws": 73,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 903.871794564,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 68,
+      "draws": 76,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 904.125114393,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 72,
+      "draws": 80,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 904.381654932,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 75,
+      "draws": 84,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 904.59483105,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 79,
+      "draws": 87,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 904.814775076,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 82,
+      "draws": 90,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 905.015245873,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 86,
+      "draws": 93,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 905.242403876,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 88,
+      "draws": 97,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 905.463316398,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 92,
+      "draws": 100,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 905.713798662,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 96,
+      "draws": 104,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 905.931238027,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 99,
+      "draws": 107,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 906.13147608,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 102,
+      "draws": 110,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 906.408317217,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 106,
+      "draws": 114,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 906.608762547,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 109,
+      "draws": 117,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 906.865829534,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 113,
+      "draws": 121,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 907.11967347,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 117,
+      "draws": 125,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 907.329740484,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 120,
+      "draws": 128,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 907.585533615,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 123,
+      "draws": 132,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 907.81242343,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 127,
+      "draws": 135,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 908.032475252,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 131,
+      "draws": 138,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 908.312496212,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 134,
+      "draws": 141,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 908.545384595,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 138,
+      "draws": 144,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 908.771736259,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 141,
+      "draws": 148,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 909.027613498,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 145,
+      "draws": 152,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 909.284949024,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 149,
+      "draws": 156,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 909.542765082,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 153,
+      "draws": 160,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 909.825133375,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 157,
+      "draws": 164,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 910.059331046,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 161,
+      "draws": 168,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 910.288899121,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 164,
+      "draws": 172,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 910.546808627,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 169,
+      "draws": 176,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 910.802390315,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 172,
+      "draws": 180,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 911.08576004,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 176,
+      "draws": 184,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 911.286258975,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 180,
+      "draws": 186,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 911.512126587,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 182,
+      "draws": 189,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 911.734442538,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 187,
+      "draws": 192,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 911.988759238,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 190,
+      "draws": 196,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 912.240738276,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 193,
+      "draws": 200,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 912.438626466,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 196,
+      "draws": 203,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 912.692032804,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 200,
+      "draws": 207,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 912.948633148,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 204,
+      "draws": 210,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 913.148891938,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 207,
+      "draws": 213,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 913.403604693,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 211,
+      "draws": 217,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 913.684103904,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 215,
+      "draws": 221,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 913.918024219,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 218,
+      "draws": 224,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 914.129210623,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 222,
+      "draws": 227,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 914.416357146,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 226,
+      "draws": 230,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 914.674190644,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 230,
+      "draws": 234,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 914.929705866,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 234,
+      "draws": 238,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 915.130769315,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 237,
+      "draws": 241,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 915.40913858,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 241,
+      "draws": 245,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 915.638259438,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 244,
+      "draws": 248,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 915.838956717,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 247,
+      "draws": 250,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 916.064977255,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 251,
+      "draws": 254,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 916.287411389,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 255,
+      "draws": 257,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 916.524287538,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 258,
+      "draws": 261,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 916.797970371,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 262,
+      "draws": 265,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 917.047967456,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 266,
+      "draws": 268,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 917.266454815,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 269,
+      "draws": 271,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 917.520358241,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 273,
+      "draws": 275,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 917.746695326,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 277,
+      "draws": 279,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 917.947760501,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 279,
+      "draws": 282,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 918.148334011,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 282,
+      "draws": 285,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 918.401846158,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 286,
+      "draws": 289,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 918.615930801,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 289,
+      "draws": 292,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 918.873927656,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 293,
+      "draws": 296,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 919.113909687,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 297,
+      "draws": 299,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 919.342273495,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 300,
+      "draws": 302,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 919.617148677,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 304,
+      "draws": 306,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 919.818352293,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 307,
+      "draws": 309,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 920.04356913,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 311,
+      "draws": 312,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 920.270413394,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 314,
+      "draws": 316,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 920.492161937,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 317,
+      "draws": 319,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 920.73190765,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 321,
+      "draws": 323,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 920.96096313,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 324,
+      "draws": 327,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 921.216784937,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 328,
+      "draws": 330,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 921.474462495,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 0,
+      "renders": 0,
+      "frames": 332,
+      "draws": 333,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 924.707519627,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 6,
+      "frames": 380,
+      "draws": 395,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 924.946672881,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 6,
+      "frames": 384,
+      "draws": 400,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 925.148588671,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 7,
+      "frames": 387,
+      "draws": 405,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 925.373271176,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 7,
+      "frames": 390,
+      "draws": 410,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 925.569500148,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 8,
+      "frames": 393,
+      "draws": 414,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 925.797842458,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 8,
+      "frames": 396,
+      "draws": 418,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 926.003713007,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 9,
+      "frames": 400,
+      "draws": 423,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 926.233027811,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 9,
+      "frames": 403,
+      "draws": 428,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 926.442664217,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 9,
+      "frames": 406,
+      "draws": 433,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 926.645025398,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 10,
+      "frames": 410,
+      "draws": 437,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 926.878688728,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 10,
+      "frames": 413,
+      "draws": 441,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 927.079245587,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 11,
+      "frames": 416,
+      "draws": 445,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 927.287309502,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 11,
+      "frames": 419,
+      "draws": 449,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 927.511839792,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 12,
+      "frames": 422,
+      "draws": 454,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 927.71105545,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 12,
+      "frames": 425,
+      "draws": 458,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 927.933747288,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 12,
+      "frames": 429,
+      "draws": 462,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 928.139996482,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 13,
+      "frames": 432,
+      "draws": 466,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 928.371147377,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 13,
+      "frames": 436,
+      "draws": 471,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 928.58254027,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 14,
+      "frames": 438,
+      "draws": 475,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 928.779306037,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 14,
+      "frames": 441,
+      "draws": 479,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 929.017211589,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 15,
+      "frames": 445,
+      "draws": 484,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 929.225987887,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 15,
+      "frames": 448,
+      "draws": 488,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 929.436671908,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 15,
+      "frames": 451,
+      "draws": 493,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 929.652884371,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 16,
+      "frames": 454,
+      "draws": 497,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 929.853075458,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 16,
+      "frames": 457,
+      "draws": 501,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 930.063441896,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 17,
+      "frames": 461,
+      "draws": 505,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 930.275488162,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 17,
+      "frames": 464,
+      "draws": 510,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 930.502146539,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 17,
+      "frames": 467,
+      "draws": 515,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 930.738372886,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 18,
+      "frames": 471,
+      "draws": 520,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 930.948172343,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 18,
+      "frames": 474,
+      "draws": 524,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 931.145151658,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 19,
+      "frames": 478,
+      "draws": 528,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 931.367314603,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 19,
+      "frames": 480,
+      "draws": 532,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 931.607972235,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 20,
+      "frames": 484,
+      "draws": 537,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 931.821469316,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 20,
+      "frames": 487,
+      "draws": 542,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 932.027773702,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 21,
+      "frames": 490,
+      "draws": 547,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 932.224832271,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 21,
+      "frames": 493,
+      "draws": 550,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 932.425395019,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 21,
+      "frames": 496,
+      "draws": 554,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 932.626296753,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 22,
+      "frames": 499,
+      "draws": 559,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 932.851721574,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 22,
+      "frames": 502,
+      "draws": 563,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 933.092199067,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 23,
+      "frames": 506,
+      "draws": 568,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 933.293170875,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 23,
+      "frames": 509,
+      "draws": 572,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 933.506485031,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 23,
+      "frames": 512,
+      "draws": 576,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 933.70778926,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 24,
+      "frames": 515,
+      "draws": 580,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 933.907728319,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 24,
+      "frames": 518,
+      "draws": 584,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 934.108292094,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 25,
+      "frames": 521,
+      "draws": 587,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 934.325726054,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 25,
+      "frames": 525,
+      "draws": 591,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 934.526709034,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 26,
+      "frames": 528,
+      "draws": 595,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 934.76488651,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 26,
+      "frames": 531,
+      "draws": 600,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 934.965157168,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 26,
+      "frames": 534,
+      "draws": 604,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 935.165511416,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 27,
+      "frames": 537,
+      "draws": 608,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 935.366344129,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 27,
+      "frames": 540,
+      "draws": 612,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 935.567345741,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 28,
+      "frames": 544,
+      "draws": 616,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 935.767730069,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 28,
+      "frames": 546,
+      "draws": 620,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 935.971880069,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 28,
+      "frames": 549,
+      "draws": 624,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 936.19037798,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 29,
+      "frames": 553,
+      "draws": 630,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 936.433121828,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 29,
+      "frames": 556,
+      "draws": 633,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 936.634768468,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 30,
+      "frames": 559,
+      "draws": 637,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 936.839547401,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 30,
+      "frames": 562,
+      "draws": 641,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 937.039725671,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 31,
+      "frames": 565,
+      "draws": 644,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 937.246218705,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 31,
+      "frames": 569,
+      "draws": 649,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 937.458556977,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 31,
+      "frames": 572,
+      "draws": 653,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 937.686067018,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 32,
+      "frames": 575,
+      "draws": 658,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 937.891803242,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 32,
+      "frames": 578,
+      "draws": 663,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 938.09962702,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 33,
+      "frames": 581,
+      "draws": 668,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 938.305519551,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 33,
+      "frames": 584,
+      "draws": 672,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 938.506444432,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 33,
+      "frames": 587,
+      "draws": 676,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 938.736890323,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 34,
+      "frames": 591,
+      "draws": 681,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 938.947387913,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 34,
+      "frames": 595,
+      "draws": 685,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 939.161376509,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 35,
+      "frames": 597,
+      "draws": 689,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 939.38483662,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 35,
+      "frames": 600,
+      "draws": 694,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 939.598071993,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 36,
+      "frames": 604,
+      "draws": 699,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 939.827802713,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 36,
+      "frames": 607,
+      "draws": 705,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 940.028812011,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 37,
+      "frames": 610,
+      "draws": 709,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 940.241128061,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 37,
+      "frames": 613,
+      "draws": 713,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 940.444237862,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 37,
+      "frames": 616,
+      "draws": 717,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 940.644804459,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 38,
+      "frames": 620,
+      "draws": 721,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 940.873226422,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 38,
+      "frames": 623,
+      "draws": 725,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 941.087706153,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 39,
+      "frames": 626,
+      "draws": 730,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 941.299300292,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 39,
+      "frames": 629,
+      "draws": 735,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 941.50623512,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 39,
+      "frames": 632,
+      "draws": 739,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 941.707640182,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 40,
+      "frames": 635,
+      "draws": 744,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 941.928412717,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 40,
+      "frames": 639,
+      "draws": 748,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 942.155703735,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 41,
+      "frames": 642,
+      "draws": 753,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 942.381498994,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 41,
+      "frames": 645,
+      "draws": 758,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 942.582318965,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 42,
+      "frames": 648,
+      "draws": 762,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 942.805950236,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 42,
+      "frames": 652,
+      "draws": 767,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 943.011764077,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 42,
+      "frames": 655,
+      "draws": 770,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 943.221475252,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 43,
+      "frames": 658,
+      "draws": 775,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 943.421843235,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 43,
+      "frames": 661,
+      "draws": 779,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 943.644761739,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 44,
+      "frames": 664,
+      "draws": 784,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 943.846050148,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 44,
+      "frames": 667,
+      "draws": 789,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 944.057911376,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 45,
+      "frames": 670,
+      "draws": 793,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 944.258107568,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 45,
+      "frames": 673,
+      "draws": 796,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 944.457806777,
+      "page": "vision",
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 45,
+      "frames": 676,
+      "draws": 800,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 947.80459169,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 728,
+      "draws": 848,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 948.065374317,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 731,
+      "draws": 852,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 948.321649157,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 735,
+      "draws": 856,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 948.534661202,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 738,
+      "draws": 859,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 948.789168389,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 742,
+      "draws": 863,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 949.017100878,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 745,
+      "draws": 867,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 949.237852676,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 748,
+      "draws": 870,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 949.51681602,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 753,
+      "draws": 874,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 949.731799032,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 756,
+      "draws": 877,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 949.993868832,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 760,
+      "draws": 881,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 950.197757901,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 763,
+      "draws": 883,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 950.396869238,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 766,
+      "draws": 886,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 950.675916709,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 770,
+      "draws": 889,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 950.876936438,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 773,
+      "draws": 892,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 951.131720253,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 777,
+      "draws": 896,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 951.346686364,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 781,
+      "draws": 899,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 951.562779954,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 783,
+      "draws": 902,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 951.768713115,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 787,
+      "draws": 905,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 952.000539142,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 791,
+      "draws": 908,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 952.273595836,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 795,
+      "draws": 911,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 952.496072304,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 797,
+      "draws": 914,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 952.740486954,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 801,
+      "draws": 917,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 952.995158644,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 805,
+      "draws": 921,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 953.253909837,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 809,
+      "draws": 925,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 953.506334695,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 812,
+      "draws": 929,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 953.735170759,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 816,
+      "draws": 932,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 953.933336158,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 819,
+      "draws": 934,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 954.136391639,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 822,
+      "draws": 937,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 954.393667399,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 827,
+      "draws": 941,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 954.628683685,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 829,
+      "draws": 945,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 954.829430536,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 832,
+      "draws": 948,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 955.06412332,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 836,
+      "draws": 952,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 955.282870782,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 839,
+      "draws": 955,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 955.516653085,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 842,
+      "draws": 959,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 955.718363786,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 845,
+      "draws": 962,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 955.929037006,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 849,
+      "draws": 965,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 956.181725473,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 852,
+      "draws": 969,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 956.433817346,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 857,
+      "draws": 972,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 956.631538131,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 859,
+      "draws": 974,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 956.867799936,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 863,
+      "draws": 978,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 957.068021293,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 866,
+      "draws": 981,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 957.299169398,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 869,
+      "draws": 985,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 957.519405692,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 872,
+      "draws": 988,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 957.728319808,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 876,
+      "draws": 992,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 958.006648259,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 880,
+      "draws": 996,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 958.21063137,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 883,
+      "draws": 999,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 958.444333835,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 886,
+      "draws": 1002,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 958.665934359,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 891,
+      "draws": 1005,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 958.893155943,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 893,
+      "draws": 1009,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 959.150748094,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 897,
+      "draws": 1013,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 959.352507662,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 900,
+      "draws": 1016,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 959.609717792,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 904,
+      "draws": 1020,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 959.864535804,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 908,
+      "draws": 1024,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 960.084055544,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 911,
+      "draws": 1027,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 960.30096409,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 914,
+      "draws": 1030,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 960.538862526,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 918,
+      "draws": 1033,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 960.795457899,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 922,
+      "draws": 1037,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 961.073282908,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 927,
+      "draws": 1041,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 961.274367511,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 929,
+      "draws": 1044,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 961.474518453,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 932,
+      "draws": 1047,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 961.726504043,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 936,
+      "draws": 1051,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 961.95389657,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 939,
+      "draws": 1054,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 962.176282708,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 942,
+      "draws": 1057,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 962.414427026,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 946,
+      "draws": 1060,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 962.670908237,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 950,
+      "draws": 1064,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 962.871750976,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 954,
+      "draws": 1067,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 963.131096953,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 957,
+      "draws": 1071,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 963.385586044,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 961,
+      "draws": 1075,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 963.597960794,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 964,
+      "draws": 1078,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 963.819630225,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 967,
+      "draws": 1081,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 964.07877805,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 971,
+      "draws": 1085,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 964.27924457,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 974,
+      "draws": 1088,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 964.479545304,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 977,
+      "draws": 1091,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 964.764024775,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 981,
+      "draws": 1095,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 964.999259334,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 985,
+      "draws": 1098,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 965.274914246,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 989,
+      "draws": 1102,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 965.492048761,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 992,
+      "draws": 1105,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 965.748583274,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 996,
+      "draws": 1108,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 965.956104164,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 999,
+      "draws": 1111,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 966.180905686,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 1002,
+      "draws": 1114,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 966.414547924,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 1007,
+      "draws": 1117,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 966.614925569,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 1009,
+      "draws": 1120,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 966.876334632,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 1013,
+      "draws": 1123,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 967.112381582,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 1016,
+      "draws": 1127,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 967.338582701,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 1020,
+      "draws": 1130,
+      "size": [
+        1152,
+        783
+      ]
+    },
+    {
+      "t": 967.5935784,
+      "page": "mission",
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 45,
+      "frames": 1025,
+      "draws": 1134,
+      "size": [
+        1152,
+        783
+      ]
+    }
+  ],
+  "machine_after": {
+    "power": {
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "0",
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+      "/sys/class/power_supply/ADP1/online": "0"
+    },
+    "frequency_khz": {
+      "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "2010068",
+      "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1991215",
+      "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "2749476",
+      "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "2215665",
+      "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "2009997",
+      "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "2012731",
+      "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "2899965",
+      "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2800000"
+    },
+    "temperature_mdeg": {
+      "/sys/class/thermal/thermal_zone2/temp": "32050",
+      "/sys/class/thermal/thermal_zone0/temp": "42000",
+      "/sys/class/thermal/thermal_zone7/temp": "43000",
+      "/sys/class/thermal/thermal_zone5/temp": "42050",
+      "/sys/class/thermal/thermal_zone3/temp": "36050",
+      "/sys/class/thermal/thermal_zone1/temp": "20000",
+      "/sys/class/thermal/thermal_zone8/temp": "38000",
+      "/sys/class/thermal/thermal_zone6/temp": "42000",
+      "/sys/class/thermal/thermal_zone4/temp": "26050"
+    }
+  },
+  "callback_errors": []
+}

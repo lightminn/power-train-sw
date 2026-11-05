@@ -1,0 +1,6 @@
+lo               UNKNOWN        127.0.0.1/8 ::1/128
+wlo1             UP             172.20.10.3/28 2001:2d8:ef50:e162:86:263f:e16c:1799/64 2001:2d8:ef50:e162:bdec:d528:3936:b6c4/64 fe80::e404:50ca:d844:739d/64
+docker0          DOWN           172.17.0.1/16
+default via 172.20.10.1 dev wlo1 proto dhcp src 172.20.10.3 metric 600
+172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 linkdown
+172.20.10.0/28 dev wlo1 proto kernel scope link src 172.20.10.3 metric 600

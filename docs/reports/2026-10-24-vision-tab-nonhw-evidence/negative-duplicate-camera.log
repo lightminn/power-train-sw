@@ -1,0 +1,13 @@
+vision runtime child rc=1
+Xlib:  extension "DRI2" missing on display ":100".
+Traceback (most recent call last):
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 349, in main
+    report = json.dumps(exercise(args.fault, args.record_webm, args.metrics_output), ensure_ascii=False)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 109, in exercise
+    Gst.parse_launch('videotestsrc ! fakesink')
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 106, in no_new_decoder
+    raise AssertionError('vision duplicate camera/decoder creation')
+AssertionError: vision duplicate camera/decoder creation
+
+

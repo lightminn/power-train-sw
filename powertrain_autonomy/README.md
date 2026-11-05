@@ -131,8 +131,9 @@ Final command selection remains the existing `chassis_node` CommandAuthority.
 
 The default camera height 0.60 m and downward pitch 25 degrees are provisional,
 unmeasured configuration candidates. They must not be used as evidence for
-production completion. Production requires the planned physical 20/25/30
-degree comparison and a measured `base_link→l515_link` transform.
+production completion. The as-built L515 mount is 15 degrees down (the
+`terrain_map` default), which this 25 degree default does not match; production
+requires aligning it and a measured `base_link→l515_link` transform.
 
 RGB auxiliary confidence is explicitly deferred.
 NumPy is the only production authority for terrain estimation. The optional

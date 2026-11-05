@@ -1,0 +1,10 @@
+vision runtime child rc=1
+Xlib:  extension "DRI2" missing on display ":100".
+Traceback (most recent call last):
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 286, in main
+    report = json.dumps(exercise(args.fault), ensure_ascii=False)
+                        ^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 254, in exercise
+    assert not maps.worker._thread.is_alive(), 'vision worker shutdown: timed out'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: vision worker shutdown: timed out

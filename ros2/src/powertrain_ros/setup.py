@@ -72,6 +72,8 @@ setup(
             "teleop_command = powertrain_ros.teleop_command_node:main",
             "ops_broker = powertrain_ros.ops_broker_node:main",
             "chassis_telemetry = powertrain_ros.chassis_telemetry_sender_node:main",
+            "terrain_overlay = powertrain_ros.terrain_overlay_node:main",
+            "terrain_map = powertrain_ros.terrain_map_node:main",
             "arm_console_bridge = powertrain_ros.arm_console_bridge_node:main",
             "wp8_handshake_probe = powertrain_ros.wp8_handshake_probe:main",
         ],

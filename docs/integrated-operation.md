@@ -21,7 +21,9 @@
 2. `can0` 모터 전원, US-100, PDIST80B, L515를 연결한다. 의도적으로 빼고 시험할
    장치는 운전 시작 전에 담당자가 명시적으로 합의해야 한다.
 3. 노트북에 DualSense를 연결하되 스틱·트리거·버튼은 모두 놓는다.
-4. 로봇/Jetson과 공유기 전원을 켜고, 노트북을 같은 운용망에 연결한 뒤 약 1분 기다린다.
+4. 로봇/Jetson과 공유기 전원을 켜고, 노트북을 같은 운용망(현장은 로봇 AP 2.4 GHz `ZETIN-ROBOT`)에
+   연결한 뒤 약 1분 기다린다. 5 GHz 링크는 지연이 커서 주행이 풀린 기록이 있다
+   ([현장 안정화 기록](reports/2026-10-30-field-teleop-stability.md)).
 
 ⚠️ 처음 조립했거나 CAN·모터를 정비한 직후라면 바퀴를 지면에서 들어 올린 벤치 상태로
 먼저 확인한다. 캘리브레이션과 지상 제동 인수가 끝나지 않은 상태에서 바로 지상 주행하지
@@ -42,7 +44,8 @@ ssh zetin@jetson-orin.local
 - SSH 비밀번호를 입력하면 프롬프트가 `zetin@jetson-orin`으로 바뀐다.
 - 비밀번호 입력 중 글자가 화면에 보이지 않는 것은 정상이다.
 
-`Name or service not known`이면 노트북이 로봇 운용망에 붙었는지 확인한다.
+`Name or service not known`이면 노트북이 로봇 운용망에 붙었는지 확인한다. 이름 대신 IPv4를
+직접 써도 된다: 로봇 AP 유선 `192.168.8.106`, Wi-Fi `ZETIN_5G` `192.168.50.98`, USB-C `192.168.55.1`.
 `Permission denied`이면 임의 계정으로 바꾸지 말고 등록된 `zetin` 계정 인증을 확인한다.
 
 ### 2. 터미널 A — Jetson 시각 확인
@@ -75,8 +78,10 @@ ssh zetin@jetson-orin.local
 date -Is
 ```
 
-✅ 기대 결과: 마지막 `date -Is`가 현재 날짜를 표시한다. 이 조치는 현장망에서 NTP를
-받지 못할 때의 임시 복구다. 매 부팅마다 1970년으로 돌아가면 RTC/NTP 자체를 정비한다.
+✅ 기대 결과: 마지막 `date -Is`가 현재 날짜를 표시한다. 젯슨 RTC는 백업이 없어 부팅마다
+1970년이 되므로 `powertrain-clock-restore.service`가 부팅 때 마지막 저장 시각으로 되돌리고
+`powertrain-clock-save.timer`가 1분마다 저장한다(꺼져 있던 시간만큼 늦을 수 있다). 1970년이
+보이면 두 유닛이 설치·활성인지 확인한다(`systemctl status powertrain-clock-restore.service`).
 
 ### 3. 터미널 A — 로봇 서비스 시작
 
@@ -213,8 +218,10 @@ FAKE 정지 증거와 비중립 패드는 운전 시작을 거부했다. 실제 
 복원했다. 전원 재인가1회에서 설정·캘리가 유지됐고, CAN Stuff error 복구로 남은 정지 래치는
 안정 확인 후 명시 해제했다. 최종6축 조회600초는10모터 연속수신·stale0·host 오류/드롭0으로
 통과했다. 보드 내부 TX drop 누계2→4와 달리 복구횟수2는 불변이었다. **지상 ±0.25 motor rev
-목표 시험은 미달로 FAIL**이며 최종6축은IDLE/error0이다. 나머지 보드 firmware 적용과 실주행
-인수는 남아 있다. 현재 인수 범위와 재현 경로는
+목표 시험은 미달로 FAIL**이며 최종6축은IDLE/error0이다. 이후 구동 보드 세 장 모두 patch4로
+갱신했다([10-21](reports/2026-10-21-mks-can-patch4.md)·[node11/12](reports/2026-10-29-mks-board1-flash-recovery.md)·
+[node15/16](reports/2026-10-29-mks-node15-16-patch4.md), USB 인수까지). 실트래픽·D0 만료·송신 순서
+인수와 실주행 인수는 남아 있다. 현재 인수 범위와 재현 경로는
 [MKS 신뢰성 수정 기록](reports/2026-09-09-mks-can-reliability.md), 이전 진단은
 [MKS USB 기록](reports/2026-09-09-mks-usb-can-diagnosis.md)을 따른다.
 US-100·L515의 의도적 분리는 원격 CAN 검증의 센서 결함으로 판정하지 않는다.
@@ -298,12 +305,14 @@ bash scripts/install_integrated_console.sh \
    즉시 비상정지가 필요하면 기존 **긴급 정지** 또는 패드 ESTOP를 사용한다.
 
 ```bash
-# 젯슨 호스트 — 최초 기동 또는 명시적 정비 정지 후 재개
-~/power-train-sw/scripts/robot-start
+# 젯슨 호스트 — 최초 기동 또는 명시적 정비 정지 후 재개 (현장 체크아웃)
+~/power-train-sw-integrated/scripts/robot-start
 ```
 
-2026-09-09 현장 배포는 기존 팀원 체크아웃을 보존하기 위해 별도
-`~/power-train-sw-integrated`에 설치했다. 해당 배포를 명시적으로 기동하는 명령은
+현장 배포는 기존 팀원 체크아웃을 보존하기 위해 별도
+`~/power-train-sw-integrated`에 설치했다(현재 브랜치 `deploy/jetson-field-20261028`). 노트북 브랜치를
+올릴 때는 노트북에서 `JETSON_REPO=/home/zetin/power-train-sw-integrated bash scripts/deploy_branch_to_jetson.sh --prepare`
+(git bundle 전송 → fast-forward → `robot_prepare.sh --use-existing-images`)를 쓰고, 기동은 사람이 직접 한다. 해당 배포를 명시적으로 기동하는 명령은
 `~/power-train-sw-integrated/scripts/robot-start`다. `robot-start PASS`는 준비된
 서비스 기동 성공이며 모터·센서의 주행 준비 완료를 뜻하지 않는다.
 
@@ -319,13 +328,14 @@ provisioning과 `robot-start`가 성공하고, Docker가 부팅 시 실행되며
 정비를 마치고 안전 조건을 확인한 후 위 `robot-start`를 다시 실행한다. 콘솔은
 꺼진 로봇 서비스를 SSH로 켜거나 자동 arm하지 않고 연결 대기를 표시한다.
 
-이 정책 변경은 아직 로컬 병합 준비 단계다. 현재 Jetson 배포에 적용되었다고
-가정하지 않는다. 실제 재부팅 복귀는 후속 배포·인수에서 확인해야 하며, 로컬
-`docker compose ... config` 검증은 서비스 실행이나 실제 부팅 성공의 증거가 아니다.
+현장 젯슨(`deploy/jetson-field-20261028`)에는 이 정책이 적용돼 있다. 11-02 재부팅에서
+운용 컨테이너가 `unless-stopped`로 자동 복귀했다([현장 안정화 기록](reports/2026-10-30-field-teleop-stability.md) §4).
+배포를 바꾼 뒤에는 `docker compose ... ps`로 실제 복귀를 다시 확인한다.
 
 노트북 터미널에서 같은 콘솔을 열려면 최초 설치가 만든
 `~/.local/bin/powertrain-integrated-console`을 실행한다. 직접 실행은
-`python -m operator_console --config ~/.config/powertrain/operator.json`이다.
+`python -m operator_console --config ~/.config/powertrain/operator.json`이다. 현장 시연 노트북은
+별도 설정 `~/.config/powertrain/operator-demo.json`(호스트 후보 `192.168.8.106` 우선)으로 같은 명령을 쓴다.
 
 ‘운전 시작’은 현재 상태를 확인한 뒤 필요한 경우 일시 HOLD 해제 → 수동 권한(TELEOP)
 → arm 순서로 처리한다. 각 명령의 최종 ACK와 실제 상태를 확인한다.
@@ -333,13 +343,13 @@ provisioning과 `robot-start`가 성공하고, Docker가 부팅 시 실행되며
 재개하지 않는다. 결과 불명은 성공으로 표시하지 않는다. 시작 결과가 불명확하면
 주행 해제를 시도하고, 확인되지 않은 결과는 그대로 남긴다.
 
-의도적으로 US-100을 분리한 현장 시험은 상단 두 탭 옆의
-**복구 · 설정 → US-100 안전 → 확인**으로
+의도적으로 US-100을 분리한 현장 시험은 상단 탭 옆의
+**운용 · 설정 → US-100 안전 → 확인**으로
 미장착 상태를 선택한다. 자동 충돌정지 해제 배너를 확인하고, 활성 ESTOP 원인이
 없어진 뒤 **경고 초기화 → 확인**을 별도로 실행한다. 미장착 설정은 차체 재시작 시
 다시 ON으로 돌아간다. 단순 통신 장애를 미장착으로 처리하지 않는다.
 
-**복구 · 설정**은 비모달 창이다. 창을 닫거나 초점을 잃으면 진행 중 확인 동작이
+**운용 · 설정**은 비모달 창이다. 창을 닫거나 초점을 잃으면 진행 중 확인 동작이
 취소되며, 다시 열어도 같은 인증 ops 세션을 사용한다. 창을 여는 것만으로는 명령이
 전송되지 않는다. **운전 시작·주행 해제·긴급 정지**는 기존 상단 위치에 계속 보인다.
 
@@ -363,14 +373,24 @@ URDF 재추출 치수와 명령 계약은 [수동 애커만 설계](specs/2026-0
 | 기능 | 통합 경로 |
 |---|---|
 | 패드 수동 운전 | 콘솔이 별도 패드 프로세스를 관리, 인증된 입력 프록시 :9000 |
-| 복구·ESTOP·운용 설정 | 두 탭 옆 **복구 · 설정** 창 → 기존 역할 토큰과 ops 게이트 :9001, ESTOP 초기화 별도 |
+| 복구·ESTOP·운용 설정 | 상단 탭 옆 **운용 · 설정** 창 → 기존 역할 토큰과 ops 게이트 :9001, ESTOP 초기화 별도 |
 | 전방 영상 | L515 Gateway 단일 소유, SRT :5000 |
 | 작업 영상·인식·로봇팔 상태 | 준비된 선택 스택 + SRT :5002 / UDP :5003·5007 |
 | 전원·차체 상태 | UDP :5004·5005, 현재 인증된 노트북 주소로 전송 |
+| 지형 장애물 윤곽(참고용) | 선택 서비스 `powertrain_terrain_overlay`(compose profile `terrain-overlay`), UDP :5009, 현재 인증된 노트북 주소로 전송 |
+| 2.5D 지형 지도(참고용) | 선택 서비스 `powertrain_terrain_map`(compose profile `terrain-map`), UDP :5010, 콘솔 "지형 지도" 페이지 |
+| 구동축 MOTOR_FAILED 자동 해제(현장 임시) | 선택 서비스 `powertrain_odrive_autoclear`(compose profile `odrive-autoclear`). IDLE 축의 MOTOR_FAILED(0x40)만 CAN `Clear_Errors`로 지운다. 재무장·ESTOP·CAN 복구 래치 해제는 하지 않는다 |
 | 부팅 순서/IP 변경 | 등록된 IPv4 호스트 후보 재해석, robot ID와 토큰으로 상대 확인 |
 
 세션 :9002는 동시 운용자 한 명만 허용한다. 연결 임대가 끝나면 입력/ops 프록시를
-닫고 주행 해제를 요청한다. 원래 입력 게이트의 0.2초 신선도 감시는 그대로 유지한다.
+닫고 주행 해제를 요청한다. 통합 compose의 입력 게이트는 입력이 0.5초(`input_timeout_s`) 넘게
+끊기면 0 명령으로 정지하되 고정하지 않는다(`latch_stale_input=false`, `partial_close_violation=false`).
+원격 E-stop 엣지는 그대로 고정한다. `control.launch.py` 단독 기본값(0.2초·고정)은 바뀌지 않았다.
+끊긴 뒤에는 서버가 새 입력 세대를 상태 회신 `G` 줄로 보내고, 노트북이 그 세대를 받은 뒤 만든 입력만 운전에
+쓴다 — 정체 전에 만들어져 늦게 도착한 명령으로 다시 움직이지 않는다. 패드 E-stop은 로봇의 수신 확인을
+받을 때까지 노트북이 보존해 다시 보낸다. 세 값은 젯슨 `.env`/환경변수 `TELEOP_INPUT_TIMEOUT_S`·
+`TELEOP_LATCH_STALE_INPUT`·`TELEOP_PARTIAL_CLOSE_VIOLATION`으로 바꿀 수 있다.
+[2026-11-05 수정 결과](reports/2026-11-05-field-safety-fixes.md)
 패드 입력 채널만 끊어진 경우에도 세션을 끝낸다. 새 입력은 신선한 차체 IDLE·
 바퀴 정지 확인 뒤에만 받으므로, 짧은 패드 분리에도 이전 주행 허가를 이어받지 않는다.
 영상은 노트북이 SRT caller로 연결하고, UDP 목적지만 실제 인증된 연결 상대의 주소를
@@ -387,6 +407,16 @@ HMAC은 짝 확인을 위한 인증이며 암호화 전송은 아니다. 기존 
 환경 텔레메트리 포트는 `~/.config/powertrain/operator.json`의
 `environment_telemetry_port`로 지정하며 기본값은 `5008`이다. 1–65535 범위의 정수만
 허용되고, 잘못된 값은 세션·네트워크 시작 전에 콘솔 기동을 거부한다.
+L515 지형 장애물 윤곽은 `terrain_port`(기본 `5009`)로 받고, 영상과 맞추는 표시 지연은
+`terrain_display_delay_ms`(0–400 정수, 기본 0)로 정한다. 윤곽은 운용자 참고용이며
+주행 제어·안전 판정에 쓰이지 않는다. 송신 서비스는 기본 기동에 들어 있지 않다 —
+`INTEGRATED_PROFILES=terrain-overlay INTEGRATED_SERVICES=powertrain_terrain_overlay scripts/robot-start`로 켠다.
+L515 2.5D 지형 지도는 `terrain_map_port`(기본 `5010`)로 받고, 표시 수치는 `terrain_map_display` 객체
+(`display_upsample`·`stale_display_s`·`hillshade_azimuth_deg`·`hillshade_altitude_deg`·`z_exaggeration`·
+`max_render_pixels`·`height_range_m`, 범위 밖이면 기동 거부)로 바꾼다. 송신 서비스는 기본 기동에 들어 있지 않다 —
+`INTEGRATED_PROFILES=terrain-map INTEGRATED_SERVICES=powertrain_terrain_map scripts/robot-start`로 켠다.
+켠 뒤 **로버를 1초 정지**해야 지도가 쌓이기 시작하고(자이로 바이어스 학습), 지도 작성은 0.5 m/s 이하를 권장한다.
+지도는 지나온 관측 기록이며 주행 제어·안전 판정에 쓰이지 않는다. 사용법·파라미터는 `terrain_map/README.md`.
 
 ## 문제 확인
 

@@ -1,0 +1,357 @@
+[
+  {
+    "path": "lidar_dev/.gitignore",
+    "unchanged": true,
+    "sha256": "371cefdc03a05df7f1bbcf24200db74f48315795e197069cc78bc1797f4628ae"
+  },
+  {
+    "path": "lidar_dev/README.md",
+    "unchanged": true,
+    "sha256": "92f03c3ce23c26c9615b6535636493abcb6a2d5bc0ff360c3c8628d0ba03ffdf"
+  },
+  {
+    "path": "lidar_dev/check_seq.py",
+    "unchanged": true,
+    "sha256": "999866c1bec9df872dfb7adbd130e7db51e5fb953317466439b08ebe9ad5d15e"
+  },
+  {
+    "path": "lidar_dev/config/obstacle_criteria_v0.2.json",
+    "unchanged": true,
+    "sha256": "4db96c47805ca3ff8a4a930767faef8822c52ab1239c987867df8882f7de43ef"
+  },
+  {
+    "path": "lidar_dev/config/obstacle_criteria_v0.json",
+    "unchanged": true,
+    "sha256": "242813ba258d79960f4a5a1bd823866fbb840f168ce3b0313698a4f8f15260fd"
+  },
+  {
+    "path": "lidar_dev/criteria.py",
+    "unchanged": true,
+    "sha256": "d59cd419ad850524a1761b81daf491151feabfb0998a53583f99ca10f3e75ab5"
+  },
+  {
+    "path": "lidar_dev/eval_obstacles.py",
+    "unchanged": true,
+    "sha256": "ca205e1cc23d452d71eb17b4f91cd838530c4195e466cb29baed4d515e8c279c"
+  },
+  {
+    "path": "lidar_dev/gm_features.py",
+    "unchanged": true,
+    "sha256": "0c2f3e5c9a8156ac4c3630d8ac7b179927d074383ab96e507775b93f818d8559"
+  },
+  {
+    "path": "lidar_dev/gm_worker.py",
+    "unchanged": true,
+    "sha256": "58e63efea2f2396e3bed58f4515c1178cd6c0f48fc3b2f7cffb264b5942fe1d9"
+  },
+  {
+    "path": "lidar_dev/ground.py",
+    "unchanged": true,
+    "sha256": "bc3070f62013d16de711a8af99f7cde3dbc17415ed253a356367cb237ccf55ad"
+  },
+  {
+    "path": "lidar_dev/ground_est.py",
+    "unchanged": true,
+    "sha256": "5ec1b5c6f6c0b84dc76618a728a0f9f332579b3ae3ea8f2bab88472c071cd86a"
+  },
+  {
+    "path": "lidar_dev/imu_calib.py",
+    "unchanged": true,
+    "sha256": "1d429ed2b87b95689d90218fa5e6f126a0fc44f81da117c148beac99d9a816fa"
+  },
+  {
+    "path": "lidar_dev/live_map.py",
+    "unchanged": true,
+    "sha256": "e11359d56697f3da5e40a5f6dcb00fe3b7afd8a0a4711f70646382720b24e8fc"
+  },
+  {
+    "path": "lidar_dev/live_overlay.py",
+    "unchanged": true,
+    "sha256": "42aa4df0837333ee133537c3f98bee58f0c72dadf4c24c8a52aa979cbdc41b4b"
+  },
+  {
+    "path": "lidar_dev/map_seq.py",
+    "unchanged": true,
+    "sha256": "c934e3078189887194689467342352b73ab973960cc19e0e1da402ab9bbb392a"
+  },
+  {
+    "path": "lidar_dev/mount_calib.py",
+    "unchanged": true,
+    "sha256": "2f5eeda23be391bc116828da9fc66109752e8fb30e2a92eb72d285ba4cb98266"
+  },
+  {
+    "path": "lidar_dev/obstacles_map.py",
+    "unchanged": true,
+    "sha256": "b4189fe45a3632ee33868a6ce6f789d0d8825f42f8fd0acc99baf05577cab03e"
+  },
+  {
+    "path": "lidar_dev/overlay.py",
+    "unchanged": true,
+    "sha256": "e3122a2ff423f1de7dcaecd9a37f09163f55170fad449ac676094e654f5cb5af"
+  },
+  {
+    "path": "lidar_dev/record.py",
+    "unchanged": true,
+    "sha256": "c3d59a10e291429cc3cda2effae18eeebdd461a0c538876b725c81af4becdfa3"
+  },
+  {
+    "path": "lidar_dev/record_seq.py",
+    "unchanged": true,
+    "sha256": "1d5f07bb911ec100427ffc4338b39353a7d2ad71acee0493566c7e1d0668c098"
+  },
+  {
+    "path": "lidar_dev/recording.py",
+    "unchanged": true,
+    "sha256": "8f5637af40f3a77461b59aaddfcfe748ba3fccf393375f2d8aa324298b5f54dd"
+  },
+  {
+    "path": "lidar_dev/scan_terrain.py",
+    "unchanged": true,
+    "sha256": "bcaf3d30fcaef979dfc402e79d127c914905815ef47a353217b8b68cad66a690"
+  },
+  {
+    "path": "lidar_dev/seq_format.py",
+    "unchanged": true,
+    "sha256": "2c323b5548201dd40c19b5dc2737667f086bbd71efef8beb953d2eaab981fc78"
+  },
+  {
+    "path": "lidar_dev/synth_seq.py",
+    "unchanged": true,
+    "sha256": "73b07cd47b64591808fb4702d74b4049ef04fd6dbf31d3853962827a7c802474"
+  },
+  {
+    "path": "lidar_dev/tests/test_lidar_eval_obstacles.py",
+    "unchanged": true,
+    "sha256": "d0e673dd006ba396fa59462b99cd538d8c72d60d55e125e46698111ca788799d"
+  },
+  {
+    "path": "lidar_dev/tests/test_lidar_imu_calib.py",
+    "unchanged": true,
+    "sha256": "1356b6b19ad33d61d34502ff8187084106f4b15b846d2c10ad0fd73d5079cdee"
+  },
+  {
+    "path": "lidar_dev/tests/test_lidar_live_parts.py",
+    "unchanged": true,
+    "sha256": "6bf71a059c267bfc271969ebcc1e20087f5967f567f62f20de8ef685f40a689e"
+  },
+  {
+    "path": "lidar_dev/tests/test_lidar_map_seq.py",
+    "unchanged": true,
+    "sha256": "b6ea8137fcb1c897f0c2df0091b1fcaa99d9541423816a6f823ceaa64165a1ea"
+  },
+  {
+    "path": "lidar_dev/tests/test_lidar_obstacles_cases.py",
+    "unchanged": true,
+    "sha256": "6ba774c984d5616a771e16045f6576f574e868a7263f5b642677d345334d9e80"
+  },
+  {
+    "path": "lidar_dev/tests/test_lidar_obstacles_map.py",
+    "unchanged": true,
+    "sha256": "bccb8c9c200b24a108a66a27242da16aa5fb8662b1a01c9eed29a8889ce2a29b"
+  },
+  {
+    "path": "lidar_dev/tests/test_lidar_seq_format.py",
+    "unchanged": true,
+    "sha256": "b2b0ad4ba1cfc1694e483ae7de0837cade97eb388c6c79fa25c5810b6b3c8042"
+  },
+  {
+    "path": "lidar_dev/tests/test_offline_tools.py",
+    "unchanged": true,
+    "sha256": "2f7ab44333ac23f9bed3ebe511639a264f8395cd7106fa60dc43c56d2628fcf6"
+  },
+  {
+    "path": "lidar_dev/tmap_live.py",
+    "unchanged": true,
+    "sha256": "7ac3af8d10b30ae351871059fdc6d774a430e620897cdeaa1aa226223541039a"
+  },
+  {
+    "path": "lidar_dev/view_depth.py",
+    "unchanged": true,
+    "sha256": "c4d2840fc33ce5a362054228b740c188f16a19e4d8813c89c38dfbec30a0761c"
+  },
+  {
+    "path": "lidar_dev/webview.py",
+    "unchanged": true,
+    "sha256": "eff5edcc2b2cbfc3d5c3dee1beaf9980188c85eb6a697de6204e2b0f5f46902e"
+  },
+  {
+    "path": "operator_console/mobility_view.py",
+    "unchanged": true,
+    "sha256": "d4d44f72cf4686cfff112b216dd530bc555c49ad3de13dfa1ac0ab43c45bbd40"
+  },
+  {
+    "path": "operator_console/rover_3d.py",
+    "unchanged": true,
+    "sha256": "22316898354e37d10338a088825ff18a7a609d54a29af6647f9a1b8547facf30"
+  },
+  {
+    "path": "operator_console/terrain.py",
+    "unchanged": true,
+    "sha256": "7c58b0c991ad1436a3ea7dded5a543556e0d4b59b438d80dc4b09a5ae5dab2a1"
+  },
+  {
+    "path": "operator_console/terrain_map.py",
+    "unchanged": true,
+    "sha256": "3afad0ff9b3cf0f5b6ca6fd9771ced2a580da971c7d9522022f56a74b16e236b"
+  },
+  {
+    "path": "operator_console/terrain_map_panel.py",
+    "unchanged": true,
+    "sha256": "f57716b81aeccbec597a3fd6a6de0ec7ee0fed06df649e8e220957b002d26571"
+  },
+  {
+    "path": "terrain_map/README.md",
+    "unchanged": true,
+    "sha256": "54dc13ff45d8ec6bb8d03cb2d7b0cdff3e28fa9b866832930698418bacc8b80c"
+  },
+  {
+    "path": "terrain_map/__init__.py",
+    "unchanged": true,
+    "sha256": "87f852ec6ed25652fba433ee83ff2a8652141c566bb82d490e81d092b1f1ff4e"
+  },
+  {
+    "path": "terrain_map/classmap.py",
+    "unchanged": true,
+    "sha256": "720f894095b6a1754b6b13f4c82ab79f77af4a4697bd6ec0642e3392b19b681c"
+  },
+  {
+    "path": "terrain_map/config.py",
+    "unchanged": true,
+    "sha256": "70ae706f70f3a201fe5f0b31c54c1e86184ad6b0fbea3f28e1361dd4d30acd2b"
+  },
+  {
+    "path": "terrain_map/contract.py",
+    "unchanged": true,
+    "sha256": "8e66ec20e0ac0cd076da48c03ea293694757ee07a2c86f2bd9ad4fc3e3c64dcd"
+  },
+  {
+    "path": "terrain_map/correction.py",
+    "unchanged": true,
+    "sha256": "c8666b35b7191eb4f99fd514aac001ebf2baf35db19b3cbc3090027e52001775"
+  },
+  {
+    "path": "terrain_map/field_report.py",
+    "unchanged": true,
+    "sha256": "0b4b0626a6806a5b75010d90777836f3b0745717f76ca7ee4b2d5016b24790da"
+  },
+  {
+    "path": "terrain_map/geometry.py",
+    "unchanged": true,
+    "sha256": "bd0f73cac97a7c8d896fd807f0f23d2f4bd1a1d0f1be1f4a07cdb33a348f0ee3"
+  },
+  {
+    "path": "terrain_map/odometry.py",
+    "unchanged": true,
+    "sha256": "f3599542625c857a7fd6cedb9e36d3fddf712fa38c38c98fd87fc0cb941225d1"
+  },
+  {
+    "path": "terrain_map/pose.py",
+    "unchanged": true,
+    "sha256": "237939de8c47073fd062b5a351bae114c66949b93ba809c48470e3dde5baa09c"
+  },
+  {
+    "path": "terrain_map/runtime.py",
+    "unchanged": true,
+    "sha256": "821dcc8f4824ed8e9421a0e10ecaeccdbd07f10dff588cb295f61a6de7bbba3c"
+  },
+  {
+    "path": "terrain_map/scan.py",
+    "unchanged": true,
+    "sha256": "1faf8ef8e5d4371d43ed75ca2b963fd52aded2b4d8f7f978332a8b32aa9c8990"
+  },
+  {
+    "path": "terrain_map/schedule.py",
+    "unchanged": true,
+    "sha256": "1ceb1721b1634aff042fa1344e1c4e1ca02188dce8ddf2714fa50875615d2f3e"
+  },
+  {
+    "path": "terrain_map/slope.py",
+    "unchanged": true,
+    "sha256": "638c075cd317d757f6ef2252108960f2896895f2a175f2191ace110773b8d5ef"
+  },
+  {
+    "path": "terrain_map/tests/__init__.py",
+    "unchanged": true,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "terrain_map/tests/b_fixtures.py",
+    "unchanged": true,
+    "sha256": "5e7c9f1128ecc9e9c4397dfda1ecffc572aa7eae49d0e87e30cd031a108cec78"
+  },
+  {
+    "path": "terrain_map/tests/odometry_sim.py",
+    "unchanged": true,
+    "sha256": "78ea6643c6797701aa7ca466a6c3dbe110fce1d34620f88232d9b29a7ffea5f7"
+  },
+  {
+    "path": "terrain_map/tests/test_classmap.py",
+    "unchanged": true,
+    "sha256": "fbb06c0d28dc3bbe193f901f6a57e0d18a5b5a5a3072b3b03947a79301510064"
+  },
+  {
+    "path": "terrain_map/tests/test_contract.py",
+    "unchanged": true,
+    "sha256": "1e0f066f9cb4905e017a310cfa73a0b0351e9255ac291a10d235a1d33ca536bf"
+  },
+  {
+    "path": "terrain_map/tests/test_correction.py",
+    "unchanged": true,
+    "sha256": "fb8c488c6f9ff8abcefed86a49eb81615bd0b37af836e61343712ed5fb7329be"
+  },
+  {
+    "path": "terrain_map/tests/test_field_report.py",
+    "unchanged": true,
+    "sha256": "bd42058a490bf09a3299592e6fbc9bcfa7168e9ccace07fe96e86207981fb5ac"
+  },
+  {
+    "path": "terrain_map/tests/test_geometry.py",
+    "unchanged": true,
+    "sha256": "7a50846163f9819457d230ceb4d1cc28f7f7ef2287e17a475e4d1fd943f37dbe"
+  },
+  {
+    "path": "terrain_map/tests/test_odometry.py",
+    "unchanged": true,
+    "sha256": "0377495bfaf75ca58f779ad323d409471b6117cc9f96b5341a0f8e2e90155c06"
+  },
+  {
+    "path": "terrain_map/tests/test_odometry_slip.py",
+    "unchanged": true,
+    "sha256": "66642a40dd59b29636039d4e460e4a72525aa431fbb5f08a12dda8b0ac74498b"
+  },
+  {
+    "path": "terrain_map/tests/test_pose.py",
+    "unchanged": true,
+    "sha256": "5f39574fcb75417cf3c827b5ce7d4e4b4992a2e23cd2d095dcfe03119dc88331"
+  },
+  {
+    "path": "terrain_map/tests/test_runtime.py",
+    "unchanged": true,
+    "sha256": "b4977d10ac57a2cd04c64737b5575eee1f2f7cc366cf35283177e609237c7d09"
+  },
+  {
+    "path": "terrain_map/tests/test_scan.py",
+    "unchanged": true,
+    "sha256": "34190df0bc452068bac5b185ce393d34c2214f652b2a50f582d826bc471f67a2"
+  },
+  {
+    "path": "terrain_map/tests/test_schedule.py",
+    "unchanged": true,
+    "sha256": "c31f34c59ad64afae1351ecb68a4bba9c943512a9e958cd0a152ae482e4da00a"
+  },
+  {
+    "path": "terrain_map/tests/test_slope.py",
+    "unchanged": true,
+    "sha256": "d5ad4943fbc7bae1ae1a855be292c45f80b4daee3707b6dd0d20f614bbe940c4"
+  },
+  {
+    "path": "terrain_map/tests/test_worldcells.py",
+    "unchanged": true,
+    "sha256": "71004e05586f1e27f3f3bedd70dcc1ba6bd2044764157d0593be4027fe160972"
+  },
+  {
+    "path": "terrain_map/tests/world_render.py",
+    "unchanged": true,
+    "sha256": "a2c7a1c813d71a575ae57a44633d8dc5c3b1a5c1bd9b2fcfc6efb5cba54d02ce"
+  }
+]

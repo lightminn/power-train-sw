@@ -1,0 +1,22 @@
+Collecting numpy
+  Using cached numpy-2.5.4-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (6.6 kB)
+Collecting pytest
+  Using cached pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+Collecting opencv-python-headless
+  Using cached opencv_python_headless-5.0.0.93-cp37-abi3-manylinux_2_28_x86_64.whl.metadata (19 kB)
+Collecting iniconfig>=1.0.1 (from pytest)
+  Using cached iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+Collecting packaging>=22 (from pytest)
+  Using cached packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+Collecting pluggy<2,>=1.5 (from pytest)
+  Using cached pluggy-1.7.0-py3-none-any.whl.metadata (5.0 kB)
+Requirement already satisfied: pygments>=2.7.2 in /usr/lib/python3/dist-packages (from pytest) (2.17.2)
+Using cached numpy-2.5.4-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (16.7 MB)
+Using cached pytest-9.1.1-py3-none-any.whl (386 kB)
+Using cached pluggy-1.7.0-py3-none-any.whl (27 kB)
+Using cached opencv_python_headless-5.0.0.93-cp37-abi3-manylinux_2_28_x86_64.whl (61.2 MB)
+Using cached iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+Using cached packaging-26.3-py3-none-any.whl (129 kB)
+Installing collected packages: pluggy, packaging, numpy, iniconfig, pytest, opencv-python-headless
+
+Successfully installed iniconfig-2.3.1 numpy-2.5.4 opencv-python-headless-5.0.0.93 packaging-26.3 pluggy-1.7.0 pytest-9.1.1

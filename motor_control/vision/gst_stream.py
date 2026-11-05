@@ -44,21 +44,25 @@ def build_conversion_tokens(encoder: str, x264_conversion: str) -> list[str]:
 
 def build_gst_command(port: int, width: int, height: int, fps: int,
                       encoder: str = "x264", bitrate_kbps: int = 3000,
-                      latency_ms: int = 60) -> list:
+                      latency_ms: int = 60, keyint: int = 30) -> list:
     """gst-launch argv — stdin 의 raw BGR 프레임을 H.264/MPEG-TS/SRT 로 송신.
+
+    keyint: 키프레임 간격(프레임). 출력 fps 를 낮추면 같이 낮춰 GOP 를 약 1 s 로 유지한다.
 
     수신 (노트북): scripts/recv_stream.sh <port> <jetson-host>
                   또는 scripts/recv_yolo3d.py (좌표 오버레이 합성).
     """
+    if isinstance(keyint, bool) or not isinstance(keyint, int) or keyint <= 0:
+        raise ValueError(f"keyint must be a positive integer: {keyint!r}")
     if encoder == "x264":
         # Real L515 imagery needs ultrafast and three encoder threads to sustain
         # 30 fps on Orin Nano; the former zero-frame benchmark overstated superfast.
         enc = ["x264enc", "tune=zerolatency", "speed-preset=ultrafast", "threads=3",
-               f"bitrate={bitrate_kbps}", "key-int-max=30"]
+               f"bitrate={bitrate_kbps}", f"key-int-max={keyint}"]
     elif encoder == "openh264":
         # 폴백 (구이미지에 plugins-ugly 없음). complexity=low: 인코더가 CPU 독식해
         # 검출 루프 굶기는 것 방지. scene-change-detection=false: IDR burst 억제.
-        enc = ["openh264enc", f"bitrate={bitrate_kbps * 1000}", "gop-size=30",
+        enc = ["openh264enc", f"bitrate={bitrate_kbps * 1000}", f"gop-size={keyint}",
                "complexity=low", "scene-change-detection=false"]
     else:
         raise ValueError(f"encoder must be one of {ENCODERS}: {encoder!r}")

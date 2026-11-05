@@ -1,0 +1,39 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_decoded_frame_overload_discards_old_frames_and_bounds_memory _______
+
+    def test_decoded_frame_overload_discards_old_frames_and_bounds_memory():
+        Gst.init(None)
+        # Reuse the real production tail, replacing only GTK output with a slow sink.
+        tail = pipeline_description('localhost', 5000, 60).split('avdec_h264 max-threads=1 ! ', 1)[1]
+        tail = tail.replace('gtksink name=video_sink sync=false force-aspect-ratio=true',
+                            'identity sleep-time=50000 ! fakesink name=video_sink sync=false')
+        pipeline = Gst.parse_launch(
+            'videotestsrc is-live=true num-buffers=120 ! '
+            'video/x-raw,width=160,height=90,framerate=60/1 ! '+tail)
+        queue = pipeline.get_by_name('video_latest')
+        timestamps = []
+        def received(pad, info):
+            timestamps.append(info.get_buffer().pts/Gst.SECOND)
+            return Gst.PadProbeReturn.OK
+        pipeline.get_by_name('video_sink').get_static_pad('sink').add_probe(
+            Gst.PadProbeType.BUFFER, received)
+        started = time.monotonic()
+        try:
+            pipeline.set_state(Gst.State.PLAYING)
+            message = pipeline.get_bus().timed_pop_filtered(9*Gst.SECOND,
+                                                           Gst.MessageType.EOS | Gst.MessageType.ERROR)
+            assert message and message.type == Gst.MessageType.EOS
+>           assert time.monotonic()-started < 4
+E           assert (1455.541141924 - 1449.488094141) < 4
+E            +  where 1455.541141924 = <built-in function monotonic>()
+E            +    where <built-in function monotonic> = time.monotonic
+
+operator_console/tests/test_video_performance.py:50: AssertionError
+----------------------------- Captured stderr call -----------------------------
+Xlib:  extension "DRI2" missing on display ":100".
+=========================== short test summary info ============================
+FAILED operator_console/tests/test_video_performance.py::test_decoded_frame_overload_discards_old_frames_and_bounds_memory
+1 failed in 6.16s
+
+exit_code=1

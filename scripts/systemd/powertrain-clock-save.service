@@ -1,0 +1,6 @@
+[Unit]
+Description=Record the current time for powertrain-clock-restore
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/powertrain-clock save

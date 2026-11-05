@@ -27,6 +27,7 @@ from powertrain_ros import console_can_status
 from powertrain_runtime.telemetry import send_datagram
 from powertrain_ros.chassis_telemetry import (
     LatestPollWorker,
+    SuspensionTelemetry,
     component_mask_payload_value,
     encode_telemetry_payload,
     parse_component_mask_state,
@@ -47,6 +48,8 @@ class ChassisTelemetrySender(Node):
         self.declare_parameter("operator_host", "")
         self.declare_parameter("operator_port", 5005)
         self.declare_parameter("publish_hz", 2.0)
+        # "" = <repo>/config/suspension_encoders.json (same file robot-start reads)
+        self.declare_parameter("suspension_config", "")
         host = str(self.get_parameter("operator_host").value)
         port = int(self.get_parameter("operator_port").value)
         hz = float(self.get_parameter("publish_hz").value)
@@ -94,6 +97,11 @@ class ChassisTelemetrySender(Node):
             period_s=1.0,
             name="observability-status-poll",
         )
+        self._suspension = SuspensionTelemetry(
+            str(self.get_parameter("suspension_config").value)
+        )
+        self.get_logger().info(f"suspension encoders: {self._suspension.status}")
+        self._suspension_errors: tuple[str, ...] = ()
         self.create_subscription(WheelStates, "/wheel_states", self._on_wheels, 10)
         self.create_subscription(Odometry, "/odom", self._on_odom, 10)
         self.create_subscription(SafetyVerdict, "/safety_verdict", self._on_safety, 10)
@@ -397,6 +405,10 @@ class ChassisTelemetrySender(Node):
             "slip_candidate": None if diagnostics is None else diagnostics.get("slip_candidate"),
             "stuck_candidate": None if diagnostics is None else diagnostics.get("stuck_candidate"),
         }
+        # Optional AS5048B rocker/bogie angles: keys are omitted entirely when
+        # no channel has a fresh valid sample (never sent as fake zeros).
+        payload.update(self._suspension.fields())
+        self._log_suspension_errors()
         try:
             send_datagram(self._udp, encode_telemetry_payload(payload), self._endpoint)
             self._sequence += 1
@@ -405,7 +417,20 @@ class ChassisTelemetrySender(Node):
                 f"operator telemetry send failed: {exc}", throttle_duration_sec=5.0
             )
 
+    def _log_suspension_errors(self) -> None:
+        errors = tuple(self._suspension.latest_errors())
+        if errors and errors != self._suspension_errors:
+            self.get_logger().warning(
+                "suspension encoder: " + "; ".join(errors),
+                throttle_duration_sec=10.0,
+            )
+        self._suspension_errors = errors
+
     def destroy_node(self):
+        if not self._suspension.close(join_timeout_s=1.0):
+            self.get_logger().warning(
+                "suspension encoder poll worker did not stop within 1 s"
+            )
         if not self._gateway_worker.close(join_timeout_s=1.0):
             self.get_logger().warning("L515 poll worker did not stop within 1 s")
         if not self._observability_worker.close(join_timeout_s=1.0):

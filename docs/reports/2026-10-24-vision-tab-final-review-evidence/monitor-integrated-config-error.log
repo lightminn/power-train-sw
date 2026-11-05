@@ -1,0 +1,2 @@
+운용 콘솔 시작 실패: [Errno 2] No such file or directory: '/nonexistent/vision-review-config'
+설정 확인: /nonexistent/vision-review-config (robot_id, hosts, token_file, controller_python)

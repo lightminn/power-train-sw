@@ -23,7 +23,8 @@ wire 에서 **패키지명 + 구조 해시**로 매칭되므로, 동일한 `.msg
     bash ros2/scripts/sync_check_msgs.sh ~/extreme-robot  # 외부 체크아웃 명시
 
 폴더 통합 시점의 정본에는 `TaskCommand.msg`·`TaskResult.msg`가 추가되어 있다.
-현재 벤더 사본에는 없으므로 검사에서 드리프트로 보고한다. 폴더 통합에서 메시지
+현재 벤더 사본에는 없으므로 검사에서 드리프트로 보고한다. 정본의 `action/*.action` 3개도
+사본에 없지만 검사는 `msg/`만 비교하므로 보고되지 않는다. 폴더 통합에서 메시지
 계약은 재벤더하지 않았다. 출처와 빌드 경계는
 [`docs/extreme-robot-integration.md`](../../../docs/extreme-robot-integration.md)를 참고한다.
 

@@ -58,7 +58,8 @@ def run_smoke(*, controller_python=None):
             session_port=session_port, token_file=str(token), controller_python=str(_controller_fixture(base, controller_python or sys.executable)),
             metadata_port=_free_udp_port(), telemetry_port=_free_udp_port(),
             chassis_telemetry_port=_free_udp_port(), arm_telemetry_port=_free_udp_port(),
-            environment_telemetry_port=_free_udp_port())))
+            environment_telemetry_port=_free_udp_port(),
+            terrain_port=_free_udp_port())))
         probe = base / 'probe.json'
         env = dict(os.environ, XDG_RUNTIME_DIR=str(base), GDK_BACKEND='x11',
                    GDK_SCALE='1', GDK_DPI_SCALE='1', SDL_VIDEODRIVER='dummy',

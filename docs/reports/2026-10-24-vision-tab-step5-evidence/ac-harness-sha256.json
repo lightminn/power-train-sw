@@ -1,0 +1,5 @@
+{
+  "measured_ac_harness_sha256": "8e4cbb8b3ad5eae63666f3590ca27c21ec0269b652839413c35d4257277a4729",
+  "current_harness_sha256": "549542343561dd010238c9b4076a093ffd7fec89a38b59a62051533401263abd",
+  "note": "AC baseline and after used the same measured version; current version adds missing-callback/end-boundary detection, separately verified."
+}

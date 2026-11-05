@@ -1,5 +1,6 @@
 """Executable headless Gateway: ``python3 -m l515_dashboard.gateway_main``."""
 
+import os
 import signal
 import time
 
@@ -35,9 +36,20 @@ class RosRuntime:
         if self._rclpy.ok(): self._rclpy.shutdown()
 
 
+def config_from_env(environ=os.environ):
+    """L515_SRT_FPS selects the SRT output rate (30 or 15); capture stays 30 fps."""
+    raw=environ.get("L515_SRT_FPS")
+    if raw is None:
+        return DashboardConfig()
+    try:
+        return DashboardConfig(stream_fps=int(raw) if raw.strip().isdigit() else raw)
+    except ValueError as exc:
+        raise ValueError(f"L515_SRT_FPS={raw!r} is invalid: {exc}") from exc
+
+
 def build_gateway(config=None):
     import pyrealsense2 as rs
-    config=config or DashboardConfig()
+    config=config or config_from_env()
     guard=ResourceGuard(config.lock_path)
     source=L515GatewaySource(rs, config)
     ros=RosRuntime()

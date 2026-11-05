@@ -1,6 +1,7 @@
 import json
 import time
 import socket
+import threading
 from types import SimpleNamespace
 
 import gi
@@ -90,6 +91,8 @@ def test_udp_to_existing_console(tmp_path):
         arm_telemetry_port=0, environment_telemetry_port=0,
         ops_token_file=str(tmp_path / 'absent-token'))
     sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    resume_stop = threading.Event()
+    resume_thread = None
     def pump_until(predicate):
         deadline = time.monotonic() + 3
         while time.monotonic() < deadline:
@@ -115,7 +118,7 @@ def test_udp_to_existing_console(tmp_path):
         assert not any(button.get_sensitive() for button in window._arm_manual_tab.gate.widgets)
         window._refresh_end_effector_summary()
         assert window._mission_tool_selector.get_active_text() == '단일 그리퍼'
-        assert 'ID 5' in window._mission_tool_reading.get_text()
+        assert window._mission_tool_reading.get_text() == '구동부 1개 응답'
         window._show_end_effector_popup()
         assert '현재 감지 도구' in window._end_effector_popup_purpose.get_text()
         time.sleep(1.05)
@@ -123,18 +126,32 @@ def test_udp_to_existing_console(tmp_path):
         assert window._end_effector_popup_values['load'].get_text() == '정보 없음'
         # A resumed bridge datagram must replace stale tool details; it must not
         # retain the previous ID5 projection after a tool change/reconnection.
-        resumed = build_arm_telemetry_payload(sequence=2, stamp_s=0,
-            motors=None, joints=None, source_age_s={},
-            tool_runtime={'tool': normalize_tool(tool('dual_motor_gripper', [3, 4])),
-                          'source_age_s': 0})
-        sender.sendto(resumed, ('127.0.0.1', port))
-        pump_until(lambda: window._arm_receiver.latest().sequence == 2)
+        # A live bridge streams continuously. A single resumed datagram can
+        # legitimately expire while GTK drains callbacks from the full suite.
+        # Keep LIVE observations fresh; the stopped-stream stale check above
+        # still uses the real one-second freshness threshold.
+        def resumed_bridge():
+            sequence = 2
+            while not resume_stop.is_set():
+                resumed = build_arm_telemetry_payload(sequence=sequence, stamp_s=0,
+                    motors=None, joints=None, source_age_s={},
+                    tool_runtime={'tool': normalize_tool(tool('dual_motor_gripper', [3, 4])),
+                                  'source_age_s': 0})
+                sender.sendto(resumed, ('127.0.0.1', port))
+                sequence += 1
+                resume_stop.wait(.05)
+        resume_thread = threading.Thread(target=resumed_bridge, name='tool-resumed-fixture', daemon=True)
+        resume_thread.start()
+        pump_until(lambda: window._arm_receiver.latest().sequence >= 2)
         window._refresh_health()
         window._refresh_end_effector_summary()
         assert window._mission_tool_selector.get_active_text() == '듀얼 그리퍼'
         assert window._arm_manual_tab._state.detected_tool.kind == 'dual_gripper'
-        assert 'ID 3, 4' in window._mission_tool_reading.get_text()
+        assert window._mission_tool_reading.get_text() == '구동부 2개 응답'
         assert 'ID 5:' not in window._end_effector_popup_values['load'].get_text()
     finally:
+        resume_stop.set()
+        if resume_thread is not None:
+            resume_thread.join(timeout=1)
         sender.close()
         window.destroy()

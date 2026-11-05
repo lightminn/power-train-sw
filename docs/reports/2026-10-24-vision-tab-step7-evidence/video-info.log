@@ -1,0 +1,19 @@
+Xlib:  extension "DRI2" missing on display ":0".
+Analyzing file:///home/kimseon/power-train-sw-vision/docs/reports/2026-10-24-vision-tab-step7-evidence/vision-synthetic-demo.webm
+Done discovering file:///home/kimseon/power-train-sw-vision/docs/reports/2026-10-24-vision-tab-step7-evidence/vision-synthetic-demo.webm
+
+Properties:
+  Duration: 0:00:13.989957707
+  Seekable: yes
+  Live: no
+  container #0: WebM
+    video #1: VP8
+      Stream ID: df6840d171173ee3c1b04ad7470899e6f04ba5b6bc613bd25660737c15535a27/001:15761153866570891400
+      Width: 1200
+      Height: 800
+      Depth: 24
+      Frame rate: 10/1
+      Pixel aspect ratio: 1/1
+      Interlaced: false
+      Bitrate: 0
+      Max bitrate: 0

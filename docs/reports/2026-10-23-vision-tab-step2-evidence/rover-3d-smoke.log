@@ -1,0 +1,672 @@
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+{
+  "passed": true,
+  "checks": [
+    {
+      "layout_1100x680": {
+        "page": 493.0,
+        "content": 493.0
+      }
+    },
+    {
+      "page_zoom_locked": "rover"
+    },
+    {
+      "live": {
+        "modelKind": "cad-lod",
+        "viewMode": "rover",
+        "triangles": 265924,
+        "displayMeshes": 30,
+        "zoomEnabled": false,
+        "panEnabled": false,
+        "selected": "front_left",
+        "live": true,
+        "armLive": false,
+        "wheels": [
+          "rear_left",
+          "front_left",
+          "mid_left",
+          "rear_right",
+          "front_right",
+          "mid_right"
+        ],
+        "joints": {
+          "ml_rocker_joint": [
+            0,
+            0.09983341664682815,
+            0,
+            0.9950041652780258
+          ],
+          "mr_rocker_joint": [
+            0,
+            -0.04997916927067833,
+            0,
+            0.9987502603949663
+          ],
+          "bl_bogie_joint": [
+            0,
+            -0.07492970727274234,
+            0,
+            0.9971888181122075
+          ],
+          "br_bogie_joint": [
+            0,
+            0.04997916927067833,
+            0,
+            0.9987502603949663
+          ]
+        },
+        "armJoints": {
+          "arm_J1_yaw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "arm_J2_shoulder": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "arm_J3_elbow": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "arm4_rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "axis5_rotation": [
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "armTip": [
+          0.3566543840187508,
+          -0.024485181357697332,
+          0.30853988586871467
+        ],
+        "frontLeft": [
+          0.47632702933468457,
+          0.3650657849432272,
+          -0.3733060675657245
+        ],
+        "popup": "수신 / 모터 상태정상모터 전류3.50 A회전 속도12 rpm조향각12.0°"
+      }
+    },
+    {
+      "second_pose": {
+        "modelKind": "cad-lod",
+        "viewMode": "rover",
+        "triangles": 265924,
+        "displayMeshes": 30,
+        "zoomEnabled": false,
+        "panEnabled": false,
+        "selected": "front_left",
+        "live": true,
+        "armLive": false,
+        "wheels": [
+          "rear_left",
+          "front_left",
+          "mid_left",
+          "rear_right",
+          "front_right",
+          "mid_right"
+        ],
+        "joints": {
+          "ml_rocker_joint": [
+            0,
+            -0.09983341664682815,
+            0,
+            0.9950041652780258
+          ],
+          "mr_rocker_joint": [
+            0,
+            0.07492970727274234,
+            0,
+            0.9971888181122075
+          ],
+          "bl_bogie_joint": [
+            0,
+            0.09983341664682815,
+            0,
+            0.9950041652780258
+          ],
+          "br_bogie_joint": [
+            0,
+            -0.07492970727274234,
+            0,
+            0.9971888181122075
+          ]
+        },
+        "armJoints": {
+          "arm_J1_yaw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "arm_J2_shoulder": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "arm_J3_elbow": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "arm4_rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "axis5_rotation": [
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "armTip": [
+          0.3566543840187508,
+          -0.024485181357697332,
+          0.30853988586871467
+        ],
+        "frontLeft": [
+          0.5307847066540735,
+          0.3564940995183596,
+          -0.26638867561908935
+        ],
+        "popup": "수신 / 모터 상태정상모터 전류3.50 A회전 속도12 rpm조향각12.0°"
+      },
+      "wheel_displacement_m": 0.12029314656586208
+    },
+    {
+      "stale": {
+        "modelKind": "cad-lod",
+        "viewMode": "rover",
+        "triangles": 265924,
+        "displayMeshes": 30,
+        "zoomEnabled": false,
+        "panEnabled": false,
+        "selected": "front_left",
+        "live": false,
+        "armLive": false,
+        "wheels": [
+          "rear_left",
+          "front_left",
+          "mid_left",
+          "rear_right",
+          "front_right",
+          "mid_right"
+        ],
+        "joints": {
+          "ml_rocker_joint": [
+            0,
+            -0.09983341664682815,
+            0,
+            0.9950041652780258
+          ],
+          "mr_rocker_joint": [
+            0,
+            0.07492970727274234,
+            0,
+            0.9971888181122075
+          ],
+          "bl_bogie_joint": [
+            0,
+            0.09983341664682815,
+            0,
+            0.9950041652780258
+          ],
+          "br_bogie_joint": [
+            0,
+            -0.07492970727274234,
+            0,
+            0.9971888181122075
+          ]
+        },
+        "armJoints": {
+          "arm_J1_yaw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "arm_J2_shoulder": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "arm_J3_elbow": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "arm4_rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "axis5_rotation": [
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "armTip": [
+          0.3566543840187508,
+          -0.024485181357697332,
+          0.30853988586871467
+        ],
+        "frontLeft": [
+          0.5307847066540735,
+          0.3564940995183596,
+          -0.26638867561908935
+        ],
+        "popup": "수신 / 모터 상태미연결모터 전류미연결회전 속도미연결조향각미연결"
+      }
+    },
+    {
+      "arm_first": {
+        "modelKind": "cad-lod",
+        "viewMode": "rover",
+        "triangles": 265924,
+        "displayMeshes": 30,
+        "zoomEnabled": false,
+        "panEnabled": false,
+        "selected": "front_left",
+        "live": true,
+        "armLive": true,
+        "wheels": [
+          "rear_left",
+          "front_left",
+          "mid_left",
+          "rear_right",
+          "front_right",
+          "mid_right"
+        ],
+        "joints": {
+          "ml_rocker_joint": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "mr_rocker_joint": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "bl_bogie_joint": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "br_bogie_joint": [
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "armJoints": {
+          "arm_J1_yaw": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "arm_J2_shoulder": [
+            0,
+            0.24740395925452294,
+            0,
+            0.9689124217106447
+          ],
+          "arm_J3_elbow": [
+            0,
+            -0.35694929447691137,
+            0,
+            0.9341237611646731
+          ],
+          "arm4_rotation": [
+            0,
+            0.19393468159793828,
+            0,
+            0.9810144439678278
+          ],
+          "axis5_rotation": [
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "armTip": [
+          0.3886352630878562,
+          0.00025000000000000526,
+          0.4760206732219258
+        ],
+        "frontLeft": [
+          0.52377,
+          0.33399999999996527,
+          -0.3273784583946805
+        ],
+        "popup": "수신 / 모터 상태정상모터 전류0.00 A회전 속도0 rpm조향각0.0°"
+      }
+    },
+    {
+      "arm_second": {
+        "modelKind": "cad-lod",
+        "viewMode": "rover",
+        "triangles": 265924,
+        "displayMeshes": 30,
+        "zoomEnabled": false,
+        "panEnabled": false,
+        "selected": "front_left",
+        "live": true,
+        "armLive": true,
+        "wheels": [
+          "rear_left",
+          "front_left",
+          "mid_left",
+          "rear_right",
+          "front_right",
+          "mid_right"
+        ],
+        "joints": {
+          "ml_rocker_joint": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "mr_rocker_joint": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "bl_bogie_joint": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "br_bogie_joint": [
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "armJoints": {
+          "arm_J1_yaw": [
+            0,
+            0,
+            -0.15532979145452339,
+            0.9878626705603842
+          ],
+          "arm_J2_shoulder": [
+            0,
+            0.17775378257829746,
+            0,
+            0.984074993473113
+          ],
+          "arm_J3_elbow": [
+            0,
+            -0.41241591621178375,
+            0,
+            0.9109956707115544
+          ],
+          "arm4_rotation": [
+            0,
+            0.22732821738238643,
+            0,
+            0.9738181973971047
+          ],
+          "axis5_rotation": [
+            0.11117064564193206,
+            0,
+            0,
+            0.993801332031486
+          ]
+        },
+        "armTip": [
+          0.3193482678588168,
+          -0.05224753125427556,
+          0.5410528157245165
+        ],
+        "frontLeft": [
+          0.52377,
+          0.33399999999996527,
+          -0.3273784583946805
+        ],
+        "popup": "수신 / 모터 상태정상모터 전류0.00 A회전 속도0 rpm조향각0.0°"
+      },
+      "arm_tip_displacement_m": 0.10856269181509742
+    },
+    {
+      "view_checks": {
+        "performance": {
+          "triangles": 265924,
+          "drawCalls": 36,
+          "median_ms": 3,
+          "p95_ms": 4,
+          "pixelRatio": 1,
+          "cadMeshRequests": 0,
+          "displayMeshRequests": 30
+        },
+        "interaction": {
+          "zoomBefore": 2.7834162188547102,
+          "zoomAfter": 2.7834162188547102,
+          "zoomOutAfter": 2.7834162188547102,
+          "ctrlWheelAfter": 2.7834162188547102,
+          "pageWheelBlocked": true,
+          "pageKeyBlocked": true,
+          "pinchBlocked": true,
+          "fixedDistance": true,
+          "twoFingerDisabled": true,
+          "halfTurnDistance": 4.821018309667611,
+          "fixedElevation": true
+        },
+        "fontLoaded": true,
+        "fontFamily": "NoonnuBasicGothic, \"Noto Sans CJK KR\", sans-serif"
+      }
+    },
+    {
+      "arm_stale": {
+        "modelKind": "cad-lod",
+        "viewMode": "rover",
+        "triangles": 265924,
+        "displayMeshes": 30,
+        "zoomEnabled": false,
+        "panEnabled": false,
+        "selected": "front_left",
+        "live": true,
+        "armLive": false,
+        "wheels": [
+          "rear_left",
+          "front_left",
+          "mid_left",
+          "rear_right",
+          "front_right",
+          "mid_right"
+        ],
+        "joints": {
+          "ml_rocker_joint": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "mr_rocker_joint": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "bl_bogie_joint": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "br_bogie_joint": [
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "armJoints": {
+          "arm_J1_yaw": [
+            0,
+            0,
+            -0.15532979145452339,
+            0.9878626705603842
+          ],
+          "arm_J2_shoulder": [
+            0,
+            0.17775378257829746,
+            0,
+            0.984074993473113
+          ],
+          "arm_J3_elbow": [
+            0,
+            -0.41241591621178375,
+            0,
+            0.9109956707115544
+          ],
+          "arm4_rotation": [
+            0,
+            0.22732821738238643,
+            0,
+            0.9738181973971047
+          ],
+          "axis5_rotation": [
+            0.11117064564193206,
+            0,
+            0,
+            0.993801332031486
+          ]
+        },
+        "armTip": [
+          0.3193482678588168,
+          -0.05224753125427556,
+          0.5410528157245165
+        ],
+        "frontLeft": [
+          0.52377,
+          0.33399999999996527,
+          -0.3273784583946805
+        ],
+        "popup": "수신 / 모터 상태정상모터 전류0.00 A회전 속도0 rpm조향각0.0°"
+      }
+    },
+    {
+      "page_zoom_locked": "arm"
+    },
+    {
+      "arm_preview": {
+        "modelKind": "cad-lod",
+        "viewMode": "arm",
+        "triangles": 27448,
+        "displayMeshes": 10,
+        "zoomEnabled": false,
+        "panEnabled": false,
+        "selected": null,
+        "live": true,
+        "armLive": true,
+        "wheels": [],
+        "joints": {
+          "ml_rocker_joint": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "mr_rocker_joint": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "bl_bogie_joint": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "br_bogie_joint": [
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "armJoints": {
+          "arm_J1_yaw": [
+            0,
+            0,
+            -0.15532979145452339,
+            0.9878626705603842
+          ],
+          "arm_J2_shoulder": [
+            0,
+            0.17775378257829746,
+            0,
+            0.984074993473113
+          ],
+          "arm_J3_elbow": [
+            0,
+            -0.41241591621178375,
+            0,
+            0.9109956707115544
+          ],
+          "arm4_rotation": [
+            0,
+            0.22732821738238643,
+            0,
+            0.9738181973971047
+          ],
+          "axis5_rotation": [
+            0.11117064564193206,
+            0,
+            0,
+            0.993801332031486
+          ]
+        },
+        "armTip": [
+          0.3193482678588168,
+          -0.05224753125427556,
+          0.5410528157245165
+        ],
+        "frontLeft": [
+          0.52377,
+          0.33399999999996527,
+          -0.3273784583946805
+        ],
+        "popup": ""
+      }
+    }
+  ]
+}

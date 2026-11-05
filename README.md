@@ -17,7 +17,7 @@ ZETIN 6륜 로커-보기(rocker-bogie) 방위 로봇의 파워트레인 SW 저�
 
 9/8 코드·문서 대조 결과와 확인 범위는 [정합성 정리 기록](docs/reports/2026-09-08-workspace-consistency.md)을
 참고한다. NumPy 백엔드 선택은 완료됐지만 autonomy 전용 Compose 배포와 Jetson receiver
-feedback 적용은 미연결이다. 환경 센싱 콘솔 탭은 팀원 Draft PR #4에 있으며 main 기능이 아니다.
+feedback 적용은 미연결이다. 환경 센싱 콘솔 탭(PR #4)은 2026-09-09 main에 병합됐다.
 
 **통합 운용 경로(2026-09-08):** 최초 준비 후 젯슨 `scripts/robot-start`와 노트북
 `python -m operator_console`로 세션·패드·기존 관측 기능을 연결하는 선택 경로를 추가했다.
@@ -27,6 +27,15 @@ feedback 적용은 미연결이다. 환경 센싱 콘솔 탭은 팀원 Draft PR 
 현재 인수 대상은 원격주행이다. 선 재연결 후 CAN 10축 통신은 확인했고 실제 모터
 구동·제동은 별도 인수다. US-100·L515는
 의도적 분리 상태이고 미완성 자율주행은 이번 테스트 판정 범위에서 제외한다.
+
+**현장 배포(2026-10-28~):** 젯슨은 통합 브랜치 `deploy/jetson-field-20261028`을
+`JETSON_REPO=/home/zetin/power-train-sw-integrated scripts/deploy_branch_to_jetson.sh`로 받아
+`~/power-train-sw-integrated`에서 실행한다(`JETSON_REPO`를 빼면 팀원 체크아웃이 대상이 된다). 구동 MKS 보드
+세 장은 모두 CAN patch4이고(실트래픽 인수 남음), 현장 원격주행 설정·젯슨 시계 복원은
+[10-30 기록](docs/reports/2026-10-30-field-teleop-stability.md), 서스펜션 엔코더 배선은
+[11-02 기록](docs/reports/2026-11-02-encoders-and-jetson-load.md)을 따른다. L515 지형 지도(:5010)·
+지형 오버레이(:5009)는 운용자 시각 보조 전용이다([`terrain_map/README.md`](terrain_map/README.md)).
+현재 상태 전체는 [`.claude/CLAUDE.md`](.claude/CLAUDE.md) §2가 정본이다.
 
 ---
 
@@ -48,16 +57,21 @@ feedback 적용은 미연결이다. 환경 센싱 콘솔 탭은 팀원 Draft PR 
 │   ├── chassis/         순수 Python 4WS 제어·SafetyInterlock·10모터 단일 권한 (애커만↔스키드 전환)
 │   ├── laptop/          노트북 측 텔레옵 클라이언트 (velocity·video·chassis 무선)
 │   └── pi/              라즈베리파이 측 서버 (laptop/ 과 1:1 짝)
-├── ros2/                ★ 얇은 ROS2 어댑터 층 — src/powertrain_ros 노드 22종,
-│                          powertrain_msgs, robot_arm_msgs(벤더링 사본)
+├── ros2/                ★ 얇은 ROS2 어댑터 층 — src/powertrain_ros 엔트리포인트 24종,
+│                          powertrain_msgs, robot_arm_msgs(벤더링 사본), 로봇팔팀 패키지
 ├── extreme-robot/       로봇팔·인식 레포 전체 소스 — 자체 Docker·ros2_ws 유지
 ├── powertrain_autonomy/ WP6 자율주행 순수 코어 (지형 추정·컨트롤러). ROS·하드웨어·시뮬 분기 없음
 ├── powertrain_observability/  진단 이벤트·헬스 순수 코어
 ├── powertrain_runtime/  통합 연결 세션·인증 프록시·운전 시작 절차 (하드웨어 직접 소유 없음)
+├── terrain_map/         L515 2.5D 지형 지도 순수 코어 (노드 terrain_map → 콘솔 UDP :5010, 시각 보조 전용)
+├── terrain_overlay/     L515 지형 장애물 윤곽 순수 코어 (노드 terrain_overlay → 콘솔 UDP :5009)
+├── lidar_dev/           L515 기록·평가·실시간 오버레이 시험대 (오프라인 도구)
 ├── remote_video/        원격 영상 수신측 계약
 ├── operator_console/    운용 PC GTK 콘솔 (관측 수신 전용 — 조작은 ops 채널 :9001 경유만)
 ├── l515_dashboard/      L515 Gateway·TUI (단일 SDK 소유 — SRT 송신 + ROS 발행 + Textual 대시보드)
 ├── motor_gui/           웹 진단·튜닝 GUI (FastAPI + 트랜스포트 추상화, AK/ODrive CAN·USB)
+├── firmware/mks_odrive/ MKS ODrive CAN 패치 재현 소스·빌드 (구동 보드 세 장 patch4)
+├── simulation/          Isaac 최종 전달본 보관 (실차 설정 정본 아님)
 ├── powertrain_sim/      ⛔ MuJoCo 시뮬 — 폐기·읽기전용 (2026-07-24, 시뮬은 Isaac 레포만)
 ├── parameter_calc/      ⛔ 기하 최적화 — 트랙 종료 (2026-07-19)
 ├── docker/              컨테이너 정의 (x86 dev + Jetson Orin Nano 배포)
@@ -107,6 +121,8 @@ python -m pytest motor_control -q          # 대부분: python-can·pyserial 있
 `l515_dashboard` 311 · `operator_console` 274 · `powertrain_autonomy` 199 ·
 `motor_gui` 135 · `scripts/tests` 106 · `powertrain_observability` 66 · `remote_video` 30.
 `ros2/powertrain_ros` 는 `rclpy` 가 필요해 **Jetson/컨테이너에서만** 돈다.
+이 수치는 8/24 이후 전체를 다시 재지 않았다 — 그 뒤 생긴 `terrain_map`·`terrain_overlay`·`lidar_dev`·
+`powertrain_runtime` 시험과 늘어난 시험은 포함되지 않는다.
 알려진 기존 실패 2건은 `tests/` 의 `procedural-dev-0/analytic` 매니페스트 체크섬 드리프트,
 `powertrain_sim` 17건은 ⛔폐기된 MuJoCo 트랙 안이다.
 
@@ -237,11 +253,13 @@ ROS 실행·토픽·서비스 표는 [`ros2/README.md`](ros2/README.md), HIL 전
 | `l515_dashboard/` L515 Gateway·TUI | [L515 Gateway·TUI — 카메라 단일 소유·SRT 원격주행](https://app.notion.com/p/39a2d27b08d381eb8307fa7d136ad374) |
 | `ros2/` RViz 시각화 (벤치 자산) | [RViz 로봇 시각화 — 오도메트리·IMU·장애물 감지](https://app.notion.com/p/39b2d27b08d3815da7c6f46e173d7a8a) |
 | `scripts/recv_*` + 운용 콘솔 | [통신 GUI·스트리밍·전원 텔레메트리 — 통합 현황](https://app.notion.com/p/39d2d27b08d3815c907ae8aa338c5fa8) |
-| 환경 센싱 콘솔 탭 (**main 미포함**, [Draft PR #4](https://github.com/lightminn/power-train-sw/pull/4)) | [환경 센싱 모듈 기록](https://www.notion.so/3c32d27b08d3811aba24e3dbf70a63ef) |
+| 환경 센싱 콘솔 탭 ([PR #4](https://github.com/lightminn/power-train-sw/pull/4), 2026-09-09 병합) | [환경 센싱 모듈 기록](https://www.notion.so/3c32d27b08d3811aba24e3dbf70a63ef) |
 | `motor_control/vision/` 기존 D435i 실험·로봇팔 인식 참고 | [RGB-D 카메라 D435i 켜는 법 — 로봇팔 인식용 참고](https://app.notion.com/p/3752d27b08d381619d73d6bc19fc02d2) |
 | `motor_control/vision/` YOLO + Depth 3D 좌표 | [YOLO+Depth 융합 — 검출 물체 3D 좌표 추출](https://app.notion.com/p/37b2d27b08d38147b9aceb16268615a8) |
 | `motor_control/sensors`+`safety_us100/` US-100 거리 + 충돌방지 | [US-100 초음파 센서 — UART 거리 측정](https://app.notion.com/p/35d2d27b08d380f591b9d6553c6a320d) |
 | `motor_gui/` 웹 진단·튜닝 GUI | [motor_gui — 웹 모터 진단·튜닝 GUI](https://app.notion.com/p/3892d27b08d3811eb174e787808db3c2) |
+| `terrain_map/`·`terrain_overlay/`·`lidar_dev/` L515 지형 지도·장애물 윤곽 | 레포 문서만 — [`terrain_map/README.md`](terrain_map/README.md) · [`lidar_dev/README.md`](lidar_dev/README.md) · [오버레이 설계](docs/specs/2026-10-17-l515-terrain-overlay-design.md) |
+| `firmware/mks_odrive/` MKS ODrive CAN patch4 | 레포 문서만 — [`firmware/mks_odrive/README.md`](firmware/mks_odrive/README.md) · [patch4 보고](docs/reports/2026-10-21-mks-can-patch4.md) |
 | (Firmware) ODrive 펌웨어 플래시 | [ODrive 펌웨어 플래시 — 보드당 1회](https://app.notion.com/p/33a2d27b08d38002b0f7d21fda39e8d2) |
 | (네트워크) GL-SFT1200 전용 AP — 노트북↔젯슨 링크 | [무선 라우터 GL-SFT1200 — 노트북↔젯슨 전용망 셋업](https://app.notion.com/p/38e2d27b08d38122942bff3f12534e58) |
 

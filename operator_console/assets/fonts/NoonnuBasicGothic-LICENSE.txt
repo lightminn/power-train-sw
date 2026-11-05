@@ -1,0 +1,8 @@
+Noonnu Basic Gothic / 눈누 기초고딕
+Creators: 눈누 X 토끼네활자공장
+Source and usage terms: https://noonnu.cc/font_page/1496
+Binary: https://cdn.jsdelivr.net/gh/projectnoonnu/noon-2410@1.0/NoonnuBasicGothicRegular.woff2
+Retrieved 2026-10-16. The published terms permit personal/commercial use,
+modification, redistribution and program embedding; selling the font itself is prohibited.
+The TTF is a lossless container conversion of the supplied WOFF2 with fontTools;
+font outlines and names are unchanged. The WOFF2 is retained for the local WebKit view.

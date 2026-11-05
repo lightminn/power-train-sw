@@ -1,9 +1,92 @@
 # Operator Console
 
+## 비전 탭 (단계별 통합 중)
+
+노트북 Graphite GUI(초록 강조·하단 탭·기존 3D 표시)를 기준으로 통합한다.
+기존 L515 영상·지형 오버레이와 Top/Oblique 지도까지 연결했다.
+차체 자세 영역은 원시 IMU·바퀴 피드백·로커/보기 선택 필드·지도 정지 기록을 표시한다.
+보정된 차체 자세는 아직 미확인이며, 개략도에 미보정 roll/pitch를 적용하지 않는다.
+레거시 진입점의 `--show-terrain-preview`도 비전 탭으로 시작한다.
+
+```bash
+# 운용 PC, 이 작업 브랜치의 저장소 루트
+/usr/bin/python3 -m operator_console.app --host <Gateway-IP> --page vision
+# 기존 페어링 설정을 사용하는 통합 진입점
+/usr/bin/python3 -m operator_console --config ~/.config/powertrain/operator.json --page vision
+```
+
+비전은 기존 SRT :5000 디코더와 UDP :5009 지형 수신기를 공유한다.
+탭을 나가면 기존 메인/PiP 배치를 복원한다. 비전에서는 L515 고정으로 V 전환을 막는다.
+지형 토글 상태는 실시간 화면과 공유한다. 갱신된 terrain-overlay 송신기는 같은 `:5009`
+패킷에 선택 `floor_mask`를 싣고, 콘솔은 장애물과 같은 지연 정렬 snapshot에서 10 px 격자로
+표시한다. 미관측/혼합 격자는 투명하며 이 표시는 통과 가능·안전 영역 판정이 아니다.
+구형 송신기처럼 필드가 없거나 stale/끊김/영상 크기 불일치이면 바닥을 그리지 않는다.
+노트북 버전의 별도 장애물 :5009 수신기·HTTP 시험대 창은 이 경로에서 기동하지 않는다.
+
+두 지도는 기존 UDP :5010 수신기를 공유한다. 지도 이미지는 별도 작업 스레드에서
+각각 약 2 Hz로 생성하며, 비전 탭을 숨기면 지도 계산·화면 갱신을 멈추고 수신은 유지한다.
+휠/+/−로 두 지도를 확대·축소하고, Top을 끌면 따라가기가 해제된다.
+따라가기 중에는 로버 방향이 위이며, 해제하면 Top은 북쪽이 위이고 Oblique는 선택 위치를 기준으로 본다.
+Top 범례는 송신 지도 클래스, Oblique 범례는 기준값 JSON의 표시용 재분류다.
+미수신·끊김 시 원점 자세를 만들지 않으며, 오래된 Oblique 투영은 숨긴다.
+
+```bash
+# 운용 PC: 코드 수정 없이 기준값 교체 (적용 후 콘솔 재시작)
+/usr/bin/python3 -m operator_console.app --host <Gateway-IP> --page vision \
+  --l515-criteria /path/to/obstacle_criteria.json --l515-criteria-profile A_no_stop
+# 통합 진입점에도 같은 CLI 옵션을 사용할 수 있다.
+```
+
+설정 JSON의 `l515_criteria`, `l515_criteria_profile`도 지원한다.
+경로·프로필 각각 CLI > 설정 JSON > `L515_CRITERIA`/`L515_CRITERIA_PROFILE` > 저장소 기본값 순이다.
+JSON의 상대 경로는 설정 파일 폴더 기준이다. 프로필을 생략하면 파일의 기본 프로필을 사용한다.
+화면에 버전·프로필·SHA256 앞 8자, 툴팁에 파일 경로와 전체 해시를 표시한다.
+v0.2에서 trench_depth_m이 없으면 기존 함수대로 step_up_m을 사용한다.
+이 설정은 Gateway 송신 기준이나 주행 제어를 변경하지 않는다.
+
+기존 GTK/GStreamer 의존성과 numpy, 지도 함수 재사용용 OpenCV가 필요하다.
+OpenCV는
+운용 PC의 **콘솔과 같은 Python**에 설치한다. 이 PC에서는 관리자 권한 없이
+사용자 영역에 numpy 2.5.4 / OpenCV-headless 5.0.0 / pytest 9.1.1을 설치했다.
+시스템 Python용 pip가 없다면 배포판 패키지 또는 `--system-site-packages` 가상환경을
+사용하되, GTK/gtksink 접근 여부를 확인한다. RealSense SDK는 콘솔에 필요하지 않다.
+
+[단계별 계획](../docs/plans/2026-10-23-vision-tab.md)과
+[4단계 결과](../docs/reports/2026-10-23-vision-tab-step4.md)에 검증·미연결 항목을 기록한다.
+
+자세 수치는 :5005의 roll_rad/pitch_rad를 도 단위로 바꾼 **원시값(장착 보정 미확인)**이다.
+나이는 원 IMU 측정 시각이 없는 관계로 '패킷 수신 후'만 표시한다.
+바퀴는 steer_deg와 drive_turns_per_s의 실제 수신값을 사용하며, stale/결측은 숫자 대신 표시한다.
+Hall 저속 값(<0.3 rev/s)은 실제 정지와 다를 수 있으며 지령이나 0으로 바꾸지 않는다.
+지도 기준면은 차체 자세와 다르며, 정지 기록은 n초 전의 관측으로만 표시한다.
+
+로커/보기는 선택 필드 suspension_joints_rad, suspension_age_ms를 사용하고,
+suspension_source·suspension_frame으로 출처와 기준을 받을 수 있다.
+각도 키는 ml_rocker_joint/mr_rocker_joint/bl_bogie_joint/br_bogie_joint, 단위는 rad이다.
+나이가 없으면 시간 미확인, 값이 없으면 미수신이며 0이나 추정값을 만들지 않는다.
+AS5048B 송신 경로(`motor_control/suspension_encoders` → :5005, `config/suspension_encoders.json`)는 있으나
+관절 대응·부호·영점을 확인해 `verified=true`인 채널만 보내므로 지금은 콘솔에 오지 않는다(`publish_unverified`는 벤치 전용).
+[필드 계약](../docs/reports/2026-10-23-vision-tab-step4.md)을 먼저 확인한다.
+
+확인된 장착 회전만 별도 JSON으로 활성화할 수 있다. 기본값과
+`operator_console/config/attitude-calibration.pending.json`은 `confirmed=false`라 차체 자세를
+계산하지 않는다. 임의의 19.5°/15°/20° 차감값을 넣지 않는다. 광민·도현과
+좌표계·부호·영점·장착 회전을 확인한 파일에만 `confirmed=true`를 사용한다.
+
+```bash
+/usr/bin/python3 -m operator_console.app --host <Gateway-IP> --page vision \
+  --attitude-calibration /path/to/confirmed-attitude-calibration.json
+```
+
+통합 JSON의 `attitude_calibration` 또는 `L515_ATTITUDE_CALIBRATION`도 지원하며 우선순위는
+CLI > 통합 JSON > 환경 변수 > 비활성이다. 통합 JSON의 상대 경로는 설정 파일 폴더 기준이다.
+
 Integrated entrypoint: `python -m operator_console` uses the prepared paired-robot
 config, reconnects automatically, supervises a separate gamepad process and offers
 a held manual-start action. See [the integrated operation runbook](../docs/integrated-operation.md)
 for setup, legacy-service migration and the pending real-hardware acceptance.
+The field laptop uses `--config ~/.config/powertrain/operator-demo.json` (its `hosts`
+list puts the robot-AP wired address 192.168.8.106 first).
 `python -m operator_console.app --host ...` remains the explicit legacy entrypoint.
 
 Native GTK/GStreamer operator console. Observation is RX-only; operator
@@ -58,12 +141,15 @@ ros2 run powertrain_ros arm_console_bridge --ros-args -p console_host:=<laptop-i
 
 The judge-facing interface uses **실시간 화면** (mission/video) and **시스템 상태**
 (integrated power, communication, and safety summaries with collapsed raw
-diagnostics). Open **복구 · 설정** beside the two-tab navigation to reach the
+diagnostics). The tab bar also holds **협조구동**, **지형 지도**, **비전**, **로봇팔 수동조작** and
+**로봇팔·도구 캘리브레이션** (`--page` values `mission`, `mobility`, `systems`, `terrain_map`,
+`vision`, `arm_manual`, `arm_calibration`; the integrated entrypoint accepts the first five).
+Open **운용 · 설정** (compact layout: `조작`) beside the tab navigation to reach the
 existing token-gated controls for E-STOP reset, component settings, steering
 mode, and advanced recovery actions. This non-modal window hides on close and
 cancels any unfinished confirmation; reopening it keeps the same authenticated
-ops session. Press `F11` for the competition display. Camera panels can be
-clicked to exchange the large and preview views; technical stream errors
+ops session. Press `F11` for the competition display. The preview's `화면 전환`
+button (or `V`) exchanges the large and preview views; technical stream errors
 remain in the collapsed event log and robot diagnostics.
 
 `/usr/bin/python3 -m operator_console.runtime_smoke` launches the real GTK
@@ -71,14 +157,18 @@ application under Xvfb, injects maximal synthetic datagrams into isolated UDP
 ports, and verifies LIVE→STALE, environment rendering, sparse-payload,
 clean-shutdown, traceback, role-layout, and no-automatic-camera-swap paths. A
 loopback ops TCP fixture also sends an unknown steering mode through the real
-client and checks that the GTK control stays unavailable. It does not inject or
-observe a decoded real SRT frame, prove GStreamer frame rendering, or exercise
-a real network or hardware sender. Those need separate runtime or E2E evidence.
+client and checks that the GTK control stays unavailable. The vision stage also
+decodes local synthetic SRT video and checks missing/live/aged/stale/recovery,
+shared camera round trips (including D435 MAIN), hidden rendering pause with
+continued reception, and worker/timer/receiver/pipeline shutdown. Run just this
+stage with `--vision-only` to distinguish its result from existing arm failures.
+These checks exercise neither a real network nor a hardware sender; Gateway/L515
+acceptance and the earlier intermittent draw stall still require separate evidence.
 
 The lower-right mission rail is the robot-arm/tool hub. It exposes only the
 four confirmed equipment categories (그리퍼 1, 그리퍼 2, 청소 모듈, 환경 센서
-모듈), plus attachment state, joint-load summary, and the explicit fact that
-arm control-mode telemetry is not yet wired. Selecting a tool or pressing its
+모듈), plus attachment state, joint-load summary, and the arm control mode
+mirrored from `:5007` `arm_runtime` (`수신 대기` until a fresh value arrives). Selecting a tool or pressing its
 detail button opens a common non-modal detail window. The environment window
 groups climate, air quality, and hazard readings. CO/LPG use plain numeric
 values, flame detection is shown as O/X, and SGP30 eCO₂/TVOC values display
@@ -98,18 +188,19 @@ the L515 terrain estimate (path, confidence, offset, heading, bank, slope and
 roughness), filtered IMU roll/pitch, six wheel Hall speed/command/Iq, active
 faults, and chassis/autonomy/mission/section FSM states. Missing producers stay
 `정보 없음`; Iq is labelled as a relative load indicator, not absolute wheel
-load or energy. Its basic controls are shortcuts into the existing token-gated,
-revision-checked confirmation panel. Velocity and direction remain on the
+load or energy. The tab has no control buttons; mode and recovery actions stay in
+the token-gated **운용 · 설정** window. Velocity and direction remain on the
 approved DualSense teleop path, and E-STOP remains the global immediate action.
 
-The **시연 화면 → 화면 표시** checkboxes independently control YOLO
-box/class/confidence and target-distance text. They do not stop metadata
+The mission page's `인식 대상`/`대상 거리` display options independently control YOLO
+box/class/confidence and target-distance text; both start off and their checkbox
+row is currently hidden. They do not stop metadata
 reception or alter target selection, and stale metadata still hides every
 overlay after the measured-inference-aware 500 ms deadline. A valid target is
 held for at most 350 ms across a brief empty detection frame to prevent visual
 flicker; the value is never extended past the stale deadline. The work-camera preview keeps
 the native 848:480 ratio and becomes the main view only after its explicit
-`클릭하여 크게 보기` action. Display quality gates omit detections clipped on
+`화면 전환` action. Display quality gates omit detections clipped on
 three or more frame borders; the immutable raw metadata snapshot remains
 available to diagnostics.
 
@@ -143,7 +234,7 @@ python -m operator_console.demo_source
   --host 127.0.0.1 --d435-port 15002 --l515-port 15000 \
   --metadata-port 15003 --telemetry-port 15004 \
   --chassis-telemetry-port 15005 --arm-telemetry-port 15007 \
-  --environment-telemetry-port 15008 --input-source TEST \
+  --environment-telemetry-port 15008 --terrain-port 15009 --terrain-map-port 15010 --input-source TEST \
   --ops-token-file /tmp/operator-console-no-token
 ```
 
@@ -168,9 +259,58 @@ continues normally.
 
 For the integrated `python -m operator_console` entrypoint, the validated
 `~/.config/powertrain/operator.json` keys include
-`environment_telemetry_port` (default `5008`). Overrides must be integer ports
-from 1 through 65535 and must match the robot-side sender configuration.
+`environment_telemetry_port` (default `5008`), `terrain_port` (default `5009`),
+`terrain_display_delay_ms` (0–400, default 0), `terrain_map_port` (default `5010`),
+`l515_criteria`, `l515_criteria_profile`, and optional `attitude_calibration` (confirmed JSON path), and
+`terrain_map_display` (an object of `DisplayConfig` fields — out-of-range or non-integer values
+refuse to start). Port overrides must be
+integer ports from 1 through 65535 and must match the robot-side sender
+configuration. The L515 terrain outlines are an operator visual aid only.
+
+The **지형 지도** page draws the L515 2.5D terrain map (UDP `:5010`, `--terrain-map-port`):
+heading-up while following the rover, raised cells red and ditches blue on their raw cell
+boundaries, shaded heights, unobserved cells transparent, cells older than `--map-stale-s`
+(default 30 s) desaturated. The status line shows status, epoch, distance, pose gaps,
+received/total tiles, packet rate and sender; "수신 끊김" appears when no status packet
+arrived for 0.5 s and the last pose turns gray. Scroll to zoom, drag to pan (stops following),
+"화면에서 지우기" clears only the console's copy. Display numbers: `--map-display-upsample`,
+`--map-hillshade-azimuth`, `--map-hillshade-altitude`, `--map-hillshade-exaggeration`,
+`--map-stale-s`, `--map-max-render-pixels`, `--map-tidy-low-m`, `--map-tidy-min-neighbours`,
+`--map-weak-alpha` (out of range is a usage error). Producer side and
+parameters: `terrain_map/README.md`.
 
 Observation remains caller/receiver-only: it never opens D435i/L515 or writes
 CAN. Commands are possible only through the authenticated ops client and every
 panel action passes state-revision revalidation plus its confirmation gesture.
+
+### 비전 탭 성능 계측 (개발용)
+
+비전 탭은 기존 L515 위젯·지도·자세 수신기를 공유한다. NumPy import 전
+`OPENBLAS_NUM_THREADS=1`을 적용하고, 영상은 `sync=false`와 raw 프레임 1개 대기열을 사용한다.
+지도·자세의 비전 전용 계산/표시는 탭이 보일 때만 갱신한다.
+
+실제 카메라 없이 로컬 SRT/UDP 합성 입력으로 CPU/RSS·영상 수신/그리기·지도 반영률을
+측정하려면 저장소 루트에서 다음을 실행한다. GTK/GStreamer·NumPy/OpenCV·pytest가 필요하다.
+
+```bash
+OPENBLAS_NUM_THREADS=1 xvfb-run -a /usr/bin/python3 \
+  -m operator_console.tests.vision_benchmark --require-ac \
+  --seconds 20 --output /tmp/vision-performance.json
+```
+
+인코더/송신은 별도 프로세스이며 측정 CPU/RSS에서 제외한다. 실기/전원 조건·그리기 정지
+미해결 사항과 수치 해석은 [5단계 보고서](../docs/reports/2026-10-24-vision-tab-step5.md)를 따른다.
+이 합성 시험은 Gateway/L515 10분 인수를 대체하지 않는다.
+
+실기 연결 대기 중에도 합성 동작 영상을 만들 수 있다. 별도 Xvfb/X11의 콘솔 창만 녹화하며,
+UI에 합성 입력임을 표시한다. 이미 존재하는 출력 파일에는 덮어쓰지 않는다.
+
+```bash
+/usr/bin/python3 -m operator_console.runtime_smoke --vision-only \
+  --record-webm /tmp/vision-synthetic-demo-new.webm
+```
+
+실제 콘솔 PID의 CPU/RSS·전원·CPU별 클럭·온도는 `operator_console.tests.sample_process`로
+별도 수집할 수 있다. 이 도구는 영상 연결을 추가하지 않고, 프로세스 수집 완료를 실기 인수로
+판정하지 않는다. [7단계 상태](../docs/reports/2026-10-24-vision-tab-step7.md)와
+[실기 실행 절차](../docs/reports/2026-10-24-vision-tab-field-runbook.md)를 따른다.

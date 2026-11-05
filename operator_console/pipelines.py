@@ -13,6 +13,9 @@ def pipeline_description(host: str, port: int, latency_ms: int) -> str:
     uri = srt_uri(host, port, latency_ms)
     return (
         f'srtsrc uri="{uri}" ! tsdemux name=video_demux ! h264parse name=video_parser ! '
-        "avdec_h264 max-threads=1 ! videoconvert ! video/x-raw,format=BGRA ! "
+        "avdec_h264 max-threads=1 ! "
+        "queue name=video_latest max-size-buffers=1 max-size-bytes=0 "
+        "max-size-time=0 leaky=downstream ! "
+        "videoconvert ! video/x-raw,format=BGRA ! "
         "gtksink name=video_sink sync=false force-aspect-ratio=true"
     )

@@ -775,5 +775,5 @@ fi
 [ -n "$jetson_ip" ] || jetson_ip='<JETSON_IP>'
 
 printf '\n종료 코드: %d — %s\n' "$exit_code" "$exit_reason"
-printf '운영 PC에서: /usr/bin/python3 -m operator_console.app --host %s\n' "$jetson_ip"
+printf '운영 PC에서: OPENBLAS_NUM_THREADS=1 /usr/bin/python3 -m operator_console.app --host %s\n' "$jetson_ip"
 exit "$exit_code"

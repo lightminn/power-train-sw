@@ -1,0 +1,15 @@
+[Unit]
+Description=Restore a monotonic clock before Docker (no RTC backup)
+DefaultDependencies=no
+After=systemd-timesyncd.service local-fs.target
+Before=docker.service time-sync.target
+Wants=time-sync.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/powertrain-clock restore
+ExecStop=/usr/local/sbin/powertrain-clock save
+
+[Install]
+WantedBy=sysinit.target

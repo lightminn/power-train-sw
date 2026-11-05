@@ -8,7 +8,7 @@ CAN node 번호를 매개로 하므로 CAN 경로와 권위가 하나로 유지�
 1. USB 에 붙은 보드 시리얼을 뽑는다.
 
    ```bash
-   python3 -c "
+   cd /workspace/motor_control && python3 -c "
    from corner_module.drive_odrive_usb_axis import UsbBoardPool
    print(UsbBoardPool().discover_serials())"
    ```
@@ -32,7 +32,7 @@ CAN node 번호를 매개로 하므로 CAN 경로와 권위가 하나로 유지�
 4. 검증한다.
 
    ```bash
-   cd motor_control && python3 -c "
+   cd /workspace/motor_control && python3 -c "
    from chassis.chassis_manager import build_usb_skid_corners
    c = build_usb_skid_corners('../config/bl70200_boards.json')
    print(sorted(c))"

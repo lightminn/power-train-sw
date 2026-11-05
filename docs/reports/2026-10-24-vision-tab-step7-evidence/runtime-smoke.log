@@ -1,0 +1,4 @@
+CONSOLE-RUNTIME-SMOKE: FAIL
+arm tabs did not render live tool in safe disabled state
+terrain_map ok
+vision runtime ok · missing/live/aged/stale/recovery/hidden/roundtrip/shutdown

@@ -1,0 +1,22 @@
+VISION-RUNTIME-SMOKE: FAIL
+vision runtime child rc=1
+Traceback (most recent call last):
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 104, in feed
+    sender.sendto(json.dumps(data).encode(), ('127.0.0.1', window._chassis_receiver.port))
+                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimseon/power-train-sw-vision/operator_console/telemetry.py", line 548, in port
+    return self._socket.getsockname()[1]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 9] Bad file descriptor
+/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py:242: Warning: Source ID 53 was not found when attempting to remove it
+  GLib.source_remove(source_id)
+Traceback (most recent call last):
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 259, in main
+    print(json.dumps(exercise(args.fault), ensure_ascii=False), flush=True)
+                     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 229, in exercise
+    pump_until(lambda: not maps.worker._thread.is_alive(), 'vision worker shutdown', 2)
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 119, in pump_until
+    assert not errors, f'{label}: GTK callback errors: {errors}'
+           ^^^^^^^^^^
+AssertionError: vision worker shutdown: GTK callback errors: ['OSError: [Errno 9] Bad file descriptor']

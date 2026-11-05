@@ -1,0 +1,11 @@
+vision runtime child rc=1
+Xlib:  extension "DRI2" missing on display ":101".
+Traceback (most recent call last):
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 344, in main
+    report = json.dumps(exercise(args.fault, args.record_webm), ensure_ascii=False)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 198, in exercise
+    pump_until(live, 'vision map/telemetry LIVE')
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 157, in pump_until
+    raise AssertionError(f'{label}: timed out; {snapshot()}')
+AssertionError: vision map/telemetry LIVE: timed out; {'mapped': True, 'slots_mapped': [True, True, True, True], 'map_state': 'LIVE', 'map_displayed': 15, 'map_rasters': [True, True], 'map_timer': True, 'map_renders': 17, 'map_error': None, 'attitude_timer': True, 'attitude_refreshes': 39, 'link': 'WAITING', 'raw_pitch': None, 'raw_pitch_state': 'WAITING', 'packet_age_s': None, 'raw_label': 'IMU 원시 R 미수신 / P 미수신', 'body_label': '차체 자세: 보정 미확인 · 개략도 기울기 미적용', 'raw_source_label': 'UDP :40367 · 패킷 미수신 · 미수신', 'joints_label': '좌 로커 미수신 · 우 로커 미수신 · 좌 보기 미수신 · 우 보기 미수신', 'source_label': '로커·보기 · 측정 미수신 · UDP :40367 · 출처 미수신', 'joint_states': ['WAITING', 'WAITING', 'WAITING', 'WAITING'], 'joint_values': [None, None, None, None], 'wheel_labels': {'front_left': ['미수신', '미수신'], 'front_right': ['미수신', '미수신'], 'mid_left': ['미수신', '미수신'], 'mid_right': ['미수신', '미수신'], 'rear_left': ['미수신', '미수신'], 'rear_right': ['미수신', '미수신']}, 'wheel_states': ['WAITING', 'WAITING', 'WAITING', 'WAITING', 'WAITING', 'WAITING']}

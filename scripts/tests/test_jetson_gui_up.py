@@ -296,7 +296,7 @@ def test_happy_path_starts_exact_stacks_and_prints_operator_command(tmp_path):
     assert "read_only:=true" in log
     assert "control_scope:=END_EFFECTOR_ONLY" in log
     assert (
-        "운영 PC에서: /usr/bin/python3 -m operator_console.app "
+        "운영 PC에서: OPENBLAS_NUM_THREADS=1 /usr/bin/python3 -m operator_console.app "
         "--host 192.168.8.106"
     ) in result.stdout
 
@@ -306,7 +306,7 @@ def test_operator_command_falls_back_to_first_hostname_address(tmp_path):
 
     assert result.returncode == 0, result.stdout
     assert (
-        "운영 PC에서: /usr/bin/python3 -m operator_console.app "
+        "운영 PC에서: OPENBLAS_NUM_THREADS=1 /usr/bin/python3 -m operator_console.app "
         "--host 192.168.50.98"
     ) in result.stdout
 
@@ -321,7 +321,7 @@ def test_operator_command_prefers_ssh_server_ipv4(tmp_path):
 
     assert result.returncode == 0, result.stdout
     assert result.stdout.rstrip().splitlines()[-1] == (
-        "운영 PC에서: /usr/bin/python3 -m operator_console.app "
+        "운영 PC에서: OPENBLAS_NUM_THREADS=1 /usr/bin/python3 -m operator_console.app "
         "--host 192.168.8.106"
     )
 
@@ -339,7 +339,7 @@ def test_operator_command_uses_ipv4_on_ssh_link_local_interface(tmp_path):
 
     assert result.returncode == 0, result.stdout
     assert result.stdout.rstrip().splitlines()[-1] == (
-        "운영 PC에서: /usr/bin/python3 -m operator_console.app "
+        "운영 PC에서: OPENBLAS_NUM_THREADS=1 /usr/bin/python3 -m operator_console.app "
         "--host 192.168.8.106"
     )
 
@@ -354,7 +354,7 @@ def test_operator_command_routes_to_ssh_client_when_server_is_global_ipv6(tmp_pa
 
     assert result.returncode == 0, result.stdout
     assert result.stdout.rstrip().splitlines()[-1] == (
-        "운영 PC에서: /usr/bin/python3 -m operator_console.app "
+        "운영 PC에서: OPENBLAS_NUM_THREADS=1 /usr/bin/python3 -m operator_console.app "
         "--host 192.168.8.106"
     )
 
@@ -369,7 +369,7 @@ def test_operator_command_without_ssh_keeps_operator_host_route_fallback(tmp_pat
 
     assert result.returncode == 0, result.stdout
     assert result.stdout.rstrip().splitlines()[-1] == (
-        "운영 PC에서: /usr/bin/python3 -m operator_console.app "
+        "운영 PC에서: OPENBLAS_NUM_THREADS=1 /usr/bin/python3 -m operator_console.app "
         "--host 192.168.8.106"
     )
 

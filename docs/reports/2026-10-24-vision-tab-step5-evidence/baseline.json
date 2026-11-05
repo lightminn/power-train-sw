@@ -1,0 +1,211 @@
+{
+  "source": "synthetic 2x1280x720@15 SRT + 3 map tiles/12.5Hz + chassis/overlay UDP",
+  "scope": "console process; source/encoders in separate child, excluded from CPU/RSS",
+  "latency_scope": "sink buffer running-time lateness; NOT camera-to-screen latency",
+  "revision": "930da9f1954350b45ff1d4d5ee5c12d7852baba1",
+  "openblas_num_threads": "8",
+  "numpy_runtime": "2.5.4",
+  "machine_before": {
+    "power": {
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "0",
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+      "/sys/class/power_supply/ADP1/online": "0"
+    },
+    "frequency_khz": {
+      "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1451026",
+      "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1601903",
+      "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1500015",
+      "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1244970",
+      "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1599959",
+      "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1600191",
+      "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1319022",
+      "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "863264"
+    },
+    "temperature_mdeg": {
+      "/sys/class/thermal/thermal_zone2/temp": "32050",
+      "/sys/class/thermal/thermal_zone0/temp": "36000",
+      "/sys/class/thermal/thermal_zone7/temp": "35000",
+      "/sys/class/thermal/thermal_zone5/temp": "34050",
+      "/sys/class/thermal/thermal_zone3/temp": "33050",
+      "/sys/class/thermal/thermal_zone1/temp": "20000",
+      "/sys/class/thermal/thermal_zone8/temp": "39000",
+      "/sys/class/thermal/thermal_zone6/temp": "34000",
+      "/sys/class/thermal/thermal_zone4/temp": "25050"
+    }
+  },
+  "phases": [
+    {
+      "page": "mission",
+      "duration_s": 20.027168243999995,
+      "cpu_percent": 135.94957263694522,
+      "rss_kib_max": 257360.0,
+      "rss_kib_end": 257360.0,
+      "rss_peak_kib": 256440,
+      "camera_sink_fps": 15.029583630235772,
+      "camera_draw_hz": 14.230668885771411,
+      "camera_draw_gap_s_max": 0.1527101039999934,
+      "camera_sink_gap_s_max": 0.14370390900000984,
+      "sink_lateness_s_max": 0.037080663,
+      "camera_frame_age_s_max": 0.13492753000002722,
+      "ui_gap_s_max": 0.13541620300009072,
+      "map_pair_hz": 0.0,
+      "map_worker_render_count": 0,
+      "render_ms_mean": null,
+      "overlay_state": "LIVE",
+      "map_state": "WAITING",
+      "machine": {
+        "power": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "0",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+          "/sys/class/power_supply/ADP1/online": "0"
+        },
+        "frequency_khz": {
+          "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "2025114",
+          "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "2102399",
+          "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "399917",
+          "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "2641163",
+          "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "2014960",
+          "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1747453",
+          "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "2486811",
+          "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2067567"
+        },
+        "temperature_mdeg": {
+          "/sys/class/thermal/thermal_zone2/temp": "32050",
+          "/sys/class/thermal/thermal_zone0/temp": "41000",
+          "/sys/class/thermal/thermal_zone7/temp": "40000",
+          "/sys/class/thermal/thermal_zone5/temp": "39050",
+          "/sys/class/thermal/thermal_zone3/temp": "35050",
+          "/sys/class/thermal/thermal_zone1/temp": "20000",
+          "/sys/class/thermal/thermal_zone8/temp": "38000",
+          "/sys/class/thermal/thermal_zone6/temp": "38000",
+          "/sys/class/thermal/thermal_zone4/temp": "25050"
+        }
+      }
+    },
+    {
+      "page": "vision",
+      "duration_s": 20.02867272100002,
+      "cpu_percent": 133.136944541718,
+      "rss_kib_max": 311584.0,
+      "rss_kib_end": 311584.0,
+      "rss_peak_kib": 310428,
+      "camera_sink_fps": 14.978526244799568,
+      "camera_draw_hz": 20.7702230594554,
+      "camera_draw_gap_s_max": 0.12049634699997114,
+      "camera_sink_gap_s_max": 0.1423090470000261,
+      "sink_lateness_s_max": 0.037341405,
+      "camera_frame_age_s_max": 0.12536587300007795,
+      "ui_gap_s_max": 0.0751364889999877,
+      "map_pair_hz": 1.9472084118239439,
+      "map_worker_render_count": 39,
+      "render_ms_mean": 16.6431072234022,
+      "overlay_state": "LIVE",
+      "map_state": "LIVE",
+      "machine": {
+        "power": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "0",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+          "/sys/class/power_supply/ADP1/online": "0"
+        },
+        "frequency_khz": {
+          "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1400273",
+          "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1400245",
+          "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1399974",
+          "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1499984",
+          "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1399642",
+          "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1400197",
+          "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1461712",
+          "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1499984"
+        },
+        "temperature_mdeg": {
+          "/sys/class/thermal/thermal_zone2/temp": "32050",
+          "/sys/class/thermal/thermal_zone0/temp": "38000",
+          "/sys/class/thermal/thermal_zone7/temp": "39000",
+          "/sys/class/thermal/thermal_zone5/temp": "38050",
+          "/sys/class/thermal/thermal_zone3/temp": "35050",
+          "/sys/class/thermal/thermal_zone1/temp": "20000",
+          "/sys/class/thermal/thermal_zone8/temp": "38000",
+          "/sys/class/thermal/thermal_zone6/temp": "38000",
+          "/sys/class/thermal/thermal_zone4/temp": "25050"
+        }
+      }
+    },
+    {
+      "page": "mission",
+      "duration_s": 20.048013036000043,
+      "cpu_percent": 135.72298899217424,
+      "rss_kib_max": 312924.0,
+      "rss_kib_end": 312924.0,
+      "rss_peak_kib": 311708,
+      "camera_sink_fps": 15.013956717780307,
+      "camera_draw_hz": 14.265752894635108,
+      "camera_draw_gap_s_max": 0.11850196800003232,
+      "camera_sink_gap_s_max": 0.1398714720000953,
+      "sink_lateness_s_max": 0.035477424,
+      "camera_frame_age_s_max": 0.10576895399992736,
+      "ui_gap_s_max": 0.12176414100008515,
+      "map_pair_hz": 0.0,
+      "map_worker_render_count": 0,
+      "render_ms_mean": null,
+      "overlay_state": "LIVE",
+      "map_state": "WAITING",
+      "machine": {
+        "power": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "0",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+          "/sys/class/power_supply/ADP1/online": "0"
+        },
+        "frequency_khz": {
+          "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "2127447",
+          "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1602042",
+          "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "2698981",
+          "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "2737361",
+          "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400000",
+          "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1789634",
+          "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1209228",
+          "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "965561"
+        },
+        "temperature_mdeg": {
+          "/sys/class/thermal/thermal_zone2/temp": "32050",
+          "/sys/class/thermal/thermal_zone0/temp": "41000",
+          "/sys/class/thermal/thermal_zone7/temp": "43000",
+          "/sys/class/thermal/thermal_zone5/temp": "42050",
+          "/sys/class/thermal/thermal_zone3/temp": "36050",
+          "/sys/class/thermal/thermal_zone1/temp": "20000",
+          "/sys/class/thermal/thermal_zone8/temp": "38000",
+          "/sys/class/thermal/thermal_zone6/temp": "40000",
+          "/sys/class/thermal/thermal_zone4/temp": "26050"
+        }
+      }
+    }
+  ],
+  "machine_after": {
+    "power": {
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "0",
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+      "/sys/class/power_supply/ADP1/online": "0"
+    },
+    "frequency_khz": {
+      "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1797722",
+      "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1800247",
+      "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "2628224",
+      "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "864690",
+      "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1740064",
+      "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1800300",
+      "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "807738",
+      "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "965561"
+    },
+    "temperature_mdeg": {
+      "/sys/class/thermal/thermal_zone2/temp": "32050",
+      "/sys/class/thermal/thermal_zone0/temp": "41000",
+      "/sys/class/thermal/thermal_zone7/temp": "41000",
+      "/sys/class/thermal/thermal_zone5/temp": "40050",
+      "/sys/class/thermal/thermal_zone3/temp": "36050",
+      "/sys/class/thermal/thermal_zone1/temp": "20000",
+      "/sys/class/thermal/thermal_zone8/temp": "38000",
+      "/sys/class/thermal/thermal_zone6/temp": "39000",
+      "/sys/class/thermal/thermal_zone4/temp": "26050"
+    }
+  },
+  "callback_errors": []
+}

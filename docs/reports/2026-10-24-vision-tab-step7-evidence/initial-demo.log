@@ -1,0 +1,2 @@
+Xlib:  extension "DRI2" missing on display ":99".
+Segmentation fault (core dumped)

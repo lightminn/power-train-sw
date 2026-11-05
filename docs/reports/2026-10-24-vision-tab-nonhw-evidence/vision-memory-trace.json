@@ -1,0 +1,4026 @@
+{
+  "source": "synthetic 2x1280x720@15 SRT + 3 map tiles/12.5Hz + chassis/overlay UDP",
+  "scope": "console process; source/encoders in separate child, excluded from CPU/RSS",
+  "latency_scope": "sink buffer running-time lateness; NOT camera-to-screen latency",
+  "revision": "71f5072a17ca34d87d486c5c9d0ca324a7b29139",
+  "openblas_num_threads": "1",
+  "numpy_runtime": "2.5.4",
+  "machine_before": {
+    "power": {
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+      "/sys/class/power_supply/ADP1/online": "1"
+    },
+    "power_type": {
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+      "/sys/class/power_supply/BAT1/type": "Battery",
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+      "/sys/class/power_supply/ADP1/type": "Mains"
+    },
+    "frequency_khz": {
+      "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "3392234",
+      "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "399907",
+      "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "4719518",
+      "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "563353",
+      "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "3560823",
+      "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "469320",
+      "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "2889347",
+      "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "4251967"
+    },
+    "temperature_mdeg": {
+      "/sys/class/thermal/thermal_zone2/temp": "30050",
+      "/sys/class/thermal/thermal_zone0/temp": "36000",
+      "/sys/class/thermal/thermal_zone7/temp": "54000",
+      "/sys/class/thermal/thermal_zone5/temp": "54050",
+      "/sys/class/thermal/thermal_zone3/temp": "31050",
+      "/sys/class/thermal/thermal_zone1/temp": "20000",
+      "/sys/class/thermal/thermal_zone8/temp": "38000",
+      "/sys/class/thermal/thermal_zone6/temp": "52000",
+      "/sys/class/thermal/thermal_zone4/temp": "26050"
+    },
+    "temperature_type": {
+      "/sys/class/thermal/thermal_zone2/type": "SNS1",
+      "/sys/class/thermal/thermal_zone0/type": "acpitz",
+      "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+      "/sys/class/thermal/thermal_zone5/type": "TCPU",
+      "/sys/class/thermal/thermal_zone3/type": "SNS2",
+      "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+      "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+      "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+      "/sys/class/thermal/thermal_zone4/type": "SNS3"
+    }
+  },
+  "phases": [
+    {
+      "page": "mission",
+      "duration_s": 5.000360678999641,
+      "cpu_percent": 97.5759461210728,
+      "rss_kib_max": 295808.0,
+      "rss_kib_end": 295808.0,
+      "rss_peak_kib": 294892,
+      "camera_sink_fps": 14.998918041049052,
+      "camera_draw_hz": 29.997836082098104,
+      "camera_draw_gap_s_max": 0.10284909199981485,
+      "camera_sink_gap_s_max": 0.14925002100062557,
+      "sink_lateness_s_max": 0.034954543,
+      "camera_frame_age_s_max": 0.13861413199992967,
+      "ui_gap_s_max": 0.07715807999920798,
+      "map_pair_hz": 0.0,
+      "map_worker_render_count": 0,
+      "render_ms_mean": null,
+      "overlay_state": "LIVE",
+      "map_state": "WAITING",
+      "window_size": [
+        1100,
+        680
+      ],
+      "map_sizes": [
+        [
+          480,
+          180
+        ],
+        [
+          480,
+          180
+        ]
+      ],
+      "map_worker_error": null,
+      "machine": {
+        "power": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+          "/sys/class/power_supply/ADP1/online": "1"
+        },
+        "power_type": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+          "/sys/class/power_supply/BAT1/type": "Battery",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+          "/sys/class/power_supply/ADP1/type": "Mains"
+        },
+        "frequency_khz": {
+          "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "399494",
+          "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "400000",
+          "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "3816533",
+          "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "4800000",
+          "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400378",
+          "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "400000",
+          "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "400080",
+          "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "400000"
+        },
+        "temperature_mdeg": {
+          "/sys/class/thermal/thermal_zone2/temp": "30050",
+          "/sys/class/thermal/thermal_zone0/temp": "45000",
+          "/sys/class/thermal/thermal_zone7/temp": "46000",
+          "/sys/class/thermal/thermal_zone5/temp": "45050",
+          "/sys/class/thermal/thermal_zone3/temp": "33050",
+          "/sys/class/thermal/thermal_zone1/temp": "20000",
+          "/sys/class/thermal/thermal_zone8/temp": "37000",
+          "/sys/class/thermal/thermal_zone6/temp": "43000",
+          "/sys/class/thermal/thermal_zone4/temp": "26050"
+        },
+        "temperature_type": {
+          "/sys/class/thermal/thermal_zone2/type": "SNS1",
+          "/sys/class/thermal/thermal_zone0/type": "acpitz",
+          "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+          "/sys/class/thermal/thermal_zone5/type": "TCPU",
+          "/sys/class/thermal/thermal_zone3/type": "SNS2",
+          "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+          "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+          "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+          "/sys/class/thermal/thermal_zone4/type": "SNS3"
+        }
+      }
+    },
+    {
+      "page": "vision",
+      "duration_s": 95.03047962399978,
+      "cpu_percent": 96.1637121295986,
+      "rss_kib_max": 355560.0,
+      "rss_kib_end": 355560.0,
+      "rss_peak_kib": 354388,
+      "camera_sink_fps": 14.995188971351027,
+      "camera_draw_hz": 21.6035950583745,
+      "camera_draw_gap_s_max": 0.19206848700014234,
+      "camera_sink_gap_s_max": 0.1592173119988729,
+      "sink_lateness_s_max": 0.057527259,
+      "camera_frame_age_s_max": 0.13340543800040905,
+      "ui_gap_s_max": 0.17769707200022822,
+      "map_pair_hz": 1.988835589884452,
+      "map_worker_render_count": 189,
+      "render_ms_mean": 47.40533218683466,
+      "overlay_state": "LIVE",
+      "map_state": "LIVE",
+      "window_size": [
+        1100,
+        680
+      ],
+      "map_sizes": [
+        [
+          518,
+          115
+        ],
+        [
+          518,
+          115
+        ]
+      ],
+      "map_worker_error": null,
+      "machine": {
+        "power": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+          "/sys/class/power_supply/ADP1/online": "1"
+        },
+        "power_type": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+          "/sys/class/power_supply/BAT1/type": "Battery",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+          "/sys/class/power_supply/ADP1/type": "Mains"
+        },
+        "frequency_khz": {
+          "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "2420234",
+          "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "3022364",
+          "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "557132",
+          "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "502591",
+          "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400985",
+          "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "401606",
+          "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "400000",
+          "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "4668743"
+        },
+        "temperature_mdeg": {
+          "/sys/class/thermal/thermal_zone2/temp": "34050",
+          "/sys/class/thermal/thermal_zone0/temp": "45000",
+          "/sys/class/thermal/thermal_zone7/temp": "63000",
+          "/sys/class/thermal/thermal_zone5/temp": "62050",
+          "/sys/class/thermal/thermal_zone3/temp": "38050",
+          "/sys/class/thermal/thermal_zone1/temp": "20000",
+          "/sys/class/thermal/thermal_zone8/temp": "39000",
+          "/sys/class/thermal/thermal_zone6/temp": "63000",
+          "/sys/class/thermal/thermal_zone4/temp": "26050"
+        },
+        "temperature_type": {
+          "/sys/class/thermal/thermal_zone2/type": "SNS1",
+          "/sys/class/thermal/thermal_zone0/type": "acpitz",
+          "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+          "/sys/class/thermal/thermal_zone5/type": "TCPU",
+          "/sys/class/thermal/thermal_zone3/type": "SNS2",
+          "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+          "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+          "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+          "/sys/class/thermal/thermal_zone4/type": "SNS3"
+        }
+      }
+    },
+    {
+      "page": "mission",
+      "duration_s": 5.008551274000638,
+      "cpu_percent": 100.53302279519323,
+      "rss_kib_max": 355688.0,
+      "rss_kib_end": 355688.0,
+      "rss_peak_kib": 354516,
+      "camera_sink_fps": 14.97438997766172,
+      "camera_draw_hz": 29.349804356216975,
+      "camera_draw_gap_s_max": 0.09785744100008742,
+      "camera_sink_gap_s_max": 0.14216367799963336,
+      "sink_lateness_s_max": 0.030213298,
+      "camera_frame_age_s_max": 0.11517600799925276,
+      "ui_gap_s_max": 0.09930845599956228,
+      "map_pair_hz": 0.0,
+      "map_worker_render_count": 0,
+      "render_ms_mean": null,
+      "overlay_state": "LIVE",
+      "map_state": "WAITING",
+      "window_size": [
+        1100,
+        680
+      ],
+      "map_sizes": [
+        [
+          518,
+          115
+        ],
+        [
+          518,
+          115
+        ]
+      ],
+      "map_worker_error": null,
+      "machine": {
+        "power": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+          "/sys/class/power_supply/ADP1/online": "1"
+        },
+        "power_type": {
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+          "/sys/class/power_supply/BAT1/type": "Battery",
+          "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+          "/sys/class/power_supply/ADP1/type": "Mains"
+        },
+        "frequency_khz": {
+          "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "2842562",
+          "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "399921",
+          "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "399910",
+          "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "4719858",
+          "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "398863",
+          "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1187069",
+          "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "400111",
+          "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "400111"
+        },
+        "temperature_mdeg": {
+          "/sys/class/thermal/thermal_zone2/temp": "34050",
+          "/sys/class/thermal/thermal_zone0/temp": "47000",
+          "/sys/class/thermal/thermal_zone7/temp": "58000",
+          "/sys/class/thermal/thermal_zone5/temp": "57050",
+          "/sys/class/thermal/thermal_zone3/temp": "39050",
+          "/sys/class/thermal/thermal_zone1/temp": "20000",
+          "/sys/class/thermal/thermal_zone8/temp": "39000",
+          "/sys/class/thermal/thermal_zone6/temp": "52000",
+          "/sys/class/thermal/thermal_zone4/temp": "26050"
+        },
+        "temperature_type": {
+          "/sys/class/thermal/thermal_zone2/type": "SNS1",
+          "/sys/class/thermal/thermal_zone0/type": "acpitz",
+          "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+          "/sys/class/thermal/thermal_zone5/type": "TCPU",
+          "/sys/class/thermal/thermal_zone3/type": "SNS2",
+          "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+          "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+          "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+          "/sys/class/thermal/thermal_zone4/type": "SNS3"
+        }
+      }
+    }
+  ],
+  "timeline": [
+    {
+      "t": 9359.052431595,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 152,
+      "frames": 1263,
+      "draws": 1880,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9359.249215614,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 153,
+      "frames": 1266,
+      "draws": 1885,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9359.46002097,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 153,
+      "frames": 1270,
+      "draws": 1890,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9359.689862011,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 154,
+      "frames": 1272,
+      "draws": 1894,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9359.86161631,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 154,
+      "frames": 1275,
+      "draws": 1898,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9360.064320886,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 154,
+      "frames": 1278,
+      "draws": 1901,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9360.262903765,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 155,
+      "frames": 1281,
+      "draws": 1906,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9360.464893758,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 155,
+      "frames": 1284,
+      "draws": 1911,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9360.698441171,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 156,
+      "frames": 1288,
+      "draws": 1916,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9360.872414456,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 156,
+      "frames": 1290,
+      "draws": 1921,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9361.0835328,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 156,
+      "frames": 1293,
+      "draws": 1925,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9361.278083384,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 157,
+      "frames": 1296,
+      "draws": 1929,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9361.489672522,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 157,
+      "frames": 1299,
+      "draws": 1935,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9361.703626145,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 158,
+      "frames": 1303,
+      "draws": 1940,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9361.881289815,
+      "page": "vision",
+      "rss_kib": 354668.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 158,
+      "frames": 1305,
+      "draws": 1944,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9362.085595237,
+      "page": "vision",
+      "rss_kib": 354716.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 158,
+      "frames": 1308,
+      "draws": 1948,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9362.286080996,
+      "page": "vision",
+      "rss_kib": 354716.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 159,
+      "frames": 1311,
+      "draws": 1953,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9362.488373893,
+      "page": "vision",
+      "rss_kib": 354716.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 159,
+      "frames": 1314,
+      "draws": 1958,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9362.718482223,
+      "page": "vision",
+      "rss_kib": 354716.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 160,
+      "frames": 1318,
+      "draws": 1963,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9362.891611687,
+      "page": "vision",
+      "rss_kib": 354716.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 160,
+      "frames": 1320,
+      "draws": 1968,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9363.099841383,
+      "page": "vision",
+      "rss_kib": 354720.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 160,
+      "frames": 1324,
+      "draws": 1972,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9363.318490869,
+      "page": "vision",
+      "rss_kib": 354720.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 161,
+      "frames": 1328,
+      "draws": 1975,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9363.520069753,
+      "page": "vision",
+      "rss_kib": 354724.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 161,
+      "frames": 1330,
+      "draws": 1979,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9363.738907482,
+      "page": "vision",
+      "rss_kib": 354724.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 162,
+      "frames": 1333,
+      "draws": 1984,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9363.920223971,
+      "page": "vision",
+      "rss_kib": 354724.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 162,
+      "frames": 1336,
+      "draws": 1989,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9364.120140483,
+      "page": "vision",
+      "rss_kib": 354724.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 163,
+      "frames": 1339,
+      "draws": 1994,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9364.329497657,
+      "page": "vision",
+      "rss_kib": 354724.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 163,
+      "frames": 1342,
+      "draws": 1998,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9364.533463243,
+      "page": "vision",
+      "rss_kib": 354724.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 163,
+      "frames": 1345,
+      "draws": 2004,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9364.744808017,
+      "page": "vision",
+      "rss_kib": 354724.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 164,
+      "frames": 1348,
+      "draws": 2008,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9364.933696925,
+      "page": "vision",
+      "rss_kib": 354724.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 164,
+      "frames": 1351,
+      "draws": 2013,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9365.132793064,
+      "page": "vision",
+      "rss_kib": 354724.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 165,
+      "frames": 1354,
+      "draws": 2018,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9365.341962479,
+      "page": "vision",
+      "rss_kib": 354724.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 165,
+      "frames": 1358,
+      "draws": 2022,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9365.544650279,
+      "page": "vision",
+      "rss_kib": 354724.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 165,
+      "frames": 1360,
+      "draws": 2027,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9365.774752639,
+      "page": "vision",
+      "rss_kib": 354724.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 166,
+      "frames": 1364,
+      "draws": 2031,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9365.949044521,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 166,
+      "frames": 1366,
+      "draws": 2036,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9366.158861798,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 167,
+      "frames": 1369,
+      "draws": 2041,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9366.347420234,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 167,
+      "frames": 1372,
+      "draws": 2046,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9366.550873638,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 167,
+      "frames": 1375,
+      "draws": 2051,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9366.765424263,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 168,
+      "frames": 1379,
+      "draws": 2056,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9366.952236191,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 168,
+      "frames": 1381,
+      "draws": 2059,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9367.153414054,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 169,
+      "frames": 1384,
+      "draws": 2064,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9367.350835568,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 169,
+      "frames": 1387,
+      "draws": 2068,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9367.556287061,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 169,
+      "frames": 1390,
+      "draws": 2072,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9367.778330286,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 170,
+      "frames": 1394,
+      "draws": 2077,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9367.962508332,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 170,
+      "frames": 1397,
+      "draws": 2081,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9368.178903591,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 170,
+      "frames": 1400,
+      "draws": 2084,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9368.413807576,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 171,
+      "frames": 1403,
+      "draws": 2090,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9368.591497548,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 171,
+      "frames": 1406,
+      "draws": 2094,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9368.803328635,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 172,
+      "frames": 1409,
+      "draws": 2099,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9368.997720319,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 172,
+      "frames": 1412,
+      "draws": 2103,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9369.195937941,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 173,
+      "frames": 1415,
+      "draws": 2108,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9369.398073767,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 173,
+      "frames": 1418,
+      "draws": 2113,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9369.606646838,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 173,
+      "frames": 1422,
+      "draws": 2118,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9369.843200812,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 174,
+      "frames": 1425,
+      "draws": 2122,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9370.013155456,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 174,
+      "frames": 1428,
+      "draws": 2127,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9370.211445071,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 175,
+      "frames": 1430,
+      "draws": 2131,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9370.421010937,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 175,
+      "frames": 1433,
+      "draws": 2136,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9370.616535904,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 175,
+      "frames": 1436,
+      "draws": 2140,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9370.855707162,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 176,
+      "frames": 1440,
+      "draws": 2144,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9371.01544336,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 176,
+      "frames": 1442,
+      "draws": 2148,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9371.214373012,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 177,
+      "frames": 1445,
+      "draws": 2153,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9371.418454031,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 177,
+      "frames": 1448,
+      "draws": 2158,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9371.619224474,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 177,
+      "frames": 1451,
+      "draws": 2163,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9371.856960968,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 178,
+      "frames": 1455,
+      "draws": 2166,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9372.026560795,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 178,
+      "frames": 1457,
+      "draws": 2170,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9372.233554539,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 179,
+      "frames": 1460,
+      "draws": 2175,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9372.426266985,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 179,
+      "frames": 1464,
+      "draws": 2181,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9372.626616132,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 179,
+      "frames": 1466,
+      "draws": 2185,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9372.856804604,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 180,
+      "frames": 1470,
+      "draws": 2189,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9373.028149438,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 180,
+      "frames": 1472,
+      "draws": 2193,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9373.228496915,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 181,
+      "frames": 1476,
+      "draws": 2198,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9373.429459309,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 181,
+      "frames": 1478,
+      "draws": 2203,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9373.631405002,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 181,
+      "frames": 1481,
+      "draws": 2207,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9373.859020413,
+      "page": "vision",
+      "rss_kib": 354744.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 182,
+      "frames": 1485,
+      "draws": 2212,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9374.038296077,
+      "page": "vision",
+      "rss_kib": 354784.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 182,
+      "frames": 1488,
+      "draws": 2216,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9374.236237454,
+      "page": "vision",
+      "rss_kib": 354784.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 183,
+      "frames": 1490,
+      "draws": 2221,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9374.445731797,
+      "page": "vision",
+      "rss_kib": 354784.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 183,
+      "frames": 1494,
+      "draws": 2226,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9374.641861967,
+      "page": "vision",
+      "rss_kib": 354784.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 183,
+      "frames": 1497,
+      "draws": 2232,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9374.856076973,
+      "page": "vision",
+      "rss_kib": 354784.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 184,
+      "frames": 1500,
+      "draws": 2236,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9375.04220002,
+      "page": "vision",
+      "rss_kib": 354784.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 184,
+      "frames": 1503,
+      "draws": 2240,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9375.255066768,
+      "page": "vision",
+      "rss_kib": 354784.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 185,
+      "frames": 1506,
+      "draws": 2242,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9375.458244712,
+      "page": "vision",
+      "rss_kib": 354784.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 185,
+      "frames": 1509,
+      "draws": 2247,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9375.673934612,
+      "page": "vision",
+      "rss_kib": 354784.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 185,
+      "frames": 1512,
+      "draws": 2252,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9375.941321018,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 186,
+      "frames": 1516,
+      "draws": 2258,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9376.064152848,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 186,
+      "frames": 1518,
+      "draws": 2262,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9376.272835249,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 187,
+      "frames": 1521,
+      "draws": 2266,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9376.510676116,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 187,
+      "frames": 1525,
+      "draws": 2271,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9376.692599326,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 188,
+      "frames": 1527,
+      "draws": 2275,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9376.927226861,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 188,
+      "frames": 1531,
+      "draws": 2281,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9377.105026332,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 188,
+      "frames": 1534,
+      "draws": 2285,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9377.32173781,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 189,
+      "frames": 1537,
+      "draws": 2290,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9377.525127763,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 189,
+      "frames": 1540,
+      "draws": 2294,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9377.726940871,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 190,
+      "frames": 1543,
+      "draws": 2299,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9377.948561537,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 190,
+      "frames": 1546,
+      "draws": 2304,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9378.128702885,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 190,
+      "frames": 1549,
+      "draws": 2308,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9378.330516047,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 191,
+      "frames": 1552,
+      "draws": 2313,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9378.531161301,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 191,
+      "frames": 1555,
+      "draws": 2318,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9378.731848416,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 192,
+      "frames": 1558,
+      "draws": 2322,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9378.960143731,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 192,
+      "frames": 1561,
+      "draws": 2325,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9379.133876251,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 192,
+      "frames": 1564,
+      "draws": 2329,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9379.333620005,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 193,
+      "frames": 1567,
+      "draws": 2333,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9379.544547416,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 193,
+      "frames": 1570,
+      "draws": 2338,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9379.747966797,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 194,
+      "frames": 1574,
+      "draws": 2343,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9379.969030599,
+      "page": "vision",
+      "rss_kib": 355560.0,
+      "selected_page": "vision",
+      "video_mapped": true,
+      "map_mapped": true,
+      "map_active": true,
+      "map_generation": 4,
+      "renders": 194,
+      "frames": 1577,
+      "draws": 2347,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9383.392020176,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1628,
+      "draws": 2456,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9383.526414373,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1630,
+      "draws": 2461,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9383.729178958,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1633,
+      "draws": 2468,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9383.939527969,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1636,
+      "draws": 2473,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9384.140483475,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1639,
+      "draws": 2480,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9384.353453613,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1643,
+      "draws": 2486,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9384.558617326,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1645,
+      "draws": 2491,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9384.758981453,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1648,
+      "draws": 2496,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9384.973019974,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1653,
+      "draws": 2503,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9385.211936713,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1655,
+      "draws": 2509,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9385.422843817,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1658,
+      "draws": 2515,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9385.607859801,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1662,
+      "draws": 2522,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9385.808716805,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1664,
+      "draws": 2526,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9386.009412697,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1667,
+      "draws": 2532,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9386.237643502,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1671,
+      "draws": 2539,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9386.457076713,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1674,
+      "draws": 2546,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9386.626133424,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1677,
+      "draws": 2553,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9386.846514482,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1680,
+      "draws": 2558,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9387.047173773,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1683,
+      "draws": 2565,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9387.275319831,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1686,
+      "draws": 2571,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9387.472419652,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1690,
+      "draws": 2577,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9387.673514165,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1692,
+      "draws": 2585,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9387.889631183,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1695,
+      "draws": 2591,
+      "size": [
+        1100,
+        680
+      ]
+    },
+    {
+      "t": 9388.089876933,
+      "page": "mission",
+      "rss_kib": 355688.0,
+      "selected_page": "mission",
+      "video_mapped": true,
+      "map_mapped": false,
+      "map_active": false,
+      "map_generation": 5,
+      "renders": 194,
+      "frames": 1698,
+      "draws": 2595,
+      "size": [
+        1100,
+        680
+      ]
+    }
+  ],
+  "machine_samples": [
+    {
+      "t": 9353.491015415,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1300129",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1303006",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1500015",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1500000",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1300133",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1400577",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1499984",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1500000"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "44000",
+        "/sys/class/thermal/thermal_zone7/temp": "42000",
+        "/sys/class/thermal/thermal_zone5/temp": "41050",
+        "/sys/class/thermal/thermal_zone3/temp": "37050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "41000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9354.529943957,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "3113562",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "3700353",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "3000000",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "4578287",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "3700806",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "3700432",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "4150839",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "4556146"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "45000",
+        "/sys/class/thermal/thermal_zone7/temp": "54000",
+        "/sys/class/thermal/thermal_zone5/temp": "51050",
+        "/sys/class/thermal/thermal_zone3/temp": "37050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "50000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9355.551795538,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "3296826",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "3694985",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "4123546",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "4430749",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "491089",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "684204",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "455324",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "400000"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "45000",
+        "/sys/class/thermal/thermal_zone7/temp": "54000",
+        "/sys/class/thermal/thermal_zone5/temp": "53050",
+        "/sys/class/thermal/thermal_zone3/temp": "37050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "53000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9356.589718013,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "3688380",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "3701576",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "3008995",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "2430132",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "3693803",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "3700272",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "632800",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "4581918"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "45000",
+        "/sys/class/thermal/thermal_zone7/temp": "48000",
+        "/sys/class/thermal/thermal_zone5/temp": "47050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "48000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9357.602765504,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1085739",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "2070576",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "2927494",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "4383127",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400914",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "400084",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "400118",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1440192"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "45000",
+        "/sys/class/thermal/thermal_zone7/temp": "49000",
+        "/sys/class/thermal/thermal_zone5/temp": "48050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "44000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9358.649483367,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "3700772",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "2252534",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "400000",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "435970",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "3699423",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "3289241",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "579481",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "400056"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "44000",
+        "/sys/class/thermal/thermal_zone7/temp": "42000",
+        "/sys/class/thermal/thermal_zone5/temp": "41050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "41000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9359.661738972,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1329381",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "402308",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "2177327",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "400295",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1357273",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "399799",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1618412",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "400868"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "44000",
+        "/sys/class/thermal/thermal_zone7/temp": "42000",
+        "/sys/class/thermal/thermal_zone5/temp": "42050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "42000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9360.672241608,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "400733",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "576232",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "398190",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1651736",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400069",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "659502",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1528211",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1404540"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "44000",
+        "/sys/class/thermal/thermal_zone7/temp": "41000",
+        "/sys/class/thermal/thermal_zone5/temp": "40050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "42000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9361.681915838,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1700211",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1700184",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1479842",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1500000",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "2743582",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1700167",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1796520",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1796515"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "44000",
+        "/sys/class/thermal/thermal_zone7/temp": "43000",
+        "/sys/class/thermal/thermal_zone5/temp": "42050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "42000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9362.690331256,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1700252",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1796228",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1555083",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "846649",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1700260",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "2065781",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "693192",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2943723"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "44000",
+        "/sys/class/thermal/thermal_zone7/temp": "42000",
+        "/sys/class/thermal/thermal_zone5/temp": "41050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "43000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9363.721116168,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1730664",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "2542610",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "691424",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1636305",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "2758561",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "2846501",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "399182",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1116283"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "44000",
+        "/sys/class/thermal/thermal_zone7/temp": "42000",
+        "/sys/class/thermal/thermal_zone5/temp": "41050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "41000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9364.733095895,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "400091",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "400000",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "400925",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "3145519",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1190875",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "400000",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1466559",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1749820"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "44000",
+        "/sys/class/thermal/thermal_zone7/temp": "43000",
+        "/sys/class/thermal/thermal_zone5/temp": "42050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "43000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9365.747852673,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1700340",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1700237",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1500000",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1500000",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1699088",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "2400098",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1736308",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2223032"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "44000",
+        "/sys/class/thermal/thermal_zone7/temp": "42000",
+        "/sys/class/thermal/thermal_zone5/temp": "41050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "41000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9366.749775622,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "3700800",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "3700899",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "2300184",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1905633",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "2460451",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "2316995",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "2352958",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2704502"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "44000",
+        "/sys/class/thermal/thermal_zone7/temp": "45000",
+        "/sys/class/thermal/thermal_zone5/temp": "44050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "45000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9367.754398324,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1700067",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1700202",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1500000",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1504303",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1854912",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1707921",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1861863",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "805525"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "44000",
+        "/sys/class/thermal/thermal_zone7/temp": "42000",
+        "/sys/class/thermal/thermal_zone5/temp": "41050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "41000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9368.794105714,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1401805",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "2870740",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "479569",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1907368",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400781",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "399982",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "4642953",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1855779"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "44000",
+        "/sys/class/thermal/thermal_zone7/temp": "51000",
+        "/sys/class/thermal/thermal_zone5/temp": "50050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "51000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9369.80915092,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "2576223",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1803358",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1378485",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "462144",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "3116493",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "3352073",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "3862163",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "399795"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "44000",
+        "/sys/class/thermal/thermal_zone7/temp": "44000",
+        "/sys/class/thermal/thermal_zone5/temp": "43050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "43000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9370.814582421,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "862703",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1400204",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1082507",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1374026",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1400110",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1400342",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "641173",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1471400"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "43000",
+        "/sys/class/thermal/thermal_zone7/temp": "42000",
+        "/sys/class/thermal/thermal_zone5/temp": "41050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "41000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9371.825642335,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1675267",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1700200",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1573083",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1500000",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1664134",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "400797",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1487983",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1500000"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "33050",
+        "/sys/class/thermal/thermal_zone0/temp": "43000",
+        "/sys/class/thermal/thermal_zone7/temp": "42000",
+        "/sys/class/thermal/thermal_zone5/temp": "41050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "41000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9372.827196288,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1539717",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1513044",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1053281",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1828562",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1583531",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1682048",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "418795",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "795897"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "34050",
+        "/sys/class/thermal/thermal_zone0/temp": "43000",
+        "/sys/class/thermal/thermal_zone7/temp": "42000",
+        "/sys/class/thermal/thermal_zone5/temp": "41050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "41000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9373.831500511,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "2114808",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1700102",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "656133",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "802962",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1700251",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "3177608",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "399245",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1253607"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "34050",
+        "/sys/class/thermal/thermal_zone0/temp": "43000",
+        "/sys/class/thermal/thermal_zone7/temp": "42000",
+        "/sys/class/thermal/thermal_zone5/temp": "41050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "41000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9374.842242066,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "3183194",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "400077",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "4017934",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "3430440",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400526",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "470578",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "3931135",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "401256"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "34050",
+        "/sys/class/thermal/thermal_zone0/temp": "45000",
+        "/sys/class/thermal/thermal_zone7/temp": "47000",
+        "/sys/class/thermal/thermal_zone5/temp": "46050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "47000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9375.861987744,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1311325",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "400112",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "477655",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "4750992",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "2547390",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "399789",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "887950",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "400516"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "34050",
+        "/sys/class/thermal/thermal_zone0/temp": "45000",
+        "/sys/class/thermal/thermal_zone7/temp": "51000",
+        "/sys/class/thermal/thermal_zone5/temp": "50050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "49000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9376.902688248,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "2622187",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "2271250",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "4097960",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1699482",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "2754101",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "2832547",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "400000",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2206278"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "34050",
+        "/sys/class/thermal/thermal_zone0/temp": "45000",
+        "/sys/class/thermal/thermal_zone7/temp": "42000",
+        "/sys/class/thermal/thermal_zone5/temp": "41050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "41000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9377.928310441,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "400022",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "399947",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "961455",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1279835",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400188",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "400183",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "3190438",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "400000"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "34050",
+        "/sys/class/thermal/thermal_zone0/temp": "45000",
+        "/sys/class/thermal/thermal_zone7/temp": "44000",
+        "/sys/class/thermal/thermal_zone5/temp": "44050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "45000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9378.932495549,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "2139849",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "2179890",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "667868",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "2449182",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "727433",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1995945",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "552710",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1271954"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "34050",
+        "/sys/class/thermal/thermal_zone0/temp": "45000",
+        "/sys/class/thermal/thermal_zone7/temp": "42000",
+        "/sys/class/thermal/thermal_zone5/temp": "41050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "41000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9379.947760399,
+      "page": "vision",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "3124390",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1166244",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "523859",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "2694714",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "3681112",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "3603145",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "3531866",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2860664"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "34050",
+        "/sys/class/thermal/thermal_zone0/temp": "45000",
+        "/sys/class/thermal/thermal_zone7/temp": "45000",
+        "/sys/class/thermal/thermal_zone5/temp": "45050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "45000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9383.326024138,
+      "page": "mission",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "2517774",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "3700796",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "434755",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "399889",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400000",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1596516",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "737285",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "4700000"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "34050",
+        "/sys/class/thermal/thermal_zone0/temp": "47000",
+        "/sys/class/thermal/thermal_zone7/temp": "59000",
+        "/sys/class/thermal/thermal_zone5/temp": "58050",
+        "/sys/class/thermal/thermal_zone3/temp": "38050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "40000",
+        "/sys/class/thermal/thermal_zone6/temp": "59000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9384.344418238,
+      "page": "mission",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "400516",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "400330",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "399672",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "2195555",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400044",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "3700921",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "4561763",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "552125"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "34050",
+        "/sys/class/thermal/thermal_zone0/temp": "47000",
+        "/sys/class/thermal/thermal_zone7/temp": "61000",
+        "/sys/class/thermal/thermal_zone5/temp": "60050",
+        "/sys/class/thermal/thermal_zone3/temp": "39050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "40000",
+        "/sys/class/thermal/thermal_zone6/temp": "61000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9385.406710357,
+      "page": "mission",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "399778",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "400543",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "1390829",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "4712032",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "509706",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "918340",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "399777",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "399729"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "34050",
+        "/sys/class/thermal/thermal_zone0/temp": "47000",
+        "/sys/class/thermal/thermal_zone7/temp": "55000",
+        "/sys/class/thermal/thermal_zone5/temp": "54050",
+        "/sys/class/thermal/thermal_zone3/temp": "39050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "50000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9386.41967388,
+      "page": "mission",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "1400171",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "1400174",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "2776482",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "1500015",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "1400209",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "1400243",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "1302305",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1500000"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "34050",
+        "/sys/class/thermal/thermal_zone0/temp": "47000",
+        "/sys/class/thermal/thermal_zone7/temp": "46000",
+        "/sys/class/thermal/thermal_zone5/temp": "45050",
+        "/sys/class/thermal/thermal_zone3/temp": "39050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "47000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    },
+    {
+      "t": 9387.456811699,
+      "page": "mission",
+      "power": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+        "/sys/class/power_supply/ADP1/online": "1"
+      },
+      "power_type": {
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+        "/sys/class/power_supply/BAT1/type": "Battery",
+        "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+        "/sys/class/power_supply/ADP1/type": "Mains"
+      },
+      "frequency_khz": {
+        "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "400000",
+        "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "399385",
+        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "400000",
+        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "4799591",
+        "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "400116",
+        "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "2528384",
+        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "400000",
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "583161"
+      },
+      "temperature_mdeg": {
+        "/sys/class/thermal/thermal_zone2/temp": "34050",
+        "/sys/class/thermal/thermal_zone0/temp": "47000",
+        "/sys/class/thermal/thermal_zone7/temp": "54000",
+        "/sys/class/thermal/thermal_zone5/temp": "54050",
+        "/sys/class/thermal/thermal_zone3/temp": "39050",
+        "/sys/class/thermal/thermal_zone1/temp": "20000",
+        "/sys/class/thermal/thermal_zone8/temp": "39000",
+        "/sys/class/thermal/thermal_zone6/temp": "50000",
+        "/sys/class/thermal/thermal_zone4/temp": "26050"
+      },
+      "temperature_type": {
+        "/sys/class/thermal/thermal_zone2/type": "SNS1",
+        "/sys/class/thermal/thermal_zone0/type": "acpitz",
+        "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+        "/sys/class/thermal/thermal_zone5/type": "TCPU",
+        "/sys/class/thermal/thermal_zone3/type": "SNS2",
+        "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+        "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+        "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+        "/sys/class/thermal/thermal_zone4/type": "SNS3"
+      }
+    }
+  ],
+  "samples_file": "/tmp/vision-memory-trace.json.samples.jsonl",
+  "machine_after": {
+    "power": {
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:002/online": "1",
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "0",
+      "/sys/class/power_supply/ADP1/online": "1"
+    },
+    "power_type": {
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:002/type": "USB",
+      "/sys/class/power_supply/BAT1/type": "Battery",
+      "/sys/class/power_supply/ucsi-source-psy-USBC000:001/type": "USB",
+      "/sys/class/power_supply/ADP1/type": "Mains"
+    },
+    "frequency_khz": {
+      "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "3165954",
+      "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "3700992",
+      "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "4326780",
+      "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "399839",
+      "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "3652212",
+      "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "3668362",
+      "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "3432280",
+      "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "400000"
+    },
+    "temperature_mdeg": {
+      "/sys/class/thermal/thermal_zone2/temp": "34050",
+      "/sys/class/thermal/thermal_zone0/temp": "47000",
+      "/sys/class/thermal/thermal_zone7/temp": "55000",
+      "/sys/class/thermal/thermal_zone5/temp": "53050",
+      "/sys/class/thermal/thermal_zone3/temp": "39050",
+      "/sys/class/thermal/thermal_zone1/temp": "20000",
+      "/sys/class/thermal/thermal_zone8/temp": "39000",
+      "/sys/class/thermal/thermal_zone6/temp": "48000",
+      "/sys/class/thermal/thermal_zone4/temp": "26050"
+    },
+    "temperature_type": {
+      "/sys/class/thermal/thermal_zone2/type": "SNS1",
+      "/sys/class/thermal/thermal_zone0/type": "acpitz",
+      "/sys/class/thermal/thermal_zone7/type": "x86_pkg_temp",
+      "/sys/class/thermal/thermal_zone5/type": "TCPU",
+      "/sys/class/thermal/thermal_zone3/type": "SNS2",
+      "/sys/class/thermal/thermal_zone1/type": "INT3400 Thermal",
+      "/sys/class/thermal/thermal_zone8/type": "iwlwifi_1",
+      "/sys/class/thermal/thermal_zone6/type": "TCPU_PCI",
+      "/sys/class/thermal/thermal_zone4/type": "SNS3"
+    }
+  },
+  "callback_errors": []
+}

@@ -1,0 +1,387 @@
+{
+  "source_archive": "JETIN_\ub85c\ubc84_\ucd5c\uc2e0_URDF_20261007.zip",
+  "method": "indexed meshes; 0.005 mm vertex welding where needed; quadric-error decimation; original faces retained if bounds change > 2 mm; display only",
+  "meshes": [
+    {
+      "source": "arm_link1.stl",
+      "source_sha256": "006853889e09a7883b520739931854b26154a207ebca816fcbe1c185636301f4",
+      "source_triangles": 13352,
+      "mesh": "arm_link1.bin",
+      "triangles": 12000,
+      "bytes": 214676,
+      "bounds_max_error_mm": 0.0005355834960880657,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "arm_link2.stl",
+      "source_sha256": "30e3f3c1df13e6b4f1e0b1f8e3e5a23c3a6eed5706e712b6f5d8d057df3c8070",
+      "source_triangles": 19692,
+      "mesh": "arm_link2.bin",
+      "triangles": 12000,
+      "bytes": 212492,
+      "bounds_max_error_mm": 0.18389857398551612,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "arm_link3_revision3_visual.stl",
+      "source_sha256": "35681c274bd30db2741312e5d47a8c1730facdad405235194d4bcf75471695f2",
+      "source_triangles": 30396,
+      "mesh": "arm_link3_revision3_visual.bin",
+      "triangles": 12000,
+      "bytes": 212672,
+      "bounds_max_error_mm": 0.04348525366369671,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "arm_link4_revision3_visual.stl",
+      "source_sha256": "18231af15aa81e83194fd8d79e3126674c3a3482a914943c5a0d2dcbba7d71e6",
+      "source_triangles": 2610,
+      "mesh": "arm_link4_revision3_visual.bin",
+      "triangles": 2610,
+      "bytes": 46868,
+      "bounds_max_error_mm": 0.00045120239257911976,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "arm_link5_revision3_visual.stl",
+      "source_sha256": "f94aaa1e7ad81e5f2e43a05bac43a4246bfab690fcc7d6d4dfc577ed1802e50e",
+      "source_triangles": 69012,
+      "mesh": "arm_link5_revision3_visual.bin",
+      "triangles": 12000,
+      "bytes": 211760,
+      "bounds_max_error_mm": 0.5191726684570312
+    },
+    {
+      "source": "base_link.stl",
+      "source_sha256": "fa16b9c43ee3bd94e1057b753b560be49369fc8c250a0af930983f031230b083",
+      "source_triangles": 2677867,
+      "mesh": "base_link.bin",
+      "triangles": 2659203,
+      "bytes": 47716160,
+      "bounds_max_error_mm": 0.005,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "bl_bogie_pivot_out_hub_L60_slot.stl",
+      "source_sha256": "59ea090ec61a70374fd77264844656f2da47115b021af06172924e6dc48b5145",
+      "source_triangles": 513374,
+      "mesh": "bl_bogie_pivot_out_hub_L60_slot.bin",
+      "triangles": 486460,
+      "bytes": 9012368,
+      "bounds_max_error_mm": 0.005,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "br_bogie_pivot_out_hub_L60_slot.stl",
+      "source_sha256": "434378e22d2e7184d9d6f67ad2aed820644b995c9c47f3fe9b678e5bb76ad345",
+      "source_triangles": 513372,
+      "mesh": "br_bogie_pivot_out_hub_L60_slot.bin",
+      "triangles": 486458,
+      "bytes": 9029492,
+      "bounds_max_error_mm": 0.005,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "cl_bl70200s.stl",
+      "source_sha256": "399d549206f7e88625918a293dce7bdfaa8bbcfd53d1d0eee2a053d6773449e5",
+      "source_triangles": 101712,
+      "mesh": "cl_bl70200s.bin",
+      "triangles": 14000,
+      "bytes": 251000,
+      "bounds_max_error_mm": 0.37503814697265625
+    },
+    {
+      "source": "cr_bl70200s.stl",
+      "source_sha256": "0627f20ffbe7f6d4acadea342da7101580bafbdf922163051f573324d2ce8307",
+      "source_triangles": 101712,
+      "mesh": "cr_bl70200s.bin",
+      "triangles": 14000,
+      "bytes": 250988,
+      "bounds_max_error_mm": 0.3749542236328125
+    },
+    {
+      "source": "finger_lower_revision2_visual.stl",
+      "source_sha256": "5c282485c4579fb544baadcc229711fa03411ac89edcb7f3cfd6307f29a7ea4f",
+      "source_triangles": 19820,
+      "mesh": "finger_lower_revision2_visual.bin",
+      "triangles": 12000,
+      "bytes": 215660,
+      "bounds_max_error_mm": 0.001532440185549433,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "finger_upper_revision2_visual.stl",
+      "source_sha256": "dfa7ffdc859c8d6f6d4adf76dc4658c62ae10f3ae947d577b25b0299b27fb92c",
+      "source_triangles": 19816,
+      "mesh": "finger_upper_revision2_visual.bin",
+      "triangles": 12000,
+      "bytes": 215660,
+      "bounds_max_error_mm": 0.001532440185549433,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "fl_bl70200s.stl",
+      "source_sha256": "a58f41cee0db4cbcb056f3abee1bb1b41b67cfa720f57281c7863184af40b2d3",
+      "source_triangles": 101712,
+      "mesh": "fl_bl70200s.bin",
+      "triangles": 14000,
+      "bytes": 251000,
+      "bounds_max_error_mm": 0.3451690673828125
+    },
+    {
+      "source": "fl_kingpin_flange.stl",
+      "source_sha256": "ee1f8a62bcbb86bd619bba9943165a3d70986ee5421ced90578463da1c30a511",
+      "source_triangles": 100706,
+      "mesh": "fl_kingpin_flange.bin",
+      "triangles": 100358,
+      "bytes": 1806164,
+      "bounds_max_error_mm": 0.005,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "fr_bl70200s.stl",
+      "source_sha256": "512b82b6baf30a7e235df898a7fd92df155072e109bfe9fcf7a98b7ac550c241",
+      "source_triangles": 101712,
+      "mesh": "fr_bl70200s.bin",
+      "triangles": 14000,
+      "bytes": 251024,
+      "bounds_max_error_mm": 0.3396148681640625
+    },
+    {
+      "source": "fr_kingpin_flange.stl",
+      "source_sha256": "4dcb1f016e29863718f527fd5cbd75fd11f6e7b76cbbaedfaebbb64a2958e2e5",
+      "source_triangles": 100706,
+      "mesh": "fr_kingpin_flange.bin",
+      "triangles": 100358,
+      "bytes": 1806164,
+      "bounds_max_error_mm": 0.005,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "ml_bar_differential_side_ball3R.stl",
+      "source_sha256": "47d8054e212918f147e49e900ee2137de8aaae91ca0cb978fa2e864beee44163",
+      "source_triangles": 172168,
+      "mesh": "ml_bar_differential_side_ball3R.bin",
+      "triangles": 172168,
+      "bytes": 3089168,
+      "bounds_max_error_mm": 0.005,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "ml_new_chassis_pivot.stl",
+      "source_sha256": "34e263162684d57b912e195132cd113a5d974c96f3173bad2dde5f3d3895a0e1",
+      "source_triangles": 740352,
+      "mesh": "ml_new_chassis_pivot.bin",
+      "triangles": 712328,
+      "bytes": 13066280,
+      "bounds_max_error_mm": 0.005,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "ml_pin_PSFGR12-33_ball3R.stl",
+      "source_sha256": "01081e62e49075c939a85c2229199be6ce0c195d6dd4bf22bb3df5b1cef5ab4c",
+      "source_triangles": 87706,
+      "mesh": "ml_pin_PSFGR12-33_ball3R.bin",
+      "triangles": 12000,
+      "bytes": 216032,
+      "bounds_max_error_mm": 0.00949859619140625
+    },
+    {
+      "source": "ml_rod_end_M10_A_housing.stl",
+      "source_sha256": "6ee9d7befedf99ada0991c055a51f65f0ef8100d98578c4728acc8ded8006f0f",
+      "source_triangles": 15116,
+      "mesh": "ml_rod_end_M10_A_housing.bin",
+      "triangles": 12000,
+      "bytes": 216032,
+      "bounds_max_error_mm": 0.0020889282226566053,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "mr_new_chassis_pivot.stl",
+      "source_sha256": "11d88f3701105dc564cfb1cfe90b842465903217d3b465b295bc23ddf2ed1443",
+      "source_triangles": 740014,
+      "mesh": "mr_new_chassis_pivot.bin",
+      "triangles": 712127,
+      "bytes": 13071212,
+      "bounds_max_error_mm": 0.005,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "mr_pin_PSFGR12-33_ball3R.stl",
+      "source_sha256": "a8f491852d378575d5b38592e7ce3b4e90e507326f68e01d02a3f99ba550aee9",
+      "source_triangles": 87706,
+      "mesh": "mr_pin_PSFGR12-33_ball3R.bin",
+      "triangles": 12000,
+      "bytes": 216032,
+      "bounds_max_error_mm": 0.00949859619140625
+    },
+    {
+      "source": "mr_rod_end_M10_A_housing.stl",
+      "source_sha256": "ee95fff49b317214a71ec20386d79012ae1efef9023c2953d771b46a4e6f76ef",
+      "source_triangles": 15116,
+      "mesh": "mr_rod_end_M10_A_housing.bin",
+      "triangles": 12000,
+      "bytes": 216032,
+      "bounds_max_error_mm": 0.0020889282226566053,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "pinion_A_revision2_visual.stl",
+      "source_sha256": "9f395e198cbf3546d2f2964e716ca6a06e62e6bcb1deaf422974805bc9f45292",
+      "source_triangles": 3520,
+      "mesh": "pinion_A_revision2_visual.bin",
+      "triangles": 3520,
+      "bytes": 63272,
+      "bounds_max_error_mm": 0.000385284423828125,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "pinion_B_revision2_visual.stl",
+      "source_sha256": "165d239e9f007b916bb6e6956a0e528568f6987588b76b93468cb502c9ac6f02",
+      "source_triangles": 3520,
+      "mesh": "pinion_B_revision2_visual.bin",
+      "triangles": 3520,
+      "bytes": 63272,
+      "bounds_max_error_mm": 0.000385284423828125,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "rl_bl70200s.stl",
+      "source_sha256": "d8a5f56f0ae54735df371b459346feb925aea70a30d633529bb2f648380a229f",
+      "source_triangles": 101712,
+      "mesh": "rl_bl70200s.bin",
+      "triangles": 14000,
+      "bytes": 251000,
+      "bounds_max_error_mm": 0.37503814697265625
+    },
+    {
+      "source": "rl_kingpin_flange.stl",
+      "source_sha256": "be9220eb8ee2b38d037a56e46e8207673a2f97c4473e66b650eb8e5f884a5bc5",
+      "source_triangles": 100706,
+      "mesh": "rl_kingpin_flange.bin",
+      "triangles": 100356,
+      "bytes": 1806128,
+      "bounds_max_error_mm": 0.005,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "rr_bl70200s.stl",
+      "source_sha256": "4c9da92b37f78ebbffa9b6b57f00134cb5dcc0ec470245e6511f781ddd794be3",
+      "source_triangles": 101712,
+      "mesh": "rr_bl70200s.bin",
+      "triangles": 14000,
+      "bytes": 250892,
+      "bounds_max_error_mm": 0.375030517578125
+    },
+    {
+      "source": "rr_kingpin_flange.stl",
+      "source_sha256": "ec7f5047fe60ea2b247b58d3d822fabdb5d55ac29455d3de5d9599389b700f81",
+      "source_triangles": 100706,
+      "mesh": "rr_kingpin_flange.bin",
+      "triangles": 100356,
+      "bytes": 1806128,
+      "bounds_max_error_mm": 0.005,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "tool_link_revision2_visual.stl",
+      "source_sha256": "e6a94a5bebf54320efbe426b69bee861e05ad95f5821a65266aad0c7e2ef2cd5",
+      "source_triangles": 20409,
+      "mesh": "tool_link_revision2_visual.bin",
+      "triangles": 12000,
+      "bytes": 214112,
+      "bounds_max_error_mm": 0.021350597537832527,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "toolchanger_ball_1_revision3_visual.stl",
+      "source_sha256": "745421db58e3eca3c27469a840cd7750a83952536f6b27a4d25d4e9b881787c5",
+      "source_triangles": 960,
+      "mesh": "toolchanger_ball_1_revision3_visual.bin",
+      "triangles": 960,
+      "bytes": 17312,
+      "bounds_max_error_mm": 0.0,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "toolchanger_ball_2_revision3_visual.stl",
+      "source_sha256": "c8ecd6ba90bb606c0beda9540a5859cd882f6625a9b45ab3ea4500f924539600",
+      "source_triangles": 960,
+      "mesh": "toolchanger_ball_2_revision3_visual.bin",
+      "triangles": 960,
+      "bytes": 17312,
+      "bounds_max_error_mm": 0.0,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "toolchanger_ball_3_revision3_visual.stl",
+      "source_sha256": "3ecef648fb79f4e82cb72e376878466536d75cab40218594773d6dcaba1e05bd",
+      "source_triangles": 960,
+      "mesh": "toolchanger_ball_3_revision3_visual.bin",
+      "triangles": 960,
+      "bytes": 17312,
+      "bounds_max_error_mm": 0.0,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "toolchanger_ball_4_revision3_visual.stl",
+      "source_sha256": "3cd98aa87f72ce882dd2b1b860b22b81b61466caf534dab3d69b1a5f42cddc15",
+      "source_triangles": 960,
+      "mesh": "toolchanger_ball_4_revision3_visual.bin",
+      "triangles": 960,
+      "bytes": 17312,
+      "bounds_max_error_mm": 0.0,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "toolchanger_ball_5_revision3_visual.stl",
+      "source_sha256": "7b14c358c9aca31eae34c20880630086d8cbc488bf38a54056dd1a7633a828d6",
+      "source_triangles": 960,
+      "mesh": "toolchanger_ball_5_revision3_visual.bin",
+      "triangles": 960,
+      "bytes": 17312,
+      "bounds_max_error_mm": 0.0,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "toolchanger_ball_6_revision3_visual.stl",
+      "source_sha256": "5975e1dbbb67ae86a30cd2f550e0a17d09851a395e235a5b55071175d3959998",
+      "source_triangles": 960,
+      "mesh": "toolchanger_ball_6_revision3_visual.bin",
+      "triangles": 960,
+      "bytes": 17312,
+      "bounds_max_error_mm": 0.0,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "toolchanger_ball_7_revision3_visual.stl",
+      "source_sha256": "0f8ca3e317271b2baeff15ec89b8c2d33b1baec17cec9facc118f3931a3f6273",
+      "source_triangles": 960,
+      "mesh": "toolchanger_ball_7_revision3_visual.bin",
+      "triangles": 960,
+      "bytes": 17312,
+      "bounds_max_error_mm": 0.0,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "toolchanger_ball_8_revision3_visual.stl",
+      "source_sha256": "c39918e0d8d99e7061c8524e8bb17f9fa2160ada263730957c2d9a7aeef78d1e",
+      "source_triangles": 960,
+      "mesh": "toolchanger_ball_8_revision3_visual.bin",
+      "triangles": 960,
+      "bytes": 17312,
+      "bounds_max_error_mm": 0.0,
+      "vertex_weld_mm": 0.005
+    },
+    {
+      "source": "toolchanger_lock_rotor_revision3_visual.stl",
+      "source_sha256": "6176ec87ddaf4bc47e178a26cd8a36b9777b47bf8bbefed03f21c59b87b66183",
+      "source_triangles": 7618,
+      "mesh": "toolchanger_lock_rotor_revision3_visual.bin",
+      "triangles": 7618,
+      "bytes": 136748,
+      "bounds_max_error_mm": 0.0007774353027336645,
+      "vertex_weld_mm": 0.005
+    }
+  ]
+}

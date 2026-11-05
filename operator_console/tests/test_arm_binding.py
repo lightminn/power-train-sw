@@ -38,8 +38,8 @@ def test_existing_arm_labels_use_fresh_read_only_runtime_and_raw_feedback():
 
     refresh_arm_summary(window, snapshot)
 
-    assert window._mission_arm_mode.text == "MANUAL"
-    assert window._mission_arm_load.text == "최고 120 raw · 관절 2개"
+    assert window._mission_arm_mode.text == "수동 준비"
+    assert window._mission_arm_load.text == "관절 2개 응답"
     assert fsm_text(snapshot) == "IDLE"
     assert contract_text(snapshot) == "READY"
 

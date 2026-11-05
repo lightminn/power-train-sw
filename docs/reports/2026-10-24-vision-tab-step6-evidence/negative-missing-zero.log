@@ -1,0 +1,10 @@
+vision runtime child rc=1
+Xlib:  extension "DRI2" missing on display ":101".
+Traceback (most recent call last):
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 286, in main
+    report = json.dumps(exercise(args.fault), ensure_ascii=False)
+                        ^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 155, in exercise
+    assert p['raw_pitch'] is None and p['joint_values']==[None]*4, 'vision missing values fabricated'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: vision missing values fabricated

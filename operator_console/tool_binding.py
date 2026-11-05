@@ -56,7 +56,7 @@ def refresh_tool(window, snapshot):
         if tool['mock_mode']:
             state = '시험 데이터 · ' + state
         attachment = f'{label} · {state} · 기계 체결 미확인'
-        reading = '모터 ID ' + ', '.join(map(str, ids))
+        reading = f'구동부 {len(ids)}개 응답' if online else '구동부 응답 확인 필요'
         details = []
         for i in ids:
             row = rows.get(i, {})
@@ -69,7 +69,16 @@ def refresh_tool(window, snapshot):
         state, reading = '수신 지연', '도구 원천 데이터 지연'
     window._set_end_effector_summary_state(state, css)
     window._mission_tool_reading.set_text(reading)
-    window._mission_tool_purpose.set_text('현재 도구 관측 · 변경 요청은 별도 제어 연결 필요')
+    purpose = {
+        '단일 그리퍼': '물체 파지를 위한 작업 도구',
+        '듀얼 그리퍼': '양쪽에서 안정적으로 물체를 파지하는 작업 도구',
+        '청소 모듈': '재난 현장의 잔해와 표면을 정리하는 작업 도구',
+    }.get(label, '현재 장착 도구의 준비 상태를 확인합니다')
+    window._mission_tool_purpose.set_text(purpose)
+    window._mission_arm_load.set_text(
+        f'구동부 {len(tool["actuator_ids"])}개 응답'
+        if fresh and tool is not None and online else '확인 필요'
+    )
     window._end_effector_popup_purpose.set_text('현재 감지 도구의 상태')
     values = window._end_effector_popup_values
     values['selection'].set_text(f'{selected} · {state}')

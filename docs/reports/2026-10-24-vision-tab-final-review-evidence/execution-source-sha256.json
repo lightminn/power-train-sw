@@ -1,0 +1,11 @@
+{
+  "operator_console/vision_render.py": "878ac0dbccbff8e4624a5bb2231effefb3df8d082bffdfe335701c86c0e5af52",
+  "operator_console/vision_map_view.py": "0ed56d6a397c9531f8ca37821fe62c067b46e06299ff7e9aff2e1849d5ef1251",
+  "operator_console/vision_config.py": "025cb12d674b2baeb968b3caf7ff1fd50720d27e462b15403a65ec50d7454ff6",
+  "operator_console/vision_attitude.py": "83bbc5436d24395f34637b15dfaacc32af020b194840d4a2374da85b05c255f0",
+  "operator_console/vision_attitude_view.py": "4dd524ae02c022e75e5e0408cdc27f541bcef6ce6defe47497b4e9dac2469cd0",
+  "operator_console/telemetry.py": "1c153ebaaa40a80d8dc9850716ee9cf604b97d96a863a1901eb2229ad4714a87",
+  "operator_console/performance_probe.py": "87a31d5fc5ab561413b0e1d32b19f1c6d85d8ab5d9acc8269e2d8a752fe70333",
+  "operator_console/vision_monitor.py": "afaff7c9c89839f24d1f4e8f82ccdeadf7dd0a5b73a782649a62e732cb65702c",
+  "operator_console/tests/vision_benchmark.py": "cd0fe8488a851a27cdb6bb6cbfb0d3452e4590b64c0126648f2b53077732ff65"
+}

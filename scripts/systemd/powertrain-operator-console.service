@@ -9,6 +9,7 @@ StartLimitAction=none
 Type=simple
 WorkingDirectory=%h/power-train-sw
 EnvironmentFile=%h/.config/powertrain/operator-console.env
+Environment=OPENBLAS_NUM_THREADS=1
 ExecStart=/usr/bin/python3 -m operator_console.app --host ${OPERATOR_HOST}
 Restart=always
 RestartSec=2

@@ -68,6 +68,9 @@ class TeleopCommandNode(Node):
         self.declare_parameter("port", DEFAULT_PORT)
         self.declare_parameter("input_timeout_s", 0.20)
         self.declare_parameter("stopping_timeout_s", 2.0)
+        # Field relaxation switches; defaults keep the latching safety contract.
+        self.declare_parameter("latch_stale_input", True)
+        self.declare_parameter("partial_close_violation", True)
         self.declare_parameter("max_linear", 1.5)
         self.declare_parameter("max_angular", 1.2)
         self.declare_parameter(
@@ -82,8 +85,12 @@ class TeleopCommandNode(Node):
             self.get_parameter("input_timeout_s").value
         )
         self._decoder = RemoteInputDecoder(
-            input_timeout_s=input_timeout_s
+            input_timeout_s=input_timeout_s,
+            partial_close_violation=bool(
+                self.get_parameter("partial_close_violation").value),
         )
+        self._latch_stale_input = bool(
+            self.get_parameter("latch_stale_input").value)
         self._gateway = RemoteInputGateway(
             GatewayConfig(
                 input_timeout_s=input_timeout_s,
@@ -95,6 +102,7 @@ class TeleopCommandNode(Node):
                     self.get_parameter("max_angular").value
                 ),
                 manual_command_format=self._manual_command_format,
+                latch_stale_input=self._latch_stale_input,
             ),
             arm_output_enabled=ARM_OUTPUT_ENABLED,
             # Task 7 will inject qualified physical evidence only after the
@@ -113,6 +121,7 @@ class TeleopCommandNode(Node):
         self._violation_events = deque(maxlen=MAX_VIOLATION_KINDS)
         self._status_lock = threading.Lock()
         self._status_line = b"S DISCONNECTED +0.000 +0.000\n"
+        self._status_epoch = 0
         self._stop_event = threading.Event()
         self._server_socket = None
         self._closed = False
@@ -286,6 +295,17 @@ class TeleopCommandNode(Node):
         with self._status_lock:
             return self._status_line
 
+    def _status_reply(self, estop_ack_id):
+        """``S`` line plus ``G <input_epoch> <estop_ack_id>`` for this connection.
+
+        Legacy ``S`` parsers expect exactly four tokens on the ``S`` line and
+        ignore other lines, so the epoch/ack line stays separate.
+        """
+        with self._status_lock:
+            line = self._status_line
+            epoch = self._status_epoch
+        return line + b"G %d %d\n" % (epoch, estop_ack_id)
+
     def _serve_client(self, connection):
         decoder_started = False
         connection_session_id = None
@@ -308,6 +328,9 @@ class TeleopCommandNode(Node):
             self._queue_lifecycle_event("connect", connection_session_id)
             last_status_s = 0.0
             last_data_s = time.monotonic()
+            # Per-connection E-stop acknowledgement: a new connection starts at 0
+            # so an ack can never leak from a previous connection.
+            estop_ack_id = 0
             while not self._stop_event.is_set():
                 try:
                     data = connection.recv(4096)
@@ -323,17 +346,20 @@ class TeleopCommandNode(Node):
                 now_s = time.monotonic()
                 if data:
                     last_data_s = now_s
-                    self._queue_decoder_results(
-                        self._decoder.feed(
-                            data,
-                            receive_monotonic_s=now_s,
-                        )
+                    results = self._decoder.feed(
+                        data,
+                        receive_monotonic_s=now_s,
                     )
+                    self._queue_decoder_results(results)
+                    for result in results:
+                        frame = result.frame
+                        if frame is not None and frame.estop_edge and frame.estop_id:
+                            estop_ack_id = frame.estop_id
                 elif now_s - last_data_s > CLIENT_IDLE_TIMEOUT_S:
                     break
                 if data or now_s - last_status_s >= 0.25:
                     try:
-                        connection.sendall(self._current_status())
+                        connection.sendall(self._status_reply(estop_ack_id))
                     except OSError:
                         break
                     last_status_s = now_s
@@ -595,6 +621,7 @@ class TeleopCommandNode(Node):
         output = self._gateway.tick(tick_now_s)
         with self._status_lock:
             self._status_line = make_status_line(output).encode("utf-8")
+            self._status_epoch = getattr(self._gateway, "input_epoch", 0)
 
         state_message = String()
         state_message.data = json.dumps(
@@ -621,6 +648,11 @@ class TeleopCommandNode(Node):
             if input_was_fresh:
                 self._publish_drive(output)
                 self._publish_arm(output)
+            elif (not getattr(self, "_latch_stale_input", True)
+                  and output.state != MOTION_HOLD):
+                # Field mode: keep authority fed with zero so a link gap stops
+                # the wheels without latching the chassis MOTION_HOLD.
+                self._publish_drive(output)
             return
         self._publish_drive(output)
         self._publish_arm(output)

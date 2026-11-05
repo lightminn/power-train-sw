@@ -15,6 +15,7 @@ change:
 """
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import os
@@ -38,8 +39,10 @@ STARTUP_TIMEOUT_S = 40.0
 # 이 패널들은 주입 중 LIVE 에 도달하고, 주입을 끊으면 STALE 로 전이해야 한다.
 # 하나라도 못 하면 그 채널은 실제로는 죽어 있는 것이다.
 REQUIRED_PANELS = frozenset({
-    "telemetry", "chassis", "metadata", "arm", "environment",
+    "telemetry", "chassis", "metadata", "arm", "environment", "terrain", "terrain_map",
 })
+# One terrain sender session per smoke run (spec §4.6 session gate).
+TERRAIN_SMOKE_SESSION = ("5" * 32, time.monotonic_ns(), "5" * 16)
 
 
 def smoke_child_env(
@@ -79,6 +82,34 @@ def _probe_states(probe_file: Path, wanted: str) -> set[str]:
     return {name for name, state in states.items() if state == wanted}
 
 
+def _probe_map_tiles(probe_file: Path) -> int:
+    try:
+        states = json.loads(probe_file.read_text(encoding="utf-8"))
+        return int(states.get("terrain_map_tiles", 0))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return 0
+
+
+def _terrain_map_packets(sequence: int, *, tiles: bool = True, status: str = "OK") -> list[bytes]:
+    """One status packet and one refreshed tile per tick (terrain map contract v1, :5010)."""
+    from terrain_map import contract as C
+    session = dict(sender_boot_id="6" * 32, sender_start_mono_ns=TERRAIN_SMOKE_SESSION[1],
+                   sender_instance="6" * 16, map_epoch=0, sent_unix_ns=time.time_ns())
+    ok = status == "OK"
+    packets = [C.encode(C.StatusPacket(
+        **session, sequence=sequence, status=status, reason=None if ok else "POSE_GAP",
+        cell_m=0.05, tile_cells=16, age_step_s=2.0, pose=C.Pose(0.4, 0.4, 0.0) if ok else None,
+        distance_m=0.1 * sequence, pose_gaps=0, not_support=0, late_dropped=0, tile_count=1,
+        refresh_cycle_s=0.2, thresholds=C.Thresholds(0.08, 0.08, 2),
+        corrector=C.CorrectorInfo("identity", False, None, "identity"), proc_ms=12.0))]
+    if tiles:
+        heights = [12 if i % 16 < 8 else 0 for i in range(256)]
+        codes = [C.OBSTACLE if i % 16 < 8 else C.FREE for i in range(256)]
+        packets.append(C.encode(C.TilePacket(**session, tx=0, ty=0, version=1, tile_seq=sequence,
+                                             cells=C.pack_cells(heights, codes, [0] * 256))))
+    return packets
+
+
 def _probe_main_video(probe_file: Path) -> str | None:
     try:
         states = json.loads(probe_file.read_text(encoding="utf-8"))
@@ -88,6 +119,14 @@ def _probe_main_video(probe_file: Path) -> str | None:
         return None
     value = states.get("main_video")
     return str(value) if value is not None else None
+
+
+def _probe_terrain_badge(probe_file: Path) -> str | None:
+    try:
+        states = json.loads(probe_file.read_text(encoding="utf-8"))
+        return str(states["terrain_badge"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 def _probe_rover_widths(probe_file: Path) -> tuple[int, int] | None:
@@ -330,6 +369,35 @@ def _metadata_payload(sequence: int) -> dict:
     }
 
 
+def _terrain_payload(sequence: int, *, status: str = "OK") -> dict:
+    boot_id, start_ns, instance = TERRAIN_SMOKE_SESSION
+    payload = {
+        "schema_version": 1, "type": "l515_terrain",
+        "sender_boot_id": boot_id, "sender_start_mono_ns": start_ns,
+        "sender_instance": instance, "sequence": sequence,
+        "sent_unix_ns": time.time_ns(), "depth_stamp_ns": sequence * 10**8,
+        "depth_age_ms": 30.0, "status": "OK", "reason": None,
+        "frame_size": [1280, 720], "distance_origin": "l515_depth_optical",
+        "alignment_verified": False,
+        "ground": {"state": "FRESH", "age_ms": 30.0,
+                   "camera_height_m": 0.5, "camera_tilt_deg": 20.0},
+        "path_half_width_m": 0.4445,
+        "zones": {"left": None, "center": 1.2, "right": 2.1},
+        "obstacles": [
+            {"dist_m": 1.2, "in_path": True,
+             "poly": [[560, 300], [720, 300], [720, 420], [560, 420]]},
+            {"dist_m": 2.1, "in_path": False,
+             "poly": [[900, 280], [980, 280], [940, 340]]},
+        ],
+        "proc_ms": 25.0,
+    }
+    if status != "OK":
+        payload.update(status=status, reason="DEPTH_STALE", ground=None,
+                       zones={"left": None, "center": None, "right": None},
+                       obstacles=[], proc_ms=None)
+    return payload
+
+
 def _arm_payload(sequence: int) -> dict:
     return {
         "schema_version": 1, "sequence": sequence, "stamp_s": time.time(),
@@ -409,7 +477,8 @@ def run_smoke(
     ports = {
         "metadata": _free_udp_port(), "telemetry": _free_udp_port(),
         "chassis": _free_udp_port(), "arm": _free_udp_port(),
-        "environment": _free_udp_port(),
+        "environment": _free_udp_port(), "terrain": _free_udp_port(),
+        "terrain_map": _free_udp_port(),
     }
     ops_fixture = _OpsStateFixture()
     ops_fixture.start()
@@ -434,6 +503,8 @@ def run_smoke(
                 "--chassis-telemetry-port", str(ports["chassis"]),
                 "--arm-telemetry-port", str(ports["arm"]),
                 "--environment-telemetry-port", str(ports["environment"]),
+                "--terrain-port", str(ports["terrain"]),
+                "--terrain-map-port", str(ports["terrain_map"]),
                 "--ops-token-file", token_file,
                 "--ops-port", str(ops_fixture.port),
                 "--smoke-probe-file", str(probe_file),
@@ -452,13 +523,15 @@ def run_smoke(
     builders = {
         "telemetry": _telemetry_payload, "chassis": _chassis_payload,
         "metadata": _metadata_payload, "arm": _arm_payload,
-        "environment": _environment_payload,
+        "environment": _environment_payload, "terrain": _terrain_payload,
     }
     live_seen: set[str] = set()
     stale_seen: set[str] = set()
     unexpected_auto_swap_seen = False
     role_sized_rovers_seen = False
     environment_values_seen = False
+    terrain_ok_seen = False
+    map_tiles_seen = 0
     invalid_steering_held_seen = False
     arm_tabs_seen = False
     lock_panel_seen = False
@@ -493,12 +566,17 @@ def run_smoke(
                     json.dumps(build(sequence)).encode("utf-8"),
                     ("127.0.0.1", ports[channel]),
                 )
+            if omit_channel_for_test != "terrain_map":
+                for raw in _terrain_map_packets(sequence, tiles=omit_channel_for_test != "terrain_map_tiles"):
+                    sender.sendto(raw, ("127.0.0.1", ports["terrain_map"]))
             time.sleep(0.2)
             live_seen |= _probe_states(probe_file, "LIVE")
+            map_tiles_seen = max(map_tiles_seen, _probe_map_tiles(probe_file))
             unexpected_auto_swap_seen |= (
                 _probe_main_video(probe_file) == "작업 카메라"
             )
             role_sized_rovers_seen |= _probe_rover_widths(probe_file) == (290, 90)
+            terrain_ok_seen |= (_probe_terrain_badge(probe_file) or "").startswith("지형 OK")
             environment_values = _probe_environment_values(probe_file)
             if environment_values is not None:
                 climate, air, hazard = environment_values
@@ -543,6 +621,7 @@ def run_smoke(
                 "schema_version": 1, "sequence": sequence,
                 "sensor_ok": False, "errors": ["fixture sparse packet"],
             },
+            "terrain": _terrain_payload(sequence, status="SENSOR_ERROR"),
         }
         for channel, payload in sparse.items():
             if channel == omit_channel_for_test:
@@ -551,6 +630,9 @@ def run_smoke(
                 json.dumps(payload).encode("utf-8"),
                 ("127.0.0.1", ports[channel]),
             )
+        if omit_channel_for_test != "terrain_map":
+            for raw in _terrain_map_packets(sequence, tiles=False, status="NO_POSE"):
+                sender.sendto(raw, ("127.0.0.1", ports["terrain_map"]))
         sparse_deadline = time.monotonic() + 1.0
         while time.monotonic() < sparse_deadline and console.poll() is None:
             time.sleep(0.2)
@@ -601,6 +683,12 @@ def run_smoke(
         )
     if "Traceback" in text:
         return False, f"callback traceback detected:\n{text}"
+    if omit_channel_for_test is None:
+        vision_passed, vision_report = run_vision_smoke()
+        if not vision_passed:
+            return False, "vision runtime check failed:\n" + vision_report + "\n" + text
+        text = ("vision runtime ok · missing/live/aged/stale/recovery/hidden/roundtrip/shutdown\n"
+                + text)
     # 기동·무traceback 만으로는 아무것도 보장하지 못한다. 수신 스레드를 통째로
     # 죽여도 그 두 조건은 통과했다(2026-07-18 R06 #10). 패널이 실제로 데이터를
     # 받아 LIVE 가 됐고, 주입을 끊었을 때 STALE 로 전이했는지까지 단언한다.
@@ -616,6 +704,13 @@ def run_smoke(
             f"panels never went STALE after injection stopped: "
             f"{', '.join(missing_stale)}\n{text}"
         )
+    # The terrain map stage is judged before the arm tabs so its result stays readable
+    # even while those (pre-existing) checks fail (Codex plan P2-6).
+    if map_tiles_seen < 1:
+        return False, "terrain map tiles never arrived\n" + text
+    text = "terrain_map ok\n" + text
+    if not terrain_ok_seen:
+        return False, "terrain badge never showed 지형 OK while injecting\n" + text
     if unexpected_auto_swap_seen:
         return False, "D435i became MAIN without an operator click\n" + text
     if not role_sized_rovers_seen:
@@ -631,7 +726,7 @@ def run_smoke(
     if not arm_tabs_seen:
         return False, "arm tabs did not render live tool in safe disabled state\n" + text
     return True, (
-        f"PASS · {sequence} ticks on 5 channels · "
+        f"PASS · vision runtime ok · terrain_map ok · {sequence} ticks on 7 channels · "
         f"LIVE+STALE observed on {', '.join(sorted(REQUIRED_PANELS))} · "
         "invalid steering mode held disabled · "
         "arm tabs observed safely disabled · "
@@ -639,7 +734,65 @@ def run_smoke(
     )
 
 
+def run_vision_smoke(*, fault_for_test: str | None = None,
+                     record_webm: Path | None = None,
+                     metrics_output: Path | None = None) -> tuple[bool, str]:
+    """Exercise vision independently so existing arm failures stay distinguishable."""
+    with tempfile.TemporaryDirectory(prefix="vision-runtime-report-") as directory:
+        report_file = Path(directory)/"result.json"
+        command = ["xvfb-run", "-a", SYSTEM_PYTHON, "-m", "operator_console.vision_smoke",
+                   "--report-file", str(report_file)]
+        if fault_for_test is not None:
+            command += ["--fault", fault_for_test]
+        if record_webm is not None:
+            command += ["--record-webm", str(record_webm.resolve())]
+        if metrics_output is not None:
+            command += ["--metrics-output", str(metrics_output.resolve())]
+        try:
+            child = subprocess.Popen(command, cwd=REPO_ROOT, env=smoke_child_env(),
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+        except OSError as exc:
+            return False, f"vision runtime launch failed: {exc}"
+        try:
+            stdout, stderr = child.communicate(timeout=90)
+        except subprocess.TimeoutExpired:
+            os.killpg(child.pid, signal.SIGKILL)
+            stdout, stderr = child.communicate()
+            return False, "vision runtime timed out (including shutdown)\n" + stderr.decode("utf-8", "replace")
+        output, errors = stdout.decode("utf-8", "replace"), stderr.decode("utf-8", "replace")
+        if child.returncode != 0 or "Traceback" in errors or "Traceback" in output:
+            return False, f"vision runtime child rc={child.returncode}\n{output}\n{errors}"
+        try:
+            # Native Xlib messages may appear on stdout. Read structured evidence
+            # from a dedicated file only after the child has actually exited.
+            evidence = report_file.read_text(encoding="utf-8")
+            report = json.loads(evidence)
+            phases = [row["phase"] for row in report["phases"]]
+            required = ["missing", "live", "encoders", "aged", "disconnected", "recovered", "returned"]
+            if (report["result"] != "PASS" or phases != required or
+                    report["shutdown"] != "worker/timers/receivers/pipelines/ports closed" or
+                    type(report["receiver_pipelines"]) is not int or report["receiver_pipelines"] != 2):
+                raise ValueError("missing phase, shared pipeline or shutdown evidence")
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            return False, f"vision runtime invalid report: {exc}\n{output}\n{errors}"
+        return True, evidence.strip()
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--vision-only", action="store_true",
+                        help="run vision SRT/UDP and lifecycle checks independently")
+    parser.add_argument("--record-webm", type=Path,
+                        help="record the synthetic vision-only console window (requires --vision-only)")
+    parser.add_argument("--metrics-output", type=Path, help="optional event timing file for --vision-only")
+    args = parser.parse_args()
+    if (args.record_webm or args.metrics_output) and not args.vision_only:
+        parser.error("--record-webm/--metrics-output require --vision-only")
+    if args.vision_only:
+        passed, report = run_vision_smoke(record_webm=args.record_webm,metrics_output=args.metrics_output)
+        print(f"VISION-RUNTIME-SMOKE: {'PASS' if passed else 'FAIL'}")
+        print(report)
+        return 0 if passed else 1
     passed, report = run_smoke()
     print(f"CONSOLE-RUNTIME-SMOKE: {'PASS' if passed else 'FAIL'}")
     print(report)

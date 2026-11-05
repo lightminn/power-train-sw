@@ -1,0 +1,61 @@
+Fatal Python error: Segmentation fault
+
+Thread 0x00007ca75cead6c0 (most recent call first):
+  File "/usr/lib/python3.12/threading.py", line 355 in wait
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_render.py", line 250 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x00007ca788ff96c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/terrain_map.py", line 117 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x00007ca7897fa6c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/terrain.py", line 86 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x00007ca789ffb6c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/environment_telemetry.py", line 198 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x00007ca78a7fc6c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/arm_telemetry.py", line 270 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x00007ca78affd6c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/telemetry.py", line 554 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x00007ca78b7fe6c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/telemetry.py", line 554 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x00007ca78bfff6c0 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/metadata.py", line 395 in _run
+  File "/usr/lib/python3.12/threading.py", line 1010 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x00007ca7ea6e1080 (most recent call first):
+  File "/home/kimseon/power-train-sw-vision/operator_console/app.py", line 2793 in _on_realize
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 97 in exercise
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 316 in main
+  File "/home/kimseon/power-train-sw-vision/operator_console/vision_smoke.py", line 331 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 198 in _run_module_as_main
+
+Extension modules: gi._gi, cairo._cairo, gi._gi_cairo, numpy._core._multiarray_umath, numpy.linalg._umath_linalg (total: 5)
+Segmentation fault (core dumped)

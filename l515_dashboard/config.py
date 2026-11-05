@@ -7,6 +7,8 @@ from numbers import Real
 from .endpoint import abstract_address
 
 ENCODERS = ("x264",)
+# SRT output rates. 15 halves encoder work while the camera keeps capturing at 30.
+STREAM_FPS = (30, 15)
 
 
 @dataclass(frozen=True)
@@ -19,6 +21,7 @@ class DashboardConfig:
     width: int = 1280
     height: int = 720
     fps: int = 30
+    stream_fps: int = 30
     bitrate_kbps: int = 3000
     startup_timeout_s: float = 10.0
     graceful_timeout_s: float = 3.0
@@ -69,6 +72,12 @@ class DashboardConfig:
             raise ValueError("width and height must be fixed at 1280x720")
         if self.fps != 30:
             raise ValueError("fps must be fixed at 30")
+        if (
+            isinstance(self.stream_fps, bool)
+            or not isinstance(self.stream_fps, int)
+            or self.stream_fps not in STREAM_FPS
+        ):
+            raise ValueError(f"stream_fps must be one of {STREAM_FPS}")
         if (self.color_width, self.color_height) != (1280, 720):
             raise ValueError("color profile must be fixed at 1280x720")
         if (self.depth_width, self.depth_height) != (640, 480):

@@ -68,6 +68,7 @@ def main() -> int:
         "127.0.0.1", _free_port(), _free_port(), ports["metadata"], 60,
         ports["power"], ports["chassis"], ports["arm"],
         environment_telemetry_port=ports["environment"],
+        terrain_port=_free_port(),
         ops_host="127.0.0.1", ops_port=_free_port(),
         ops_token_file=token_path,
     )

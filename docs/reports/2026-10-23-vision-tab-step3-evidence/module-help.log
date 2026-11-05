@@ -1,0 +1,13 @@
+usage: obstacles_map.py [-h] [--cell CELL] [--profile PROFILE]
+                        map_dir criteria
+
+L1 지도 → 장애물·지형 분류(L2)
+
+positional arguments:
+  map_dir
+  criteria
+
+options:
+  -h, --help         show this help message and exit
+  --cell CELL
+  --profile PROFILE  기준값 프로필(v0.2: A_no_stop 기본 · B_stop20). 없으면 파일의 기본

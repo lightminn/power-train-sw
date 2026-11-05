@@ -1,0 +1,16 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_heartbeat_gate_detects_missing_callbacks_at_both_boundaries _______
+
+    def test_heartbeat_gate_detects_missing_callbacks_at_both_boundaries():
+        from operator_console.tests.vision_benchmark import heartbeat_gap
+>       assert heartbeat_gap(10., 12., []) == 2.
+E       assert 0.0 == 2.0
+E        +  where 0.0 = <function pytest_collection_modifyitems.<locals>.<lambda> at 0x734349506d40>(10.0, 12.0, [])
+
+operator_console/tests/test_video_performance.py:18: AssertionError
+=========================== short test summary info ============================
+FAILED operator_console/tests/test_video_performance.py::test_heartbeat_gate_detects_missing_callbacks_at_both_boundaries
+1 failed in 0.02s
+
+exit_code=1

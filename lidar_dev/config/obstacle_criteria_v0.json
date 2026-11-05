@@ -1,0 +1,33 @@
+{
+  "profile": "l2-exp-v1",
+  "criteria_version": "v0.1",
+  "date": "2026-10-17",
+  "canonical": true,
+  "nature": "표시용 보수 정책값 초안 — 실기 통행 한계 아님. 근거는 JET-IN Isaac 시뮬(E·E2·R2·N·P·W·X4), 모두 [SIM]. 설명: 2026-10-17-obstacle-criteria-v0.md",
+  "levels": ["pass", "caution", "block", "unknown"],
+  "colors_suggested": {"pass": "#2e7d32", "caution": "#f9a825", "block": "#c62828", "unknown": "#9e9e9e"},
+  "interval_rule": {
+    "higher_is_worse": "pass: x < caution_from, caution: caution_from <= x < block_from, block: x >= block_from",
+    "lower_is_worse": "pass: x >= pass_from, caution: block_below <= x < pass_from, block: x < block_below"
+  },
+  "priority": "block > caution > pass; 로버가 지날 칸 중 하나라도 unknown이면 그 구간은 pass가 아님. unknown은 경로 허가로 쓰지 않는다",
+  "rules": {
+    "step_up_m":       {"kind": "higher_is_worse", "caution_from": 0.05, "block_from": 0.07, "measure": "인접 지지면 높이 차(국소 지지면 기준)",
+                        "observed": "E 전폭 8/10·편측 6/7, E2 전폭 8/10·편측 6/8, R2 전폭 9 cm 4/8·편측 7 cm 7/8"},
+    "step_down_m":     {"kind": "higher_is_worse", "caution_from": 0.15, "block_from": 0.30, "measure": "아래로 떨어지는 지지면 높이 차",
+                        "observed": "E(이상) 40 cm 전복 없음 pitch 29.4°, E2(현실화) 30 cm pitch 21.8°·40 cm pitch 44.9°, 충격·손상·정지 유지 미평가"},
+    "gap_width_m":     {"kind": "higher_is_worse", "caution_from": 0.12, "block_from": 0.18, "measure": "진행 방향 지지면이 끊긴 길이(양쪽 모서리 관측 시만)",
+                        "observed": "깊이 0.5 m 틈의 폭: E 18/19 cm, E2 18/20 cm"},
+    "slope_deg":       {"kind": "higher_is_worse", "caution_from": 15.0, "block_from": 25.0, "measure": "30 cm 이상 창 국소 평면 기울기, 방향 무관",
+                        "observed": "오르막 31/32°, 내리막 30/32°, 옆경사 35/40°, R2 31° 6/8(시험한 마찰 0.76 이상만 성공)"},
+    "roughness_m":     {"kind": "higher_is_worse", "caution_from": 0.03, "block_from": 0.05, "measure": "같은 창에서 국소 평면을 뺀 잔차 범위(단차와 별도)",
+                        "observed": "잔해 조각 10–20 cm 통과 못 함(X4)"},
+    "passage_width_m": {"kind": "lower_is_worse", "pass_from": 1.30, "block_below": 1.05, "measure": "물리적 장애물 경계 사이 최소 폭(경계 오차 하한)",
+                        "observed": "로버 폭 0.94 m(CAD)"},
+    "overhead_m":      {"kind": "lower_is_worse", "pass_from": 1.00, "block_below": 0.90, "measure": "바닥~위 장애물 아랫면(아래 공간 관측 시만)",
+                        "observed": "로버 최고 0.81 m(팔 접힘, CAD), 선반 빔 1.135 m 아래 통과"}
+  },
+  "unknown_when": ["관측 없음·결측·가림·시야 밖", "L515 4 m 넘음(신뢰 범위 밖)", "도랑 모서리 한쪽만 관측", "머리 위 아래 공간 미관측"],
+  "unsupported_v0": ["연속 계단", "경사 정상부·골(브레이크오버)", "바퀴 사이 구멍", "한쪽 지지 상실", "경사 위 턱(복합)", "움직이는 물체", "미끄러운 면"],
+  "history": {"v0": "10-17 22:11–22:26 첫 작성", "v0.1": "10-17 22:51 Codex 2차 검토 A1~A6 반영(내려가기 30 cm 불가, 통로 1.05/1.30 m, 머리 위 0.90/1.00 m, 거칠기 잔차 정의, 구간·우선순위)"}
+}

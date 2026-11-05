@@ -1,0 +1,367 @@
+{
+  "operator_console/themes.py": {
+    "source_sha256": "f12f47fd1a00eb5fb0e33a32e9ba809652dd20296632b5be90aa708687da94c1",
+    "imported_sha256": "f12f47fd1a00eb5fb0e33a32e9ba809652dd20296632b5be90aa708687da94c1",
+    "unchanged_copy": true
+  },
+  "operator_console/mobility_view.py": {
+    "source_sha256": "d4d44f72cf4686cfff112b216dd530bc555c49ad3de13dfa1ac0ab43c45bbd40",
+    "imported_sha256": "d4d44f72cf4686cfff112b216dd530bc555c49ad3de13dfa1ac0ab43c45bbd40",
+    "unchanged_copy": true
+  },
+  "operator_console/status_view.py": {
+    "source_sha256": "c77e6251c23033952edadbf7bc6db482ceb226b2d66b4d2ce4e2d7e7363721ed",
+    "imported_sha256": "c77e6251c23033952edadbf7bc6db482ceb226b2d66b4d2ce4e2d7e7363721ed",
+    "unchanged_copy": true
+  },
+  "operator_console/telemetry.py": {
+    "source_sha256": "5388ef7e585295f02b27e3e3235f80aa68d3ec02b0e47193ad47a534f7c50903",
+    "imported_sha256": "5388ef7e585295f02b27e3e3235f80aa68d3ec02b0e47193ad47a534f7c50903",
+    "unchanged_copy": true
+  },
+  "operator_console/arm_binding.py": {
+    "source_sha256": "c78c21837f4914bd373afd3bc478046fe29fbd3089e5a6a57a7e54806dd58fa1",
+    "imported_sha256": "c78c21837f4914bd373afd3bc478046fe29fbd3089e5a6a57a7e54806dd58fa1",
+    "unchanged_copy": true
+  },
+  "operator_console/tool_binding.py": {
+    "source_sha256": "ed4dfa64bf639d9c5b33d2e78d0581ba4b9b69e6657d8e53530c17c63e89b3a6",
+    "imported_sha256": "ed4dfa64bf639d9c5b33d2e78d0581ba4b9b69e6657d8e53530c17c63e89b3a6",
+    "unchanged_copy": true
+  },
+  "operator_console/rover_3d.py": {
+    "source_sha256": "22316898354e37d10338a088825ff18a7a609d54a29af6647f9a1b8547facf30",
+    "imported_sha256": "22316898354e37d10338a088825ff18a7a609d54a29af6647f9a1b8547facf30",
+    "unchanged_copy": true
+  },
+  "operator_console/rover_3d_demo.py": {
+    "source_sha256": "4d3deedd724033d98d1394ec822c122e05b0e9d48c71b74dda4f0299e6e8dfd1",
+    "imported_sha256": "4d3deedd724033d98d1394ec822c122e05b0e9d48c71b74dda4f0299e6e8dfd1",
+    "unchanged_copy": true
+  },
+  "operator_console/rover_3d_smoke.py": {
+    "source_sha256": "fce18991dd43ea8278fedda81423d1737af92987527e795266dd10cca071bc94",
+    "imported_sha256": "6fe26a8fb20ddc3cc199539961ab9bdf30a07860d90f77ce593b2dfd3597cc36",
+    "unchanged_copy": false
+  },
+  "operator_console/obstacle_telemetry.py": {
+    "source_sha256": "3f599a5060ecf4355ad4906480ea50865794ea991f89ea121420792ccce57d18",
+    "imported_sha256": "3f599a5060ecf4355ad4906480ea50865794ea991f89ea121420792ccce57d18",
+    "unchanged_copy": true
+  },
+  "operator_console/tests/test_themes.py": {
+    "source_sha256": "f2847c3458b6d4088dc82b036f8e110ddb6ed16f67761f8e7a40dbf12a1897e3",
+    "imported_sha256": "f2847c3458b6d4088dc82b036f8e110ddb6ed16f67761f8e7a40dbf12a1897e3",
+    "unchanged_copy": true
+  },
+  "operator_console/tests/test_interactions.py": {
+    "source_sha256": "f95fa1096d091bcd2047d244fc893eb514119954a3bc1fddeafbb23218f45d9b",
+    "imported_sha256": "2b00ac2d65d8172ee19bc7e7b2a86b141dfad6de41ed43faf8b5d7c5ab12d225",
+    "unchanged_copy": false
+  },
+  "operator_console/tests/test_status_view.py": {
+    "source_sha256": "d3be7e1d45aa320afbc41250565277b1fc8f4cfcaf1d80b5ca9a1e1597d05d79",
+    "imported_sha256": "d3be7e1d45aa320afbc41250565277b1fc8f4cfcaf1d80b5ca9a1e1597d05d79",
+    "unchanged_copy": true
+  },
+  "operator_console/tests/test_arm_binding.py": {
+    "source_sha256": "eab44ee650baf951222ea0628c9a567abd3e920c5e14f91b4edb4fcee403a79d",
+    "imported_sha256": "eab44ee650baf951222ea0628c9a567abd3e920c5e14f91b4edb4fcee403a79d",
+    "unchanged_copy": true
+  },
+  "operator_console/tests/test_tool_binding.py": {
+    "source_sha256": "f306a1e2bdc178f885bc881b0f750cd4e3cfc58c1e2bcfe5a33f48fe6370b278",
+    "imported_sha256": "f306a1e2bdc178f885bc881b0f750cd4e3cfc58c1e2bcfe5a33f48fe6370b278",
+    "unchanged_copy": true
+  },
+  "operator_console/tests/test_rover_3d.py": {
+    "source_sha256": "7a7c22f8c04eca92d6e713cc79117d0475cfdc23c544da88a40f156cadf7dc93",
+    "imported_sha256": "7a7c22f8c04eca92d6e713cc79117d0475cfdc23c544da88a40f156cadf7dc93",
+    "unchanged_copy": true
+  },
+  "operator_console/tests/test_rover_arm.py": {
+    "source_sha256": "f8064b657ad421913fd4d4fbdbbf5c1b499252842deb27f2a37b892871dcb6e3",
+    "imported_sha256": "f8064b657ad421913fd4d4fbdbbf5c1b499252842deb27f2a37b892871dcb6e3",
+    "unchanged_copy": true
+  },
+  "operator_console/tests/test_obstacle_telemetry.py": {
+    "source_sha256": "deeb008ebe4a0cdb95693937e58bb4a458308e95a1367dea7d702c79d4717ff5",
+    "imported_sha256": "deeb008ebe4a0cdb95693937e58bb4a458308e95a1367dea7d702c79d4717ff5",
+    "unchanged_copy": true
+  },
+  "operator_console/tests/test_obstacle_view.py": {
+    "source_sha256": "5da238192dfd1443bf22c10df3590b9c5245b8e73a17af3cabf0450f153f037c",
+    "imported_sha256": "5da238192dfd1443bf22c10df3590b9c5245b8e73a17af3cabf0450f153f037c",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/graphite.css": {
+    "source_sha256": "e55762a813d9252f7d44e3519fe18d6c060dd4b3420089ff64c14724c3abf57f",
+    "imported_sha256": "e55762a813d9252f7d44e3519fe18d6c060dd4b3420089ff64c14724c3abf57f",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/raktor.css": {
+    "source_sha256": "50b51447233e151538b0acc8483bcfa7733e190c24635801f3f945690bb4ed20",
+    "imported_sha256": "50b51447233e151538b0acc8483bcfa7733e190c24635801f3f945690bb4ed20",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/mobility-fit.css": {
+    "source_sha256": "9fe4ed9f9c5a4035709ada2616333d60e68cce07d84a07b1246f0451fe04553b",
+    "imported_sha256": "9fe4ed9f9c5a4035709ada2616333d60e68cce07d84a07b1246f0451fe04553b",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/readability.css": {
+    "source_sha256": "a3a7f53903523764302d92ffd7388dcd17d5f63148ba90f2188875f1a779c874",
+    "imported_sha256": "a3a7f53903523764302d92ffd7388dcd17d5f63148ba90f2188875f1a779c874",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover-showcase.svg": {
+    "source_sha256": "5353915c558e9ababb0dc4e547ecb31f285831f9dcff314307ca4bb32f4b67af",
+    "imported_sha256": "5353915c558e9ababb0dc4e547ecb31f285831f9dcff314307ca4bb32f4b67af",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/fonts/SUIT-Variable.ttf": {
+    "source_sha256": "12e1fea375d27869a686d7432c1e6a38154d394994f5d82ace24f36a7db68333",
+    "imported_sha256": "12e1fea375d27869a686d7432c1e6a38154d394994f5d82ace24f36a7db68333",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/fonts/NoonnuBasicGothic-Regular.ttf": {
+    "source_sha256": "56ebc6b026632a5cc76da8c4aa47e6a30b051bc2fbdb5b8a5fc3d3908aae3376",
+    "imported_sha256": "56ebc6b026632a5cc76da8c4aa47e6a30b051bc2fbdb5b8a5fc3d3908aae3376",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/fonts/Manrope-VF.ttf": {
+    "source_sha256": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6",
+    "imported_sha256": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/fonts/README.md": {
+    "source_sha256": "7d76b84edfd8a87b458c7954d4f8f89a4305a9b8958736cb368715970cae2991",
+    "imported_sha256": "7d76b84edfd8a87b458c7954d4f8f89a4305a9b8958736cb368715970cae2991",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/fonts/Manrope-OFL.txt": {
+    "source_sha256": "58172e0c0fac2cda8a37b348164bb55e44b0e69051e557e92b1d3f6910141f7b",
+    "imported_sha256": "58172e0c0fac2cda8a37b348164bb55e44b0e69051e557e92b1d3f6910141f7b",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/fonts/SUIT-OFL.txt": {
+    "source_sha256": "30d101ee3c35ef629d622d933d261a27b2f60223e0a3b0f36791e569c2b9daa9",
+    "imported_sha256": "30d101ee3c35ef629d622d933d261a27b2f60223e0a3b0f36791e569c2b9daa9",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/fonts/NoonnuBasicGothic-LICENSE.txt": {
+    "source_sha256": "0bf8408499b2013d1d7f49e1cd9dd43d5637765823f8d5e430ada898ced27a16",
+    "imported_sha256": "0bf8408499b2013d1d7f49e1cd9dd43d5637765823f8d5e430ada898ced27a16",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/viewer.js": {
+    "source_sha256": "96ba58b53567d813a359d83dbc31879ac39a7e86574ba6e2abbc5fa917e5d0ea",
+    "imported_sha256": "96ba58b53567d813a359d83dbc31879ac39a7e86574ba6e2abbc5fa917e5d0ea",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/model.json": {
+    "source_sha256": "546122518f397e1086641ffc72b28b3cfa3b5fdf83c379ba4b1bef8c37063a6f",
+    "imported_sha256": "546122518f397e1086641ffc72b28b3cfa3b5fdf83c379ba4b1bef8c37063a6f",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/robot.urdf": {
+    "source_sha256": "26846e7aa640321073727d934930f32d2d72d4d8c8c22f93c0cb05f05c031266",
+    "imported_sha256": "26846e7aa640321073727d934930f32d2d72d4d8c8c22f93c0cb05f05c031266",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-mesh-manifest.json": {
+    "source_sha256": "87a97fa6f53cba1cdf6b3db429ac7b49393d82ef6483dcbc5085454b03fcfa27",
+    "imported_sha256": "87a97fa6f53cba1cdf6b3db429ac7b49393d82ef6483dcbc5085454b03fcfa27",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/index.html": {
+    "source_sha256": "08be7b787492942389bfe1d4ec7147ac71966c72eea3c10e2f69fb6e9523c3e0",
+    "imported_sha256": "08be7b787492942389bfe1d4ec7147ac71966c72eea3c10e2f69fb6e9523c3e0",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/mesh-manifest.json": {
+    "source_sha256": "0a2e2b933f1a1369eac65c8f631adda682e30bc6b9aa423cdf5d5ad4c25da4da",
+    "imported_sha256": "0a2e2b933f1a1369eac65c8f631adda682e30bc6b9aa423cdf5d5ad4c25da4da",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/vendor/three.core.js": {
+    "source_sha256": "9edde002b066a9a05676a6127f67735b62baf399bdea529f2f7e31657da769e6",
+    "imported_sha256": "9edde002b066a9a05676a6127f67735b62baf399bdea529f2f7e31657da769e6",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/vendor/THREE-LICENSE.txt": {
+    "source_sha256": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc",
+    "imported_sha256": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/vendor/three.module.js": {
+    "source_sha256": "9052042d676cb0fdc1ddfefe193053f34b7ac0513a616fdac4535d49987812ea",
+    "imported_sha256": "9052042d676cb0fdc1ddfefe193053f34b7ac0513a616fdac4535d49987812ea",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/vendor/OrbitControls.js": {
+    "source_sha256": "3d79d07ecb686b4e5d93232eedab255331c1beef711e13164eaa1f68655a5f2b",
+    "imported_sha256": "3d79d07ecb686b4e5d93232eedab255331c1beef711e13164eaa1f68655a5f2b",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/fonts/NoonnuBasicGothic-Regular.woff2": {
+    "source_sha256": "2947af806d280ee21a731177da1d0da9ef5a1706b4d5539f68fbd1415cdaead4",
+    "imported_sha256": "2947af806d280ee21a731177da1d0da9ef5a1706b4d5539f68fbd1415cdaead4",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/arm_link4_revision3_visual.bin": {
+    "source_sha256": "bc99406820df5e21960e2448df7c084af43503beb47d732f12cff143329eefdc",
+    "imported_sha256": "bc99406820df5e21960e2448df7c084af43503beb47d732f12cff143329eefdc",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/rl_bl70200s.bin": {
+    "source_sha256": "0796f4f42bb0a5cc263ac6eae2a8ceaef8926cefab7c5bb2a22d7a18d8a34ba3",
+    "imported_sha256": "0796f4f42bb0a5cc263ac6eae2a8ceaef8926cefab7c5bb2a22d7a18d8a34ba3",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/finger_lower_revision2_visual.bin": {
+    "source_sha256": "ab795e1f179f0775092e14b214386b6225a5c7672ae63f604db99f04e6a8ee2c",
+    "imported_sha256": "ab795e1f179f0775092e14b214386b6225a5c7672ae63f604db99f04e6a8ee2c",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/rr_kingpin_flange.bin": {
+    "source_sha256": "d6287b4508a1d21f333574c51d2c98c0cf76c69f78b9917964721aece919b0af",
+    "imported_sha256": "d6287b4508a1d21f333574c51d2c98c0cf76c69f78b9917964721aece919b0af",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/arm_link2.bin": {
+    "source_sha256": "6018eecd226157af57b744841b3a359680f77917fc15c0ab28f8f6f4bb77bfb1",
+    "imported_sha256": "6018eecd226157af57b744841b3a359680f77917fc15c0ab28f8f6f4bb77bfb1",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/fl_kingpin_flange.bin": {
+    "source_sha256": "7d8dc53605722ffd8214e1f92e92afdf09b68f07dc7bf248178612ce2d7de4d2",
+    "imported_sha256": "7d8dc53605722ffd8214e1f92e92afdf09b68f07dc7bf248178612ce2d7de4d2",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/bl_bogie_pivot_out_hub_L60_slot.bin": {
+    "source_sha256": "7f2a1d8aa1faa06a646d36a2c8a73d0d36a794f2a346d6b5c2934b52305092e1",
+    "imported_sha256": "7f2a1d8aa1faa06a646d36a2c8a73d0d36a794f2a346d6b5c2934b52305092e1",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/rl_kingpin_flange.bin": {
+    "source_sha256": "a5f5504db20fc7b5f58797fca28dba30536aea77813d51b1afe4965367c3f857",
+    "imported_sha256": "a5f5504db20fc7b5f58797fca28dba30536aea77813d51b1afe4965367c3f857",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/mr_pin_PSFGR12-33_ball3R.bin": {
+    "source_sha256": "0acbda0db7d664656298015f2289635c90ad73a4cf7ac58f15944594f0c83826",
+    "imported_sha256": "0acbda0db7d664656298015f2289635c90ad73a4cf7ac58f15944594f0c83826",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/mr_new_chassis_pivot.bin": {
+    "source_sha256": "5275d0b93e4612bb5be7609559e6b16cc20aa843794dfc60b679f03229eb497b",
+    "imported_sha256": "5275d0b93e4612bb5be7609559e6b16cc20aa843794dfc60b679f03229eb497b",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/arm_link3_revision3_visual.bin": {
+    "source_sha256": "3c7af2f1eb6e1ed4be074051f565da2777223ae036fc812cfc30671cd67d8e7e",
+    "imported_sha256": "3c7af2f1eb6e1ed4be074051f565da2777223ae036fc812cfc30671cd67d8e7e",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/mr_rod_end_M10_A_housing.bin": {
+    "source_sha256": "c37605a55f381fc941c2884dfff3df4af84a77b96f0f995e6b48d98bcf2b41ac",
+    "imported_sha256": "c37605a55f381fc941c2884dfff3df4af84a77b96f0f995e6b48d98bcf2b41ac",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/fr_bl70200s.bin": {
+    "source_sha256": "a71b500e74ca970e47f7a5d3d4a2f12c34b9b2f6a65afd639525fc4c6638b434",
+    "imported_sha256": "a71b500e74ca970e47f7a5d3d4a2f12c34b9b2f6a65afd639525fc4c6638b434",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/arm_link5_revision3_visual.bin": {
+    "source_sha256": "89667108afd6e8493805da9a3ec1d789d9ffe9a9b9e587f26430c885ed97db78",
+    "imported_sha256": "89667108afd6e8493805da9a3ec1d789d9ffe9a9b9e587f26430c885ed97db78",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/ml_bar_differential_side_ball3R.bin": {
+    "source_sha256": "ac029f1d2e2af7a9cdc07a6656f30d655a36bb14f4e6a5602264cdc16ae2ef8e",
+    "imported_sha256": "ac029f1d2e2af7a9cdc07a6656f30d655a36bb14f4e6a5602264cdc16ae2ef8e",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/rr_bl70200s.bin": {
+    "source_sha256": "9f56108efd9a737d7d91489806ce6ecb6c21cdb29797ae1a6e27109be4d0154d",
+    "imported_sha256": "9f56108efd9a737d7d91489806ce6ecb6c21cdb29797ae1a6e27109be4d0154d",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/base_link.bin": {
+    "source_sha256": "04f4a30a5665eea6262ceaa4eb66bf19cc1f6326ced3e77fb8ea257c63287534",
+    "imported_sha256": "04f4a30a5665eea6262ceaa4eb66bf19cc1f6326ced3e77fb8ea257c63287534",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/tool_link_revision2_visual.bin": {
+    "source_sha256": "c645cd29052343a194206b09a0597d8c0ea7040ef377e1966bfcc95bc845938a",
+    "imported_sha256": "c645cd29052343a194206b09a0597d8c0ea7040ef377e1966bfcc95bc845938a",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/pinion_B_revision2_visual.bin": {
+    "source_sha256": "ce4ca6ba0c6ff436a46fde9a39b731e8a0e9d3a613b212cadebcb3ab24b71efb",
+    "imported_sha256": "ce4ca6ba0c6ff436a46fde9a39b731e8a0e9d3a613b212cadebcb3ab24b71efb",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/fl_bl70200s.bin": {
+    "source_sha256": "fc0b6f5ea664b9d469d6355bc21280e3763abe142a65e9bf8e3d867cd53ff3c9",
+    "imported_sha256": "fc0b6f5ea664b9d469d6355bc21280e3763abe142a65e9bf8e3d867cd53ff3c9",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/br_bogie_pivot_out_hub_L60_slot.bin": {
+    "source_sha256": "2394c43545182a6a660a7faa1350cbcf3c647835d670dc2fb15cf9aac6ea7f1a",
+    "imported_sha256": "2394c43545182a6a660a7faa1350cbcf3c647835d670dc2fb15cf9aac6ea7f1a",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/pinion_A_revision2_visual.bin": {
+    "source_sha256": "255865bfe953b009033ec6cf8cb2daf08a79a709b19591f30d63fc0f5a7af2be",
+    "imported_sha256": "255865bfe953b009033ec6cf8cb2daf08a79a709b19591f30d63fc0f5a7af2be",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/ml_pin_PSFGR12-33_ball3R.bin": {
+    "source_sha256": "68bec23ec8680bd292693a4c226ba4d8fa8d50aeea44c05474b16fd0b0b42ad0",
+    "imported_sha256": "68bec23ec8680bd292693a4c226ba4d8fa8d50aeea44c05474b16fd0b0b42ad0",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/ml_new_chassis_pivot.bin": {
+    "source_sha256": "58b86836ee6051741f23a08dbbf2c25970ff2c178db11a5e20a43984b7a3d9d9",
+    "imported_sha256": "58b86836ee6051741f23a08dbbf2c25970ff2c178db11a5e20a43984b7a3d9d9",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/arm_link1.bin": {
+    "source_sha256": "ca272cd7b982134ce6faed4d9461f4d0d695e8846df245540ed31900d64ccd6c",
+    "imported_sha256": "ca272cd7b982134ce6faed4d9461f4d0d695e8846df245540ed31900d64ccd6c",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/finger_upper_revision2_visual.bin": {
+    "source_sha256": "b6029b11344c0bbadcc075a2edd770875580b09159be3aa982291dda13be7cd7",
+    "imported_sha256": "b6029b11344c0bbadcc075a2edd770875580b09159be3aa982291dda13be7cd7",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/fr_kingpin_flange.bin": {
+    "source_sha256": "7eaa3962400ab0797975af362041f2baef7d8c320b779faabc6fc725fd530631",
+    "imported_sha256": "7eaa3962400ab0797975af362041f2baef7d8c320b779faabc6fc725fd530631",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/cl_bl70200s.bin": {
+    "source_sha256": "39d71472a11f97ab850720b8bb57ff5d78e6f977c9f8850f21b9776d3a3e0fa7",
+    "imported_sha256": "39d71472a11f97ab850720b8bb57ff5d78e6f977c9f8850f21b9776d3a3e0fa7",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/cr_bl70200s.bin": {
+    "source_sha256": "a2c285db507d407dff136dd94a18fb13e7ec7936f16d5091dc5641f8e6d1b50f",
+    "imported_sha256": "a2c285db507d407dff136dd94a18fb13e7ec7936f16d5091dc5641f8e6d1b50f",
+    "unchanged_copy": true
+  },
+  "operator_console/assets/rover3d/display-meshes/ml_rod_end_M10_A_housing.bin": {
+    "source_sha256": "e80d61487beb975608450519f34cb07c722a9363b3ee51f876dc76b9dbab6e56",
+    "imported_sha256": "e80d61487beb975608450519f34cb07c722a9363b3ee51f876dc76b9dbab6e56",
+    "unchanged_copy": true
+  },
+  "operator_console/app.py": {
+    "source_sha256": "daf37712edc22e4cd9f6dd9841cc1a146ac31dc16747d6877331e2ea9faf8391",
+    "imported_sha256": "6a918025568b3952150461aa61da0fb6ca060adab55264862bd5528e16cef4be",
+    "unchanged_copy": false
+  }
+}
