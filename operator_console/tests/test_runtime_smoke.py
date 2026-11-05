@@ -131,15 +131,19 @@ def test_vision_runtime_smoke_connections_values_roundtrip_and_shutdown(tmp_path
     assert phases['aged']['joint_values']==[None]*4
     assert phases['disconnected']['link']=='STALE'
     assert phases['recovered']['map_state']=='LIVE'
-    assert phases['returned']['slots_mapped']==[True]*4
+    # Camera and attitude slots are mapped; Top/Oblique share one Gtk.Stack, so one map is.
+    returned = phases['returned']['slots_mapped']
+    assert returned[0] and returned[3] and sum(returned[1:3]) == 1
     assert data['shutdown']=='worker/timers/receivers/pipelines/ports closed'
     assert data['receiver_pipelines']==2
     observed = json.loads(metrics.read_text())
     assert observed['status']=='closed' and not observed['hardware_verified']
     vision = max((s for s in observed['segments'] if s['page']=='vision'), key=lambda s:s['duration_s'])
     assert 12 < vision['events']['l515_sink']['hz'] < 18
+    # Top/Oblique share one Gtk.Stack: only the selected map (Top) is drawn.
+    # Oblique rasters are still produced; phases[*]['map_rasters'] checks that.
     assert vision['events']['top_images']['count'] >= 4
-    assert vision['events']['oblique_images']['count'] >= 4
+    assert all(phases[name]['map_rasters'] == [True, True] for name in ('live', 'recovered', 'returned'))
 
 
 @pytest.mark.skipif(not _toolchain_ready(), reason='needs Xvfb/system GTK/GStreamer')

@@ -275,6 +275,10 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
             assert callback_gap(watching, watched, beats) < .5, 'vision GTK stalled'
             for target in ('systems', 'mission'):
                 window._stack.set_visible_child_name(target)
+                # Hiding runs from a GTK idle; measure (and inject) only after it ran,
+                # or the pending idle would erase an injected fault.
+                pump_until(lambda: maps._visibility_idle is None and maps._timer is None
+                           and not maps.worker._active, 'vision hidden settled')
                 assert window._l515.get_parent() is original_parent, 'vision camera parent not restored'
                 assert window._swap_button.get_sensitive(), 'vision swap button not restored'
                 count = maps.worker.render_count; updates = panel.refresh_count
@@ -283,6 +287,8 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
                 if fault == 'hidden-render':
                     maps.worker.configure(active=True)
                 dwell(.8)
+                if fault == 'hidden-render':
+                    assert maps.worker._active, 'vision hidden-render fault was not held'
                 p = snapshot()
                 assert not p['map_timer'] and not p['attitude_timer'], 'vision hidden UI timers active'
                 assert maps.worker.render_count==count and panel.refresh_count==updates, 'vision hidden render continues'
