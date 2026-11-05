@@ -5582,6 +5582,10 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
         요청 없이 같은 블록에서 꺼낸다. 미수신 시 None.
         """
         with self._bus_lock:
+            # A tool switch on another thread can register this ID after this
+            # tick's SyncRead: isAvailable says yes, but its block is still empty.
+            if not getattr(self.group_sync_read, 'data_dict', {}).get(dxl_id, True):
+                return None
             if not self.group_sync_read.isAvailable(
                     dxl_id, ADDR_HARDWARE_ERROR_STATUS,
                     LEN_HARDWARE_ERROR_STATUS):
