@@ -14,6 +14,7 @@ from gi.repository import Gdk, Gtk, Pango  # noqa: E402
 
 from .telemetry import TelemetrySnapshot, WheelStatus
 from .rover_3d import Rover3DView
+from .status_view import chassis_estop_active
 from .themes import theme_tokens
 from .obstacle_telemetry import (
     ObstacleTelemetrySnapshot,
@@ -163,6 +164,26 @@ def mission_mobility_values(
     }
 
 
+def drive_block_reasons(snapshot: TelemetrySnapshot | None) -> tuple[str, ...]:
+    """Name what stops the rover from driving, strongest first; display only.
+
+    `UNHEALTHY` means a motor is stale or faulted, and the chassis refuses to
+    dispatch in that state.  `UNAVAILABLE` only means no report arrived, so it
+    is not treated as a fact that blocks driving.
+    """
+    if snapshot is None:
+        return ()
+    reasons: list[str] = []
+    if chassis_estop_active(snapshot):
+        reasons.append("비상정지")
+    if snapshot.can_state.strip().lower().startswith("unhealthy"):
+        reasons.append("CAN 이상")
+    wheels = snapshot.wheel_statuses
+    if wheels and not any(wheel_health_text(wheel) == "정상" for wheel in wheels):
+        reasons.append(f"바퀴 0/{len(wheels)} 정상")
+    return tuple(reasons)
+
+
 def mobility_story_values(
     snapshot: TelemetrySnapshot | None,
 ) -> dict[str, str]:
@@ -205,6 +226,18 @@ def mobility_story_values(
         else f"바퀴 {healthy_wheels}/{wheel_count} 정상"
     )
 
+    blocked = drive_block_reasons(snapshot)
+    if blocked:
+        return {
+            "title": f"주행 불가 · {blocked[0]}",
+            "detail": "원인  |  " + " · ".join(blocked),
+            "action": "대응  |  원인 확인 · 주행 대기",
+            "tone": "status-bad",
+            "terrain": terrain,
+            "judgement": wheel_health,
+            "control": "주행 중지 · 점검 요청",
+            "result": "주행 불가",
+        }
     if snapshot.stuck_candidate is True or snapshot.terrain_path_available is False:
         return {
             "title": "전방 경로 차단 · 안전 정지",
@@ -1041,6 +1074,7 @@ class MobilityDashboard(Gtk.Box):
         fsm["controller"].set_text(story["result"])
         fsm["drive"].set_text(
             "실시간 상태 · " + (
+                "주행 불가" if drive_block_reasons(snapshot) else
                 "안전 정지" if snapshot.stuck_candidate is True else
                 "저속 통과 중" if snapshot.slip_candidate is True or (
                     snapshot.degradation_speed_scale is not None
