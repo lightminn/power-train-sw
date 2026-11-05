@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     environment:
       - POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json
+      # SRT output rate, 15 (field default) or 30. Camera, depth and ROS topics keep their rates.
+      - L515_SRT_FPS=${L515_SRT_FPS:-15}
     entrypoint:
       - /bin/bash
       - -lc
@@ -22,6 +24,10 @@ services:
     environment:
       - PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros:/workspace/motor_control
       - POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json
+      # Field teleop policy (see command). Host env/.env overrides reach the container.
+      - TELEOP_INPUT_TIMEOUT_S=${TELEOP_INPUT_TIMEOUT_S:-0.5}
+      - TELEOP_LATCH_STALE_INPUT=${TELEOP_LATCH_STALE_INPUT:-false}
+      - TELEOP_PARTIAL_CLOSE_VIOLATION=${TELEOP_PARTIAL_CLOSE_VIOLATION:-false}
     command:
       - |
         set -e
@@ -30,7 +36,7 @@ services:
         source /opt/ros/humble/setup.bash
         source /workspace/ros2/install/setup.bash
         set -u
-        exec ros2 launch powertrain_ros control.launch.py input_host:=127.0.0.1 input_port:=19000 ops_host:=127.0.0.1 ops_port:=19001
+        exec ros2 launch powertrain_ros control.launch.py input_host:=127.0.0.1 input_port:=19000 ops_host:=127.0.0.1 ops_port:=19001 input_timeout_s:=$${TELEOP_INPUT_TIMEOUT_S:-0.5} latch_stale_input:=$${TELEOP_LATCH_STALE_INPUT:-false} partial_close_violation:=$${TELEOP_PARTIAL_CLOSE_VIOLATION:-false}
     healthcheck:
       test:
         - CMD-SHELL
@@ -252,3 +258,23 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+
+  # Field stopgap (2026-11-03): clear MOTOR_FAILED (e.g. node15 CURRENT_LIMIT_VIOLATION)
+  # on IDLE drive axes so the operator can start driving again. Never re-arms and never
+  # clears ESTOP_REQUESTED or the CAN recovery latch. Opt-in profile, not in robot-start.
+  powertrain_odrive_autoclear:
+    healthcheck:
+      disable: true
+    profiles: [odrive-autoclear]
+    image: powertrain-sw:ros
+    container_name: powertrain_odrive_autoclear
+    network_mode: host
+    environment:
+      - PYTHONPATH=/workspace/motor_control
+    volumes:
+      - ../:/workspace:ro
+    working_dir: /workspace
+    entrypoint: [/bin/bash, -lc]
+    command:
+      - exec python3 -u -m drive.bl70200.odrive_auto_clear --channel can0
+    restart: unless-stopped

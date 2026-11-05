@@ -24,6 +24,8 @@ class StreamerSnapshot:
     input_color: int
     sent: int
     dropped: int
+    skipped: int
+    target_fps: int
     effective_fps: float
     submitted_rate_hz: float
     sent_rate_hz: float
@@ -63,6 +65,14 @@ class SrtStreamer:
         self._input_color = 0
         self._sent = 0
         self._dropped = 0
+        self._skipped = 0
+        self._last_kept_timestamp_ns: Optional[int] = None
+        # Keep a camera frame once the output period has nearly elapsed; half a
+        # capture interval of slack absorbs timestamp jitter at a 2:1 ratio.
+        self._keep_interval_ns = (
+            0 if config.stream_fps >= config.fps else
+            1_000_000_000 // config.stream_fps - 500_000_000 // config.fps
+        )
         self._first_sent_timestamp_ns: Optional[int] = None
         self._last_sent_timestamp_ns: Optional[int] = None
         self._first_submitted_timestamp_ns: Optional[int] = None
@@ -79,10 +89,11 @@ class SrtStreamer:
                 self._config.port,
                 self._config.width,
                 self._config.height,
-                self._config.fps,
+                self._config.stream_fps,
                 encoder=self._config.encoder,
                 bitrate_kbps=self._config.bitrate_kbps,
                 latency_ms=self._config.latency_ms,
+                keyint=self._config.stream_fps,
             )
             self._pipeline_command = tuple(command)
             self._process = self._popen(
@@ -118,12 +129,19 @@ class SrtStreamer:
         with self._condition:
             if not self._running:
                 return
-            self._frames.put_color(frame, timestamp_ns)
             self._input_color += 1
             if self._first_submitted_timestamp_ns is None:
                 self._first_submitted_timestamp_ns = timestamp_ns
             self._last_submitted_timestamp_ns = timestamp_ns
             self._latest_color_timestamp_ns = timestamp_ns
+            last_kept = self._last_kept_timestamp_ns
+            if (last_kept is not None
+                    and 0 <= timestamp_ns - last_kept < self._keep_interval_ns):
+                # Intentional output-rate decimation, skipped before the copy.
+                self._skipped += 1
+                return
+            self._last_kept_timestamp_ns = timestamp_ns
+            self._frames.put_color(frame, timestamp_ns)
             if self._pending:
                 self._dropped += 1
             self._pending = True
@@ -322,6 +340,8 @@ class SrtStreamer:
                 input_color=self._input_color,
                 sent=self._sent,
                 dropped=self._dropped,
+                skipped=self._skipped,
+                target_fps=self._config.stream_fps,
                 effective_fps=effective_fps,
                 submitted_rate_hz=submitted_rate_hz,
                 sent_rate_hz=effective_fps,

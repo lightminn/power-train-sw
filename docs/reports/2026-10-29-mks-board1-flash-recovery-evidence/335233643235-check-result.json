@@ -1,0 +1,11 @@
+{
+  "step": "check",
+  "serial": "335233643235",
+  "started_at": "2026-10-29T02:04:31.491514+00:00",
+  "image_sha256": "15462f7f64745b03d1347fccda8091cd34b795056fefee64f87e794dc8a4b3fc",
+  "image_bytes": 251868,
+  "backup_nvm_sha256": "86b374e8a3416d6a949a90e1350a5beb11478f516f0781ca08f1ee31e37442e0",
+  "precondition_diff": [],
+  "ready": true,
+  "finished_at": "2026-10-29T02:04:34.264317+00:00"
+}

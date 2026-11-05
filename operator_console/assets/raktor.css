@@ -248,22 +248,22 @@ window .ops-settings-panel expander { color: @text_secondary; }
 window.ops-settings-window .section-title { color: @text_main; font-size: 18px; font-weight: 600; }
 window .integrated-operation label, window .ops-settings-panel label, window .arm-ui label { color: @text_main; }
 window .integrated-operation button, window .ops-settings-panel button,
-window .mobility-control-button, window .arm-ui button { background: @surface_raised; border: 1px solid @border_strong; border-radius: 7px; box-shadow: none; }
+window .arm-ui button { background: @surface_raised; border: 1px solid @border_strong; border-radius: 7px; box-shadow: none; }
 window .integrated-operation button label, window .ops-settings-panel button label,
-window .mobility-control-button label, window .arm-ui button label { color: @text_main; font-weight: 500; }
+window .arm-ui button label { color: @text_main; font-weight: 500; }
 window .integrated-operation button:hover, window .ops-settings-panel button:hover,
-window .mobility-control-button:hover, window .arm-ui button:hover { background: @surface_selected; border-color: @primary; }
+window .arm-ui button:hover { background: @surface_selected; border-color: @primary; }
 window .arm-ui button.arm-primary { background: @primary_soft; border-color: #6C8260; }
 window .arm-ui button.arm-primary label { color: @primary; }
 window .arm-ui button.arm-danger { background: #432D2C; border-color: #6B4541; }
 window .arm-ui button.arm-danger label { color: @danger; }
 window .integrated-operation button:disabled, window .ops-settings-panel button:disabled,
-window .mobility-control-button:disabled, window .arm-ui button:disabled,
+window .arm-ui button:disabled,
 window .arm-ui button.arm-primary:disabled, window .arm-ui button.arm-danger:disabled {
   background: #142126; border: 1px solid @divider; opacity: 1;
 }
 window .integrated-operation button:disabled label, window .ops-settings-panel button:disabled label,
-window .mobility-control-button:disabled label, window .arm-ui button:disabled label,
+window .arm-ui button:disabled label,
 window .arm-ui button.arm-primary:disabled label, window .arm-ui button.arm-danger:disabled label { color: @text_muted; }
 window .arm-ui button.arm-axis:checked { background: @surface_selected; border-color: @primary; }
 window .arm-ui button.arm-axis:checked label { color: @primary; }

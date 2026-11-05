@@ -1,8 +1,15 @@
 # 망이 바뀌었을 때 — IP 지정해서 띄우는 법
 
 IP 는 사람·공유기마다 다르다. 이 문서는 **자기 IP 로 스택을 띄우는 최소 절차**만 담는다.
-코드에 박힌 기본값은 GL-SFT1200 AP(`ZETIN-ROBOT-5G`) 기준이며, 다른 망에서는 아래대로
-**전부 인자로 넘기면 된다** — 소스를 고칠 필요 없다.
+코드에 박힌 기본값은 GL-SFT1200 로봇 AP 기준이며, 다른 망에서는 아래대로
+**전부 인자로 넘기면 된다** — 소스를 고칠 필요 없다. 현장에서는 노트북을 로봇 AP의 2.4 GHz
+`ZETIN-ROBOT`에 붙인다(5 GHz `ZETIN-ROBOT-5G`는 지연이 평균 113~427 ms까지 튀어 주행이 풀렸다 —
+[현장 안정화 기록](reports/2026-10-30-field-teleop-stability.md) §3).
+
+⚠️ 통합 운용이 준비된 젯슨(현장 `~/power-train-sw-integrated`)에서는 아래 1번의
+`jetson_gui_up.sh`가 기동을 거부한다. 그 경우 `scripts/robot-start`와 통합 콘솔을 쓰는
+[통합 운용 안내](integrated-operation.md)를 따른다. 통합 세션은 접속한 노트북 주소로 UDP 목적지를
+자동으로 정하므로 `OPERATOR_HOST`를 고칠 필요가 없다.
 
 ## 0. 먼저 두 IP 를 확인한다
 
@@ -99,12 +106,15 @@ python3 scripts/recv_yolo3d.py --host <JETSON>
 
 ## 4. 텔레메트리 서비스만 따로 설치할 때
 
-설치 스크립트는 `OPERATOR_HOST` 를 환경변수 또는 인자로 받는다.
+설치 스크립트는 root로 실행하고 운용 PC 주소를 `--operator-host` 인자로 받는다(생략하면
+`scripts/operator_defaults.sh`의 `DEFAULT_OPERATOR_HOST`). PDIST 설치기는 `PDIST_ID_PATH`가 필수다 —
+장치 파일 경로가 아니라 실제 PDIST 장치의 udev `ID_PATH` 속성값이다
+(`udevadm info --query=property --name=<실제 장치> | grep '^ID_PATH='`로 확인).
 
 ```bash
 # 젯슨에서
-OPERATOR_HOST=<OPERATOR> bash scripts/install_chassis_telemetry_service.sh
-OPERATOR_HOST=<OPERATOR> bash scripts/install_pdist80b_telemetry_service.sh
+sudo bash scripts/install_chassis_telemetry_service.sh --operator-host <OPERATOR>
+sudo bash scripts/install_pdist80b_telemetry_service.sh --operator-host <OPERATOR> <PDIST_ID_PATH>
 ```
 
 ## 5. 기본값을 아예 바꾸고 싶으면
@@ -131,6 +141,6 @@ DEFAULT_OPERATOR_HOST=<OPERATOR>
 
 ## 참고
 
-- 살아 있는 젯슨 주소는 망에 따라 다르다. 과거 문서의 `192.168.50.98` 은 더 이상
-  유효하지 않다(2026-08-02 확인).
+- 살아 있는 젯슨 주소는 망에 따라 다르다. 현재 접속 경로는 로봇 AP 유선 `192.168.8.106`,
+  Wi-Fi `ZETIN_5G` `192.168.50.98`, USB-C `192.168.55.1` 세 가지다.
 - AP 설정과 자격증명은 `~/.claude` 환경변수로만 참조한다. 이 문서에 비밀번호를 적지 않는다.

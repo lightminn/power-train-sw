@@ -29,7 +29,7 @@ class Streamer(Part):
     def snapshot(self): return SimpleNamespace(
         running=self.running, mode=self.mode, sent=0, dropped=0, last_error=None,
         submitted_rate_hz=29.5, sent_rate_hz=29.0, drop_rate_hz=.5,
-        depth_age_ms=12.0)
+        skipped=7, target_fps=15, depth_age_ms=12.0)
 
 
 def make_gateway(**overrides):
@@ -300,6 +300,8 @@ def test_connecting_is_starting_and_status_contract_is_complete():
     assert status["srt"]["submitted_rate_hz"] == 29.5
     assert status["srt"]["sent_rate_hz"] == 29.0
     assert status["srt"]["drop_rate_hz"] == 0.5
+    assert status["srt"]["skipped"] == 7
+    assert status["srt"]["target_fps"] == 15
     assert status["srt"]["aligned_depth_age_ms"] == 12.0
     assert status["system"] == {"cpu":1,"ram":2}
     gateway.shutdown()

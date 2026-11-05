@@ -153,6 +153,13 @@ def test_rejects_malformed_oversize_and_partial_records_without_frames():
     _assert_violation(results[0], "partial")
 
 
+
+def test_field_mode_treats_a_record_cut_by_tcp_close_as_plain_disconnect():
+    decoder = RemoteInputDecoder(partial_close_violation=False)
+    decoder.start_connection()
+    assert decoder.feed(_record()[:-1], receive_monotonic_s=1.0) == []
+    assert decoder.end_connection() == []
+
 def test_each_tcp_connection_requires_a_new_random_session():
     old_session = str(uuid.uuid4())
     new_session = str(uuid.uuid4())
@@ -203,3 +210,39 @@ def test_one_chunk_has_bounded_results_and_summarizes_newline_flood():
     accepted = decoder.feed(_record(sequence=0), receive_monotonic_s=1.1)
     assert len(accepted) == 1
     assert accepted[0].frame is not None
+
+
+def _v3(session_id=None, sequence=0, *, input_epoch=0, estop_id=0, **overrides):
+    return _record(session_id, sequence, schema_version=3,
+                   input_epoch=input_epoch, estop_id=estop_id, **overrides)
+
+
+def test_schema_3_carries_input_epoch_and_estop_id():
+    decoder = RemoteInputDecoder()
+    decoder.start_connection()
+    frame = _one(decoder, _v3(input_epoch=4, estop_id=123, estop_edge=True)).frame
+    assert frame.schema_version == 3
+    assert frame.input_epoch == 4
+    assert frame.estop_id == 123
+
+
+def test_schema_2_frames_have_no_epoch_and_no_estop_id():
+    decoder = RemoteInputDecoder()
+    decoder.start_connection()
+    frame = _one(decoder, _record(estop_edge=True)).frame
+    assert frame.input_epoch is None
+    assert frame.estop_id == 0
+
+
+@pytest.mark.parametrize("record, detail", [
+    (_v3(estop_edge=True, estop_id=0), "estop_id must be nonzero exactly when estop_edge"),
+    (_v3(estop_edge=False, estop_id=9), "estop_id must be nonzero exactly when estop_edge"),
+    (_v3(input_epoch=-1), "input_epoch must be"),
+    (_v3(estop_edge=True, estop_id=2**63), "estop_id must be"),
+    (_record(input_epoch=0), "unknown fields: ['input_epoch']"),
+    (_record(schema_version=3), "missing fields: ['estop_id', 'input_epoch']"),
+])
+def test_schema_3_fields_are_strict(record, detail):
+    decoder = RemoteInputDecoder()
+    decoder.start_connection()
+    _assert_violation(_one(decoder, record), detail)

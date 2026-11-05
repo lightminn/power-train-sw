@@ -410,9 +410,6 @@ menuitem:hover label, menuitem:active label { color: #174EA6; }
 .mobility-value { color: #34495E; font-size: 12px; }
 .mobility-wheel-value { color: #263A4D; font-size: 11px; font-family: "JetBrains Mono", "D2Coding", monospace; }
 .mobility-faults { color: #C43B43; font-size: 11px; background: #FFF7F7; border-left: 3px solid #C43B43; padding: 9px; }
-.mobility-control-card { padding: 11px 12px; }
-.mobility-control-button { min-height: 36px; background: #FFFFFF; border: 1px solid #BFCEDC; color: #263A4D; font-weight: 700; }
-.mobility-control-button:hover { background: #E8F0FE; border-color: #2D6EDB; }
 button { border-radius: 10px; padding: 7px 10px; }
 button:hover { border-color: rgba(56,189,248,0.55); }
 scrollbar slider { background: #33465d; border-radius: 10px; min-width: 6px; min-height: 6px; }
@@ -444,7 +441,18 @@ label {{ color: {text_main}; }}
 .page {{ background: {app_bg}; }}
 .vision-page {{ background: {app_bg}; }}
 .vision-page label {{ color: {text_main}; }}
+.vision-page-title {{ font-size: 22px; font-weight: 700; }}
 .vision-card {{ background: {surface}; border: 1px solid {border}; border-radius: 13px; padding: 8px; }}
+.vision-card > label {{ color: {text_secondary}; font-weight: 800; }}
+.vision-page .vision-attitude .vision-attitude-heading {{ color: {text_main}; background: {surface_soft}; border-radius: 7px; padding: 6px 8px; }}
+.vision-page .vision-attitude .vision-attitude-section {{ color: {primary}; border-bottom: 1px solid {divider}; padding: 4px 0 2px 0; }}
+.vision-page .vision-attitude .vision-attitude-source,
+.vision-page .vision-attitude .vision-attitude-table-head {{ color: {text_muted}; }}
+.vision-chassis-sketch {{ background: {surface_soft}; border: 1px solid {border}; border-radius: 8px; }}
+.vision-attitude .vision-value-live {{ color: {text_main}; }}
+.vision-attitude .vision-value-stale {{ color: {warning}; }}
+.vision-attitude .vision-value-fault {{ color: {danger}; font-weight: 800; }}
+.vision-attitude .vision-value-muted {{ color: {offline}; }}
 .vision-map-controls {{ background: {surface}; border: 1px solid {border}; border-radius: 10px; padding: 4px 7px; }}
 .vision-map-state {{ border-radius: 999px; padding: 4px 9px; font-weight: 800; }}
 .vision-map-state.status-live {{ color: {success}; background: rgba(38,143,101,0.16); }}
@@ -1628,19 +1636,6 @@ window.end-effector-popup, .end-effector-popup-shell, .system-status-dashboard {
   padding: 9px;
   font-size: 10px;
 }}
-.mobility-control-card {{ padding: 11px 13px; }}
-.mobility-control-card .role-sub {{ color: #A8B6C4; background: #263442; border-color: #3B4B5B; }}
-.mobility-control-button {{
-  min-height: 34px;
-  background: #173353;
-  color: #DDE8F3;
-  border: 1px solid #315F91;
-  border-radius: 7px;
-  font-weight: 800;
-}}
-.mobility-control-button label {{ color: #DDE8F3; }}
-.mobility-control-button:hover {{ background: #214A75; border-color: #5795E8; }}
-.mobility-control-button:hover label {{ color: #FFFFFF; }}
 .mobility-dashboard .muted {{ color: #71879B; font-size: 9px; }}
 """.format(**token)
     return css.encode("utf-8")
@@ -2719,6 +2714,8 @@ class VideoPanel(Gtk.Box):
 
         self._stopped = False
         self._retry_source_id: int | None = None
+        # True only while the pending retry was scheduled by the stale watchdog.
+        self._stale_retry_pending = False
         self._frames = 0
         self._sample_start = time.monotonic()
         self._last_frame_monotonic: float | None = None
@@ -2766,6 +2763,8 @@ class VideoPanel(Gtk.Box):
         if self._retry_source_id is not None:
             GLib.source_remove(self._retry_source_id)
             self._retry_source_id = None
+        # A new endpoint always restarts; never treat it as a skippable watchdog retry.
+        self._stale_retry_pending = False
         self._pipeline.set_state(Gst.State.NULL)
         self._pipeline.get_by_name("operator_source").set_property(
             "uri", srt_uri(host, port, latency_ms))
@@ -2913,6 +2912,13 @@ class VideoPanel(Gtk.Box):
             if self._fps.get_text() != text:
                 self._fps.set_text(text)
         self._publish_video_live(self.health_state() == "LIVE")
+        if (
+            self._last_frame_monotonic is None
+            and time.monotonic() - self._sample_start > VIDEO_STALE_RESTART_S
+        ):
+            # No first frame and no ERROR/EOS since (re)start — including a
+            # source stuck before PLAYING: retry like a stall.
+            self._watchdog_reconnect("no first frame")
         if not self._pipeline_live:
             self._placeholder.show_all()
             self._header_state.set_text("연결 대기")
@@ -2922,12 +2928,14 @@ class VideoPanel(Gtk.Box):
             self._status.set_text(f"{self._name} 연결 대기")
             self._header_state.set_text("연결 대기")
             return True
-        if self._fresh_frame_run < 3:
+        # Age first: a silent stall must reach the restart watchdog even while
+        # the 3-frame warm-up count is reset (srtsrc may never report EOS).
+        age_ms = (time.monotonic() - self._last_frame_monotonic) * 1000.0
+        if age_ms <= 1000.0 and self._fresh_frame_run < 3:
             self._placeholder.show_all()
             self._status.set_text(f"{self._name} 연결 대기")
             self._header_state.set_text("연결 대기")
             return True
-        age_ms = (time.monotonic() - self._last_frame_monotonic) * 1000.0
         if age_ms > 1000.0:
             self._placeholder.show_all()
             self._fresh_frame_run = 0
@@ -2936,13 +2944,15 @@ class VideoPanel(Gtk.Box):
                 self._freshness_state = "stale"
             self._status.set_text(f"{self._name} 정보 갱신 지연")
             self._header_state.set_text("갱신 지연")
-            if (
-                age_ms > VIDEO_STALE_RESTART_S * 1000.0
-                and self._retry_source_id is None
-            ):
-                self._emit_event("stale watchdog: forcing pipeline restart")
-                self._schedule_reconnect()
+            if age_ms > VIDEO_STALE_RESTART_S * 1000.0:
+                self._watchdog_reconnect("frames stopped")
         else:
+            if self._stale_retry_pending and self._retry_source_id is not None:
+                # Frames recovered before the watchdog restart ran: keep the stream.
+                GLib.source_remove(self._retry_source_id)
+                self._retry_source_id = None
+                self._emit_event("stale watchdog restart cancelled: frames recovered")
+            self._stale_retry_pending = False
             self._placeholder.hide()
             if self._freshness_state != "live":
                 self._emit_event("frame flow live")
@@ -2960,9 +2970,16 @@ class VideoPanel(Gtk.Box):
             return "CONNECTING"
         if self._last_frame_monotonic is None:
             return "WAITING"
-        if self._fresh_frame_run < 3:
-            return "WAITING"
-        return "STALE" if time.monotonic() - self._last_frame_monotonic > 1.0 else "LIVE"
+        if time.monotonic() - self._last_frame_monotonic > 1.0:
+            return "STALE"
+        return "WAITING" if self._fresh_frame_run < 3 else "LIVE"
+
+    def _watchdog_reconnect(self, reason: str) -> None:
+        if self._retry_source_id is not None:
+            return
+        self._emit_event(f"stale watchdog: forcing pipeline restart ({reason})")
+        self._schedule_reconnect()
+        self._stale_retry_pending = self._retry_source_id is not None
 
     def _schedule_reconnect(self) -> None:
         if self._stopped or self._retry_source_id is not None:
@@ -2973,7 +2990,18 @@ class VideoPanel(Gtk.Box):
 
     def _restart_pipeline(self) -> bool:
         self._retry_source_id = None
+        watchdog_retry = self._stale_retry_pending
+        self._stale_retry_pending = False
         if self._stopped:
+            return False
+        if (
+            watchdog_retry
+            and self._last_frame_monotonic is not None
+            and self._fresh_frame_run >= 3
+            and time.monotonic() - self._last_frame_monotonic <= 1.0
+        ):
+            # Frames recovered after the last health check; keep the stream.
+            self._emit_event("stale watchdog restart skipped: frames recovered")
             return False
         self._pipeline.set_state(Gst.State.NULL)
         # 재시작 후에도 죽기 전 프레임 시각이 남아 있으면 워치독이 곧바로
@@ -4312,7 +4340,7 @@ class OperatorConsole(Gtk.Window):
             self._operation_source_id = GLib.timeout_add(100, self._refresh_operation)
         self._refresh_estop_availability()
         _style(self._ops_panel, "danger-card", "ops-settings-panel")
-        self._mobility = MobilityDashboard(self._open_mobility_action, input_source=input_source)
+        self._mobility = MobilityDashboard(input_source=input_source)
 
         mission_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         _style(mission_page, "page", "mission-page")
@@ -4646,6 +4674,7 @@ class OperatorConsole(Gtk.Window):
             self._on_status_end_effector_changed,
         )
         systems_scroll = Gtk.ScrolledWindow()
+        _style(systems_scroll, "systems-scroll")
         systems_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         systems_scroll.add(systems_page)
         self._systems_scroll = systems_scroll
@@ -4678,7 +4707,7 @@ class OperatorConsole(Gtk.Window):
             Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC,
         )
         ops_scroll.add(ops_page)
-        self._ops_settings_window = Gtk.Window(title="복구 · 설정")
+        self._ops_settings_window = Gtk.Window(title="운용 · 설정")
         _style(self._ops_settings_window, "ops-settings-window")
         self._ops_settings_window.set_default_size(560, 680)
         self._ops_settings_window.set_transient_for(self)
@@ -4750,7 +4779,7 @@ class OperatorConsole(Gtk.Window):
         arm_callbacks = self._arm_ops_adapter.callbacks()
         self._arm_manual_tab = ArmManualTab(arm_callbacks)
         self._arm_pose = Rover3DView(input_source=input_source, view_mode="arm")
-        self._arm_pose.set_size_request(260, 300)
+        self._arm_pose.set_size_request(260, 220)
         arm_pose_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         _style(arm_pose_card, "arm-pose-card")
         arm_pose_title = Gtk.Label(label="로봇팔 자세", xalign=0)
@@ -4811,11 +4840,11 @@ class OperatorConsole(Gtk.Window):
         _style(nav, "nav")
         nav.pack_start(switcher, True, True, 0)
         self._nav = nav
-        self._ops_settings_button = Gtk.Button(label="복구 · 설정")
+        self._ops_settings_button = Gtk.Button(label="운용 · 설정")
         self._ops_settings_button.set_valign(Gtk.Align.CENTER)
         self._ops_settings_button.set_size_request(104, 30)
         self._ops_settings_button.set_tooltip_text(
-            "경고 초기화, 안전 센서, 조향 방식과 고급 복구 조작을 엽니다"
+            "권한·조향 방식과 안전·복구 조작을 엽니다"
         )
         _style(self._ops_settings_button, "ops-settings-button")
         self._ops_settings_button.connect(
@@ -4876,17 +4905,6 @@ class OperatorConsole(Gtk.Window):
         """Show the existing token-gated panel without issuing an action."""
         self._ops_settings_window.show_all()
         self._ops_settings_window.present()
-
-    def _open_mobility_action(self, action_name: str) -> None:
-        """Open observation-only terrain, or route control to the gated ops panel."""
-        if action_name == "__terrain_preview__":
-            self._stack.set_visible_child_name("vision")
-            return
-        if action_name != "__settings__":
-            if not self._ops_panel.request_action(action_name):
-                self._show_alert(f"{action_name}: 현재 조작을 시작할 수 없습니다")
-                return
-        self._show_ops_settings()
 
     def _cancel_ops_settings_confirmation(self, *_args: object) -> bool:
         self._ops_panel.cancel_confirmation()
@@ -5596,7 +5614,7 @@ class OperatorConsole(Gtk.Window):
             pip_width = min(380, max(270, pip_width))
         # D435i transport is 848x480.  Preserve the exact native ratio instead
         # of the close-but-not-identical 16:9 approximation.
-        pip_width = min(pip_width, max(160, int(allocation.height * 0.48 * 848 / 480)))
+        pip_width = min(pip_width, max(160, int(allocation.height * 0.66 * 848 / 480)))
         pip_height = int(round(pip_width * 480 / 848))
         self._pip_slot.set_slot_size(pip_width, pip_height)
 
@@ -5640,7 +5658,7 @@ class OperatorConsole(Gtk.Window):
 
         nav_height = 30 if compact else 40 if density == "spacious" else 34
         self._nav_switcher.set_size_request(-1, nav_height)
-        self._ops_settings_button.set_label("설정" if compact else "복구 · 설정")
+        self._ops_settings_button.set_label("조작" if compact else "운용 · 설정")
         self._ops_settings_button.set_size_request(
             72 if compact else 118 if density == "spacious" else 104,
             28 if compact else 34 if density == "spacious" else 30,
@@ -5650,6 +5668,9 @@ class OperatorConsole(Gtk.Window):
             38 if compact else 46 if density == "spacious" else 42,
         )
         self._mobility.set_border_width(
+            10 if compact else 22 if density == "spacious" else 18
+        )
+        self._vision_panel.set_border_width(
             10 if compact else 22 if density == "spacious" else 18
         )
 
@@ -6278,7 +6299,8 @@ def main() -> None:
         help="local bench mode: bypass arm grant/capability UI gates; keep FSM safety/stop",
     )
     parser.add_argument("--latency-ms", type=int, default=60)
-    parser.add_argument("--page", choices=("mission", "mobility", "systems", "terrain_map", "vision"), default="mission")
+    parser.add_argument("--page", choices=("mission", "mobility", "systems", "terrain_map", "vision",
+                                          ARM_MANUAL_TAB_NAME, ARM_CALIBRATION_TAB_NAME), default="mission")
     parser.add_argument("--show-terrain-preview", action="store_true",
                         help="open the shared-receiver vision tab at startup")
     parser.add_argument(
@@ -6321,10 +6343,8 @@ def main() -> None:
                               input_source=args.input_source,
                               arm_developer_mode=args.arm_developer_mode)
     console.show_all()
-    console._stack.set_visible_child_name(args.page)
+    console._stack.set_visible_child_name("vision" if args.show_terrain_preview else args.page)
     console.maximize()
-    if args.show_terrain_preview:
-        GLib.idle_add(lambda: console._open_mobility_action("__terrain_preview__") or False)
 
     def _quit_on_signal(*_args: object) -> bool:
         # Ctrl+C 를 창 닫기와 같은 경로로 흘린다.  기본 SIGINT 는 Gtk.main()

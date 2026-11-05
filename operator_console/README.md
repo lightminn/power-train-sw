@@ -6,7 +6,7 @@
 기존 L515 영상·지형 오버레이와 Top/Oblique 지도까지 연결했다.
 차체 자세 영역은 원시 IMU·바퀴 피드백·로커/보기 선택 필드·지도 정지 기록을 표시한다.
 보정된 차체 자세는 아직 미확인이며, 개략도에 미보정 roll/pitch를 적용하지 않는다.
-협조구동의 **지형 보기** 버튼도 비전 탭을 연다.
+레거시 진입점의 `--show-terrain-preview`도 비전 탭으로 시작한다.
 
 ```bash
 # 운용 PC, 이 작업 브랜치의 저장소 루트
@@ -64,7 +64,9 @@ Hall 저속 값(<0.3 rev/s)은 실제 정지와 다를 수 있으며 지령이�
 suspension_source·suspension_frame으로 출처와 기준을 받을 수 있다.
 각도 키는 ml_rocker_joint/mr_rocker_joint/bl_bogie_joint/br_bogie_joint, 단위는 rad이다.
 나이가 없으면 시간 미확인, 값이 없으면 미수신이며 0이나 추정값을 만들지 않는다.
-실제 AS5048B 송신기·영점·부호 합의는 아직 없다. [필드 계약](../docs/reports/2026-10-23-vision-tab-step4.md)을 먼저 확인한다.
+AS5048B 송신 경로(`motor_control/suspension_encoders` → :5005, `config/suspension_encoders.json`)는 있으나
+관절 대응·부호·영점을 확인해 `verified=true`인 채널만 보내므로 지금은 콘솔에 오지 않는다(`publish_unverified`는 벤치 전용).
+[필드 계약](../docs/reports/2026-10-23-vision-tab-step4.md)을 먼저 확인한다.
 
 확인된 장착 회전만 별도 JSON으로 활성화할 수 있다. 기본값과
 `operator_console/config/attitude-calibration.pending.json`은 `confirmed=false`라 차체 자세를
@@ -83,6 +85,8 @@ Integrated entrypoint: `python -m operator_console` uses the prepared paired-rob
 config, reconnects automatically, supervises a separate gamepad process and offers
 a held manual-start action. See [the integrated operation runbook](../docs/integrated-operation.md)
 for setup, legacy-service migration and the pending real-hardware acceptance.
+The field laptop uses `--config ~/.config/powertrain/operator-demo.json` (its `hosts`
+list puts the robot-AP wired address 192.168.8.106 first).
 `python -m operator_console.app --host ...` remains the explicit legacy entrypoint.
 
 Native GTK/GStreamer operator console. Observation is RX-only; operator
@@ -137,12 +141,15 @@ ros2 run powertrain_ros arm_console_bridge --ros-args -p console_host:=<laptop-i
 
 The judge-facing interface uses **실시간 화면** (mission/video) and **시스템 상태**
 (integrated power, communication, and safety summaries with collapsed raw
-diagnostics). Open **복구 · 설정** beside the two-tab navigation to reach the
+diagnostics). The tab bar also holds **협조구동**, **지형 지도**, **비전**, **로봇팔 수동조작** and
+**로봇팔·도구 캘리브레이션** (`--page` values `mission`, `mobility`, `systems`, `terrain_map`,
+`vision`, `arm_manual`, `arm_calibration`; the integrated entrypoint accepts the first five).
+Open **운용 · 설정** (compact layout: `조작`) beside the tab navigation to reach the
 existing token-gated controls for E-STOP reset, component settings, steering
 mode, and advanced recovery actions. This non-modal window hides on close and
 cancels any unfinished confirmation; reopening it keeps the same authenticated
-ops session. Press `F11` for the competition display. Camera panels can be
-clicked to exchange the large and preview views; technical stream errors
+ops session. Press `F11` for the competition display. The preview's `화면 전환`
+button (or `V`) exchanges the large and preview views; technical stream errors
 remain in the collapsed event log and robot diagnostics.
 
 `/usr/bin/python3 -m operator_console.runtime_smoke` launches the real GTK
@@ -160,8 +167,8 @@ acceptance and the earlier intermittent draw stall still require separate eviden
 
 The lower-right mission rail is the robot-arm/tool hub. It exposes only the
 four confirmed equipment categories (그리퍼 1, 그리퍼 2, 청소 모듈, 환경 센서
-모듈), plus attachment state, joint-load summary, and the explicit fact that
-arm control-mode telemetry is not yet wired. Selecting a tool or pressing its
+모듈), plus attachment state, joint-load summary, and the arm control mode
+mirrored from `:5007` `arm_runtime` (`수신 대기` until a fresh value arrives). Selecting a tool or pressing its
 detail button opens a common non-modal detail window. The environment window
 groups climate, air quality, and hazard readings. CO/LPG use plain numeric
 values, flame detection is shown as O/X, and SGP30 eCO₂/TVOC values display
@@ -181,18 +188,19 @@ the L515 terrain estimate (path, confidence, offset, heading, bank, slope and
 roughness), filtered IMU roll/pitch, six wheel Hall speed/command/Iq, active
 faults, and chassis/autonomy/mission/section FSM states. Missing producers stay
 `정보 없음`; Iq is labelled as a relative load indicator, not absolute wheel
-load or energy. Its basic controls are shortcuts into the existing token-gated,
-revision-checked confirmation panel. Velocity and direction remain on the
+load or energy. The tab has no control buttons; mode and recovery actions stay in
+the token-gated **운용 · 설정** window. Velocity and direction remain on the
 approved DualSense teleop path, and E-STOP remains the global immediate action.
 
-The **시연 화면 → 화면 표시** checkboxes independently control YOLO
-box/class/confidence and target-distance text. They do not stop metadata
+The mission page's `인식 대상`/`대상 거리` display options independently control YOLO
+box/class/confidence and target-distance text; both start off and their checkbox
+row is currently hidden. They do not stop metadata
 reception or alter target selection, and stale metadata still hides every
 overlay after the measured-inference-aware 500 ms deadline. A valid target is
 held for at most 350 ms across a brief empty detection frame to prevent visual
 flicker; the value is never extended past the stale deadline. The work-camera preview keeps
 the native 848:480 ratio and becomes the main view only after its explicit
-`클릭하여 크게 보기` action. Display quality gates omit detections clipped on
+`화면 전환` action. Display quality gates omit detections clipped on
 three or more frame borders; the immutable raw metadata snapshot remains
 available to diagnostics.
 
@@ -267,7 +275,8 @@ received/total tiles, packet rate and sender; "수신 끊김" appears when no st
 arrived for 0.5 s and the last pose turns gray. Scroll to zoom, drag to pan (stops following),
 "화면에서 지우기" clears only the console's copy. Display numbers: `--map-display-upsample`,
 `--map-hillshade-azimuth`, `--map-hillshade-altitude`, `--map-hillshade-exaggeration`,
-`--map-stale-s`, `--map-max-render-pixels` (out of range is a usage error). Producer side and
+`--map-stale-s`, `--map-max-render-pixels`, `--map-tidy-low-m`, `--map-tidy-min-neighbours`,
+`--map-weak-alpha` (out of range is a usage error). Producer side and
 parameters: `terrain_map/README.md`.
 
 Observation remains caller/receiver-only: it never opens D435i/L515 or writes

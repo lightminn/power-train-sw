@@ -3,7 +3,9 @@
 `manifest.yaml` pins simulator-neutral environment regressions to sensor
 contract version 1. `powertrain_sim/scenario.py` remains the executable source
 of truth; `scenario.schema.yaml` documents the same keys for reviewers and
-tests and is not a second parser.
+tests and is not a second parser. `powertrain_sim/` (MuJoCo) is a deprecated,
+read-only legacy track since 2026-07-24; current simulation work uses the
+separate Isaac repository.
 
 ## Adding or changing an entry
 

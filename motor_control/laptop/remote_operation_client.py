@@ -6,7 +6,7 @@ and reconnecting transmitter stay importable in pygame-free unit tests.
 """
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 import math
 import os
@@ -222,7 +222,10 @@ def encode_frame(
     session_id,
     sequence,
     client_monotonic_ns,
+    input_epoch=None,
+    estop_id=0,
 ):
+    """Encode schema 2, or schema 3 when the server's input epoch is known."""
     payload = {
         "schema_version": SCHEMA_VERSION,
         "session_id": str(session_id),
@@ -241,6 +244,10 @@ def encode_frame(
         "estop_edge": bool(sample.estop_edge),
         "assist_bypass": bool(sample.assist_bypass),
     }
+    if input_epoch is not None:
+        payload["schema_version"] = 3
+        payload["input_epoch"] = int(input_epoch)
+        payload["estop_id"] = int(estop_id)
     try:
         record = (
             json.dumps(
@@ -352,7 +359,12 @@ class RemoteOperationTransmitter:
             if self.sock is None:
                 replacement = self._connect()
                 if replacement is not None:
-                    sample = replacement
+                    # A fresh post-reconnect sample must not swallow an E-stop
+                    # press whose record never reached the robot.
+                    sample = replace(
+                        replacement,
+                        estop_edge=replacement.estop_edge or sample.estop_edge,
+                    )
             record = encode_frame(
                 sample,
                 session_id=self.session_id,

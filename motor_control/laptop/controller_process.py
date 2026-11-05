@@ -5,13 +5,14 @@ module is the only integrated-runtime process that imports pygame; policy and
 wire semantics continue to come from :mod:`remote_operation_client`.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import errno
 import fcntl
 import json
 import os
 from pathlib import Path
 import queue
+import secrets
 import sys
 import threading
 import time
@@ -323,9 +324,17 @@ class ControllerProcess:
         self._last_status = None
         self._target = None
         self._socket = None
+        self._outbox = bytearray()
         self._session_id = None
         self._sequence = 0
         self._awaiting_fresh_sample = False
+        # A pad E-stop press is an event kept until this connection's status
+        # acknowledges its id; it survives send stalls and reconnects.
+        self._estop_pending_id = None
+        self._estop_carried_with_id = False
+        self._estop_carried_without_id = False
+        self._server_epoch = None
+        self._reply_buffer = bytearray()
         self._last_connect_error = None
         self._next_connect_s = float("-inf")
         self._generation = 0
@@ -341,9 +350,15 @@ class ControllerProcess:
     def _close_socket(self):
         sock = self._socket
         self._socket = None
+        self._outbox.clear()
         self._session_id = None
         self._sequence = 0
         self._awaiting_fresh_sample = False
+        # Unacknowledged E-stop stays pending and is carried again next time.
+        self._estop_carried_with_id = False
+        self._estop_carried_without_id = False
+        self._server_epoch = None
+        self._reply_buffer.clear()
         if sock is not None:
             try:
                 sock.close()
@@ -554,23 +569,74 @@ class ControllerProcess:
         self._next_connect_s = now_s + CONNECT_RETRY_S
 
     def _send(self, sample, now_ns, now_s):
-        record = encode_frame(
-            sample,
-            session_id=self._session_id,
-            sequence=self._sequence,
-            client_monotonic_ns=now_ns,
-        )
         try:
-            self._socket.sendall(record)
-            self._sequence += 1
+            # A Wi-Fi stall fills the send buffer. Keep the unsent tail of the
+            # current record and skip newer samples until it drains, instead
+            # of closing the input channel mid-record.
+            if self._outbox:
+                self._outbox = self._outbox[self._send_some(self._outbox):]
+            if not self._outbox:
+                sample, estop_id = self._with_pending_estop(sample)
+                record = encode_frame(
+                    sample,
+                    session_id=self._session_id,
+                    sequence=self._sequence,
+                    client_monotonic_ns=now_ns,
+                    input_epoch=self._server_epoch,
+                    estop_id=estop_id,
+                )
+                self._sequence += 1
+                self._outbox = bytearray(record[self._send_some(record):])
             try:
                 reply = self._socket.recv(1024)
             except BlockingIOError:
                 return
             if reply == b"":
                 self._drop_for_retry(now_s, "input channel closed")
-        except (BlockingIOError, OSError) as exc:
+                return
+            self._absorb_status(reply)
+        except OSError as exc:
             self._drop_for_retry(now_s, "input send failed: %s" % exc)
+
+    def _with_pending_estop(self, sample):
+        """Carry a pending E-stop once per connection (and once more with its id)."""
+        carry = False
+        estop_id = 0
+        if self._estop_pending_id is not None:
+            if self._server_epoch is not None:
+                if not self._estop_carried_with_id:
+                    carry = True
+                    estop_id = self._estop_pending_id
+                    self._estop_carried_with_id = True
+            elif not self._estop_carried_without_id:
+                carry = True
+                self._estop_carried_without_id = True
+        return replace(sample, estop_edge=carry), estop_id
+
+    def _absorb_status(self, data):
+        """Read ``G <input_epoch> <estop_ack_id>`` lines from this connection."""
+        self._reply_buffer.extend(data)
+        *lines, rest = bytes(self._reply_buffer).split(b"\n")
+        self._reply_buffer = bytearray(rest[-256:])
+        for line in lines:
+            fields = line.split()
+            if len(fields) != 3 or fields[0] != b"G":
+                continue
+            try:
+                epoch, ack = int(fields[1]), int(fields[2])
+            except ValueError:
+                continue
+            if epoch < 0:
+                continue
+            self._server_epoch = epoch
+            if self._estop_pending_id is not None and ack == self._estop_pending_id:
+                self._estop_pending_id = None
+
+    def _send_some(self, data):
+        try:
+            return self._socket.send(data)
+        except BlockingIOError:
+            return 0
 
     def tick(self):
         if not self.running:
@@ -595,6 +661,11 @@ class ControllerProcess:
             return True
 
         self._accept_connect_results(now_s)
+        if reading.sample.estop_edge:
+            # New press, new event id: supersedes any earlier unacknowledged one.
+            self._estop_pending_id = secrets.randbits(63) or 1
+            self._estop_carried_with_id = False
+            self._estop_carried_without_id = False
         status_sample = reading.sample
         status_buttons_released = reading.buttons_released
         if self._awaiting_fresh_sample:

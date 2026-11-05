@@ -14,6 +14,7 @@ def test_defaults_match_l515_stream_contract():
         "x264",
     )
     assert (config.width, config.height, config.fps) == (1280, 720, 30)
+    assert config.stream_fps == 30
     assert config.bitrate_kbps == 3000
     assert config.startup_timeout_s == 10.0
     assert config.graceful_timeout_s == 3.0
@@ -119,6 +120,18 @@ def test_rejects_nonfixed_stream_profiles():
 def test_srt_fps_is_fixed_at_30():
     with pytest.raises(ValueError, match="fps must be fixed at 30"):
         DashboardConfig(fps=29)
+
+
+def test_stream_fps_may_halve_srt_output_without_touching_capture():
+    config = DashboardConfig(stream_fps=15)
+
+    assert (config.fps, config.stream_fps) == (30, 15)
+
+
+@pytest.mark.parametrize("value", [0, 10, 20, 29, 60, True, 15.0, "15"])
+def test_stream_fps_rejects_values_outside_the_supported_profiles(value):
+    with pytest.raises(ValueError, match="stream_fps"):
+        DashboardConfig(stream_fps=value)
 
 
 def test_gateway_rejects_legacy_openh264_fallback():

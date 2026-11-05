@@ -70,7 +70,9 @@ def surface_from_rgba(rgba: np.ndarray) -> tuple[cairo.ImageSurface, np.ndarray]
 
 class MapPanel(Gtk.Box):
     def __init__(self, receiver: LatestMapReceiver, display: DisplayConfig | None = None) -> None:
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.get_style_context().add_class("terrain-map-page")
+        self.set_border_width(18)
         self.receiver = receiver
         self.display = display or DisplayConfig()
         self._renderer = MapRenderer()
@@ -84,7 +86,10 @@ class MapPanel(Gtk.Box):
         self.last_scale_bar_y = 0.0
         self.last_legend_top = 0.0
         self.unknown_glyphs = 0
-        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        title = Gtk.Label(label="지형 지도", xalign=0)
+        title.get_style_context().add_class("terrain-map-title")
+        bar.pack_start(title, True, True, 0)
         self.follow_button = Gtk.ToggleButton(label="로버 따라가기")
         self.follow_button.set_active(True)
         self.follow_button.connect("toggled", self._on_follow)
@@ -103,7 +108,10 @@ class MapPanel(Gtk.Box):
         self.area.connect("button-press-event", self._on_press)
         self.area.connect("button-release-event", lambda *_a: setattr(self, "_drag", None))
         self.area.connect("motion-notify-event", self._on_motion)
-        self.pack_start(self.area, True, True, 0)
+        stage = Gtk.Frame()
+        stage.get_style_context().add_class("terrain-map-stage")
+        stage.add(self.area)
+        self.pack_start(stage, True, True, 0)
         self._source = GLib.timeout_add(REDRAW_MS, self._tick)
         self.connect("destroy", self._on_destroy)
 

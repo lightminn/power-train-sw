@@ -26,10 +26,25 @@ robot_config="$etc_dir/robot.json"
 [ -d "$run_dir" ] || fail "런타임 디렉터리가 없습니다: $run_dir"
 [ -d "$var_dir" ] || fail "영속 디렉터리가 없습니다: $var_dir"
 
+# Opt-in profiles/services given on the command line (e.g. terrain-map) are added
+# to the prepared ones; sourcing the manifest would otherwise erase them.
+caller_profiles="${INTEGRATED_PROFILES:-}"
+caller_services="${INTEGRATED_SERVICES:-}"
+for item in $caller_profiles $caller_services; do
+  [[ "$item" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || fail "잘못된 프로필/서비스 이름입니다: $item"
+done
+for service in $caller_services; do
+  case "$service" in
+    *autonomy*|*teleop*) fail "미완성 자율주행/팔 텔레옵 서비스는 켤 수 없습니다: $service" ;;
+  esac
+done
+
 # The manifest is written root-owned by robot_prepare.sh and contains only
 # shell-quoted assignments after strict option validation.
 # shellcheck disable=SC1090
 source "$manifest"
+INTEGRATED_PROFILES="${INTEGRATED_PROFILES:-} $caller_profiles"
+INTEGRATED_SERVICES="${INTEGRATED_SERVICES:-} $caller_services"
 [ "${POWERTRAIN_INTEGRATED_VERSION:-}" = 1 ] \
   || fail '지원하지 않는 준비 매니페스트 버전입니다.'
 [ "${POWERTRAIN_PROFILE:-}" = can-4ws ] \
@@ -109,6 +124,32 @@ if [ -n "${INTEGRATED_SERVICES:-}" ]; then
   for service in $INTEGRATED_SERVICES; do
     services+=("$service")
   done
+fi
+
+# Optional AS5048B suspension encoders: pass the configured I2C device to the
+# telemetry observer only when it is enabled and present, so an absent bus
+# never blocks the base stack (the observer then simply omits the fields).
+suspension_device="$(python3 - "$repo_root/config/suspension_encoders.json" <<'PY' || true
+import json
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as stream:
+        config = json.load(stream)
+    bus = config["i2c_bus"]
+    if (config.get("enabled") is True and isinstance(bus, int)
+            and not isinstance(bus, bool) and bus >= 0):
+        print(f"/dev/i2c-{bus}")
+except Exception:
+    pass
+PY
+)"
+if [ -n "$suspension_device" ] && [ -c "${target_root}${suspension_device}" ]; then
+  export POWERTRAIN_SUSPENSION_I2C_DEVICE="$suspension_device"
+  compose+=(-f docker/docker-compose.suspension-i2c.yml)
+elif [ -n "$suspension_device" ]; then
+  printf 'robot-start WARN: %s 장치가 없어 서스펜션 엔코더 없이 기동합니다.\n' \
+    "$suspension_device" >&2
 fi
 
 "${compose[@]}" up -d --no-build "${services[@]}"

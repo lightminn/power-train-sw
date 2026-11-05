@@ -55,7 +55,8 @@ bash ros2/scripts/sync_check_msgs.sh
 
 가져온 소스에는 기존 파워트레인 벤더 사본보다 `TaskCommand.msg`·`TaskResult.msg`가
 추가되어 있어 현재 검사는 종료 코드 1로 드리프트를 보고한다. 기존 메시지 5개의
-내용은 일치한다. 계약 변경·재벤더는 별도 변경으로 처리한다.
+내용은 일치한다. 정본에는 `action/` 3개(`ArmRecordedPath`·`ArmTestMove`·`EndEffectorRotate`)도
+있으나 벤더 사본에는 없고, 이 검사는 `msg/`만 비교한다. 계약 변경·재벤더는 별도 변경으로 처리한다.
 
 원본에 추적되던 문서·모델은 내부 `.gitignore`에도 제외 패턴이 있으므로, 해당
 파일을 수정할 때는 이미 추적되는 파일을 수정하고 신규 자료는 명시적으로 추가한다.

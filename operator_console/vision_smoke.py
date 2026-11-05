@@ -191,7 +191,8 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
             window._stack.set_visible_child_name('vision')
             pump_until(lambda: panel.view is not None and maps._timer is not None, 'vision creation')
             p = snapshot()
-            assert all(p['slots_mapped']), 'vision four slots not mapped'
+            assert (p['slots_mapped'][0] and p['slots_mapped'][3]
+                    and sum(p['slots_mapped'][1:3]) == 1), 'vision camera/map/attitude layout not mapped'
             assert p['map_state']=='WAITING' and p['link']=='WAITING', 'vision initial missing data state'
             assert p['raw_pitch'] is None and p['joint_values']==[None]*4, 'vision missing values fabricated'
             assert p['joints_label'].count('미수신')==4, 'vision missing encoders not labelled'
@@ -217,6 +218,17 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
             assert p['joint_values']==[None]*4 and p['joint_states']==['WAITING']*4, 'vision encoder missing values'
             assert window._terrain_canvas.view().obstacles, 'vision terrain overlay not aligned/live'
             record('live')
+            window._vision_panel.map_settings.set_active(True)
+            pump_until(lambda: maps.controls.get_mapped(), 'map settings opened')
+            window._vision_panel.map_settings.set_active(False)
+            pump_until(lambda: not maps.controls.get_mapped(), 'map settings closed')
+            window._vision_panel.map_stack.set_visible_child_name('oblique')
+            pump_until(lambda: window._vision_panel.oblique_slot.get_mapped()
+                       and maps._timer is not None and maps.oblique.raster is not None,
+                       'oblique view switch')
+            window._vision_panel.map_stack.set_visible_child_name('top')
+            pump_until(lambda: window._vision_panel.top_slot.get_mapped()
+                       and maps._timer is not None, 'top view switch')
             window._vision_panel.show_terrain.set_active(False)
             assert not window._show_terrain.get_active() and not window._terrain_canvas._enabled
             window._show_terrain.set_active(True)
@@ -240,7 +252,8 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
             phase = 'cut'
             pump_until(lambda: snapshot()['link']=='STALE' and snapshot()['map_state']=='STALE', 'vision disconnect/stale')
             p = snapshot()
-            assert not p['map_rasters'][1], 'vision stale oblique remains live'
+            assert p['map_rasters'][1], 'vision stale oblique blanked instead of held'
+            assert '직전 화면 유지' in p['map_messages'][1], 'vision held oblique not labelled'
             assert 'LIVE' not in p['wheel_states'], 'vision stale wheel values remain live'
             assert p['raw_pitch_state']=='STALE' and '오래됨' in p['raw_label'], 'vision stale raw pitch not hidden'
             assert p['wheel_labels']['front_left']==['오래됨','오래됨'], 'vision stale wheel labels'
@@ -262,6 +275,10 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
             assert callback_gap(watching, watched, beats) < .5, 'vision GTK stalled'
             for target in ('systems', 'mission'):
                 window._stack.set_visible_child_name(target)
+                # Hiding runs from a GTK idle; measure (and inject) only after it ran,
+                # or the pending idle would erase an injected fault.
+                pump_until(lambda: maps._visibility_idle is None and maps._timer is None
+                           and not maps.worker._active, 'vision hidden settled')
                 assert window._l515.get_parent() is original_parent, 'vision camera parent not restored'
                 assert window._swap_button.get_sensitive(), 'vision swap button not restored'
                 count = maps.worker.render_count; updates = panel.refresh_count
@@ -270,6 +287,8 @@ def exercise(fault=None, record_webm=None, metrics_output=None):
                 if fault == 'hidden-render':
                     maps.worker.configure(active=True)
                 dwell(.8)
+                if fault == 'hidden-render':
+                    assert maps.worker._active, 'vision hidden-render fault was not held'
                 p = snapshot()
                 assert not p['map_timer'] and not p['attitude_timer'], 'vision hidden UI timers active'
                 assert maps.worker.render_count==count and panel.refresh_count==updates, 'vision hidden render continues'

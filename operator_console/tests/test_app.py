@@ -1610,7 +1610,8 @@ def test_video_panel_has_stale_watchdog_and_restart_resets_freshness():
 
     health = method_source("_refresh_video_health")
     assert "VIDEO_STALE_RESTART_S" in health
-    assert "_schedule_reconnect()" in health
+    assert "_watchdog_reconnect(" in health
+    assert "_schedule_reconnect()" in method_source("_watchdog_reconnect")
 
     restart = method_source("_restart_pipeline")
     for reset_line in (

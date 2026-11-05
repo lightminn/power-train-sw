@@ -37,6 +37,9 @@ class GatewayConfig:
     max_angular: float = 1.0
     max_joint_velocity: float = 1.0
     manual_command_format: str = "steering"
+    # False (field relaxation): stale input outputs zero without latching
+    # MOTION_HOLD, and driving resumes as soon as fresh input returns.
+    latch_stale_input: bool = True
 
 
 @dataclass(frozen=True)
@@ -130,6 +133,13 @@ class RemoteInputGateway:
         self._selected_joint = 0
         self._last_dpad_x = 0
         self._last_reason = "waiting for TCP connection"
+        # Input epochs prove a record was made after a stall or HOLD clear: the
+        # server issues an epoch, the client echoes the latest one it received.
+        self.input_epoch = 0
+        self._epoch_issued_s = {}
+        self._required_epoch = None
+        self._recovery_pending = False
+        self._last_submit_received_s = None
 
     @staticmethod
     def _flag(callback):
@@ -158,6 +168,10 @@ class RemoteInputGateway:
         self._session_id = None
         self._frame = None
         self._last_dpad_x = 0
+        # A new TCP connection carries no pre-stall records; neutral is enough.
+        self._required_epoch = None
+        self._recovery_pending = False
+        self._last_submit_received_s = None
         if self.state != MOTION_HOLD:
             self.state = DISCONNECTED
             self._last_reason = "new TCP connection requires neutral input"
@@ -169,6 +183,7 @@ class RemoteInputGateway:
         self._session_id = None
         self._frame = None
         self._last_dpad_x = 0
+        self._last_submit_received_s = None
         if self.state != MOTION_HOLD:
             self.state = DISCONNECTED
             self._last_reason = "TCP disconnected"
@@ -183,6 +198,20 @@ class RemoteInputGateway:
                 "CONTRACT_VIOLATION: gateway session changed"
             )
             return False
+        previous_s = self._last_submit_received_s
+        self._last_submit_received_s = frame.received_monotonic_s
+        if (
+            previous_s is not None
+            and frame.received_monotonic_s - previous_s > self.cfg.input_timeout_s
+        ):
+            # The input expired between ticks; apply the same stale policy the
+            # tick would have, before this (possibly pre-stall) record is used.
+            if self.cfg.latch_stale_input:
+                self._enter_hold("remote input stale")
+            elif self._required_epoch is None:
+                # Already recovering means a tick saw this stall and issued the
+                # epoch the client may now be echoing; keep that requirement.
+                self._enter_recovery(previous_s + self.cfg.input_timeout_s)
         self._frame = frame
         return True
 
@@ -195,6 +224,10 @@ class RemoteInputGateway:
     def clear_hold(self):
         if self.state != MOTION_HOLD:
             return False
+        # Records already buffered on this connection predate the clear.
+        self._recovery_pending = True
+        # The gap that caused the HOLD is handled; measure gaps afresh.
+        self._last_submit_received_s = None
         self.state = DISCONNECTED
         self._connection_ready = False
         self._frame = None
@@ -215,6 +248,26 @@ class RemoteInputGateway:
             math.isfinite(age)
             and age >= -1e-12
             and age <= self.cfg.input_timeout_s + 1e-12
+        )
+
+    def _issue_epoch(self, now_s):
+        self.input_epoch += 1
+        self._epoch_issued_s[self.input_epoch] = float(now_s)
+        for old in [e for e in self._epoch_issued_s if e < self.input_epoch - 8]:
+            del self._epoch_issued_s[old]
+
+    def _enter_recovery(self, now_s):
+        self._issue_epoch(now_s)
+        self._required_epoch = self.input_epoch
+
+    def _epoch_is_valid(self, frame, now_s):
+        epoch = frame.input_epoch
+        issued = self._epoch_issued_s.get(epoch)
+        return (
+            epoch is not None
+            and epoch >= self._required_epoch
+            and issued is not None
+            and float(now_s) - issued <= self.cfg.input_timeout_s + 1e-12
         )
 
     def _enter_hold(self, reason, *, fresh=False):
@@ -370,14 +423,33 @@ class RemoteInputGateway:
             return self._enter_hold("invalid local monotonic time")
         if self.state == MOTION_HOLD:
             return self._zero(self._last_reason)
+        if self._recovery_pending:
+            self._recovery_pending = False
+            self._enter_recovery(now_s)
+        if (
+            self._required_epoch is not None
+            and now_s - self._epoch_issued_s[self.input_epoch]
+            > self.cfg.input_timeout_s / 2.0
+        ):
+            # Keep a recent epoch in flight so post-stall input can qualify.
+            self._issue_epoch(now_s)
         if not self._connected or self._frame is None:
             return self._zero(self._last_reason)
         if not self._frame_is_fresh(now_s):
+            if not self.cfg.latch_stale_input:
+                if self._required_epoch is None:
+                    self._enter_recovery(now_s)
+                return self._zero("remote input stale; zero until fresh input")
             return self._enter_hold("remote input stale")
 
         frame = self._frame
         if frame.estop_edge:
             return self._enter_hold("remote E-stop edge", fresh=True)
+
+        if self._required_epoch is not None:
+            if not self._epoch_is_valid(frame, now_s):
+                return self._zero("waiting for input made after the stall")
+            self._required_epoch = None
 
         if not self._connection_ready:
             if not self._neutral(frame):

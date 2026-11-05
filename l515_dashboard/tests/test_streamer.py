@@ -498,3 +498,100 @@ def test_depth_update_never_schedules_output():
     assert streamer.snapshot().sent == 0
     assert popen.process.stdin.writes == []
     streamer.stop()
+
+
+FRAME_NS = 33_333_333
+
+
+@pytest.mark.parametrize("mode", list(FrameMode))
+def test_half_rate_profile_declares_15_fps_and_one_second_gop(mode):
+    popen = FakePopen()
+    streamer = SrtStreamer(DashboardConfig(stream_fps=15), mode=mode, popen=popen)
+
+    streamer.start()
+
+    argv = popen.calls[0][0]
+    assert "framerate=15/1" in argv and "key-int-max=15" in argv
+    assert "framerate=30/1" not in argv and "key-int-max=30" not in argv
+    streamer.stop()
+
+
+def _feed(streamer, count, jitter_ns=0):
+    for index in range(count):
+        jitter = jitter_ns if index % 2 else -jitter_ns
+        timestamp_ns = 1_000_000_000 + index * FRAME_NS + jitter
+        streamer.submit_aligned_depth(np.full((720, 1280), 500, np.uint16),
+                                      timestamp_ns=timestamp_ns)
+        streamer.submit_color(np.full((720, 1280, 3), index % 255, np.uint8),
+                              timestamp_ns=timestamp_ns)
+        # Let the writer drain each kept frame so skips and drops stay separate.
+        time.sleep(0.002)
+
+
+@pytest.mark.parametrize("mode", list(FrameMode))
+@pytest.mark.parametrize("jitter_ns", [0, 4_000_000])
+def test_half_rate_profile_sends_every_other_camera_frame(mode, jitter_ns):
+    popen = FakePopen()
+    streamer = SrtStreamer(DashboardConfig(stream_fps=15), mode=mode, popen=popen)
+    streamer.start()
+
+    _feed(streamer, 30, jitter_ns)
+    wait_until(lambda: streamer.snapshot().sent == 15)
+
+    snapshot = streamer.snapshot()
+    assert snapshot.input_color == 30
+    assert snapshot.skipped == 15
+    assert snapshot.dropped == 0
+    assert snapshot.target_fps == 15
+    assert snapshot.submitted_rate_hz == pytest.approx(30.0, rel=0.02)
+    assert snapshot.sent == 15
+    assert snapshot.sent_rate_hz == pytest.approx(15.0, rel=0.02)
+    assert len(popen.process.stdin.writes) >= 15
+    streamer.stop()
+
+
+def test_skipped_frames_are_not_copied_into_the_output_buffer(monkeypatch):
+    streamer = SrtStreamer(DashboardConfig(stream_fps=15), popen=FakePopen())
+    puts = []
+    original = streamer._frames.put_color
+    monkeypatch.setattr(streamer._frames, "put_color",
+                        lambda frame, ts: (puts.append(ts), original(frame, ts)))
+    streamer.start()
+
+    _feed(streamer, 6)
+
+    assert puts == [1_000_000_000 + i * FRAME_NS for i in (0, 2, 4)]
+    streamer.stop()
+
+
+def test_backpressure_overwrite_is_counted_as_drop_not_skip():
+    release = threading.Event()
+    stdin = FakeStdin(entered=threading.Event(), release=release)
+    popen = FakePopen(FakeProcess(stdin))
+    streamer = SrtStreamer(DashboardConfig(stream_fps=15), popen=popen)
+    streamer.start()
+    frame = np.zeros((720, 1280, 3), np.uint8)
+
+    streamer.submit_color(frame, timestamp_ns=0)
+    assert stdin.entered.wait(1.0)
+    for index in range(1, 7):
+        streamer.submit_color(frame, timestamp_ns=index * FRAME_NS)
+    release.set()
+    wait_until(lambda: streamer.snapshot().sent == 2)
+
+    snapshot = streamer.snapshot()
+    # Frames 2 and 4 replace each other while the writer is blocked; 6 is sent.
+    assert (snapshot.input_color, snapshot.skipped, snapshot.dropped) == (7, 3, 2)
+    streamer.stop()
+
+
+def test_full_rate_profile_never_skips():
+    streamer = SrtStreamer(DashboardConfig(), popen=FakePopen())
+    streamer.start()
+
+    _feed(streamer, 10)
+    wait_until(lambda: streamer.snapshot().sent == 10)
+
+    snapshot = streamer.snapshot()
+    assert (snapshot.skipped, snapshot.dropped, snapshot.target_fps) == (0, 0, 30)
+    streamer.stop()

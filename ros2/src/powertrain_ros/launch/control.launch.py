@@ -27,6 +27,15 @@ def generate_launch_description():
             "manual_command_format", default_value="steering", choices=["steering", "twist"],
             description="Manual steering command by default; twist selects the legacy yaw-rate topic",
         ),
+        DeclareLaunchArgument("input_timeout_s", default_value="0.20"),
+        DeclareLaunchArgument(
+            "latch_stale_input", default_value="true", choices=["true", "false"],
+            description="false: stale input only zeroes output and resumes on fresh input",
+        ),
+        DeclareLaunchArgument(
+            "partial_close_violation", default_value="true", choices=["true", "false"],
+            description="false: a record cut by TCP close is a plain disconnect, not a hold",
+        ),
         DeclareLaunchArgument("ops_host", default_value="0.0.0.0"),
         DeclareLaunchArgument("ops_port", default_value="9001"),
         DeclareLaunchArgument(
@@ -45,6 +54,12 @@ def generate_launch_description():
                     LaunchConfiguration("input_port"),
                     value_type=int,
                 ),
+                "input_timeout_s": ParameterValue(
+                    LaunchConfiguration("input_timeout_s"), value_type=float),
+                "latch_stale_input": ParameterValue(
+                    LaunchConfiguration("latch_stale_input"), value_type=bool),
+                "partial_close_violation": ParameterValue(
+                    LaunchConfiguration("partial_close_violation"), value_type=bool),
             }],
             on_exit=Shutdown(),
         ),

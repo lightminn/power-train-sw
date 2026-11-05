@@ -4,11 +4,14 @@
 "지형 지도" 페이지에 보인다. 주행 제어·정지·속도 제한·안전 판정에는 아무것도 주지 않는다.
 설계 정본: `docs/specs/2026-10-17-l515-terrain-map-design.md`, 구현 계획:
 `docs/plans/2026-10-18-l515-terrain-map.md`.
+지도 자세는 바퀴·자이로 추측 항법이다. 시각 오도메트리(VO) 자세 트랙은 2026-10-21 보류됐다
+(재개 조건 `docs/specs/2026-10-19-terrain-map-vo-pose-design.md` §10). 실기 점검 항목은
+`docs/plans/2026-10-18-l515-terrain-map-field-checklist.md`에 남아 있다.
 
 ## 흐름
 
 ```
-Gateway depth·CameraInfo·gyro + chassis /wheel_states
+Gateway depth·CameraInfo·gyro·accel(표시용 기울기) + chassis /wheel_states
   → terrain_map_node (powertrain_ros, 구독만 · ROS 발행 없음)
       └ MapRuntime: 평면 추측 항법(PlanarOdometry) → 처리 프레임 선택(FrameScheduler)
         → depth 솎기 + 바닥 평면(TerrainDetector) → 지지면 검사 → 프레임 안 분류(build_local_scan)
@@ -27,6 +30,8 @@ Gateway depth·CameraInfo·gyro + chassis /wheel_states
 | `classmap.py` | 칸별 최근 3개 분류 다수결, 표시 높이, 전역 version, 축출 |
 | `correction.py` | 위치 보정 훅 — A는 그대로(`identity`), B(지도 맞춤)는 아직 없음 |
 | `runtime.py` | 위를 묶는 틱 논리(실시간 노드와 결정적 재생이 같이 씀) |
+| `slope.py` | 기준면 기울기·정지 구간 경사(표시 전용, 아래 r11 절) |
+| `field_report.py` | 실기 점검 요약 도우미(`powertrain_ros.terrain_map_field_report`가 사용) |
 
 ## 분류 규칙 (한 프레임 안에서 판정)
 
@@ -103,7 +108,7 @@ Gateway depth·CameraInfo·gyro + chassis /wheel_states
 | `stamp_regression_epoch_s` | 1.0 | 0.1–10 | stamp가 이보다 크게 역행하면(시계 점프·bag 반복) 새 epoch |
 | `camera_x_m`·`camera_y_m`·`camera_z_m` | 0.348·0.0·0.029 | — | base_link 기준 depth 광학 원점(보관 CAD). 실차 측정으로 교체 |
 | `camera_pitch_down_deg`·`camera_roll_deg`·`camera_yaw_deg` | 15·0·0 (URDF 실차 장착) | 0–35·±20·±30 | 장착 회전. pitch 상한 35°는 판정기 평면 기울기 상한 40°(`MAX_TILT_DEG`)에 여유를 둔 값. 같은 세 값으로 IMU 축도 변환한다(§4.4) |
-| `corrector` | `"identity"` | `identity`·`height_match` | §4.7 |
+| `corrector` | `"identity"` | `identity`·`height_match` | §4.7. `height_match`(B)는 설정 검증만 통과하고 아직 기동을 거부한다 |
 | `match_*` | §4.7 | — | B 상수 |
 | 콘솔: `display_upsample`·`hillshade_azimuth_deg`·`hillshade_altitude_deg`·`hillshade_exaggeration`·`stale_display_s`·`max_render_pixels` | 4·315·40·6·30·2,000,000 | 1–8·0–360·5–85·1–20·5–60·— | §4.10. 판정에 쓰지 않는다 |
 
@@ -160,7 +165,7 @@ INTEGRATED_PROFILES=terrain-map INTEGRATED_SERVICES=powertrain_terrain_map scrip
 ## 녹화·재생
 
 ```bash
-# Jetson (ROS 셸): 지도 입력 5개 토픽 녹화, Ctrl+C로 끝
+# Jetson (ROS 셸): 지도 입력 6개 토픽 녹화, Ctrl+C로 끝
 scripts/record_terrain_map_bag.sh run1
 # 노트북: 결정적 재생 → 콘솔 :5010 (재생 도메인 78 강제)
 scripts/replay_terrain_map.sh ~/terrain_bags/run1 --rate 1.0

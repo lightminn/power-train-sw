@@ -9,7 +9,7 @@
 
 - numpy, opencv-python(-headless) — 필수
 - open3d — 선택. `ground.py`의 3D 보기와 `view_depth.py`만 쓴다. 없으면 2D 결과만 낸다.
-- pyrealsense2 — `record.py`만 쓴다.
+- pyrealsense2 — `record.py`와 실시간 오버레이 시험대(`live_overlay.py`)가 쓴다.
 
 ## 녹화 형식
 
@@ -34,3 +34,17 @@ python -m lidar_dev.view_depth data/flat 5       # open3d 3D 보기
 ```
 
 ✅ 기대: `scan_terrain`에서 평지 녹화는 `OK/FRESH`가 대부분이고 카메라 높이가 실제 장착 높이(±2 cm)와 맞는다.
+
+## 실시간 오버레이 시험대 (`live_overlay.py`)
+
+L515 한 대로 카메라 화면 위 바닥·장애물 표시와 `terrain_map` 2.5D 지도를 한 창에서 보는 개발·시연용 시험대다.
+Jetson 정본 경로(`terrain_overlay`·`terrain_map` 노드 → 운용 콘솔)를 대신하지 않는다. 구성·키·검증은
+`docs/reports/2026-10-22-l515-live-overlay.md`를 따른다.
+
+```bash
+python3 lidar_dev/live_overlay.py                                           # 노트북(창)
+python3 lidar_dev/live_overlay.py --headless --serve-host <신뢰 네트워크 IP>   # 브라우저 http://<IP>:8090/ (인증 없음)
+```
+
+기준값 파일은 `--criteria`(기본 `lidar_dev/config/obstacle_criteria_v0.2.json`, `L515_CRITERIA`로 바꿈)로 준다.
+⚠️ 실기 L515를 직접 여므로 Jetson에서는 Gateway를 먼저 정지한다.

@@ -32,3 +32,20 @@ def test_recoverable_error_does_not_make_clean_stop_fail(monkeypatch):
     monkeypatch.setattr(gateway_main,"build_gateway",lambda:fake)
     monkeypatch.setattr(gateway_main.time,"sleep",lambda _:None)
     assert gateway_main.main() == 0
+
+
+def test_srt_output_rate_defaults_to_30_without_environment():
+    config = gateway_main.config_from_env({})
+    assert (config.fps, config.stream_fps) == (30, 30)
+
+
+def test_srt_output_rate_is_selected_by_environment():
+    config = gateway_main.config_from_env({"L515_SRT_FPS": "15"})
+    assert (config.fps, config.stream_fps) == (30, 15)
+
+
+def test_invalid_srt_output_rate_fails_before_the_camera_opens():
+    import pytest
+    for value in ("", "abc", "20", "15.0"):
+        with pytest.raises(ValueError, match="L515_SRT_FPS"):
+            gateway_main.config_from_env({"L515_SRT_FPS": value})

@@ -1,0 +1,45 @@
+{
+  "serial": "336A33523235",
+  "started_at": "2026-10-21T08:39:21.973406+00:00",
+  "operations": [],
+  "candidate_sha256": "15462f7f64745b03d1347fccda8091cd34b795056fefee64f87e794dc8a4b3fc",
+  "before_axes": [
+    {
+      "current_state": 1,
+      "requested_state": 0,
+      "error": 16386,
+      "encoder.pos_estimate": 0.03320838510990143,
+      "encoder.vel_estimate": 0.0,
+      "can_recovery_latched": true,
+      "can_recovery_in_progress": false
+    },
+    {
+      "current_state": 1,
+      "requested_state": 0,
+      "error": 16386,
+      "encoder.pos_estimate": 0.03320838510990143,
+      "encoder.vel_estimate": 0.0,
+      "can_recovery_latched": true,
+      "can_recovery_in_progress": false
+    }
+  ],
+  "can_before": {
+    "reliability_patch": 3,
+    "hal_error": 0,
+    "last_hal_error": 8,
+    "hal_error_history": 8,
+    "recovery_count": 205704,
+    "recovery_failure_count": 0,
+    "tx_drop_count": 5590,
+    "tx_error_count": 0,
+    "lec_error_count": null,
+    "rx_overrun_count": null,
+    "bus_off_count": null,
+    "error_passive_count": null,
+    "error_warning_count": null
+  },
+  "enter_disconnects": [
+    "ObjectLostError"
+  ],
+  "error": "RuntimeError('matching STM32F405 ROM DFU did not enumerate')"
+}

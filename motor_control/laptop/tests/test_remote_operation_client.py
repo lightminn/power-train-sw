@@ -397,6 +397,27 @@ def test_reconnect_callback_replaces_preserved_arm_mode_before_send():
     assert reconnects == [1, 1]
 
 
+def test_reconnect_replacement_sample_keeps_the_estop_edge():
+    first = FakeSocket(fail_sends=1)
+    second = FakeSocket()
+    sockets = iter((first, second))
+    sender = client.RemoteOperationTransmitter(
+        "jetson",
+        connector=lambda _host, _port: next(sockets),
+        session_id_factory=iter(
+            (
+                "ffb3d603-6be1-47ff-8a1e-e6e1030b37d9",
+                "e131183c-c192-4f49-9d0a-36275a23be61",
+            )
+        ).__next__,
+        on_reconnect=lambda: client.ClientInput(requested_mode="DRIVE"),
+    )
+    sender.send(client.ClientInput(estop_edge=True), client_monotonic_ns=10)
+    wire = json.loads(second.sent[0])
+    assert wire["estop_edge"] is True
+    assert wire["deadman"] is False
+
+
 def test_stick_deadzone_zeroes_measured_rest_drift_but_passes_real_input():
     # 2026-07-17 벤치 실측 휴지 드리프트: left_x -0.0118, right_y +0.0431.
     # 게이트웨이 중립 게이트(정확히 0.0)를 어댑터 정형화로 통과해야 한다.

@@ -64,6 +64,7 @@ def test_live_packet_reaches_the_canvas_and_draws(window):
     # Fake a fresh decoded frame at the video-health boundary (no real SRT).
     window._l515._pipeline_live = True
     window._l515._last_frame_monotonic = time.monotonic()
+    window._l515._fresh_frame_run = 3  # LIVE needs three consecutive frames
     window._l515._refresh_video_health()
     canvas = window._terrain_canvas
     # Judge 50 ms after reception: a loaded main loop may be slower than the 0.5 s link limit.
@@ -115,6 +116,7 @@ def test_video_health_drives_outline_visibility(window):
 def _fake_live_video(panel):
     panel._pipeline_live = True
     panel._last_frame_monotonic = time.monotonic()
+    panel._fresh_frame_run = 3  # LIVE needs three consecutive frames
     panel._refresh_video_health()
 
 

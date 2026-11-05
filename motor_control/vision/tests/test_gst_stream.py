@@ -27,3 +27,21 @@ def test_all_declared_encoders_are_buildable():
     for enc in ENCODERS:
         cmd = build_gst_command(5000, 640, 480, 30, encoder=enc)
         assert cmd[0] == "gst-launch-1.0"
+
+
+def test_keyframe_interval_defaults_to_30_for_existing_callers():
+    assert "key-int-max=30" in build_gst_command(5000, 640, 480, 15)
+    assert "gop-size=30" in build_gst_command(5000, 640, 480, 15, encoder="openh264")
+
+
+def test_keyframe_interval_can_follow_a_lower_output_rate():
+    cmd = build_gst_command(5000, 1280, 720, 15, keyint=15)
+    assert "framerate=15/1" in cmd and "key-int-max=15" in cmd
+    cmd = build_gst_command(5000, 1280, 720, 15, encoder="openh264", keyint=15)
+    assert "gop-size=15" in cmd
+
+
+@pytest.mark.parametrize("keyint", [0, -1, True, 1.5])
+def test_keyframe_interval_must_be_a_positive_integer(keyint):
+    with pytest.raises(ValueError, match="keyint"):
+        build_gst_command(5000, 640, 480, 30, keyint=keyint)

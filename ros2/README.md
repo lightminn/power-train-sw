@@ -16,8 +16,10 @@
 ros2/
 ├── src/
 │   ├── robot_arm_msgs/      벤더링 사본(정본=ksp118). VENDORED.md 참조
-│   ├── powertrain_msgs/     SafetyVerdict·WheelState·WheelStates
-│   └── powertrain_ros/      얇은 내부 ROS 어댑터 — 노드 22종
+│   ├── powertrain_msgs/     SafetyVerdict·WheelState·WheelStates·ManualDriveCommand
+│   ├── dynamixel_control/   엔드이펙터 Dynamixel 도구 브리지 (arm_tool.launch.py)
+│   ├── robot_manual_gui/    로봇팔·교체 도구 수동 시험용 PyQt5 GUI (기본 빌드 대상 아님)
+│   └── powertrain_ros/      얇은 내부 ROS 어댑터 — 노드 24종
 │       │
 │       │  ── 제어·안전 ──────────────────────────────────────────
 │       ├── chassis              50 Hz 최종 안전 집행·10모터·wheel state
@@ -44,10 +46,12 @@ ros2/
 │       ├── wp8_handshake_probe  로봇팔 핸드셰이크 프로브
 │       │
 │       │  ── 센서·텔레메트리 ────────────────────────────────────
-│       ├── l515_cloud           L515 포인트/영상 발행
+│       ├── l515_cloud           BENCH/RViz 전용 depth → PointCloud2
 │       ├── pdist80b_monitor     전원 분배 보드 RS485 모니터
-│       ├── chassis_telemetry    차대 텔레메트리 송신
+│       ├── chassis_telemetry    차대 텔레메트리 송신 (UDP :5005)
 │       ├── arm_console_bridge   로봇팔 토픽 read-only 미러 → 콘솔
+│       ├── terrain_overlay      L515 지형 장애물 윤곽 → 콘솔 UDP :5009 (시각 보조 전용)
+│       ├── terrain_map          L515 2.5D 지형 지도 → 콘솔 UDP :5010 (시각 보조 전용)
 │       │
 │       ├── contract.py          로봇팔 공유 문자열의 단일 출처
 │       ├── message_adapter      순수 Python 상태↔ROS 메시지 변환
@@ -56,7 +60,10 @@ ros2/
 │       └── launch/
 │           ├── wp5_control.launch.py  stop_mm 필수인 HIL/생산 결합 기동
 │           ├── control.launch.py      teleop + ops_broker
-│           └── autonomy.launch.py     자율주행 스택
+│           ├── autonomy.launch.py     자율주행 스택
+│           ├── arm_tool.launch.py     엔드이펙터 도구 브리지 + arm_console_bridge
+│           ├── l515_viz.launch.py     BENCH/RViz L515 클라우드 + IMU 기울임
+│           └── robot_viz.launch.py    BENCH/RViz URDF 로봇 모델 + 클라우드 + IMU
 └── scripts/
     └── sync_check_msgs.sh   벤더 msg와 로봇팔 정본 드리프트 검사
 ```
@@ -129,6 +136,13 @@ Jetson에 SSH 접속한 직후 홈 `~`에서 시작한다. 생산 Gateway가 실
 `colcon build/test`를 수행하면 live install을 바꾸므로 금지한다. 빌드·시험이 필요하면 먼저
 Gateway를 정상 정지하고, entrypoint를 덮어쓴 one-off 컨테이너에서 수행한다.
 
+⚠️ 통합 운용이 준비된 현장 젯슨(`~/power-train-sw-integrated`)에서는 아래 `docker-compose.jetson.yml`
+단독 명령으로 `powertrain_ros`를 다시 만들지 않는다 — 통합 compose의 환경값·재시작 정책이 빠진다.
+ROS 재빌드는 `scripts/robot_prepare.sh`(노트북에서는
+`JETSON_REPO=/home/zetin/power-train-sw-integrated bash scripts/deploy_branch_to_jetson.sh --prepare` —
+`JETSON_REPO`를 빼면 팀원 체크아웃 `~/power-train-sw`가 대상이 된다),
+재기동은 `scripts/robot-start`로 한다([통합 운용](../docs/integrated-operation.md)).
+
 ```bash
 set -eu
 cd ~/power-train-sw
@@ -138,7 +152,7 @@ docker compose -f docker/docker-compose.jetson.yml run --rm --no-deps \
   --entrypoint bash powertrain_ros -lc '
     source /opt/ros/humble/setup.bash
     cd /workspace/ros2
-    colcon build --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
+    colcon build --packages-select robot_arm_msgs powertrain_msgs dynamixel_control powertrain_ros
     source install/setup.bash
     colcon test --packages-select robot_arm_msgs powertrain_msgs powertrain_ros
     colcon test-result --verbose
@@ -178,7 +192,7 @@ docker compose -f docker/docker-compose.jetson.yml up -d powertrain_ros
 bash scripts/l515_preflight.sh
 ```
 
-컨테이너 entrypoint는 fresh checkout에서 아래 3패키지를 자동 build하고 setup을 source한 뒤
+컨테이너 entrypoint는 fresh checkout에서 `robot_arm_msgs`·`powertrain_msgs`·`dynamixel_control`·`powertrain_ros` 4패키지를 자동 build하고 setup을 source한 뒤
 `python3 -m l515_dashboard.gateway_main`을 exec한다. 설치 후 source가 더 새로우면 자동 재빌드한다.
 레거시 `l515_camera` console entry point와 `l515.launch.py`는 production 설치에서 폐기됐으며,
 직접 실행 경로도 Gateway 진입점을 안내하며 fail-closed한다.
@@ -188,15 +202,17 @@ docker logs powertrain_ros
 docker exec -it powertrain_ros python3 -m l515_dashboard
 ```
 
-`restart: on-failure:5`는 연속된 짧은 startup 실패를 최대 5회로 제한한다. Docker의 재시작
+`docker-compose.jetson.yml` 단독 기동의 `restart: on-failure:5`는 연속된 짧은 startup 실패를 최대 5회로 제한한다. Docker의 재시작
 카운터는 컨테이너가 약 10초 이상 정상 실행되면 초기화되므로, 장시간 정상 실행 뒤 새 crash에는
 새 retry budget이 적용된다. 확인된 `Shift+Q`는 정상 종료 0이어서 재시작하지 않고 정지 상태를
 유지한다. 재기동은 `docker compose -f docker/docker-compose.jetson.yml up -d powertrain_ros`로
-명시적으로 수행한다.
+명시적으로 수행한다. 통합 운용 compose(`docker-compose.integrated.yml`)는 이 정책을
+`unless-stopped`로 덮어쓴다([통합 운용](../docs/integrated-operation.md)).
 
 발행 토픽은 `/l515/color/image_raw`, `/l515/color/camera_info`,
 `/l515/depth/image_rect_raw`, `/l515/depth/camera_info`, `/l515/gyro/sample`,
-`/l515/accel/sample`이다. color는 1280×720@30, raw depth는 640×480@30이며 IMU 두 토픽은
+`/l515/accel/sample`이다. color는 1280×720@30, raw depth는 640×480(캡처 30 fps, ROS 발행은
+deadline 기반 10 Hz — `l515_dashboard/gateway_workers.py` `depth_period_s=.1`)이며 IMU 두 토픽은
 장치 원본 stream이다. IR, confidence, alignment, 합성 IMU와 **PointCloud2 토픽은 없다.**
 
 2026-07-11 D435i perception 동시 60초 HIL에서 color/depth 29.750/29.450 Hz,

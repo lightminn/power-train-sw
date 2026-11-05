@@ -1,0 +1,32 @@
+{
+  "serial": "336A33523235",
+  "started_at": "2026-10-21T08:50:08.059488+00:00",
+  "operations": [],
+  "candidate_sha256": "15462f7f64745b03d1347fccda8091cd34b795056fefee64f87e794dc8a4b3fc",
+  "original_sha256": "f1e985fc3ae3c43f3deb372301e71e074a6362d9eb33c56407b95195613f864e",
+  "before_axes": [
+    {
+      "current_state": 1,
+      "requested_state": 0,
+      "error": 16384,
+      "encoder.pos_estimate": 0.03320838510990143,
+      "encoder.vel_estimate": 0.0,
+      "can_recovery_latched": true,
+      "can_recovery_in_progress": false
+    },
+    {
+      "current_state": 1,
+      "requested_state": 0,
+      "error": 16384,
+      "encoder.pos_estimate": 0.03320838510990143,
+      "encoder.vel_estimate": 0.0,
+      "can_recovery_latched": true,
+      "can_recovery_in_progress": false
+    }
+  ],
+  "before_config_diff": [],
+  "enter_disconnects": [
+    "ObjectLostError"
+  ],
+  "error": "RuntimeError('matching STM32F405 ROM DFU did not enumerate')"
+}

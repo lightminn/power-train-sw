@@ -34,13 +34,19 @@ class HallPLL:
 
     60 Hall edges/motor turn, project reduction5, bandwidth30 1/s.
     Interpolation between 120Hz PhysX samples is a simulation assumption.
+    The articulation reports the wheel angle wrapped (2pi multiples); a Hall sensor
+    never sees that jump, so it is unwrapped here (real motion per call < pi rad).
     """
     def __init__(self,cpr=60,ratio=5,bandwidth=30):
         self.cpr=cpr;self.ratio=ratio;self.kp=2*bandwidth;self.ki=bandwidth**2;self.reset()
-    def reset(self):self.previous=None;self.last_time=None;self.pos=0.;self.vel=0.;self.raw_count=0
+    def reset(self):self.previous=None;self.last_time=None;self.pos=0.;self.vel=0.;self.raw_count=0;self.raw_angle=None;self.turn_offset=0.
     def update(self,wheel_angle,time_s):
+        restart=self.last_time is None or time_s<self.last_time
+        if restart:self.turn_offset=0.
+        else:self.turn_offset-=2*math.pi*round((wheel_angle-self.raw_angle)/(2*math.pi))
+        self.raw_angle=wheel_angle;wheel_angle+=self.turn_offset
         phase=wheel_angle*self.ratio*self.cpr/(2*math.pi)
-        if self.last_time is None or time_s<self.last_time:
+        if restart:
             self.pos=phase;self.vel=0.;self.previous=phase;self.last_time=time_s
         dt=time_s-self.last_time
         if dt>0:

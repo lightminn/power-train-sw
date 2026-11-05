@@ -10,7 +10,4 @@
 .mobility-dashboard .mobility-panel-title { font-size: 12px; }
 .mobility-dashboard .mobility-coordination-summary { font-size: 13px; }
 .mobility-dashboard .mobility-decision { font-size: 12px; }
-.mobility-dashboard .mobility-control-card { min-height: 0; padding: 5px 8px; }
-.mobility-dashboard .mobility-control-button { min-height: 25px; padding: 2px 7px; }
-.mobility-dashboard .mobility-control-button label { font-size: 10px; }
 .mobility-dashboard .mobility-faults { font-size: 10px; padding: 5px; }
