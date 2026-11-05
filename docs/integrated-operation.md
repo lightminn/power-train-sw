@@ -386,6 +386,11 @@ URDF 재추출 치수와 명령 계약은 [수동 애커만 설계](specs/2026-0
 닫고 주행 해제를 요청한다. 통합 compose의 입력 게이트는 입력이 0.5초(`input_timeout_s`) 넘게
 끊기면 0 명령으로 정지하되 고정하지 않는다(`latch_stale_input=false`, `partial_close_violation=false`).
 원격 E-stop 엣지는 그대로 고정한다. `control.launch.py` 단독 기본값(0.2초·고정)은 바뀌지 않았다.
+끊긴 뒤에는 서버가 새 입력 세대를 상태 회신 `G` 줄로 보내고, 노트북이 그 세대를 받은 뒤 만든 입력만 운전에
+쓴다 — 정체 전에 만들어져 늦게 도착한 명령으로 다시 움직이지 않는다. 패드 E-stop은 로봇의 수신 확인을
+받을 때까지 노트북이 보존해 다시 보낸다. 세 값은 젯슨 `.env`/환경변수 `TELEOP_INPUT_TIMEOUT_S`·
+`TELEOP_LATCH_STALE_INPUT`·`TELEOP_PARTIAL_CLOSE_VIOLATION`으로 바꿀 수 있다.
+[2026-11-05 수정 결과](reports/2026-11-05-field-safety-fixes.md)
 패드 입력 채널만 끊어진 경우에도 세션을 끝낸다. 새 입력은 신선한 차체 IDLE·
 바퀴 정지 확인 뒤에만 받으므로, 짧은 패드 분리에도 이전 주행 허가를 이어받지 않는다.
 영상은 노트북이 SRT caller로 연결하고, UDP 목적지만 실제 인증된 연결 상대의 주소를

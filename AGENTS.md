@@ -146,6 +146,12 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
   확인했고 0x40~0x43 네 개가 각각 응답·자석 감지했다. 모듈 하나의 3V3이 빠지면 버스 전체가
   멈춘다. 관절 대응·부호·영점·`verified`는 남았다. 같은 날 젯슨 부하와 25 W 모드의 CPU 상한
   1344 MHz(하드웨어 최대 1728 MHz)도 기록했다. `docs/reports/2026-11-02-encoders-and-jetson-load.md`.
+- **현장 원격주행 안전 결함 수정(2026-11-05, `fix/field-safety-20261105`)** — 정체 중 패드 E-stop 유실,
+  고정 해제 모드에서 정체 뒤 늦게 온 옛 명령으로 재출발(1.05 m/s 재현), 영상 워치독 미도달, compose `TELEOP_*`
+  미전달, 비전 스모크 거짓 PASS를 고쳤다. 상태 회신 `G <input_epoch> <estop_ack_id>`와 레코드 schema 3을 더해
+  만료·HOLD 해제 뒤에는 서버가 발급한 새 세대를 실은 입력만 쓰고, E-stop은 ID 확인까지 보존한다. 설치 엔트리포인트
+  스모크(`scripts/teleop_stall_smoke.py`) PASS·수정 전 노드 음성 대조 FAIL, Codex 설계·구현 검토 수렴.
+  젯슨 배포·실차 확인은 남았다. `docs/reports/2026-11-05-field-safety-fixes.md`를 따른다.
 - **L515 지형 지도(2026-10-18~21)** — 순수 코어 `terrain_map/` + `ros2 run powertrain_ros terrain_map`
   (UDP :5010 → 콘솔 "지형 지도", compose 프로필 `terrain-map`). 장착 피치 기본 15° 하향, 자세는
   바퀴·IMU를 쓴다. 시각 오도메트리(VO) 트랙은 2026-10-21 보류했다(재개 조건은
