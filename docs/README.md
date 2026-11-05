@@ -8,6 +8,7 @@
 |---|---|
 | [통합 운용 안내](integrated-operation.md) | 젯슨 한 번 기동 + 노트북 콘솔 자동 연결의 최초 준비·매일 사용 |
 | [현장 원격주행 안정화 기록](reports/2026-10-30-field-teleop-stability.md) | 현장 배포(`deploy/jetson-field-20261028`)의 입력 끊김 정책·SRT 15 fps·2.4 GHz 링크·젯슨 시계 복원 |
+| [로봇팔 벤치 운용 가이드](arm-bench-operation.md) | 시연장 팔 켜기·GUI 사용법·복구, 팀원 에이전트용 맥락과 금지 사항 |
 | [망 변경 시 IP 지정](network-ip-setup.md) | 젯슨 접속 주소와 콘솔 포트 인자 |
 | [통합 운용 검증 기록](reports/2026-09-08-integrated-operation.md) | 호스트·격리 ROS 검증과 남은 실차 인수 |
 | [Jetson 배포·루프 검증](reports/2026-09-09-integrated-jetson-validation.md) | 실제 배포·콘솔 수신·가상 모터 ROS 루프와 CAN/센서 미통과 항목 |
