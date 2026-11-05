@@ -131,9 +131,10 @@ def test_vision_runtime_smoke_connections_values_roundtrip_and_shutdown(tmp_path
     assert phases['aged']['joint_values']==[None]*4
     assert phases['disconnected']['link']=='STALE'
     assert phases['recovered']['map_state']=='LIVE'
-    # Camera and attitude slots are mapped; Top/Oblique share one Gtk.Stack, so one map is.
+    # Back on the vision tab: camera mapped, one of Top/Oblique (shared Gtk.Stack)
+    # mapped, and the attitude view lives on the mobility tab, so it is not.
     returned = phases['returned']['slots_mapped']
-    assert returned[0] and returned[3] and sum(returned[1:3]) == 1
+    assert returned[0] and not returned[3] and sum(returned[1:3]) == 1
     assert data['shutdown']=='worker/timers/receivers/pipelines/ports closed'
     assert data['receiver_pipelines']==2
     observed = json.loads(metrics.read_text())
@@ -148,9 +149,9 @@ def test_vision_runtime_smoke_connections_values_roundtrip_and_shutdown(tmp_path
 
 @pytest.mark.skipif(not _toolchain_ready(), reason='needs Xvfb/system GTK/GStreamer')
 @pytest.mark.parametrize('fault,reason', [
-    ('map', 'vision map/telemetry LIVE: timed out'),
-    ('telemetry', 'vision map/telemetry LIVE: timed out'),
-    ('missing-zero', 'vision missing values fabricated'),
+    ('map', 'vision map LIVE: timed out'),
+    ('telemetry', 'mobility attitude LIVE: timed out'),
+    ('missing-zero', 'missing values fabricated'),
     ('stale', 'vision disconnect/stale: timed out'),
     ('recovery', 'vision recovery: timed out'),
     ('hidden-render', 'vision hidden render continues'),

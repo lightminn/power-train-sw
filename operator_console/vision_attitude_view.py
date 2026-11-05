@@ -25,7 +25,7 @@ def _detail_label(text=""):
     label = Gtk.Label(label=text, xalign=0)
     label.set_line_wrap(True)
     label.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
-    label.set_max_width_chars(1)
+    label.set_max_width_chars(40)
     label.set_hexpand(True)
     return label
 
@@ -59,8 +59,8 @@ class ChassisSketch(Gtk.DrawingArea):
         super().__init__()
         self.set_size_request(140,112)
         self.set_hexpand(False)
-        self.set_vexpand(True)
-        self.set_valign(Gtk.Align.CENTER)
+        self.set_vexpand(False)
+        self.set_valign(Gtk.Align.START)
         self.get_style_context().add_class("vision-chassis-sketch")
         self.wheels = ()
         self.connect("draw",self._draw)
@@ -132,11 +132,12 @@ class AttitudePanel(Gtk.Box):
         self.refresh_count=0
         self._timer=None
         self._closed=False
+        top_space=Gtk.Box()
+        self.pack_start(top_space,True,True,0)
         summary = Gtk.Box(spacing=10)
-        summary.set_vexpand(True)
-        summary.set_valign(Gtk.Align.CENTER)
+        summary.set_valign(Gtk.Align.START)
         text_column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4)
-        text_column.set_valign(Gtk.Align.CENTER)
+        text_column.set_valign(Gtk.Align.START)
         self.body=_detail_label("보정 미확인 · 개략도 기울기 미적용")
         self.body.get_style_context().add_class("vision-attitude-heading")
         text_column.pack_start(self.body,False,False,0)
@@ -146,7 +147,7 @@ class AttitudePanel(Gtk.Box):
         self.sketch=ChassisSketch()
         summary.pack_start(self.sketch,False,False,0)
         summary.pack_start(text_column,True,True,0)
-        self.pack_start(summary,True,True,0)
+        self.pack_start(summary,False,False,0)
         text_column.pack_start(self.raw,False,False,0)
         table=Gtk.Grid(column_spacing=7,row_spacing=3)
         table.set_tooltip_text("속도 단위: rev/s. Hall 값은 절댓값 0.3 rev/s 미만에서 실제 정지와 다를 수 있습니다.")
@@ -166,13 +167,17 @@ class AttitudePanel(Gtk.Box):
         self.wheel_summary=_label("바퀴 측정 대기")
         text_column.pack_start(self.wheel_summary,False,False,0)
         measurements=Gtk.Expander(label="바퀴 6개 · 자세 상세 보기")
+        self._measurements=measurements
         measurement_body=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=5)
         measurements.add(measurement_body)
         measurement_body.pack_start(table,False,False,0)
-        text_column.pack_start(measurements,False,False,0)
+        self.pack_start(measurements,False,False,0)
+        bottom_space=Gtk.Box()
+        self.pack_end(bottom_space,True,True,0)
         self.wheel_source=_label()
         self.wheel_source.get_style_context().add_class("vision-attitude-source")
         details=Gtk.Expander(label="로커·보기 / 지도 기준면")
+        self._details=details
         details.get_style_context().add_class("vision-attitude-details")
         detail_body=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=5)
         details.add(detail_body)
@@ -192,9 +197,20 @@ class AttitudePanel(Gtk.Box):
         self.still=_detail_label()
         detail_body.pack_start(self.plane,False,False,0)
         detail_body.pack_start(self.still,False,False,0)
+        self._initial_details_set=False
+        self.connect("size-allocate",self._initial_details)
         self.connect("map",self._mapped)
         self.connect("unmap",self._unmapped)
         self.connect("destroy",self.close)
+
+    def _initial_details(self,_widget,allocation):
+        if self._initial_details_set or allocation.width<600 or allocation.height<380:
+            return
+        self._initial_details_set=True
+        self._measurements.set_expanded(True)
+        self._details.set_expanded(True)
+        self._measurements.get_child().show_all()
+        self._details.get_child().show_all()
 
     def _mapped(self,*_):
         if self._closed:

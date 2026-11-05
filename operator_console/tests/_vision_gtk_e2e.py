@@ -38,6 +38,62 @@ def test_map_status_repaint_is_change_driven():
     assert canvas.draws == 1
 
 
+def test_mission_layout_reflows_with_window_height(console):
+    window = console
+    window._stack.set_visible_child_name('mission')
+    window.resize(1100, 680)
+    assert pump_until(lambda: window._mission_side_rail is True
+                      and window._mission_body.get_orientation() == Gtk.Orientation.HORIZONTAL)
+    assert window._rail_data.get_orientation() == Gtk.Orientation.VERTICAL
+    assert window._mission_rail_scroll.get_allocated_height() > 350
+    assert window._mission_metric_rows['tool'].get_children()[0].get_text().startswith('02')
+    assert window._mission_metric_rows['tool'].get_allocated_height() >= 185
+    assert window._mobility.decision_card.get_mapped()
+    assert window._swap_button.get_label() == '전환'
+    assert not window._d435._header_state.get_visible()
+
+    window.resize(1000, 600)
+    assert pump_until(lambda: window.get_allocated_height() <= 620
+                      and window._mission_side_rail is True)
+    assert window._mission_body.get_orientation() == Gtk.Orientation.HORIZONTAL
+
+    window.resize(1920, 1080)
+    ready = pump_until(lambda: window.get_allocated_height() >= 1000
+                      and window._mission_side_rail is True
+                      and window._mission_metric_rows['drive'].get_allocated_height() >
+                      window._mission_metric_rows['tool'].get_allocated_height() * 1.4)
+    assert ready, (window._mission_card_heights,
+                   window._mission_metric_rows['drive'].get_allocated_height(),
+                   window._mission_metric_rows['tool'].get_allocated_height(),
+                   window._mission_metric_rows['drive'].get_preferred_height(),
+                   window._mission_metric_rows['tool'].get_preferred_height())
+    assert window._mission_body.get_orientation() == Gtk.Orientation.HORIZONTAL
+    assert window._swap_button.get_label() == '화면 전환'
+    assert window._d435._header_state.get_visible()
+
+    window.resize(1100, 900)
+    assert pump_until(lambda: window.get_allocated_height() <= 920
+                      and window._mission_side_rail is False)
+    assert window._mission_body.get_orientation() == Gtk.Orientation.VERTICAL
+    assert window._rail_data.get_orientation() == Gtk.Orientation.HORIZONTAL
+
+    window.resize(1100, 680)
+    assert pump_until(lambda: window.get_allocated_height() <= 700
+                      and window._mission_side_rail is True)
+    assert window.swap_camera_views(window._d435, user_initiated=True)
+    assert pump_until(lambda: window._swap_button.get_label() == '전환'
+                      and not window._l515._header_state.get_visible())
+
+
+def test_system_cards_fill_available_height(console):
+    window = console
+    window.resize(1920, 1080)
+    window._stack.set_visible_child_name('systems')
+    columns = window._robot_status.get_children()[-1]
+    assert pump_until(lambda: columns.get_allocated_height() > 600)
+    assert all(card.get_allocated_height() > 600 for card in columns.get_children())
+
+
 @pytest.fixture
 def console(tmp_path):
     if not Gtk.init_check()[0]:
@@ -84,6 +140,9 @@ def test_vision_roundtrip_keeps_single_decoder_and_restores_layout(console, monk
     page = window._vision_panel
     assert page.map_receiver is receiver
     assert page.chassis_receiver is window._chassis_receiver
+    assert page.attitude_slot.get_parent().get_parent() is window._mobility._attitude_scroll
+    assert (window._mobility.decision_card.get_parent().get_parent()
+            is window._mission_metric_rows['drive'])
 
     def unexpected_pipeline(*args, **kwargs):
         pytest.fail("tab navigation must not create a decoder or SRT connection")
@@ -100,8 +159,9 @@ def test_vision_roundtrip_keeps_single_decoder_and_restores_layout(console, monk
             user_initiated=True,
         )
         assert pump_until(lambda: window._l515._last_frame_monotonic > before)
-        assert page.camera_slot.get_mapped() and page.attitude_slot.get_mapped()
+        assert page.camera_slot.get_mapped() and not page.attitude_slot.get_mapped()
         assert page.top_slot.get_mapped() != page.oblique_slot.get_mapped()
+        assert abs(page.map_stack.get_allocated_height() - page.camera_slot.get_allocated_height()) < 100
         before = window._l515._last_frame_monotonic
         # Leaving for a third page must restore mission even before returning to it.
         window._stack.set_visible_child_name("systems")
@@ -254,6 +314,8 @@ def test_vision_maps_live_stale_recovery_hidden_and_controls(console):
         assert maps.scale_label.get_text() == '범위 ×1.00'
         assert pump_until(live)
         window._stack.set_visible_child_name('mission')
+        assert pump_until(lambda: maps._timer is None and
+                          not maps.top_slot.get_mapped() and not maps.oblique_slot.get_mapped())
         count=maps.worker.render_count
         received=window._map_receiver.snapshot(time.monotonic()).status.sequence
         until=time.monotonic()+.7
@@ -284,7 +346,7 @@ def test_vision_attitude_sources_missing_values_static_history_and_recovery(cons
     window=console
     panel=window._vision_panel.attitude_slot
     maps=window._vision_panel.maps
-    window._stack.set_visible_child_name('vision')
+    window._stack.set_visible_child_name('mobility')
     assert pump_until(lambda:panel.view is not None)
     assert panel.view.raw_pitch.value is None
     assert all(r.value is None for _,r in panel.view.suspension)
@@ -329,8 +391,7 @@ def test_vision_attitude_sources_missing_values_static_history_and_recovery(cons
                 window.get_allocated_width(),window.get_allocated_height())
             image.savev(str(out/(name+'.png')),'png',[],[])
     try:
-        assert until(lambda:panel.view.raw_pitch.value is not None and panel.view.still is not None
-                     and maps.images is not None and maps.images.top is not None and maps.images.oblique is not None)
+        assert until(lambda:panel.view.raw_pitch.value is not None and panel.view.still is not None)
         assert panel.view.raw_pitch.value==pytest.approx(19.5)
         assert panel.view.body_state=='UNVERIFIED' and '보정 미확인' in panel.body.get_text()
         assert '기울기 미적용' in panel.body.get_text()
@@ -350,7 +411,8 @@ def test_vision_attitude_sources_missing_values_static_history_and_recovery(cons
         phase='aged'
         assert until(lambda:panel.view.link_state=='LIVE' and panel.view.raw_pitch.value is None and
                      panel.view.suspension[0][1].state=='STALE')
-        assert until(lambda:maps.images is not None and maps.images.status.gravity is None)
+        assert until(lambda:window._map_receiver.latest_status() is not None and
+                     window._map_receiver.latest_status().gravity is None)
         old_age=panel.view.still_age_s
         assert until(lambda:panel.view.still_age_s>old_age+.3)
         assert panel.view.still.body_pitch_deg==3
@@ -369,7 +431,7 @@ def test_vision_attitude_sources_missing_values_static_history_and_recovery(cons
         assert pump_until(lambda:feed() or time.monotonic()>deadline)
         assert panel.refresh_count==count and panel._timer is None
         assert window._chassis_receiver.latest().sequence>received
-        window._stack.set_visible_child_name('vision')
+        window._stack.set_visible_child_name('mobility')
         assert until(lambda:panel.view.link_state=='LIVE')
         print('VISION_ATTITUDE_E2E: PASS · shared UDP · missing/stale/recovery · no mount correction · static history · hidden pause')
     finally:
@@ -404,7 +466,9 @@ def test_vision_floor_and_reviewed_attitude_share_existing_sources(console):
     timer=GLib.timeout_add(50,feed)
     try:
         window._stack.set_visible_child_name('vision')
-        assert pump_until(lambda: window._terrain_canvas._floor_layer.prepared>0 and panel.view and panel.view.body_state=='LIVE')
+        assert pump_until(lambda: window._terrain_canvas._floor_layer.prepared>0)
+        window._stack.set_visible_child_name('mobility')
+        assert pump_until(lambda: panel.view and panel.view.body_state=='LIVE')
         assert panel.view.body_pitch.value==pytest.approx(0,abs=1e-8)
         assert '설정 보정' in panel.body.get_text() and '19.5' in panel.raw.get_text()
         layer=window._terrain_canvas._floor_layer
@@ -414,7 +478,7 @@ def test_vision_floor_and_reviewed_attitude_share_existing_sources(console):
         legacy=True
         assert pump_until(lambda: layer.surface is None)
         panel.tracker=AttitudeTracker()
-        window._stack.set_visible_child_name('vision')
+        window._stack.set_visible_child_name('mobility')
         assert pump_until(lambda: '보정 미확인' in panel.body.get_text())
     finally:
         GLib.source_remove(timer)

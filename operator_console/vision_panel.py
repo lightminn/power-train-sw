@@ -13,7 +13,7 @@ from .vision_attitude_view import AttitudePanel
 
 
 class VisionPanel(Gtk.Box):
-    """Four simultaneous slots sharing the console's receivers and camera."""
+    """Camera and map slots sharing the console's receivers."""
 
     def __init__(self, *, map_receiver, chassis_receiver, overlay_enabled: bool,
                  on_overlay_toggled, map_display=None, criteria=None, calibration=None) -> None:
@@ -41,26 +41,17 @@ class VisionPanel(Gtk.Box):
         layout.set_wide_handle(True)
         layout.set_hexpand(True)
         layout.set_vexpand(True)
-        side = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
-        side.set_wide_handle(True)
         self.camera_slot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.attitude_slot = AttitudePanel(chassis_receiver,
-            self.maps.worker.latest_status,
+            map_receiver.latest_status,
             map_port=map_receiver.port,calibration=calibration)
         self.top_slot = self.maps.top_slot
         self.oblique_slot = self.maps.oblique_slot
-        attitude_scroll = Gtk.ScrolledWindow()
-        attitude_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        attitude_scroll.add(self.attitude_slot)
-        cards = []
-        for title, slot in (("L515 카메라", self.camera_slot),
-                            ("차체 자세 · 측정 상태", attitude_scroll)):
-            frame = Gtk.Frame(label=title)
-            frame.get_style_context().add_class("vision-card")
-            frame.set_hexpand(True)
-            frame.set_vexpand(True)
-            frame.add(slot)
-            cards.append(frame)
+        camera_card = Gtk.Frame(label="L515 카메라")
+        camera_card.get_style_context().add_class("vision-card")
+        camera_card.set_hexpand(True)
+        camera_card.set_vexpand(True)
+        camera_card.add(self.camera_slot)
         map_card = Gtk.Frame()
         map_card.get_style_context().add_class("vision-card")
         self.map_stack = Gtk.Stack()
@@ -87,13 +78,10 @@ class VisionPanel(Gtk.Box):
         self.map_settings.connect("toggled", lambda button: map_options.set_reveal_child(button.get_active()))
         map_body.pack_start(map_options, False, False, 0)
         map_card.add(map_body)
-        side.pack1(map_card, resize=True, shrink=False)
-        side.pack2(cards[1], resize=True, shrink=False)
-        layout.pack1(cards[0], resize=True, shrink=False)
-        layout.pack2(side, resize=True, shrink=False)
+        layout.pack1(camera_card, resize=True, shrink=False)
+        layout.pack2(map_card, resize=True, shrink=False)
         self._split_sizes = {}
-        for pane, ratio in ((layout, .57), (side, .62)):
-            pane.connect("size-allocate", self._initial_split, ratio)
+        layout.connect("size-allocate", self._initial_split, .54)
         self.pack_start(layout, True, True, 0)
         self.connect("destroy", self.close)
 

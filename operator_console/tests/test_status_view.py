@@ -18,7 +18,24 @@ from operator_console.status_view import (
     power_card_state,
     public_link_state,
     safety_badge_state,
+    status_attention_items,
 )
+
+
+def test_status_attention_orders_stop_before_missing_links():
+    issues = status_attention_items(
+        safety_state="비상정지", drive_state="확인 필요",
+        drive_reason="구동 모터 상태 확인 필요",
+        power_state="확인 필요", power_reason="전원 링크 ERROR",
+        communication_values=(
+            "실시간 수신", "실시간 수신", "연결 중", "실시간 수신",
+            "갱신 지연", "연결됨",
+        ),
+    )
+    assert issues == (
+        "비상정지 상태 확인", "전원 링크 ERROR",
+        "전방 영상 연결 중", "인식 갱신 지연",
+    )
 from operator_console.telemetry import parse_telemetry
 
 
@@ -67,7 +84,7 @@ def test_competition_status_is_unified_around_power_communication_and_safety():
     assert '"safety", "안전"' in source
     assert '"drive", "주행"' not in source
     assert '"arm", "로봇팔"' not in source
-    assert "값은 추정하지 않습니다" in source
+    assert '고급 진단 · 원본 채널 및 누락 필드' not in source
     assert "power-soc-value" not in source
 
 
