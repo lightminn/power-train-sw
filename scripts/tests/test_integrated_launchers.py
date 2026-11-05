@@ -28,6 +28,37 @@ def test_gateway_srt_output_rate_defaults_to_15_and_is_overridable():
     assert "L515_SRT_FPS=${L515_SRT_FPS:-15}" in services["powertrain_ros"]["environment"]
 
 
+def _resolved_control_environment(host_env):
+    import shutil
+    if shutil.which("docker") is None:
+        pytest.skip("docker compose not available")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TELEOP_")}
+    env.update(host_env)
+    result = subprocess.run(
+        ["docker", "compose", "-f", "docker/docker-compose.jetson.yml",
+         "-f", "docker/docker-compose.integrated.yml", "config", "--format", "json"],
+        cwd=ROOT, env=env, capture_output=True, text=True, timeout=60, check=True)
+    return json.loads(result.stdout)["services"]["powertrain_control"]["environment"]
+
+
+def test_teleop_field_policy_reaches_the_container_with_field_defaults():
+    environment = _resolved_control_environment({})
+    assert environment["TELEOP_INPUT_TIMEOUT_S"] == "0.5"
+    assert environment["TELEOP_LATCH_STALE_INPUT"] == "false"
+    assert environment["TELEOP_PARTIAL_CLOSE_VIOLATION"] == "false"
+
+
+def test_teleop_field_policy_is_overridable_from_the_host():
+    environment = _resolved_control_environment({
+        "TELEOP_INPUT_TIMEOUT_S": "0.2",
+        "TELEOP_LATCH_STALE_INPUT": "true",
+        "TELEOP_PARTIAL_CLOSE_VIOLATION": "true",
+    })
+    assert environment["TELEOP_INPUT_TIMEOUT_S"] == "0.2"
+    assert environment["TELEOP_LATCH_STALE_INPUT"] == "true"
+    assert environment["TELEOP_PARTIAL_CLOSE_VIOLATION"] == "true"
+
+
 def test_terrain_overlay_service_is_opt_in_and_bounded():
     import yaml
     services = yaml.safe_load((ROOT / "docker/docker-compose.integrated.yml").read_text())["services"]

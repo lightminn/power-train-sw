@@ -24,6 +24,10 @@ services:
     environment:
       - PYTHONPATH=/workspace:/workspace/ros2/src/powertrain_ros:/workspace/motor_control
       - POWERTRAIN_OPERATOR_SESSION_FILE=/run/powertrain/operator-session.json
+      # Field teleop policy (see command). Host env/.env overrides reach the container.
+      - TELEOP_INPUT_TIMEOUT_S=${TELEOP_INPUT_TIMEOUT_S:-0.5}
+      - TELEOP_LATCH_STALE_INPUT=${TELEOP_LATCH_STALE_INPUT:-false}
+      - TELEOP_PARTIAL_CLOSE_VIOLATION=${TELEOP_PARTIAL_CLOSE_VIOLATION:-false}
     command:
       - |
         set -e
