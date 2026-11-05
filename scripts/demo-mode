@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# Demo mode switch on the Jetson host (docs/specs/2026-11-06-demo-mode.md §1).
+#
+#   scripts/demo-mode on|off|status [--force]
+#
+# on/off re-runs scripts/robot-start with POWERTRAIN_DEMO_MODE=true|false and the
+# opt-in services that are running now (terrain-map, terrain-overlay, arm-d435).
+# The field auto-clear (odrive-autoclear) cannot run in demo mode: `on` drops it
+# and remembers that it was running, `off` brings it back. robot-start itself
+# starts/stops the demo auto-clear. The chassis container is recreated, so the
+# switch refuses while the chassis is driving or its state cannot be read
+# (--force skips that check; use it only with the robot stopped and watched).
+set -euo pipefail
+
+fail() {
+  printf 'demo-mode FAIL: %s\n' "$*" >&2
+  exit 1
+}
+usage='usage: scripts/demo-mode on|off|status [--force]'
+
+[ "$#" -ge 1 ] && [ "$#" -le 2 ] || fail "$usage"
+action="$1"
+case "$action" in on|off|status) ;; *) fail "$usage" ;; esac
+force=0
+if [ "$#" -eq 2 ]; then
+  [ "$2" = --force ] && [ "$action" != status ] || fail "$usage"
+  force=1
+fi
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "$script_dir/.." && pwd)"
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/powertrain"
+marker="$state_dir/demo-replaced-odrive-autoclear"
+
+# One switch at a time: two concurrent runs could leave both auto-clear services
+# up. Take the lock before reading what runs, so the list cannot be stale.
+if [ "$action" != status ]; then
+  mkdir -p "$state_dir"
+  exec 9>"$state_dir/demo-mode.lock"
+  flock -n 9 || fail '다른 시연 모드 전환이 진행 중입니다.'
+fi
+
+running=" $(docker ps --format '{{.Names}}' | tr '\n' ' ') "
+is_running() { [[ "$running" == *" $1 "* ]]; }
+
+chassis_demo() {
+  if ! is_running powertrain_chassis; then
+    echo stopped
+    return
+  fi
+  local value
+  value="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' powertrain_chassis \
+    | sed -n 's/^POWERTRAIN_DEMO_MODE=//p' | head -n 1)"
+  echo "${value:-false}"
+}
+
+print_status() {
+  local demo_clear=off field_clear=off
+  is_running powertrain_demo_autoclear && demo_clear=on
+  is_running powertrain_odrive_autoclear && field_clear=on
+  printf 'robot demo=%s demo_autoclear=%s odrive_autoclear=%s\n' \
+    "$(chassis_demo)" "$demo_clear" "$field_clear"
+}
+
+if [ "$action" = status ]; then
+  print_status
+  exit 0
+fi
+
+session_stopped=0
+abort() {
+  # Give the operator session back if we took it down and did not switch.
+  if [ "$session_stopped" -eq 1 ]; then
+    docker start powertrain_session >/dev/null || true
+  fi
+  fail "$@"
+}
+
+chassis_mode() {
+  timeout 20 docker exec powertrain_chassis bash -lc \
+    'source /opt/ros/humble/setup.bash; source /workspace/ros2/install/setup.bash; timeout 5 ros2 topic echo --once --full-length /chassis/safety_state std_msgs/msg/String' \
+    2>/dev/null | grep -o '"mode": *"[A-Z_]*"' | head -n 1 | sed 's/.*"\([A-Z_]*\)"$/\1/' || true
+}
+
+require_not_driving() {
+  local mode
+  mode="$(chassis_mode)"
+  [ -n "$mode" ] || abort '차체 상태를 읽지 못했습니다. 로봇이 멈춘 것을 눈으로 확인했으면 --force로 다시 실행하십시오.'
+  case "$mode" in
+    ARMED|ARMING|EXTRACTION) abort "주행 중(mode=$mode)에는 바꾸지 않습니다. 주행 해제 뒤 다시 실행하십시오." ;;
+  esac
+}
+
+if [ "$force" -eq 0 ] && is_running powertrain_chassis; then
+  require_not_driving
+fi
+# Close the operator session (laptop input/ops entry) so nobody can start driving
+# between the check and robot-start recreating the chassis; robot-start brings it back.
+if is_running powertrain_session; then
+  docker stop powertrain_session >/dev/null
+  session_stopped=1
+fi
+if [ "$force" -eq 0 ] && is_running powertrain_chassis; then
+  require_not_driving
+fi
+
+profiles=()
+services=()
+for pair in powertrain_terrain_map:terrain-map powertrain_terrain_overlay:terrain-overlay \
+            powertrain_arm_console_bridge:arm-d435; do
+  service="${pair%%:*}"
+  if is_running "$service"; then
+    profiles+=("${pair#*:}")
+    services+=("$service")
+  fi
+done
+
+if [ "$action" = on ]; then
+  demo=true
+  if is_running powertrain_odrive_autoclear; then
+    mkdir -p "$state_dir"
+    : > "$marker"
+  fi
+else
+  demo=false
+  if [ -e "$marker" ] || is_running powertrain_odrive_autoclear; then
+    profiles+=(odrive-autoclear)
+    services+=(powertrain_odrive_autoclear)
+  fi
+fi
+
+printf 'demo-mode: %s (opt-in: %s)\n' "$action" "${profiles[*]:-없음}"
+if ! POWERTRAIN_DEMO_MODE="$demo" \
+     ROBOT_START_EXACT_OPT_INS=1 \
+     INTEGRATED_PROFILES="${profiles[*]:-}" \
+     INTEGRATED_SERVICES="${services[*]:-}" \
+     "$repo_root/scripts/robot-start"; then
+  abort 'robot-start 실패 — 위 출력을 확인하십시오.'
+fi
+
+[ "$demo" = true ] || rm -f "$marker"
+running=" $(docker ps --format '{{.Names}}' | tr '\n' ' ') "
+print_status

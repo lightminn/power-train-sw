@@ -165,7 +165,8 @@ ZETIN 6륜 로커-보기(rocker-bogie) 국방/극한 로봇의 **파워트레인
   래치가 없을 때만 모터 오류 조회 요청과 Clear_Errors를 연달아 보낸다(응답을 기다리지 않으므로
   motor.error 로그는 응답이 잡힐 때만 남는다). 재무장은 하지 않는다. 단위 시험만 있고 실물 동작 기록은
   아직 없다.
-- **시연 모드(2026-11-06, opt-in, 기본 꺼짐)** — 로봇 `POWERTRAIN_DEMO_MODE=true scripts/robot-start`:
+- **시연 모드(2026-11-06, opt-in, 기본 꺼짐)** — 켜고 끄기는 노트북 `scripts/console-demo-mode on|off --robot <젯슨>`
+  (젯슨만 `scripts/demo-mode on|off|status`, 주행 중이면 거부). 로봇 `POWERTRAIN_DEMO_MODE=true`:
   구동축이 IDLE이고 축 오류가 0x40·0x800뿐이면 E-stop 고정 대신 주행 해제만 한다(60초 안 세 번째부터 고정),
   `powertrain_demo_autoclear`(프로필 `demo`, 기존 `odrive-autoclear`와 동시 금지)가 motor.error가 0x1000뿐일 때만
   지우고, 로봇팔 게이트는 `arm_absent_field`다. 콘솔 `"demo_mode": true`는 영상 없이 수동 시작을 허용한다. 둘 다
