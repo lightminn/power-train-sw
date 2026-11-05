@@ -53,6 +53,8 @@ def front_frame(window):
     # not establish decoded real SRT or physical camera acceptance.
     window._l515._pipeline_live = True
     window._l515._last_frame_monotonic = time.monotonic()
+    # VideoPanel reports LIVE only after three consecutive fresh frames.
+    window._l515._fresh_frame_run = 3
     window._refresh_operation()
 
 

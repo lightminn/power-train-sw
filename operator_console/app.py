@@ -2712,6 +2712,8 @@ class VideoPanel(Gtk.Box):
 
         self._stopped = False
         self._retry_source_id: int | None = None
+        # True only while the pending retry was scheduled by the stale watchdog.
+        self._stale_retry_pending = False
         self._frames = 0
         self._sample_start = time.monotonic()
         self._last_frame_monotonic: float | None = None
@@ -2759,6 +2761,8 @@ class VideoPanel(Gtk.Box):
         if self._retry_source_id is not None:
             GLib.source_remove(self._retry_source_id)
             self._retry_source_id = None
+        # A new endpoint always restarts; never treat it as a skippable watchdog retry.
+        self._stale_retry_pending = False
         self._pipeline.set_state(Gst.State.NULL)
         self._pipeline.get_by_name("operator_source").set_property(
             "uri", srt_uri(host, port, latency_ms))
@@ -2906,6 +2910,13 @@ class VideoPanel(Gtk.Box):
             if self._fps.get_text() != text:
                 self._fps.set_text(text)
         self._publish_video_live(self.health_state() == "LIVE")
+        if (
+            self._last_frame_monotonic is None
+            and time.monotonic() - self._sample_start > VIDEO_STALE_RESTART_S
+        ):
+            # No first frame and no ERROR/EOS since (re)start — including a
+            # source stuck before PLAYING: retry like a stall.
+            self._watchdog_reconnect("no first frame")
         if not self._pipeline_live:
             self._placeholder.show_all()
             self._header_state.set_text("연결 대기")
@@ -2915,12 +2926,14 @@ class VideoPanel(Gtk.Box):
             self._status.set_text(f"{self._name} 연결 대기")
             self._header_state.set_text("연결 대기")
             return True
-        if self._fresh_frame_run < 3:
+        # Age first: a silent stall must reach the restart watchdog even while
+        # the 3-frame warm-up count is reset (srtsrc may never report EOS).
+        age_ms = (time.monotonic() - self._last_frame_monotonic) * 1000.0
+        if age_ms <= 1000.0 and self._fresh_frame_run < 3:
             self._placeholder.show_all()
             self._status.set_text(f"{self._name} 연결 대기")
             self._header_state.set_text("연결 대기")
             return True
-        age_ms = (time.monotonic() - self._last_frame_monotonic) * 1000.0
         if age_ms > 1000.0:
             self._placeholder.show_all()
             self._fresh_frame_run = 0
@@ -2929,13 +2942,15 @@ class VideoPanel(Gtk.Box):
                 self._freshness_state = "stale"
             self._status.set_text(f"{self._name} 정보 갱신 지연")
             self._header_state.set_text("갱신 지연")
-            if (
-                age_ms > VIDEO_STALE_RESTART_S * 1000.0
-                and self._retry_source_id is None
-            ):
-                self._emit_event("stale watchdog: forcing pipeline restart")
-                self._schedule_reconnect()
+            if age_ms > VIDEO_STALE_RESTART_S * 1000.0:
+                self._watchdog_reconnect("frames stopped")
         else:
+            if self._stale_retry_pending and self._retry_source_id is not None:
+                # Frames recovered before the watchdog restart ran: keep the stream.
+                GLib.source_remove(self._retry_source_id)
+                self._retry_source_id = None
+                self._emit_event("stale watchdog restart cancelled: frames recovered")
+            self._stale_retry_pending = False
             self._placeholder.hide()
             if self._freshness_state != "live":
                 self._emit_event("frame flow live")
@@ -2953,9 +2968,16 @@ class VideoPanel(Gtk.Box):
             return "CONNECTING"
         if self._last_frame_monotonic is None:
             return "WAITING"
-        if self._fresh_frame_run < 3:
-            return "WAITING"
-        return "STALE" if time.monotonic() - self._last_frame_monotonic > 1.0 else "LIVE"
+        if time.monotonic() - self._last_frame_monotonic > 1.0:
+            return "STALE"
+        return "WAITING" if self._fresh_frame_run < 3 else "LIVE"
+
+    def _watchdog_reconnect(self, reason: str) -> None:
+        if self._retry_source_id is not None:
+            return
+        self._emit_event(f"stale watchdog: forcing pipeline restart ({reason})")
+        self._schedule_reconnect()
+        self._stale_retry_pending = self._retry_source_id is not None
 
     def _schedule_reconnect(self) -> None:
         if self._stopped or self._retry_source_id is not None:
@@ -2966,7 +2988,18 @@ class VideoPanel(Gtk.Box):
 
     def _restart_pipeline(self) -> bool:
         self._retry_source_id = None
+        watchdog_retry = self._stale_retry_pending
+        self._stale_retry_pending = False
         if self._stopped:
+            return False
+        if (
+            watchdog_retry
+            and self._last_frame_monotonic is not None
+            and self._fresh_frame_run >= 3
+            and time.monotonic() - self._last_frame_monotonic <= 1.0
+        ):
+            # Frames recovered after the last health check; keep the stream.
+            self._emit_event("stale watchdog restart skipped: frames recovered")
             return False
         self._pipeline.set_state(Gst.State.NULL)
         # 재시작 후에도 죽기 전 프레임 시각이 남아 있으면 워치독이 곧바로

@@ -102,3 +102,154 @@ def test_gui_demo_chassis_values_are_explicitly_synthetic_and_parseable():
     assert snapshot.suspension_source == 'TEST 더미 AS5048B'
     assert len(snapshot.suspension_joints_rad) == 4
     assert len(snapshot.wheel_statuses) == 6
+
+
+class _StalledVideo:
+    """VideoPanel health fields after three fresh frames, then a silent stall."""
+
+    def __init__(self):
+        from types import SimpleNamespace
+        label = lambda: SimpleNamespace(set_text=lambda text: None, get_text=lambda: '')
+        self._stopped = False
+        self._video_size = None
+        self._published_video_size = None
+        self._last_fps = None
+        self._fps = label()
+        self._status = label()
+        self._header_state = label()
+        self._placeholder = SimpleNamespace(show_all=lambda: None, hide=lambda: None)
+        self._name = '전방 카메라'
+        self._pipeline_live = True
+        self._last_frame_monotonic = 100.0
+        self._fresh_frame_run = 3
+        self._freshness_state = 'live'
+        self._retry_source_id = None
+        self._stale_retry_pending = False
+        self._sample_start = 90.0
+        self.reconnects = 0
+        self.events = []
+
+    def _publish_video_live(self, live):
+        pass
+
+    def _emit_event(self, text):
+        self.events.append(text)
+
+    def _schedule_reconnect(self):
+        self.reconnects += 1
+        self._retry_source_id = 77
+
+
+def _health_tick(monkeypatch, model, now_s):
+    from operator_console import app
+    from operator_console.app import VideoPanel
+    monkeypatch.setattr(app.time, 'monotonic', lambda: now_s)
+    model.health_state = lambda: VideoPanel.health_state(model)
+    model._watchdog_reconnect = lambda reason: VideoPanel._watchdog_reconnect(model, reason)
+    return VideoPanel._refresh_video_health(model)
+
+
+def test_silent_video_stall_still_reaches_the_reconnect_watchdog(monkeypatch):
+    # srtsrc can swallow a dead listener without ERROR/EOS; only the stale
+    # watchdog recovers it, so the 3-frame warm-up must not hide the stall.
+    model = _StalledVideo()
+    for now_s in (100.2, 101.5, 102.5, 103.5, 104.5):
+        _health_tick(monkeypatch, model, now_s)
+    assert model.reconnects == 0
+    _health_tick(monkeypatch, model, 105.2)
+    assert model.reconnects == 1
+
+
+def test_stalled_video_reports_stale_not_waiting(monkeypatch):
+    from operator_console import app
+    from operator_console.app import VideoPanel
+    model = _StalledVideo()
+    _health_tick(monkeypatch, model, 101.5)
+    monkeypatch.setattr(app.time, 'monotonic', lambda: 102.0)
+    assert VideoPanel.health_state(model) == 'STALE'
+
+
+def test_restart_without_any_first_frame_still_retries(monkeypatch):
+    # PLAYING but no frame, ERROR or EOS after a restart: retry once the
+    # stale limit passes instead of waiting forever.
+    model = _StalledVideo()
+    model._last_frame_monotonic = None
+    model._fresh_frame_run = 0
+    model._sample_start = 100.0
+    _health_tick(monkeypatch, model, 104.9)
+    assert model.reconnects == 0
+    _health_tick(monkeypatch, model, 105.2)
+    assert model.reconnects == 1
+
+
+def test_watchdog_retry_is_cancelled_when_frames_recover(monkeypatch):
+    from operator_console import app
+    removed = []
+    monkeypatch.setattr(app.GLib, 'source_remove', removed.append)
+    model = _StalledVideo()
+    _health_tick(monkeypatch, model, 105.2)
+    assert model.reconnects == 1 and model._retry_source_id == 77
+    model._last_frame_monotonic = 105.3
+    model._fresh_frame_run = 3
+    _health_tick(monkeypatch, model, 105.4)
+    assert removed == [77]
+    assert model._retry_source_id is None
+
+
+def test_error_path_retry_is_not_cancelled_by_frames(monkeypatch):
+    from operator_console import app
+    removed = []
+    monkeypatch.setattr(app.GLib, 'source_remove', removed.append)
+    model = _StalledVideo()
+    model._retry_source_id = 55  # scheduled by a bus ERROR/EOS, not the watchdog
+    _health_tick(monkeypatch, model, 100.2)
+    assert removed == [] and model._retry_source_id == 55
+
+
+def test_watchdog_restart_callback_skips_when_frames_already_recovered(monkeypatch):
+    from operator_console import app
+    from operator_console.app import VideoPanel
+    states = []
+    model = _StalledVideo()
+    model._pipeline = type('P', (), {'set_state': lambda self, s: states.append(s)})()
+    model._stale_retry_pending = True
+    model._retry_source_id = 77
+    model._last_frame_monotonic = 106.0
+    model._fresh_frame_run = 3
+    monkeypatch.setattr(app.time, 'monotonic', lambda: 106.1)
+    assert VideoPanel._restart_pipeline(model) is False
+    assert states == []
+    assert model._retry_source_id is None and model._stale_retry_pending is False
+
+
+def test_preroll_without_any_frame_still_retries(monkeypatch):
+    # srtsrc stuck in PAUSED (pending PLAYING) never sets _pipeline_live.
+    model = _StalledVideo()
+    model._pipeline_live = False
+    model._last_frame_monotonic = None
+    model._fresh_frame_run = 0
+    model._sample_start = 100.0
+    _health_tick(monkeypatch, model, 104.9)
+    assert model.reconnects == 0
+    _health_tick(monkeypatch, model, 105.2)
+    assert model.reconnects == 1
+
+
+def test_endpoint_change_always_restarts_even_after_a_recovered_watchdog(monkeypatch):
+    from operator_console import app
+    from operator_console.app import VideoPanel
+    from types import SimpleNamespace
+    states = []
+    source = SimpleNamespace(set_property=lambda *a: None)
+    model = _StalledVideo()
+    model._pipeline = SimpleNamespace(set_state=states.append,
+                                      get_by_name=lambda name: source)
+    model._endpoint = ('10.0.0.1', 5000, 120)
+    model._stale_retry_pending = True
+    model._retry_source_id = None
+    model._last_frame_monotonic = 106.0
+    model._fresh_frame_run = 3
+    model._restart_pipeline = lambda: VideoPanel._restart_pipeline(model)
+    monkeypatch.setattr(app.time, 'monotonic', lambda: 106.1)
+    VideoPanel.set_endpoint(model, '10.0.0.2')
+    assert states[-1] == app.Gst.State.PLAYING
