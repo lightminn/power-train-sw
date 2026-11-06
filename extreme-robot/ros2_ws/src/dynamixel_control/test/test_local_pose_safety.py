@@ -29,7 +29,8 @@ def bridge():
              '_require_manual_lock_arm_stopped', '_require_no_manual_arm_command',
              '_toolchanger_command',
              '_toolchanger_command_locked', '_toolchanger_snapshot', '_local_wrist_command',
-             '_hold_local_wrist', '_wrist_lock_ok', '_local_wrist_deadman'}
+             '_hold_local_wrist', '_hold_local_wrist_position', '_tool_axis_motor',
+             '_wrist_lock_ok', '_local_wrist_deadman'}
     methods = [n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name in names]
     config = next(n for n in tree.body if isinstance(n, ast.Assign)
                   and any(isinstance(t, ast.Name) and t.id == 'JOINT_CONFIG'
@@ -39,11 +40,12 @@ def bridge():
     namespace = dict(json=json, math=math, time=SimpleNamespace(monotonic=lambda: clock[0]),
                      JOINT_CONFIG=joints, ARM_IDS={c['id'] for c in joints.values()},
                      calib_math=calib_math, joint_limits=joint_limits, LockError=LockError,
-                     String=SimpleNamespace,
+                     String=SimpleNamespace, TOOL_AXIS=6, TOOL_AXIS_MOTORS={},
                      DXL_EXTENDED_MIN_TICK=-1048575, DXL_EXTENDED_MAX_TICK=1048575,
                      DXL_MINIMUM_POSITION_VALUE=0, DXL_MAXIMUM_POSITION_VALUE=4095)
     exec(compile(ast.Module(body=methods, type_ignores=[]), str(SOURCE), 'exec'), namespace)
     b = SimpleNamespace(
+        tool_discovered=False, tool_detached=False, tool_type='spur_1motor_gripper',
         control_mode='MANUAL', control_scope='FULL_ROBOT', read_only=False,
         emergency_stop_active=False, mock_mode=False, _bus_lock=threading.RLock(),
         _wrist_jog=SimpleNamespace(deadline=None), _pose_move=None,
@@ -69,7 +71,8 @@ def bridge():
         b.registers[i][address] = value
 
     b._write_register = write
-    b.get_logger = lambda: SimpleNamespace(info=lambda _: None, warn=b.warnings.append)
+    b.get_logger = lambda: SimpleNamespace(info=lambda _: None, warn=b.warnings.append,
+                                            error=b.warnings.append)
     for name in names:
         setattr(b, name, namespace[name].__get__(b))
     return b

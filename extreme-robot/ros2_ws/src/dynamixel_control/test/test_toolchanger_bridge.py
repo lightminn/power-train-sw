@@ -100,7 +100,7 @@ def test_active_arm_command_rejects_lock_without_motor_write():
     assert 'jog' in replies[-1]['command_error']
 
 
-def test_stationary_gate_reads_live_arm_velocity_error_and_pending_goal():
+def test_stopped_gate_refuses_only_a_hardware_error():
     from dynamixel_control.toolchanger_lock import LockError
     import pytest
     registers = {70: 0, 128: 0, 132: 2525, 116: 2525}
@@ -111,12 +111,10 @@ def test_stationary_gate_reads_live_arm_velocity_error_and_pending_goal():
         lambda: MoveItDynamixelBridge._require_no_manual_arm_command(bridge))
     check = lambda: MoveItDynamixelBridge._require_manual_lock_arm_stopped(bridge)
     check()
-    for address, value in ((70, 32), (128, 1), (116, 2538)):
-        original = registers[address]
-        registers[address] = value
-        with pytest.raises(LockError, match='stationary'):
-            check()
-        registers[address] = original
+    registers[70] = 32
+    with pytest.raises(LockError, match='hardware error'):
+        check()
+    registers[70] = 0
     bridge.active_ids = set()
     with pytest.raises(LockError, match='no active arm'):
         check()

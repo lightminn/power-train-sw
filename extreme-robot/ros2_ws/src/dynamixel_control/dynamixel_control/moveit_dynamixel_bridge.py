@@ -277,6 +277,23 @@ def _parse_gear_ratios(entries):
     return out, errors
 
 
+# Keyboard axis 6 drives the fitted tool's motor: (ID, operating mode). The excavator
+# took over the spur gripper's ID5, and only ID3 drives the rack gripper.
+TOOL_AXIS = 6
+TOOL_AXIS_MOTORS = {'spur_1motor_gripper': (5, 3), 'dual_motor_gripper': (3, 4)}
+# How far the goal may lead the motor. A small lead asks for too little PWM to
+# back-drive the rack gripper's limp ID4 gearbox; Goal PWM still caps the force.
+TOOL_AXIS_LEAD_TICKS = 256
+
+
+def _valid_pose_speeds(speeds):
+    """Five joint speeds in deg/s, each 1..60."""
+    if (not isinstance(speeds, list) or len(speeds) != 5
+            or any(type(v) not in (int, float) or not 1 <= v <= 60 for v in speeds)):
+        raise ValueError('pose speeds must be five values within 1..60 deg/s')
+    return [float(v) for v in speeds]
+
+
 def _parse_goal_pwms(entries):
     """`["arm_joint_1:750"]` -> ({joint: pwm}, errors). 1..885 only (XM/XL PWM limit)."""
     values, errors = {}, []
@@ -344,7 +361,7 @@ class _LockMotorIO:
         self.bridge = bridge
         self.mock = {'model': 1060, 'mode': 3, 'drive_mode': 0, 'error': 0, 'position': 2048,
                      'velocity': 0, 'torque': 0, 'profile_velocity': 5,
-                     'profile_acceleration': 1, 'load': 0}
+                     'profile_acceleration': 1, 'load': 0, 'pwm': 0, 'goal_pwm': 885}
 
     def read(self):
         b = self.bridge
@@ -364,7 +381,9 @@ class _LockMotorIO:
                 'profile_velocity': b._read_register(1, ADDR_PROFILE_VELOCITY, 4, 'lock profile velocity'),
                 'profile_acceleration': b._read_register(1, ADDR_PROFILE_ACCELERATION, 4, 'lock profile acceleration'),
                 # XL430 Present Load(126, 0.1% 단위)는 결합 추정 프록시로만 쓴다.
-                'load': b._read_register(1, 126, 2, 'lock load', signed=True)}
+                'load': b._read_register(1, 126, 2, 'lock load', signed=True),
+                'pwm': b._read_register(1, 124, 2, 'lock pwm', signed=True),
+                'goal_pwm': b._read_register(1, 100, 2, 'lock goal pwm')}
 
     def write(self, field, value):
         b = self.bridge
@@ -379,8 +398,10 @@ class _LockMotorIO:
                 self.mock['profile_acceleration'] = value
             elif field == 'velocity_profile':
                 self.mock['profile_velocity'] = value
+            elif field == 'goal_pwm':
+                self.mock['goal_pwm'] = value
             return
-        address, size = {'goal': (ADDR_GOAL_POSITION, 4),
+        address, size = {'goal': (ADDR_GOAL_POSITION, 4), 'goal_pwm': (100, 2),
                          'torque': (ADDR_TORQUE_ENABLE, 1),
                          'acceleration': (ADDR_PROFILE_ACCELERATION, 4),
                          'velocity_profile': (ADDR_PROFILE_VELOCITY, 4)}[field]
@@ -481,6 +502,15 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                                         self.get_parameter('local_pose_joint_delays_s').value]
         self.local_pose_joint_speeds = [float(v) for v in
                                         self.get_parameter('local_pose_joint_speeds_deg_s').value]
+        # Speeds set from the console outlive a bridge restart here.
+        self.declare_parameter('local_pose_speeds_file', '')
+        self.local_pose_speeds_file = str(self.get_parameter('local_pose_speeds_file').value)
+        if self.local_pose_speeds_file and Path(self.local_pose_speeds_file).exists():
+            try:
+                self.local_pose_joint_speeds = _valid_pose_speeds(
+                    json.loads(Path(self.local_pose_speeds_file).read_text()))
+            except (ValueError, TypeError, OSError) as exc:
+                self.get_logger().warn(f'pose speed file ignored: {exc}')
         self.local_poses_file = str(self.get_parameter('local_poses_file').value)
         self._local_poses = self._load_local_poses()
         self._pose_move = None
@@ -509,6 +539,7 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
         self.declare_parameter('toolchanger_points_file', '')
         self.declare_parameter('toolchanger_state_tolerance_ticks', 20)
         self.declare_parameter('toolchanger_locked_tolerance_ticks', -1)  # -1: same as above
+        self.declare_parameter('toolchanger_goal_pwm', 0)  # 0: no cap, no PWM seating
         # 0이면 결합 부하 프록시를 끈다. 실측 전에는 기본값을 쓰지 않는다.
         self.declare_parameter('toolchanger_coupling_load_threshold', 0)
         self.declare_parameter('toolchanger_mock_load', 0)
@@ -837,6 +868,9 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                     self.get_parameter('toolchanger_locked_tolerance_ticks').value)
                 if locked_tolerance >= 0:
                     self.toolchanger.locked_tolerance = locked_tolerance
+                lock_pwm = int(self.get_parameter('toolchanger_goal_pwm').value)
+                if lock_pwm > 0:
+                    self.toolchanger.goal_pwm_limit = lock_pwm
                 points_file = self.get_parameter('toolchanger_points_file').value
                 if points_file and Path(points_file).exists():
                     self.toolchanger.load_points(points_file)
@@ -2372,6 +2406,7 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
     def _write_register(self, dxl_id, address, size, value, label):
         writer = {
             1: self.packet_handler.write1ByteTxRx,
+            2: self.packet_handler.write2ByteTxRx,
             4: self.packet_handler.write4ByteTxRx,
         }[size]
         result, error = writer(
@@ -3233,8 +3268,18 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
             self.joint_state_pub.publish(msg)
 
     def _hold_local_wrist(self):
+        # Also runs from timers and except paths, where a raise kills the bridge
+        # (a servo in hardware error, or a tool pulled mid-jog).
+        try:
+            self._hold_local_wrist_position()
+        except Exception as exc:
+            self.get_logger().error(f'local jog hold failed: {exc}')
+        self._wrist_jog.deadline = None
+
+    def _hold_local_wrist_position(self):
         dxl_id = getattr(self, '_local_jog_id', 16)
-        if dxl_id in self.active_ids and not self.mock_mode and not self.read_only:
+        if ((dxl_id in self.active_ids or dxl_id in (3, 5))
+                and not self.mock_mode and not self.read_only):
             position = self._read_register(dxl_id, 132, 4, 'wrist stop position', signed=True)
             stop = position
             velocity = self._read_register(dxl_id, 128, 4, 'wrist stop velocity', signed=True)
@@ -3252,7 +3297,57 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                 elif accel > 0:
                     stop = goal if (goal - position) * velocity < 0 else position
             self._write_register(dxl_id, 116, 4, stop & 0xffffffff, 'wrist hold')
-        self._wrist_jog.deadline = None
+
+    def _tool_axis_motor(self):
+        """(ID, operating mode) keyboard axis 6 drives, or None without such a tool."""
+        if (not self.tool_discovered or getattr(self, '_physical_tool_detached', False)
+                or self.tool_detached):
+            return None
+        return TOOL_AXIS_MOTORS.get(self.tool_type)
+
+    def _enable_tool_axis(self, dxl_id, mode, position):
+        """Torque ON at the present tick, with the speed and force cap applied first."""
+        if self._read_register(dxl_id, 11, 1, 'tool axis mode') != mode:
+            raise RuntimeError(f'ID{dxl_id} must be in operating mode {mode}')
+        if dxl_id == 3:  # the rack gripper's meshed ID4 follows limp
+            self._write_register(4, 64, 1, 0, 'ID4 torque off')
+            if self._read_register(4, 64, 1, 'ID4 torque readback') != 0:
+                raise RuntimeError('ID4 torque did not turn OFF')
+        profile = self.tool_profile
+        pwm = profile.get('axis_goal_pwm', profile['goal_pwm'])
+        self._write_register(dxl_id, 100, 2, int(pwm), 'tool axis PWM')
+        self._write_register(dxl_id, 108, 4, int(profile['profile_acceleration']),
+                             'tool axis acceleration')
+        self._write_register(dxl_id, 112, 4, int(profile['profile_velocity']),
+                             'tool axis velocity')
+        self._write_register(dxl_id, 116, 4, position & 0xffffffff, 'tool axis goal sync')
+        self._write_register(dxl_id, 64, 1, 1, 'tool axis torque on')
+
+    def _jog_tool_axis(self, dxl_id, mode, request, direction):
+        """One jog step. Endpoints are not trusted here: Goal PWM limits a stall."""
+        if (self.control_mode != 'MANUAL' or self.emergency_stop_active
+                or not self._wrist_lock_ok()):
+            raise RuntimeError('tool axis manual/lock gate is not ready')
+        if self._read_register(dxl_id, 70, 1, 'tool axis error') != 0:
+            raise RuntimeError(f'ID{dxl_id} hardware error')
+        level = int(request.get('speed_level', 5))
+        if not 0 <= level <= 10:
+            raise ValueError('local jog speed level must be 0..10')
+        self._local_speed_level = level
+        position = self._read_register(dxl_id, 132, 4, 'tool axis position', signed=True)
+        if self._read_register(dxl_id, 64, 1, 'tool axis torque') != 1:
+            self._enable_tool_axis(dxl_id, mode, position)
+        step = round(self.local_jog_step_rad * 4096 / (2 * math.pi) * level / 5)
+        goal = self._read_register(dxl_id, 116, 4, 'tool axis goal', signed=True)
+        target = goal + direction * step
+        target = min(position + TOOL_AXIS_LEAD_TICKS,
+                     max(position - TOOL_AXIS_LEAD_TICKS, target))
+        if mode == 3:  # single-turn position mode rejects anything outside this
+            target = min(4095, max(0, target))
+        self._write_register(dxl_id, 116, 4, target & 0xffffffff, 'tool axis jog')
+        sample = self._tool_samples.get(dxl_id)
+        if sample is not None:  # a tool fitted at startup is not in the SyncRead
+            sample['position'] = position
 
     def _local_wrist_command(self, msg):
         if (not self.manual_coupling_lock or self.control_scope != 'FULL_ROBOT'
@@ -3280,19 +3375,26 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                         self.torque_enabled_ids.add(16)
                     return
                 axes = (1, 2, 3, 4, 5) if self.local_jog_all_axes else (5,)
+                tool_motor = self._tool_axis_motor() if self.local_jog_all_axes else None
+                if tool_motor is not None:
+                    axes += (TOOL_AXIS,)
                 direction = self._wrist_jog.accept(request, time.monotonic(), axes)
                 self._hold_local_pose()
                 if direction == 0:
                     self._hold_local_wrist()
                     return
+                tool_axis = request['axis'] == TOOL_AXIS
                 joint = f"arm_joint_{request['axis']}"
-                dxl_id = JOINT_CONFIG[joint]['id']
+                dxl_id = tool_motor[0] if tool_axis else JOINT_CONFIG[joint]['id']
                 if dxl_id != getattr(self, '_local_jog_id', 16):
                     # Switching axes: freeze the previous one first.
                     deadline = self._wrist_jog.deadline
                     self._hold_local_wrist()
                     self._wrist_jog.deadline = deadline
                     self._local_jog_id = dxl_id
+                if tool_axis:
+                    self._jog_tool_axis(*tool_motor, request, direction)
+                    return
                 if (self.control_mode != 'MANUAL' or self.emergency_stop_active
                         or not self._wrist_lock_ok() or dxl_id not in self.active_ids):
                     raise RuntimeError('local wrist manual/lock gate is not ready')
@@ -3409,6 +3511,14 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
             try:
                 request = json.loads(msg.data)
                 command = request.get('command')
+                if command == 'SPEEDS':
+                    self.local_pose_joint_speeds = _valid_pose_speeds(request.get('speeds'))
+                    if self.local_pose_speeds_file:
+                        Path(self.local_pose_speeds_file).write_text(
+                            json.dumps(self.local_pose_joint_speeds))
+                    self.get_logger().info(
+                        f'local pose speeds: {self.local_pose_joint_speeds}')
+                    return
                 name = ('home' if command == 'HOME' else command.lower()
                         if command in ('FREEDRIVE', 'FREEDRIVE_RELEASE')
                         else str(request.get('name') or '').strip().lower())
@@ -3529,6 +3639,7 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                         starts[dxl_id] = now
                         self._pose_move['pending'].remove(item)
                 arrived = not self._pose_move['pending']
+                ticks = {}
                 for dxl_id in self._pose_move['ids']:
                     if dxl_id not in starts:
                         continue  # delayed joint has no goal yet
@@ -3539,6 +3650,16 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
                     position = self._read_register(dxl_id, 132, 4, 'pose position', signed=True)
                     goal = self._read_register(dxl_id, 116, 4, 'pose goal', signed=True)
                     arrived = arrived and abs(goal - position) <= 20
+                    ticks[dxl_id] = position
+                if not arrived and not self._pose_move['pending']:
+                    # A stiff joint stops short of its goal; an open move would
+                    # block slot starts, tool detection and the lock indefinitely.
+                    last = self._pose_move.get('still')
+                    if last is None or any(abs(ticks[i] - last[i]) > 3 for i in ticks):
+                        self._pose_move.update(still=ticks, still_at=now)
+                    elif now - self._pose_move['still_at'] >= 1.0:
+                        arrived = True
+                        self.get_logger().warn(f'local pose ended short of its goal: {ticks}')
                 if arrived:
                     move, self._pose_move = self._pose_move, None
                     self._restore_jog_profile(move)
@@ -3563,7 +3684,11 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
             raise LockError('release wrist jog before moving the coupling lock')
 
     def _require_manual_lock_arm_stopped(self):
-        """Tool-change paths also need the arm settled at its commanded goal."""
+        """Tool-change paths only refuse a joint in hardware error.
+
+        Goal distance and velocity are not checked: a stiff joint stops short and
+        jitters, which would block tool detection and the lock for good.
+        """
         self._require_no_manual_arm_command()
         if self.mock_mode:
             return
@@ -3572,12 +3697,8 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
             raise LockError('no active arm feedback')
         with self._bus_lock:
             for motor_id in arm_ids:
-                error = self._read_register(motor_id, 70, 1, 'arm lock error')
-                velocity = self._read_register(motor_id, 128, 4, 'arm lock velocity', signed=True)
-                position = self._read_register(motor_id, 132, 4, 'arm lock position', signed=True)
-                goal = self._read_register(motor_id, 116, 4, 'arm lock goal', signed=True)
-                if error or velocity != 0 or abs(goal - position) > 12:
-                    raise LockError('arm must be stationary at its commanded position')
+                if self._read_register(motor_id, 70, 1, 'arm lock error'):
+                    raise LockError(f'ID{motor_id} hardware error')
 
     def _toolchanger_command(self, msg):
         with self._bus_lock:
@@ -4030,6 +4151,7 @@ class MoveItDynamixelBridge(ToolChangeBridge, LocalToolChangeBridge, Node):
             'poses': (sorted(self._local_poses)
                       if self.local_jog_all_axes and self.local_poses_file else None),
             'local_jog_speed_level': getattr(self, '_local_speed_level', 5),
+            'pose_speeds_deg_s': list(getattr(self, 'local_pose_joint_speeds', [])),
             'arm_calibration': (self._range_cal.snapshot()
                                 if getattr(self, '_range_cal', None) else None),
             'local_tool_change': (self._tc_snapshot()

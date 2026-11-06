@@ -15,6 +15,8 @@ tool_profiles:
     safe_max_tick: 3752
     profile_velocity: 20
     profile_acceleration: 5
+    # Keyboard axis 6 has no endpoints yet, so this cap is what limits a stall.
+    goal_pwm: 400
     no_load_effort: null
     grasp_effort: null
     grasp_threshold: null
@@ -46,6 +48,8 @@ tool_profiles:
     release_drop_threshold: 200
     action_time: 2.5
     goal_pwm: 280
+    # ID3 alone has to back-drive the limp ID4 gearbox and a stiff rack.
+    axis_goal_pwm: 800
     max_abs_effort: 500
     open_position: 1.9444444444444444
     close_position: 0.0

@@ -15,8 +15,26 @@ from dynamixel_control.bench_tool_change import (
 
 # Same window the coupling lock uses to call the arm stationary at its goal.
 ARRIVAL_TICKS = 12
+# A stiff joint can stop short of ARRIVAL_TICKS with no integral term to finish the
+# move, and its reported velocity jitters. Once no joint has moved over SETTLE_TICKS
+# for SETTLE_S the step counts as done, off by however much; the warning logged then
+# is the only trace of the error.
+SETTLE_S = 1.0
+SETTLE_TICKS = 3
+# Before giving up on a joint that settled short, lead its goal once by this much:
+# position control eases off near the goal, so a stiff joint needs the extra PWM.
+KICK_TICKS = 128
+# The rack gripper's stiffness needs a lead on the goal to reach full Goal PWM, and
+# breaking loose takes longer than an arm joint settling.
+TOOL_LEAD_TICKS = 256
+TOOL_SETTLE_S = 2.0
 # One Profile Velocity unit (0.229 rev/min) in ticks per second.
 TICKS_PER_PROFILE_UNIT_S = 0.229 * 4096 / 60
+
+
+# Post-fit check travel. The rack gripper opens toward +; the excavator's sense of
+# up is unverified. Neither is checked against calibrated endpoints.
+TOOL_EXERCISE_TICKS = {'dual_motor_gripper': 600, 'spur_1motor_gripper': 300}
 
 
 class LocalToolChangeBridge:
@@ -28,6 +46,9 @@ class LocalToolChangeBridge:
         self.declare_parameter('local_tool_change_rise_m', 0.05)
         self.declare_parameter('local_tool_change_step_m', 0.005)
         self.declare_parameter('local_tool_change_speed_mps', 0.01)
+        self.declare_parameter('local_tool_change_extra_rise_m', 0.0)
+        self._tc_extra_rise_m = float(
+            self.get_parameter('local_tool_change_extra_rise_m').value)
         # ID3 raw tick (0..4095) for returning the rack gripper; -1 skips the step.
         self.declare_parameter('local_tool_change_gripper_tick', -1)
         self._tc_gripper_tick = int(
@@ -58,14 +79,21 @@ class LocalToolChangeBridge:
         self._tc_goals = {}
         self._tc_lock_desired = None
         self._tc_tool_goal = None
+        self._tc_exercise = None
+        self._tc_still_since = None
+        self._tc_settle_ticks = None
+        self._tc_kicked = {}
+        self._tc_tool_still = None
         self._tc_error = ''
         self._tc_was_running = False
         self._tool_change = BenchToolChange(
             move=self._tc_move, arrived=self._tc_arrived, lock=self._tc_lock,
             lock_state=self._tc_lock_state, attached_tool=self._tc_attached_tool,
-            hold=self._tc_hold, stop_lock=self._stop_toolchanger,
+            hold=self._tc_hold, stop_lock=self._tc_stop_lock,
             permission=self._tc_permission, tool_tick=self._tc_tool_tick,
-            tool_tick_arrived=self._tc_tool_tick_arrived, clock=clock)
+            tool_tick_arrived=self._tc_tool_tick_arrived,
+            tool_exercise=self._tc_tool_exercise,
+            tool_exercise_done=self._tc_tool_exercise_done, clock=clock)
 
     def _tc_running(self):
         change = getattr(self, '_tool_change', None)
@@ -122,11 +150,19 @@ class LocalToolChangeBridge:
         if not home:
             raise RuntimeError("save a pose named 'home' first")
         self._tc_stationary_pose()
-        steps = plan(self._tc_store.data, self._tc_attached_tool(), tool_type, home,
+        from dynamixel_control.moveit_dynamixel_bridge import JOINT_CONFIG
+        off = [name for name, config in JOINT_CONFIG.items()
+               if self._read_register(config['id'], 64, 1, 'tool change torque') != 1]
+        if off:  # a limp joint never arrives, so this would end as a step timeout
+            raise RuntimeError(f'turn torque on first: {", ".join(off)}')
+        steps = plan(self._tc_store.data, self._tc_attached_tool(),
+                     None if tool_type == 'none' else tool_type, home,
                      rise_m=self._tc_rise_m, step_m=self._tc_step_m, dry_run=dry_run,
                      limits=limits,
                      tick_tools=('dual_motor_gripper',)
-                     if getattr(self, '_tc_gripper_tick', -1) >= 0 else ())
+                     if getattr(self, '_tc_gripper_tick', -1) >= 0 else (),
+                     exercise_tools=tuple(TOOL_EXERCISE_TICKS),
+                     extra_rise_m=getattr(self, '_tc_extra_rise_m', 0.0))
         self._tc_trip = trip
         self._tool_change.start(steps)
         self._tc_was_running = True
@@ -143,8 +179,6 @@ class LocalToolChangeBridge:
         for name, config in JOINT_CONFIG.items():
             if config['id'] not in self.active_ids:
                 raise RuntimeError(f'{name} is not connected; all five arm joints are required')
-            if self._read_register(config['id'], 128, 4, 'tool change velocity', signed=True):
-                raise RuntimeError('arm must be stationary')
             pose[name] = self.tick_to_rad(name, self._read_register(
                 config['id'], 132, 4, 'tool change position', signed=True))
         return pose
@@ -198,12 +232,36 @@ class LocalToolChangeBridge:
 
     def _tc_arrived(self, pose):
         if self._tc_stream is not None:
+            self._tc_settle_ticks = self._tc_still_since = None
             return False
-        for dxl_id, tick in self._tc_targets(pose).values():
-            if (self._read_register(dxl_id, 128, 4, 'tool change velocity', signed=True)
-                    or abs(self._read_register(dxl_id, 132, 4, 'tool change position',
-                                               signed=True) - tick) > ARRIVAL_TICKS):
+        ticks, targets = {}, self._tc_targets(pose)
+        for joint, (dxl_id, _tick) in targets.items():
+            ticks[joint] = self._read_register(
+                dxl_id, 132, 4, 'tool change position', signed=True)
+        short = {joint: ticks[joint] - tick for joint, (_id, tick) in targets.items()
+                 if abs(ticks[joint] - tick) > ARRIVAL_TICKS}
+        if short:
+            now = self._tc_clock()
+            last = self._tc_settle_ticks
+            if last is None or any(abs(ticks[j] - last[j]) > SETTLE_TICKS for j in ticks):
+                self._tc_settle_ticks, self._tc_still_since = ticks, now
                 return False
+            if now - self._tc_still_since < SETTLE_S:
+                return False
+            if not self._tc_kicked:
+                for joint, error in short.items():
+                    dxl_id, tick = targets[joint]
+                    kick = tick + (KICK_TICKS if error < 0 else -KICK_TICKS)
+                    self._write_register(dxl_id, 116, 4, kick & 0xffffffff, 'tool change kick')
+                    self._tc_kicked[dxl_id] = joint
+                self._tc_settle_ticks = None
+                return False
+            self.get_logger().warn(f'tool change continuing short of target: {short}')
+        for dxl_id, joint in self._tc_kicked.items():
+            self._write_register(dxl_id, 116, 4, ticks[joint] & 0xffffffff, 'tool change hold')
+            self._tc_goals[dxl_id] = ticks[joint]
+        self._tc_kicked = {}
+        self._tc_settle_ticks = self._tc_still_since = None
         return True
 
     def _tc_tool_tick(self, _tool):
@@ -221,19 +279,70 @@ class LocalToolChangeBridge:
             raise RuntimeError('ID4 torque did not turn OFF')
         self._write_register(3, 64, 1, 0, 'ID3 torque off')
         profile = self.tool_profile
-        self._write_register(3, 100, 2, int(profile['goal_pwm']), 'ID3 goal PWM')
+        pwm = profile.get('axis_goal_pwm', profile['goal_pwm'])
+        self._write_register(3, 100, 2, int(pwm), 'ID3 goal PWM')
         self._write_register(3, 108, 4, int(profile['profile_acceleration']), 'ID3 acceleration')
         self._write_register(3, 112, 4, int(profile['profile_velocity']), 'ID3 velocity')
         present = self._read_register(3, 132, 4, 'ID3 present', signed=True)
         self._write_register(3, 116, 4, present & 0xffffffff, 'ID3 goal sync')
         self._write_register(3, 64, 1, 1, 'ID3 torque on')
         goal = present + (self._tc_gripper_tick - present + 2048) % 4096 - 2048
-        self._write_register(3, 116, 4, goal & 0xffffffff, 'ID3 goal')
-        self._tc_tool_goal = goal
+        lead = TOOL_LEAD_TICKS if goal > present else -TOOL_LEAD_TICKS
+        self._write_register(3, 116, 4, (goal + lead) & 0xffffffff, 'ID3 goal')
+        self._tc_tool_goal, self._tc_tool_lead, self._tc_tool_still = goal, lead, None
+
+    def _tc_tool_settled(self, present):
+        now = self._tc_clock()
+        still = self._tc_tool_still
+        if still is None or abs(present - still[0]) > SETTLE_TICKS:
+            self._tc_tool_still = (present, now)
+            return False
+        return now - still[1] >= TOOL_SETTLE_S
 
     def _tc_tool_tick_arrived(self):
         present = self._read_register(3, 132, 4, 'ID3 present', signed=True)
-        return abs(present - self._tc_tool_goal) <= 20
+        goal = self._tc_tool_goal
+        if abs(present - goal) > 20 and (goal - present) * self._tc_tool_lead > 0:
+            if not self._tc_tool_settled(present):
+                return False
+            self.get_logger().warn(f'ID3 stopped at {present}, short of tick goal {goal}')
+        self._write_register(3, 116, 4, present & 0xffffffff, 'ID3 hold')
+        return True
+
+    def _tc_stop_lock(self):
+        """Stop a moving lock only: stopping cuts its torque, and an idle lock holds the tool."""
+        lock = self.toolchanger
+        if lock is not None and lock.target is not None:
+            self._stop_toolchanger()
+
+    def _tc_tool_exercise(self, tool):
+        """Move a just-fitted tool out and back: +ticks opens the rack gripper."""
+        motor = self._tool_axis_motor()
+        if motor is None:
+            raise RuntimeError(f'{tool} is not fitted')
+        dxl_id, mode = motor
+        if self._read_register(dxl_id, 70, 1, 'tool exercise error') != 0:
+            raise RuntimeError(f'ID{dxl_id} hardware error')
+        self._write_register(dxl_id, 64, 1, 0, 'tool exercise torque off')
+        start = self._read_register(dxl_id, 132, 4, 'tool exercise start', signed=True)
+        self._enable_tool_axis(dxl_id, mode, start)
+        out = start + TOOL_EXERCISE_TICKS[tool]
+        if mode == 3:
+            out = min(4095, out)
+        self._tc_exercise = {'id': dxl_id, 'goals': [out, start], 'goal': None}
+
+    def _tc_tool_exercise_done(self):
+        run = self._tc_exercise
+        if run['goal'] is not None:
+            present = self._read_register(run['id'], 132, 4, 'tool exercise', signed=True)
+            if abs(present - run['goal']) > 20 and not self._tc_tool_settled(present):
+                return False
+        if not run['goals']:
+            return True
+        run['goal'] = run['goals'].pop(0)
+        self._tc_tool_still = None
+        self._write_register(run['id'], 116, 4, run['goal'] & 0xffffffff, 'tool exercise goal')
+        return False
 
     def _tc_lock(self, desired):
         self._require_manual_lock_arm_stopped()
@@ -260,9 +369,17 @@ class LocalToolChangeBridge:
     def _tc_hold(self):
         from dynamixel_control.moveit_dynamixel_bridge import JOINT_CONFIG
         self._tc_stream = None
+        self._tc_kicked = {}
+        tool_motor = None
         if self._tc_tool_goal is not None:
-            self._tc_tool_goal = None
-            self._write_register(3, 64, 1, 0, 'ID3 torque off')
+            self._tc_tool_goal, tool_motor = None, 3
+        if self._tc_exercise is not None:
+            tool_motor, self._tc_exercise = self._tc_exercise['id'], None
+        if tool_motor is not None:
+            try:
+                self._write_register(tool_motor, 64, 1, 0, 'tool torque off')
+            except RuntimeError as exc:  # a tool that fell off must not cancel the arm hold
+                self.get_logger().warn(str(exc))
         for config in JOINT_CONFIG.values():
             if config['id'] in self.active_ids:
                 position = self._read_register(config['id'], 132, 4,

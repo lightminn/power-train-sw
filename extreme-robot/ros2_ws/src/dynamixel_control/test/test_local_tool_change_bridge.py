@@ -53,8 +53,8 @@ class Lock:
 class Rig(LocalToolChangeBridge):
     def __init__(self, tmp_path):
         self.now = 0.0
-        self.registers = {c['id']: {126: 0, 128: 0, 132: c['center'], 116: c['center'],
-                                    112: 50} for c in JOINTS.values()}
+        self.registers = {c['id']: {64: 1, 126: 0, 128: 0, 132: c['center'],
+                                    116: c['center'], 112: 50} for c in JOINTS.values()}
         self.local_jog_trip_threshold = 500
         self.writes, self.warnings, self.infos = [], [], []
         self.active_ids = set(self.registers)
@@ -69,8 +69,15 @@ class Rig(LocalToolChangeBridge):
         self._bus_lock = threading.RLock()
         self._local_poses = {'home': {'arm_joint_2': 0.3, 'arm_joint_3': 0.6}}
         self.stopped_lock = 0
+        self.exercised = []
         self._tc_configure(str(tmp_path / 'slots.json'), list(JOINTS), 0.05, 0.01, 0.02,
                            clock=lambda: self.now)
+
+    def _tc_tool_exercise(self, tool):
+        self.exercised.append(tool)
+
+    def _tc_tool_exercise_done(self):
+        return True
 
     def _read_register(self, i, address, *args, **kwargs):
         return self.registers[i][address]
@@ -150,7 +157,7 @@ def above(base):
 
 
 def teach(rig):
-    for slot, tool, j1 in (('1', 'spur_1motor_gripper', 0.1), ('2', 'dual_motor_gripper', -0.1)):
+    for slot, tool, j1 in (('1', 'spur_1motor_gripper', -0.05), ('2', 'dual_motor_gripper', -0.1)):
         for pose, which in ((seat(j1), 'seat'), (above(seat(j1)), 'above')):
             rig.place(pose)
             rig.command(command='CAPTURE', slot=slot, tool_type=tool, pose=which)
@@ -212,6 +219,16 @@ def test_exchange_returns_the_attached_tool_first(tmp_path):
     rig.run(on_lock=detection)
     assert rig._tool_change.state == 'DONE', rig._tool_change.error
     assert rig.toolchanger.moves == ['UNLOCKED', 'LOCKED']
+    assert rig.exercised == ['dual_motor_gripper']
+
+
+def test_start_names_a_joint_with_torque_off(tmp_path):
+    rig = Rig(tmp_path)
+    teach(rig)
+    rig.registers[JOINTS['arm_joint_5']['id']][64] = 0
+    rig.command(command='START', tool_type='spur_1motor_gripper')
+    assert not rig._tc_running()
+    assert 'arm_joint_5' in rig._tc_error
 
 
 def test_stop_command_holds_the_arm_and_stops_the_lock(tmp_path):
@@ -221,12 +238,19 @@ def test_stop_command_holds_the_arm_and_stops_the_lock(tmp_path):
     rig.run(steps=3)
     rig.command(command='STOP')
     assert rig._tool_change.state == 'ABORTED'
-    assert rig.stopped_lock == 1
+    assert rig.stopped_lock == 0  # idle, so the lock keeps holding the tool
     for regs in rig.registers.values():
         assert regs[116] == regs[132]
 
 
-@pytest.mark.parametrize('change', ['fsm', 'estop', 'missing_joint', 'moving', 'no_home'])
+def test_stop_during_a_lock_move_stops_the_lock(tmp_path):
+    rig = Rig(tmp_path)
+    rig.toolchanger.target = 'LOCKED'
+    rig._tc_stop_lock()
+    assert rig.stopped_lock == 1
+
+
+@pytest.mark.parametrize('change', ['fsm', 'estop', 'missing_joint', 'no_home'])
 def test_start_is_refused_when_unsafe(tmp_path, change):
     rig = Rig(tmp_path)
     teach(rig)
@@ -236,8 +260,6 @@ def test_start_is_refused_when_unsafe(tmp_path, change):
         rig.emergency_stop_active = True
     elif change == 'missing_joint':
         rig.active_ids.discard(JOINTS['arm_joint_4']['id'])
-    elif change == 'moving':
-        rig.registers[JOINTS['arm_joint_2']['id']][128] = 3
     else:
         rig._local_poses = {}
     before = list(rig.writes)
@@ -279,7 +301,7 @@ def test_without_dry_run_a_missing_coupling_lock_still_refuses(tmp_path):
 
 def test_capture_with_the_limit_switch_off_accepts_a_seat_past_a_limit(tmp_path):
     rig = Rig(tmp_path)
-    pose = dict(seat(0.1), arm_joint_2=1.9)
+    pose = dict(seat(-0.05), arm_joint_2=1.9)
     rig.place(pose)
     rig.command(command='CAPTURE', slot='1', tool_type='spur_1motor_gripper')
     assert 'joint limit' in rig._tc_error
@@ -307,8 +329,81 @@ def test_current_trip_aborts_the_exchange_only_when_switched_on(tmp_path, trip):
 
 def test_a_slot_without_the_above_pose_reports_incomplete_and_cannot_start(tmp_path):
     rig = Rig(tmp_path)
-    rig.place(seat(0.1))
+    rig.place(seat(-0.05))
     rig.command(command='CAPTURE', slot='1', tool_type='spur_1motor_gripper', pose='seat')
     assert rig._tc_snapshot()['incomplete'] == ['1']
     rig.command(command='START', tool_type='spur_1motor_gripper', dry_run=True)
     assert not rig._tc_running() and '5 cm above' in rig._tc_error
+
+
+def stopped_short(tmp_path):
+    rig = Rig(tmp_path)
+    pose = {name: 0.0 for name in JOINTS}
+    for name, config in JOINTS.items():
+        rig.registers[config['id']][132] = rig._tc_goal_tick(name, 0.0)
+    return rig, pose, rig.registers[JOINTS['arm_joint_1']['id']]
+
+
+def settle(rig, pose):
+    assert rig._tc_arrived(pose) is False
+    rig.now += 1.1
+    return rig._tc_arrived(pose)
+
+
+def test_a_stiff_joint_that_stops_short_is_kicked_once_then_continues(tmp_path):
+    rig, pose, joint = stopped_short(tmp_path)
+    target = joint[132]
+    joint[132] -= 31
+    assert settle(rig, pose) is False
+    assert joint[116] == target + 128
+    assert settle(rig, pose) is True
+    assert any('short of target' in text for text in rig.warnings)
+    assert joint[116] == joint[132]
+
+
+def test_a_kicked_joint_that_gets_there_is_held_where_it_stopped(tmp_path):
+    rig, pose, joint = stopped_short(tmp_path)
+    joint[132] -= 31
+    settle(rig, pose)
+    joint[132] += 25
+    assert rig._tc_arrived(pose) is True
+    assert joint[116] == joint[132]
+    assert not rig.warnings
+
+
+def test_a_fallen_tool_cannot_cancel_the_arm_hold(tmp_path):
+    rig, _pose, joint = stopped_short(tmp_path)
+    joint[116] = joint[132] + 50
+    rig._tc_tool_goal = -3970
+
+    def fail(i, address, *_args):
+        if i == 3:
+            raise RuntimeError('no reply')
+        rig.registers[i][address] = _args[1]
+
+    rig._write_register = fail
+    rig._tc_hold()
+    assert joint[116] == joint[132]
+
+
+def test_a_moving_joint_never_settles(tmp_path):
+    rig = Rig(tmp_path)
+    pose = {name: 0.0 for name in JOINTS}
+    for name, config in JOINTS.items():
+        rig.registers[config['id']][132] = rig._tc_goal_tick(name, 0.0)
+    regs = rig.registers[JOINTS['arm_joint_1']['id']]
+    regs[132] += 31
+    for _ in range(5):
+        assert rig._tc_arrived(pose) is False
+        rig.now += 1.0
+        regs[132] += 10
+
+
+def test_a_reported_velocity_jitter_blocks_neither_a_capture_nor_a_settle(tmp_path):
+    rig, pose, joint = stopped_short(tmp_path)
+    for regs in rig.registers.values():
+        regs[128] = 1
+    joint[132] += 31
+    rig._tc_stationary_pose()
+    assert settle(rig, pose) is False
+    assert settle(rig, pose) is True
