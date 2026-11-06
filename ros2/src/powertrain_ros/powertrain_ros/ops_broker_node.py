@@ -19,7 +19,7 @@ import uuid
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
-from std_msgs.msg import Int32MultiArray, MultiArrayDimension, MultiArrayLayout, String
+from std_msgs.msg import Bool, Int32MultiArray, MultiArrayDimension, MultiArrayLayout, String
 from std_srvs.srv import SetBool, Trigger
 
 from powertrain_ros.stop_proof import decode_hardware_stop_proof
@@ -177,6 +177,7 @@ class OpsBrokerNode(Node):
             String, "/tool/dual_calibration_command", 10)
         self._tool_single_calibration_pub = self.create_publisher(
             String, "/tool/calibration_command", 10)
+        self._arm_emergency_pub = self.create_publisher(Bool, "/tool/emergency_stop", 10)
         self._arm_calibration_pub = self.create_publisher(
             String, "/arm/calibration_command", 10)
         self._demo_auto_arm_pub = self.create_publisher(
@@ -571,7 +572,8 @@ class OpsBrokerNode(Node):
             command = {'robot_arm_pose_save': 'SAVE', 'robot_arm_pose_move': 'MOVE',
                        'robot_arm_pose_delete': 'DELETE', 'robot_arm_home': 'HOME',
                        'robot_arm_freedrive': 'FREEDRIVE',
-                       'robot_arm_freedrive_release': 'FREEDRIVE_RELEASE'}[order.action]
+                       'robot_arm_freedrive_release': 'FREEDRIVE_RELEASE',
+                       'robot_arm_pose_speeds': 'SPEEDS'}[order.action]
             self._local_pose_pub.publish(String(data=json.dumps(dict(order.params, command=command))))
             self._complete_order(order, connection, role, True,
                                  'published local pose request; verify joint feedback')
@@ -601,7 +603,7 @@ class OpsBrokerNode(Node):
                       else "robot_arm_jog_stop")
             try:
                 validate_local_wrist_request(action, dict(order.params))
-                axes = (1, 2, 3, 4, 5) if os.environ.get('ARM_LOCAL_ALL_AXES') == '1' else (5,)
+                axes = (1, 2, 3, 4, 5, 6) if os.environ.get('ARM_LOCAL_ALL_AXES') == '1' else (5,)
                 if type(order.params.get('axis')) is not int or order.params['axis'] not in axes:
                     raise ValueError(f'local bench supports only axes {axes}')
                 params = dict(order.params)
@@ -769,6 +771,10 @@ class OpsBrokerNode(Node):
             publisher.publish(String(data=json.dumps(
                 request, separators=(",", ":"), sort_keys=True)))
             self._complete_order(order, connection, role, True, "published tool calibration command")
+            return
+        if order.kind == "publish_arm_emergency_stop":
+            self._arm_emergency_pub.publish(Bool(data=True))
+            self._complete_order(order, connection, role, True, "published arm E-stop")
             return
         if order.kind == "run_arm_bridge_restart":
             if order.params:

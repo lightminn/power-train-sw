@@ -9,7 +9,7 @@ from dynamixel_control import bench_tool_change as T
 NAMES = ['arm_joint_1', 'arm_joint_2', 'arm_joint_3', 'arm_joint_4', 'arm_joint_5']
 
 
-def seat(q2=0.8, q3=1.0, j1=0.1):
+def seat(q2=0.8, q3=1.0, j1=-0.05):
     return {'arm_joint_1': j1, 'arm_joint_2': q2, 'arm_joint_3': q3,
             'arm_joint_4': 0.2, 'arm_joint_5': 0.0}
 
@@ -24,7 +24,7 @@ def above(base):
 
 def table():
     return {'version': 1, 'slots': {
-        '1': dict(tool_type='spur_1motor_gripper', seat=seat(j1=0.1), above=above(seat(j1=0.1))),
+        '1': dict(tool_type='spur_1motor_gripper', seat=seat(j1=-0.05), above=above(seat(j1=-0.05))),
         '2': dict(tool_type='dual_motor_gripper', seat=seat(j1=-0.1),
                   above=above(seat(j1=-0.1)))}}
 
@@ -45,18 +45,14 @@ def test_capture_saves_atomically_and_replaces_a_tools_old_slot(tmp_path):
     assert [p.name for p in tmp_path.iterdir()] == ['slots.json']
 
 
-@pytest.mark.parametrize('bad', ['head_turned', 'limit', 'above_first', 'other_tool'])
+@pytest.mark.parametrize('bad', ['limit', 'above_first', 'other_tool'])
 def test_capture_refuses_unusable_poses_without_touching_the_file(tmp_path, bad):
     path = tmp_path / 'slots.json'
     store = T.ToolSlotStore(str(path), NAMES)
     store.capture('1', 'spur_1motor_gripper', seat(), 'seat')
     before = path.read_text()
     with pytest.raises(ValueError):
-        if bad == 'head_turned':
-            pose = above(seat())
-            pose['arm_joint_4'] += 0.5
-            store.capture('1', 'spur_1motor_gripper', pose, 'above')
-        elif bad == 'limit':
+        if bad == 'limit':
             store.capture('1', 'spur_1motor_gripper', above(seat(q2=1.9)), 'above')
         elif bad == 'above_first':
             store.capture('2', 'dual_motor_gripper', above(seat()), 'above')
@@ -81,7 +77,8 @@ def names(steps):
 
 def test_no_tool_attached_only_fetches_the_requested_tool():
     steps = T.plan(table(), None, 'spur_1motor_gripper', HOME, rise_m=0.05, step_m=0.01)
-    assert names(steps) == [('MOVE_ABOVE', '1'), ('DESCEND', '1'), ('LOCK', '1'),
+    assert names(steps) == [('MOVE_ABOVE', '1'), ('DESCEND', '1'),
+                            ('LOCK', '1'),
                             ('ASCEND', '1'), ('VERIFY_ATTACHED', None), ('HOME', None)]
 
 
@@ -91,13 +88,13 @@ def test_attached_tool_is_returned_to_its_slot_before_fetching():
     assert names(steps) == [
         ('MOVE_ABOVE', '1'), ('DESCEND', '1'), ('UNLOCK', '1'), ('ASCEND', '1'),
         ('VERIFY_RELEASED', None),
-        ('MOVE_ABOVE', '2'), ('DESCEND', '2'), ('LOCK', '2'), ('ASCEND', '2'),
+        ('MOVE_ABOVE', '2'), ('DESCEND', '2'), ('SEAT_NUDGE', '2'), ('LOCK', '2'), ('ASCEND', '2'),
         ('VERIFY_ATTACHED', None), ('HOME', None)]
     descend = steps[1][1]['poses']
     assert descend[-1] == pytest.approx(table()['slots']['1']['seat'])
-    top = steps[0][1]['poses'][0]
-    assert top == pytest.approx(table()['slots']['1']['above'])
-    assert steps[3][1]['poses'][-1] == pytest.approx(top)
+    taught = table()['slots']['1']['above']
+    assert steps[0][1]['poses'][0] == pytest.approx(taught)
+    assert steps[3][1]['poses'][-1] == pytest.approx(taught)
     assert len(descend) == 5
 
 
@@ -160,7 +157,8 @@ def test_full_exchange_runs_every_step_in_order_and_ends_done():
     assert runner.state == 'DONE', runner.error
     assert rig.calls == [
         ('move', 1, False), ('move', 5, True), ('lock', 'UNLOCKED'), ('move', 5, True),
-        ('move', 1, False), ('move', 5, True), ('lock', 'LOCKED'), ('move', 5, True),
+        ('move', 1, False), ('move', 5, True), ('move', 1, False), ('lock', 'LOCKED'),
+        ('move', 5, True),
         ('move', 1, False)]
 
 
@@ -224,7 +222,8 @@ def test_slot_table_round_trips_as_json():
 def test_dry_run_rehearses_motion_without_coupling_or_tool_checks():
     steps = T.plan(table(), None, 'spur_1motor_gripper', HOME, rise_m=0.05,
                    step_m=0.01, dry_run=True)
-    assert names(steps) == [('MOVE_ABOVE', '1'), ('DESCEND', '1'), ('ASCEND', '1'),
+    assert names(steps) == [('MOVE_ABOVE', '1'), ('DESCEND', '1'),
+                            ('ASCEND', '1'),
                             ('HOME', None)]
 
 
@@ -242,3 +241,12 @@ def test_limit_switch_off_saves_and_reloads_a_seat_beyond_the_limits(tmp_path):
         T.plan(store.data, None, 'spur_1motor_gripper', HOME, rise_m=0.05, step_m=0.01)
     assert T.plan(store.data, None, 'spur_1motor_gripper', HOME, rise_m=0.05,
                   step_m=0.01, limits=False)
+
+
+def test_seat_and_above_may_point_the_head_differently(tmp_path):
+    store = T.ToolSlotStore(str(tmp_path / 'slots.json'), NAMES)
+    store.capture('1', 'spur_1motor_gripper', seat(), 'seat')
+    tilted = above(seat())
+    tilted['arm_joint_4'] += 0.5
+    store.capture('1', 'spur_1motor_gripper', tilted, 'above')
+    assert T.slot_complete(store.data['slots']['1'])

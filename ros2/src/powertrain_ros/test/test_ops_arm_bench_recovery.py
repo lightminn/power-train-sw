@@ -15,6 +15,7 @@ def dispatch(kind, params, **broker_fields):
         _arm_calibration_pub=sink, _tool_dual_calibration_pub=sink,
         _tool_single_calibration_pub=sink,
         _arm_bridge_restart_command='', _arm_bridge_restart_proc=None,
+        _arm_emergency_pub=SimpleNamespace(publish=lambda m: published.append(m.data)),
         _complete_order=lambda *args: outcomes.append(args[-2:]))
     broker.__dict__.update(broker_fields)
     order = SimpleNamespace(kind=kind, params=params, action='')
@@ -71,3 +72,11 @@ def test_bridge_restart_is_console_only():
     spec = ACTIONS['robot_arm_bridge_restart']
     assert spec.roles == frozenset({ROLE_CONSOLE})
     assert spec.kind == 'run_arm_bridge_restart'
+
+
+def test_arm_emergency_stop_latches_the_bridge_topic():
+    _, published, outcomes = dispatch('publish_arm_emergency_stop', {})
+    assert published == [True] and outcomes[0][0] is True
+    spec = ACTIONS['robot_arm_emergency_stop']
+    assert spec.roles == frozenset({ROLE_CONSOLE})
+    assert spec.target == ('/tool/emergency_stop',)

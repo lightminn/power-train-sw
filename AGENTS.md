@@ -555,6 +555,7 @@ OFF = 미장착 모드(estop/hold 비체결, 모터는 IDLE 한정), us100 OFF �
   새 ops 액션은 `arm_ops/contract.py`·`ops_contract.ACTIONS`·`app.py`의 `registered_actions`
   세 곳을 함께 고친다. 고빈도 명령(조그 갱신 등)을 이벤트 기록에 넣지 않는다 — 기록은 항목마다
   전체를 다시 그려 GUI를 멈춘다.
+  현장 값 튜닝을 이어받을 때는 `docs/arm-bench-operation.md`의 `값 튜닝 이어가기`와 `config/arm_bench_tuned/`를 먼저 본다.
   시연장 조작자·팀원 에이전트용 켜기·GUI 사용법·복구·금지 사항은 `docs/arm-bench-operation.md`
   (특히 4장: 브리지는 SIGKILL로만 재시작, 파워트레인 컨테이너 불간섭)를 먼저 읽는다.
 

@@ -157,6 +157,7 @@ class ArmOpsCallbackAdapter:
             resume_hold=self._wrap(session.resume_hold),
             go_home=self._wrap(session.go_home),
             save_pose=self._wrap(session.save_pose),
+            set_pose_speeds=self._wrap(session.set_pose_speeds),
             capture_tool_slot=self._wrap(session.capture_tool_slot),
             start_tool_exchange=self._wrap(session.start_tool_exchange),
             stop_tool_exchange=self._wrap(session.stop_tool_exchange),

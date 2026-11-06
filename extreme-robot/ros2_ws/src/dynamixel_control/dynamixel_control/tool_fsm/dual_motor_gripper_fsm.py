@@ -35,6 +35,8 @@ class DualMotorGripperFSM(ToolFSM):
             allowed += (ToolState.OPENING, ToolState.CLOSING)
         if self.state not in allowed:
             raise ToolCommandError(f'{command} unavailable in {self.state.name}')
+        if selected == (3,) and self.bridge.read_torque(4) != 0:
+            self.bridge.set_torque(4, False)  # ID3 drives the meshed pair alone
         endpoints = self._validated_targets()
         targets = {i: endpoints[endpoint_command.lower()][i] for i in selected}
         positions = {}

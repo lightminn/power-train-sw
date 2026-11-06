@@ -130,10 +130,11 @@ def test_registered_actions_can_be_read_off_the_real_ops_contract_module():
             K.ACTION_CALIBRATION_JOG_STOP, K.ACTION_LOCK_COMMAND, K.ACTION_LOCK_STOP,
             K.ACTION_JOG, K.ACTION_JOG_STOP, K.ACTION_STOP, K.ACTION_RESUME_HOLD,
             K.ACTION_HOME, K.ACTION_POSE_SAVE, K.ACTION_POSE_MOVE, K.ACTION_POSE_DELETE,
+            K.ACTION_POSE_SPEEDS,
             K.ACTION_FREEDRIVE, K.ACTION_FREEDRIVE_RELEASE,
             K.ACTION_TOOL_JOG, K.ACTION_TOOL_JOG_STOP, K.ACTION_MODE_RELEASE,
             K.ACTION_SLOT_CAPTURE, K.ACTION_EXCHANGE_START, K.ACTION_EXCHANGE_STOP,
-            K.ACTION_BRIDGE_RESTART,
+            K.ACTION_BRIDGE_RESTART, K.ACTION_EMERGENCY_STOP,
         })
 
 
@@ -436,3 +437,15 @@ def test_every_refusal_is_recorded_with_its_context():
     assert len(audits) == 1
     assert audits[0].reason == "manual_not_granted"
     assert audits[0].context.granted_mode == ""
+
+
+def test_emergency_stop_needs_no_grant_link_or_revision():
+    clock = FakeClock()
+    transport = RecordingArmTransport()
+    session = ArmCommandSession(clock=clock, transport=transport)
+
+    assert session.emergency_stop()
+
+    sent = transport.accepted[-1]
+    assert sent.action == K.ACTION_EMERGENCY_STOP
+    assert sent.expected_state_revision is None

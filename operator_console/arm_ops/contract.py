@@ -61,11 +61,14 @@ ACTION_MODE_RELEASE = "robot_arm_mode_release"
 ACTION_JOG = "robot_arm_jog"
 ACTION_JOG_STOP = "robot_arm_jog_stop"
 ACTION_STOP = "robot_arm_stop"
+# Latches the arm bridge E-stop: every axis holds, cleared by resume.
+ACTION_EMERGENCY_STOP = "robot_arm_emergency_stop"
 ACTION_RESUME_HOLD = "robot_arm_resume_hold"
 ACTION_HOME = "robot_arm_home"
 ACTION_POSE_SAVE = "robot_arm_pose_save"
 ACTION_POSE_MOVE = "robot_arm_pose_move"
 ACTION_POSE_DELETE = "robot_arm_pose_delete"
+ACTION_POSE_SPEEDS = "robot_arm_pose_speeds"
 ACTION_FREEDRIVE = "robot_arm_freedrive"
 ACTION_FREEDRIVE_RELEASE = "robot_arm_freedrive_release"
 ACTION_TOOL_COMMAND = "robot_arm_tool_command"
@@ -81,7 +84,9 @@ ACTION_EXCHANGE_STOP = "robot_arm_exchange_stop"
 ACTION_SLOT_CAPTURE = "robot_arm_slot_capture"
 # Bench recovery: SIGKILL + relaunch the arm bridge process (servos keep torque).
 ACTION_BRIDGE_RESTART = "robot_arm_bridge_restart"
-EXCHANGE_TOOL_TYPES = ("spur_1motor_gripper", "dual_motor_gripper", "cleaner")
+EXCHANGE_TOOL_TYPES = ("spur_1motor_gripper", "dual_motor_gripper")
+# As an exchange target: return the attached tool and fetch nothing.
+EXCHANGE_RELEASE = "none"
 EXCHANGE_SLOTS = ("1", "2", "3")
 EXCHANGE_POSES = ("seat", "above")   # seated/locked pose, pose 5 cm above it
 
@@ -109,6 +114,7 @@ MOTION_ACTIONS = frozenset({
 STOP_ACTIONS = frozenset({
     ACTION_LOCK_STOP,
     ACTION_STOP,
+    ACTION_EMERGENCY_STOP,
     ACTION_JOG_STOP,
     ACTION_TOOL_JOG_STOP,
     ACTION_CALIBRATION_JOG_STOP,
@@ -216,13 +222,19 @@ def _in(allowed) -> Callable[[Any], bool]:
     return lambda value: value in allowed
 
 
+def _is_pose_speeds(value: Any) -> bool:
+    return (isinstance(value, (list, tuple)) and len(value) == 5
+            and all(type(v) in (int, float) and 1 <= v <= 60 for v in value))
+
+
 def _is_axis(value: Any) -> bool:
     return _is_int(value) and 1 <= value <= 6
 
 
 # Bench-only jog switches ('limits', 'trip') attached to every arm jog refresh.
-# A missing key means the backend default (ON); the current trip starts OFF.
-BENCH_JOG_FLAGS: dict[str, bool] = {"trip": False}
+# A missing key means the backend default (ON), so both are sent OFF explicitly:
+# a person watches the arm on the bench, and saved poses sit outside joint_limits.
+BENCH_JOG_FLAGS: dict[str, bool] = {"limits": False, "trip": False}
 
 
 def _is_bool(value: Any) -> bool:
@@ -296,6 +308,7 @@ ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
         _spec("sequence", _is_generation),
     ),
     ACTION_STOP: (),
+    ACTION_EMERGENCY_STOP: (),
     ACTION_RESUME_HOLD: (),
     ACTION_HOME: (_spec("limits", _is_bool, required=False),
                   _spec("trip", _is_bool, required=False)),
@@ -304,6 +317,7 @@ ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
                        _spec("limits", _is_bool, required=False),
                        _spec("trip", _is_bool, required=False)),
     ACTION_POSE_DELETE: (_spec("name", _is_str),),
+    ACTION_POSE_SPEEDS: (_spec("speeds", _is_pose_speeds, note="1~5축 자세 이동 속도 °/s"),),
     ACTION_FREEDRIVE: (),
     ACTION_FREEDRIVE_RELEASE: (),
     ACTION_TOOL_COMMAND: (
@@ -347,7 +361,7 @@ ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
         _spec("sequence", _is_generation),
         *_TOOL_IDENTITY,
     ),
-    ACTION_EXCHANGE_START: (_spec("tool_type", _in(EXCHANGE_TOOL_TYPES)),
+    ACTION_EXCHANGE_START: (_spec("tool_type", _in(EXCHANGE_TOOL_TYPES + (EXCHANGE_RELEASE,))),
                             _spec("dry_run", _is_bool, required=False,
                                   note="도구 없이 이동만 시험: 체결·분리·도구 확인 생략"),
                             _spec("limits", _is_bool, required=False),
@@ -492,6 +506,7 @@ PLANNED_ACTIONS: tuple[PlannedAction, ...] = tuple(
         (ACTION_MODE_RELEASE, "제어권 반납"),
         (ACTION_JOG, "누름 조그의 시작과 최신값 갱신. deadman — expires_at_s 경과 시 정지"),
         (ACTION_JOG_STOP, "명시적 조그 종료. 사유를 포함한다"),
+        (ACTION_EMERGENCY_STOP, "팔 비상정지 래치: 전 축 현재 위치 유지·도구·볼락 정지. 복귀로 해제"),
         (ACTION_STOP, "정지. 기존 stop 의미(토크 해제)를 보존해야 한다"),
         (ACTION_RESUME_HOLD, "복귀. 현재 자세 유지 의미를 보존해야 한다"),
         (ACTION_HOME, "home. 저장된 자세 의미를 보존해야 한다"),
@@ -502,6 +517,7 @@ PLANNED_ACTIONS: tuple[PlannedAction, ...] = tuple(
         (ACTION_BRIDGE_RESTART, "팔 브리지 프로세스 강제 재시작(서보 토크 유지). 서보를 못 찾은 브리지 복구용"),
         (ACTION_POSE_MOVE, "저장 자세로 이동"),
         (ACTION_POSE_DELETE, "저장 자세 삭제"),
+        (ACTION_POSE_SPEEDS, "자세 이동·도구 교체의 축별 속도 설정"),
         (ACTION_FREEDRIVE, "자세 자유 지정: 1~4축 토크 해제(손으로 자세 잡기)"),
         (ACTION_FREEDRIVE_RELEASE, "자유 지정 해제: 현재 자세 그대로 1~4축 토크 복귀"),
         (ACTION_TOOL_COMMAND, "그리퍼 open/close/stop. 백엔드의 정상 FSM 경로를 사용해야 한다"),

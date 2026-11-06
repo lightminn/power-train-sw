@@ -37,7 +37,9 @@ def test_side_endpoint_and_jog_touch_only_requested_motor(target, motor):
     control.handle(request(command='OPEN', target=target))
     assert b.commands[-1][0:2] == ('goal', motor)
     control.handle(request(target=target))
-    assert all(row[0:2] == ('goal', motor) for row in b.commands)
+    assert all(row[0:2] == ('goal', motor) for row in b.commands if row[0] != 'torque')
+    # ID3 drives the meshed pair alone, so its limp partner goes torque off first.
+    assert b.torque == ({3: 1, 4: 0} if motor == 3 else {3: 1, 4: 1})
 
 
 def test_pair_jog_soft_release_keeps_torque_and_stops_refresh():

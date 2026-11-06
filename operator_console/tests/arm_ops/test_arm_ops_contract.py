@@ -138,7 +138,7 @@ def _widest_value(spec: K.ParamSpec):
             return candidate
     for candidate in (
         K.MODE_MANUAL, K.TARGET_RIGHT, K.COMMAND_OPEN, K.SCOPE_TOOL,
-        K.STOP_REASON_TOOL_CHANGED, "capture_close", 6, 10, 1, 0.6, False,
+        K.STOP_REASON_TOOL_CHANGED, "capture_close", 6, 10, 1, 0.6, False, [59.5] * 5,
         max(K.EXCHANGE_TOOL_TYPES, key=len), K.EXCHANGE_SLOTS[0], K.EXCHANGE_POSES[0],
     ):
         if spec.check(candidate):

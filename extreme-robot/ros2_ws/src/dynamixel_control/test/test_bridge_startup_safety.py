@@ -55,6 +55,7 @@ def _bridge(read_register):
         _read_register=read_register,
         _write_register=lambda _id, address, _size, value, label: writes.append(
             (address, value, label)),
+        _write_arm_goal_pwm=lambda _id: None,
         _write_motion_profile=lambda _id, _label, velocity=None: profiles.append(
             velocity),
         get_logger=lambda: logger,

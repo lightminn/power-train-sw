@@ -243,6 +243,18 @@ class ArmCommandSession:
     def release_mode(self) -> CommandOutcome:
         return self._issue(K.ACTION_MODE_RELEASE, intent="제어권 반납")
 
+    def emergency_stop(self) -> CommandOutcome:
+        """Latch the arm E-stop. Sent without a state revision: the broker must
+        never refuse an emergency stop for being based on an older snapshot."""
+        self._registry.release_all(
+            now=float(self._clock()), reason=K.STOP_REASON_EXPLICIT,
+        )
+        return self._submit(K.ArmOpsRequest(
+            action=K.ACTION_EMERGENCY_STOP, params={},
+            expected_state_revision=None, issued_s=float(self._clock()),
+            intent="팔 비상정지",
+        ))
+
     def stop_motion(self) -> CommandOutcome:
         """The operator's explicit stop.
 
@@ -267,6 +279,10 @@ class ArmCommandSession:
     def move_to_pose(self, name: str) -> CommandOutcome:
         return self._issue(
             K.ACTION_POSE_MOVE, {"name": str(name), **K.BENCH_JOG_FLAGS}, intent="자세 이동")
+
+    def set_pose_speeds(self, speeds) -> CommandOutcome:
+        return self._issue(
+            K.ACTION_POSE_SPEEDS, {"speeds": [float(v) for v in speeds]}, intent="축별 속도")
 
     def capture_tool_slot(self, slot: str, tool_type: str, pose: str = "seat") -> CommandOutcome:
         params = {"slot": str(slot), "tool_type": str(tool_type), "pose": str(pose)}

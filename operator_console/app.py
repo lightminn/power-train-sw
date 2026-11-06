@@ -4316,7 +4316,7 @@ class OperatorConsole(Gtk.Window):
         )
         _style(self._global_estop, "global-estop")
         self._global_estop.connect(
-            "clicked", lambda _button: self._ops_panel.trigger_estop()
+            "clicked", lambda _button: self._trigger_global_estop()
         )
         self._global_estop.set_margin_start(12)
         self._global_estop.set_margin_end(0)
@@ -4796,10 +4796,11 @@ class OperatorConsole(Gtk.Window):
                         "robot_arm_jog", "robot_arm_jog_stop",
                         "robot_arm_stop", "robot_arm_resume_hold",
                         "robot_arm_pose_save", "robot_arm_pose_move",
-                        "robot_arm_pose_delete", "robot_arm_home",
+                        "robot_arm_pose_delete", "robot_arm_pose_speeds", "robot_arm_home",
                         "robot_arm_freedrive", "robot_arm_freedrive_release",
                         "robot_arm_slot_capture", "robot_arm_exchange_start",
                         "robot_arm_exchange_stop", "robot_arm_bridge_restart",
+                        "robot_arm_emergency_stop",
                         ACTION_MODE_REQUEST, "robot_arm_mode_release", ACTION_TOOL_CHANGE,
                         ACTION_TOOL_COMMAND,
                         "robot_arm_tool_jog", "robot_arm_tool_jog_stop",
@@ -5807,6 +5808,17 @@ class OperatorConsole(Gtk.Window):
                 f"{target.class_name}  {target.confidence:.0%}\n{distance}"
             )
         self._mission_metrics["perception"].set_text(perception)
+
+    def _trigger_global_estop(self) -> None:
+        """The arm has its own E-stop; the chassis one never reaches its bridge.
+
+        The arm goes first and independently, so a missing chassis service on
+        the bench cannot cost the arm its stop.
+        """
+        adapter = getattr(self, "_arm_ops_adapter", None)
+        if adapter is not None:
+            adapter.session.emergency_stop()
+        self._ops_panel.trigger_estop()
 
     def _refresh_estop_availability(self) -> None:
         sensitive, tooltip, warning = estop_availability(

@@ -16,17 +16,17 @@ def test_actions_map_to_bridge_commands():
                                    'pose': 'above'}) == {
         'slot': '2', 'tool_type': 'dual_motor_gripper', 'pose': 'above', 'command': 'CAPTURE'}
     assert local_tool_change_request(
-        'robot_arm_exchange_start', {'tool_type': 'cleaner'}) == {
-        'tool_type': 'cleaner', 'command': 'START'}
+        'robot_arm_exchange_start', {'tool_type': 'spur_1motor_gripper'}) == {
+        'tool_type': 'spur_1motor_gripper', 'command': 'START'}
     assert local_tool_change_request('robot_arm_exchange_stop', {}) == {'command': 'STOP'}
 
 
 @pytest.mark.parametrize('action,params', [
     ('robot_arm_exchange_start', {'tool_type': 'hammer'}),
     ('robot_arm_exchange_start', {}),
-    ('robot_arm_slot_capture', {'slot': '9', 'tool_type': 'cleaner', 'pose': 'seat'}),
-    ('robot_arm_slot_capture', {'slot': '1', 'tool_type': 'cleaner'}),
-    ('robot_arm_slot_capture', {'slot': '1', 'tool_type': 'cleaner', 'pose': 'side'}),
+    ('robot_arm_slot_capture', {'slot': '9', 'tool_type': 'spur_1motor_gripper', 'pose': 'seat'}),
+    ('robot_arm_slot_capture', {'slot': '1', 'tool_type': 'spur_1motor_gripper'}),
+    ('robot_arm_slot_capture', {'slot': '1', 'tool_type': 'spur_1motor_gripper', 'pose': 'side'}),
     ('robot_arm_exchange_stop', {'command': 'START'}),
 ])
 def test_malformed_requests_are_refused(action, params):
@@ -68,11 +68,11 @@ def test_malformed_exchange_status_is_rejected(bad):
 
 def test_dry_run_is_an_optional_boolean_on_start_only():
     assert local_tool_change_request(
-        'robot_arm_exchange_start', {'tool_type': 'cleaner', 'dry_run': True}) == {
-        'tool_type': 'cleaner', 'dry_run': True, 'command': 'START'}
+        'robot_arm_exchange_start', {'tool_type': 'spur_1motor_gripper', 'dry_run': True}) == {
+        'tool_type': 'spur_1motor_gripper', 'dry_run': True, 'command': 'START'}
     for action, params in (
-            ('robot_arm_exchange_start', {'tool_type': 'cleaner', 'dry_run': 'yes'}),
-            ('robot_arm_slot_capture', {'slot': '1', 'tool_type': 'cleaner', 'pose': 'seat',
+            ('robot_arm_exchange_start', {'tool_type': 'spur_1motor_gripper', 'dry_run': 'yes'}),
+            ('robot_arm_slot_capture', {'slot': '1', 'tool_type': 'spur_1motor_gripper', 'pose': 'seat',
                                         'dry_run': True})):
         with pytest.raises(ValueError):
             local_tool_change_request(action, params)
@@ -80,13 +80,31 @@ def test_dry_run_is_an_optional_boolean_on_start_only():
 
 def test_bench_limit_and_trip_switches_ride_along():
     assert local_tool_change_request(
-        'robot_arm_slot_capture', {'slot': '1', 'tool_type': 'cleaner', 'pose': 'seat',
+        'robot_arm_slot_capture', {'slot': '1', 'tool_type': 'spur_1motor_gripper', 'pose': 'seat',
                                    'limits': False}) == {
-        'slot': '1', 'tool_type': 'cleaner', 'pose': 'seat', 'limits': False, 'command': 'CAPTURE'}
+        'slot': '1', 'tool_type': 'spur_1motor_gripper', 'pose': 'seat', 'limits': False, 'command': 'CAPTURE'}
     assert local_tool_change_request(
         'robot_arm_exchange_start',
-        {'tool_type': 'cleaner', 'limits': False, 'trip': False})['trip'] is False
+        {'tool_type': 'spur_1motor_gripper', 'limits': False, 'trip': False})['trip'] is False
     with pytest.raises(ValueError):
         local_tool_change_request('robot_arm_slot_capture',
-                                  {'slot': '1', 'tool_type': 'cleaner', 'pose': 'seat',
+                                  {'slot': '1', 'tool_type': 'spur_1motor_gripper', 'pose': 'seat',
                                    'trip': False})
+
+
+def test_a_release_is_an_exchange_to_nothing_but_never_a_slot(monkeypatch):
+    monkeypatch.setenv('ARM_LOCAL_ALL_AXES', '1')
+    assert local_tool_change_request(
+        'robot_arm_exchange_start', {'tool_type': 'none'})['tool_type'] == 'none'
+    with pytest.raises(ValueError, match='unknown tool type'):
+        local_tool_change_request('robot_arm_slot_capture', {
+            'slot': '1', 'tool_type': 'none', 'pose': 'seat'})
+
+
+def test_pose_speeds_are_five_bounded_values(monkeypatch):
+    from powertrain_observability.tool_snapshot import validate_local_pose_request
+    monkeypatch.setenv('ARM_LOCAL_ALL_AXES', '1')
+    validate_local_pose_request('robot_arm_pose_speeds', {'speeds': [37, 16, 15, 20, 27]})
+    for bad in ([37, 16, 15, 20], [37, 16, 15, 20, 61], [37, 16, 15, 20, 0]):
+        with pytest.raises(ValueError):
+            validate_local_pose_request('robot_arm_pose_speeds', {'speeds': bad})

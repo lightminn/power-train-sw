@@ -18,6 +18,10 @@ class LockError(RuntimeError):
     pass
 
 
+# Present PWM within this of the cap counts as having reached it.
+PWM_REACHED_MARGIN = 20
+
+
 class ToolchangerLock:
     actuator_id = 1
     model_number = 1060
@@ -29,6 +33,12 @@ class ToolchangerLock:
     locked_tick = None
     unlocked_tick = None
     state_tolerance = 20
+    # Wider window for LOCKED only, for a coupling that seats short of the taught
+    # tick. Kept separate so it cannot widen UNLOCKED into the same band.
+    locked_tolerance = None
+    # Goal PWM cap. Reaching it while locking counts as seated, and the push then
+    # stops: holding a stall at this force is what trips the servo's overload.
+    goal_pwm_limit = None
     # (state, tick) assumed after an uncalibrated 22.5-degree move.
     assumed = None
 
@@ -43,6 +53,7 @@ class ToolchangerLock:
         self.target = None
         self.deadline = None
         self.observed_at = None
+        self.seated = False
         if zero_tick is not None:
             self._validate_zero(zero_tick, zero_state)
 
@@ -52,6 +63,22 @@ class ToolchangerLock:
             raise LockError('zero tick must be in [0,4095]')
         if state not in ('LOCKED', 'UNLOCKED'):
             raise LockError('zero state must be LOCKED or UNLOCKED')
+
+    def _past_start(self, sample):
+        """The first quarter of the travel can spike PWM with the balls still free."""
+        if self.unlocked_tick is None:
+            return True
+        travel = abs(self.locked_tick - self.unlocked_tick)
+        return abs(sample['position'] - self.locked_tick) <= 0.75 * travel
+
+    def _pwm_cap_missing(self):
+        return (self.goal_pwm_limit is not None
+                and self.sample.get('goal_pwm', self.goal_pwm_limit) != self.goal_pwm_limit)
+
+    def _window(self, tick):
+        if tick == self.locked_tick and self.locked_tolerance is not None:
+            return self.locked_tolerance
+        return self.state_tolerance
 
     def observe(self):
         try:
@@ -65,10 +92,18 @@ class ToolchangerLock:
             self.sample = sample
             self.observed_at = self.clock()
             if self.target is not None:
-                window = self.state_tolerance if self.two_point else self.tolerance
-                if (abs(sample['position'] - self.target) <= window
-                        and sample['velocity'] == 0 and sample['torque'] == 1):
+                window = self._window(self.target) if self.two_point else self.tolerance
+                seating = (self.two_point and self.goal_pwm_limit is not None
+                           and self.target == self.locked_tick)
+                pushed = (seating and sample['torque'] == 1 and self._past_start(sample)
+                          and abs(sample.get('pwm', 0)) >= self.goal_pwm_limit - PWM_REACHED_MARGIN)
+                if pushed or (abs(sample['position'] - self.target) <= window
+                              and (seating or sample['velocity'] == 0)
+                              and sample['torque'] == 1):
                     self.target = self.deadline = None
+                    if seating:
+                        self.seated = True
+                        self.io.write('goal', sample['position'])
                 elif self.clock() >= self.deadline:
                     raise LockError('lock move timed out')
                 else:
@@ -76,8 +111,10 @@ class ToolchangerLock:
                     return self.state
             if self.two_point:
                 position = sample['position']
-                if (self.locked_tick is not None
-                        and abs(position - self.locked_tick) <= self.state_tolerance):
+                if self.seated and sample['torque'] == 1:
+                    self.state = 'LOCKED'
+                elif (self.locked_tick is not None
+                        and abs(position - self.locked_tick) <= self._window(self.locked_tick)):
                     self.state = 'LOCKED'
                 elif (self.unlocked_tick is not None
                         and abs(position - self.unlocked_tick) <= self.state_tolerance):
@@ -157,11 +194,15 @@ class ToolchangerLock:
             raise LockError('valid zero and healthy ID1 required')
         if self.sample['velocity'] != 0:
             raise LockError('ID1 must be stationary')
-        if self.sample['torque'] == 1:
+        if self.sample['torque'] == 1 and not self._pwm_cap_missing():
             self._check_profile()
             return
         current = self.sample['position']
         try:
+            if self.goal_pwm_limit is not None:
+                # Goal PWM only accepts writes with torque off.
+                self.io.write('torque', 0)
+                self.io.write('goal_pwm', self.goal_pwm_limit)
             self.io.write('acceleration', LOCK_PROFILE_ACCELERATION)
             self.io.write('velocity_profile', LOCK_PROFILE_VELOCITY)
             self.io.write('goal', current)
@@ -219,9 +260,12 @@ class ToolchangerLock:
         self.observe()
         if self.sample is None or self.target is not None:
             raise LockError('healthy idle ID1 required')
-        if self.sample['torque'] != 1:
+        if self.sample['torque'] != 1 or self._pwm_cap_missing():
             self.enable()
             self.observe()
+        if desired == 'LOCKED' and self.seated and self.state == 'LOCKED':
+            return
+        self.seated = False
         self._check_profile()
         if target is None:
             # Not recorded: one 22.5-degree step from here, flipping direction
@@ -231,7 +275,7 @@ class ToolchangerLock:
             if not 0 <= target <= 4095:
                 target = position - direction * self.step_ticks
             self.assumed = (desired, target)
-        elif abs(self.sample['position'] - target) <= self.state_tolerance:
+        elif abs(self.sample['position'] - target) <= self._window(target):
             return
         self.target = target
         # Keep the old slow-profile allowance as a generous timeout.
@@ -262,6 +306,7 @@ class ToolchangerLock:
 
     def stop(self):
         self.target = self.deadline = None
+        self.seated = False
         self.state = 'UNKNOWN'
         self.sample = None
         self.observed_at = None

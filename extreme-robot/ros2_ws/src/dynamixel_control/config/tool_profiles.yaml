@@ -1,7 +1,10 @@
 tool_profiles:
   spur_1motor_gripper:
+    # Now the excavator (shown as 굴삭기), which took over ID5 on 2026-11-06.
+    # The ticks below belong to the retired spur gripper, so motion stays
+    # refused until the excavator's own endpoints are calibrated.
     backend: gripper
-    calibrated: true
+    calibrated: false
     actuator_ids: [5]
     joint_names: [gripper_drive_joint]
     # Endpoint-only manual calibration (effort/grasp calibration remains pending).
@@ -12,6 +15,8 @@ tool_profiles:
     safe_max_tick: 3752
     profile_velocity: 20
     profile_acceleration: 5
+    # Keyboard axis 6 has no endpoints yet, so this cap is what limits a stall.
+    goal_pwm: 400
     no_load_effort: null
     grasp_effort: null
     grasp_threshold: null
@@ -43,6 +48,8 @@ tool_profiles:
     release_drop_threshold: 200
     action_time: 2.5
     goal_pwm: 280
+    # ID3 alone has to back-drive the limp ID4 gearbox and a stiff rack.
+    axis_goal_pwm: 800
     max_abs_effort: 500
     open_position: 1.9444444444444444
     close_position: 0.0

@@ -346,15 +346,17 @@ class DynamixelPositionNode(Node):
                 f"joint_names({len(self.joint_names)}) 길이가 다릅니다"
             )
 
+        # latency_timer 는 잠금이 장치를 열기 **전에** 쓴다. 열린 tty 에 쓰면 버스가
+        # 약 0.25초 끊겨 기동 시 서보 탐색이 전부 실패한다(2026-11-06 실측).
+        latency = int(self.get_parameter("ftdi_latency_timer").value)
+        if latency > 0:
+            _set_ftdi_latency(port, latency, self.get_logger())
+
         # ⚠️ 포트를 열기 **전에** 배타 잠금을 잡는다 — 이 노드와
         # moveit_dynamixel_bridge 가 같은 버스를 동시에 쓰면 "축 하나만 조용히
         # 빠지는" 형태로 망가진다(bus_lock 모듈 docstring 에 실기 사고 기록).
         # fd 는 인스턴스가 들고 있어야 한다 — GC 되면 잠금도 풀린다.
         self._bus_lock_fd = bus_lock.acquire(port, self.get_logger())
-
-        latency = int(self.get_parameter("ftdi_latency_timer").value)
-        if latency > 0:
-            _set_ftdi_latency(port, latency, self.get_logger())
 
         # 포트/패킷 핸들러 생성
         self.port_handler = PortHandler(port)

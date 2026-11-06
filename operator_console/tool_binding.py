@@ -70,8 +70,8 @@ def refresh_tool(window, snapshot):
     window._set_end_effector_summary_state(state, css)
     window._mission_tool_reading.set_text(reading)
     purpose = {
-        '단일 그리퍼': '물체 파지를 위한 작업 도구',
-        '듀얼 그리퍼': '양쪽에서 안정적으로 물체를 파지하는 작업 도구',
+        '굴삭기': '흙과 잔해를 퍼내는 작업 도구',
+        '랙앤피니언 그리퍼': '양쪽에서 안정적으로 물체를 파지하는 작업 도구',
         '청소 모듈': '재난 현장의 잔해와 표면을 정리하는 작업 도구',
     }.get(label, '현재 장착 도구의 준비 상태를 확인합니다')
     window._mission_tool_purpose.set_text(purpose)

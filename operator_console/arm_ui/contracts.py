@@ -42,8 +42,8 @@ TOOL_ENVIRONMENT_SENSOR = "environment_sensor"
 
 TOOL_KIND_KOREAN = {
     TOOL_UNKNOWN: "감지 대기",
-    TOOL_SINGLE_GRIPPER: "단일 그리퍼",
-    TOOL_DUAL_GRIPPER: "듀얼 그리퍼",
+    TOOL_SINGLE_GRIPPER: "굴삭기",
+    TOOL_DUAL_GRIPPER: "랙앤피니언 그리퍼",
     TOOL_CLEANER: "청소 모듈",
     TOOL_ENVIRONMENT_SENSOR: "환경 센서 모듈",
 }
@@ -53,8 +53,6 @@ TOOL_KIND_KOREAN = {
 SELECTABLE_TOOL_KINDS = (
     TOOL_SINGLE_GRIPPER,
     TOOL_DUAL_GRIPPER,
-    TOOL_CLEANER,
-    TOOL_ENVIRONMENT_SENSOR,
 )
 
 # Kinds that carry an existing end-effector FSM control panel.  The cleaner is
@@ -281,6 +279,7 @@ class TeleopState:
     speed_ratio: float | None = None
     jogging: bool = False
     poses: tuple[str, ...] = ()
+    pose_speeds: tuple[float, ...] = ()
     active_pose: str = ""
 
 
@@ -404,6 +403,7 @@ class ArmUiCallbacks:
     resume_hold: Callback = None                  # ()  t
     go_home: Callback = None                      # ()  h
     save_pose: Callback = None                    # (name: str)
+    set_pose_speeds: Callback = None              # (speeds: five deg/s values)
     move_to_pose: Callback = None                 # (name: str)
     delete_pose: Callback = None                  # (name: str)
     freedrive: Callback = None                    # () bench-only
@@ -490,7 +490,7 @@ def gate(
     if capability and capability not in state.capabilities and not state.developer_mode:
         return False, "지원하지 않음 — 백엔드가 이 기능을 보고하지 않음"
     # The bridge restart is the recovery for a bridge that stopped reporting
-    # (e.g. it started before servo power), so it cannot wait for LIVE state.
+    # (e.g. it missed the servos at startup), so it cannot wait for LIVE state.
     if capability == CAP_BRIDGE_RESTART:
         return True, ""
     if not is_live(state):
