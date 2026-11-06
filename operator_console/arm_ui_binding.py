@@ -108,6 +108,13 @@ class ArmUiTelemetryBinding:
                     zip(snapshot.joint_names, snapshot.joint_position_rad)
                 ) if name != 'toolchanger_lock_wheel'
             )
+            # Keyboard axis 6 drives the fitted tool's motor: show its angle too.
+            motor = {'spur_1motor_gripper': 5, 'dual_motor_gripper': 3}.get(
+                (tool or {}).get('tool_type'))
+            for row in (tool or {}).get('actuators', ()):
+                if row.get('id') == motor and isinstance(row.get('position'), (int, float)):
+                    axes += (C.AxisState(index=6, name='도구 모터',
+                                         angle_deg=float(row['position']) * 360.0 / 4096.0),)
         arm_runtime = snapshot.arm_runtime or {}
         runtime_ages = arm_runtime.get("source_age_s", {})
 
@@ -211,7 +218,8 @@ class ArmUiTelemetryBinding:
             ),
             teleop=C.TeleopState(axes=axes, selected_axis=5 if local_wrist else None,
                                  speed_level=(tool.get('local_jog_speed_level') if tool else None),
-                                 poses=tuple(pose_list or ())),
+                                 poses=tuple(pose_list or ()),
+                                 pose_speeds=tuple((tool or {}).get('pose_speeds_deg_s') or ())),
             diagnostics=diagnostics,
             calibration=_arm_calibration_state(arm_calibration),
             capabilities=frozenset(capabilities),

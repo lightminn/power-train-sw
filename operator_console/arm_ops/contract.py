@@ -68,6 +68,7 @@ ACTION_HOME = "robot_arm_home"
 ACTION_POSE_SAVE = "robot_arm_pose_save"
 ACTION_POSE_MOVE = "robot_arm_pose_move"
 ACTION_POSE_DELETE = "robot_arm_pose_delete"
+ACTION_POSE_SPEEDS = "robot_arm_pose_speeds"
 ACTION_FREEDRIVE = "robot_arm_freedrive"
 ACTION_FREEDRIVE_RELEASE = "robot_arm_freedrive_release"
 ACTION_TOOL_COMMAND = "robot_arm_tool_command"
@@ -84,6 +85,8 @@ ACTION_SLOT_CAPTURE = "robot_arm_slot_capture"
 # Bench recovery: SIGKILL + relaunch the arm bridge process (servos keep torque).
 ACTION_BRIDGE_RESTART = "robot_arm_bridge_restart"
 EXCHANGE_TOOL_TYPES = ("spur_1motor_gripper", "dual_motor_gripper")
+# As an exchange target: return the attached tool and fetch nothing.
+EXCHANGE_RELEASE = "none"
 EXCHANGE_SLOTS = ("1", "2", "3")
 EXCHANGE_POSES = ("seat", "above")   # seated/locked pose, pose 5 cm above it
 
@@ -219,6 +222,11 @@ def _in(allowed) -> Callable[[Any], bool]:
     return lambda value: value in allowed
 
 
+def _is_pose_speeds(value: Any) -> bool:
+    return (isinstance(value, (list, tuple)) and len(value) == 5
+            and all(type(v) in (int, float) and 1 <= v <= 60 for v in value))
+
+
 def _is_axis(value: Any) -> bool:
     return _is_int(value) and 1 <= value <= 6
 
@@ -309,6 +317,7 @@ ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
                        _spec("limits", _is_bool, required=False),
                        _spec("trip", _is_bool, required=False)),
     ACTION_POSE_DELETE: (_spec("name", _is_str),),
+    ACTION_POSE_SPEEDS: (_spec("speeds", _is_pose_speeds, note="1~5축 자세 이동 속도 °/s"),),
     ACTION_FREEDRIVE: (),
     ACTION_FREEDRIVE_RELEASE: (),
     ACTION_TOOL_COMMAND: (
@@ -352,7 +361,7 @@ ACTION_PARAMS: dict[str, tuple[ParamSpec, ...]] = {
         _spec("sequence", _is_generation),
         *_TOOL_IDENTITY,
     ),
-    ACTION_EXCHANGE_START: (_spec("tool_type", _in(EXCHANGE_TOOL_TYPES)),
+    ACTION_EXCHANGE_START: (_spec("tool_type", _in(EXCHANGE_TOOL_TYPES + (EXCHANGE_RELEASE,))),
                             _spec("dry_run", _is_bool, required=False,
                                   note="도구 없이 이동만 시험: 체결·분리·도구 확인 생략"),
                             _spec("limits", _is_bool, required=False),
@@ -508,6 +517,7 @@ PLANNED_ACTIONS: tuple[PlannedAction, ...] = tuple(
         (ACTION_BRIDGE_RESTART, "팔 브리지 프로세스 강제 재시작(서보 토크 유지). 서보를 못 찾은 브리지 복구용"),
         (ACTION_POSE_MOVE, "저장 자세로 이동"),
         (ACTION_POSE_DELETE, "저장 자세 삭제"),
+        (ACTION_POSE_SPEEDS, "자세 이동·도구 교체의 축별 속도 설정"),
         (ACTION_FREEDRIVE, "자세 자유 지정: 1~4축 토크 해제(손으로 자세 잡기)"),
         (ACTION_FREEDRIVE_RELEASE, "자유 지정 해제: 현재 자세 그대로 1~4축 토크 복귀"),
         (ACTION_TOOL_COMMAND, "그리퍼 open/close/stop. 백엔드의 정상 FSM 경로를 사용해야 한다"),

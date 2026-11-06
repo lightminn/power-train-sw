@@ -57,9 +57,8 @@ KEY_BINDINGS: tuple[tuple[str, str], ...] = (
     ("H", "home (저장된 자세)"),
 )
 
-# Axis count: 1–5 are arm joints; 6 is the legacy gripper axis and is offered
-# only when the active tool actually supports it, never remapped onto a tool
-# that does not have that joint.
+# Axis count: 1–5 are arm joints; 6 is the fitted tool's motor (excavator ID5,
+# rack gripper ID3) and is offered only while one of those tools is detected.
 ARM_AXIS_COUNT = 5
 GRIPPER_AXIS_INDEX = 6
 
@@ -110,11 +109,15 @@ EXCHANGE_TOOL_LABELS = {
     "spur_1motor_gripper": "굴삭기",
     "dual_motor_gripper": "랙앤피니언 그리퍼",
 }
+# Each tool has exactly one slot.
+EXCHANGE_SLOTS = {"spur_1motor_gripper": "1", "dual_motor_gripper": "2"}
 EXCHANGE_STATE_LABELS = {
     "IDLE": "대기", "MOVE_ABOVE": "슬롯 위로 이동", "DESCEND": "수직 하강",
     "LOCK": "체결", "UNLOCK": "분리", "ASCEND": "수직 상승",
     "VERIFY_RELEASED": "분리 확인", "VERIFY_ATTACHED": "장착 확인",
-    "HOME": "기본 자세 복귀", "DONE": "완료", "ABORTED": "중단",
+    "HOME": "기본 자세 복귀", "TOOL_TICK": "도구 모터 위치 맞춤",
+    "TOOL_EXERCISE": "도구 시험 동작", "SEAT_NUDGE": "1축 +5° 회전",
+    "DONE": "완료", "ABORTED": "중단",
 }
 
 
@@ -267,7 +270,7 @@ class KeyboardTeleopPanel:
         self.gate.add(
             toggle, select, C.CAP_TELEOP_JOG,
             extra=lambda state, axis=index: (
-                "현재 도구가 6번 축을 지원하지 않음"
+                "굴삭기나 랙앤피니언 그리퍼가 달려 있을 때만 6번 축을 쓸 수 있음"
                 if axis == GRIPPER_AXIS_INDEX
                 and state.detected_tool.kind not in C.GRIPPER_TOOL_KINDS
                 else ""
@@ -311,9 +314,10 @@ class KeyboardTeleopPanel:
     def _build_exchange_card(self) -> Gtk.Widget:
         card = Card(
             "도구 교체 (슬롯)",
-            "슬롯마다 머리를 바닥으로 향한 ① 체결 자세와 ② 그 5cm 위 자세를 저장합니다. "
+            "도구마다 슬롯이 하나입니다. 머리를 바닥으로 향한 ① 체결 자세와 ② 그 5cm 위 자세를 저장합니다. "
             "교체는 달린 도구를 자기 슬롯에 반납하고 요청 도구를 가져온 뒤 home 자세로 "
-            "돌아갑니다. 두 자세 사이를 모든 축이 함께 움직여 머리 방향을 유지합니다. "
+            "돌아갑니다. 도구 해제는 달린 도구를 자기 슬롯에 반납만 합니다. "
+            "두 자세 사이를 모든 축이 함께 움직여 머리 방향을 유지합니다. "
             "위의 관절 제한·전류 트립 토글이 슬롯 저장과 교체에도 적용됩니다.",
             accent="teleop",
             with_badge=False,
@@ -322,15 +326,11 @@ class KeyboardTeleopPanel:
         for kind, text in EXCHANGE_TOOL_LABELS.items():
             self._exchange_tool.append(kind, text)
         self._exchange_tool.set_active(0)
-        self._exchange_slot = Gtk.ComboBoxText()
-        for slot in ("1", "2", "3"):
-            self._exchange_slot.append(slot, f"슬롯 {slot}")
-        self._exchange_slot.set_active(0)
         def capture_button(text, pose):
             return self._simple(
                 text, self._callbacks.capture_tool_slot, C.CAP_TELEOP_POSE,
                 lambda: self._callbacks.capture_tool_slot(
-                    self._exchange_slot.get_active_id(),
+                    EXCHANGE_SLOTS[self._exchange_tool.get_active_id()],
                     self._exchange_tool.get_active_id(), pose),
             )
 
@@ -343,6 +343,13 @@ class KeyboardTeleopPanel:
                 self._exchange_tool.get_active_id(), self._exchange_dry_run.get_active()),
             "arm-danger",
         )
+        release = self._simple(
+            "도구 해제 (슬롯에 반납)", self._callbacks.start_tool_exchange,
+            C.CAP_TELEOP_POSE,
+            lambda: self._callbacks.start_tool_exchange(
+                "none", self._exchange_dry_run.get_active()),
+            "arm-danger",
+        )
         self._exchange_dry_run = Gtk.CheckButton(
             label="도구 없이 동작만 시험 (체결·분리·도구 확인 생략)")
         # Stopping must stay reachable whatever the gates say.
@@ -350,10 +357,10 @@ class KeyboardTeleopPanel:
         if self._callbacks.stop_tool_exchange is not None:
             self.tracker.connect(stop, "clicked",
                                  lambda _b: self._callbacks.stop_tool_exchange())
-        card.pack(reflow_row([self._exchange_tool, self._exchange_slot], columns=2))
+        card.pack(self._exchange_tool)
         card.pack(reflow_row([capture_seat, capture_above], columns=2))
         card.pack(self._exchange_dry_run)
-        card.pack(reflow_row([start, stop], columns=2))
+        card.pack(reflow_row([start, release, stop], columns=3))
         self._exchange_status = label("교체 상태 미수신", "arm-note", wrap=True)
         card.pack(self._exchange_status)
         return card.box
@@ -438,6 +445,24 @@ class KeyboardTeleopPanel:
         self.tracker.connect(
             self._pose_list, "changed", lambda _c: self.gate.apply(self._state),
         )
+        card.pack(label("축별 이동 속도 (°/s). 자세 이동과 도구 교체의 슬롯·home 이동에 "
+                        "쓰입니다. 슬롯 5cm 수직 이동은 별도입니다.", "arm-note", wrap=True))
+        self._pose_speed_spins = []
+        speed_widgets = []
+        for axis in range(1, ARM_AXIS_COUNT + 1):
+            spin = Gtk.SpinButton.new_with_range(1, 60, 1)
+            spin.set_orientation(Gtk.Orientation.VERTICAL)  # keeps the row narrow
+            self._pose_speed_spins.append(spin)
+            column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            column.pack_start(label(f"{axis}축", "arm-metric-label"), False, False, 0)
+            column.pack_start(spin, False, False, 0)
+            speed_widgets.append(column)
+        card.pack(reflow_row(speed_widgets, columns=ARM_AXIS_COUNT))
+        card.pack(self._simple(
+            "축별 속도 적용", self._callbacks.set_pose_speeds, C.CAP_TELEOP_POSE,
+            lambda: self._callbacks.set_pose_speeds(
+                [spin.get_value() for spin in self._pose_speed_spins]),
+        ))
         return card.box
 
     def _with_selected_pose(self, callback: C.Callback) -> None:
@@ -670,6 +695,11 @@ class KeyboardTeleopPanel:
                 )
             self._angles.show_all()
 
+        # Only a new reported value rewrites the boxes, so typing is not overwritten.
+        if teleop.pose_speeds and teleop.pose_speeds != getattr(self, '_pose_speeds_shown', None):
+            self._pose_speeds_shown = teleop.pose_speeds
+            for spin, value in zip(self._pose_speed_spins, teleop.pose_speeds):
+                spin.set_value(value)
         current_pose = self._pose_list.get_active_text()
         if tuple(self._pose_names()) != teleop.poses:
             self._pose_list.remove_all()

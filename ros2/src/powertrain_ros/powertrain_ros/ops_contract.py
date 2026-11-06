@@ -129,6 +129,7 @@ ACTIONS = {
     "robot_arm_pose_save": ActionSpec(_CONSOLE, "publish_local_pose", ("/arm/local_pose",)),
     "robot_arm_pose_move": ActionSpec(_CONSOLE, "publish_local_pose", ("/arm/local_pose",)),
     "robot_arm_pose_delete": ActionSpec(_CONSOLE, "publish_local_pose", ("/arm/local_pose",)),
+    "robot_arm_pose_speeds": ActionSpec(_CONSOLE, "publish_local_pose", ("/arm/local_pose",)),
     "robot_arm_home": ActionSpec(_CONSOLE, "publish_local_pose", ("/arm/local_pose",)),
     "robot_arm_freedrive": ActionSpec(_CONSOLE, "publish_local_pose", ("/arm/local_pose",)),
     "robot_arm_freedrive_release": ActionSpec(_CONSOLE, "publish_local_pose", ("/arm/local_pose",)),

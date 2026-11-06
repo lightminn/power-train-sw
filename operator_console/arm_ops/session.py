@@ -280,6 +280,10 @@ class ArmCommandSession:
         return self._issue(
             K.ACTION_POSE_MOVE, {"name": str(name), **K.BENCH_JOG_FLAGS}, intent="자세 이동")
 
+    def set_pose_speeds(self, speeds) -> CommandOutcome:
+        return self._issue(
+            K.ACTION_POSE_SPEEDS, {"speeds": [float(v) for v in speeds]}, intent="축별 속도")
+
     def capture_tool_slot(self, slot: str, tool_type: str, pose: str = "seat") -> CommandOutcome:
         params = {"slot": str(slot), "tool_type": str(tool_type), "pose": str(pose)}
         if "limits" in K.BENCH_JOG_FLAGS:

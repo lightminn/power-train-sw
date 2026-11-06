@@ -90,3 +90,21 @@ def test_bench_limit_and_trip_switches_ride_along():
         local_tool_change_request('robot_arm_slot_capture',
                                   {'slot': '1', 'tool_type': 'spur_1motor_gripper', 'pose': 'seat',
                                    'trip': False})
+
+
+def test_a_release_is_an_exchange_to_nothing_but_never_a_slot(monkeypatch):
+    monkeypatch.setenv('ARM_LOCAL_ALL_AXES', '1')
+    assert local_tool_change_request(
+        'robot_arm_exchange_start', {'tool_type': 'none'})['tool_type'] == 'none'
+    with pytest.raises(ValueError, match='unknown tool type'):
+        local_tool_change_request('robot_arm_slot_capture', {
+            'slot': '1', 'tool_type': 'none', 'pose': 'seat'})
+
+
+def test_pose_speeds_are_five_bounded_values(monkeypatch):
+    from powertrain_observability.tool_snapshot import validate_local_pose_request
+    monkeypatch.setenv('ARM_LOCAL_ALL_AXES', '1')
+    validate_local_pose_request('robot_arm_pose_speeds', {'speeds': [37, 16, 15, 20, 27]})
+    for bad in ([37, 16, 15, 20], [37, 16, 15, 20, 61], [37, 16, 15, 20, 0]):
+        with pytest.raises(ValueError):
+            validate_local_pose_request('robot_arm_pose_speeds', {'speeds': bad})

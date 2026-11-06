@@ -279,6 +279,7 @@ class TeleopState:
     speed_ratio: float | None = None
     jogging: bool = False
     poses: tuple[str, ...] = ()
+    pose_speeds: tuple[float, ...] = ()
     active_pose: str = ""
 
 
@@ -402,6 +403,7 @@ class ArmUiCallbacks:
     resume_hold: Callback = None                  # ()  t
     go_home: Callback = None                      # ()  h
     save_pose: Callback = None                    # (name: str)
+    set_pose_speeds: Callback = None              # (speeds: five deg/s values)
     move_to_pose: Callback = None                 # (name: str)
     delete_pose: Callback = None                  # (name: str)
     freedrive: Callback = None                    # () bench-only

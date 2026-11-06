@@ -41,13 +41,14 @@ ARM_JOINT_LIMITS = {
 # The arm URDF shares the CAD joint origins and axes, but the bridge calibration
 # has its own zero; joints 2/3 count upward as positive (CAD: -pi..0) and
 # joint 4 turns opposite to the CAD axis (operator-checked 2026-11-04).
-# Zeros are the 2026-11-04 bench pose the operator matched to the CAD zero pose.
+# Zeros are the 2026-11-04 bench pose the operator matched to the CAD zero pose;
+# joint 5 was redone 2026-11-06 with the rack gripper level at home (CAD 0 = level).
 BRIDGE_TO_CAD = {
     "arm_joint_1": ("arm_J1_yaw", 1.0, -0.48627190975974827),
     "arm_joint_2": ("arm_J2_shoulder", -1.0, -0.4705181274331538),
     "arm_joint_3": ("arm_J3_elbow", -1.0, -0.21225130208615678),
     "arm_joint_4": ("arm4_rotation", -1.0, 0.0015339807878856412),
-    "arm_joint_5": ("axis5_rotation", 1.0, -2.146039122252012),
+    "arm_joint_5": ("axis5_rotation", 1.0, -0.18714565612204823),
 }
 
 

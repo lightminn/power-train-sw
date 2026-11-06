@@ -105,6 +105,10 @@ def normalize_tool(value):
                 or any(not isinstance(p, str) or not 1 <= len(p) <= 64 for p in poses)):
             raise ValueError('invalid pose list')
         out['poses'] = poses
+    speeds = value.get('pose_speeds_deg_s')
+    if speeds and len(speeds) == 5 and all(
+            type(v) in (int, float) and 1 <= v <= 60 for v in speeds):
+        out['pose_speeds_deg_s'] = list(speeds)
     exchange = value.get('local_tool_change')
     if isinstance(exchange, dict):
         out['local_tool_change'] = _exchange_status(exchange)
@@ -244,6 +248,13 @@ def validate_local_pose_request(action, params):
     """Bench-only pose actions: a short name (except home) and optional switches."""
     if os.environ.get('ARM_LOCAL_ALL_AXES') != '1':
         raise ValueError('local pose actions are bench-only')
+    if action == 'robot_arm_pose_speeds':
+        speeds = params.get('speeds')
+        if (set(params) != {'speeds'} or not isinstance(speeds, (list, tuple))
+                or len(speeds) != 5
+                or any(type(v) not in (int, float) or not 1 <= v <= 60 for v in speeds)):
+            raise ValueError('invalid pose speeds')
+        return
     named = action not in ('robot_arm_home', 'robot_arm_freedrive',
                            'robot_arm_freedrive_release')
     allowed = ({'name'} if named else set()) | (
@@ -273,7 +284,8 @@ def local_tool_change_request(action, params):
     for flag in flags & set(params):
         if type(params[flag]) is not bool:
             raise ValueError(f'invalid {flag} flag')
-    if 'tool_type' in params and params['tool_type'] not in EXCHANGE_TOOL_TYPES:
+    release = action == 'robot_arm_exchange_start' and params.get('tool_type') == 'none'
+    if 'tool_type' in params and not release and params['tool_type'] not in EXCHANGE_TOOL_TYPES:
         raise ValueError('unknown tool type')
     if 'slot' in params and params['slot'] not in ('1', '2', '3'):
         raise ValueError('unknown slot')
@@ -337,7 +349,7 @@ def validate_local_wrist_request(action, params):
     allowed = required if stop else required | {'speed_level', 'limits', 'trip'}
     if not required <= params.keys() or not params.keys() <= allowed:
         raise ValueError('invalid local wrist parameters')
-    axes = (1, 2, 3, 4, 5) if os.environ.get('ARM_LOCAL_ALL_AXES') == '1' else (5,)
+    axes = (1, 2, 3, 4, 5, 6) if os.environ.get('ARM_LOCAL_ALL_AXES') == '1' else (5,)
     if type(params['axis']) is not int or params['axis'] not in axes:
         raise ValueError(f'local bench supports only axes {axes}')
     for flag in ('limits', 'trip'):
